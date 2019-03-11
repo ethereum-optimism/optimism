@@ -16,5 +16,9 @@
     "utils"
   ],
   "author": "Plasma Group",
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "37fee8d91711e93d425701d889bffad7df7512e1"
 }
