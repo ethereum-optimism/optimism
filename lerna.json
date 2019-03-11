@@ -1,0 +1,12 @@
+{
+  "lerna": "2.4.0",
+  "packages": [
+    "packages/*"
+  ],
+  "command": {
+    "publish": {
+        "ignoreChanges": ["*.md", "tslint.json", "tsconfig.json"]
+    }
+  },
+  "version": "0.0.1-alpha.0"
+}

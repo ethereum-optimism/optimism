@@ -1,0 +1,17 @@
+{
+  "name": "@pigi/utils",
+  "version": "0.0.1",
+  "description": "Plasma Group core utils",
+  "main": "build/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum",
+    "utils"
+  ],
+  "author": "Plasma Group",
+  "license": "MIT"
+}
