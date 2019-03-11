@@ -1,17 +1,23 @@
+const fs = require('fs')
+const path = require('path')
 const gulp = require('gulp')
 const ts = require('gulp-typescript')
 const clean = require('gulp-clean')
 const deleteEmpty = require('delete-empty')
 const minimist = require('minimist')
 
-const packages = {
-  utils: ts.createProject('packages/utils/tsconfig.json'),
-}
-const modules = Object.keys(packages)
 const source = 'packages'
+const modules = fs.readdirSync(source).filter((item) => {
+  return fs.lstatSync(`${source}/${item}`).isDirectory()
+}) 
+const packages = modules.reduce((pkgs, module) => {
+  pkgs[module] = ts.createProject(`${source}/${module}/tsconfig.json`)
+  return pkgs
+}, {})
+
 const argv = minimist(process.argv.slice(2))
 const dist = argv['dist'] || source
-const pkgs = argv['pkgs'] || modules
+const pkgs = (argv['pkgs'].split(',')) || modules
 
 gulp.task('default', function() {
   modules.forEach((module) => {
@@ -23,9 +29,11 @@ gulp.task('default', function() {
 })
 
 gulp.task('copy-misc', function() {
-  return gulp
-    .src(['README.md', 'LICENSE.txt', '.npmignore'])
-    .pipe(gulp.dest(`${source}/utils`))
+  modules.forEach((module) => {
+    return gulp
+      .src(['README.md', 'LICENSE.txt', '.npmignore'])
+      .pipe(gulp.dest(`${source}/${module}`))
+  })
 })
 
 gulp.task('clean:output', function() {
