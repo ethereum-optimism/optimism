@@ -8,9 +8,9 @@
     "fix": "prettier --write 'packages/**/*.ts' 'index.ts' 'gulpfile.js'",
     "prebuild:dev": "rm -rf node_modules/@pigi",
     "clean": "gulp clean:bundle",
-    "build": "npm run clean && gulp build",
+    "build": "npm run clean && gulp build --pkgs ${PKGS:-0}",
     "build:dev": "gulp build --dist node_modules/@pigi --pkgs ${PKGS:-0}",
-    "prerelease": "gulp copy-misc && gulp build --dist node_modules/@pigi",
+    "prerelease": "gulp copy-misc && npm run build:dev",
     "publish:beta": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@pigi) publish %s release\""
   },
   "repository": {

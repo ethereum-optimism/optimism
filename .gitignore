@@ -1,16 +1,18 @@
 # Dependencies
 node_modules/
 
+# Build
+/**/build/
+
 # IDE
 /.idea
 /.awcache
 /.vscode
 
 # misc
+*.swp
 .DS_Store
 lerna-debug.log
 npm-debug.log
 /**/npm-debug.log
-/packages/**/.npmignore
 /packages/**/LICENSE.txt
-
