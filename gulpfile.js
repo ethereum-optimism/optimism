@@ -16,7 +16,7 @@ const packages = modules.reduce((pkgs, module) => {
 }, {})
 
 const argv = minimist(process.argv.slice(2))
-const dist = argv['dist'] || source
+const dist = argv['dist']
 const pkgs = argv['pkgs'] ? argv['pkgs'].split(',') : modules
 
 gulp.task('default', function() {
@@ -29,11 +29,11 @@ gulp.task('default', function() {
 })
 
 gulp.task('copy-misc', function() {
+  let pipeline = gulp.src(['LICENSE.txt'])
   modules.forEach((module) => {
-    return gulp
-      .src(['LICENSE.txt'])
-      .pipe(gulp.dest(`${source}/${module}`))
+    pipeline = pipeline.pipe(gulp.dest(`${source}/${module}`))
   })
+  return pipeline
 })
 
 gulp.task('clean:output', function() {
@@ -56,7 +56,7 @@ modules.forEach((module) => {
     return packages[module]
       .src()
       .pipe(packages[module]())
-      .pipe(gulp.dest(`${source}/${module}/build`))
+      .pipe(gulp.dest(dist || `${source}/${module}/build`))
   })
 })
 

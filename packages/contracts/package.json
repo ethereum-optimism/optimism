@@ -2,7 +2,10 @@
   "name": "@pigi/contracts",
   "version": "0.0.0-PLACEHOLDER",
   "description": "PG smart contracts",
-  "main": "index.js",
+  "main": "build/index.js",
+  "files": [
+    "build/**/.js"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

@@ -41,6 +41,7 @@
     "gulp": "^4.0.0",
     "gulp-clean": "^0.4.0",
     "gulp-typescript": "^5.0.0",
+    "lerna": "^3.13.1",
     "minimist": "^1.2.0",
     "mocha": "^6.0.2",
     "prettier": "^1.16.4",
