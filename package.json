@@ -1,0 +1,24 @@
+{
+  "name": "pigi",
+  "version": "0.0.1",
+  "description": "Plasma Group monorepo",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plasma-group/pigi.git"
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum"
+  ],
+  "author": "Plasma Group",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/plasma-group/pigi/issues"
+  },
+  "homepage": "https://github.com/plasma-group/pigi#readme"
+}
