@@ -1,6 +1,6 @@
 {
   "name": "@pigi/contracts",
-  "version": "0.0.0-PLACEHOLDER",
+  "version": "0.0.1-alpha.1",
   "description": "PG smart contracts",
   "main": "build/index.js",
   "files": [
