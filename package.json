@@ -11,11 +11,13 @@
     "build": "npm run clean && gulp build --pkgs ${PKGS:-0}",
     "build:dev": "gulp build --dist node_modules/@pigi --pkgs ${PKGS:-0}",
     "prerelease": "gulp copy-misc && npm run build:dev",
+    "publish": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@pigi) publish %s release\"",
+    "publish:rc": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@pigi) publish %s release\"",
     "publish:beta": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@pigi) publish %s release\""
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/plasma-group/pigi.git"
+    "url": "git+https://github.com/plasma-group/@pigi.git"
   },
   "keywords": [
     "plasma",
@@ -25,9 +27,9 @@
   "author": "Plasma Group",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/plasma-group/pigi/issues"
+    "url": "https://github.com/plasma-group/@pigi/issues"
   },
-  "homepage": "https://github.com/plasma-group/pigi#readme",
+  "homepage": "https://github.com/plasma-group/@pigi#readme",
   "dependencies": {
     "@types/bn.js": "^4.11.4",
     "async-lock": "^1.1.4",
