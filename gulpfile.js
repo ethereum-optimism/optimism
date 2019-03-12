@@ -56,7 +56,7 @@ modules.forEach((module) => {
     return packages[module]
       .src()
       .pipe(packages[module]())
-      .pipe(gulp.dest(dist || `${source}/${module}/build`))
+      .pipe(gulp.dest(`${dist}/${module}` || `${source}/${module}/build`))
   })
 })
 

@@ -1,0 +1,27 @@
+{
+  "name": "@pigi/verifier",
+  "version": "0.0.1-alpha.0",
+  "description": "Plasma Group state execution verifier",
+  "main": "build/index.js",
+  "files": [
+    "build/**/.js"
+  ],
+  "scripts": {
+    "test": "mocha --require ts-node/register 'test/**/*.ts'"
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum",
+    "verifier"
+  ],
+  "author": "Plasma Group",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
