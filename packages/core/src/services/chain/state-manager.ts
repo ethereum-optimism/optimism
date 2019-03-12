@@ -1,5 +1,5 @@
 /* External Imports */
-import { StateObject } from 'plasma-utils'
+import { StateObject } from '@pigi/utils'
 
 /* Internal Imports */
 import { RangeStore } from './range-store'

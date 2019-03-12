@@ -1,1 +1,1 @@
-export { PlasmaApp } from './src/plasma'
+export { AppModule } from './src/app.module'

@@ -1,7 +1,7 @@
 /* External Imports */
 import { Service } from '@nestd/core'
 import AsyncLock from 'async-lock'
-import { Transaction } from 'plasma-utils'
+import { Transaction } from '@pigi/utils'
 
 /* Services */
 import { LoggerService } from '../logger.service'

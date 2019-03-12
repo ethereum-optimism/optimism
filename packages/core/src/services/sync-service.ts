@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
-import { sleep, Transaction } from 'plasma-utils'
+import { sleep, Transaction } from '@pigi/utils'
 
 /* Services */
 import { LoggerService } from './logger.service'

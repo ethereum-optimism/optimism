@@ -1,8 +1,8 @@
 /* External Imports */
 import { Service } from '@nestd/core'
 import BigNum from 'bn.js'
-import { MerkleSumTree, Transaction } from 'plasma-utils'
-import { validStateTransition } from 'plasma-verifier'
+import { MerkleSumTree, Transaction } from '@pigi/utils'
+import { validStateTransition } from '@pigi/verifier'
 
 /* Services */
 import { ETHProvider } from '../eth/eth-provider'

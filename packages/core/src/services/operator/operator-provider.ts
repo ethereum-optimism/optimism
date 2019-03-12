@@ -2,7 +2,7 @@
 import { Service, OnStart } from '@nestd/core'
 import axios, { AxiosInstance, AxiosResponse } from 'axios'
 import uuidv4 from 'uuid'
-import { Transaction, sleep } from 'plasma-utils'
+import { Transaction, sleep } from '@pigi/utils'
 
 /* Services */
 import { LoggerService } from '../logger.service'

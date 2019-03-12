@@ -1,5 +1,5 @@
 import BigNum from 'bn.js'
-import { StateObject } from 'plasma-utils'
+import { StateObject } from '@pigi/utils'
 
 export interface ExitArgs {
   owner: string

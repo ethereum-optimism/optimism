@@ -1,3 +1,3 @@
-import { StateObject } from 'plasma-utils'
+import { StateObject } from '@pigi/utils'
 
 export class Deposit extends StateObject {}

@@ -1,7 +1,7 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
 import BigNum from 'bn.js'
-import { Transaction, StateObject } from 'plasma-utils'
+import { Transaction, StateObject } from '@pigi/utils'
 
 /* Services */
 import { ContractProvider } from '../../eth/contract-provider'

@@ -1,4 +1,4 @@
-import { Transaction } from 'plasma-utils'
+import { Transaction } from '@pigi/utils'
 import { Deposit } from './deposit'
 
 export interface TransactionProof {

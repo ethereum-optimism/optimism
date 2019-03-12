@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
-import { Transaction } from 'plasma-utils'
+import { Transaction } from '@pigi/utils'
 
 /* Services */
 import { BaseDBProvider } from '../backends/base-provider'
