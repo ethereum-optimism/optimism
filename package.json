@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/plasma-group/@pigi.git"
+    "url": "git+https://github.com/plasma-group/pigi.git"
   },
   "keywords": [
     "plasma",
@@ -27,9 +27,9 @@
   "author": "Plasma Group",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/plasma-group/@pigi/issues"
+    "url": "https://github.com/plasma-group/pigi/issues"
   },
-  "homepage": "https://github.com/plasma-group/@pigi#readme",
+  "homepage": "https://github.com/plasma-group/pigi#readme",
   "dependencies": {
     "@types/bn.js": "^4.11.4",
     "async-lock": "^1.1.4",

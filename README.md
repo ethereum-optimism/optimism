@@ -22,7 +22,7 @@ All of the core plasma group projects are hosted inside of the [packages](https:
 Welcome! If you're looking to contribute to the future of plasma, you're in the right place.
 
 ### Contributing Guide and Code of Conduct
-Plasma Group follows a [Contributing Guide and Code of Conduct](https://github.com/plasma-group/@pigi/blob/master/.github/CONTRIBUTING.md) adapted slightly from the [Contributor Covenant](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html).
+Plasma Group follows a [Contributing Guide and Code of Conduct](https://github.com/plasma-group/pigi/blob/master/.github/CONTRIBUTING.md) adapted slightly from the [Contributor Covenant](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html).
 All contributors **must** read through this guide before contributing.
 We're here to cultivate a welcoming and inclusive contributing environment, and every new contributor needs to do their part to uphold our community standards.
 
@@ -31,7 +31,7 @@ We're here to cultivate a welcoming and inclusive contributing environment, and 
 Before you start working on a Plasma Group project, you'll need to clone our GitHub repository:
 
 ```
-git clone git@github.com:plasma-group/@pigi.git
+git clone git@github.com:plasma-group/pigi.git
 ```
 
 Now, enter the repository.
