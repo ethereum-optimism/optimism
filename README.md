@@ -20,4 +20,4 @@ All of the core plasma group projects are hosted inside of the [packages](https:
 
 ## Credit where credit is due!
 We'd like to give a big shoutout to [0x](https://0x.org/) and [Nest.js](https://nestjs.com/) for inspiration about the best ways to design this monorepo.
-Please check out their respective repos ((0x)[https://github.com/0xProject/0x-monorepo] and (Nest.js)[https://github.com/nestjs/nest]) if you're looking for other cool projects to work on :blush:!
+Please check out their respective repos ([0x](https://github.com/0xProject/0x-monorepo) and [Nest.js](https://github.com/nestjs/nest)) if you're looking for other cool projects to work on :blush:!
