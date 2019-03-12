@@ -11,9 +11,9 @@
     "build": "npm run clean && gulp build --pkgs ${PKGS:-0}",
     "build:dev": "gulp build --dist node_modules/@pigi --pkgs ${PKGS:-0}",
     "prerelease": "gulp copy-misc && npm run build:dev",
-    "publish": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@pigi) publish %s release\"",
-    "publish:rc": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@pigi) publish %s release\"",
-    "publish:beta": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@pigi) publish %s release\""
+    "publish": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
+    "publish:rc": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
+    "publish:beta": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@plasma-group) publish %s release\""
   },
   "repository": {
     "type": "git",
