@@ -1,7 +1,7 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
 import BigNum from 'bn.js'
-import * as compiledContracts from 'plasma-contracts'
+import * as compiledContracts from '@pigi/contracts'
 import Web3 = require('web3')
 import Contract from 'web3/eth/contract'
 import { EventLog } from 'web3/types'

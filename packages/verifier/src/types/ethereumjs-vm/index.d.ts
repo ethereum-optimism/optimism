@@ -40,16 +40,16 @@ declare module 'ethereumjs-vm' {
   }
 
   class StateManager {
-    generateGenesis(
+    public generateGenesis(
       initState: GenesisData,
       callback?: (err?: Error, result?: void) => void
     ): void
   }
 
   class VM {
-    stateManager: StateManager
+    public stateManager: StateManager
     constructor(options?: VMOptions)
-    runTx(
+    public runTx(
       options: TxExecutionOptions,
       callback?: (err?: Error, result?: ExecutionResult) => void
     ): ExecutionResult

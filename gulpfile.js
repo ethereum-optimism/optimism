@@ -1,5 +1,4 @@
 const fs = require('fs')
-const path = require('path')
 const gulp = require('gulp')
 const ts = require('gulp-typescript')
 const clean = require('gulp-clean')
@@ -9,7 +8,7 @@ const minimist = require('minimist')
 const source = 'packages'
 const modules = fs.readdirSync(source).filter((item) => {
   return fs.lstatSync(`${source}/${item}`).isDirectory()
-}) 
+})
 const packages = modules.reduce((pkgs, module) => {
   pkgs[module] = ts.createProject(`${source}/${module}/tsconfig.json`)
   return pkgs

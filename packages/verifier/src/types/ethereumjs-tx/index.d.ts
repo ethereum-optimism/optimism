@@ -11,7 +11,7 @@ declare module 'ethereumjs-tx' {
 
   class EthereumTx {
     constructor(args: EthereumTxParams)
-    sign(privateKey: Buffer): void
+    public sign(privateKey: Buffer): void
   }
 
   export = EthereumTx
