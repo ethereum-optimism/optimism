@@ -17,6 +17,10 @@
   ],
   "author": "Plasma Group",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
   "publishConfig": {
     "access": "public"
   },

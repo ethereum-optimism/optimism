@@ -7,7 +7,7 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha --require ts-node/register 'test/**/*.ts'"
   },
   "keywords": [
     "plasma",
@@ -18,6 +18,10 @@
   ],
   "author": "Plasma Group",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
   "publishConfig": {
     "access": "public"
   },
