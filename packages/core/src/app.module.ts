@@ -1,0 +1,32 @@
+/* External Imports */
+import { Module } from '@nestd/core'
+
+/* Services */
+import {
+  SyncService,
+  GuardService,
+  LocalWalletProvider,
+  JSONRPCService,
+  EventWatcherService,
+  EventHandlerService,
+  ETHProvider,
+  DBService,
+  ChainService,
+  ProofService,
+} from './services'
+
+@Module({
+  services: [
+    SyncService,
+    GuardService,
+    LocalWalletProvider,
+    JSONRPCService,
+    EventWatcherService,
+    EventHandlerService,
+    ETHProvider,
+    DBService,
+    ChainService,
+    ProofService,
+  ],
+})
+export class AppModule {}
