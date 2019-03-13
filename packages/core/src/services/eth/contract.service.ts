@@ -8,7 +8,7 @@ import { EventLog } from 'web3/types'
 import * as web3Utils from 'web3-utils'
 
 /* Services */
-import { WalletService } from '../wallet/wallet.service'
+import { WalletService } from '../wallet.service'
 import { EventService } from '../event.service'
 import { LoggerService } from '../logger.service'
 import { ConfigService } from '../config.service'

@@ -4,16 +4,16 @@ import AsyncLock from 'async-lock'
 import { Transaction } from '@pigi/utils'
 
 /* Services */
-import { LoggerService } from '../logger.service'
-import { EthService } from '../eth/eth.service'
-import { ContractService } from '../eth/contract.service'
-import { OperatorService } from '../operator/operator.service'
-import { ChainDB } from '../db/interfaces/chain-db'
-import { ProofVerificationService } from '../proof/proof-verification.service'
+import { LoggerService } from './logger.service'
+import { EthService } from './eth/eth.service'
+import { ContractService } from './eth/contract.service'
+import { OperatorService } from './operator.service'
+import { ChainDB } from './db/interfaces/chain-db'
+import { ProofVerificationService } from './proof/proof-verification.service'
 
 /* Internal Imports */
-import { Exit, TransactionProof, Deposit } from '../../models/chain'
-import { StateManager } from '../../utils'
+import { Exit, TransactionProof, Deposit } from '../models/chain'
+import { StateManager } from '../utils'
 
 @Service()
 export class ChainService {

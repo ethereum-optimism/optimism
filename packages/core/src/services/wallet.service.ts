@@ -4,12 +4,12 @@ import * as web3Utils from 'web3-utils'
 import { account as Account } from 'eth-lib'
 
 /* Services */
-import { EthService } from '../eth/eth.service'
-import { WalletDB } from '../db/interfaces/wallet-db'
-import { LoggerService } from '../logger.service'
+import { EthService } from './eth/eth.service'
+import { WalletDB } from './db/interfaces/wallet-db'
+import { LoggerService } from './logger.service'
 
 /* Internal Imports */
-import { EthereumAccount } from '../../models/eth'
+import { EthereumAccount } from '../models/eth'
 
 @Service()
 export class WalletService {

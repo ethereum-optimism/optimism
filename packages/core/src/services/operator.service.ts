@@ -5,16 +5,16 @@ import uuidv4 from 'uuid'
 import { Transaction, sleep } from '@pigi/utils'
 
 /* Services */
-import { LoggerService } from '../logger.service'
-import { EventService } from '../event.service'
-import { ContractService } from '../eth/contract.service'
-import { ConfigService } from '../config.service'
+import { LoggerService } from './logger.service'
+import { EventService } from './event.service'
+import { ContractService } from './eth/contract.service'
+import { ConfigService } from './config.service'
 
 /* Internal Imports */
-import { TransactionProof } from '../../models/chain'
-import { EthInfo } from '../../models/operator'
-import { JSONRPCParam, JSONRPCResponse, JSONRPCResult } from '../../models/rpc'
-import { CONFIG } from '../../constants'
+import { TransactionProof } from '../models/chain'
+import { EthInfo } from '../models/operator'
+import { JSONRPCParam, JSONRPCResponse, JSONRPCResult } from '../models/rpc'
+import { CONFIG } from '../constants'
 
 interface OperatorOptions {
   operatorPingInterval: number

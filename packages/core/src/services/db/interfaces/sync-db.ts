@@ -4,7 +4,7 @@ import { Transaction } from '@pigi/utils'
 
 /* Services */
 import { BaseDBProvider } from '../backends/base-provider'
-import { DBService } from '../db-service'
+import { DBService } from '../db.service'
 
 /* Internal Imports */
 import { EthereumEvent } from '../../../models/eth'

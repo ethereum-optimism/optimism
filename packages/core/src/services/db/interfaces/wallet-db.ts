@@ -3,7 +3,7 @@ import { Service, OnStart } from '@nestd/core'
 import { account as Account } from 'eth-lib'
 
 /* Services */
-import { DBService } from '../db-service'
+import { DBService } from '../db.service'
 
 /* Internal Imports */
 import { EthereumAccount } from '../../../models/eth'

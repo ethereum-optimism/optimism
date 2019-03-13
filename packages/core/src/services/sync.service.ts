@@ -7,11 +7,11 @@ import { LoggerService } from './logger.service'
 import { EventService } from './event.service'
 import { SyncDB } from './db/interfaces/sync-db'
 import { ChainDB } from './db/interfaces/chain-db'
-import { ChainService } from './chain/chain.service'
-import { OperatorService } from './operator/operator.service'
+import { ChainService } from './chain.service'
+import { OperatorService } from './operator.service'
 import { ContractService } from './eth/contract.service'
 import { ConfigService } from './config.service'
-import { WalletService } from './wallet/wallet.service'
+import { WalletService } from './wallet.service'
 
 /* Internal Imports */
 import {

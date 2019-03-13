@@ -7,28 +7,23 @@ import {
   GuardService,
   WalletService,
   JSONRPCService,
-  EventWatcherService,
-  EventHandlerService,
-  EthService,
   OperatorService,
-  DBService,
   ChainService,
-  ProofService,
+  EthModule,
+  EventModule,
+  DBModule,
+  ProofModule,
 } from './services'
 
 @Module({
+  imports: [EthModule, EventModule, DBModule, ProofModule],
   services: [
     SyncService,
     GuardService,
     WalletService,
     JSONRPCService,
-    EventWatcherService,
-    EventHandlerService,
-    EthService,
     OperatorService,
-    DBService,
     ChainService,
-    ProofService,
   ],
 })
 export class AppModule {}

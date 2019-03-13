@@ -5,7 +5,7 @@ import { Transaction, StateObject } from '@pigi/utils'
 
 /* Services */
 import { ContractService } from '../../eth/contract.service'
-import { DBService } from '../db-service'
+import { DBService } from '../db.service'
 
 /* Internal Imports */
 import { Block, Exit, ExitArgs } from '../../../models/chain'

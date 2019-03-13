@@ -2,7 +2,7 @@
 import { Service } from '@nestd/core'
 
 /* Services */
-import { OperatorService } from '../../operator/operator.service'
+import { OperatorService } from '../../operator.service'
 
 /* Internal Imports */
 import { BaseSubdispatcher } from './base-subdispatcher'
