@@ -171,9 +171,7 @@ export class SyncService implements OnStart {
     }
 
     this.logger.log(`Detected new transaction: ${tx.hash}`)
-    this.logger.log(
-      `Attemping to pull information for transaction: ${tx.hash}`
-    )
+    this.logger.log(`Attemping to pull information for transaction: ${tx.hash}`)
     let proof
     try {
       proof = await this.operator.getTransactionProof(tx.encoded)

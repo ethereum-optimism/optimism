@@ -149,10 +149,7 @@ export class ChainService {
     try {
       tempManager = await this.verifier.applyProof(proof)
     } catch (err) {
-      this.logger.error(
-        `Rejecting transaction proof for: ${tx.hash}`,
-        err
-      )
+      this.logger.error(`Rejecting transaction proof for: ${tx.hash}`, err)
       throw new Error(`Invalid transaction proof: ${err}`)
     }
     this.logger.log(`Verified transaction proof for: ${tx.hash}`)
@@ -179,13 +176,9 @@ export class ChainService {
    */
   public async sendTransaction(transaction: Transaction): Promise<string> {
     // TODO: Check that the transaction receipt is valid.
-    this.logger.log(
-      `Sending transaction to operator: ${transaction.hash}.`
-    )
+    this.logger.log(`Sending transaction to operator: ${transaction.hash}.`)
     const receipt = await this.operator.sendTransaction(transaction)
-    this.logger.log(
-      `Sent transaction to operator: ${transaction.hash}.`
-    )
+    this.logger.log(`Sent transaction to operator: ${transaction.hash}.`)
 
     return receipt
   }

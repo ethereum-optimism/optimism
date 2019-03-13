@@ -426,9 +426,7 @@ export class ContractService implements OnStart {
     // Let other services know that the contract is ready.
     this.events.event(this.name, 'Initialized')
 
-    this.logger.log(
-      `Connected to plasma chain: ${this.plasmaChainName}`
-    )
+    this.logger.log(`Connected to plasma chain: ${this.plasmaChainName}`)
     this.logger.log(`Contract address set: ${this.address}`)
     this.logger.log(`Operator endpoint set: ${this.endpoint}`)
   }

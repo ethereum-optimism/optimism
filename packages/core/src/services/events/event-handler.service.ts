@@ -83,9 +83,7 @@ export class EventHandlerService implements OnStart {
   private onBlockSubmitted(events: EthereumEvent[]): void {
     const blocks = events.map(BlockSubmittedEvent.from)
     blocks.forEach((block) => {
-      this.logger.log(
-        `Detected block #${block.number}: ${block.hash}`
-      )
+      this.logger.log(`Detected block #${block.number}: ${block.hash}`)
     })
     this.emitContractEvent('BlockSubmitted', blocks)
   }
