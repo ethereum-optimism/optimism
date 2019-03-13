@@ -2,7 +2,7 @@
 import { Service, OnStart } from '@nestd/core'
 
 /* Services */
-import { EventWatcherService } from './event-watcher'
+import { EventWatcherService } from './event-watcher.service'
 import { EventService } from '../event.service'
 import { LoggerService } from '../logger.service'
 
