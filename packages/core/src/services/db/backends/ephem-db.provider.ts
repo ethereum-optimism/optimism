@@ -1,16 +1,16 @@
-/* External Imports */
-import { Service } from '@nestd/core'
-
 /* Internal Imports */
-import { BaseDBProvider, DBValue, DBResult, DBObject } from './base-db.provider'
 import { jsonify, stringify } from '../../../utils'
+import { DBValue, DBObject, DBResult, BaseDBProvider } from './base-db.provider'
 
-/**
- * A simple in-memory key-value store.
- */
-@Service()
 export class EphemDBProvider implements BaseDBProvider {
   private db = new Map<string, string>()
+
+  /**
+   * Empty method since it's required.
+   */
+  public async start(): Promise<void> {
+    return
+  }
 
   /**
    * Returns the value stored at the given key.

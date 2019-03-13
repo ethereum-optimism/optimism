@@ -1,11 +1,15 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
 import BigNum from 'bn.js'
-import * as compiledContracts from '@pigi/contracts'
-import Web3 = require('web3')
-import Contract from 'web3/eth/contract'
-import { EventLog } from 'web3/types'
-import * as web3Utils from 'web3-utils'
+import Web3 from 'web3'
+import { isAddress, asciiToHex } from 'web3-utils'
+import { EventLog } from 'web3-core/types'
+import { Contract, EventOptions } from 'web3-eth-contract/types'
+import {
+  plasmaChainCompiled,
+  erc20Compiled,
+  plasmaRegistryCompiled,
+} from '@pigi/contracts'
 
 /* Services */
 import { WalletService } from '../wallet.service'
@@ -18,11 +22,6 @@ import { Deposit } from '../../models/chain'
 import { EthereumEvent, EthereumTransactionReceipt } from '../../models/eth'
 import { ChainCreatedEvent } from '../../models/events'
 import { CONFIG } from '../../constants'
-
-/* Compiled Contracts */
-const plasmaChainCompiled = compiledContracts.plasmaChainCompiled
-const erc20Compiled = compiledContracts.erc20Compiled
-const registryCompiled = compiledContracts.plasmaRegistryCompiled
 
 interface ContractOptions {
   registryAddress: string
@@ -58,7 +57,7 @@ export class ContractService implements OnStart {
     )
     this.contract = new this.web3.eth.Contract(plasmaChainCompiled.abi)
     this.registry = new this.web3.eth.Contract(
-      registryCompiled.abi,
+      plasmaRegistryCompiled.abi,
       this.options().registryAddress
     )
   }
@@ -158,7 +157,7 @@ export class ContractService implements OnStart {
    * @returns Address of the contract for that token.
    */
   public async getTokenAddress(token: string): Promise<string> {
-    if (web3Utils.isAddress(token)) {
+    if (isAddress(token)) {
       return token
     }
 
@@ -216,9 +215,13 @@ export class ContractService implements OnStart {
    */
   public async getPastEvents(
     event: string,
-    filter: {} = {}
+    filter: EventOptions
   ): Promise<EthereumEvent[]> {
-    const events: EventLog[] = await this.contract.getPastEvents(event, filter)
+    const events: EventLog[] = await this.contract.getPastEvents(
+      event,
+      filter,
+      null
+    )
     return events.map((ethereumEvent) => {
       return EthereumEvent.from(ethereumEvent)
     })
@@ -396,9 +399,7 @@ export class ContractService implements OnStart {
       throw new Error('ERROR: Plasma chain name not provided.')
     }
 
-    const plasmaChainName = web3Utils
-      .asciiToHex(this.plasmaChainName)
-      .padEnd(66, '0')
+    const plasmaChainName = asciiToHex(this.plasmaChainName).padEnd(66, '0')
     const operator = await this.registry.methods
       .plasmaChainNames(plasmaChainName)
       .call()

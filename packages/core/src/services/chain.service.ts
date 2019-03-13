@@ -1,13 +1,9 @@
 /* External Imports */
 import { Service } from '@nestd/core'
 import AsyncLock from 'async-lock'
-import { Transaction } from '@pigi/utils'
 
 /* Services */
 import { LoggerService, SyncLogger } from './logging'
-import { EthService } from './eth/eth.service'
-import { ContractService } from './eth/contract.service'
-import { OperatorService } from './operator.service'
 import { ChainDB } from './db/interfaces/chain-db'
 import { ProofVerificationService } from './proof/proof-verification.service'
 
@@ -25,9 +21,6 @@ export class ChainService {
 
   constructor(
     private readonly logs: LoggerService,
-    private readonly eth: EthService,
-    private readonly contract: ContractService,
-    private readonly operator: OperatorService,
     private readonly chaindb: ChainDB,
     private readonly verifier: ProofVerificationService
   ) {}
@@ -68,29 +61,6 @@ export class ChainService {
   }
 
   /**
-   * Returns the list of known exits for an address
-   * along with its status (challenge period completed, exit finalized).
-   * This method makes contract calls and is therefore slower than `getExits`.
-   * @param address Address to query.
-   * @returns a list of known exits.
-   */
-  public async getExitsWithStatus(address: string): Promise<Exit[]> {
-    const exits = await this.chaindb.getExits(address)
-
-    const currentBlock = await this.eth.getCurrentBlock()
-    // const challengePeriod = await
-    // this.eth.contract.getChallengePeriod()
-    const challengePeriod = 20
-
-    for (const exit of exits) {
-      exit.completed = exit.block.addn(challengePeriod).ltn(currentBlock)
-      exit.finalized = await this.chaindb.checkFinalized(exit)
-    }
-
-    return exits
-  }
-
-  /**
    * Adds an exit to the database.
    * @param exit Exit to add to database.
    */
@@ -102,37 +72,6 @@ export class ChainService {
       stateManager.addStateObject(exit)
       await this.saveState(stateManager)
     })
-  }
-
-  /**
-   * Attempts to finalized exits for a user.
-   * @param address Address to finalize exits for.
-   * @returns the transaction hashes for each finalization.
-   */
-  public async finalizeExits(address: string): Promise<string[]> {
-    const exits = await this.getExitsWithStatus(address)
-    const completed = exits.filter((exit) => {
-      return exit.completed && !exit.finalized
-    })
-
-    const finalized = []
-    const finalizedTxHashes = []
-    for (const exit of completed) {
-      try {
-        const exitableEnd = await this.chaindb.getExitableEnd(exit.end)
-        const finalizeTx = await this.contract.finalizeExit(
-          exit.id.toString(10),
-          exitableEnd,
-          address
-        )
-        finalizedTxHashes.push(finalizeTx.transactionHash)
-        finalized.push(exit)
-      } catch (err) {
-        this.logger.error('Could not finalize exit', err)
-      }
-    }
-
-    return finalizedTxHashes
   }
 
   /**
@@ -167,20 +106,6 @@ export class ChainService {
     this.logger.log(`Adding transaction to database: ${tx.hash}`)
     await this.chaindb.setTransaction(tx)
     this.logger.log(`Added transaction to database: ${tx.hash}`)
-  }
-
-  /**
-   * Sends a transaction to the operator.
-   * @param transaction A signed transaction.
-   * @returns the transaction receipt.
-   */
-  public async sendTransaction(transaction: Transaction): Promise<string> {
-    // TODO: Check that the transaction receipt is valid.
-    this.logger.log(`Sending transaction to operator: ${transaction.hash}.`)
-    const receipt = await this.operator.sendTransaction(transaction)
-    this.logger.log(`Sent transaction to operator: ${transaction.hash}.`)
-
-    return receipt
   }
 
   /**

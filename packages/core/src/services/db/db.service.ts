@@ -1,5 +1,6 @@
 /* External Imports */
 import { Service } from '@nestd/core'
+import { Type } from '@nestd/core/src/interfaces'
 
 /* Services */
 import { ConfigService } from '../config.service'
@@ -25,25 +26,28 @@ export class DBService {
    */
   public async open(
     options: DBOptions,
-    provider?: BaseDBProvider
+    provider?: Type<BaseDBProvider>
   ): Promise<BaseDBProvider> {
+    // Return the database if it already exists.
     const name = options.name + (options.id ? `.${options.id}` : '')
     if (name in this.dbs) {
       return this.dbs[name]
     }
 
+    // Otherwise create a new database instance.
     const DbProvider = provider || this.dbProvider()
     const db = new DbProvider({ ...options })
     await db.start()
     this.dbs[name] = db
 
+    // Finally, return the database.
     return db
   }
 
   /**
    * @returns the current default database provider.
    */
-  private dbProvider(): BaseDBProvider {
+  private dbProvider(): Type<BaseDBProvider> {
     return this.config.get(CONFIG.DB_PROVIDER)
   }
 }

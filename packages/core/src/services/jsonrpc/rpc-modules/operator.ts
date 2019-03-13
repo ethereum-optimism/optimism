@@ -1,7 +1,9 @@
 /* External Imports */
 import { Service } from '@nestd/core'
+import { Transaction } from '@pigi/utils'
 
 /* Services */
+import { SyncLogger, LoggerService } from '../../logging'
 import { OperatorService } from '../../operator.service'
 
 /* Internal Imports */
@@ -14,8 +16,12 @@ import { EthInfo } from '../../../models/operator'
 @Service()
 export class OperatorRpcModule extends BaseRpcModule {
   public readonly prefix = 'pg_'
+  private readonly logger = new SyncLogger('OperatorRpcModule', this.logs)
 
-  constructor(private readonly operator: OperatorService) {
+  constructor(
+    private readonly logs: LoggerService,
+    private readonly operator: OperatorService
+  ) {
     super()
   }
 
@@ -40,5 +46,21 @@ export class OperatorRpcModule extends BaseRpcModule {
    */
   public async submitBlock(): Promise<void> {
     return this.operator.submitBlock()
+  }
+
+  /**
+   * Sends a transaction to the operator.
+   * @param encodedTx Encoded transaction to send.
+   * @returns the transaction receipt.
+   */
+  public async sendTransaction(encodedTx: string): Promise<string> {
+    const transaction = Transaction.from(encodedTx)
+
+    // TODO: Check that the transaction receipt is valid.
+    this.logger.log(`Sending transaction to operator: ${transaction.hash}.`)
+    const receipt = await this.operator.sendTransaction(transaction)
+    this.logger.log(`Sent transaction to operator: ${transaction.hash}.`)
+
+    return receipt
   }
 }

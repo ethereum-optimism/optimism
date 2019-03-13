@@ -1,7 +1,7 @@
 import '../../../setup'
 
 /* Internal Imports */
-import { EphemDBProvider } from '../../../../src/services/db/backends/base-db.provider'
+import { EphemDBProvider } from '../../../../src/services/db/backends/ephem-db.provider'
 
 describe('EphemDBProvider', async () => {
   const db = new EphemDBProvider()
