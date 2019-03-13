@@ -1,7 +1,5 @@
 import './setup'
-
 import { encodeParams } from '../src/abi'
-
 import { validStateTransition } from '../src/verify'
 import { PREIMAGE_BYTECODE } from './constants'
 
