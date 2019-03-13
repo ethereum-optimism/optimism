@@ -8,7 +8,7 @@ import { EventLog } from 'web3/types'
 import * as web3Utils from 'web3-utils'
 
 /* Services */
-import { BaseWalletProvider } from '../wallet/base-provider'
+import { WalletService } from '../wallet/wallet.service'
 import { EventService } from '../event.service'
 import { LoggerService } from '../logger.service'
 import { ConfigService } from '../config.service'
@@ -30,7 +30,7 @@ interface ContractOptions {
 }
 
 @Service()
-export class ContractProvider implements OnStart {
+export class ContractService implements OnStart {
   private contract: Contract
   private registry: Contract
   private endpoint?: string
@@ -41,7 +41,7 @@ export class ContractProvider implements OnStart {
     private readonly events: EventService,
     private readonly logger: LoggerService,
     private readonly config: ConfigService,
-    private readonly wallet: BaseWalletProvider
+    private readonly wallet: WalletService
   ) {}
 
   public async onStart(): Promise<void> {

@@ -7,7 +7,7 @@ import { Transaction, sleep } from '@pigi/utils'
 /* Services */
 import { LoggerService } from '../logger.service'
 import { EventService } from '../event.service'
-import { ContractProvider } from '../eth/contract-provider'
+import { ContractService } from '../eth/contract.service'
 import { ConfigService } from '../config.service'
 
 /* Internal Imports */
@@ -21,7 +21,7 @@ interface OperatorOptions {
 }
 
 @Service()
-export class OperatorProvider implements OnStart {
+export class OperatorService implements OnStart {
   private readonly name = 'operator'
   private readonly prefix = 'pgop_'
   private connected = false
@@ -33,7 +33,7 @@ export class OperatorProvider implements OnStart {
     private readonly logger: LoggerService,
     private readonly events: EventService,
     private readonly config: ConfigService,
-    private readonly contract: ContractProvider
+    private readonly contract: ContractService
   ) {}
 
   public async onStart(): Promise<void> {

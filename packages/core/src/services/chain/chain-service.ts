@@ -5,9 +5,9 @@ import { Transaction } from '@pigi/utils'
 
 /* Services */
 import { LoggerService } from '../logger.service'
-import { ETHProvider } from '../eth/eth-provider'
-import { ContractProvider } from '../eth/contract-provider'
-import { OperatorProvider } from '../operator/operator-provider'
+import { EthService } from '../eth/eth.service'
+import { ContractService } from '../eth/contract.service'
+import { OperatorService } from '../operator/operator.service'
 import { ChainDB } from '../db/interfaces/chain-db'
 import { ProofService } from './proof-service'
 
@@ -22,9 +22,9 @@ export class ChainService {
 
   constructor(
     private readonly logger: LoggerService,
-    private readonly eth: ETHProvider,
-    private readonly contract: ContractProvider,
-    private readonly operator: OperatorProvider,
+    private readonly eth: EthService,
+    private readonly contract: ContractService,
+    private readonly operator: OperatorService,
     private readonly chaindb: ChainDB,
     private readonly proofService: ProofService
   ) {}

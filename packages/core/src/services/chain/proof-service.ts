@@ -5,8 +5,8 @@ import { MerkleSumTree, Transaction } from '@pigi/utils'
 import { validStateTransition } from '@pigi/verifier'
 
 /* Services */
-import { ETHProvider } from '../eth/eth-provider'
-import { ContractProvider } from '../eth/contract-provider'
+import { EthService } from '../eth/eth.service'
+import { ContractService } from '../eth/contract.service'
 import { ChainDB } from '../db/interfaces/chain-db'
 import { LoggerService } from '../logger.service'
 
@@ -25,8 +25,8 @@ export class ProofService {
 
   constructor(
     private readonly logger: LoggerService,
-    private readonly eth: ETHProvider,
-    private readonly contract: ContractProvider,
+    private readonly eth: EthService,
+    private readonly contract: ContractService,
     private readonly chaindb: ChainDB
   ) {}
 

@@ -4,7 +4,7 @@ import BigNum from 'bn.js'
 import { Transaction, StateObject } from '@pigi/utils'
 
 /* Services */
-import { ContractProvider } from '../../eth/contract-provider'
+import { ContractService } from '../../eth/contract.service'
 import { DBService } from '../db-service'
 
 /* Internal Imports */
@@ -15,7 +15,7 @@ import { BaseDBProvider } from '../backends/base-provider'
 @Service()
 export class ChainDB implements OnStart {
   constructor(
-    private readonly contract: ContractProvider,
+    private readonly contract: ContractService,
     private readonly dbservice: DBService
   ) {}
 

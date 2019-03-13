@@ -11,7 +11,7 @@ import { ConfigService } from '../config.service'
 import { CONFIG } from '../../constants'
 
 @Service()
-export class ETHProvider implements OnStart {
+export class EthService implements OnStart {
   private web3: Web3
 
   constructor(private readonly config: ConfigService) {}

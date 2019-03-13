@@ -8,12 +8,12 @@ import { DBService } from '../db-service'
 
 /* Internal Imports */
 import { EthereumEvent } from '../../../models/eth'
-import { ContractProvider } from '../../eth/contract-provider'
+import { ContractService } from '../../eth/contract.service'
 
 @Service()
 export class SyncDB implements OnStart {
   constructor(
-    private readonly contract: ContractProvider,
+    private readonly contract: ContractService,
     private readonly dbservice: DBService
   ) {}
 
