@@ -2,7 +2,7 @@
 import { Service } from '@nestd/core'
 
 /* Services */
-import { OperatorProvider } from '../../operator/operator-provider'
+import { OperatorService } from '../../operator/operator.service'
 
 /* Internal Imports */
 import { BaseSubdispatcher } from './base-subdispatcher'
@@ -14,7 +14,7 @@ import { BaseSubdispatcher } from './base-subdispatcher'
 export class OperatorSubdispatcher extends BaseSubdispatcher {
   public readonly prefix = 'pg_'
 
-  constructor(private readonly operator: OperatorProvider) {
+  constructor(private readonly operator: OperatorService) {
     super()
   }
 

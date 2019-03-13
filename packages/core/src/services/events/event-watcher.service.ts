@@ -4,8 +4,8 @@ import { EventWatcher } from 'watch-eth'
 
 /* Services */
 import { SyncDB } from '../db/interfaces/sync-db'
-import { ETHProvider } from '../eth/eth-provider'
-import { ContractProvider } from '../eth/contract-provider'
+import { EthService } from '../eth/eth.service'
+import { ContractService } from '../eth/contract.service'
 import { ConfigService } from '../config.service'
 import { EventService } from '../event.service'
 
@@ -25,8 +25,8 @@ export class EventWatcherService implements OnStart, OnStop {
   constructor(
     private readonly events: EventService,
     private readonly config: ConfigService,
-    private readonly eth: ETHProvider,
-    private readonly contract: ContractProvider,
+    private readonly eth: EthService,
+    private readonly contract: ContractService,
     private readonly syncdb: SyncDB
   ) {}
 

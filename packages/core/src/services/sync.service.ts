@@ -8,9 +8,10 @@ import { EventService } from './event.service'
 import { SyncDB } from './db/interfaces/sync-db'
 import { ChainDB } from './db/interfaces/chain-db'
 import { ChainService } from './chain/chain-service'
-import { OperatorProvider } from './operator/operator-provider'
-import { ContractProvider } from './eth/contract-provider'
+import { OperatorService } from './operator/operator.service'
+import { ContractService } from './eth/contract.service'
 import { ConfigService } from './config.service'
+import { WalletService } from './wallet/wallet.service'
 
 /* Internal Imports */
 import {
@@ -19,7 +20,6 @@ import {
   ExitFinalizedEvent,
   ExitStartedEvent,
 } from '../models/events'
-import { BaseWalletProvider } from './wallet/base-provider'
 import { CONFIG } from '../constants'
 
 interface SyncServiceOptions {
@@ -38,9 +38,9 @@ export class SyncService implements OnStart {
     private readonly syncdb: SyncDB,
     private readonly chaindb: ChainDB,
     private readonly chain: ChainService,
-    private readonly operator: OperatorProvider,
-    private readonly contract: ContractProvider,
-    private readonly wallet: BaseWalletProvider,
+    private readonly operator: OperatorService,
+    private readonly contract: ContractService,
+    private readonly wallet: WalletService,
     private readonly config: ConfigService
   ) {}
 

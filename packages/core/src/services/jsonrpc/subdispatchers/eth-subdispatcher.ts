@@ -2,8 +2,8 @@
 import { Service } from '@nestd/core'
 
 /* Services */
-import { ETHProvider } from '../../eth/eth-provider'
-import { ContractProvider } from '../../eth/contract-provider'
+import { EthService } from '../../eth/eth.service'
+import { ContractService } from '../../eth/contract.service'
 
 /* Internal Imports */
 import { BaseSubdispatcher } from './base-subdispatcher'
@@ -16,8 +16,8 @@ export class ETHSubdispatcher extends BaseSubdispatcher {
   public readonly prefix = 'pg_'
 
   constructor(
-    private readonly eth: ETHProvider,
-    private readonly contract: ContractProvider
+    private readonly eth: EthService,
+    private readonly contract: ContractService
   ) {
     super()
   }
