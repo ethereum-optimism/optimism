@@ -3,7 +3,7 @@ import { Service, OnStart } from '@nestd/core'
 import { Transaction } from '@pigi/utils'
 
 /* Services */
-import { BaseDBProvider } from '../backends/base-provider'
+import { BaseDBProvider } from '../backends/base-db.provider'
 import { DBService } from '../db.service'
 
 /* Internal Imports */
@@ -34,7 +34,7 @@ export class SyncDB implements OnStart {
 
   public async onStart(): Promise<void> {
     const address = await this.contract.waitForAddress()
-    await this.dbservice.open('sync', { id: address })
+    await this.dbservice.open({ namespace: 'sync', id: address })
   }
 
   /**

@@ -2,7 +2,7 @@
 import { Service } from '@nestd/core'
 
 /* Services */
-import { LoggerService } from '../logger.service'
+import { LoggerService, SyncLogger } from '../logging'
 
 /* Internal Imports */
 import { JsonRpcParam, JsonRpcRequest, JsonRpcResponse } from '../../models/rpc'
@@ -21,10 +21,10 @@ import {
 @Service()
 export class JsonRpcService {
   public rpcModules: BaseRpcModule[] = []
-  private readonly name = 'jsonrpc'
+  private readonly logger = new SyncLogger('jsonrpc', this.logs)
 
   constructor(
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly chainRpcModule: ChainRpcModule,
     private readonly ethRpcModule: EthRpcModule,
     private readonly operatorRpcModule: OperatorRpcModule,
@@ -106,7 +106,7 @@ export class JsonRpcService {
     try {
       this.getMethod(request.method)
     } catch (err) {
-      this.logger.error(this.name, 'Could not find JSON-RPC method', err)
+      this.logger.error('Could not find JSON-RPC method', err)
       return this.buildError('METHOD_NOT_FOUND', request.id, err)
     }
 
@@ -114,7 +114,7 @@ export class JsonRpcService {
     try {
       result = await this.handle(request.method, request.params)
     } catch (err) {
-      this.logger.error(this.name, 'Internal JSON-RPC error', err)
+      this.logger.error('Internal JSON-RPC error', err)
       return this.buildError('INTERNAL_ERROR', request.id, err)
     }
 

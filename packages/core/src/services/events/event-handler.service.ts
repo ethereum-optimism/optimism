@@ -4,7 +4,7 @@ import { Service, OnStart } from '@nestd/core'
 /* Services */
 import { EventWatcherService } from './event-watcher.service'
 import { EventService } from '../event.service'
-import { LoggerService } from '../logger.service'
+import { LoggerService, SyncLogger } from '../logging'
 
 /* Internal Imports */
 import { EthereumEvent } from '../../models/eth'
@@ -23,9 +23,10 @@ import {
 @Service()
 export class EventHandlerService implements OnStart {
   private readonly name = 'eventHandler'
+  private readonly logger = new SyncLogger(this.name, this.logs)
 
   constructor(
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly events: EventService,
     private readonly eventWatcher: EventWatcherService
   ) {}
@@ -67,7 +68,6 @@ export class EventHandlerService implements OnStart {
     const deposits = events.map(DepositEvent.from)
     deposits.forEach((deposit) => {
       this.logger.log(
-        this.name,
         `Detected new deposit of ${deposit.amount} [${deposit.token}] for ${
           deposit.owner
         }`
@@ -84,7 +84,6 @@ export class EventHandlerService implements OnStart {
     const blocks = events.map(BlockSubmittedEvent.from)
     blocks.forEach((block) => {
       this.logger.log(
-        this.name,
         `Detected block #${block.number}: ${block.hash}`
       )
     })
@@ -98,7 +97,7 @@ export class EventHandlerService implements OnStart {
   private onExitStarted(events: EthereumEvent[]): void {
     const exits = events.map(ExitStartedEvent.from)
     exits.forEach((exit) => {
-      this.logger.log(this.name, `Detected new started exit: ${exit.id}`)
+      this.logger.log(`Detected new started exit: ${exit.id}`)
     })
     this.emitContractEvent('ExitStarted', exits)
   }
@@ -110,7 +109,7 @@ export class EventHandlerService implements OnStart {
   private onExitFinalized(events: EthereumEvent[]): void {
     const exits = events.map(ExitFinalizedEvent.from)
     exits.forEach((exit) => {
-      this.logger.log(this.name, `Detected new finalized exit: ${exit.id}`)
+      this.logger.log(`Detected new finalized exit: ${exit.id}`)
     })
     this.emitContractEvent('ExitFinalized', exits)
   }

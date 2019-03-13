@@ -10,7 +10,7 @@ import { DBService } from '../db.service'
 /* Internal Imports */
 import { Block, Exit, ExitArgs } from '../../../models/chain'
 import { Deposit } from '../../../models/chain/deposit'
-import { BaseDBProvider } from '../backends/base-provider'
+import { BaseDBProvider } from '../backends/base-db.provider'
 
 /**
  * Service that exposes an interface to chain-related
@@ -36,7 +36,7 @@ export class ChainDB implements OnStart {
 
   public async onStart(): Promise<void> {
     const address = await this.contract.waitForAddress()
-    await this.dbservice.open('chain', { id: address })
+    await this.dbservice.open({ namespace: 'chain', id: address })
   }
 
   /**

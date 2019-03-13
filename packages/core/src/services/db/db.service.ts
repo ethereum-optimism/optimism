@@ -1,9 +1,12 @@
 /* External Imports */
 import { Service } from '@nestd/core'
 
+/* Services */
+import { ConfigService } from '../config.service'
+
 /* Internal Imports */
-import { BaseDBProvider } from './backends/base-provider'
-import { EphemDBProvider } from './backends/ephem-provider'
+import { BaseDBProvider, DBOptions } from './backends/base-db.provider'
+import { CONFIG } from '../../constants'
 
 /**
  * Service that handles connecting to the various
@@ -13,23 +16,34 @@ import { EphemDBProvider } from './backends/ephem-provider'
 export class DBService {
   public dbs: { [key: string]: BaseDBProvider } = {}
 
+  constructor(private readonly config: ConfigService) {}
+
   /**
    * Opens a new database with the given name.
-   * @param name Name of the new database.
    * @param options Any additional options to the provider.
    * @param provider The database provider.
    */
   public async open(
-    name: string,
-    options: {} = {},
-    provider = this.options.dbProvider
-  ): Promise<void> {
-    if (name in this) {
-      return
+    options: DBOptions,
+    provider?: BaseDBProvider
+  ): Promise<BaseDBProvider> {
+    const name = options.name + (options.id ? `.${options.id}` : '')
+    if (name in this.dbs) {
+      return this.dbs[name]
     }
 
-    const db = new provider({ ...{ name }, ...options })
+    const DbProvider = provider || this.dbProvider()
+    const db = new DbProvider({ ...options })
     await db.start()
     this.dbs[name] = db
+
+    return db
+  }
+
+  /**
+   * @returns the current default database provider.
+   */
+  private dbProvider(): BaseDBProvider {
+    return this.config.get(CONFIG.DB_PROVIDER)
   }
 }

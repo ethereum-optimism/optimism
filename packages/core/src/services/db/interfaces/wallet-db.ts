@@ -7,7 +7,7 @@ import { DBService } from '../db.service'
 
 /* Internal Imports */
 import { EthereumAccount } from '../../../models/eth'
-import { BaseDBProvider } from '../backends/base-provider'
+import { BaseDBProvider } from '../backends/base-db.provider'
 
 /**
  * Service that exposes an interface to wallet-related
@@ -29,7 +29,7 @@ export class WalletDB implements OnStart {
   }
 
   public async onStart(): Promise<void> {
-    await this.dbservice.open('wallet')
+    await this.dbservice.open({ namespace: 'wallet' })
   }
 
   /**

@@ -8,7 +8,7 @@ import { validStateTransition } from '@pigi/verifier'
 import { EthService } from '../eth/eth.service'
 import { ContractService } from '../eth/contract.service'
 import { ChainDB } from '../db/interfaces/chain-db'
-import { LoggerService } from '../logger.service'
+import { LoggerService, SyncLogger } from '../logging'
 
 /* Internal Imports */
 import { TransactionProof } from '../../models/chain'
@@ -23,11 +23,11 @@ interface PredicateCache {
  */
 @Service()
 export class ProofVerificationService {
-  private readonly name = 'proof'
+  private readonly logger = new SyncLogger('proof', this.logs)
   private predicates: PredicateCache = {}
 
   constructor(
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly eth: EthService,
     private readonly contract: ContractService,
     private readonly chaindb: ChainDB
@@ -44,7 +44,7 @@ export class ProofVerificationService {
     const tx = proof.tx
 
     // Apply deposits.
-    this.logger.log(this.name, `Applying deposits for: ${tx.hash}`)
+    this.logger.log(`Applying deposits for: ${tx.hash}`)
     for (const deposit of proof.deposits) {
       // Validate the deposit.
       const validDeposit = await this.contract.depositValid(deposit)
@@ -56,7 +56,7 @@ export class ProofVerificationService {
     }
 
     // Apply transactions.
-    this.logger.log(this.name, `Applying transactions for: ${tx.hash}`)
+    this.logger.log(`Applying transactions for: ${tx.hash}`)
     for (const transaction of proof.transactions) {
       // Check inclusion proofs.
       try {

@@ -3,7 +3,7 @@ import { Service, OnStart } from '@nestd/core'
 import { sleep, Transaction } from '@pigi/utils'
 
 /* Services */
-import { LoggerService } from './logger.service'
+import { LoggerService, SyncLogger } from './logging'
 import { EventService } from './event.service'
 import { SyncDB } from './db/interfaces/sync-db'
 import { ChainDB } from './db/interfaces/chain-db'
@@ -31,12 +31,12 @@ interface SyncServiceOptions {
  */
 @Service()
 export class SyncService implements OnStart {
-  private readonly name = 'sync'
+  private readonly logger = new SyncLogger('sync', this.logs)
   private pending: Transaction[] = []
   private polling = false
 
   constructor(
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly events: EventService,
     private readonly syncdb: SyncDB,
     private readonly chaindb: ChainDB,
@@ -110,11 +110,10 @@ export class SyncService implements OnStart {
 
     if (firstUnsyncedBlock <= currentBlock) {
       this.logger.log(
-        this.name,
         `Checking for new transactions between plasma blocks ${firstUnsyncedBlock} and ${currentBlock}.`
       )
     } else if (prevFailed.length > 0) {
-      this.logger.log(this.name, `Attempting to apply failed transactions.`)
+      this.logger.log(`Attempting to apply failed transactions.`)
     } else {
       return
     }
@@ -149,9 +148,8 @@ export class SyncService implements OnStart {
         await this.addTransaction(transaction)
       } catch (err) {
         failed.push(transaction)
-        this.logger.error(this.name, 'Could not import transaction', err)
+        this.logger.error('Could not import transaction', err)
         this.logger.log(
-          this.name,
           `Ran into an error while importing transaction: ${
             transaction.hash
           }, trying again in a few seconds...`
@@ -172,9 +170,8 @@ export class SyncService implements OnStart {
       return
     }
 
-    this.logger.log(this.name, `Detected new transaction: ${tx.hash}`)
+    this.logger.log(`Detected new transaction: ${tx.hash}`)
     this.logger.log(
-      this.name,
       `Attemping to pull information for transaction: ${tx.hash}`
     )
     let proof
@@ -182,16 +179,15 @@ export class SyncService implements OnStart {
       proof = await this.operator.getTransactionProof(tx.encoded)
     } catch (err) {
       this.logger.error(
-        this.name,
         `Operator failed to return information for transaction: ${tx.hash}`,
         err
       )
       throw err
     }
 
-    this.logger.log(this.name, `Importing new transaction: ${tx.hash}`)
+    this.logger.log(`Importing new transaction: ${tx.hash}`)
     await this.chain.addTransaction(proof)
-    this.logger.log(this.name, `Successfully imported transaction: ${tx.hash}`)
+    this.logger.log(`Successfully imported transaction: ${tx.hash}`)
   }
 
   /**

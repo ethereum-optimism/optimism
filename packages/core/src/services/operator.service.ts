@@ -5,7 +5,7 @@ import uuidv4 from 'uuid'
 import { Transaction, sleep } from '@pigi/utils'
 
 /* Services */
-import { LoggerService } from './logger.service'
+import { LoggerService } from './logging/logger.service'
 import { EventService } from './event.service'
 import { ContractService } from './eth/contract.service'
 import { ConfigService } from './config.service'

@@ -4,7 +4,7 @@ import AsyncLock from 'async-lock'
 import { Transaction } from '@pigi/utils'
 
 /* Services */
-import { LoggerService } from './logger.service'
+import { LoggerService, SyncLogger } from './logging'
 import { EthService } from './eth/eth.service'
 import { ContractService } from './eth/contract.service'
 import { OperatorService } from './operator.service'
@@ -20,11 +20,11 @@ import { StateManager } from '../utils'
  */
 @Service()
 export class ChainService {
-  private readonly name = 'chain'
   private lock = new AsyncLock()
+  private readonly logger = new SyncLogger('chain', this.logs)
 
   constructor(
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly eth: EthService,
     private readonly contract: ContractService,
     private readonly operator: OperatorService,
@@ -62,7 +62,6 @@ export class ChainService {
 
     for (const deposit of deposits) {
       this.logger.log(
-        this.name,
         `Added deposit to database: ${deposit.start}, ${deposit.end}`
       )
     }
@@ -129,7 +128,7 @@ export class ChainService {
         finalizedTxHashes.push(finalizeTx.transactionHash)
         finalized.push(exit)
       } catch (err) {
-        this.logger.error(this.name, 'Could not finalize exit', err)
+        this.logger.error('Could not finalize exit', err)
       }
     }
 
@@ -145,33 +144,32 @@ export class ChainService {
   public async addTransaction(proof: TransactionProof): Promise<void> {
     const tx = proof.tx
 
-    this.logger.log(this.name, `Verifying transaction proof for: ${tx.hash}`)
+    this.logger.log(`Verifying transaction proof for: ${tx.hash}`)
     let tempManager: StateManager
     try {
       tempManager = await this.verifier.applyProof(proof)
     } catch (err) {
       this.logger.error(
-        this.name,
         `Rejecting transaction proof for: ${tx.hash}`,
         err
       )
       throw new Error(`Invalid transaction proof: ${err}`)
     }
-    this.logger.log(this.name, `Verified transaction proof for: ${tx.hash}`)
+    this.logger.log(`Verified transaction proof for: ${tx.hash}`)
 
     // Merge and save the new head state.
-    this.logger.log(this.name, `Saving head state for: ${tx.hash}`)
+    this.logger.log(`Saving head state for: ${tx.hash}`)
     await this.lock.acquire('state', async () => {
       const stateManager = await this.loadState()
       stateManager.merge(tempManager)
       this.saveState(stateManager)
     })
-    this.logger.log(this.name, `Saved head state for: ${tx.hash}`)
+    this.logger.log(`Saved head state for: ${tx.hash}`)
 
     // Store the transaction.
-    this.logger.log(this.name, `Adding transaction to database: ${tx.hash}`)
+    this.logger.log(`Adding transaction to database: ${tx.hash}`)
     await this.chaindb.setTransaction(tx)
-    this.logger.log(this.name, `Added transaction to database: ${tx.hash}`)
+    this.logger.log(`Added transaction to database: ${tx.hash}`)
   }
 
   /**
@@ -182,12 +180,10 @@ export class ChainService {
   public async sendTransaction(transaction: Transaction): Promise<string> {
     // TODO: Check that the transaction receipt is valid.
     this.logger.log(
-      this.name,
       `Sending transaction to operator: ${transaction.hash}.`
     )
     const receipt = await this.operator.sendTransaction(transaction)
     this.logger.log(
-      this.name,
       `Sent transaction to operator: ${transaction.hash}.`
     )
 

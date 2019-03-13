@@ -1,19 +1,20 @@
 export type DBValue = string | object | number | boolean
+
 export type DBResult = DBValue | DBValue[]
+
 export interface DBObject {
   key: string
   value: DBValue
 }
 
-/**
- * Class that DB interfaces must implement.
- */
-export interface BaseDBProvider {
-  /**
-   * Starts up the database.
-   */
-  start(): Promise<void>
+export interface DBOptions {
+  [key: string]: any
 
+  namespace: string
+  id?: string
+}
+
+export interface BaseDBProvider {
   /**
    * Returns the value stored at the given key.
    * @param key Key to query.

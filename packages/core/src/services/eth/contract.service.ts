@@ -10,7 +10,7 @@ import * as web3Utils from 'web3-utils'
 /* Services */
 import { WalletService } from '../wallet.service'
 import { EventService } from '../event.service'
-import { LoggerService } from '../logger.service'
+import { LoggerService, SyncLogger } from '../logging'
 import { ConfigService } from '../config.service'
 
 /* Internal Imports */
@@ -41,10 +41,11 @@ export class ContractService implements OnStart {
   private endpoint?: string
   private web3: Web3
   private readonly name = 'contract'
+  private readonly logger = new SyncLogger(this.name, this.logs)
 
   constructor(
     private readonly events: EventService,
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly config: ConfigService,
     private readonly wallet: WalletService
   ) {}
@@ -426,10 +427,9 @@ export class ContractService implements OnStart {
     this.events.event(this.name, 'Initialized')
 
     this.logger.log(
-      this.name,
       `Connected to plasma chain: ${this.plasmaChainName}`
     )
-    this.logger.log(this.name, `Contract address set: ${this.address}`)
-    this.logger.log(this.name, `Operator endpoint set: ${this.endpoint}`)
+    this.logger.log(`Contract address set: ${this.address}`)
+    this.logger.log(`Operator endpoint set: ${this.endpoint}`)
   }
 }

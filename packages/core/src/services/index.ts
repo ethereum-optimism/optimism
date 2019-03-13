@@ -5,7 +5,7 @@ export { WalletDB } from './db/interfaces/wallet-db'
 
 /* Services */
 export { GuardService } from './guard.service'
-export { JSONRPCService } from './jsonrpc/jsonrpc.service'
+export { JsonRpcService } from './jsonrpc/jsonrpc.service'
 export { DBService } from './db/db.service'
 export { ChainService } from './chain.service'
 export { ProofVerificationService } from './proof/proof-verification.service'

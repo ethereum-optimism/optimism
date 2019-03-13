@@ -6,7 +6,7 @@ import { account as Account } from 'eth-lib'
 /* Services */
 import { EthService } from './eth/eth.service'
 import { WalletDB } from './db/interfaces/wallet-db'
-import { LoggerService } from './logger.service'
+import { LoggerService, SyncLogger } from './logging'
 
 /* Internal Imports */
 import { EthereumAccount } from '../models/eth'
@@ -16,10 +16,10 @@ import { EthereumAccount } from '../models/eth'
  */
 @Service()
 export class WalletService {
-  private readonly name = 'wallet'
+  private readonly logger = new SyncLogger('wallet', this.logs)
 
   constructor(
-    private readonly logger: LoggerService,
+    private readonly logs: LoggerService,
     private readonly eth: EthService,
     private readonly walletdb: WalletDB
   ) {}
@@ -61,7 +61,7 @@ export class WalletService {
     const account = Account.create()
     await this.walletdb.addAccount(account)
     await this.addAccountToWallet(account.address)
-    this.logger.log(this.name, `Created account: ${account.address}`)
+    this.logger.log(`Created account: ${account.address}`)
     return account.address
   }
 
