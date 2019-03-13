@@ -2,6 +2,9 @@
 import { BaseDBProvider, DBObject, DBResult, DBValue } from './base-provider'
 import { jsonify, stringify } from '../../../utils'
 
+/**
+ * A simple in-memory key-value store.
+ */
 export class EphemDBProvider implements BaseDBProvider {
   private db = new Map<string, string>()
 

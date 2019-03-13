@@ -12,6 +12,10 @@ import { Block, Exit, ExitArgs } from '../../../models/chain'
 import { Deposit } from '../../../models/chain/deposit'
 import { BaseDBProvider } from '../backends/base-provider'
 
+/**
+ * Service that exposes an interface to chain-related
+ * database calls.
+ */
 @Service()
 export class ChainDB implements OnStart {
   constructor(

@@ -15,6 +15,9 @@ import { ProofVerificationService } from './proof/proof-verification.service'
 import { Exit, TransactionProof, Deposit } from '../models/chain'
 import { StateManager } from '../utils'
 
+/**
+ * Service that manages core state-related functionality.
+ */
 @Service()
 export class ChainService {
   private readonly name = 'chain'

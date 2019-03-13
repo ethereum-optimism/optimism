@@ -2,6 +2,9 @@
 import { Service } from '@nestd/core'
 import { stringify, jsonify } from '../utils'
 
+/**
+ * Service used for storing configuration for other services.
+ */
 @Service()
 export class ConfigService {
   private db = new Map<string, string>()

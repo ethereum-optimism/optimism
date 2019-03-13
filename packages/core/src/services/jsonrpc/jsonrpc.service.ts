@@ -15,6 +15,9 @@ import {
   WalletRpcModule,
 } from './rpc-modules'
 
+/**
+ * Service that handles JSON-RPC requests.
+ */
 @Service()
 export class JsonRpcService {
   public rpcModules: BaseRpcModule[] = []

@@ -13,13 +13,16 @@ import { ConfigService } from './config.service'
 /* Internal Imports */
 import { TransactionProof } from '../models/chain'
 import { EthInfo } from '../models/operator'
-import { JSONRPCParam, JSONRPCResponse, JSONRPCResult } from '../models/rpc'
+import { JsonRpcParam, JsonRpcResponse, JsonRpcResult } from '../models/rpc'
 import { CONFIG } from '../constants'
 
 interface OperatorOptions {
   operatorPingInterval: number
 }
 
+/**
+ * Service used for interacting with the operator.
+ */
 @Service()
 export class OperatorService implements OnStart {
   private readonly name = 'operator'
@@ -132,8 +135,8 @@ export class OperatorService implements OnStart {
    */
   private async handle(
     method: string,
-    params: JSONRPCParam[] = []
-  ): Promise<JSONRPCResult | JSONRPCResult[]> {
+    params: JsonRpcParam[] = []
+  ): Promise<JsonRpcResult | JsonRpcResult[]> {
     if (this.http === undefined) {
       throw new Error('Cannot make request because endpoint has not been set.')
     }
@@ -151,7 +154,7 @@ export class OperatorService implements OnStart {
       throw err
     }
 
-    const data: JSONRPCResponse = JSON.parse(response.data)
+    const data: JsonRpcResponse = JSON.parse(response.data)
 
     if (data.error) {
       throw data.error

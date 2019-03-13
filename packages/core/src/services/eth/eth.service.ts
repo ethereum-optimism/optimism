@@ -10,6 +10,11 @@ import { EthereumAccount, isAccount } from '../../models/eth'
 import { ConfigService } from '../config.service'
 import { CONFIG } from '../../constants'
 
+/**
+ * Service used for interacting with Ethereum.
+ * Does *not* handle plasma chain contract
+ * related calls.
+ */
 @Service()
 export class EthService implements OnStart {
   private web3: Web3

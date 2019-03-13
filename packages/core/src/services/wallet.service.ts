@@ -11,6 +11,9 @@ import { LoggerService } from './logger.service'
 /* Internal Imports */
 import { EthereumAccount } from '../models/eth'
 
+/**
+ * Service used to manage the local wallet.
+ */
 @Service()
 export class WalletService {
   private readonly name = 'wallet'

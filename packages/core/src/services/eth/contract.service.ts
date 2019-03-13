@@ -29,6 +29,11 @@ interface ContractOptions {
   plasmaChainName: string
 }
 
+/**
+ * Service used for interacting with the plasma
+ * chain contract. Wraps contract calls to make
+ * working with the contract nice and easy.
+ */
 @Service()
 export class ContractService implements OnStart {
   private contract: Contract

@@ -5,6 +5,10 @@ import { Service } from '@nestd/core'
 import { BaseDBProvider } from './backends/base-provider'
 import { EphemDBProvider } from './backends/ephem-provider'
 
+/**
+ * Service that handles connecting to the various
+ * databases that compose the app.
+ */
 @Service()
 export class DBService {
   public dbs: { [key: string]: BaseDBProvider } = {}

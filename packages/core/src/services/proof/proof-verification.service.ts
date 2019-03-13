@@ -18,6 +18,9 @@ interface PredicateCache {
   [key: string]: string
 }
 
+/**
+ * Service responsible for verifying transaction proofs.
+ */
 @Service()
 export class ProofVerificationService {
   private readonly name = 'proof'

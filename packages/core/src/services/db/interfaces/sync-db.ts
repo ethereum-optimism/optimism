@@ -10,6 +10,10 @@ import { DBService } from '../db.service'
 import { EthereumEvent } from '../../../models/eth'
 import { ContractService } from '../../eth/contract.service'
 
+/**
+ * Service that exposes an interface to sync-related
+ * database calls.
+ */
 @Service()
 export class SyncDB implements OnStart {
   constructor(

@@ -9,6 +9,10 @@ import { DBService } from '../db.service'
 import { EthereumAccount } from '../../../models/eth'
 import { BaseDBProvider } from '../backends/base-provider'
 
+/**
+ * Service that exposes an interface to wallet-related
+ * database calls.
+ */
 @Service()
 export class WalletDB implements OnStart {
   constructor(private readonly dbservice: DBService) {}

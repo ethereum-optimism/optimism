@@ -15,6 +15,11 @@ import {
   ExitStartedEvent,
 } from '../../models/events'
 
+/**
+ * Service that handles events coming from
+ * EventWatcherService and parses them into
+ * useable objects.
+ */
 @Service()
 export class EventHandlerService implements OnStart {
   private readonly name = 'eventHandler'

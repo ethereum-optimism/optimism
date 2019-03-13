@@ -2,6 +2,9 @@
 import { Service } from '@nestd/core'
 import debug, { Debugger } from 'debug'
 
+/**
+ * Service used for storing logs of other services.
+ */
 @Service()
 export class LoggerService {
   private loggers: { [key: string]: Debugger }

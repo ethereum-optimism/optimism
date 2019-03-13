@@ -17,6 +17,9 @@ interface EventWatcherOptions {
   eventPollInterval: number
 }
 
+/**
+ * Service that watches for events from Ethereum.
+ */
 @Service()
 export class EventWatcherService implements OnStart, OnStop {
   public watcher: EventWatcher

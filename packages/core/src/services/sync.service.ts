@@ -26,6 +26,9 @@ interface SyncServiceOptions {
   transactionPollInterval: number
 }
 
+/**
+ * Service used to synchronize the local database.
+ */
 @Service()
 export class SyncService implements OnStart {
   private readonly name = 'sync'
