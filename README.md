@@ -37,7 +37,7 @@ git clone git@github.com:plasma-group/pigi.git
 Now, enter the repository.
 
 ```
-cd @pigi
+cd pigi
 ```
 
 #### Node.js
