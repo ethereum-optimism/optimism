@@ -2,7 +2,7 @@
 import BigNum from 'bn.js'
 
 /* Internal Imports */
-import { bnMax, bnMin } from '../../utils'
+import { bnMax, bnMin } from './misc'
 
 export interface Range {
   start: BigNum

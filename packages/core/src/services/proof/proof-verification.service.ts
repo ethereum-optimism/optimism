@@ -12,14 +12,14 @@ import { LoggerService } from '../logger.service'
 
 /* Internal Imports */
 import { TransactionProof } from '../../models/chain'
-import { StateManager } from './state-manager'
+import { StateManager } from '../../utils'
 
 interface PredicateCache {
   [key: string]: string
 }
 
 @Service()
-export class ProofService {
+export class ProofVerificationService {
   private readonly name = 'proof'
   private predicates: PredicateCache = {}
 

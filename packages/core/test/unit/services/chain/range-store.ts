@@ -4,10 +4,7 @@ import '../../../setup'
 import BigNum from 'bn.js'
 
 /* Internal Imports */
-import {
-  RangeStore,
-  BlockRange,
-} from '../../../../src/services/chain/range-store'
+import { RangeStore, BlockRange } from '../../../../src/utils/range-store'
 
 describe('RangeStore', () => {
   let store = new RangeStore()

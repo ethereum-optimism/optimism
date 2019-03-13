@@ -2,7 +2,7 @@
 import { Service } from '@nestd/core'
 
 /* Services */
-import { ChainService } from '../../chain/chain-service'
+import { ChainService } from '../../chain/chain.service'
 import { ChainDB } from '../../db/interfaces/chain-db'
 
 /* Internal Imports */

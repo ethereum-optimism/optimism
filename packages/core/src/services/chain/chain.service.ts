@@ -9,11 +9,11 @@ import { EthService } from '../eth/eth.service'
 import { ContractService } from '../eth/contract.service'
 import { OperatorService } from '../operator/operator.service'
 import { ChainDB } from '../db/interfaces/chain-db'
-import { ProofService } from './proof-service'
+import { ProofVerificationService } from '../proof/proof-verification.service'
 
 /* Internal Imports */
 import { Exit, TransactionProof, Deposit } from '../../models/chain'
-import { StateManager } from './state-manager'
+import { StateManager } from '../../utils'
 
 @Service()
 export class ChainService {
@@ -26,7 +26,7 @@ export class ChainService {
     private readonly contract: ContractService,
     private readonly operator: OperatorService,
     private readonly chaindb: ChainDB,
-    private readonly proofService: ProofService
+    private readonly verifier: ProofVerificationService
   ) {}
 
   /**
@@ -145,7 +145,7 @@ export class ChainService {
     this.logger.log(this.name, `Verifying transaction proof for: ${tx.hash}`)
     let tempManager: StateManager
     try {
-      tempManager = await this.proofService.applyProof(proof)
+      tempManager = await this.verifier.applyProof(proof)
     } catch (err) {
       this.logger.error(
         this.name,

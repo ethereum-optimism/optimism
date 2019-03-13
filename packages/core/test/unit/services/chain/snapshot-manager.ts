@@ -4,7 +4,7 @@ import { should } from '../../../setup'
 import BigNum from 'bn.js'
 
 /* Internal Imports */
-import { StateManager } from '../../../../src/services/chain/state-manager'
+import { StateManager } from '../../../../src/utils/state-manager'
 import { Deposit, Exit, Snapshot } from '../../../../src/models/chain'
 
 const accounts = constants.ACCOUNTS
