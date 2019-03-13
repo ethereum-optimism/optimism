@@ -1,7 +1,7 @@
 /* Internal Imports */
-import { JSONRPCError } from '../../models/rpc'
+import { JsonRpcError } from '../../models/rpc'
 
-export const JSONRPC_ERRORS: { [key: string]: JSONRPCError } = {
+export const JSONRPC_ERRORS: { [key: string]: JsonRpcError } = {
   INTERNAL_ERROR: { code: -32603, message: 'Internal error' },
   INVALID_PARAMS: { code: -32602, message: 'Invalid params' },
   INVALID_REQUEST: { code: -32600, message: 'Invalid request' },

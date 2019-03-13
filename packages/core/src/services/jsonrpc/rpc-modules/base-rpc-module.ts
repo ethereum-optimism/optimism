@@ -1,7 +1,13 @@
+const getMethodNames = (obj: any): string[] => {
+  return Object.getOwnPropertyNames(obj.prototype).filter(
+    (method) => method !== 'constructor'
+  )
+}
+
 /**
  * Base class for JSON-RPC subdispatchers that handle requests.
  */
-export abstract class BaseSubdispatcher {
+export abstract class BaseRpcModule {
   /**
    * Returns the JSON-RPC prefix of this subdispatcher.
    * @returns the prefix.
@@ -9,19 +15,13 @@ export abstract class BaseSubdispatcher {
   public abstract readonly prefix: string
 
   /**
-   * Returns an object with pointers to methods.
-   * @return names and pointers to handlers.
-   */
-  public abstract readonly methods: { [key: string]: (...args: any) => any }
-
-  /**
    * Returns all JSON-RPC methods of this subdispatcher.
    * @returns prefixed names and pointers to handlers.
    */
   public getAllMethods(): { [key: string]: (...args: any) => any } {
     const methods: { [key: string]: (...args: any) => any } = {}
-    for (const method of Object.keys(this.methods)) {
-      methods[this.prefix + method] = this.methods[method]
+    for (const method of getMethodNames(this)) {
+      methods[this.prefix + method] = this[method].bind(this)
     }
     return methods
   }

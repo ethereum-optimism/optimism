@@ -1,22 +1,22 @@
-export type JSONRPCParam = string | number
-export type JSONRPCResult = string | number | {}
+export type JsonRpcParam = string | number
+export type JsonRpcResult = string | number | {}
 
-export interface JSONRPCError {
+export interface JsonRpcError {
   code: number
   message: string
 }
 
-export interface JSONRPCRequest {
+export interface JsonRpcRequest {
   jsonrpc: string
   method: string
   id: string
-  params: JSONRPCParam[]
+  params: JsonRpcParam[]
 }
 
-export interface JSONRPCResponse {
+export interface JsonRpcResponse {
   jsonrpc: string
-  result?: JSONRPCResult
-  error?: JSONRPCError
+  result?: JsonRpcResult
+  error?: JsonRpcError
   message?: string
   id: string | null
 }

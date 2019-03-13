@@ -5,25 +5,55 @@ import { Service } from '@nestd/core'
 import { LoggerService } from '../logger.service'
 
 /* Internal Imports */
-import { JSONRPCParam, JSONRPCRequest, JSONRPCResponse } from '../../models/rpc'
+import { JsonRpcParam, JsonRpcRequest, JsonRpcResponse } from '../../models/rpc'
 import { JSONRPC_ERRORS } from './errors'
-import { BaseSubdispatcher } from './subdispatchers/base-subdispatcher'
+import { BaseRpcModule } from './rpc-modules/base-rpc-module'
+import {
+  OperatorRpcModule,
+  ChainRpcModule,
+  EthRpcModule,
+  WalletRpcModule,
+} from './rpc-modules'
 
 @Service()
-export class JSONRPCService {
-  public subdispatchers: BaseSubdispatcher[] = []
+export class JsonRpcService {
+  public rpcModules: BaseRpcModule[] = []
   private readonly name = 'jsonrpc'
 
-  constructor(private readonly logger: LoggerService) {}
+  constructor(
+    private readonly logger: LoggerService,
+    private readonly chainRpcModule: ChainRpcModule,
+    private readonly ethRpcModule: EthRpcModule,
+    private readonly operatorRpcModule: OperatorRpcModule,
+    private readonly walletRpcModule: WalletRpcModule
+  ) {
+    const rpcModules = [
+      this.chainRpcModule,
+      this.ethRpcModule,
+      this.operatorRpcModule,
+      this.walletRpcModule,
+    ]
+    for (const rpcModule of rpcModules) {
+      this.registerRpcModule(rpcModule)
+    }
+  }
+
+  /**
+   * Registers an RPC module to the RPC service.
+   * @param rpcModule Module to register.
+   */
+  public registerRpcModule(rpcModule: BaseRpcModule): void {
+    this.rpcModules.push(rpcModule)
+  }
 
   /**
    * Returns all methods of all subdispatchers.
    * @returns all subdispatcher methods as a single object.
    */
   public getAllMethods(): { [key: string]: (...args: any) => any } {
-    return this.subdispatchers
-      .map((subdispatcher) => {
-        return subdispatcher.getAllMethods()
+    return this.rpcModules
+      .map((rpcModule) => {
+        return rpcModule.getAllMethods()
       })
       .reduce((pre, cur) => {
         return { ...pre, ...cur }
@@ -52,7 +82,7 @@ export class JSONRPCService {
    */
   public async handle(
     method: string,
-    params: JSONRPCParam[] = []
+    params: JsonRpcParam[] = []
   ): Promise<string | number | {}> {
     const fn = this.getMethod(method)
     return fn(...params)
@@ -63,7 +93,9 @@ export class JSONRPCService {
    * @param request A JSON-RPC request object.
    * @return the result of the JSON-RPC call.
    */
-  public async handleRawRequest(request: JSONRPCRequest) {
+  public async handleRawRequest(
+    request: JsonRpcRequest
+  ): Promise<JsonRpcResponse> {
     if (!('method' in request && 'id' in request)) {
       return this.buildError('INVALID_REQUEST', null)
     }
@@ -75,7 +107,7 @@ export class JSONRPCService {
       return this.buildError('METHOD_NOT_FOUND', request.id, err)
     }
 
-    let result
+    let result: any
     try {
       result = await this.handle(request.method, request.params)
     } catch (err) {
@@ -83,8 +115,11 @@ export class JSONRPCService {
       return this.buildError('INTERNAL_ERROR', request.id, err)
     }
 
-    const response: JSONRPCResponse = { jsonrpc: '2.0', result, id: request.id }
-    return JSON.stringify(response)
+    return {
+      jsonrpc: '2.0',
+      result,
+      id: request.id,
+    }
   }
 
   /**
@@ -94,13 +129,16 @@ export class JSONRPCService {
    * @param err An error message.
    * @returns a stringified JSON-RPC error response.
    */
-  private buildError(type: string, id: string | null, message?: string): {} {
-    const error: JSONRPCResponse = {
+  private buildError(
+    type: string,
+    id: string | null,
+    message?: string
+  ): JsonRpcResponse {
+    return {
       error: JSONRPC_ERRORS[type],
       id,
       jsonrpc: '2.0',
       message,
     }
-    return JSON.stringify(error)
   }
 }
