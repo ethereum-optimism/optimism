@@ -1,14 +1,11 @@
 /* External Imports */
-import { Service, OnStart } from '@nestd/core'
+import { Service } from '@nestd/core'
 import BigNum from 'bn.js'
 import { FullEventFilter, EventLog } from 'watch-eth'
 import Web3 from 'web3'
 
 /* Services */
 import { Web3Service } from './web3.service'
-
-/* Internal Imports */
-import { CONFIG } from '../../constants'
 
 /**
  * Service used for interacting with Ethereum.

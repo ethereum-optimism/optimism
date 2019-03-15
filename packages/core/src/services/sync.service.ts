@@ -14,12 +14,7 @@ import { ConfigService } from './config.service'
 import { WalletService } from './eth/wallet.service'
 
 /* Internal Imports */
-import {
-  BlockSubmittedEvent,
-  DepositEvent,
-  ExitFinalizedEvent,
-  ExitStartedEvent,
-} from '../models/events'
+import { PlasmaBlock, Deposit, Exit } from '../models/chain'
 import { CONFIG } from '../constants'
 
 interface SyncServiceOptions {
@@ -195,7 +190,7 @@ export class SyncService implements OnStart {
    * Handles new deposit events.
    * @param deposits Deposit events.
    */
-  private async onDeposit(events: DepositEvent[]): Promise<void> {
+  private async onDeposit(events: Deposit[]): Promise<void> {
     await this.chain.addDeposits(events)
   }
 
@@ -203,7 +198,7 @@ export class SyncService implements OnStart {
    * Handles new block events.
    * @param blocks Block submission events.
    */
-  private async onBlockSubmitted(events: BlockSubmittedEvent[]): Promise<void> {
+  private async onBlockSubmitted(events: PlasmaBlock[]): Promise<void> {
     await this.chaindb.addBlockHeaders(events)
   }
 
@@ -211,7 +206,7 @@ export class SyncService implements OnStart {
    * Handles new exit started events.
    * @param exits Exit started events.
    */
-  private async onExitStarted(events: ExitStartedEvent[]): Promise<void> {
+  private async onExitStarted(events: Exit[]): Promise<void> {
     await this.chain.addExits(events)
   }
 
@@ -219,7 +214,7 @@ export class SyncService implements OnStart {
    * Handles new exit finalized events.
    * @param exits Exit finalized events.
    */
-  private async onExitFinalized(exits: ExitFinalizedEvent[]): Promise<void> {
+  private async onExitFinalized(exits: Exit[]): Promise<void> {
     for (const exit of exits) {
       await this.chaindb.markFinalized(exit)
       await this.chaindb.addExitableEnd(exit.start)

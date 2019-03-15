@@ -18,9 +18,8 @@ import { LoggerService, SyncLogger } from '../logging'
 import { ConfigService } from '../config.service'
 
 /* Internal Imports */
-import { Deposit } from '../../models/chain'
+import { Deposit, PlasmaChain } from '../../models/chain'
 import { EthereumEvent, EthereumTransactionReceipt } from '../../models/eth'
-import { ChainCreatedEvent, DepositEvent } from '../../models/events'
 import { CONFIG } from '../../constants'
 
 interface ContractOptions {
@@ -243,7 +242,7 @@ export class ContractService implements OnStart {
     })
 
     // Convert the events to deposit objects.
-    const deposits = depositEvents.map(DepositEvent.from)
+    const deposits = depositEvents.map(Deposit.from)
 
     // Check that one of the events matches this deposit.
     return deposits.some(deposit.equals)
@@ -395,10 +394,13 @@ export class ContractService implements OnStart {
     })
 
     // Parse the events into something useable.
-    const parsed = events.map(ChainCreatedEvent.from)
+    const parsed = events.map((eventData) => {
+      const ethereumEvent = EthereumEvent.from(eventData)
+      return PlasmaChain.from(ethereumEvent)
+    })
 
     // Find a matching event.
-    const event = parsed.find((parsedEvent: ChainCreatedEvent) => {
+    const event = parsed.find((parsedEvent: PlasmaChain) => {
       return parsedEvent.plasmaChainName === plasmaChainName
     })
 

@@ -8,12 +8,7 @@ import { LoggerService, SyncLogger } from '../logging'
 
 /* Internal Imports */
 import { EthereumEvent } from '../../models/eth'
-import {
-  BlockSubmittedEvent,
-  DepositEvent,
-  ExitFinalizedEvent,
-  ExitStartedEvent,
-} from '../../models/events'
+import { PlasmaBlock, Deposit, Exit } from '../../models/chain'
 
 /**
  * Service that handles events coming from
@@ -65,10 +60,10 @@ export class EventHandlerService implements OnStart {
    * @param events Deposit events.
    */
   private onDeposit(events: EthereumEvent[]): void {
-    const deposits = events.map(DepositEvent.from)
+    const deposits = events.map(Deposit.from)
     deposits.forEach((deposit) => {
       this.logger.log(
-        `Detected new deposit of ${deposit.amount} [${deposit.token}] for ${
+        `Detected new deposit of ${deposit.end.sub(deposit.start)} for ${
           deposit.owner
         }`
       )
@@ -81,7 +76,7 @@ export class EventHandlerService implements OnStart {
    * @param events BlockSubmitted events.
    */
   private onBlockSubmitted(events: EthereumEvent[]): void {
-    const blocks = events.map(BlockSubmittedEvent.from)
+    const blocks = events.map(PlasmaBlock.from)
     blocks.forEach((block) => {
       this.logger.log(`Detected block #${block.number}: ${block.hash}`)
     })
@@ -93,7 +88,7 @@ export class EventHandlerService implements OnStart {
    * @param events ExitStarted events.
    */
   private onExitStarted(events: EthereumEvent[]): void {
-    const exits = events.map(ExitStartedEvent.from)
+    const exits = events.map(Exit.from)
     exits.forEach((exit) => {
       this.logger.log(`Detected new started exit: ${exit.id}`)
     })
@@ -105,7 +100,7 @@ export class EventHandlerService implements OnStart {
    * @param events ExitFinalized events.
    */
   private onExitFinalized(events: EthereumEvent[]): void {
-    const exits = events.map(ExitFinalizedEvent.from)
+    const exits = events.map(Exit.from)
     exits.forEach((exit) => {
       this.logger.log(`Detected new finalized exit: ${exit.id}`)
     })
