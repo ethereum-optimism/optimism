@@ -5,58 +5,11 @@ import BigNum from 'bn.js'
 import { capture } from 'ts-mockito'
 
 /* Internal Imports */
-import {
-  BlockSubmittedEvent,
-  DepositEvent,
-  ExitStartedEvent,
-} from '../../../src/models/events'
-import { SyncService } from '../../../src/services/sync-service'
-import {
-  chain,
-  chaindb,
-  createApp,
-  eventHandler,
-  mockChainDB,
-  mockChainService,
-} from '../../mock'
+import { PlasmaBlock, Deposit, Exit } from '../../../src/models/chain'
+import { SyncService } from '../../../src/services'
 
 describe('SyncService', () => {
-  const { app } = createApp({ eventHandler, chaindb, chain })
-
-  const sync = new SyncService({
-    app,
-    name: 'sync',
-    transactionPollInterval: 100,
-  })
-
-  beforeEach(async () => {
-    await sync.start()
-  })
-
-  afterEach(async () => {
-    await sync.stop()
-  })
-
-  it('should have dependencies', () => {
-    const dependencies = [
-      'eth',
-      'chain',
-      'eventHandler',
-      'syncdb',
-      'chaindb',
-      'wallet',
-      'operator',
-    ]
-    sync.dependencies.should.deep.equal(dependencies)
-  })
-
-  it('should have a name', () => {
-    sync.name.should.equal('sync')
-  })
-
-  it('should start correctly', () => {
-    sync.started.should.be.true
-  })
+  const sync = new SyncService()
 
   it('should react to new deposits', () => {
     const depositEvent = new DepositEvent({

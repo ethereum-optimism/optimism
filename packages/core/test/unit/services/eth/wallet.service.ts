@@ -5,14 +5,10 @@ import { account as accountlib } from 'eth-lib'
 import { isAddress, sha3 } from 'web3-utils'
 
 /* Internal Imports */
-import { LocalWalletProvider } from '../../../../src/services'
-import { createApp, eth, walletdb } from '../../../mock'
+import { WalletService } from '../../../../src/services'
 
 describe('LocalWalletProvider', () => {
-  const { app } = createApp({ walletdb, eth })
-
-  const wallet = new LocalWalletProvider({ app, name: 'wallet' })
-
+  const wallet = new WalletService()
   let address: string
 
   it('should have dependencies', () => {

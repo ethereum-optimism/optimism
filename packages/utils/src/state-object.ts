@@ -15,6 +15,10 @@ export interface StateObjectData {
   block: BigNum
   predicate: string
   state: string
+
+  implicit?: boolean
+  implicitStart?: BigNum
+  implicitEnd?: BigNum
 }
 
 /**

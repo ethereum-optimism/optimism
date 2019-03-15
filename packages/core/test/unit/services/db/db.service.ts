@@ -2,12 +2,9 @@ import '../../../setup'
 
 /* Internal Imports */
 import { DBService } from '../../../../src/services'
-import { createApp } from '../../../mock'
 
 describe('DBService', () => {
-  const { app } = createApp()
-
-  const dbservice = new DBService({ app, name: 'dbservice' })
+  const dbservice = new DBService()
 
   it('should open a DB', async () => {
     const expected = 'dbname'
