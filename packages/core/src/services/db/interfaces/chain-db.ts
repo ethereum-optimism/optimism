@@ -8,7 +8,7 @@ import { ContractService } from '../../eth/contract.service'
 import { DBService } from '../db.service'
 
 /* Internal Imports */
-import { Block, Exit, ExitArgs } from '../../../models/chain'
+import { PlasmaBlock, Exit, ExitArgs } from '../../../models/chain'
 import { Deposit } from '../../../models/chain/deposit'
 import { BaseDBProvider } from '../backends/base-db.provider'
 import { StateManager } from '../../../utils'
@@ -109,7 +109,7 @@ export class ChainDB implements OnStart {
    * Adds multiple block headers to the database.
    * @param blocks An array of block objects.
    */
-  public async addBlockHeaders(blocks: Block[]): Promise<void> {
+  public async addBlockHeaders(blocks: PlasmaBlock[]): Promise<void> {
     // Set the latest block.
     const latest = blocks.reduce((a, b) => {
       return a.number > b.number ? a : b
@@ -151,11 +151,21 @@ export class ChainDB implements OnStart {
    * @param exit Exit to add to database.
    */
   public async addExits(exits: Exit[]): Promise<void> {
-    const objects = exits.map((exit) => {
-      return { key: `exits:${exit}`, value: exit }
-    })
-    await this.markExited(exit)
-    await this.db.push(`exits:${exit.owner}`, exit)
+    await this.markExited(exits)
+
+    // Separate each exit by owner.
+    const exitsByOwner = exits.reduce((owners, exit) => {
+      if (!(exit.owner in owners)) {
+        owners[exit.owner] = []
+      }
+      owners[exit.owner].push(exit)
+      return owners
+    }, {})
+
+    // Add exits for the owners.
+    for (const owner of Object.keys(exitsByOwner)) {
+      await this.db.push(`exits:${owner}`, exitsByOwner[owner])
+    }
   }
 
   /**
@@ -197,11 +207,14 @@ export class ChainDB implements OnStart {
    * Marks a range as exited.
    * @param range Range to mark.
    */
-  public async markExited(range: {
-    start: BigNum
-    end: BigNum
-  }): Promise<void> {
-    await this.db.set(`exited:${range.start}:${range.end}`, true)
+  public async markExited(
+    ranges: Array<{ start: BigNum; end: BigNum }>
+  ): Promise<void> {
+    const objects = ranges.map((range) => {
+      return { key: `exited:${range.start}:${range.end}`, value: true }
+    })
+
+    await this.db.bulkPut(objects)
   }
 
   /**

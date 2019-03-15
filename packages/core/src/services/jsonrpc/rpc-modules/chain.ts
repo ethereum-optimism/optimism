@@ -3,10 +3,8 @@ import { Service } from '@nestd/core'
 import { Transaction } from '@pigi/utils'
 
 /* Services */
-import { LoggerService, SyncLogger } from '../../logging'
 import { ChainDB } from '../../db/interfaces/chain-db'
-import { EthDataService } from '../../eth/eth-data.service'
-import { ContractService } from '../../eth/contract.service'
+import { ChainService } from '../../chain.service'
 
 /* Internal Imports */
 import { BaseRpcModule } from './base-rpc-module'
@@ -18,13 +16,10 @@ import { Exit } from '../../../models/chain'
 @Service()
 export class ChainRpcModule extends BaseRpcModule {
   public readonly prefix = 'pg_'
-  private readonly logger = new SyncLogger('ChainRpcModule', this.logs)
 
   constructor(
-    private readonly logs: LoggerService,
     private readonly chaindb: ChainDB,
-    private readonly eth: EthDataService,
-    private readonly contract: ContractService
+    private readonly chain: ChainService
   ) {
     super()
   }
@@ -62,29 +57,7 @@ export class ChainRpcModule extends BaseRpcModule {
    * @returns the transaction hashes for each finalization.
    */
   public async finalizeExits(address: string): Promise<string[]> {
-    const exits = await this.getExits(address)
-    const completed = exits.filter((exit) => {
-      return exit.completed && !exit.finalized
-    })
-
-    const finalized = []
-    const finalizedTxHashes = []
-    for (const exit of completed) {
-      try {
-        const exitableEnd = await this.chaindb.getExitableEnd(exit.end)
-        const finalizeTx = await this.contract.finalizeExit(
-          exit.id,
-          exitableEnd,
-          address
-        )
-        finalizedTxHashes.push(finalizeTx.transactionHash)
-        finalized.push(exit)
-      } catch (err) {
-        this.logger.error('Could not finalize exit', err)
-      }
-    }
-
-    return finalizedTxHashes
+    return this.chain.finalizeExits(address)
   }
 
   /**
@@ -93,17 +66,6 @@ export class ChainRpcModule extends BaseRpcModule {
    * @returns all exits for that address.
    */
   public async getExits(address: string): Promise<Exit[]> {
-    const exits = await this.chaindb.getExits(address)
-
-    const currentBlock = await this.eth.getCurrentBlock()
-    // const challengePeriod = await this.contract.getChallengePeriod()
-    const challengePeriod = 20
-
-    for (const exit of exits) {
-      exit.completed = exit.block.addn(challengePeriod).ltn(currentBlock)
-      exit.finalized = await this.chaindb.checkFinalized(exit)
-    }
-
-    return exits
+    return this.chain.getExits(address)
   }
 }

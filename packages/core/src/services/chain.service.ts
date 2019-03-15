@@ -6,6 +6,8 @@ import AsyncLock from 'async-lock'
 import { LoggerService, SyncLogger } from './logging'
 import { ChainDB } from './db/interfaces/chain-db'
 import { ProofVerificationService } from './proof/proof-verification.service'
+import { ContractService } from './eth/contract.service'
+import { EthDataService } from './eth/eth-data.service'
 
 /* Internal Imports */
 import { Exit, TransactionProof, Deposit } from '../models/chain'
@@ -22,7 +24,9 @@ export class ChainService {
   constructor(
     private readonly logs: LoggerService,
     private readonly chaindb: ChainDB,
-    private readonly verifier: ProofVerificationService
+    private readonly verifier: ProofVerificationService,
+    private readonly eth: EthDataService,
+    private readonly contract: ContractService
   ) {}
 
   /**
@@ -108,5 +112,58 @@ export class ChainService {
     this.logger.log(`Adding transaction to database: ${tx.hash}`)
     await this.chaindb.setTransaction(tx)
     this.logger.log(`Added transaction to database: ${tx.hash}`)
+  }
+
+  /**
+   * Finalizes all exist for a given address.
+   * The given address must be unlocked because it's used to
+   * make the finalization transactions.
+   * @param address Address to finalize exits for.
+   * @returns the transaction hashes for each finalization.
+   */
+  public async finalizeExits(address: string): Promise<string[]> {
+    const exits = await this.getExits(address)
+    const completed = exits.filter((exit) => {
+      return exit.completed && !exit.finalized
+    })
+
+    const finalized = []
+    const finalizedTxHashes = []
+    for (const exit of completed) {
+      try {
+        const exitableEnd = await this.chaindb.getExitableEnd(exit.end)
+        const finalizeTx = await this.contract.finalizeExit(
+          exit.id,
+          exitableEnd,
+          address
+        )
+        finalizedTxHashes.push(finalizeTx.transactionHash)
+        finalized.push(exit)
+      } catch (err) {
+        this.logger.error('Could not finalize exit', err)
+      }
+    }
+
+    return finalizedTxHashes
+  }
+
+  /**
+   * Queries all exits for a given address.
+   * @param address Address to query.
+   * @returns all exits for that address.
+   */
+  public async getExits(address: string): Promise<Exit[]> {
+    const exits = await this.chaindb.getExits(address)
+
+    const currentBlock = await this.eth.getCurrentBlock()
+    // const challengePeriod = await this.contract.getChallengePeriod()
+    const challengePeriod = 20
+
+    for (const exit of exits) {
+      exit.completed = exit.block.addn(challengePeriod).ltn(currentBlock)
+      exit.finalized = await this.chaindb.checkFinalized(exit)
+    }
+
+    return exits
   }
 }

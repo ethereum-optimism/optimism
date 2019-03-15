@@ -55,12 +55,6 @@ export class OperatorRpcModule extends BaseRpcModule {
    */
   public async sendTransaction(encodedTx: string): Promise<string> {
     const transaction = Transaction.from(encodedTx)
-
-    // TODO: Check that the transaction receipt is valid.
-    this.logger.log(`Sending transaction to operator: ${transaction.hash}.`)
-    const receipt = await this.operator.sendTransaction(transaction)
-    this.logger.log(`Sent transaction to operator: ${transaction.hash}.`)
-
-    return receipt
+    return this.operator.sendTransaction(transaction)
   }
 }

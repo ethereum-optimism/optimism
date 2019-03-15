@@ -16,6 +16,8 @@ export interface ExitArgs extends StateObjectData {
 export class Exit extends StateObject {
   public readonly owner: string
   public readonly id: string
+  public completed?: boolean
+  public finalized?: boolean
 
   constructor(args: ExitArgs) {
     super({

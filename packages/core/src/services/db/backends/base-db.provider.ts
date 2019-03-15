@@ -22,5 +22,5 @@ export interface BaseDBProvider {
   exists(key: string): Promise<boolean>
   findNextKey(key: string): Promise<string>
   bulkPut(objects: DBObject[]): Promise<void>
-  push<T>(key: string, value: T): Promise<void>
+  push<T>(key: string, value: T | T[]): Promise<void>
 }

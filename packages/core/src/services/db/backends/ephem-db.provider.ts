@@ -99,9 +99,10 @@ export class EphemDBProvider implements BaseDBProvider {
    * @param key The key at which the array is stored.
    * @param value Value to add to the array.
    */
-  public async push<T>(key: string, value: T): Promise<void> {
+  public async push<T>(key: string, value: T | T[]): Promise<void> {
     const current = (await this.get(key, [])) as T[]
-    current.push(value)
+    value = Array.isArray(value) ? value : [value]
+    current.concat(value)
     await this.set(key, current)
   }
 }
