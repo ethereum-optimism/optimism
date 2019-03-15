@@ -40,11 +40,11 @@ export class ChainService {
 
     // Add the deposit to the head state.
     await this.lock.acquire('state', async () => {
-      const stateManager = await this.loadState()
+      const stateManager = await this.chaindb.getState()
       for (const deposit of deposits) {
         stateManager.addStateObject(deposit)
       }
-      await this.saveState(stateManager)
+      await this.chaindb.setState(stateManager)
     })
 
     // Add exitable ends to database.
@@ -64,13 +64,15 @@ export class ChainService {
    * Adds an exit to the database.
    * @param exit Exit to add to database.
    */
-  public async addExit(exit: Exit): Promise<void> {
+  public async addExits(exits: Exit[]): Promise<void> {
     await this.chaindb.addExit(exit)
 
     await this.lock.acquire('state', async () => {
-      const stateManager = await this.loadState()
-      stateManager.addStateObject(exit)
-      await this.saveState(stateManager)
+      const stateManager = await this.chaindb.getState()
+      for (const exit of exits) {
+        stateManager.addStateObject(exit)
+      }
+      await this.chaindb.setState(stateManager)
     })
   }
 
@@ -96,9 +98,9 @@ export class ChainService {
     // Merge and save the new head state.
     this.logger.log(`Saving head state for: ${tx.hash}`)
     await this.lock.acquire('state', async () => {
-      const stateManager = await this.loadState()
+      const stateManager = await this.chaindb.getState()
       stateManager.merge(tempManager)
-      this.saveState(stateManager)
+      this.chaindb.setState(stateManager)
     })
     this.logger.log(`Saved head state for: ${tx.hash}`)
 
@@ -106,23 +108,5 @@ export class ChainService {
     this.logger.log(`Adding transaction to database: ${tx.hash}`)
     await this.chaindb.setTransaction(tx)
     this.logger.log(`Added transaction to database: ${tx.hash}`)
-  }
-
-  /**
-   * Loads the current head state as a SnapshotManager.
-   * @returns Current head state.
-   */
-  public async loadState(): Promise<StateManager> {
-    const state = await this.chaindb.getState()
-    return new StateManager(state)
-  }
-
-  /**
-   * Saves the current head state from a SnapshotManager.
-   * @param stateManager A SnapshotManager.
-   */
-  public async saveState(stateManager: StateManager): Promise<void> {
-    const state = stateManager.state
-    await this.chaindb.setState(state)
   }
 }

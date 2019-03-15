@@ -1,5 +1,5 @@
-import * as web3Utils from 'web3-utils'
-import { EventLog } from 'web3/types' // tslint:disable-line:no-submodule-imports
+import { hexToAscii } from 'web3-utils'
+import { EventLog } from 'web3-core/types'
 
 import { EthereumEvent, isEventLog } from '../eth'
 
@@ -20,11 +20,10 @@ export class ChainCreatedEvent {
     return new ChainCreatedEvent({
       operatorAddress: event.raw.OperatorAddress as string,
       operatorEndpoint: encodeURI(
-        web3Utils.hexToAscii(event.raw.OperatorEndpoint as string)
+        hexToAscii(event.raw.OperatorEndpoint as string)
       ).replace(/%00/gi, ''),
       plasmaChainAddress: event.raw.PlasmaChainAddress as string,
-      plasmaChainName: web3Utils.hexToAscii(event.raw
-        .PlasmaChainName as string),
+      plasmaChainName: hexToAscii(event.raw.PlasmaChainName as string),
     })
   }
 

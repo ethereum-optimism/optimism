@@ -15,7 +15,8 @@
     "no-empty-interface": false,
     "max-classes-per-file": false,
     "no-implicit-dependencies": [true, "dev"],
-    "ban-types": false
+    "ban-types": false,
+    "member-ordering": false
   },
   "linterOptions": {
     "exclude": [

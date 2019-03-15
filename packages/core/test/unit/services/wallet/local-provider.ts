@@ -2,7 +2,7 @@ import '../../../setup'
 
 /* External Imports */
 import { account as accountlib } from 'eth-lib'
-import * as web3Utils from 'web3-utils'
+import { isAddress, sha3 } from 'web3-utils'
 
 /* Internal Imports */
 import { LocalWalletProvider } from '../../../../src/services'
@@ -26,7 +26,7 @@ describe('LocalWalletProvider', () => {
 
   it('should a user to create an account', async () => {
     address = await wallet.createAccount()
-    web3Utils.isAddress(address).should.be.true
+    isAddress(address).should.be.true
   })
 
   it('should get the accounts in the wallet', async () => {
@@ -45,7 +45,7 @@ describe('LocalWalletProvider', () => {
 
   it('should allow a user to sign some data', async () => {
     const data = 'hello'
-    const hash = web3Utils.sha3(data)
+    const hash = sha3(data)
     const sig = await wallet.sign(address, data)
     const recovered = accountlib.recover(hash, sig)
 

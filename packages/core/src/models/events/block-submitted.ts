@@ -7,6 +7,18 @@ interface BlockSubmittedEventArgs {
 }
 
 export class BlockSubmittedEvent {
+  public number: number
+  public hash: string
+
+  constructor(event: BlockSubmittedEventArgs) {
+    this.number = event.number
+    this.hash = event.hash
+  }
+
+  public toBlock(): Block {
+    return { number: this.number, hash: this.hash }
+  }
+
   /**
    * Creates a BlockSubmittedEvent from an EthereumEvent.
    * @param event The EthereumEvent to cast.
@@ -30,17 +42,5 @@ export class BlockSubmittedEvent {
     }
 
     throw new Error('Cannot cast to BlockSubmittedEvent.')
-  }
-
-  public number: number
-  public hash: string
-
-  constructor(event: BlockSubmittedEventArgs) {
-    this.number = event.number
-    this.hash = event.hash
-  }
-
-  public toBlock(): Block {
-    return { number: this.number, hash: this.hash }
   }
 }

@@ -1,7 +1,7 @@
 import BigNum from 'bn.js'
 import _ from 'lodash'
-import * as web3Utils from 'web3-utils'
-import { EventLog } from 'web3/types' // tslint:disable-line:no-submodule-imports
+import { isAddress, sha3 } from 'web3-utils'
+import { EventLog } from 'web3-core/types'
 
 interface RawEventData {
   [key: string]: string | number
@@ -24,7 +24,7 @@ const parseEventValues = (event: EventLog): EventData => {
     const value = values[key]
     if (
       typeof value !== 'string' ||
-      (!isNaN(Number(value)) && !web3Utils.isAddress(value))
+      (!isNaN(Number(value)) && !isAddress(value))
     ) {
       parsed[key] = new BigNum(value, 10)
     }
@@ -32,19 +32,12 @@ const parseEventValues = (event: EventLog): EventData => {
   return parsed
 }
 
-interface EventLogLike {
-  blockNumber?: number
-  returnValues?: {}
-  transactionHash?: string
-  logIndex: number
-}
-
 /**
  * Checks whether an object is an EventLog.
  * @param data Object to check.
  * @returns `true` if it's an EventLog, `false` otherwise.
  */
-export const isEventLog = (data: EventLogLike): boolean => {
+export const isEventLog = (data: any): data is EventLog => {
   return (
     data.blockNumber !== undefined &&
     data.returnValues !== undefined &&
@@ -73,7 +66,7 @@ export class EthereumEvent {
     return new EthereumEvent({
       block: new BigNum(event.blockNumber, 10),
       data: parseEventValues(event),
-      hash: web3Utils.sha3(event.transactionHash + event.logIndex),
+      hash: sha3(event.transactionHash + event.logIndex),
       raw: event.returnValues as RawEventData,
     })
   }

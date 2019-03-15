@@ -9,7 +9,7 @@ const STATE_OBJECT_ABI_TYPES = [
   'bytes',
 ]
 
-interface StateObjectData {
+export interface StateObjectData {
   start: BigNum
   end: BigNum
   block: BigNum

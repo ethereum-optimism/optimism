@@ -20,7 +20,7 @@ import { ConfigService } from '../config.service'
 /* Internal Imports */
 import { Deposit } from '../../models/chain'
 import { EthereumEvent, EthereumTransactionReceipt } from '../../models/eth'
-import { ChainCreatedEvent } from '../../models/events'
+import { ChainCreatedEvent, DepositEvent } from '../../models/events'
 import { CONFIG } from '../../constants'
 
 interface ContractOptions {
@@ -243,7 +243,7 @@ export class ContractService implements OnStart {
     })
 
     // Convert the events to deposit objects.
-    const deposits = depositEvents.map(Deposit.from)
+    const deposits = depositEvents.map(DepositEvent.from)
 
     // Check that one of the events matches this deposit.
     return deposits.some(deposit.equals)

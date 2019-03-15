@@ -1,6 +1,6 @@
-interface AccountLike {
-  address?: string
-  privateKey?: string
+export interface EthereumAccount {
+  address: string
+  privateKey: string
 }
 
 /**
@@ -8,11 +8,6 @@ interface AccountLike {
  * @param data Object to check.
  * @returns `true` if it's an EthereumAccount, `false` otherwise.
  */
-export const isAccount = (data: AccountLike): boolean => {
+export const isAccount = (data: any): data is EthereumAccount => {
   return data.address !== undefined && data.privateKey !== undefined
-}
-
-export interface EthereumAccount {
-  address: string
-  privateKey: string
 }

@@ -11,6 +11,7 @@ import { DBService } from '../db.service'
 import { Block, Exit, ExitArgs } from '../../../models/chain'
 import { Deposit } from '../../../models/chain/deposit'
 import { BaseDBProvider } from '../backends/base-db.provider'
+import { StateManager } from '../../../utils'
 
 /**
  * Service that exposes an interface to chain-related
@@ -149,7 +150,10 @@ export class ChainDB implements OnStart {
    * Adds an exit to the database.
    * @param exit Exit to add to database.
    */
-  public async addExit(exit: Exit): Promise<void> {
+  public async addExits(exits: Exit[]): Promise<void> {
+    const objects = exits.map((exit) => {
+      return { key: `exits:${exit}`, value: exit }
+    })
     await this.markExited(exit)
     await this.db.push(`exits:${exit.owner}`, exit)
   }
@@ -245,19 +249,20 @@ export class ChainDB implements OnStart {
    * Returns the latest state.
    * @returns a list of snapshots.
    */
-  public async getState(): Promise<StateObject[]> {
+  public async getState(): Promise<StateManager> {
     const snapshots = (await this.db.get(`state:latest`, [])) as StateObject[]
-    return snapshots.map((snapshot) => {
+    const state = snapshots.map((snapshot) => {
       return new StateObject(snapshot)
     })
+    return new StateManager(state)
   }
 
   /**
    * Sets the latest state.
    * @param state A list of snapshots.
    */
-  public async setState(state: StateObject[]): Promise<void> {
-    await this.db.set('state:latest', state)
+  public async setState(stateManager: StateManager): Promise<void> {
+    await this.db.set('state:latest', stateManager.state)
   }
 
   /**

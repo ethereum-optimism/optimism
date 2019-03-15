@@ -48,6 +48,7 @@
     "@types/async-lock": "^1.1.1",
     "@types/chai": "^4.1.7",
     "@types/debug": "^4.1.2",
+    "@types/lodash": "^4.14.123",
     "@types/mocha": "^5.2.6",
     "@types/uuid": "^3.4.4",
     "chai": "^4.2.0",

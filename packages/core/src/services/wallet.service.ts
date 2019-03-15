@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service } from '@nestd/core'
-import * as web3Utils from 'web3-utils'
+import { sha3 } from 'web3-utils'
 import { account as Account } from 'eth-lib'
 
 /* Services */
@@ -46,7 +46,7 @@ export class WalletService {
    * @returns a signature over the data.
    */
   public async sign(address: string, data: string): Promise<string> {
-    const hash = web3Utils.sha3(data)
+    const hash = sha3(data)
     const account = await this.getAccount(address)
     const sig = Account.sign(hash, account.privateKey)
     return sig.toString()

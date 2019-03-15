@@ -11,10 +11,11 @@
     "build": "npm run clean && gulp build --pkgs ${PKGS:-0}",
     "build:dev": "gulp build --dist node_modules/@pigi --pkgs ${PKGS:-0}",
     "prerelease": "gulp copy-misc && npm run build:dev",
+    "bootstrap": "lerna bootstrap",
     "publish": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
     "publish:rc": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
     "publish:beta": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@plasma-group) publish %s release\"",
-    "postinstall": "lerna bootstrap"
+    "postinstall": "npm run bootstrap"
   },
   "repository": {
     "type": "git",
