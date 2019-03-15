@@ -12,7 +12,7 @@ import {
 } from '@pigi/contracts'
 
 /* Services */
-import { WalletService } from '../wallet.service'
+import { WalletService } from './wallet.service'
 import { EventService } from '../event.service'
 import { LoggerService, SyncLogger } from '../logging'
 import { ConfigService } from '../config.service'
@@ -335,20 +335,6 @@ export class ContractService implements OnStart {
   }
 
   /**
-   * @returns any contract options.
-   */
-  private options(): ContractOptions {
-    return this.config.get(CONFIG.CONTRACT_OPTIONS)
-  }
-
-  /**
-   * @returns the current Ethereum endpoint.
-   */
-  private ethereumEndpoint(): string {
-    return this.config.get(CONFIG.ETHEREUM_ENDPOINT)
-  }
-
-  /**
    * Deposits an amount of ETH for a user.
    * @param amount Amount to deposit.
    * @param owner Address of the user to deposit for.
@@ -430,5 +416,19 @@ export class ContractService implements OnStart {
     this.logger.log(`Connected to plasma chain: ${this.plasmaChainName}`)
     this.logger.log(`Contract address set: ${this.address}`)
     this.logger.log(`Operator endpoint set: ${this.endpoint}`)
+  }
+
+  /**
+   * @returns any contract options.
+   */
+  private options(): ContractOptions {
+    return this.config.get(CONFIG.CONTRACT_OPTIONS)
+  }
+
+  /**
+   * @returns the current Ethereum endpoint.
+   */
+  private ethereumEndpoint(): string {
+    return this.config.get(CONFIG.ETHEREUM_ENDPOINT)
   }
 }

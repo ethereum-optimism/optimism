@@ -5,7 +5,7 @@ import { Transaction } from '@pigi/utils'
 /* Services */
 import { LoggerService, SyncLogger } from '../../logging'
 import { ChainDB } from '../../db/interfaces/chain-db'
-import { EthService } from '../../eth/eth.service'
+import { EthDataService } from '../../eth/eth-data.service'
 import { ContractService } from '../../eth/contract.service'
 
 /* Internal Imports */
@@ -23,7 +23,7 @@ export class ChainRpcModule extends BaseRpcModule {
   constructor(
     private readonly logs: LoggerService,
     private readonly chaindb: ChainDB,
-    private readonly eth: EthService,
+    private readonly eth: EthDataService,
     private readonly contract: ContractService
   ) {
     super()
@@ -73,7 +73,7 @@ export class ChainRpcModule extends BaseRpcModule {
       try {
         const exitableEnd = await this.chaindb.getExitableEnd(exit.end)
         const finalizeTx = await this.contract.finalizeExit(
-          exit.id.toString(10),
+          exit.id,
           exitableEnd,
           address
         )

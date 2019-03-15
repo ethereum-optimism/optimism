@@ -3,7 +3,7 @@ import { Service } from '@nestd/core'
 import BigNum from 'bn.js'
 
 /* Services */
-import { EthService } from '../../eth/eth.service'
+import { EthDataService } from '../../eth/eth-data.service'
 import { ContractService } from '../../eth/contract.service'
 
 /* Internal Imports */
@@ -18,7 +18,7 @@ export class EthRpcModule extends BaseRpcModule {
   public readonly prefix = 'pg_'
 
   constructor(
-    private readonly eth: EthService,
+    private readonly eth: EthDataService,
     private readonly contract: ContractService
   ) {
     super()

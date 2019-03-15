@@ -1,3 +1,9 @@
+/**
+ * Gets the names of methods on an object.
+ * Returns everything except for the constructor.
+ * @param obj Object to get methods of.
+ * @returns the methods on that object.
+ */
 const getMethodNames = (obj: any): string[] => {
   return Object.getOwnPropertyNames(obj.prototype).filter(
     (method) => method !== 'constructor'

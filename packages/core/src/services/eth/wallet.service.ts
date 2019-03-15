@@ -2,14 +2,16 @@
 import { Service } from '@nestd/core'
 import { sha3 } from 'web3-utils'
 import { account as Account } from 'eth-lib'
+import Web3 from 'web3'
 
 /* Services */
-import { EthService } from './eth/eth.service'
-import { WalletDB } from './db/interfaces/wallet-db'
-import { LoggerService, SyncLogger } from './logging'
+import { Web3Service } from './web3.service'
+import { WalletDB } from '../db/interfaces/wallet-db'
+import { LoggerService, SyncLogger } from '../logging'
 
 /* Internal Imports */
-import { EthereumAccount } from '../models/eth'
+import { EthereumAccount, isAccount } from '../../models/eth'
+import { isString } from 'util'
 
 /**
  * Service used to manage the local wallet.
@@ -20,9 +22,16 @@ export class WalletService {
 
   constructor(
     private readonly logs: LoggerService,
-    private readonly eth: EthService,
+    private readonly web3Service: Web3Service,
     private readonly walletdb: WalletDB
   ) {}
+
+  /**
+   * @returns the current web3 instance.
+   */
+  get web3(): Web3 {
+    return this.web3Service.web3
+  }
 
   /**
    * Returns the addresses of all accounts in this wallet.
@@ -71,12 +80,58 @@ export class WalletService {
    * @param address Address of the account to add to wallet.
    */
   public async addAccountToWallet(address: string): Promise<void> {
-    const hasAccount = await this.eth.hasWalletAccount(address)
+    const hasAccount = await this.hasWalletAccount(address)
     if (hasAccount) {
       return
     }
 
     const account = await this.getAccount(address)
-    await this.eth.addWalletAccount(account.privateKey)
+    await this.addWalletAccount(account.privateKey)
+  }
+
+  /**
+   * @returns the list of address in the user's wallet.
+   */
+  public async getWalletAccounts(): Promise<string[]> {
+    const wallet = this.web3.eth.accounts.wallet
+    const keys = Object.keys(wallet)
+    return keys.filter((key) => {
+      return this.web3.utils.isAddress(key)
+    })
+  }
+
+  /**
+   * Returns the account object for a given account.
+   * @param address Address of the account.
+   * @returns the account object.
+   */
+  public async getWalletAccount(address: string): Promise<EthereumAccount> {
+    const wallet = this.web3.eth.accounts.wallet
+    for (const key of Object.keys(wallet)) {
+      const value = wallet[key]
+      if (key === address && !isString(value) && isAccount(value)) {
+        return value as EthereumAccount
+      }
+    }
+
+    throw new Error('Account not found.')
+  }
+
+  /**
+   * Checks if the wallet has the given account.
+   * @param address Address to check.
+   * @returns `true` if the wallet has account, `false` otherwise.
+   */
+  private async hasWalletAccount(address: string): Promise<boolean> {
+    const accounts = await this.getWalletAccounts()
+    return accounts.includes(address)
+  }
+
+  /**
+   * Adds an account to the user's wallet.
+   * @param privateKey the account's private key.
+   */
+  private async addWalletAccount(privateKey: string): Promise<void> {
+    await this.web3.eth.accounts.wallet.add(privateKey)
   }
 }

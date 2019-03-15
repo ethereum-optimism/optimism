@@ -13,8 +13,8 @@ export { EventWatcherService } from './events/event-watcher.service'
 export { EventHandlerService } from './events/event-handler.service'
 export { OperatorService } from './operator.service'
 export { SyncService } from './sync.service'
-export { WalletService } from './wallet.service'
-export { EthService } from './eth/eth.service'
+export { WalletService } from './eth/wallet.service'
+export { EthDataService } from './eth/eth-data.service'
 
 /* Modules */
 export { DBModule } from './db/db.module'

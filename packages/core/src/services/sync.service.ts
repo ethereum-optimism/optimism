@@ -11,7 +11,7 @@ import { ChainService } from './chain.service'
 import { OperatorService } from './operator.service'
 import { ContractService } from './eth/contract.service'
 import { ConfigService } from './config.service'
-import { WalletService } from './wallet.service'
+import { WalletService } from './eth/wallet.service'
 
 /* Internal Imports */
 import {
@@ -63,6 +63,9 @@ export class SyncService implements OnStart {
     this.pollInterval()
   }
 
+  /**
+   * @returns any synchronization options.
+   */
   private options(): SyncServiceOptions {
     return this.config.get(CONFIG.SYNC_SERVICE_OPTIONS)
   }
@@ -193,10 +196,7 @@ export class SyncService implements OnStart {
    * @param deposits Deposit events.
    */
   private async onDeposit(events: DepositEvent[]): Promise<void> {
-    const deposits = events.map((event) => {
-      return event.toDeposit()
-    })
-    await this.chain.addDeposits(deposits)
+    await this.chain.addDeposits(events)
   }
 
   /**
@@ -204,10 +204,7 @@ export class SyncService implements OnStart {
    * @param blocks Block submission events.
    */
   private async onBlockSubmitted(events: BlockSubmittedEvent[]): Promise<void> {
-    const blocks = events.map((event) => {
-      return event.toBlock()
-    })
-    await this.chaindb.addBlockHeaders(blocks)
+    await this.chaindb.addBlockHeaders(events)
   }
 
   /**
@@ -215,12 +212,7 @@ export class SyncService implements OnStart {
    * @param exits Exit started events.
    */
   private async onExitStarted(events: ExitStartedEvent[]): Promise<void> {
-    const exits = events.map((event) => {
-      return event.toExit()
-    })
-    for (const exit of exits) {
-      await this.chain.addExit(exit)
-    }
+    await this.chain.addExits(events)
   }
 
   /**

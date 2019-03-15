@@ -4,7 +4,7 @@ import { EventWatcher } from 'watch-eth'
 
 /* Services */
 import { SyncDB } from '../db/interfaces/sync-db'
-import { EthService } from '../eth/eth.service'
+import { EthDataService } from '../eth/eth-data.service'
 import { ContractService } from '../eth/contract.service'
 import { ConfigService } from '../config.service'
 import { EventService } from '../event.service'
@@ -28,7 +28,7 @@ export class EventWatcherService implements OnStart, OnStop {
   constructor(
     private readonly events: EventService,
     private readonly config: ConfigService,
-    private readonly eth: EthService,
+    private readonly eth: EthDataService,
     private readonly contract: ContractService,
     private readonly syncdb: SyncDB
   ) {}
@@ -56,12 +56,20 @@ export class EventWatcherService implements OnStart, OnStop {
     this.watcher = undefined
   }
 
+  /**
+   * Subscribes to an event.
+   * Event will be emitted to the global log.
+   * @param event Name of the event to subscribe to.
+   */
   public subscribe(event: string): void {
     this.watcher.subscribe(event, (...args: any) => {
       this.events.event(this.name, event, args)
     })
   }
 
+  /**
+   * @returns any event watcher options.
+   */
   private options(): EventWatcherOptions {
     return this.config.get(CONFIG.EVENT_WATCHER_OPTIONS)
   }

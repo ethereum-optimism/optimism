@@ -2,10 +2,11 @@
 import { Module } from '@nestd/core'
 
 /* Services */
-import { EthService } from './eth.service'
+import { EthDataService } from './eth-data.service'
 import { ContractService } from './contract.service'
+import { WalletService } from './wallet.service'
 
 @Module({
-  services: [EthService, ContractService],
+  services: [EthDataService, ContractService, WalletService],
 })
 export class EthModule {}

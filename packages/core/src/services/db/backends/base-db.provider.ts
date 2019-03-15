@@ -1,5 +1,4 @@
-export type DBValue = s
-new(...args: any[]): BaseDBProvidertring | object | number | boolean
+export type DBValue = string | object | number | boolean
 
 export type DBResult = DBValue | DBValue[]
 

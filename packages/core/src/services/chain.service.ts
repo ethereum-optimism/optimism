@@ -65,7 +65,7 @@ export class ChainService {
    * @param exit Exit to add to database.
    */
   public async addExits(exits: Exit[]): Promise<void> {
-    await this.chaindb.addExit(exit)
+    await this.chaindb.addExits(exits)
 
     await this.lock.acquire('state', async () => {
       const stateManager = await this.chaindb.getState()

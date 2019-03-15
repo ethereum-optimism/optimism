@@ -2,7 +2,7 @@
 import { Service } from '@nestd/core'
 
 /* Services */
-import { WalletService } from '../../wallet.service'
+import { WalletService } from '../../eth/wallet.service'
 
 /* Internal Imports */
 import { BaseRpcModule } from './base-rpc-module'
