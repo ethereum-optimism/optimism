@@ -8,8 +8,7 @@
   ],
   "scripts": {
     "test": "mocha --require ts-node/register 'test/**/*.ts'",
-    "compile": "gulp compile",
-    "prepare": "npm run compile"
+    "compile": "gulp compile"
   },
   "keywords": [
     "plasma",

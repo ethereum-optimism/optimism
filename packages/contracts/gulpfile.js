@@ -8,13 +8,13 @@ const dest = 'src/compiled'
 const contracts = fs.readdirSync(source)
 
 const createExportFile = (name, compiled) => {
-  return `export const ${name} = ${JSON.stringify(compiled)}`
+  return `export const compiled${name} = ${JSON.stringify(compiled)}`
 }
 
 const createIndexFile = () => {
   return contracts.reduce((index, contract) => {
     const name = contract.replace('.vy', '')
-    return index + `export * from './${name}'\n`
+    return index + `export * from './compiled${name}'\n`
   }, '')
 }
 
@@ -23,7 +23,7 @@ contracts.forEach((contract) => {
     mkdirp.sync(dest)
     const name = contract.replace('.vy', '')
     const compiled = await vyperjs.compile(`${source}/${contract}`)
-    await fs.writeFileSync(`${dest}/${name}.ts`, createExportFile(name, compiled))
+    await fs.writeFileSync(`${dest}/compiled${name}.ts`, createExportFile(name, compiled))
     await fs.writeFileSync(`${dest}/index.ts`, createIndexFile())
   })
 })

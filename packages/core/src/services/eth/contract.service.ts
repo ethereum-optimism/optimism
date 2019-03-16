@@ -6,9 +6,9 @@ import { isAddress, asciiToHex } from 'web3-utils'
 import { EventLog } from 'web3-core/types'
 import { Contract, EventOptions } from 'web3-eth-contract/types'
 import {
-  plasmaChainCompiled,
-  erc20Compiled,
-  plasmaRegistryCompiled,
+  compiledPlasmaChain,
+  compiledERC20,
+  compiledPlasmaRegistry,
 } from '@pigi/contracts'
 
 /* Services */
@@ -54,9 +54,9 @@ export class ContractService implements OnStart {
     this.web3 = new Web3(
       new Web3.providers.HttpProvider(this.ethereumEndpoint())
     )
-    this.contract = new this.web3.eth.Contract(plasmaChainCompiled.abi)
+    this.contract = new this.web3.eth.Contract(compiledPlasmaChain.abi as any)
     this.registry = new this.web3.eth.Contract(
-      plasmaRegistryCompiled.abi,
+      compiledPlasmaRegistry.abi as any,
       this.options().registryAddress
     )
   }
@@ -71,8 +71,8 @@ export class ContractService implements OnStart {
   /**
    * @returns the ABI of the contract.
    */
-  get abi(): any[] {
-    return plasmaChainCompiled.abi
+  get abi(): any | any[] {
+    return compiledPlasmaChain.abi
   }
 
   /**
@@ -362,7 +362,7 @@ export class ContractService implements OnStart {
   ): Promise<EthereumTransactionReceipt> {
     const tokenAddress = await this.getTokenAddress(token.toString(10))
     const tokenContract = new this.web3.eth.Contract(
-      erc20Compiled.abi,
+      compiledERC20.abi as any,
       tokenAddress
     )
     await tokenContract.methods.approve(this.address, amount).send({
