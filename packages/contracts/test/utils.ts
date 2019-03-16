@@ -1,4 +1,4 @@
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 
 /* tslint:disable:no-bitwise */
 /**

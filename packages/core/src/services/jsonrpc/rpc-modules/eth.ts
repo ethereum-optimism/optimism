@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service } from '@nestd/core'
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 
 /* Services */
 import { EthDataService } from '../../eth/eth-data.service'

@@ -1,5 +1,5 @@
 /* External Imports */
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { bnMax, bnMin } from './misc'

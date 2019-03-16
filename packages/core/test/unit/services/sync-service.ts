@@ -1,7 +1,7 @@
 import '../../setup'
 
 /* External Imports */
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { capture } from 'ts-mockito'
 
 /* Internal Imports */

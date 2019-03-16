@@ -1,7 +1,7 @@
 import '../../../setup'
 
 /* External Imports */
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { RangeStore, BlockRange } from '../../../../src/utils/range-store'

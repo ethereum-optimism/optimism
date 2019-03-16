@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import Web3 from 'web3'
 import { isAddress, asciiToHex } from 'web3-utils'
 import { EventLog } from 'web3-core/types'

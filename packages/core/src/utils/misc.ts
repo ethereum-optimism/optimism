@@ -1,5 +1,5 @@
 /* External Imports */
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 
 /**
  * JSON-stringifies a value if it's not already a string.

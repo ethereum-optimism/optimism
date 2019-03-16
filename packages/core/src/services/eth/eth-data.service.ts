@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service } from '@nestd/core'
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { FullEventFilter, EventLog } from 'watch-eth'
 import Web3 from 'web3'
 

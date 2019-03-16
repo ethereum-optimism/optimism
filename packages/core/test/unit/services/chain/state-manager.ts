@@ -1,7 +1,7 @@
 import { should } from '../../../setup'
 
 /* External Imports */
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { StateObject } from '@pigi/utils'
 
 /* Internal Imports */

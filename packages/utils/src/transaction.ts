@@ -1,4 +1,4 @@
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { abi, keccak256 } from './utils'
 import { StateObject } from './state-object'
 import { MerkleTreeNode } from './sum-tree'

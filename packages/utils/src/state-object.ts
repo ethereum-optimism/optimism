@@ -1,4 +1,4 @@
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { abi } from './utils'
 
 const STATE_OBJECT_ABI_TYPES = [

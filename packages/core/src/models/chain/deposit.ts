@@ -1,5 +1,5 @@
 /* External Imports */
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { StateObject, StateObjectData } from '@pigi/utils'
 
 /* Internal Imports */

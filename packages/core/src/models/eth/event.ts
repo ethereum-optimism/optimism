@@ -1,4 +1,4 @@
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import _ from 'lodash'
 import { isAddress, sha3 } from 'web3-utils'
 import { EventLog } from 'web3-core/types'

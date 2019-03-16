@@ -1,4 +1,4 @@
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { keccak256, reverse } from './utils'
 import { NULL_HASH } from './constants'
 

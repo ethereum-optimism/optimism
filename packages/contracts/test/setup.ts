@@ -1,3 +1,3 @@
-import chai from 'chai'
+import chai = require('chai')
 
 export const should = chai.should()

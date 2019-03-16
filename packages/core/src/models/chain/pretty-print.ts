@@ -1,4 +1,4 @@
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 
 type PrettyPrintable = string | number | BigNum | boolean | any
 

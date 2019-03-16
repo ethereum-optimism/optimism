@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service } from '@nestd/core'
-import BigNum from 'bn.js'
+import BigNum = require('bn.js')
 import { MerkleSumTree, Transaction } from '@pigi/utils'
 import { validStateTransition } from '@pigi/verifier'
 
