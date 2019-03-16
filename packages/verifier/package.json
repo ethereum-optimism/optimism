@@ -1,6 +1,6 @@
 {
   "name": "@pigi/verifier",
-  "version": "0.0.1-alpha.3",
+  "version": "0.0.1-alpha.4",
   "description": "Plasma Group state execution verifier",
   "main": "build/index.js",
   "files": [

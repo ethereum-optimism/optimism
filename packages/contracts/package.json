@@ -1,6 +1,6 @@
 {
   "name": "@pigi/contracts",
-  "version": "0.0.1-alpha.5",
+  "version": "0.0.1-alpha.6",
   "description": "PG smart contracts",
   "main": "build/index.js",
   "files": [
@@ -28,7 +28,7 @@
   },
   "gitHead": "f59a1865f43742834ffd403020e2fe4454117aed",
   "devDependencies": {
-    "@pigi/vyper-js": "^0.0.1-alpha.5",
+    "@pigi/vyper-js": "^0.0.1-alpha.6",
     "@types/bn.js": "^4.11.4",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
