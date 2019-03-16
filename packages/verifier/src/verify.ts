@@ -1,11 +1,13 @@
-import BigNum from 'bn.js'
-import EthereumTx from 'ethereumjs-tx'
+/* External Imports */
+import BigNum = require('bn.js')
+import EthereumTx = require('ethereumjs-tx')
 
+/* Internal Imports */
 import { ABIObject, ABIResult, decodeResponse, encodeMethod } from './abi'
 import { ACCOUNT, PREDICATE_ABI } from './constants'
-import { VM } from './vm'
+import { EVM } from './vm'
 
-const vm = new VM({ enableHomestead: true, activatePrecompiles: true })
+const vm = new EVM({ enableHomestead: true, activatePrecompiles: true })
 let nonce = new BigNum(0)
 
 const initGenesis = async (): Promise<void> => {

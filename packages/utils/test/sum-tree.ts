@@ -1,5 +1,9 @@
-import BigNum from 'bn.js'
 import { should } from './setup'
+
+/* External Imports */
+import BigNum = require('bn.js')
+
+/* Internal Imports */
 import { MerkleSumTree, MerkleTreeNode } from '../src/sum-tree'
 
 describe('MerkleSumTree', () => {

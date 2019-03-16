@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "module": "commonjs",
+    "target": "es2017",
     "declaration": true,
     "noImplicitAny": false,
     "noUnusedLocals": false,
@@ -8,13 +9,13 @@
     "noLib": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "target": "es2017",
     "sourceMap": false,
     "allowJs": false,
     "strict": true,
-    "strictNullChecks": false,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true
+    "strictNullChecks": false
   },
-  "exclude": ["../node_modules", "./**/*.spec.ts"]
+  "exclude": [
+    "../node_modules",
+    "./**/*.spec.ts"
+  ]
 }

@@ -7,7 +7,7 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.ts'"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
   },
   "keywords": [
     "plasma",
@@ -34,7 +34,8 @@
     "@types/debug": "^4.1.2",
     "@types/mocha": "^5.2.6",
     "chai": "^4.2.0",
-    "chai-as-promised": "^7.1.1"
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^6.0.2"
   },
   "publishConfig": {
     "access": "public"

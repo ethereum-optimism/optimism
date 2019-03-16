@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "module": "commonjs",
+    "target": "es2017",
     "declaration": false,
     "noImplicitAny": false,
     "noUnusedLocals": false,
@@ -9,8 +10,6 @@
     "noLib": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
-    "target": "es6",
     "sourceMap": true,
     "allowJs": true,
     "outDir": "dist",

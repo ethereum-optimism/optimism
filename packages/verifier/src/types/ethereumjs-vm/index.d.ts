@@ -1,7 +1,4 @@
-declare module 'ethereumjs-vm' {
-  import BigNum from 'bn.js'
-  import EthereumTx from 'ethereumjs-tx'
-
+declare namespace EthereumjsVM {
   interface VMError {
     error: string
     errorType: string
@@ -12,30 +9,30 @@ declare module 'ethereumjs-vm' {
     exception: number
     exceptionError: VMError
     logs: any[]
-    selfdestruct: { [key: string]: BigNum }
+    selfdestruct: { [key: string]: any }
     return: Buffer
   }
 
-  export interface ExecutionResult {
-    gas: BigNum
-    gasUsed: BigNum
-    gasRefund: BigNum
+  interface ExecutionResult {
+    gas: any
+    gasUsed: any
+    gasRefund: any
     createdAddress?: Buffer
     vm: VMState
   }
 
-  export interface TxExecutionOptions {
-    tx: EthereumTx
+  interface TxExecutionOptions {
+    tx: any
     skipBalance?: boolean
     skipNonce?: boolean
   }
 
-  export interface VMOptions {
+  interface VMOptions {
     enableHomestead?: boolean
     activatePrecompiles?: boolean
   }
 
-  export interface GenesisData {
+  interface GenesisData {
     [key: string]: string
   }
 
@@ -54,6 +51,8 @@ declare module 'ethereumjs-vm' {
       callback?: (err?: Error, result?: ExecutionResult) => void
     ): ExecutionResult
   }
+}
 
-  export default VM
+declare module 'ethereumjs-vm' {
+  export = EthereumjsVM.VM
 }
