@@ -8,6 +8,7 @@ import { capture } from 'ts-mockito'
 import { PlasmaBlock, Deposit, Exit } from '../../../src/models/chain'
 import { SyncService } from '../../../src/services'
 
+/*
 describe('SyncService', () => {
   const sync = new SyncService()
 
@@ -54,3 +55,4 @@ describe('SyncService', () => {
     callArgs[0].should.deep.equal(exit)
   })
 })
+*/

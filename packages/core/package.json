@@ -23,7 +23,7 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "dependencies": {
-    "@nestd/core": "0.0.2-alpha.2",
+    "@nestd/core": "0.0.2-alpha.3",
     "@pigi/contracts": "^0.0.1-alpha.1",
     "@pigi/utils": "^0.0.1-alpha.1",
     "@pigi/verifier": "^0.0.1-alpha.1",

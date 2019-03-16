@@ -6,19 +6,11 @@ import { isAddress, sha3 } from 'web3-utils'
 
 /* Internal Imports */
 import { WalletService } from '../../../../src/services'
+import { logs, web3Service, walletdb } from '../../../mock'
 
 describe('LocalWalletProvider', () => {
-  const wallet = new WalletService()
+  const wallet = new WalletService(logs, web3Service, walletdb)
   let address: string
-
-  it('should have dependencies', () => {
-    const dependencies = ['eth', 'walletdb']
-    wallet.dependencies.should.deep.equal(dependencies)
-  })
-
-  it('should have a name', () => {
-    wallet.name.should.equal('wallet')
-  })
 
   it('should a user to create an account', async () => {
     address = await wallet.createAccount()
