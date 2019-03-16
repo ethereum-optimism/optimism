@@ -1,7 +1,7 @@
 {
-  "name": "@pigi/contracts",
+  "name": "@pigi/vyper-js",
   "version": "0.0.1-alpha.3",
-  "description": "PG smart contracts",
+  "description": "Vyper compilation in JavaScript",
   "main": "build/index.js",
   "files": [
     "build/**/.js"
