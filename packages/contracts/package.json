@@ -7,7 +7,9 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.ts'"
+    "test": "mocha --require ts-node/register 'test/**/*.ts'",
+    "compile": "gulp compile",
+    "prepare": "npm run compile"
   },
   "keywords": [
     "plasma",
@@ -27,6 +29,20 @@
   },
   "gitHead": "e49e9090f237063bc797e084f304e2054fc40901",
   "devDependencies": {
-    "@types/node": "^11.11.3"
+    "@types/bn.js": "^4.11.4",
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "^11.11.3",
+    "@types/web3": "^1.0.18",
+    "@pigi/vyper-js": "^0.0.1-alpha.4",
+    "chai": "^4.2.0",
+    "ganache-cli": "^6.4.1",
+    "gulp": "^4.0.0",
+    "mkdirp": "^0.5.1",
+    "mocha": "^6.0.2",
+    "web3": "^1.0.0-beta.48"
+  },
+  "dependencies": {
+    "bn.js": "^4.11.8"
   }
 }

@@ -49,21 +49,21 @@ contract Serializer:
     def decodeTokenType( transferEncoding: bytes[68] ) -> uint256: constant
     def getTypedFromTokenAndUntyped(tokenType: uint256, coinID: uint256) -> uint256: constant
     def decodeTypedTransferRange(transferEncoding: bytes[68] ) -> (uint256, uint256): constant
-    def decodeParsedSumBytes( transferProofEncoding: bytes[1749]  ) -> bytes[16]: constant
-    def decodeLeafIndex( transferProofEncoding: bytes[1749] ) -> int128: constant
-    def decodeSignature(transferProofEncoding: bytes[1749]) -> (uint256,  uint256, uint256): constant
-    def decodeNumInclusionProofNodesFromTRProof(transferProof: bytes[1749]) -> int128: constant
-    def decodeIthInclusionProofNode(index: int128, transferProofEncoding: bytes[1749]) -> bytes[48]: constant
-    def decodeNumInclusionProofNodesFromTXProof(transactionProof: bytes[1749]) -> int128: constant
-    def decodeNumTransactionProofs(transactionProofEncoding: bytes[1749]) -> int128: constant
-    def decodeIthTransferProofWithNumNodes(index: int128, numInclusionProofNodes: int128, transactionProofEncoding: bytes[1749]) -> bytes[1749]: constant
+    def decodeParsedSumBytes( transferProofEncoding: bytes[4821]  ) -> bytes[16]: constant
+    def decodeLeafIndex( transferProofEncoding: bytes[4821] ) -> int128: constant
+    def decodeSignature(transferProofEncoding: bytes[4821]) -> (uint256,  uint256, uint256): constant
+    def decodeNumInclusionProofNodesFromTRProof(transferProof: bytes[4821]) -> int128: constant
+    def decodeIthInclusionProofNode(index: int128, transferProofEncoding: bytes[4821]) -> bytes[48]: constant
+    def decodeNumInclusionProofNodesFromTXProof(transactionProof: bytes[4821]) -> int128: constant
+    def decodeNumTransactionProofs(transactionProofEncoding: bytes[4821]) -> int128: constant
+    def decodeIthTransferProofWithNumNodes(index: int128, numInclusionProofNodes: int128, transactionProofEncoding: bytes[4821]) -> bytes[4821]: constant
 
 # Events to log in web3
 ListingEvent: event({tokenType: uint256, tokenAddress: address})
 DepositEvent: event({plasmaBlockNumber: indexed(uint256), depositer: indexed(address), tokenType: uint256, untypedStart: uint256, untypedEnd: uint256})
 SubmitBlockEvent: event({blockNumber: indexed(uint256), submittedHash: indexed(bytes32)})
 BeginExitEvent: event({tokenType: indexed(uint256), untypedStart: indexed(uint256), untypedEnd: indexed(uint256), exiter: address, exitID: uint256})
-FinalizeExitEvent: event({tokenType: indexed(uint256), untypedStart: indexed(uint256), untypedEnd: indexed(uint256), exitID: uint256})
+FinalizeExitEvent: event({tokenType: indexed(uint256), untypedStart: indexed(uint256), untypedEnd: indexed(uint256), exitID: uint256, exiter: address})
 ChallengeEvent: event({exitID: uint256, challengeID: indexed(uint256)})
 
 # operator related publics
@@ -103,9 +103,9 @@ serializer: public(address)
 MESSAGE_PREFIX: public(bytes[28])
 
 # period (of ethereum blocks) during which an exit can be challenged
-CHALLENGE_PERIOD: constant(uint256) = 20
+CHALLENGE_PERIOD: public(uint256)
 # period (of ethereum blocks) during which an invalid history history challenge can be responded
-SPENTCOIN_CHALLENGE_PERIOD: constant(uint256) = CHALLENGE_PERIOD / 2
+SPENTCOIN_CHALLENGE_PERIOD: public(uint256)
 # minimum number of ethereum blocks between new plasma blocks
 PLASMA_BLOCK_INTERVAL: constant(uint256) = 0
 
@@ -115,10 +115,11 @@ MAX_TREE_DEPTH: constant(int128) = 8
 MAX_TRANSFERS: constant(uint256) = 4
 
 @public
+@constant
 def checkTransferProofAndGetTypedBounds(
     leafHash: bytes32,
     blockNum: uint256,
-    transferProof: bytes[1749]
+    transferProof: bytes[4821]
 ) -> (uint256, uint256): # typedimplicitstart, typedimplicitEnd
     parsedSum: bytes[16] = Serializer(self.serializer).decodeParsedSumBytes(transferProof)
     numProofNodes: int128 = Serializer(self.serializer).decodeNumInclusionProofNodesFromTRProof(transferProof)
@@ -156,13 +157,14 @@ def checkTransferProofAndGetTypedBounds(
     return (leftSum, rootSum - rightSum)
 
 COINID_BYTES: constant(int128) = 16
-PROOF_MAX_LENGTH: constant(uint256) = 384 # 384 = TREENODE_LEN (48) * MAX_TREE_DEPTH (8) 
+PROOF_MAX_LENGTH: constant(uint256) = 1152 # 1152 = TREENODE_LEN (48) * MAX_TREE_DEPTH (24) 
 ENCODING_LENGTH_PER_TRANSFER: constant(int128) = 165
 
 @public
+@constant
 def checkTransactionProofAndGetTypedTransfer(
         transactionEncoding: bytes[277],
-        transactionProofEncoding: bytes[1749],
+        transactionProofEncoding: bytes[4821],
         transferIndex: int128
     ) -> (
         address, # transfer.to
@@ -187,7 +189,7 @@ def checkTransactionProofAndGetTypedTransfer(
             break
         transferEncoding: bytes[68] = Serializer(self.serializer).decodeIthTransfer(i, transactionEncoding)
         
-        transferProof: bytes[1749] = Serializer(self.serializer).decodeIthTransferProofWithNumNodes(
+        transferProof: bytes[4821] = Serializer(self.serializer).decodeIthTransferProofWithNumNodes(
             i,
             numInclusionProofNodes,
             transactionProofEncoding
@@ -238,8 +240,12 @@ def checkTransactionProofAndGetTypedTransfer(
 ### BEGIN CONTRACT LOGIC ###
 
 @public
-def setup(_operator: address, ethDecimalOffset: uint256, serializerAddr: address, paddedMessagePrefix: bytes32): # last val should be properly hardcoded as a constant eventually
+def setup(_operator: address, ethDecimalOffset: uint256, serializerAddr: address): # last val should be properly hardcoded as a constant eventually
     assert self.isSetup == False
+    self.CHALLENGE_PERIOD = 20
+    self.SPENTCOIN_CHALLENGE_PERIOD =  self.CHALLENGE_PERIOD / 2
+
+    
     self.operator = _operator
     self.nextPlasmaBlockNumber = 1 # starts at 1 so deposits before the first block have a precedingPlasmaBlock of 0 since it can't be negative (it's a uint)
     self.exitNonce = 0
@@ -249,8 +255,8 @@ def setup(_operator: address, ethDecimalOffset: uint256, serializerAddr: address
     self.listingNonce = 1 # first list is ETH baby!!!
 
     self.MAX_COINS_PER_TOKEN = 256**12
-    self.weiDecimalOffset = ethDecimalOffset
-
+    self.weiDecimalOffset = 0 # ethDecimalOffset setting to 0 for now until enabled in core
+    paddedMessagePrefix: bytes32 = 0x0000000019457468657265756d205369676e6564204d6573736167653a0a3332
     #do the thing to get a bytes[28] prefix for message hash gen
     self.MESSAGE_PREFIX = slice(concat(paddedMessagePrefix, paddedMessagePrefix), start = 4, len = 28)
 
@@ -273,14 +279,14 @@ def submitBlock(newBlockHash: bytes32):
 
 @public
 def listToken(tokenAddress: address, denomination: uint256):
-    assert msg.sender == self.operator
+    assert self.listed[tokenAddress] == 0
     
     tokenType: uint256 = self.listingNonce
     self.listingNonce += 1
 
     self.listed[tokenAddress] = tokenType
 
-    self.listings[tokenType].decimalOffset = denomination
+    self.listings[tokenType].decimalOffset = 0 # denomination setting to 0 now until core supports
     self.listings[tokenType].contractAddress = tokenAddress
 
     self.exitable[tokenType][0].isSet = True # init the new token exitable ranges
@@ -330,8 +336,6 @@ def depositERC20(tokenAddress: address, depositSize: uint256):
     depositInPlasmaCoins: uint256 = depositSize * tokenMultiplier
     self.processDeposit(depositer, depositInPlasmaCoins, tokenType)
 
-#add process above
-
 @public
 def beginExit(tokenType: uint256, blockNumber: uint256, untypedStart: uint256, untypedEnd: uint256) -> uint256:
     assert blockNumber < self.nextPlasmaBlockNumber
@@ -348,12 +352,14 @@ def beginExit(tokenType: uint256, blockNumber: uint256, untypedStart: uint256, u
     self.exits[exitID].challengeCount = 0
 
     self.exitNonce += 1
-    return exitID
 
     #log the event
     log.BeginExitEvent(tokenType, untypedStart, untypedEnd, exiter, exitID)
+    
+    return exitID
 
 @public
+@constant
 def checkRangeExitable(tokenType: uint256, untypedStart: uint256, untypedEnd: uint256, claimedExitableEnd: uint256):
     assert untypedEnd <= self.MAX_COINS_PER_TOKEN
     assert untypedEnd <= claimedExitableEnd
@@ -388,7 +394,7 @@ def finalizeExit(exitID: uint256, exitableEnd: uint256):
     tokenType: uint256 = self.exits[exitID].tokenType
 
     assert challengeCount == 0
-    assert block.number > exitETHBlockNumber + CHALLENGE_PERIOD
+    assert block.number > exitETHBlockNumber + self.CHALLENGE_PERIOD
 
     self.checkRangeExitable(tokenType, exitUntypedStart, exitUntypedEnd, exitableEnd)
     self.removeFromExitable(tokenType, exitUntypedStart, exitUntypedEnd, exitableEnd)
@@ -405,7 +411,7 @@ def finalizeExit(exitID: uint256, exitableEnd: uint256):
         assert passed
 
     # log the event    
-    log.FinalizeExitEvent(tokenType, exitUntypedStart, exitUntypedEnd, exitID)
+    log.FinalizeExitEvent(tokenType, exitUntypedStart, exitUntypedEnd, exitID, exiter)
 
 @public
 def challengeBeforeDeposit(
@@ -439,7 +445,7 @@ def challengeInclusion(exitID: uint256):
 
     # check we can still challenge
     exitethBlockNumber: uint256 = self.exits[exitID].ethBlockNumber
-    assert block.number < exitethBlockNumber + CHALLENGE_PERIOD
+    assert block.number < exitethBlockNumber + self.CHALLENGE_PERIOD
 
     # store challenge
     challengeID: uint256 = self.challengeNonce
@@ -458,7 +464,7 @@ def respondTransactionInclusion(
         challengeID: uint256,
         transferIndex: int128,
         transactionEncoding: bytes[277],
-        transactionProofEncoding: bytes[1749],
+        transactionProofEncoding: bytes[4821],
 ):
     assert self.inclusionChallenges[challengeID].ongoing
 
@@ -487,8 +493,16 @@ def respondTransactionInclusion(
     # check exit exiter is indeed recipient
     assert transferRecipient == exiter
 
-    #check the inclusion was indeed at this block
+    # check the inclusion was indeed at this block
     assert exitPlasmaBlockNumber == responseBlockNumber
+
+    # check the inclusion for relevant bounds
+    exitTokenType: uint256 = self.exits[exitID].tokenType
+    exitTypedStart: uint256 = Serializer(self.serializer).getTypedFromTokenAndUntyped(exitTokenType, self.exits[exitID].untypedStart)
+    exitTypedEnd: uint256 = Serializer(self.serializer).getTypedFromTokenAndUntyped(exitTokenType, self.exits[exitID].untypedEnd)
+
+    assert transferTypedStart >= exitTypedStart
+    assert transferTypedEnd <= exitTypedEnd
 
     # response was successful
     clear(self.inclusionChallenges[challengeID])
@@ -497,7 +511,7 @@ def respondTransactionInclusion(
 @public
 def respondDepositInclusion(
     challengeID: uint256,
-    depositEnd: uint256
+    depositUntypedEnd: uint256
 ):
     assert self.inclusionChallenges[challengeID].ongoing
     
@@ -507,12 +521,22 @@ def respondDepositInclusion(
     exitTokenType: uint256 = self.exits[exitID].tokenType
 
     # check exit exiter is indeed recipient
-    depositer: address = self.deposits[exitTokenType][depositEnd].depositer
+    depositer: address = self.deposits[exitTokenType][depositUntypedEnd].depositer
     assert depositer == exiter
 
     #check the inclusion was indeed at this block
-    depositBlockNumber: uint256 = self.deposits[exitTokenType][depositEnd].precedingPlasmaBlockNumber
+    depositBlockNumber: uint256 = self.deposits[exitTokenType][depositUntypedEnd].precedingPlasmaBlockNumber
     assert exitPlasmaBlockNumber == depositBlockNumber
+
+    # chcek the inclusion was indeed within the bounds
+    exitTypedStart: uint256 = Serializer(self.serializer).getTypedFromTokenAndUntyped(exitTokenType, self.exits[exitID].untypedStart)
+    exitTypedEnd: uint256 = Serializer(self.serializer).getTypedFromTokenAndUntyped(exitTokenType, self.exits[exitID].untypedEnd)
+
+    depositTypedStart: uint256 = Serializer(self.serializer).getTypedFromTokenAndUntyped(exitTokenType, self.deposits[exitTokenType][depositUntypedEnd].untypedStart)
+    depositTypedEnd: uint256 = Serializer(self.serializer).getTypedFromTokenAndUntyped(exitTokenType, depositUntypedEnd)
+
+    assert depositTypedStart >= exitTypedStart
+    assert depositTypedEnd <= exitTypedEnd
 
     # response was successful
     clear(self.inclusionChallenges[challengeID])
@@ -524,11 +548,11 @@ def challengeSpentCoin(
     coinID: uint256,
     transferIndex: int128,
     transactionEncoding: bytes[277],
-    transactionProofEncoding: bytes[1749],
+    transactionProofEncoding: bytes[4821],
 ):
     # check we can still challenge
     exitethBlockNumberNumber: uint256 = self.exits[exitID].ethBlockNumber
-    # assert block.number < exitethBlockNumberNumber + SPENTCOIN_CHALLENGE_PERIOD
+    assert block.number < exitethBlockNumberNumber + self.SPENTCOIN_CHALLENGE_PERIOD
 
     transferTypedStart: uint256 # these will be the ones at the trIndex we are being asked about by the exit game
     transferTypedEnd: uint256
@@ -580,7 +604,7 @@ def challengeInvalidHistory(
 ):
     # check we can still challenge
     exitethBlockNumberNumber: uint256 = self.exits[exitID].ethBlockNumber
-    assert block.number < exitethBlockNumberNumber + CHALLENGE_PERIOD
+    assert block.number < exitethBlockNumberNumber + self.CHALLENGE_PERIOD
 
     # check the coinspend came before the exit block
     assert blockNumber < self.exits[exitID].plasmaBlockNumber
@@ -622,7 +646,7 @@ def challengeInvalidHistoryWithTransaction(
     coinID: uint256,
     transferIndex: int128,
     transactionEncoding: bytes[277],
-    transactionProofEncoding: bytes[1749]
+    transactionProofEncoding: bytes[4821]
 ):
     transferTypedStart: uint256 # these will be the ones at the trIndex we are being asked about by the exit game
     transferTypedEnd: uint256
@@ -681,7 +705,7 @@ def respondInvalidHistoryTransaction(
         challengeID: uint256,
         transferIndex: int128,
         transactionEncoding: bytes[277],
-        transactionProofEncoding: bytes[1749],
+        transactionProofEncoding: bytes[4821],
 ):
     assert self.invalidHistoryChallenges[challengeID].ongoing
 
