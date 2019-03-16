@@ -17,6 +17,8 @@ All of the core plasma group projects are hosted inside of the [packages](https:
 | [`@pigi/plasma.js`](/packages/plasma.js)                            | [![npm](https://img.shields.io/npm/v/@pigi/plasma.js.svg)](https://www.npmjs.com/package/@pigi/plasma.js)                                       | JS client library for interacting with PG plasma chains.
 | [`@pigi/utils`](/packages/utils)                                    | [![npm](https://img.shields.io/npm/v/@pigi/utils.svg)](https://www.npmjs.com/package/@pigi/utils)                                           | Utilities used in many PG projects.
 | [`@pigi/verifier`](/packages/verifier)                              | [![npm](https://img.shields.io/npm/v/@pigi/verifier.svg)](https://www.npmjs.com/package/@pigi/verifier)                                        | State transition execution library for PG plasma chains.
+| [`@pigi/vyper-js`](/packages/vyper-js)                              | [![npm](https://img.shields.io/npm/v/@pigi/vyper-js.svg)](https://www.npmjs.com/package/@pigi/vyper-js)                                        | JavaScript bindings for the Vyper compiler.
+
 
 ## Contributing
 Welcome! If you're looking to contribute to the future of plasma, you're in the right place.
