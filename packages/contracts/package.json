@@ -8,7 +8,9 @@
   ],
   "scripts": {
     "test": "mocha --require ts-node/register 'test/**/*.ts'",
-    "compile": "gulp compile"
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config ./.prettier.js --write 'index.ts'",
+    "build": "yarn tsc -p ."
   },
   "keywords": [
     "plasma",
@@ -28,6 +30,7 @@
   },
   "gitHead": "19e6bc191a321972429532030d13df6e7cbbd007",
   "devDependencies": {
+    "@pigi/prettier-config": "^0.0.1",
     "@pigi/vyper-js": "^0.0.1-alpha.6",
     "@types/bn.js": "^4.11.4",
     "@types/chai": "^4.1.7",
@@ -39,6 +42,7 @@
     "gulp": "^4.0.0",
     "mkdirp": "^0.5.1",
     "mocha": "^6.0.2",
+    "typescript": "^3.3.3333",
     "web3": "^1.0.0-beta.48"
   },
   "dependencies": {

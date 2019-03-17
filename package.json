@@ -2,25 +2,22 @@
   "name": "pigi",
   "version": "0.0.1",
   "description": "Plasma Group monorepo",
+  "private": true,
   "main": "index.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "lint": "tslint -p tsconfig.json -c tslint.json 'packages/**/*.ts'",
-    "fix": "prettier --write 'packages/**/*.ts' 'index.ts' 'gulpfile.js'",
-    "prebuild:dev": "rm -rf node_modules/@pigi",
-    "clean": "gulp clean:bundle",
-    "build": "npm run clean && gulp build --pkgs ${PKGS:-0}",
-    "build:dev": "gulp build --dist node_modules/@pigi --pkgs ${PKGS:-0}",
-    "prerelease": "gulp copy-misc && npm run build:dev",
-    "bootstrap": "lerna bootstrap",
-    "publish": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
-    "publish:rc": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
-    "publish:beta": "npm run prerelease && npm run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@plasma-group) publish %s release\"",
-    "postinstall": "npm run bootstrap"
+    "pkgparse": "echo ${PKGS:-'*'} | sed -e 's#,# @pigi/#g' -e 's#^#@pigi/#'",
+    "lint": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --exclude-missing lint",
+    "fix": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --exclude-missing fix",
+    "clean": "wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --parallel --exclude-missing clean",
+    "build": "lerna link && wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --stages --exclude-missing build",
+    "publish": "yarn run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
+    "publish:rc": "yarn run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
+    "publish:beta": "yarn run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@plasma-group) publish %s release\""
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/plasma-group/pigi.git"
-  },
+  "repository": "git+https://github.com/plasma-group/pigi.git",
   "keywords": [
     "plasma",
     "group",
@@ -39,19 +36,15 @@
     "@types/node": "^11.11.3",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "delete-empty": "^2.0.0",
     "ganache-cli": "^6.4.1",
-    "gulp": "^4.0.0",
-    "gulp-clean": "^0.4.0",
-    "gulp-typescript": "^5.0.0",
     "lerna": "^3.13.1",
-    "minimist": "^1.2.0",
     "mocha": "^6.0.2",
     "prettier": "^1.16.4",
     "ts-node": "^8.0.3",
     "tslint": "^5.13.1",
     "tslint-config-prettier": "^1.18.0",
     "tslint-plugin-prettier": "^2.0.1",
-    "typescript": "^3.3.3333"
+    "typescript": "^3.3.3333",
+    "wsrun": "^3.6.4"
   }
 }

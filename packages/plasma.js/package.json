@@ -7,7 +7,10 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.ts'"
+    "test": "mocha --require ts-node/register 'test/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config ./.prettier.js --write 'index.ts'",
+    "build": "yarn tsc -p ."
   },
   "keywords": [
     "plasma",
@@ -24,5 +27,9 @@
   "publishConfig": {
     "access": "public"
   },
-  "gitHead": "19e6bc191a321972429532030d13df6e7cbbd007"
+  "gitHead": "19e6bc191a321972429532030d13df6e7cbbd007",
+  "devDependencies": {
+    "@pigi/prettier-config": "^0.0.1",
+    "typescript": "^3.3.3333"
+  }
 }

@@ -2,26 +2,16 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "es2017",
-    "declaration": false,
+    "declaration": true,
     "noImplicitAny": false,
-    "noUnusedLocals": false,
     "removeComments": true,
-    "resolveJsonModule": true,
     "noLib": false,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "sourceMap": true,
-    "allowJs": true,
     "outDir": "dist",
     "lib": [
       "es7"
     ]
-  },
-  "include": [
-    "packages/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "**/*.spec.ts"
-  ]
+  }
 }

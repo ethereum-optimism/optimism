@@ -7,7 +7,10 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'",
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config ./.prettier.js --write 'index.ts'",
+    "build": "yarn tsc -p ."
   },
   "keywords": [
     "plasma",
@@ -28,6 +31,7 @@
     "ethers": "^4.0.27"
   },
   "devDependencies": {
+    "@pigi/prettier-config": "^0.0.1",
     "@types/bn.js": "^4.11.4",
     "@types/chai": "^4.1.7",
     "@types/chai-as-promised": "^7.1.0",
@@ -35,7 +39,8 @@
     "@types/mocha": "^5.2.6",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "mocha": "^6.0.2"
+    "mocha": "^6.0.2",
+    "typescript": "^3.3.3333"
   },
   "publishConfig": {
     "access": "public"

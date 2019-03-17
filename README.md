@@ -44,16 +44,19 @@ cd pigi
 
 #### Node.js
 Most of the projects in `@pigi` are [`Node.js`](https://nodejs.org/en/) projects.
-You'll need to install `Node.js` (and its corresponding package manager, `npm`) for your system before continuing.
+You'll need to install `Node.js` for your system before continuing.
 We've provided a [detailed explanation of now to install `Node.js`](https://plasma-core.readthedocs.io/en/latest/reference.html#installing-node-js) on Windows, Mac, and Linux.
 
+#### Yarn
+We're using a package manager 
+
 #### Installing Dependencies
-`@pigi` projects make use of several `npm` packages.
+`@pigi` projects make use of several external packages.
 
 Install all required packages with:
 
 ```
-npm install
+yarn install
 ```
 
 ### Building
@@ -62,13 +65,13 @@ npm install
 Build all packages:
 
 ```
-npm run build
+yarn run build
 ```
 
 Build a specific package or set of packages:
 
 ```
-PKGS=your,packages,here npm run build
+PKGS=your,packages,here yarn run build
 ```
 
 ### Linting
@@ -77,13 +80,13 @@ Clean code is the best code, so we've provided tools to automatically lint your 
 Lint all packages:
 
 ```
-npm run lint
+yarn run lint
 ```
 
 Lint a specific package or set of packages:
 
 ```
-PKGS=your,packages,here npm run lint
+PKGS=your,packages,here yarn run lint
 ```
 
 #### Automatic Fixing Linting Issues
@@ -93,13 +96,13 @@ It's much easier than trying to fix issues manually.
 Fix all packages:
 
 ```
-npm run fix
+yarn run fix
 ```
 
 Fix a specific package or set of packages:
 
 ```
-PKGS=your,packages,here npm run fix
+PKGS=your,packages,here yarn run fix
 ```
 
 ### Running Tests
@@ -108,13 +111,13 @@ PKGS=your,packages,here npm run fix
 Run all tests:
 
 ```
-npm test
+yarn test
 ```
 
 Run tests for a specific package or set of packages:
 
 ```
-PKGS=your,packages,here npm test
+PKGS=your,packages,here yarn test
 ```
 
 **Contributors: remember to run tests before submitting a pull request!**

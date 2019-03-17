@@ -11,5 +11,7 @@
         "tsconfig.json"
       ]
     }
-  }
+  },
+  "npmClient": "yarn",
+  "useWorkspaces": true
 }
