@@ -9,36 +9,36 @@ Documentation for ``plasma-client`` is available at the `plasma-client docs`_.
    :maxdepth: 2
    :caption: Developer Documentation
 
-   what-is-plasma-core
-   contributing
-   architecture
-   extending-plasma-core
-   reference
+   src/what-is-plasma-core
+   src/contributing
+   src/architecture
+   src/extending-plasma-core
+   src/reference
 
 .. toctree::
    :maxdepth: 2
    :caption: Specifications
 
-   specs/operator
-   specs/coin-assignment
-   specs/transactions
-   specs/proofs
-   specs/contract
-   specs/sum-tree
-   specs/jsonrpc
+   src/specs/operator
+   src/specs/coin-assignment
+   src/specs/transactions
+   src/specs/proofs
+   src/specs/contract
+   src/specs/sum-tree
+   src/specs/jsonrpc
 
 .. toctree::
    :maxdepth: 2
    :caption: Service API Reference
 
-   services/contract
-   services/operator
-   services/jsonrpc
-   services/proof
-   services/sync
-   services/chain
-   services/guard
-   services/db
+   src/services/contract
+   src/services/operator
+   src/services/jsonrpc
+   src/services/proof
+   src/services/sync
+   src/services/chain
+   src/services/guard
+   src/services/db
 
 .. _`plasma-client docs`: https://plasma-client.readthedocs.io/en/latest/
 .. _`extend plasma-core`: extending-plasma-core.html
