@@ -28,7 +28,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "gitHead": "19e6bc191a321972429532030d13df6e7cbbd007",
+  "gitHead": "5198a7b88171d364fad419eb4c53954e27d3b23f",
   "devDependencies": {
     "@pigi/prettier-config": "^0.0.2-alpha.0",
     "@types/node": "^11.11.3",

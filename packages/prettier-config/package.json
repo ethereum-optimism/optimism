@@ -3,7 +3,14 @@
   "version": "0.0.2-alpha.0",
   "description": "PG prettier config",
   "main": "index.json",
-  "repository": "git@github.com:plasma-group/pigi.git",
   "author": "Plasma Group",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "gitHead": "5198a7b88171d364fad419eb4c53954e27d3b23f"
 }
