@@ -9,7 +9,7 @@
   "scripts": {
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts'",
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ./.prettier.js --write 'index.ts'",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "build": "yarn tsc -p ."
   },
   "keywords": [

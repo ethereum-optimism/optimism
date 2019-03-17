@@ -48,7 +48,8 @@ You'll need to install `Node.js` for your system before continuing.
 We've provided a [detailed explanation of now to install `Node.js`](https://plasma-core.readthedocs.io/en/latest/reference.html#installing-node-js) on Windows, Mac, and Linux.
 
 #### Yarn
-We're using a package manager 
+We're using a package manager called [Yarn](https://yarnpkg.com/en/).
+You'll need to [install Yarn](https://yarnpkg.com/en/docs/install) before continuing.
 
 #### Installing Dependencies
 `@pigi` projects make use of several external packages.
