@@ -41,11 +41,11 @@ Compiles the vyper contract at the given path and outputs the compilation result
 
 #### Returns
 1. ``Object``: The compilation result.
-    1. ``bytecode`` - ``string``: EVM bytecode of the compiled contract.
-    2. ``bytecodeRuntime`` - ``string``: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
-    3. ``abi`` - ``VyperAbiItem | VyperAbiItem[]``: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
-    4. ``sourceMap`` - ``Object``: Source mapping object.
-        1. ``breakpoints`` - ``number[]``: List of lines that have breakpoints.
-        2. ``pcPosMap`` - ``{ [key: string]: [number, number] }``: Mapping of opcode positions to ``[line_number, column_offset]`` in the original file.
-    5. ``methodIdentifiers`` - ``{ [key: string]: string }``: Mapping of method signatures to their unique hashes.
-    6. ``version`` - ``string``: Vyper compiler version used to compile the file.
+    * ``bytecode`` - ``string``: EVM bytecode of the compiled contract.
+    * ``bytecodeRuntime`` - ``string``: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
+    * ``abi`` - ``VyperAbiItem | VyperAbiItem[]``: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
+    * ``sourceMap`` - ``Object``: Source mapping object.
+        * ``breakpoints`` - ``number[]``: List of lines that have breakpoints.
+        * ``pcPosMap`` - ``{ [key: string]: [number, number] }``: Mapping of opcode positions to ``[line_number, column_offset]`` in the original file.
+    * ``methodIdentifiers`` - ``{ [key: string]: string }``: Mapping of method signatures to their unique hashes.
+    * ``version`` - ``string``: Vyper compiler version used to compile the file.
