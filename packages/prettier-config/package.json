@@ -1,6 +1,6 @@
 {
   "name": "@pigi/prettier-config",
-  "version": "0.0.1",
+  "version": "0.0.2-alpha.0",
   "description": "PG prettier config",
   "main": "index.json",
   "repository": "git@github.com:plasma-group/pigi.git",
