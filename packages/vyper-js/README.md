@@ -20,3 +20,32 @@ const vyperjs = require('@pigi/vyper-js')
 const contract = await vyperjs.compile('./path/to/your/Contract.vy')
 console.log(contract) // { bytecode: '0x.....', abi: [....], ... }
 ```
+
+Check our our more detailed documentation below!
+
+## Contributing
+Check out our detailed [Contributing Guide](https://github.com/plasma-group/pigi/blob/master/README.md#contributing) if you'd like to contribute to this project!
+
+## Documentation
+The `vyper-js` API is pretty simple - there's currently only a single function!
+
+### `vyperjs.compile`
+```js
+vyperjs.compile(path)
+```
+
+Compiles the vyper contract at the given path and outputs the compilation result
+
+#### Params
+1. ``path`` - ``string``: Path to the Vyper file to compile.
+
+#### Returns
+1. ``Object``: The compilation result.
+    1. ``bytecode`` - ``string``: EVM bytecode of the compiled contract.
+    2. ``bytecodeRuntime`` - ``string``: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
+    3. ``abi`` - ``VyperAbiItem | VyperAbiItem[]``: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
+    4. ``sourceMap`` - ``Object``: Source mapping object.
+        1. ``breakpoints`` - ``number[]``: List of lines that have breakpoints.
+        2. ``pcPosMap`` - ``{ [key: string]: [number, number] }``: Mapping of opcode positions to ``[line_number, column_offset]`` in the original file.
+    5. ``methodIdentifiers`` - ``{ [key: string]: string }``: Mapping of method signatures to their unique hashes.
+    6. ``version`` - ``string``: Vyper compiler version used to compile the file.

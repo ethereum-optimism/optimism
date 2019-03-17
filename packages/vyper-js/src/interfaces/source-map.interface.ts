@@ -1,4 +1,4 @@
 export interface VyperSourceMap {
-  breakpoints: any[]
+  breakpoints: number[]
   pcPosMap: { [key: string]: [number, number] }
 }
