@@ -1,6 +1,6 @@
 /* External Imports */
 import { Service } from '@nestd/core'
-import AsyncLock from 'async-lock'
+import AsyncLock = require('async-lock')
 
 /* Services */
 import { LoggerService, SyncLogger } from './logging'

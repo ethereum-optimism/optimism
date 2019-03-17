@@ -1,7 +1,7 @@
 /* External Imports */
 import { Service, OnStart } from '@nestd/core'
 import axios, { AxiosInstance, AxiosResponse } from 'axios'
-import uuidv4 from 'uuid'
+import uuidv4 = require('uuid')
 import { Transaction, sleep } from '@pigi/utils'
 
 /* Services */

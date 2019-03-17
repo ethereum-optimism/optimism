@@ -25,7 +25,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "gitHead": "f59a1865f43742834ffd403020e2fe4454117aed",
+  "gitHead": "19e6bc191a321972429532030d13df6e7cbbd007",
   "devDependencies": {
     "@types/node": "^11.11.3"
   }

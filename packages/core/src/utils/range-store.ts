@@ -43,13 +43,18 @@ export class RangeStore<T extends BlockRange> {
    * @returns a list of existing ranges.
    */
   public getOverlapping(range: Range): T[] {
-    return this.ranges.map((existing) => {
-      return {
-        ...existing,
-        start: bnMax(existing.start, range.start),
-        end: bnMin(existing.end, range.end),
+    return this.ranges.reduce((overlap, existing) => {
+      const overlapStart = bnMax(existing.start, range.start)
+      const overlapEnd = bnMin(existing.end, range.end)
+      if (overlapStart.lt(overlapEnd)) {
+        overlap.push({
+          ...existing,
+          start: overlapStart,
+          end: overlapEnd,
+        })
       }
-    })
+      return overlap
+    }, [])
   }
 
   /**
@@ -88,8 +93,13 @@ export class RangeStore<T extends BlockRange> {
   public removeRange(range: Range): void {
     for (const overlap of this.getOverlapping(range)) {
       // Remove the old range entirely.
+      let removed: T
       this.ranges = this.ranges.filter((r) => {
-        return !r.start.eq(overlap.start)
+        if (r.start.lte(overlap.start) && r.end.gte(overlap.end)) {
+          removed = r
+          return false
+        }
+        return true
       })
 
       // Add back any of the left or right
@@ -103,17 +113,17 @@ export class RangeStore<T extends BlockRange> {
       //         |xxx|   right remainder
 
       // Add left remainder.
-      if (overlap.start.lt(overlap.start)) {
+      if (removed.start.lt(overlap.start)) {
         this.ranges.push({
-          ...overlap,
+          ...removed,
           end: overlap.start,
         })
       }
 
       // Add right remainder.
-      if (overlap.end.gt(overlap.end)) {
+      if (removed.end.gt(overlap.end)) {
         this.ranges.push({
-          ...overlap,
+          ...removed,
           start: overlap.end,
         })
       }

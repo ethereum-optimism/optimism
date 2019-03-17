@@ -1,4 +1,4 @@
-import * as ganache from 'ganache-cli'
+import ganache = require('ganache-cli')
 import { Http2Server } from 'http2'
 
 class Ethereum {
