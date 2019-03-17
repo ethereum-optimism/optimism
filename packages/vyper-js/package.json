@@ -1,6 +1,6 @@
 {
   "name": "@pigi/vyper-js",
-  "version": "0.0.1-alpha.8",
+  "version": "0.0.1-alpha.9",
   "description": "Vyper compilation in JavaScript",
   "main": "build/index.js",
   "files": [
@@ -26,7 +26,7 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.1",
+    "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@types/node": "^11.11.3",
     "typescript": "^3.3.3333"
   },

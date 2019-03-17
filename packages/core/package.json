@@ -1,6 +1,6 @@
 {
   "name": "@pigi/core",
-  "version": "0.0.1-alpha.6",
+  "version": "0.0.1-alpha.7",
   "description": "Plasma Group client core",
   "main": "build/index.js",
   "files": [
@@ -27,9 +27,9 @@
   },
   "dependencies": {
     "@nestd/core": "0.0.2-alpha.3",
-    "@pigi/contracts": "^0.0.1-alpha.8",
-    "@pigi/utils": "^0.0.1-alpha.9",
-    "@pigi/verifier": "^0.0.1-alpha.6",
+    "@pigi/contracts": "^0.0.1-alpha.9",
+    "@pigi/utils": "^0.0.1-alpha.10",
+    "@pigi/verifier": "^0.0.1-alpha.7",
     "@types/bn.js": "^4.11.4",
     "async-lock": "^1.1.4",
     "axios": "^0.18.0",
@@ -48,7 +48,7 @@
     "web3-utils": "^1.0.0-beta.48"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.1",
+    "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@types/async-lock": "^1.1.1",
     "@types/chai": "^4.1.7",
     "@types/chai-as-promised": "^7.1.0",
