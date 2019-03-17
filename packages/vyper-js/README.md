@@ -29,7 +29,7 @@ Check out our detailed [Contributing Guide](https://github.com/plasma-group/pigi
 ## Documentation
 The `vyper-js` API is pretty simple - there's currently only a single function!
 
-### `vyperjs.compile`
+### vyperjs.compile
 ```js
 vyperjs.compile(path)
 ```
@@ -37,15 +37,15 @@ vyperjs.compile(path)
 Compiles the vyper contract at the given path and outputs the compilation result
 
 #### Params
-1. ``path`` - ``string``: Path to the Vyper file to compile.
+1. `path` - `string`: Path to the Vyper file to compile.
 
 #### Returns
-1. ``Object``: The compilation result.
-    * ``bytecode`` - ``string``: EVM bytecode of the compiled contract.
-    * ``bytecodeRuntime`` - ``string``: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
-    * ``abi`` - ``VyperAbiItem | VyperAbiItem[]``: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
-    * ``sourceMap`` - ``Object``: Source mapping object.
-        * ``breakpoints`` - ``number[]``: List of lines that have breakpoints.
-        * ``pcPosMap`` - ``{ [key: string]: [number, number] }``: Mapping of opcode positions to ``[line_number, column_offset]`` in the original file.
-    * ``methodIdentifiers`` - ``{ [key: string]: string }``: Mapping of method signatures to their unique hashes.
-    * ``version`` - ``string``: Vyper compiler version used to compile the file.
+1. `Object`: The compilation result.
+    * `bytecode` - `string`: EVM bytecode of the compiled contract.
+    * `bytecodeRuntime` - `string`: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
+    * `abi` - `VyperAbiItem | VyperAbiItem[]`: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
+    * `sourceMap` - `Object`: Source mapping object.
+        * `breakpoints` - `number[]`: List of lines that have breakpoints.
+        * `pcPosMap` - `{ [key: string]: [number, number] }`: Mapping of opcode positions to `[line_number, column_offset]` in the original file.
+    * `methodIdentifiers` - `{ [key: string]: string }`: Mapping of method signatures to their unique hashes.
+    * `version` - `string`: Vyper compiler version used to compile the file.
