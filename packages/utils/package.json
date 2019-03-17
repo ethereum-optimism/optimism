@@ -1,6 +1,6 @@
 {
   "name": "@pigi/utils",
-  "version": "0.0.1-alpha.8",
+  "version": "0.0.1-alpha.9",
   "description": "Plasma Group core utils",
   "main": "build/index.js",
   "files": [
@@ -30,7 +30,7 @@
     "ethers": "^4.0.27"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.0",
+    "@pigi/prettier-config": "^0.0.2-alpha.1",
     "@types/chai": "^4.1.7",
     "@types/debug": "^4.1.2",
     "@types/mocha": "^5.2.6",

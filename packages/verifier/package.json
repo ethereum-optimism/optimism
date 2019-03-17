@@ -1,6 +1,6 @@
 {
   "name": "@pigi/verifier",
-  "version": "0.0.1-alpha.5",
+  "version": "0.0.1-alpha.6",
   "description": "Plasma Group state execution verifier",
   "main": "build/index.js",
   "files": [
@@ -31,7 +31,7 @@
     "ethers": "^4.0.27"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.0",
+    "@pigi/prettier-config": "^0.0.2-alpha.1",
     "@types/bn.js": "^4.11.4",
     "@types/chai": "^4.1.7",
     "@types/chai-as-promised": "^7.1.0",
