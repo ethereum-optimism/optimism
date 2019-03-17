@@ -14,9 +14,9 @@
     "clean": "wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --parallel --exclude-missing clean",
     "test": "wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --parallel --exclude-missing test",
     "build": "lerna link && wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --stages --exclude-missing build",
-    "publish": "yarn run build && ./node_modules/.bin/lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
-    "publish:rc": "yarn run build && ./node_modules/.bin/lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
-    "publish:beta": "yarn run build && ./node_modules/.bin/lerna publish --dist-tag=beta -m \"chore(@plasma-group) publish %s release\""
+    "release": "yarn run build && lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
+    "release:rc": "yarn run build && lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
+    "release:beta": "yarn run build && lerna publish --dist-tag=beta -m \"chore(@plasma-group) publish %s release\""
   },
   "repository": "git+https://github.com/plasma-group/pigi.git",
   "keywords": [
