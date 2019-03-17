@@ -8,8 +8,8 @@ Hello and welcome to the documentation of Plasma Group's ``plasma-utils``!
    :maxdepth: 2
    :caption: API Reference
 
-   utils
-   logging
-   serialization
-   models
-   sum-tree
+   src/utils
+   src/logging
+   src/serialization
+   src/models
+   src/sum-tree
