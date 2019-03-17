@@ -1,5 +1,6 @@
 {
   "name": "@pigi/docs",
+  "private": true,
   "version": "0.0.1",
   "description": "PG docs",
   "author": "Plasma Group",

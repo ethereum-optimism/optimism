@@ -7,6 +7,7 @@
     "publish": {
       "ignoreChanges": [
         "*.md",
+        "*.rst",
         "tslint.json",
         "tsconfig.json"
       ]
