@@ -17,7 +17,7 @@ General Guidelines
 
 Our contributors are taking time out of their busy days to help us make plasma a reality.
 That alone deserves a lot of respect!
-Our contributors are also real people with real lives who are trying to make a difference and who are all deserving of respect.
+Our contributors are also real people with real lives.
 Plasma Group core contributors should treat all outside contributors with the same respect they show each other.
 
 2. **Always thank contributors.**

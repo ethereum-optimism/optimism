@@ -30,7 +30,7 @@ Help them out by giving them the exact commands and relevant output that’ll he
 2. **Get to the source of the issue.**
 
 Next is getting to the source of the issue.
-Now this is where things get fun!
+This is where things get fun!
 The first thing you’ll want to do is to assess the general difficulty of the underlying problem.
 Using the steps to reproduce, try to locate the problematic areas of the software.
 Is it an encoding issue?
