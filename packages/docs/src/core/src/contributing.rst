@@ -3,7 +3,7 @@ Contributing
 ============
 Welcome! A huge thank you for your interest in contributing to Plasma Group.
 Plasma Group is an open source initiative developing a simple and well designed plasma_ implementation.
-If you're looking to contribute to ``plasma-core``, you're in the right place!
+If you're looking to contribute to ``@pigi/core``, you're in the right place!
 It's contributors like you that make open source projects work, we really couldn't do it without you.
 
 We don't just need people who can contribute code.
@@ -18,7 +18,7 @@ Here at Plasma Group we're trying to foster an inclusive, welcoming, and accessi
 The best open source projects are those that make contributing an easy and rewarding experience.
 We're trying to follow those best practices by maintaining a series of resources for contributors to Plasma Group repositories.
 
-If you're a new contributor to ``plasma-core``, please read through the following information.
+If you're a new contributor to ``@pigi/core``, please read through the following information.
 These resources will help you get started and will help you better understand what we're building.
 
 Contributing Guide and Code of Conduct
@@ -33,24 +33,24 @@ Getting Started as a Contributor
 Design and Architecture
 -----------------------
 Before you start contributing, please read through our `Architecture`_ document.
-This will give you a high-level understanding of what ``plasma-core`` is and what ``plasma-core`` isn't.
+This will give you a high-level understanding of what ``@pigi/core`` is and what ``@pigi/core`` isn't.
 
 Requirements and Setup
 ----------------------
 Node.js
 ~~~~~~~
-``plasma-core`` is a `Node.js`_ application.
+``@pigi/core`` is a `Node.js`_ application.
 You'll need to install ``Node.js`` (and it's corresponding package manager, ``npm``) for your system before continuing.
 
-``plasma-core`` has been tested on the following versions of Node:
+``@pigi/core`` has been tested on the following versions of Node:
 
 - 10.14.2
 
-If you're having trouble getting a component of ``plasma-core`` running, please try running one of the above versions.
+If you're having trouble getting a component of ``@pigi/core`` running, please try running one of the above versions.
 
 Packages
 ~~~~~~~~
-``plasma-core`` makes use of several ``npm`` packages.
+``@pigi/core`` makes use of several ``npm`` packages.
 
 Install all required packages with:
 
@@ -59,7 +59,7 @@ Install all required packages with:
 
 Running Tests
 -------------
-``plasma-core`` makes use of a combination of Mocha_ (a testing framework) and Chai_ (an assertion library) for testing.
+``@pigi/core`` makes use of a combination of Mocha_ (a testing framework) and Chai_ (an assertion library) for testing.
 
 Run all tests with:
 
@@ -70,7 +70,7 @@ Run all tests with:
 Code with passing tests makes life easier for everyone and means your contribution can get pulled into this project faster.
 
 .. _plasma: https://plasma.io
-.. _Contributing Guide and Code of Conduct: https://github.com/plasma-group/plasma-core/blob/master/.github/CONTRIBUTING.md
+.. _Contributing Guide and Code of Conduct: https://github.com/plasma-group/pigi/blob/master/.github/CONTRIBUTING.md
 .. _Contributor Covenant: https://www.contributor-covenant.org/version/1/4/code-of-conduct.html
 .. _Architecture: architecture.html
 .. _members of Plasma Group: https://github.com/orgs/plasma-group/people

@@ -85,14 +85,14 @@ Linux
 There are different ways to install ``Node.js`` depending on your Linux distribution.
 `Here's an article`_ that goes through installing ``Node.js`` on different distributions.
 
-.. _Command Prompt\: What It Is and How to Use It: https://www.lifewire.com/command-prompt-2625840
-.. _Introduction to the Mac OS X Command Line: https://blog.teamtreehouse.com/introduction-to-the-mac-os-x-command-line
-.. _How to Start Using the Linux Terminal: https://www.howtogeek.com/140679/beginner-geek-how-to-start-using-the-linux-terminal/
-.. _good tutorial: https://www.atlassian.com/git/tutorials/install-git#windows
-.. _pretty easy: https://git-scm.com/book/en/v2/Getting-Started-Installing-Git
-.. _Here\'s a guide: https://gist.github.com/derhuerst/1b15ff4652a867391f03#file-linux-md
-.. _Node.js: https://nodejs.org/en/
-.. _here: https://nodejs.org/en/download/
-.. _downloads page: https://nodejs.org/en/download/
-.. _Homebrew: https://brew.sh/
-.. _Here\'s an article: https://nodejs.org/en/download/package-manager/
+.. _`Command Prompt: What It Is and How to Use It`: https://www.lifewire.com/command-prompt-2625840
+.. _`Introduction to the Mac OS X Command Line`: https://blog.teamtreehouse.com/introduction-to-the-mac-os-x-command-line
+.. _`How to Start Using the Linux Terminal`: https://www.howtogeek.com/140679/beginner-geek-how-to-start-using-the-linux-terminal/
+.. _`good tutorial`: https://www.atlassian.com/git/tutorials/install-git#windows
+.. _`pretty easy`: https://git-scm.com/book/en/v2/Getting-Started-Installing-Git
+.. _`Here's a guide`: https://gist.github.com/derhuerst/1b15ff4652a867391f03#file-linux-md
+.. _`Node.js`: https://nodejs.org/en/
+.. _`here`: https://nodejs.org/en/download/
+.. _`downloads page`: https://nodejs.org/en/download/
+.. _`Homebrew`: https://brew.sh/
+.. _`Here's an article`: https://nodejs.org/en/download/package-manager/

@@ -1,18 +1,19 @@
-============================================
-Welcome to the documentation of plasma-core!
-============================================
-Hello and welcome to the documentation of Plasma Group's ``plasma-core``!
-A quick note: ``plasma-core`` is **not** our ``Node.js`` client, ``plasma-client``.
-Documentation for ``plasma-client`` is available at the `plasma-client docs`_.
+========================
+@pigi/core documentation
+========================
+Hello and welcome to the documentation for Plasma Group's ``@pigi/core``!
+``@pigi/core`` is the set of core modules that our other plasma chain clients use.
+A quick note: ``@pigi/core`` is **not** our ``Node.js`` client, ``@pigi/client``.
+Documentation for ``@pigi/client`` is available at the `@pigi/client docs`_.
 
 .. toctree::
    :maxdepth: 2
    :caption: Developer Documentation
 
-   src/what-is-plasma-core
+   src/what-is-pigi-core
    src/contributing
    src/architecture
-   src/extending-plasma-core
+   src/extending-pigi-core
    src/reference
 
 .. toctree::
@@ -40,5 +41,4 @@ Documentation for ``plasma-client`` is available at the `plasma-client docs`_.
    src/services/guard
    src/services/db
 
-.. _`plasma-client docs`: https://plasma-client.readthedocs.io/en/latest/
-.. _`extend plasma-core`: extending-plasma-core.html
+.. _`@pigi/client docs`: https://docs.plasma.group/projects/client/en/latest/

@@ -4,7 +4,7 @@ Coin ID Assignment
 This explains the process by which assets deposited into our plasma chain are assigned unique identifiers.
 
 You usually won't have to think about these things when you're interacting with a PG plasma chains.
-Most of this is handled automagically by ``plasma-utils`` or ``plasma-js-lib``.
+Most of this is handled automagically by ``@pigi/utils`` or ``@pigi/plasma-js``.
 The exact byte-per-byte binary representations of all data structures for each structure can be found in our schemas_.
 
 Coin IDs

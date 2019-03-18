@@ -1,19 +1,19 @@
 ============
 Architecture
 ============
-This document describes, in detail, the architecture of ``plasma-core``.
-If you're a new contributor to ``plasma-core``, welcome!
-Hopefully this document will help you better understand how ``plasma-core`` works under the hood.
+This document describes, in detail, the architecture of ``@pigi/core``.
+If you're a new contributor to ``@pigi/core``, welcome!
+Hopefully this document will help you better understand how ``@pigi/core`` works under the hood.
 
-plasma-core 101
+@pigi/core 101
 ===============
-``plasma-core`` is composed of a set of *services* that, when woven together, form (almost) a complete node!
+``@pigi/core`` is composed of a set of *services* that, when woven together, form (almost) a complete node!
 Each of these services performs a very specific role.
 A more in-depth explanation of each individual service is available in the *Service API Reference* section of our documentation.
 
 Architecture Diagram
 ====================
-This diagram shows the basic architecture of ``plasma-core``:
+This diagram shows the basic architecture of ``@pigi/core``:
 
 .. figure:: ./_static/images/architecture/architecture.png
     :align: center
@@ -23,9 +23,9 @@ This diagram shows the basic architecture of ``plasma-core``:
 
 External services
 =================
-``plasma-core`` talks to three external services: **Ethereum**, the plasma chain **Operator**, and user **applications**.
-These three services are *outside* of the scope of ``plasma-core``.
-Instead, ``plasma-core`` provides interfaces through which it can talk to and hear from these external services.
+``@pigi/core`` talks to three external services: **Ethereum**, the plasma chain **Operator**, and user **applications**.
+These three services are *outside* of the scope of ``@pigi/core``.
+Instead, ``@pigi/core`` provides interfaces through which it can talk to and hear from these external services.
 
 ContractService
 ---------------
@@ -46,11 +46,11 @@ JSONRPCService
 --------------
 The JSONRPCService_ acts as a handler for commands sent by user **applications**.
 By default, applications must interact *directly* with ``JSONRPCService``.
-``plasma-core`` can be extended to expose additional interfaces to ``JSONRPCService``, such as an HTTP API.
+``@pigi/core`` can be extended to expose additional interfaces to ``JSONRPCService``, such as an HTTP API.
 
 Internal services
 =================
-The remaining services of ``plasma-core`` manage things internally.
+The remaining services of ``@pigi/core`` manage things internally.
 
 SyncService
 -----------
@@ -61,7 +61,7 @@ Possibly the most important internal service, SyncService_ ensures that your nod
 ChainService
 ------------
 ChainService_ is another extremely important internal service.
-``ChainService`` manages ``plasma-core``'s internal blockchain.
+``ChainService`` manages ``@pigi/core``'s internal blockchain.
 This includes storing any necessary transaction and block information.
 ``ChainService`` also handles returning information about the stored local state with convenient wrapper functions.
 
