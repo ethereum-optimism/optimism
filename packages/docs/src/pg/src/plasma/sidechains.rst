@@ -1,6 +1,6 @@
-====================================
-Understanding: Plasma vs. Sidechains
-====================================
+===========================================
+Understanding: Plasma Chains vs. Sidechains
+===========================================
 People often talk about plasma chains and sidechains like they're the same thing.
 Sometimes people even refer to plasma chains as sidechains.
 However, **plasma chains and sidechains are very different!**
