@@ -94,4 +94,3 @@ Definitely discuss with other contributors if you're not sure on an exact timeli
 Figuring out an exact timeline is more of an art than a science.
 There are always unexpected things that might speed up (or slow down!) the addition of a new feature.
 It's important that we keep a feature request thread updated with the latest work on a feature.
-
