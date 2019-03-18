@@ -1,7 +1,6 @@
-=====================
-Community Interaction
-=====================
-
+======================
+Community Interactions
+======================
 Community members are the single most important resource available to Plasma Group.
 With such a small set of core contributors, we can only hope to create the best possible plasma implementation by tapping into our community.
 Remember, we **cannot succeed without the support of our community**.
