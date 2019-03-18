@@ -1,6 +1,6 @@
-=======================================
-Understanding the Plasma Chain Operator
-=======================================
+========================================
+Understanding: The Plasma Chain Operator
+========================================
 When learning about plasma you'll eventually run into the idea of the plasma chain 'operator'.
 For the most part, the operator is exactly what it sounds like — a single entity that's responsible for aggregating transactions into blocks and then publishing those blocks to some other "main" blockchain (like Ethereum).
 Blockchains are only usable if new blocks are being created, so, by producing these new blocks, the operator is quite literally responsible for keeping the whole plasma chain running. 
