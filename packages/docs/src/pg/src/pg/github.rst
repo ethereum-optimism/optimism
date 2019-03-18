@@ -6,6 +6,10 @@ Most of our interactions with community members happen through GitHub.
 As a result, it's important that the key GitHub interactions are well planned out.
 This section describes the most important interactions (Bug Reports, Feature Requests, and Pull Requests) and provides basic guidelines for how to best work with community members.
 
+Remember that everyone who contributes to our projects is taking time out of their day.
+Always thank people for helping out, even if you're closing out an issue for being a duplicate of something else!
+The golden rule is the best rule :-).
+
 Bug Reports
 ===========
 1. **If a potential active contributor submits an issue, give them the resources to become an active contributor.**
@@ -59,3 +63,35 @@ If it's not the person who submitted the issue, try to think about which contrib
 If you already know what's causing the issue, try to explain the cause in a very detailed manner.
 You can even go as far as pointing out specific lines that are causing problems or sketching out a potential solution.
 You don't necessarily want to entirely solve the problem for someone else, but you do want to give enough leads if possible.
+
+Feature Requests
+================
+1. **Clarify the exact parameters of the feature request.**
+
+Sometimes contributors are already very familiar with our codebase/functionality and have a clear idea of what new features they'd like.
+Other times contributors have a general idea of what they'd like, but we still need to figure out exactly how the feature will work.
+It's important to start off by clarifying exactly how the new feature will work.
+Clear feature requests are the best way to make sure that we're implementing exactly what was requested.
+We definitely don't want to spend a lot of time building something out that isn't useful!
+
+2. **Figure out what changes would need to be made for the new feature.**
+
+Understanding the scope and impact of any changes is necessary for figuring out a timeline.
+Once you've clarified exactly what feature is being requested, you can start figuring out what needs to be changed in order to add the feature.
+If you're familiar with the codebase, this is a great time to point to the files that would need to be changed.
+Otherwise, feel free to tag any other contributors who might have a better idea about the problem!
+
+3. **Figure out a timeline for the new feature.**
+
+We want to make sure that contributors who request new features get a timeline so they know how long they'll need to wait.
+Contributors might otherwise turn to another project with a more explicit roadmap.
+Try to guesstimate the amount of time that a feature will take to complete.
+Also think about where the feature fits in with other features because it might make more sense to release several updates simultaneously.
+Definitely discuss with other contributors if you're not sure on an exact timeline.
+
+4. **Keep people updated with the status of a new feature.**
+
+Figuring out an exact timeline is more of an art than a science.
+There are always unexpected things that might speed up (or slow down!) the addition of a new feature.
+It's important that we keep a feature request thread updated with the latest work on a feature.
+
