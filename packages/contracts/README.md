@@ -1,7 +1,7 @@
 # plasma-contracts
 [![Build Status](https://travis-ci.org/plasma-group/plasma-contracts.svg?branch=master)](https://travis-ci.org/plasma-group/plasma-contracts)
 
-`plasma-contracts` is the set of smart contracts written in Vyper for the Plasma Group series of projects. It includes an implementation of a Plasma Cash variant, and a registry contract for discovering Plasma chains. This repo is used for compiling those contracts--If you don't need any modifications, you can spin up your own with [`plasma-chain-operator`](https://github.com/plasma-group/plasma-chain-operator) or try out other chains with [`plasma-js-lib`](https://github.com/plasma-group/plasma-js-lib).
+`plasma-contracts` is the set of smart contracts written in Vyper for the Plasma Group series of projects. It includes an implementation of a Plasma Cash variant, and a registry contract for discovering Plasma chains. This repo is used for compiling those contracts--If you don't need any modifications, you can spin up your own with [`plasma-chain-operator`](https://github.com/plasma-group/plasma-chain-operator) or try out other chains with [`@pigi/plasma-js`](https://github.com/plasma-group/@pigi/plasma-js).
 
 ## Contributing
 If you're looking to contribute to `plasma-contracts`, you're in the right place. Welcome!
