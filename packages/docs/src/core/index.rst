@@ -12,7 +12,6 @@ Documentation for ``@pigi/client`` is available at the `@pigi/client docs`_.
    :caption: Developer Documentation
 
    src/what-is-pigi-core
-   src/contributing
    src/architecture
    src/extending-pigi-core
    src/reference
