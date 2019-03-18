@@ -27,6 +27,8 @@ Help them out by giving them the exact commands and relevant output that’ll he
 
     Create a basic diagnostics guide that helps users figure out what's going on with their projects.
 
+2. **Get to the source of the issue.**
+
 Next is getting to the source of the issue.
 Now this is where things get fun!
 The first thing you’ll want to do is to assess the general difficulty of the underlying problem.
@@ -41,6 +43,8 @@ If the problem is relatively simple, great!
 This is an awesome opportunity to convert the potential contributor into an active one.
 If a problem is simple, unless the it's absolutely critical and needs an immediate fix, your top priority should be to give someone else the tools to solve the problem.
 Remember, letting potential contributors get their hands into some code is the best way to convert them to active contributors.
+
+3. **Try to give people the tools to solve problems themselves.**
 
 Giving someone the tools to solve the issue for themselves is a multi-step process.
 First, you’ll want to provide the user with all the necessary background information.
