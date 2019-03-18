@@ -13,5 +13,11 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    :maxdepth: 2
    :caption: Plasma
 
-   src/plasma/sidechains.rst
+   src/plasma/sidechains
    src/plasma/operator
+
+.. toctree::
+   :maxdepth: 2
+   :caption: @pigi
+
+   src/pigi/contributing

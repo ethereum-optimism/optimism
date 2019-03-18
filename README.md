@@ -90,7 +90,7 @@ Lint a specific package or set of packages:
 PKGS=your,packages,here yarn run lint
 ```
 
-#### Automatic Fixing Linting Issues
+#### Automatically Fixing Linting Issues
 We've also provided tools to make it possible to automatically fix any linting issues.
 It's much easier than trying to fix issues manually.
 
