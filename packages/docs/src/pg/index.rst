@@ -21,3 +21,5 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    :caption: @pigi
 
    src/pigi/contributing
+   src/pigi/reference
+
