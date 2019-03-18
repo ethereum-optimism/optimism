@@ -1,5 +1,5 @@
 {
-  "name": "@pigi/plasma.js",
+  "name": "@pigi/plasma-js",
   "version": "0.0.1-alpha.7",
   "description": "PG client library",
   "main": "build/index.js",
