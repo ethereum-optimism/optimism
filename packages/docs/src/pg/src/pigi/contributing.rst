@@ -1,6 +1,6 @@
-============
-Contributing
-============
+=====================
+Contributing to @pigi
+=====================
 Welcome! A huge thank you for your interest in contributing to Plasma Group.
 Plasma Group is an open source initiative developing a simple and well designed plasma_ implementation.
 If you're looking to contribute to a Plasma Group project, you're in the right place!
