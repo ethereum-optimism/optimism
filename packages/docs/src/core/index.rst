@@ -3,7 +3,8 @@
 ========================
 Hello and welcome to the documentation for Plasma Group's ``@pigi/core``!
 ``@pigi/core`` is the set of core modules that our other plasma chain clients use.
-A quick note: ``@pigi/core`` is **not** our ``Node.js`` client, ``@pigi/client``.
+
+**A quick note:** ``@pigi/core`` is **not** our ``Node.js`` client, ``@pigi/client``.
 Documentation for ``@pigi/client`` is available at the `@pigi/client docs`_.
 
 .. toctree::

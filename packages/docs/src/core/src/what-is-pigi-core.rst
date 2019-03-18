@@ -1,15 +1,14 @@
 ===================
 What is @pigi/core?
 ===================
-``@pigi/core`` makes up the core of the Plasma Group node ecosystem.
-It contains almost all of the functionality that a full plasma node needs.
-``@pigi/core`` handles things like watching Ethereum, keeping the local state up to date, and talking to the operator.
-A full list of services that ``@pigi/core`` provides is documented in our architecture_ page.
+``@pigi/core`` contains core modules that most of our other plasma chain clients use.
+It handles the functionality that's relatively universal to all other clients.
+For example, ``@pigi/core`` handles things like watching Ethereum and handling new transactions.
+A full list of modules provided by ``@pigi/core`` is documented in our architecture_ page.
 
-``@pigi/core`` is **not** a full plasma node!
-This means that you'll need to `extend @pigi/core`_ to expose the full set of necessary functionality.
-However, we've already done this for you!
-We've built out two different full plasma nodes using ``@pigi/core`` as a backend.
-Our most user-friendly node is ``plasma-extension``, a full plasma node inside a Chrome extension!
+``@pigi/core`` is **not** a full plasma node.
+It doesn't have key features - for example, it doesn't have a way for users to actually communicate with the app!
+If you're looking for a full plasma node with all of those user-friendly features check out `@pigi/client`_.
+``@pigi/client`` uses ``@pigi/core`` under the hood.
 
-**Note**: ``plasma-extension`` is still under construction.
+.. _`@pigi/client`: https://github.com/plasma-group/pigi/tree/master/packages/client
