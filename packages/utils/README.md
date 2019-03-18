@@ -5,7 +5,7 @@
 These utilities can be imported into other projects when necessary or convenient.
 
 ## Documentation
-Detailed documentation for `plasma-utils` is available on ReadTheDocs: https://plasma-utils.readthedocs.io/en/latest/.
+Detailed documentation for `plasma-utils` is available on ReadTheDocs: https://docs.plasma.group/projects/utils/en/latest/.
 
 ## Installation
 There are several easy ways to start using `plasma-utils`! 
@@ -50,7 +50,7 @@ cd plasma-utils
 `plasma-utils` is tested and built with [`Node.js`](https://nodejs.org/en/).
 Although you **do not need [`Node.js`] to use this library in your application**, you'll need to install `Node.js` (and it's corresponding package manager, `npm`) for your system before contributing.
 
-We've provided a [detailed explanation of now to install `Node.js`](https://plasma-core.readthedocs.io/en/latest/reference.html#installing-node-js) on Windows, Mac, and Linux.
+We've provided a [detailed explanation of now to install `Node.js`](https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js) on Windows, Mac, and Linux.
 
 `plasma-utils` has been tested on the following versions of Node:
 

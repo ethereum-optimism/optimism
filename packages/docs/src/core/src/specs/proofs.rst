@@ -145,14 +145,14 @@ The verifier **must** check that for each Transfer_ in the Transaction_, there e
 If this condition is true for each Transfer_ in the Transaction_, the proof can be accepted.
 
 .. _Deposits: TODO
-.. _Transfer: https://plasma-utils.readthedocs.io/en/latest/models.html#transfer
-.. _Transaction: https://plasma-utils.readthedocs.io/en/latest/models.html#signedtransaction
-.. _Transactions: https://plasma-utils.readthedocs.io/en/latest/models.html#signedtransaction
+.. _Transfer: https://docs.plasma.group/projects/utils/en/latest/src/models.html#transfer
+.. _Transaction: https://docs.plasma.group/projects/utils/en/latest/src/models.html#signedtransaction
+.. _Transactions: https://docs.plasma.group/projects/utils/en/latest/src/models.html#signedtransaction
 .. _TransferProof: TODO
 .. _TransferProofs: TODO
 .. _TransactionProof: TODO
 .. _TransactionProofs: TODO
 .. _Snapshot: TODO
 .. _Snapshots: TODO
-.. _plasma-utils: https://plasma-utils.readthedocs.io/en/latest/index.html
+.. _plasma-utils: https://docs.plasma.group/projects/utils/en/latest/
 .. _range: specs/transactions.html#ranges

@@ -661,7 +661,7 @@ Example
               signature: '0x80ed85783ee3285a2a09339e1e9f1c0b2a3aa05240c97e1a741ac6347a2aca11',
               raw: [Object] } } }
 
-.. _PG JSON-RPC Calls: https://plasma-core.readthedocs.io/en/latest/specs/jsonrpc.html
+.. _PG JSON-RPC Calls: https://docs.plasma.group/projects/core/en/latest/src/specs/jsonrpc.html
 .. _token ID: TODO
 .. _Ethereum signature object: https://web3js.readthedocs.io/en/1.0/web3-eth-accounts.html#id14
 .. _Range: TODO

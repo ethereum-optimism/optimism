@@ -68,10 +68,10 @@ The choice to use a custom scheme instead of an existing one (like `RLP encoding
 
 For encodings which involve variable-sized arrays, like Transaction_ objects which contain 1 or more Transfer_ objects, we prepend a single byte that represents the number of array elements.
 
-.. _schema: https://plasma-utils.readthedocs.io/en/latest/serialization.html#transferschema
-.. _Transfer: https://plasma-utils.readthedocs.io/en/latest/models.html#transfer
-.. _Transaction: https://plasma-utils.readthedocs.io/en/latest/models.html#SignedTransaction
+.. _schema: https://docs.plasma.group/projects/utils/en/latest/src/serialization.html#transferschema
+.. _Transfer: https://docs.plasma.group/projects/utils/en/latest/src/models.html#transfer
+.. _Transaction: https://docs.plasma.group/projects/utils/en/latest/src/models.html#signedtransaction
 .. _Coin ID: specs/coin-assignment.html
 .. _defragmentation: TODO
-.. _custom serialization library: https://plasma-utils.readthedocs.io/en/latest/serialization.html
+.. _custom serialization library: https://docs.plasma.group/projects/utils/en/latest/src/serialization.html
 .. _RLP encoding: https://github.com/ethereum/wiki/wiki/%5BEnglish%5D-RLP

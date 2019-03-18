@@ -21,7 +21,7 @@ All contributors are expected to read through this guide.
 We're here to cultivate a welcoming and inclusive contributing environment, and every new contributor needs to do their part to uphold our community standards.
 
 ### Documentation
-Detailed documentation for `plasma-core` is [available here](https://plasma-core.readthedocs.io/en/latest/).
+Detailed documentation for `plasma-core` is [available here](https://docs.plasma.group/projects/core/en/latest/).
 If you'd like to contribute to the documentation, please edit the contents of the [/docs](/docs) folder and submit a [pull request](https://github.com/plasma-group/plasma-core/pulls)!
 
 ### Requirements and Setup
@@ -41,7 +41,7 @@ cd plasma-core
 #### Node.js
 `plasma-core` is a [`Node.js`](https://nodejs.org/en/) application.
 You'll need to install `Node.js` (and its corresponding package manager, `npm`) for your system before continuing.
-We've provided a [detailed explanation of now to install `Node.js`](https://plasma-core.readthedocs.io/en/latest/reference.html#installing-node-js) on Windows, Mac, and Linux.
+We've provided a [detailed explanation of now to install `Node.js`](https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js) on Windows, Mac, and Linux.
 
 `plasma-core` has been tested on the following versions of Node:
 
@@ -86,6 +86,6 @@ Code with passing tests makes life easier for everyone and means your contributi
 
 ## Architecture
 
-A more detailed explanation of the `plasma-core` architecture is [available here](https://plasma-core.readthedocs.io/en/latest/architecture.html).
+A more detailed explanation of the `plasma-core` architecture is [available here](https://docs.plasma.group/projects/core/en/latest/src/architecture.html).
 
 ![Architecture Diagram](docs/_static/images/architecture/architecture.png)

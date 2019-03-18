@@ -12,7 +12,6 @@ In order to build out a full client that exposes all of the functionality a user
 To this end, ``@pigi/core`` is designed to be maximally extensible.
 It tries to make as few decisions on your behalf as possible.
 This means you can make a lot of different clients out of ``@pigi/core``!
-So far we've tested out creating a full `Node.js` node and a full node inside of a `Chrome extension`_!
 
 What's missing
 =============
@@ -24,7 +23,6 @@ Front-facing Services
 ``@pigi/core`` doesn't come with any sort of front-facing services (i.e. an HTTP server that handles JSON-RPC requests).
 If you want users to be able to interact with your node software, you'll need to implement a service like this.
 We left this to node developers because different types of nodes might handle this in completely different ways.
-For example, the node that we're building inside of a `Chrome extension`_ talks to apps via Chrome's `native message passing interface`_ instead of over HTTP.
 Front-facing services need to wrap and pipe calls into JSONRPCService_.
 
 User interface
@@ -45,8 +43,6 @@ This can be as easy as forwarding the necessary API calls (as described on the W
 ``plasma-extension`` uses this method by forwarding all wallet-related activity to MetaMask_.
 
 .. _What is @pigi/core: what-is-@pigi/core.html
-.. _Chrome extension: https://plasma-extension.readthedocs.io/en/latest/
-.. _native message passing interface: https://developer.chrome.com/apps/messaging
 .. _JSONRPCService: src/services/jsonrpc.html
 .. _WalletService: src/services/wallet.html
 .. _MetaMask: https://metamask.io/

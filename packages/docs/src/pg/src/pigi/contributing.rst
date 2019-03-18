@@ -144,6 +144,6 @@ Code with passing tests makes life easier for everyone and means your contributi
 .. _`Node.js`: https://nodejs.org/en/
 .. _`Mocha`: https://mochajs.org/
 .. _`Chai`: https://www.chaijs.com/
-.. _`detailed explanation of now to install Node.js`: https://plasma-core.readthedocs.io/en/latest/reference.html#installing-node-js
+.. _`detailed explanation of now to install Node.js`: https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js
 .. _`Yarn`: https://yarnpkg.com/en/
 .. _`install Yarn`: https://yarnpkg.com/en/docs/install

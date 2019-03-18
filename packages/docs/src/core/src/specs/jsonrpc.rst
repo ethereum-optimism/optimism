@@ -196,4 +196,4 @@ Returns
 
 ``Array<SignedTransaction>``: A list of SignedTransaction_ objects.
 
-.. _SignedTransaction: https://plasma-utils.readthedocs.io/en/latest/models.html#signedtransaction
+.. _SignedTransaction: https://docs.plasma.group/projects/core/en/latest/src/architecture.html

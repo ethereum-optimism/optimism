@@ -45,7 +45,7 @@ cd pigi
 #### Node.js
 Most of the projects in `@pigi` are [`Node.js`](https://nodejs.org/en/) projects.
 You'll need to install `Node.js` for your system before continuing.
-We've provided a [detailed explanation of now to install `Node.js`](https://plasma-core.readthedocs.io/en/latest/reference.html#installing-node-js) on Windows, Mac, and Linux.
+We've provided a [detailed explanation of now to install `Node.js`](https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js) on Windows, Mac, and Linux.
 
 #### Yarn
 We're using a package manager called [Yarn](https://yarnpkg.com/en/).
