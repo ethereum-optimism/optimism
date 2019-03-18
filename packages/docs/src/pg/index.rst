@@ -23,3 +23,10 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    src/pigi/contributing
    src/pigi/reference
 
+.. toctree::
+   :maxdepth: 2
+   :caption: PG Guides 💖
+
+   src/pg/contributors
+   src/pg/community
+   src/pg/github
