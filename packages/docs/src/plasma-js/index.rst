@@ -8,11 +8,11 @@ Hello and welcome to the documentation of Plasma Group's ``@pigi/plasma-js``!
    :maxdepth: 2
    :caption: User Documentation
 
-   getting-started
+   src/getting-started
 
 .. toctree::
    :maxdepth: 2
    :caption: API Reference
 
-   api/plasma-client
-   api/plasma-operator
+   src/api/plasma-client
+   src/api/plasma-operator
