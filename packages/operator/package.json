@@ -1,0 +1,33 @@
+{
+  "name": "@pigi/operator",
+  "version": "0.0.1-alpha.0",
+  "description": "PG plasma chain operator",
+  "main": "build/index.js",
+  "files": [
+    "build/**/.js"
+  ],
+  "scripts": {
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'",
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
+    "build": "yarn tsc -p ."
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum",
+    "operator"
+  ],
+  "author": "Plasma Group",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
+  "devDependencies": {
+    "@pigi/prettier-config": "^0.0.2-alpha.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
