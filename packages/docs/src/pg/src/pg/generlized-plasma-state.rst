@@ -1,0 +1,189 @@
+# Gen-Plasma v1
+
+ - Data Structures
+     - `stateID: uint` - the index of unique, non-fungible states in a plasma chain
+     - `state` struct:
+         - `predicate: address` - the state's predicate ruleset
+         - `parameters: bytes` - input parameters to the predicate ruleset
+     - `commitment` struct
+         - `state: state` - the state committed to for this range of `stateID`s
+         - `start: uint` - the start of the range of `stateID`s
+         - `end: uint` - the end of the range of `stateID`s
+         - `plasmaBlockNumber: uint` - the plasma block in which a committment was made
+     - `committmentWitness` struct
+         - todo
+     - `deposit` struct:
+         - `state: state` - the initial state of the deposited coin
+         - `start: uint` - the first `stateID` of the deposit. The plasma contract stores a mapping from `depositEnd->deposit`
+         - `precedingPlasmaBlockNumber: uint` - the most recent plasma block leading up to the deposit.
+     - `claimableRange` struct:
+         - `start: uint` - The first `stateID` of a claimable range. The plasma contract stores a mapping from `claimableRangeEnd->claimableRange`
+         - `isSet: bool` - whether or not this value in the mapping has been initialized. Needed because EVM can't differentiate between a mapping set to 0 and an unset mapping.
+     - `claim` struct:
+         - `commitment: commitment` - the commitment being claimed.
+         - `claimedStart` - the start of the commitment's subrange claiming to be unrevoked.
+         - `claimedEnd` - the end of the commitment's subrange claiming to be unrevoked.
+         - `ethBlockRedeemable: uint` - when the `claim`'s dispute period expires.
+         - `numChallenges: uint` - the number of pending challenges preventing a `claim`'s redemption.
+     - `challenge` struct:
+         - `earlierClaimID: uint` - the previous intersecting claim being used to challenge a `claim`.
+         - `laterClaimID: uint` - the challenged `claim`.
+ - Commitment Contract
+    - Public Variables:
+        - `operator: public(address)` - the operator's address.
+        - `nextPlasmaBlockNumber: public(uint256)` - what the block number of the next block committment will be.
+        - `lastPublish: public(uint256)` - the Ethereum block number of the last plasma block.
+        - `blockHashes: public(map(uint256, bytes32))` - the blocks submitted so far.
+    - Methods:
+        - `setup` - Used to initiate the contract with collator pubkey
+        - `commitBlock`: allows the operator to submit sequential blocks
+        - `validateCommitment(commitment: commitment, subject: address, commitmentWitness: bytes)`: returns bool whether a given `commitment` was made on behalf of a given `subject` address (this is the plasma contract for e.g. a specific ERC20), at a the given `plasmaBlockNumber`, based on a valid `commitmentWitness`
+    - Block Structure/Proof Validity, as checked by `validateCommitment`:
+        - merkle node format: `[hash: bytes32][subject: address][index: bytes16]`
+        - merkle parent function: `parent(leftSibling, rightSibling) = [sha256([leftSibling][rightSibling])][rightSibling.subject][rightSibling.index]`
+        - merkle proof format: `siblingMerkleNodes[]` - array of the siblings going up the branch
+        - branch validity requires that left `siblingMerkleNodes` going up the branch are monotonically decreasing
+        - For a given `commitment`, `subject`, and `commitmentWitness`, where the `leaf` is the bottommost node in the `commitmentWitness` we must have:
+            - `leaf.subject == subject`
+            - `commitment.end <= leaf.index`
+            - `commitment.subject = leaf.subject`
+            - `commitment.start >= START` where `START` is either the merkle proof's deepest left sibling, or `0` if none exist (this is only the case for the `0`th element in the tree)
+        - leaf nodes are parsed to `[hash(state)][subject][state.end]`
+            - NOTE: for any nodes in the tree whose sibling has the same `custodyAddress`, we may remove the address for efficiency, as long as the above conditions are met as if the `custodyAddress` is prepended to the index.  This is definitely an optimization to consider down the line!
+
+ - Plasma Contract
+     - Public Variables:
+         - `self.commitmentAddress` - where the collator is submitting commitments
+         - `self.tokenAddress` - the ERC20 contract of for this plasma contract (we'll have one contract per token)
+         - `self.deposits[end: uint] -> deposit` - mapping of all deposits to `deposit` structs
+         - `self.claimableRanges[end: uint] -> claimableRange` - mapping of all the unclaimed ranges ("states still in the plasma chain")
+         - `self.claims[claimID] -> claim` - all of the current claims
+         - `self.challenges[challengeID] -> challenge` - all of the current challenges on claims
+         - `self.DISPUTE_PERIOD: uint` - the minimum dispute period before a claim can be redeemed
+     - Public methods:
+         - `deposit(amount, state)`
+             - Deposits specifiy an initial state and the amount of money being deposited into that state
+             - adds to `self.deposits`
+             - extends `self.claimableRanges` so that the state is now claimable
+         - `claimCommitment(claimedStart: uint, claimedEnd: uint, commitment: commitment, commitmentWitness: bytes, claimabilityWitness: bytes)` - allows users to submit a claim on a committed state
+             - `assert validateCommitment(commitment, self.address, commitmentWitness)`
+             - assert `claimedStart >= commitment.start`
+             - assert `claimedEnd <= commitment.end `
+             - `assert commitment.state.predicate.canClaim(claim, claimabilityWitness)`
+             - if so, adds a new claim to `self.claims`
+             - sets the claim's `ethBlockRedeemable` to: `eth.block + self.CHALLENGE_PERIOD + state.predicateAddress.getAdditionalLockup(state)`
+         - `claimDeposit(claimedStart: uint, claimedEnd: uint, depositEnd: uint, claimabilityWitness:bytes)` - allows users to submit a claim on a deposited state
+             - both of the above store a `claim` struct in `self.claims[self.claimNonce]` and increment `self.claimNonce`.
+             - sets the claim's `ethBlockRedeemable` to: `eth.block + self.CHALLENGE_PERIOD + state.predicateAddress.getAdditionalLockup(state)`
+             - In this case, the `commitment.plasmaBlockNumber` comes from the `deposit.precedingPlasmaBlockNumber`
+         - `challengeClaim(earlierClaimID, laterClaimID)` - allows users to challenge a later claim with an earlier unrevoked claim
+             - this is the way we challenge claims if the operator commits some a state with something unrevoked in the history. The function checks that:
+                 - `challengerClaimID`'s claimed range intersects that of `challengedClaimID`
+                 - `challengerClaimID.commitment.plasmaBlockNumber < challengedClaimID.commitment.plasmaBlockNumber`
+                 - `eth.block < challengedClaim.ethBlockRedeemable`
+             - if so, it does the following:
+                 - create a `challenge` object in `self.challenges[challengeNonce]`
+                 - increment `challengeNonce`
+                 - increase the `challengedClaim.ethBlockRedeemable` to `challengerClaim.ethBlockRedeemable` if the latter is bigger
+                 - increment `challengedClaim.numChallenges`
+         - `revokeClaim(stateID: uint, claimID: uint, revocationWitness: bytes)` - allows users to cancel a claim by demonstrating a `revocationWitness` for one of the `state`s in the claimed range
+             - `claim = self.claims[claimID]`
+             - `assert claim.predicateAddress.isRevoked(stateID, claim.commitment, revocationWitness)`
+             - if so, clears the claim, deleting it from the `self.claims` mapping
+         - `removeChallenge(challengeID: uint)` - allows users to remove a challenge 
+             - checks that the `self.challenges[challengeID].challengerClaim` has been revoked, i.e. that it is no longer set
+             - if so, decrements the `self.claims[self.challenges[challengeID].challengedClaim].numChallenges` and then clears/deletes `self.challenges[challengeID]`
+         - `redeemClaim(claimID, claimableRangeEnds)`
+             - asserts `claim`'s numChallenges = 0
+             - tries `isRangeClaimable` for the various `claimableRangeEnds`, reverts if none pass the check
+             - asserts the current `eth.block >= claim.ethBlockRedeemable`
+             - approves the ERC20 claim amount (`=start-end`) to be transferred by the `claim.state.predicateAddress`
+             - calls `claimRedeemed(claim)` on the `claim.state.predicateAddress`
+
+ - Predicate interface
+     - Public methods/interface:
+         - `isRevoked(stateID: uint, commitment: commitment, revocationWitness: bytes) -> bool` - returns true/false whether a given `revocationWitness` is valid (if true the claim may not be made)
+         - `claimRedeemed(redeemedClaim: claim)` - called once a claim on a state is redeemed on the plasma contract
+             - in principle, this can do anything, but will almost always call the `ERC20.transferFrom` function to the tune of `claim.start - claim.end`, either to itself to initiate an additional dispute period, or to some ultimate beneficiary as devised from the `claim.state.parameters`
+         - `canClaim(commitment: commitment, claimabilityWitness: bytes) -> bool` - returns true/false whether a claimant is eligible to submit a claim on a given state
+         - `getAdditionalDisputePeriod(commitment: commitment)` - returns an additional number of ETH blocks which must elapse, in addition to the standard `plasmaContract.DISPUTE_PERIOD`, before the claim may be redeemed
+
+             
+             
+             
+             
+ - Predicate Examples
+     - Simple Ownership
+         - `struct ownershipRevocationWitness:`
+             - `newCommitment: commitment`
+             - `newCommitmentWitness: commitmentWitness`
+             - `signature: signature`
+         - `public function isRevoked(stateID: uint, commitment: commitment, revocationWitness: bytes):
+                assert wasCommitted(revocationWitness.newCommitment, revocationWitness.newCommitmentWitness)
+                assert verifySignature(revocationWitness.newCommitment) = commitment.state.owner`
+         - `public function claimRedeemed(redeemedClaim: claim):
+               redeemedAmount: uint = redeemedClaim.end - redeemedClaim.start #length of sequential stateIDs claimed
+               ERC20.transferFrom(self.address, redeemedClaim.state.owner, )`
+         - `public function canClaim(commitment: commitment, claimabilityWitness: bytes):
+              assert tx.sender = commitment.state.parameters.owner`
+     - Multisig
+     - Atomic Swap
+     - Basic Payment Channel
+         - struct `stateChannelParameters`:
+             - `participants: address[]` - array of pubkeys participating in the channel
+             - `openingCommitmentsHash: bytes32` - a hash of all the state `commitment` objects which must be made for the channel to be considered successfully "opened"
+             - `failedOpeningRecipient: address` - the person to send money to if the opening failed, i.e. the above commitments weren't made
+             - `onChainChannel: address` - the on-chain payment channel to send the money to if channel isn't closed out on-chain
+             - `callData: bytes[]` - the instantiation data passed to the `onChainChannel`
+         - struct `stateChannelRevocationWitness`
+             - `closureCommitments: commitment[]` - array of the state commitments agreed to close on
+             - `closureCommitmentWitnesses: commitmentWitness[]` - array of the proofs that the commitments were made
+             - `closureApprovals: signature[]` - array of signatures by each of the `state.parameters.participants` on `hash(closureCommitments)` agreeing to close
+         - public `self.successfulOpenings[openingCommitmentsHash] -> bool` - mapping of whether or not a given `openingCommitmentsHash` was successfully made
+         - public `proveOpenings(openingCommitments: commitment[], openingWitnesses: commitmentWitness[])`
+             - allows users to prove that a state channel was successfully opened by validating all commitments
+             - asserts that `validateCommitment` for each `openingCommitment` and its witness
+             - if so, sets `self.successfulOpenings[hash(openingcommitments) = true]
+        - struct `openingClaimStatus` - the struct used if an open channel is being claimed because of an unsuccessful closure
+             - `totalCoins` - the total number of coins entered into the payment channel
+             - `redeemedCoins` - the total number of coins whose claims have been redeemed so far
+         - public `self.openingClaimsInProgress[openingCommitmentsHash:bytes32] -> openingClaimStatus` - mapping of "in progress" claims on opened channels
+         - `isRevoked`
+             - asserts that `self.openingClaimsInProgress[hash(state.parameters.openingCommitments)].redeemedCoins == 0` -- if any of the opening state has been redeemed, all state must be redeemed from the openings. 
+             - asserts that `validateCommitment` for each commitment in the revocation witness
+             - asserts that each `state.parameters.participants` signed off on `hash(closureCommitments)`
+         - `claimRedeemed`
+             - let `openingCommitmentsHash = hash(state.parameters.openingCommitments)`
+             - checks whether the channel was successfully opened: `assert self.successfulOpenings[openingCommitmentsHash]`
+             - `self.openingClaimsInProgress[openingCommitmentsHash].redeemedCoins += claim.end - claim.start`
+
+             - If it was: 
+                 - let `claimInProgress = self.openingClaimsInProgress[openingCommitmentsHash]`
+                 - if `claimInProgress.redeemedCoins == claimInProgress.totalCoins`, then forward the `totalCoins` to the `state.parameters.onChainChannel(state.parameters.callData)` -- the opening has been fully claimed and the on-chain channel may take over.
+             - Otherwise, not all money in the channel has been redeemed from the plasma contract yet, so we must wait.
+     - L1<>L2 liquidity predicate (swap PETH for ETH)
+         - struct `tradeParameters`:
+             - `tradeID: uint` - a unique ID for the trade
+             - `seller: address`
+             - `saleAmount: uint` - the amount of ETH the coins are being sold for
+         - struct `trade`
+             - `ethSender: address`
+             - `targetPlasmaBlock: uint`
+         - mapping `self.trades[tradeID][ethRecipient][amount] -> trade` maps the unique aspects of the trade to the sender and intended block of the new ownership state committment
+         - public method: `submitTrade(tradeID: bytes32, ethRecipient: address, targetPlasmaBlock: uint)`
+             - assert that the next plasma block is the `targetPlasmaBlock`
+             - assert that `self.trades[tradeID: bytes32][ethRecipient: address][tx.value: uint]` is unset
+             - if not:
+                 - set the value with `trade.ethSender = tx.Sender` and `trade.targetPlasmaBlock = targetPlasmaBlock`
+                 - forward the ETH to `ethRecipient`
+         - `isRevoked`
+             - `revocationWitness` consists of:
+                 - a valid `newCommitment`, satisfying:
+                     - `.start` and `.end` equalling the `oldCommitment` `.start` and `.end`
+                     - the existance of an entry in `self.trades[oldState.parameters.tradeID][newState.parameters.owner][end - start]`
+                         - the `ethSender` in that entry being the `newState.parameters.owner`
+                         - the `newCommitment.plasmaBlockNumber == trade.targetPlasmaBlock`
+         - `claimRedeemed`
+             - checks for the existence of an entry in `self.Trades[redeemedClaim.state.parameters.tradeID][redeemedState.seller][end - start]`
+                 - if it exists, send to that `trade.ethSender`
+                 - otherwise, send back to `redeemedState.parameters.seller`
