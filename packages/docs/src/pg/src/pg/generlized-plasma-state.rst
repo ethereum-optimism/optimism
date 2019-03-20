@@ -1,22 +1,23 @@
-# Gen-Plasma v1
+Generalized Plasma State Spec
+======
 
  - Data Structures
-     - `stateID: uint` - the index of unique, non-fungible states in a plasma chain
-     - `state` struct:
-         - `predicate: address` - the state's predicate ruleset
-         - `parameters: bytes` - input parameters to the predicate ruleset
-     - `commitment` struct
-         - `state: state` - the state committed to for this range of `stateID`s
-         - `start: uint` - the start of the range of `stateID`s
-         - `end: uint` - the end of the range of `stateID`s
-         - `plasmaBlockNumber: uint` - the plasma block in which a committment was made
-     - `committmentWitness` struct
+   - `stateID: uint` - the index of unique, non-fungible states in a plasma chain
+   - `state` struct:
+      - `predicate: address` - the state's predicate ruleset
+      - `parameters: bytes` - input parameters to the predicate ruleset
+   - `commitment` struct
+      - `state: state` - the state committed to for this range of `stateID`s
+      - `start: uint` - the start of the range of `stateID`s
+      - `end: uint` - the end of the range of `stateID`s
+      - `plasmaBlockNumber: uint` - the plasma block in which a committment was made
+   - `committmentWitness` struct
          - todo
-     - `deposit` struct:
-         - `state: state` - the initial state of the deposited coin
-         - `start: uint` - the first `stateID` of the deposit. The plasma contract stores a mapping from `depositEnd->deposit`
-         - `precedingPlasmaBlockNumber: uint` - the most recent plasma block leading up to the deposit.
-     - `claimableRange` struct:
+   - `deposit` struct:
+     - `state: state` - the initial state of the deposited coin
+       - `start: uint` - the first `stateID` of the deposit. The plasma contract stores a mapping from `depositEnd->deposit`
+       - `precedingPlasmaBlockNumber: uint` - the most recent plasma block leading up to the deposit.
+   - `claimableRange` struct:
          - `start: uint` - The first `stateID` of a claimable range. The plasma contract stores a mapping from `claimableRangeEnd->claimableRange`
          - `isSet: bool` - whether or not this value in the mapping has been initialized. Needed because EVM can't differentiate between a mapping set to 0 and an unset mapping.
      - `claim` struct:
