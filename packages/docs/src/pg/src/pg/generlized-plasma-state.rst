@@ -7,12 +7,12 @@ Generalized Plasma State Spec
       - ``predicate: address`` - the state's predicate ruleset
       - ``parameters: bytes`` - input parameters to the predicate ruleset
    - ``commitment`` struct
-      - ``state: state`` - the state committed to for this range of ``stateID``s
-      - ``start: uint`` - the start of the range of ``stateID``s
-      - ``end: uint`` - the end of the range of ``stateID``s
+      - ``state: state`` - the state committed to for this range of ``stateID`` s
+      - ``start: uint`` - the start of the range of ``stateID`` s
+      - ``end: uint`` - the end of the range of ``stateID`` s
       - ``plasmaBlockNumber: uint`` - the plasma block in which a committment was made
-   - ``committmentWitness`` struct
-         - todo
+   -  ``committmentWitness`` struct
+         - ``inclusionProof: bytes[]`` - array of sibling nodes forming the Merkle inclusion proof
    - ``deposit`` struct:
       - ``state: state`` - the initial state of the deposited coin
       - ``start: uint`` - the first ``stateID`` of the deposit. The plasma contract stores a mapping from ``depositEnd->deposit``
@@ -43,7 +43,7 @@ Generalized Plasma State Spec
         - merkle node format: ``[hash: bytes32][subject: address][index: bytes16]``
         - merkle parent function: ``parent(leftSibling, rightSibling) = [sha256([leftSibling][rightSibling])][rightSibling.subject][rightSibling.index]``
         - merkle proof format: ``siblingMerkleNodes[]`` - array of the siblings going up the branch
-        - branch validity requires that left ``siblingMerkleNodes`` going up the branch are monotonically decreasing
+        - branch validity requires that left ``siblingMerkleNodes`` going up the branch are monotonically decreasin
         - For a given ``commitment``, ``subject``, and ``commitmentWitness``, where the ``leaf`` is the bottommost node in the ``commitmentWitness`` we must have:
             - ``leaf.subject == subject``
             - ``commitment.end <= leaf.index``
