@@ -1,5 +1,6 @@
+=============================
 Generalized Plasma State Spec
-======
+=============================
 
 - Data Structures
    - ``stateID: uint`` - the index of unique, non-fungible states in a plasma chain
