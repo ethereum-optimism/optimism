@@ -15,6 +15,12 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
 
    src/plasma/sidechains
    src/plasma/operator
+   
+.. toctree::
+   :maxdepth: 2
+   :caption: Architecture
+
+   src/pg/generalize-plasma-state
 
 .. toctree::
    :maxdepth: 2
@@ -30,3 +36,4 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    src/pg/contributors
    src/pg/community
    src/pg/github
+   src/pg/generalize-plasma-state
