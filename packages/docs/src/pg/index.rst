@@ -18,9 +18,9 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    
 .. toctree::
    :maxdepth: 2
-   :caption: Architecture
+   :caption: Specs
 
-   src/pg/generalize-plasma-state
+   src/specs/generalize-plasma-state
 
 .. toctree::
    :maxdepth: 2
