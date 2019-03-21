@@ -94,3 +94,27 @@ Definitely discuss with other contributors if you're not sure on an exact timeli
 Figuring out an exact timeline is more of an art than a science.
 There are always unexpected things that might speed up (or slow down!) the addition of a new feature.
 It's important that we keep a feature request thread updated with the latest work on a feature.
+
+Duplicate Requests
+==================
+1. **Make sure the request is actually a duplicate.**
+
+Sometimes we get duplicate bug reports or feature requests.
+This means that someone has created an issue that's already been created before.
+Duplicates are easy to handle well but they're also easy to handle poorly.
+
+The very first thing you should do is make sure that the issue is actually a duplicate!
+Sometimes people submit very similar issues that have subtle differences. 
+These subtle differences can actually have a huge impact on the required fixes.
+
+2. **Be nice about it!**
+
+Contributors who submit duplicates still did the same amount of work as the contributor who submitted the original issue.
+It's disappointing realizing that you did duplicate work, so make sure that they understand we still appreciate their work immensely.
+Maintainers too often treat duplicates like throwaway issues and close them without much interaction.
+Thank contributors for their work and direct them to the new thread so they can continue to help out.
+
+3. **Close the duplicate issue and label it.**
+
+This is the last step!
+Make sure to close the duplicate (but not before being nice) and label it as a duplicate for the future.
