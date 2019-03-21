@@ -36,4 +36,4 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    src/pg/contributors
    src/pg/community
    src/pg/github
-   src/pg/generalize-plasma-state
+
