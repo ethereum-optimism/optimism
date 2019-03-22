@@ -20,7 +20,7 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    :maxdepth: 2
    :caption: Specs
 
-   src/specs/generalize-plasma-state
+   src/specs/generalized-plasma-state
 
 .. toctree::
    :maxdepth: 2
