@@ -10,13 +10,12 @@ import {
   OperatorService,
   ChainService,
   EthModule,
-  EventModule,
   DBModule,
   ProofModule,
 } from './services'
 
 @Module({
-  imports: [EthModule, EventModule, DBModule, ProofModule],
+  imports: [EthModule, DBModule, ProofModule],
   services: [
     SyncService,
     GuardService,

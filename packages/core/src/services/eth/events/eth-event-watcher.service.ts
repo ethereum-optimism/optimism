@@ -3,14 +3,14 @@ import { Service, OnStart, OnStop } from '@nestd/core'
 import { EventWatcher } from 'watch-eth'
 
 /* Services */
-import { SyncDB } from '../db/interfaces/sync-db'
-import { EthDataService } from '../eth/eth-data.service'
-import { ContractService } from '../eth/contract.service'
-import { ConfigService } from '../config.service'
-import { EventService } from '../event.service'
+import { SyncDB } from '../../db/interfaces/sync-db'
+import { EthDataService } from '../eth-data.service'
+import { ContractService } from '../contract.service'
+import { ConfigService } from '../../config.service'
+import { EventService } from '../../event.service'
 
 /* Internal Imports */
-import { CONFIG } from '../../constants'
+import { CONFIG } from '../../../constants'
 
 interface EventWatcherOptions {
   finalityDepth: number
@@ -21,7 +21,7 @@ interface EventWatcherOptions {
  * Service that watches for events from Ethereum.
  */
 @Service()
-export class EventWatcherService implements OnStart, OnStop {
+export class EthEventWatcherService implements OnStart, OnStop {
   public watcher: EventWatcher
   private readonly name = 'eventWatcher'
 
