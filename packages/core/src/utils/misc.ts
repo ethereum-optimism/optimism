@@ -55,3 +55,21 @@ export const bnMin = (a: BigNum, b: BigNum): BigNum => {
 export const bnMax = (a: BigNum, b: BigNum): BigNum => {
   return a.gt(b) ? a : b
 }
+
+interface PrettyPrintable {
+  [key: string]: string | number | BigNum | boolean | any
+}
+
+/**
+ * Converts an object to a pretty JSON string.
+ * @param obj Object to convert.
+ * @returns the object as a pretty JSON string.
+ */
+export const prettyify = (obj: PrettyPrintable): string => {
+  const parsed: PrettyPrintable = {}
+  for (const key of Object.keys(obj)) {
+    const value = obj[key]
+    parsed[key] = BigNum.isBN(value) ? value.toString(10) : value
+  }
+  return JSON.stringify(parsed, null, 2)
+}
