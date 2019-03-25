@@ -120,12 +120,12 @@ Generalized Plasma State Spec
              - ``newStateUpdate: stateUpdate``
              - ``newUpdateWitness: stateUpdateWitness``
              - ``signature: signature``
-         - ``public function verifyDeprecation(stateID: uint, update: stateUpdate, revocationWitness: bytes):
-                assert verifyUpdate(deprecationWitness.newStateUpdate, revocationWitness.newUpdateWitness)
-                assert verifySignature(revocationWitness.newStateUpdate, signature) = update.state.owner``
-         - ``public function finalizeExit(exit: exit):
-               redeemedAmount: uint = exit.end - exit.start #length of sequential stateIDs claimed
-               ERC20.transferFrom(self.address, exit.update.state.owner, )``
+         - ``public function verifyDeprecation(stateID: uint, update: stateUpdate, revocationWitness: bytes):``
+                ``assert verifyUpdate(deprecationWitness.newStateUpdate, revocationWitness.newUpdateWitness)``
+                ``assert verifySignature(revocationWitness.newStateUpdate, signature) = update.state.owner``
+         - ``public function finalizeExit(exit: exit):``
+               ``redeemedAmount: uint = exit.end - exit.start #length of sequential stateIDs claimed``
+               ``ERC20.transferFrom(self.address, exit.update.state.owner, )``
          - ``public function canInitiateExit(update: stateUpdate, initiationWitness: bytes):
               assert tx.sender = commitment.state.parameters.owner``
      - Multisig
