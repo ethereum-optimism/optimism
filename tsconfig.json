@@ -12,6 +12,10 @@
     "outDir": "dist",
     "lib": [
       "es7"
-    ]
+    ],
+    "typeRoots": [
+      "node_modules/@pigi/types/types",
+      "node_modules/@types"
+    ],
   }
 }
