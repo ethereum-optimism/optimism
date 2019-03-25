@@ -7,7 +7,6 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' 'src/**/*.ts'",
     "build": "yarn tsc -p ."
