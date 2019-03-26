@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "yarn tsc -p ."
+    "fix": "prettier --config ./.prettierrc.js --write 'types/**/*.ts'",
+    "build": "tsc -p ."
   },
   "keywords": [
     "plasma",
