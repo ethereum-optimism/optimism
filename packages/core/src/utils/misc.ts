@@ -65,11 +65,13 @@ interface PrettyPrintable {
  * @param obj Object to convert.
  * @returns the object as a pretty JSON string.
  */
-export const prettyify = (obj: PrettyPrintable): string => {
+export const prettify = (obj: PrettyPrintable): string => {
   const parsed: PrettyPrintable = {}
   for (const key of Object.keys(obj)) {
     const value = obj[key]
-    parsed[key] = BigNum.isBN(value) ? value.toString(10) : value
+    parsed[key] = BigNum.isBN(value)
+      ? `${value.toString(16)} (${value.toString(10)})`
+      : value
   }
   return JSON.stringify(parsed, null, 2)
 }
