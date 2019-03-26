@@ -7,10 +7,9 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "yarn tsc -p ."
+    "build": "tsc -p ."
   },
   "keywords": [
     "plasma",

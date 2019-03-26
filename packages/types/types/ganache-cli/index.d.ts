@@ -6,6 +6,7 @@ declare module 'ganache-cli' {
 
   interface GanacheServerOptions {
     gasLimit: string
+    port: number
   }
 
   interface Ganache {
