@@ -17,7 +17,7 @@ interface StateUpdateArgs {
   start: number | BigNum
   end: number | BigNum
   block: number | BigNum
-  chain: string
+  plasmaContract: string
   newState: StateObject
 }
 
@@ -29,14 +29,14 @@ export class StateUpdate {
   public start: BigNum
   public end: BigNum
   public block: BigNum
-  public chain: string
+  public plasmaContract: string
   public newState: StateObject
 
   constructor(args: StateUpdateArgs) {
     this.start = new BigNum(args.start, 'hex')
     this.end = new BigNum(args.end, 'hex')
     this.block = new BigNum(args.block, 'hex')
-    this.chain = args.chain
+    this.plasmaContract = args.plasmaContract
     this.newState = args.newState
   }
 
@@ -48,7 +48,7 @@ export class StateUpdate {
       this.start,
       this.end,
       this.block,
-      this.chain,
+      this.plasmaContract,
       this.newState.encoded,
     ])
   }

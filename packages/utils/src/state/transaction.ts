@@ -6,7 +6,7 @@ const TRANSACTION_ABI_TYPES = ['bytes', 'bytes']
 
 interface TransactionArgs {
   stateUpdate: StateUpdate
-  witness: string
+  transactionWitness: string
 }
 
 /**
@@ -18,7 +18,7 @@ const fromEncoded = (encoded: string): Transaction => {
   const decoded = abi.decode(TRANSACTION_ABI_TYPES, encoded)
   return new Transaction({
     stateUpdate: decoded[0],
-    witness: decoded[1],
+    transactionWitness: decoded[1],
   })
 }
 
@@ -27,11 +27,11 @@ const fromEncoded = (encoded: string): Transaction => {
  */
 export class Transaction {
   public stateUpdate: StateUpdate
-  public witness: string
+  public transactionWitness: string
 
   constructor(args: TransactionArgs) {
     this.stateUpdate = args.stateUpdate
-    this.witness = args.witness
+    this.transactionWitness = args.transactionWitness
   }
 
   /**
@@ -45,7 +45,10 @@ export class Transaction {
    * @returns the encoded transaction.
    */
   get encoded(): string {
-    return abi.encode(TRANSACTION_ABI_TYPES, [this.stateUpdate, this.witness])
+    return abi.encode(TRANSACTION_ABI_TYPES, [
+      this.stateUpdate,
+      this.transactionWitness,
+    ])
   }
 
   /**
