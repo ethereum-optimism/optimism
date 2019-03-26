@@ -5,7 +5,7 @@ class Ethereum {
   private ethereum: Http2Server
 
   constructor() {
-    this.ethereum = ganache.server({ gasLimit: '0x7A1200' })
+    this.ethereum = ganache.server({ gasLimit: '0x7A1200', port: 8545 })
   }
 
   public async startEth(): Promise<void> {
