@@ -2,13 +2,13 @@
 import { Service, OnStart } from '@nestd/core'
 
 /* Services */
-import { EventWatcherService } from './event-watcher.service'
-import { EventService } from '../event.service'
-import { LoggerService, SyncLogger } from '../logging'
+import { EthEventWatcherService } from './eth-event-watcher.service'
+import { EventService } from '../../event.service'
+import { LoggerService, SyncLogger } from '../../logging'
 
 /* Internal Imports */
-import { EthereumEvent } from '../../models/eth'
-import { PlasmaBlock, Deposit, Exit } from '../../models/chain'
+import { EthereumEvent } from '../../../models/eth'
+import { PlasmaBlock, Deposit, Exit } from '../../../models/chain'
 
 /**
  * Service that handles events coming from
@@ -16,14 +16,14 @@ import { PlasmaBlock, Deposit, Exit } from '../../models/chain'
  * useable objects.
  */
 @Service()
-export class EventHandlerService implements OnStart {
+export class EthEventHandlerService implements OnStart {
   private readonly name = 'eventHandler'
   private readonly logger = new SyncLogger(this.name, this.logs)
 
   constructor(
     private readonly logs: LoggerService,
     private readonly events: EventService,
-    private readonly eventWatcher: EventWatcherService
+    private readonly eventWatcher: EthEventWatcherService
   ) {}
 
   public async onStart(): Promise<void> {
