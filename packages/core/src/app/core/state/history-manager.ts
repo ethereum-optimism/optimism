@@ -2,18 +2,36 @@ import {
   HistoryManager,
   Transaction,
   TransactionProof,
+  BaseDB,
+  Batch,
+  PutBatch,
 } from '../../../interfaces'
 
 /**
  * HistoryManager implementation for PG's Plasma Cashflow variant.
  */
 export class PGHistoryManager implements HistoryManager {
+  constructor(private db: BaseDB) {}
+
   /**
    * Adds a set of transactions to the local state.
    * Does nothing if the transaction is already in the state.
    * @param transactions Set of transactions to add.
    */
-  public async addTransactions(transactions: Transaction[]): Promise<void> {}
+  public async addTransactions(transactions: Transaction[]): Promise<void> {
+    // TODO: Figure out the correct DB key.
+    // TODO: Figure out how to encode transactions here.
+    const ops: Batch[] = transactions.map(
+      (tx): PutBatch => {
+        return {
+          type: 'put',
+          key: tx.hash,
+          value: tx.encoded,
+        }
+      }
+    )
+    await this.db.batch(ops)
+  }
 
   /**
    * Generates a transaction proof for a given transaction.

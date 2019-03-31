@@ -4,7 +4,7 @@ import { StateUpdate } from '@pigi/utils'
 /* Internal Imports */
 import { RangeStore } from './range-store'
 
-export class StateManager {
+export class StateProcessor {
   private rangeStore: RangeStore<StateUpdate>
 
   constructor(state: StateUpdate[] = []) {
@@ -22,7 +22,7 @@ export class StateManager {
    * Merges another StateManager into this one.
    * @param other Other state manager to merge.
    */
-  public merge(other: StateManager): void {
+  public merge(other: StateProcessor): void {
     for (const stateUpdate of other.state) {
       this.addStateUpdate(stateUpdate)
     }
