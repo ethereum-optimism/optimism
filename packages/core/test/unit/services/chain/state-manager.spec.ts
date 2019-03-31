@@ -5,7 +5,7 @@ import BigNum = require('bn.js')
 import { StateObject } from '@pigi/utils'
 
 /* Internal Imports */
-import { StateManager } from '../../../../src/utils/state-manager'
+import { StateManager } from '../../../../src/app/common/utils/state-manager'
 
 /**
  * Checks if two StateManager objects are equal.

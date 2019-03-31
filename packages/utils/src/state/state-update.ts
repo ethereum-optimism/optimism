@@ -13,7 +13,7 @@ const STATE_OBJECT_ABI_TYPES = [
   'bytes',
 ]
 
-interface StateUpdateArgs {
+export interface StateUpdateArgs {
   start: number | BigNum
   end: number | BigNum
   block: number | BigNum
@@ -31,6 +31,10 @@ export class StateUpdate {
   public block: BigNum
   public plasmaContract: string
   public newState: StateObject
+
+  public implicit?: boolean
+  public implicitStart?: BigNum
+  public implicitEnd?: BigNum
 
   constructor(args: StateUpdateArgs) {
     this.start = new BigNum(args.start, 'hex')
@@ -51,5 +55,71 @@ export class StateUpdate {
       this.plasmaContract,
       this.newState.encoded,
     ])
+  }
+
+  /**
+   * Determines if this object equals another.
+   * @param other Object to compare to.
+   * @returns `true` if the two are equal, `false` otherwise.
+   */
+  public equals(other: StateUpdate): boolean {
+    return this.encoded === other.encoded
+  }
+
+  /**
+   * Breaks a StateUpdate into the implicit and
+   * explicit components that make it up.
+   * @param stateUpdate Object to break down
+   * @returns a list of StateUpdates.
+   */
+  public components(): StateUpdate[] {
+    const components = []
+
+    if (this.implicitStart === undefined || this.implicitEnd === undefined) {
+      return [this]
+    }
+
+    // Left implicit component.
+    if (!this.start.eq(this.implicitStart)) {
+      components.push(
+        new StateUpdate({
+          ...this,
+          ...{
+            end: this.start,
+            start: this.implicitStart,
+            implicit: true,
+          },
+        })
+      )
+    }
+
+    // Right implicit component.
+    if (!this.end.eq(this.implicitEnd)) {
+      components.push(
+        new StateUpdate({
+          ...this,
+          ...{
+            end: this.implicitEnd,
+            start: this.end,
+            implicit: true,
+          },
+        })
+      )
+    }
+
+    // Explicit component.
+    if (this.start.lt(this.end)) {
+      components.push(
+        new StateUpdate({
+          ...this,
+          ...{
+            end: this.end,
+            start: this.start,
+          },
+        })
+      )
+    }
+
+    return components
   }
 }

@@ -28,4 +28,30 @@ export class StateObject {
   get encoded(): string {
     return abi.encode(STATE_OBJECT_ABI_TYPES, [this.predicate, this.parameters])
   }
+
+  /**
+   * Creates a StateObject from its encoded form.
+   * @param encoded The encoded StateObject.
+   * @returns the StateObject.
+   */
+  public static fromEncoded(encoded: string): StateObject {
+    const decoded = abi.decode(STATE_OBJECT_ABI_TYPES, encoded)
+    return new StateObject({
+      predicate: decoded[0],
+      parameters: decoded[1],
+    })
+  }
+
+  /**
+   * Creates a StateObject from some arguments.
+   * @param args Arguments to cast.
+   * @returns the StateObject.
+   */
+  public static from(args: string): StateObject {
+    if (typeof args === 'string') {
+      return StateObject.fromEncoded(args)
+    }
+
+    throw new Error('Cannot cast to StateObject.')
+  }
 }
