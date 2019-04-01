@@ -5,15 +5,15 @@ import BigNum = require('bn.js')
 import { StateObject } from '@pigi/utils'
 
 /* Internal Imports */
-import { StateManager } from '../../../../src/app/common/utils/state-manager'
+import { StateProcessor } from '../../../../src/app/common/utils/state-processor'
 
 /**
- * Checks if two StateManager objects are equal.
+ * Checks if two StateProcessor objects are equal.
  * @param a First StateManger.
- * @param b Second StateManager.
+ * @param b Second StateProcessor.
  * @returns `true` if the two are equal, `false` otherwise.
  */
-const equals = (a: StateManager, state: StateObject[]): boolean => {
+const equals = (a: StateProcessor, state: StateObject[]): boolean => {
   for (const elA of a.state) {
     for (const elB of state) {
       if (elA.equals(elB)) {
@@ -24,7 +24,7 @@ const equals = (a: StateManager, state: StateObject[]): boolean => {
   return true
 }
 
-describe('StateManager', () => {
+describe('StateProcessor', () => {
   const deposit = new StateObject({
     start: new BigNum(0),
     end: new BigNum(100),
@@ -33,9 +33,9 @@ describe('StateManager', () => {
     state: null,
   })
 
-  let stateManager: StateManager
+  let stateManager: StateProcessor
   beforeEach(() => {
-    stateManager = new StateManager()
+    stateManager = new StateProcessor()
   })
 
   describe('addStateObject', () => {

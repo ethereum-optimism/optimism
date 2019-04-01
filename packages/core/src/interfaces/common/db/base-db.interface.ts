@@ -15,13 +15,9 @@ export interface DelBatch {
 }
 
 /**
- * Bucket represents a basic collection of key:value pairs.
- * Bucket are effectively databases that only perform operations
- * on keys that share a common `prefix`.
+ * KeyValueStore represents a basic collection of key:value pairs.
  */
-export interface Bucket {
-  readonly prefix: K
-
+export interface KeyValueStore {
   /**
    * Queries the value at a given key.
    * @param key Key to query.
@@ -47,7 +43,7 @@ export interface Bucket {
    * @param key Key to query.
    * @returns `true` if the key is set, `false` otherwise.
    */
-  has(key: Buffer): Promise<Boolean>
+  has(key: K): Promise<boolean>
 
   /**
    * Performs a series of operations in batch.
@@ -71,16 +67,26 @@ export interface Bucket {
   bucket(prefix: K): Bucket
 }
 
+/**
+ * Bucket are effectively databases that only perform operations
+ * on keys that share a common `prefix`.
+ */
+export interface Bucket extends KeyValueStore {
+  readonly prefix: K
+}
+
 export interface DBOptions {
   createIfMissing?: boolean
   errorIfExists?: boolean
 }
 
+export type DBStatus = 'new' | 'opening' | 'open' | 'closing' | 'closed'
+
 /**
  * Represents a key:value store.
  */
-export interface BaseDB extends Bucket {
-  readonly status: 'new' | 'opening' | 'open' | 'closing' | 'closed'
+export interface BaseDB extends KeyValueStore {
+  readonly status: DBStatus
 
   /**
    * Opens the store.
@@ -105,6 +111,7 @@ export interface IteratorOptions {
   values?: boolean
   keyAsBuffer?: boolean
   valueAsBuffer?: boolean
+  prefix?: Buffer
 }
 
 /**
@@ -115,7 +122,7 @@ export interface IteratorOptions {
  * made after the iterator was created.
  */
 export interface Iterator {
-  db: BaseDB
+  readonly db: BaseDB
 
   /**
    * Advances the iterator to the next key.
@@ -130,16 +137,11 @@ export interface Iterator {
   seek(target: K): Promise<void>
 
   /**
-   * Ends iteration and frees resources.
-   */
-  end(): Promise<void>
-
-  /**
    * Executes a function for each key:value
    * pair in the iterator.
    * @param cb Function to be executed.
    */
-  each(cb: (...args: any[]) => any): Promise<void>
+  each(cb: (key: Buffer, value: Buffer) => any): Promise<void>
 
   /**
    * @returns all keys in the iterator.
@@ -150,6 +152,11 @@ export interface Iterator {
    * @returns all values in the iterator.
    */
   values(): Promise<V[]>
+
+  /**
+   * Ends iteration and frees resources.
+   */
+  end(): Promise<void>
 }
 
 /**
