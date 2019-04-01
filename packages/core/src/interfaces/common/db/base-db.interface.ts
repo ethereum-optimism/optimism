@@ -1,5 +1,15 @@
+import {
+  AbstractIteratorOptions,
+  AbstractLevelDOWN,
+  AbstractOpenOptions,
+} from 'abstract-leveldown'
+
 export type K = NonNullable<Buffer>
 export type V = NonNullable<Buffer>
+export interface KV {
+  key: K
+  value: V
+}
 
 export type Batch = PutBatch | DelBatch
 
@@ -17,7 +27,7 @@ export interface DelBatch {
 /**
  * KeyValueStore represents a basic collection of key:value pairs.
  */
-export interface KeyValueStore {
+interface KeyValueStore {
   /**
    * Queries the value at a given key.
    * @param key Key to query.
@@ -68,31 +78,16 @@ export interface KeyValueStore {
 }
 
 /**
- * Bucket are effectively databases that only perform operations
- * on keys that share a common `prefix`.
- */
-export interface Bucket extends KeyValueStore {
-  readonly prefix: K
-}
-
-export interface DBOptions {
-  createIfMissing?: boolean
-  errorIfExists?: boolean
-}
-
-export type DBStatus = 'new' | 'opening' | 'open' | 'closing' | 'closed'
-
-/**
  * Represents a key:value store.
  */
-export interface BaseDB extends KeyValueStore {
-  readonly status: DBStatus
+export interface DB extends KeyValueStore {
+  readonly db: AbstractLevelDOWN
 
   /**
    * Opens the store.
    * @param [options] Database options.
    */
-  open(options?: DBOptions): Promise<void>
+  open(options?: AbstractOpenOptions): Promise<void>
 
   /**
    * Closes the store.
@@ -100,7 +95,16 @@ export interface BaseDB extends KeyValueStore {
   close(): Promise<void>
 }
 
-export interface IteratorOptions {
+/**
+ * Bucket are effectively databases that only perform operations
+ * on keys that share a common `prefix`.
+ */
+export interface Bucket extends KeyValueStore {
+  readonly db: DB
+  readonly prefix: K
+}
+
+export interface IteratorOptions extends AbstractIteratorOptions {
   gte?: K
   lte?: K
   gt?: K
@@ -122,7 +126,7 @@ export interface IteratorOptions {
  * made after the iterator was created.
  */
 export interface Iterator {
-  readonly db: BaseDB
+  readonly db: DB
 
   /**
    * Advances the iterator to the next key.

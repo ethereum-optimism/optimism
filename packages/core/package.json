@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@pigi/prettier-config": "^0.0.2-alpha.2",
+    "@types/abstract-leveldown": "^5.0.1",
     "@types/async-lock": "^1.1.1",
     "@types/chai": "^4.1.7",
     "@types/chai-as-promised": "^7.1.0",
@@ -56,6 +57,7 @@
     "@types/lodash": "^4.14.123",
     "@types/mocha": "^5.2.6",
     "@types/uuid": "^3.4.4",
+    "abstract-leveldown": "^6.0.2",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "ganache-cli": "^6.4.1",
