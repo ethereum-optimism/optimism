@@ -167,7 +167,7 @@ export interface KeyType {
   min: string | number | Buffer
   max: string | number | Buffer
   dynamic: boolean
-  size(value: any): number
+  size(value?: any): number
   read(key: K, offset: number): any
   write(key: K, value: any, offset: number): any
 }
