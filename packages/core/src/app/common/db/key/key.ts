@@ -3,6 +3,8 @@ import { Key, KeyType } from '../../../../interfaces'
 import { types } from './types'
 import { makeID, assert } from './utils'
 
+type KeyTypeName = keyof typeof types
+
 /**
  * Simple key implementation.
  */
@@ -12,7 +14,7 @@ export class BaseKey implements Key {
   private size = 0
   private index = -1
 
-  constructor(id: string | number, ops: string[] = []) {
+  constructor(id: string | number, ops: KeyTypeName[] = []) {
     this.id = makeID(id)
 
     for (let i = 0; i < ops.length; i++) {
@@ -29,7 +31,7 @@ export class BaseKey implements Key {
           this.index = i
         }
       } else {
-        this.size += op.size()
+        this.size += (op as any).size()
       }
 
       this.ops.push(op)

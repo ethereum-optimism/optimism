@@ -17,12 +17,12 @@ import {
 // TODO: Add bcoin acknowledgements for this code!
 
 /* tslint:disable:no-bitwise */
-export const types: Record<string, KeyType> = {
+export const types = {
   char: {
     min: '\x00',
     max: '\xff',
     dynamic: false,
-    size(v) {
+    size() {
       return 1
     },
     read(k, o) {
@@ -41,7 +41,7 @@ export const types: Record<string, KeyType> = {
     min: 0,
     max: 0xff,
     dynamic: false,
-    size(v) {
+    size() {
       return 1
     },
     read(k, o) {
@@ -59,7 +59,7 @@ export const types: Record<string, KeyType> = {
     min: 0,
     max: 0xffff,
     dynamic: false,
-    size(v) {
+    size() {
       return 2
     },
     read(k, o) {
@@ -77,7 +77,7 @@ export const types: Record<string, KeyType> = {
     min: 0,
     max: 0xffffffff,
     dynamic: false,
-    size(v) {
+    size() {
       return 4
     },
     read(k, o) {
@@ -151,7 +151,7 @@ export const types: Record<string, KeyType> = {
     min: Buffer.alloc(20, 0x00),
     max: Buffer.alloc(20, 0xff),
     dynamic: false,
-    size(v) {
+    size() {
       return 20
     },
     read(k, o) {
@@ -168,7 +168,7 @@ export const types: Record<string, KeyType> = {
     min: Buffer.alloc(32, 0x00),
     max: Buffer.alloc(32, 0xff),
     dynamic: false,
-    size(v) {
+    size() {
       return 32
     },
     read(k, o) {
@@ -211,7 +211,7 @@ export const types: Record<string, KeyType> = {
     min: Buffer.alloc(20, 0x00),
     max: Buffer.alloc(20, 0xff),
     dynamic: false,
-    size(v) {
+    size() {
       return 20
     },
     read(k, o) {
@@ -227,7 +227,7 @@ export const types: Record<string, KeyType> = {
     min: Buffer.alloc(32, 0x00),
     max: Buffer.alloc(32, 0xff),
     dynamic: false,
-    size(v) {
+    size() {
       return 32
     },
     read(k, o) {
