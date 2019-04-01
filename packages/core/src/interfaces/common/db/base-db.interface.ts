@@ -163,6 +163,15 @@ export interface Iterator {
   end(): Promise<void>
 }
 
+export interface KeyType {
+  min: string | number | Buffer
+  max: string | number | Buffer
+  dynamic: boolean
+  size(value: any): number
+  read(key: K, offset: number): any
+  write(key: K, value: any, offset: number): any
+}
+
 /**
  * Keys are formatting helpers for inserting into the database.
  */
