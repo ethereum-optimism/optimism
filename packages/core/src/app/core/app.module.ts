@@ -17,6 +17,7 @@ import { DefaultConfigManager } from '../common/app/config-manager';
 import { DefaultLogCollector } from '../common/app/log-collector';
 import { DefaultDBManager } from '../common/db/db-manager';
 import { DefaultEthClient } from '../common';
+import { DummyContractDetector } from './eth/dummy-contract-detector';
 
 @Module({
   services: [
@@ -26,7 +27,10 @@ import { DefaultEthClient } from '../common';
     DefaultDBManager,
     DefaultEthClient,
     ChainDbHost,
-    PlasmaContractDetector,
+    {
+      provide: PlasmaContractDetector,
+      useClass: DummyContractDetector,
+    },
     KeyManagerHost,
     PlasmaContractHost,
     DefaultRpcClient,

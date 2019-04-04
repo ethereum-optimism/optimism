@@ -1,3 +1,5 @@
+import memdown from 'memdown'
+import { BaseDB } from './db'
 import { DBManager, DB, Type } from '../../../interfaces'
 
 /**
@@ -13,6 +15,6 @@ export class DefaultDBManager implements DBManager {
    * @returns the database instance.
    */
   public create(...args: any[]): DB {
-    return new this.DefaultDB(...args)
+    return new BaseDB(memdown())
   }
 }

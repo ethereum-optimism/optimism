@@ -21,7 +21,7 @@ export class DefaultMessageBus extends BaseRunnable implements MessageBus {
    * @param args Arguments to the event.
    */
   public emit(event: string, ...args: any[]): void {
-    this.emitter.emit(event, args)
+    this.emitter.emit(event, ...args)
   }
 
   /**
