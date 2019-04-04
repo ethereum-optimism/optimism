@@ -1,10 +1,12 @@
 /* External Imports */
 import { stringify, jsonify } from '../utils'
 import { ConfigManager } from '../../../interfaces'
+import { Service } from '@nestd/core';
 
 /**
  * Service used for storing configuration for other services.
  */
+@Service()
 export class DefaultConfigManager implements ConfigManager {
   private db = new Map<string, string>()
 

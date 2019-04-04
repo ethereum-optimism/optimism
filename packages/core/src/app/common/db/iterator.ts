@@ -9,7 +9,7 @@ const defaultIteratorOptions: IteratorOptions = {
   values: true,
   keyAsBuffer: true,
   valueAsBuffer: true,
-  prefix: new Buffer(''),
+  prefix: Buffer.from(''),
 }
 
 /**

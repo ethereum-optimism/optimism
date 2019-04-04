@@ -12,9 +12,19 @@ import {
   DefaultTransactionReceiver,
   DefaultTransactionWatcher,
 } from './state'
+import { DefaultMessageBus } from '../common/app/message-bus';
+import { DefaultConfigManager } from '../common/app/config-manager';
+import { DefaultLogCollector } from '../common/app/log-collector';
+import { DefaultDBManager } from '../common/db/db-manager';
+import { DefaultEthClient } from '../common';
 
 @Module({
   services: [
+    DefaultMessageBus,
+    DefaultConfigManager,
+    DefaultLogCollector,
+    DefaultDBManager,
+    DefaultEthClient,
     ChainDbHost,
     PlasmaContractDetector,
     KeyManagerHost,

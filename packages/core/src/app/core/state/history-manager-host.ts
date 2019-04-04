@@ -3,12 +3,15 @@ import { BaseRunnable } from '../../common'
 import { ChainDbHost } from '../db/chain-db-host'
 import { BaseKey } from '../../common/db'
 import { PGHistoryManager } from './history-manager'
+import { DefaultMessageBus } from '../../common/app/message-bus';
+import { Service } from '@nestd/core';
 
+@Service()
 export class PGHistoryManagerHost extends BaseRunnable {
   private _historyManager: PGHistoryManager
 
   constructor(
-    private messageBus: MessageBus,
+    private messageBus: DefaultMessageBus,
     private chainDbHost: ChainDbHost
   ) {
     super()

@@ -4,10 +4,12 @@ import {
   JsonRpcHttpAdapter,
   AxiosHttpClient,
 } from '../../common'
+import { Service } from '@nestd/core';
 
 /**
  * Basic RPC client that uses JSON-RPC over HTTP.
  */
+@Service()
 export class DefaultRpcClient implements RpcClient {
   private client = new JsonRpcClient(
     new JsonRpcHttpAdapter(),

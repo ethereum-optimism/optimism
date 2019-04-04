@@ -20,6 +20,7 @@ export class PGHistoryManager {
   public async addTransactions(transactions: Transaction[]): Promise<void> {
     // TODO: Figure out the correct DB key.
     // TODO: Figure out how to encode transactions here.
+    /*
     const ops: Batch[] = transactions.map(
       (tx): PutBatch => {
         return {
@@ -30,6 +31,7 @@ export class PGHistoryManager {
       }
     )
     await this.db.batch(ops)
+    */
   }
 
   /**
@@ -41,5 +43,7 @@ export class PGHistoryManager {
    */
   public async getTransactionProof(
     transaction: Transaction
-  ): Promise<TransactionProof> {}
+  ): Promise<TransactionProof> {
+    return
+  }
 }

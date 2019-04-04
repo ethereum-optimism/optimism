@@ -1,11 +1,14 @@
 import { EthClient, MessageBus } from '../../../interfaces'
-import { BaseRunnable } from '../../common'
+import { BaseRunnable, DefaultEthClient } from '../../common'
 import { PlasmaContractWrapper } from './plasma-contract-wrapper'
+import { DefaultMessageBus } from '../../common/app/message-bus';
+import { Service } from '@nestd/core';
 
+@Service()
 export class PlasmaContractHost extends BaseRunnable {
   private _contract: PlasmaContractWrapper
 
-  constructor(private ethClient: EthClient, private messageBus: MessageBus) {
+  constructor(private ethClient: DefaultEthClient, private messageBus: DefaultMessageBus) {
     super()
   }
 

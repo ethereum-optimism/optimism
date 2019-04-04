@@ -1,8 +1,7 @@
 import { BaseEventDB } from './base-event-db'
 
-export class DefaultEventDB implements BaseEventDB {
-  private lastLogged: { [key: string]: number } = {}
-  private seen: { [key: string]: boolean } = {}
+export class EventDBWrapper implements BaseEventDB {
+  constructor(private db: any) {}
 
   /**
    * Returns the last logged block for an event.
@@ -10,7 +9,7 @@ export class DefaultEventDB implements BaseEventDB {
    * @returns last logged block for that event.
    */
   public async getLastLoggedBlock(event: string): Promise<number> {
-    return this.lastLogged[event] || -1
+    return this.db.get(event)
   }
 
   /**
@@ -19,7 +18,7 @@ export class DefaultEventDB implements BaseEventDB {
    * @param block Last logged block for that event.
    */
   public async setLastLoggedBlock(event: string, block: number): Promise<void> {
-    this.lastLogged[event] = block
+    await this.db.put(event, block)
   }
 
   /**
@@ -28,7 +27,7 @@ export class DefaultEventDB implements BaseEventDB {
    * @returns `true` if the event has been seen, `false` otherwise.
    */
   public async getEventSeen(event: string): Promise<boolean> {
-    return this.seen[event] || false
+    return this.db.get(`seen:${event}`)
   }
 
   /**
@@ -36,6 +35,6 @@ export class DefaultEventDB implements BaseEventDB {
    * @param event Event to set.
    */
   public async setEventSeen(event: string): Promise<void> {
-    this.seen[event] = true
+    await this.db.put(`seen:${event}`, true)
   }
 }

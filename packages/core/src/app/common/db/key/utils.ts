@@ -31,7 +31,7 @@ export const assert = (check: boolean, err?: Error): void => {
   err = err || new Error('Assertion error.')
   if (!check) {
     if (Error.captureStackTrace) {
-      Error.captureStackTrace(err, assertLen)
+      Error.captureStackTrace(err, assert)
     }
     throw err
   }

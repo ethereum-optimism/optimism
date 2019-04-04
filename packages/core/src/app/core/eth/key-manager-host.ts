@@ -1,11 +1,14 @@
 import { DBManager } from '../../../interfaces'
 import { BaseRunnable } from '../../common'
 import { DefaultKeyManager } from '../../common/eth/key-manager'
+import { DefaultDBManager } from '../../common/db/db-manager';
+import { Service } from '@nestd/core';
 
+@Service()
 export class KeyManagerHost extends BaseRunnable {
   private _keyManager: DefaultKeyManager
 
-  constructor(private dbManager: DBManager) {
+  constructor(private dbManager: DefaultDBManager) {
     super()
   }
 

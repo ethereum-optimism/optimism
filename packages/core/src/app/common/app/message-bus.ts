@@ -2,10 +2,12 @@ import { EventEmitter } from 'events'
 
 import { MessageBus } from '../../../interfaces'
 import { BaseRunnable } from '..'
+import { Service } from '@nestd/core';
 
 /**
  * Simple message bus that uses Node.js event emitters.
  */
+@Service()
 export class DefaultMessageBus extends BaseRunnable implements MessageBus {
   private emitter = new EventEmitter()
 

@@ -1,26 +1,10 @@
 import { BaseEthProvider, FullEventFilter } from './base-eth-provider'
 import Web3 from 'web3'
+
 import { EventLog } from '../models'
 
-interface DefaultEthProviderOptions {
-  endpoint?: string
-}
-
-const defaultOptions = {
-  endpoint: 'http://localhost:8545',
-}
-
-export class DefaultEthProvider implements BaseEthProvider {
-  private web3: Web3
-
-  constructor(options: DefaultEthProviderOptions = {}) {
-    options = {
-      ...defaultOptions,
-      ...options,
-    }
-
-    this.web3 = new Web3(options.endpoint)
-  }
+export class EthWrapper implements BaseEthProvider {
+  constructor(private web3: Web3) {}
 
   /**
    * Checks whether the web3 node is connected.

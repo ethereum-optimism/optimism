@@ -1,10 +1,14 @@
 import { MessageBus, DBManager, DB } from '../../../interfaces'
 import { BaseRunnable } from '../../common'
+import { DefaultMessageBus } from '../../common/app/message-bus'
+import { DefaultDBManager } from '../../common/db/db-manager';
+import { Service } from '@nestd/core';
 
+@Service()
 export class ChainDbHost extends BaseRunnable {
   private _db: DB
 
-  constructor(private messageBus: MessageBus, private dbManager: DBManager) {
+  constructor(private messageBus: DefaultMessageBus, private dbManager: DefaultDBManager) {
     super()
   }
 

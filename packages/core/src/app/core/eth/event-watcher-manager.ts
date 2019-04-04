@@ -2,15 +2,18 @@ import { EventWatcher } from '@pigi/watch-eth'
 import { compiledPlasmaChain } from '@pigi/contracts'
 
 import { MessageBus, EthClient } from '../../../interfaces'
-import { BaseRunnable, BaseKey } from '../../common'
+import { BaseRunnable, BaseKey, DefaultEthClient } from '../../common'
 import { ChainDbHost } from '../db'
+import { DefaultMessageBus } from '../../common/app/message-bus';
+import { Service } from '@nestd/core';
 
+@Service()
 export class DefaultEventWatcher extends BaseRunnable {
   private watcher: EventWatcher
 
   constructor(
-    private messageBus: MessageBus,
-    private ethClient: EthClient,
+    private messageBus: DefaultMessageBus,
+    private ethClient: DefaultEthClient,
     private chainDbHost: ChainDbHost
   ) {
     super()

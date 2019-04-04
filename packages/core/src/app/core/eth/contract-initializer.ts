@@ -1,16 +1,20 @@
-import { BaseRunnable } from '../../common'
+import { BaseRunnable, DefaultEthClient } from '../../common'
 import { EthClient, ConfigManager, MessageBus } from '../../../interfaces'
 import { RegistryContractWrapper } from './registry-contract-wrapper'
+import { DefaultConfigManager } from '../../common/app/config-manager';
+import { DefaultMessageBus } from '../../common/app/message-bus';
+import { Service } from '@nestd/core';
 
 /**
  * Responsible for determining the plasma chain contract's
  * address and putting it on the message bus.
  */
+@Service()
 export class PlasmaContractDetector extends BaseRunnable {
   constructor(
-    private ethClient: EthClient,
-    private config: ConfigManager,
-    private messageBus: MessageBus
+    private ethClient: DefaultEthClient,
+    private config: DefaultConfigManager,
+    private messageBus: DefaultMessageBus
   ) {
     super()
   }

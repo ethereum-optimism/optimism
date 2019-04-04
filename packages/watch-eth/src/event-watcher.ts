@@ -1,28 +1,34 @@
+import * as W3 from 'web3'
+const Web3 = require('web3') // tslint:disable-line
+
 import { EventEmitter } from 'events'
+
 import { sleep } from './utils'
 import { EventFilter, EventFilterOptions, EventLog } from './models'
-import { BaseEthProvider } from './eth-provider/base-eth-provider'
 import { BaseEventDB } from './event-db/base-event-db'
-import { DefaultEventDB } from './event-db/default-event-db'
-import { DefaultEthProvider } from './eth-provider/default-eth-provider'
+import { EventDBWrapper } from './event-db/default-event-db'
+import { EthWrapper } from './eth-provider/default-eth-provider'
+import { BaseEthProvider } from './eth-provider/base-eth-provider'
 
 interface EventSubscription {
   filter: EventFilter
   listeners: Array<(...args: any) => any>
 }
 
+// TODO: Fix this interface.
 export interface EventWatcherOptions {
   address: string
   abi: any
   finalityDepth?: number
   pollInterval?: number
-  eth?: BaseEthProvider
-  db?: BaseEventDB
+  eth?: any
+  db?: any
 }
 
 const defaultOptions = {
   finalityDepth: 12,
   pollInterval: 10000,
+  eth: new Web3('http://localhost:8545'),
 }
 
 /**
@@ -43,8 +49,8 @@ export class EventWatcher extends EventEmitter {
       ...options,
     }
 
-    this.eth = options.eth || new DefaultEthProvider()
-    this.db = options.db || new DefaultEventDB()
+    this.eth = new EthWrapper(options.eth)
+    this.db = new EventDBWrapper(options.db)
     this.options = options
   }
 
@@ -269,7 +275,9 @@ export class EventWatcher extends EventEmitter {
     for (const listener of this.subscriptions[filterHash].listeners) {
       try {
         listener(events)
-      } catch {}
+      } catch {
+        // TODO: Do something here?
+      }
     }
   }
 }

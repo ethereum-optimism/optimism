@@ -1,4 +1,5 @@
-import Web3 from 'web3'
+import * as W3 from 'web3'
+const Web3 = require('web3') // tslint:disable-line
 
 import { EthClient } from '../../../interfaces'
 
@@ -6,7 +7,7 @@ import { EthClient } from '../../../interfaces'
  * Simple EthClient implementation that uses Web3 over HTTP under the hood.
  */
 export class DefaultEthClient implements EthClient {
-  public readonly web3: Web3
+  public readonly web3: W3.default
 
   constructor(endpoint = 'http://127.0.0.1:8545') {
     this.web3 = new Web3(endpoint)

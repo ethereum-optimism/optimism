@@ -87,8 +87,9 @@ export class PlasmaContractWrapper {
    */
   public async getPastEvents(
     event: string,
-    filter: EventOptions
-  ): Promise<EthereumEvent[]> {
+    filter: any
+  ): Promise<any> {
+    /*
     const events: EventLog[] = await this.contract.getPastEvents(
       event,
       filter,
@@ -97,6 +98,7 @@ export class PlasmaContractWrapper {
     return events.map((ethereumEvent) => {
       return EthereumEvent.from(ethereumEvent)
     })
+    */
   }
 
   /**
@@ -104,7 +106,8 @@ export class PlasmaContractWrapper {
    * @param deposit Deposit to check.
    * @returns `true` if the deposit exists, `false` otherwise.
    */
-  public async isValidDeposit(deposit: Deposit): Promise<boolean> {
+  public async isValidDeposit(deposit: any): Promise<boolean> {
+    /*
     // Find past deposit events.
     const depositEvents = await this.getPastEvents('DepositEvent', {
       filter: {
@@ -119,5 +122,7 @@ export class PlasmaContractWrapper {
 
     // Check that one of the events matches this deposit.
     return deposits.some(deposit.equals)
+    */
+    return true
   }
 }

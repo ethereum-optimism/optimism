@@ -32,6 +32,7 @@ export class PGStateManager {
     transaction: Transaction,
     transactionProof: TransactionProof
   ): Promise<void> {
+    /*
     if (!(await this.checkTransactionProof(transaction, transactionProof))) {
       throw new Error('Invalid transaction proof')
     }
@@ -48,6 +49,7 @@ export class PGStateManager {
     // TODO: Lock each range before saving head state.
     await this.saveState(processor)
     // TODO: Write new transactions to the historical state.
+    */
   }
 
   /**
@@ -61,9 +63,12 @@ export class PGStateManager {
     transaction: Transaction,
     transactionProof: TransactionProof
   ): Promise<boolean> {
+    return
+
     // TODO: Figure out whether transaction should be added to TransactionProof.
     // TODO: Figure out whether this function should return the latest state.
 
+    /*
     const processor = await this.loadState()
 
     const deposits: Transaction[] = []
@@ -107,6 +112,7 @@ export class PGStateManager {
     }
 
     return true
+    */
   }
 
   /**
@@ -116,11 +122,13 @@ export class PGStateManager {
    */
   private async isValidDeposit(deposit: Transaction): Promise<boolean> {
     // TODO: Implement this check.
+    return
   }
 
   private async checkInclusionProof(
     transaction: Transaction
   ): Promise<{ implicitStart: BigNum; implicitEnd: BigNum }> {
+    /*
     // TODO: Figure out where to get the block root.
     const root = null
     if (root === null) {
@@ -140,6 +148,8 @@ export class PGStateManager {
       transaction.inclusionProof,
       root + 'ffffffffffffffffffffffffffffffff'
     )
+    */
+    return
   }
 
   /**

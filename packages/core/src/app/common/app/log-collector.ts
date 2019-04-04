@@ -1,6 +1,8 @@
 import { MessageBus } from '../../../interfaces'
 import { BaseRunnable } from '../app'
 import { DebugLogger } from '../utils'
+import { DefaultMessageBus } from './message-bus'
+import { Service } from '@nestd/core';
 
 interface LogMessage {
   type: 'log' | 'warn' | 'error'
@@ -12,10 +14,11 @@ interface LogMessage {
 /**
  * Simple log collector that joins logs from the message bus.
  */
+@Service()
 export class DefaultLogCollector extends BaseRunnable {
   private loggers: Record<string, DebugLogger>
 
-  constructor(private messageBus: MessageBus) {
+  constructor(private messageBus: DefaultMessageBus) {
     super()
   }
 
