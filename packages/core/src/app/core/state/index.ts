@@ -1,2 +1,4 @@
-export * from './history-manager'
-export * from './state-manager'
+export * from './history-manager-host'
+export * from './state-manager-host'
+export * from './transaction-receiver'
+export * from './transaction-watcher'

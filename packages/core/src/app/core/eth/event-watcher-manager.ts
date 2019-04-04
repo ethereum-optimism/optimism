@@ -1,30 +1,43 @@
-import { EventWatcher as EthEventWatcher } from 'watch-eth'
+import { EventWatcher } from 'watch-eth'
+import { compiledPlasmaChain } from '@pigi/contracts'
 
-import {
-  EventWatcherManager,
-  EventWatcher,
-  EventWatcherOptions,
-  EthClient,
-  BaseDB,
-} from '../../../interfaces'
+import { MessageBus, EthClient } from '../../../interfaces'
+import { BaseRunnable, BaseKey } from '../../common'
+import { ChainDbHost } from '../db'
 
-/**
- * Default EventWatcherManager implementation that uses our `watch-eth`
- * library under the hood.
- */
-export class DefaultEventWatcherManager implements EventWatcherManager {
-  constructor(private ethClient: EthClient, private db: BaseDB) {}
+export class DefaultEventWatcher extends BaseRunnable {
+  private watcher: EventWatcher
 
-  /**
-   * Creates a new `watch-eth` EventWatcher instance.
-   * @param options Options for the watcher.
-   * @returns the watcher instance.
-   */
-  public create(options: EventWatcherOptions): EventWatcher {
-    return new EthEventWatcher({
-      ...options,
-      eth: this.ethClient,
-      db: this.db,
+  constructor(
+    private messageBus: MessageBus,
+    private ethClient: EthClient,
+    private chainDbHost: ChainDbHost
+  ) {
+    super()
+  }
+
+  public async onStart(): Promise<void> {
+    this.messageBus.on('chaindb:ready', this.onChainDbReady.bind(this))
+  }
+
+  private onChainDbReady(address: string): void {
+    const prefix = new BaseKey('p')
+    const db = this.chainDbHost.db.bucket(prefix.encode())
+
+    this.watcher = new EventWatcher({
+      address,
+      abi: compiledPlasmaChain.abi,
+      eth: this.ethClient.web3,
+      db,
     })
+
+    const events = compiledPlasmaChain.abi.filter((item) => {
+      return item.type === 'event'
+    })
+    for (const event of events) {
+      this.watcher.on(event.name, (...args: any[]) => {
+        this.messageBus.emit(`ethereum:event:${event.name}`, args)
+      })
+    }
   }
 }

@@ -1,4 +1,4 @@
-import uuid from 'uuid'
+import uuid = require('uuid')
 
 import {
   RpcClient,
@@ -25,7 +25,7 @@ export class JsonRpcClient<TransportRequest, TransportResponse>
    * @param [params] Parameters to send with the method call.
    * @returns the result of the method call.
    */
-  async handle<T>(method: string, params?: any): Promise<T> {
+  public async handle<T>(method: string, params?: any): Promise<T> {
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
       method,

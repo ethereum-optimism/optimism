@@ -3,7 +3,7 @@ import { Logger } from '../../common'
 /**
  * LoggerManager is used to create and manage Logger instances.
  */
-export interface LoggerManager {
+export interface LogCollector {
   /**
    * Creates a logger instance
    * @param namespace to log to.

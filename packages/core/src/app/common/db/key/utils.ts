@@ -28,7 +28,7 @@ export const assertType = (check: boolean): void => {
  * @param err Error to throw if the assertion fails.
  */
 export const assert = (check: boolean, err?: Error): void => {
-  err = err || new AssertionError()
+  err = err || new Error('Assertion error.')
   if (!check) {
     if (Error.captureStackTrace) {
       Error.captureStackTrace(err, assertLen)

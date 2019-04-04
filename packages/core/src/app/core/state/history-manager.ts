@@ -1,17 +1,16 @@
 import {
-  HistoryManager,
   Transaction,
   TransactionProof,
-  BaseDB,
   Batch,
   PutBatch,
+  KeyValueStore,
 } from '../../../interfaces'
 
 /**
  * HistoryManager implementation for PG's Plasma Cashflow variant.
  */
-export class PGHistoryManager implements HistoryManager {
-  constructor(private db: BaseDB) {}
+export class PGHistoryManager {
+  constructor(private db: KeyValueStore) {}
 
   /**
    * Adds a set of transactions to the local state.

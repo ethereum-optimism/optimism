@@ -27,7 +27,7 @@ export interface DelBatch {
 /**
  * KeyValueStore represents a basic collection of key:value pairs.
  */
-interface KeyValueStore {
+export interface KeyValueStore {
   /**
    * Queries the value at a given key.
    * @param key Key to query.

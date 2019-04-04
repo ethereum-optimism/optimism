@@ -68,7 +68,7 @@ export class BaseKey implements Key {
    * @param args Arguments to encode.
    * @returns the encoded key.
    */
-  public encode(args: any[]): Buffer {
+  public encode(args: any[] = []): Buffer {
     assert(args.length === this.ops.length)
 
     const size = this.getSize(args)
@@ -119,7 +119,7 @@ export class BaseKey implements Key {
    * @param args Arguments to the key.
    * @returns the minimum value for that key.
    */
-  public min(args: any[]): Buffer {
+  public min(args: any[] = []): Buffer {
     for (let i = args.length; i < this.ops.length; i++) {
       const op = this.ops[i]
       args.push(op.min)
@@ -132,7 +132,7 @@ export class BaseKey implements Key {
    * @param args Arguments to the key.
    * @returns the maximum value for that key.
    */
-  public max(args: any[]): Buffer {
+  public max(args: any[] = []): Buffer {
     for (let i = args.length; i < this.ops.length; i++) {
       const op = this.ops[i]
       args.push(op.max)

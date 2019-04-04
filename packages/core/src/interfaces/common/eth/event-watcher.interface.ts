@@ -1,3 +1,5 @@
+import { Abi } from './client-models.interface'
+
 export interface EventFilterOptions {
   event: string
   indexed?: { [key: string]: any }
@@ -5,7 +7,7 @@ export interface EventFilterOptions {
 
 export interface EventWatcherOptions {
   address: string
-  abi: any
+  abi: Abi
   finalityDepth?: number
   pollInterval?: number
 }

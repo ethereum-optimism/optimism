@@ -1,5 +1,5 @@
 /* External Imports */
-import { stringify, jsonify } from '../../common/utils'
+import { stringify, jsonify } from '../utils'
 import { ConfigManager } from '../../../interfaces'
 
 /**

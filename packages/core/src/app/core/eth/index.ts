@@ -1,4 +1,4 @@
-export * from './eth-client'
+export * from './contract-initializer'
 export * from './event-watcher-manager'
-export * from './exit-guard'
-export * from './key-manager'
+export * from './key-manager-host'
+export * from './plasma-contract-host'

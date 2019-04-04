@@ -2,10 +2,9 @@ import BigNum = require('bn.js')
 import { MerkleSumTree } from '@pigi/utils'
 
 import {
-  StateManager,
   Transaction,
   TransactionProof,
-  BaseDB,
+  KeyValueStore,
 } from '../../../interfaces'
 import { StateProcessor } from '../../common'
 
@@ -21,8 +20,8 @@ const isDeposit = (transaction: Transaction): boolean => {
 /**
  * StateManager implementation for PG's Plasma Cashflow variant.
  */
-export class PGStateManager implements StateManager {
-  constructor(private db: BaseDB) {}
+export class PGStateManager {
+  constructor(private db: KeyValueStore) {}
 
   /**
    * Applies a single transaction to the local state.
@@ -46,6 +45,7 @@ export class PGStateManager implements StateManager {
       }
     }
 
+    // TODO: Lock each range before saving head state.
     await this.saveState(processor)
     // TODO: Write new transactions to the historical state.
   }
