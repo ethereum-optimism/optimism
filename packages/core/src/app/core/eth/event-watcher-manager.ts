@@ -1,4 +1,4 @@
-import { EventWatcher } from 'watch-eth'
+import { EventWatcher } from '@pigi/watch-eth'
 import { compiledPlasmaChain } from '@pigi/contracts'
 
 import { MessageBus, EthClient } from '../../../interfaces'

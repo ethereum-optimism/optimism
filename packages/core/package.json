@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@pigi/prettier-config": "^0.0.2-alpha.2",
+    "@pigi/watch-eth": "^0.0.1-alpha.1",
     "@types/abstract-leveldown": "^5.0.1",
     "@types/async-lock": "^1.1.1",
     "@types/chai": "^4.1.7",

@@ -1,5 +1,5 @@
 {
-  "name": "watch-eth",
+  "name": "@pigi/watch-eth",
   "version": "0.0.1-beta.7",
   "description": "Robust library for listening to Ethereum events",
   "main": "build/index.js",
@@ -8,11 +8,9 @@
   ],
   "scripts": {
     "test": "npm run test.unit && npm run test.integration",
-    "test.unit": "mocha --require ts-node/register 'test/unit/**/*.ts'",
-    "test.integration": "mocha --timeout 20000 --require ts-node/register 'test/integration/**/*.ts'",
-    "lint": "prettier --check '{src,test}/**/*.{ts,json}' 'index.ts'",
-    "fix": "prettier --write '{src,test}/**/*.{ts,json}' 'index.ts'",
-    "compile": "tsc -p ."
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' 'src/**/*.ts'",
+    "build": "tsc -p ."
   },
   "husky": {
     "hooks": {

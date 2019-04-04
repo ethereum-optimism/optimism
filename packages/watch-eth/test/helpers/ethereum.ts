@@ -1,5 +1,5 @@
 import Web3 from 'web3'
-import ganache from 'ganache-cli'
+import ganache = require('ganache-cli')
 import { Http2Server } from 'http2'
 
 const port = '8545'

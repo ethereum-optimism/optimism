@@ -53,7 +53,7 @@ export class DefaultEthProvider implements BaseEthProvider {
       ...(filter.indexed || {}),
       fromBlock: filter.fromBlock,
       toBlock: filter.toBlock,
-    })
+    } as any)
     return events.map((event) => {
       return new EventLog(event)
     })

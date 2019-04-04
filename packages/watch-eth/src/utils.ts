@@ -1,4 +1,4 @@
-import crypto from 'crypto'
+import crypto = require('crypto')
 
 /**
  * Creates a simple (not cryptographically secure) hash.
