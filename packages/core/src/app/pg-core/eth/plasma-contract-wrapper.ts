@@ -85,10 +85,7 @@ export class PlasmaContractWrapper {
    * @param filter The filter object.
    * @returns past events with the given filter.
    */
-  public async getPastEvents(
-    event: string,
-    filter: any
-  ): Promise<any> {
+  public async getPastEvents(event: string, filter: any): Promise<any> {
     /*
     const events: EventLog[] = await this.contract.getPastEvents(
       event,

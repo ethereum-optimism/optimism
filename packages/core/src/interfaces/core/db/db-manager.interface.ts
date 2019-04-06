@@ -1,4 +1,4 @@
-import { BaseDB } from '../../common'
+import { DB } from '../../common'
 
 /**
  * DBManager manages database instances.
@@ -9,5 +9,5 @@ export interface DBManager {
    * @param args to initialize the database with.
    * @returns the database instance.
    */
-  create(...args: any[]): BaseDB
+  create(...args: any[]): DB
 }

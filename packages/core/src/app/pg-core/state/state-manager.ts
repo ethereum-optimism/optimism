@@ -7,6 +7,7 @@ import {
   KeyValueStore,
 } from '../../../interfaces'
 import { StateProcessor } from '../../common'
+import { ChainDB } from '../db/chain-db'
 
 /**
  * Checks whether a transaction is a deposit.
@@ -21,7 +22,7 @@ const isDeposit = (transaction: Transaction): boolean => {
  * StateManager implementation for PG's Plasma Cashflow variant.
  */
 export class PGStateManager {
-  constructor(private db: KeyValueStore) {}
+  constructor(private db: ChainDB) {}
 
   /**
    * Applies a single transaction to the local state.
@@ -156,8 +157,11 @@ export class PGStateManager {
    * @returns the current head state as a Processor.
    */
   private async loadState(): Promise<StateProcessor> {
+    /**
     const state = await this.db.get(Buffer.from('state'))
     return new StateProcessor(JSON.parse(state.toString('utf8')))
+    */
+    return
   }
 
   /**
@@ -165,7 +169,9 @@ export class PGStateManager {
    * @param processor Processor to save from.
    */
   private async saveState(processor: StateProcessor): Promise<void> {
+    /**
     const state = Buffer.from(JSON.stringify(processor.state), 'utf8')
     await this.db.put(Buffer.from('state'), state)
+    */
   }
 }

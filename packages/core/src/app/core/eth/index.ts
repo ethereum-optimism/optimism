@@ -1,4 +1,3 @@
-export * from './contract-initializer'
-export * from './event-watcher-manager'
-export * from './key-manager-host'
-export * from './plasma-contract-host'
+export * from './eth-client'
+export * from './event-watcher'
+export * from './key-manager'

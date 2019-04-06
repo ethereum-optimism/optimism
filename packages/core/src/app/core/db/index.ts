@@ -1,1 +1,1 @@
-export * from './chain-db-host'
+export * from './db-manager'

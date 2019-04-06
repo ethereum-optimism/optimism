@@ -5,12 +5,13 @@ import {
   PutBatch,
   KeyValueStore,
 } from '../../../interfaces'
+import { ChainDB } from '../db/chain-db'
 
 /**
  * HistoryManager implementation for PG's Plasma Cashflow variant.
  */
 export class PGHistoryManager {
-  constructor(private db: KeyValueStore) {}
+  constructor(private db: ChainDB) {}
 
   /**
    * Adds a set of transactions to the local state.
