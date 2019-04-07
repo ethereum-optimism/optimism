@@ -1,8 +1,8 @@
-import { DBManager, DB, AddressResolver } from '../../../interfaces'
+import { DBManager, DB, AddressResolver, ChainDB } from '../../../interfaces'
 import { Process } from '../../common'
-import { ChainDB } from './chain-db'
+import { PGChainDB } from './chain-db'
 
-export class DefaultChainDBProcess extends Process<ChainDB> {
+export class PGChainDBProcess extends Process<ChainDB> {
   private db: DB
 
   constructor(
@@ -19,6 +19,6 @@ export class DefaultChainDBProcess extends Process<ChainDB> {
     const address = this.addressResolver.subject.address
     this.db = this.dbManager.subject.create(address)
     await this.db.open()
-    this.subject = new ChainDB(this.db)
+    this.subject = new PGChainDB(this.db)
   }
 }

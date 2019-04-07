@@ -2,7 +2,7 @@ import { Process } from '../../common'
 import { EthClient, ConfigManager, AddressResolver } from '../../../interfaces'
 import { RegistryContractWrapper } from './registry-contract-wrapper'
 
-export class DefaultAddressResolverProcess extends Process<AddressResolver> {
+export class PGAddressResolverProcess extends Process<AddressResolver> {
   constructor(
     private config: Process<ConfigManager>,
     private ethClient: Process<EthClient>

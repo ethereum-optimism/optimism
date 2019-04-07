@@ -1,8 +1,13 @@
 import { Process } from '../common'
 import { CoreApp } from '../core'
-import { AddressResolver, HistoryManager, StateManager } from '../../interfaces'
-import { DefaultAddressResolverProcess } from './eth'
-import { ChainDB, DefaultChainDBProcess } from './db'
+import {
+  AddressResolver,
+  HistoryManager,
+  StateManager,
+  ChainDB,
+} from '../../interfaces'
+import { PGAddressResolverProcess } from './eth'
+import { PGChainDBProcess } from './db'
 import { PGStateManagerProcess, PGHistoryManagerProcoess } from './state'
 
 export class PGCoreApp extends CoreApp {
@@ -14,14 +19,11 @@ export class PGCoreApp extends CoreApp {
   constructor(config: Record<string, any>) {
     super(config)
 
-    this.addressResolver = new DefaultAddressResolverProcess(
+    this.addressResolver = new PGAddressResolverProcess(
       this.configManager,
       this.ethClient
     )
-    this.chaindb = new DefaultChainDBProcess(
-      this.addressResolver,
-      this.dbManager
-    )
+    this.chaindb = new PGChainDBProcess(this.addressResolver, this.dbManager)
     this.historyManager = new PGHistoryManagerProcoess(this.chaindb)
     this.stateManager = new PGStateManagerProcess(this.chaindb)
 

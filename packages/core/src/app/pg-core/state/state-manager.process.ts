@@ -1,7 +1,6 @@
-import { StateManager } from '../../../interfaces'
+import { StateManager, ChainDB } from '../../../interfaces'
 import { Process } from '../../common'
 import { PGStateManager } from './state-manager'
-import { ChainDB } from '../db/chain-db'
 
 export class PGStateManagerProcess extends Process<StateManager> {
   constructor(private chaindb: Process<ChainDB>) {

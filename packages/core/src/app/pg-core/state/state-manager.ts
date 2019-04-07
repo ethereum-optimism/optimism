@@ -1,13 +1,8 @@
 import BigNum = require('bn.js')
 import { MerkleSumTree } from '@pigi/utils'
 
-import {
-  Transaction,
-  TransactionProof,
-  KeyValueStore,
-} from '../../../interfaces'
+import { Transaction, TransactionProof, ChainDB } from '../../../interfaces'
 import { StateProcessor } from '../../common'
-import { ChainDB } from '../db/chain-db'
 
 /**
  * Checks whether a transaction is a deposit.

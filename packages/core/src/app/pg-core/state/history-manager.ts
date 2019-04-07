@@ -1,11 +1,4 @@
-import {
-  Transaction,
-  TransactionProof,
-  Batch,
-  PutBatch,
-  KeyValueStore,
-} from '../../../interfaces'
-import { ChainDB } from '../db/chain-db'
+import { Transaction, TransactionProof, ChainDB } from '../../../interfaces'
 
 /**
  * HistoryManager implementation for PG's Plasma Cashflow variant.

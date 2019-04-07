@@ -1,7 +1,7 @@
-import { KeyValueStore } from '../../../interfaces'
+import { KeyValueStore, ChainDB } from '../../../interfaces'
 import { BaseKey } from '../../common'
 
-export class ChainDB {
+export class PGChainDB implements ChainDB {
   private statedb: KeyValueStore
   private historydb: KeyValueStore
 
