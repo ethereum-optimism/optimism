@@ -8,9 +8,14 @@ import { DBManager, DB } from '../../../interfaces'
  * Basic DBManager implementation that creates instances
  * of a DB type defined at construction time.
  */
-export class DefaultDBManager implements DBManager {
+export class SimpleDBManager implements DBManager {
   private cache: Record<string, DB> = {}
 
+  /**
+   * Creates the DB manager.
+   * @param baseDbPath Base path to create DBs from.
+   * @param backend Backend to use when creating new DBs.
+   */
   constructor(
     private readonly baseDbPath: string,
     private readonly backend: AbstractLevelDOWNConstructor

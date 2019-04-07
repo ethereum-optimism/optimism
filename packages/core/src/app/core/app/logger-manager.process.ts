@@ -1,9 +1,15 @@
 import { LoggerManager } from '../../../interfaces'
 import { Process } from '../../common'
-import { DefaultLoggerManager } from './logger-manager'
+import { DebugLoggerManager } from './logger-manager'
 
-export class DefaultLoggerManagerProcess extends Process<LoggerManager> {
+/**
+ * Simple wrapper process for the debug logger manager.
+ */
+export class DebugLoggerManagerProcess extends Process<LoggerManager> {
+  /**
+   * Creates the instance of the logger manager.
+   */
   protected async onStart(): Promise<void> {
-    this.subject = new DefaultLoggerManager()
+    this.subject = new DebugLoggerManager()
   }
 }

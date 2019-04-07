@@ -8,9 +8,9 @@ import {
   KeyManager,
 } from '../../interfaces'
 import { Process, BaseApp } from '../common'
-import { DefaultConfigManagerProcess, DefaultLoggerManagerProcess } from './app'
-import { DefaultDBManagerProxy } from './db'
-import { DefaultEthClientProcess, DefaultKeyManagerProcess } from './eth'
+import { SimpleConfigManagerProcess, DebugLoggerManagerProcess } from './app'
+import { SimpleDBManagerProcess } from './db'
+import { Web3EthClientProcess, SimpleKeyManagerProcess } from './eth'
 
 export interface CoreAppConfig {
   ETHEREUM_ENDPOINT: string
@@ -28,11 +28,11 @@ export class CoreApp extends BaseApp {
   constructor(config: CoreAppConfig) {
     super()
 
-    this.configManager = new DefaultConfigManagerProcess(config)
-    this.loggerManager = new DefaultLoggerManagerProcess()
-    this.dbManager = new DefaultDBManagerProxy(this.configManager)
-    this.ethClient = new DefaultEthClientProcess(this.configManager)
-    this.keyManager = new DefaultKeyManagerProcess(this.dbManager)
+    this.configManager = new SimpleConfigManagerProcess(config)
+    this.loggerManager = new DebugLoggerManagerProcess()
+    this.dbManager = new SimpleDBManagerProcess(this.configManager)
+    this.ethClient = new Web3EthClientProcess(this.configManager)
+    this.keyManager = new SimpleKeyManagerProcess(this.dbManager)
 
     this.register('ConfigManager', this.configManager)
     this.register('LogCollector', this.loggerManager)

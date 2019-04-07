@@ -2,12 +2,13 @@ import { stringify, jsonify } from '../../common'
 import { ConfigManager } from '../../../interfaces'
 
 /**
- * Object used for storing configuration for other objects.
+ * Simple config manager that stores configuration values
+ * in memory as a jsonified object.
  */
-export class DefaultConfigManager implements ConfigManager {
+export class SimpleConfigManager implements ConfigManager {
   private config: Record<string, any>
 
-  constructor(config?: Record<string, any>) {
+  constructor(config: Record<string, any> = {}) {
     this.config = { ...config }
   }
 

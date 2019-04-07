@@ -2,9 +2,10 @@ import { LoggerManager } from '../../../interfaces'
 import { DebugLogger } from '../../common'
 
 /**
- * Simple log collector that joins logs from the message bus.
+ * Basic logger manager that creates new DebugLogger
+ * instances based on a namespace.
  */
-export class DefaultLoggerManager implements LoggerManager {
+export class DebugLoggerManager implements LoggerManager {
   private loggers: Record<string, DebugLogger>
 
   /**

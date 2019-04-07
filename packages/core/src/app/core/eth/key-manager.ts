@@ -7,9 +7,14 @@ import { BaseKey } from '../../common'
 const addressKey = new BaseKey('a', ['hash160'])
 
 /**
- * Simple key manager that opens a database for keys.
+ * Simple key management module that handles creation
+ * and management of private keys.
  */
-export class DefaultKeyManager implements KeyManager {
+export class SimpleKeyManager implements KeyManager {
+  /**
+   * Creates the modules.
+   * @param db Database used to store key data.
+   */
   constructor(private db: KeyValueStore) {}
 
   /**
