@@ -15,6 +15,7 @@ export class PGAddressResolverProcess extends Process<AddressResolver> {
     await this.config.waitUntilStarted()
     await this.ethClient.waitUntilStarted()
 
+    /*
     const registryAddress = this.config.subject.get(
       PG_CORE_CONFIG_KEYS.REGISTRY_ADDRESS
     )
@@ -32,6 +33,10 @@ export class PGAddressResolverProcess extends Process<AddressResolver> {
 
     this.subject = {
       address: plasmaChainAddress,
+    }
+    */
+    this.subject = {
+      address: '0x0000000000000000000000000000000000000000',
     }
   }
 }

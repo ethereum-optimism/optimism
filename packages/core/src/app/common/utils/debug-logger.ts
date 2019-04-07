@@ -2,11 +2,14 @@ import debug, { Debugger } from 'debug'
 
 import { Logger } from '../../../interfaces'
 
+declare const process: any
+
 export class DebugLogger implements Logger {
   private logger: Debugger
 
   constructor(readonly namespace: string) {
     this.logger = debug(namespace)
+    debug.enable(namespace)
   }
 
   /**
@@ -14,7 +17,11 @@ export class DebugLogger implements Logger {
    * @param message to log.
    */
   public log(message: string): void {
-    this.logger(message)
+    this.logger(
+      `[pg] ${process.pid}   -   ${new Date(
+        Date.now()
+      ).toLocaleString()}   -   ${message}`
+    )
   }
 
   /**

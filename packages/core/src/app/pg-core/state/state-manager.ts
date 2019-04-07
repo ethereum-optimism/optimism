@@ -152,7 +152,7 @@ export class PGStateManager {
    * @returns the current head state as a Processor.
    */
   private async loadState(): Promise<StateProcessor> {
-    /**
+    /*
     const state = await this.db.get(Buffer.from('state'))
     return new StateProcessor(JSON.parse(state.toString('utf8')))
     */
@@ -164,7 +164,7 @@ export class PGStateManager {
    * @param processor Processor to save from.
    */
   private async saveState(processor: StateProcessor): Promise<void> {
-    /**
+    /*
     const state = Buffer.from(JSON.stringify(processor.state), 'utf8')
     await this.db.put(Buffer.from('state'), state)
     */
