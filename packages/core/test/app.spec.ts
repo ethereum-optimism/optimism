@@ -1,17 +1,14 @@
-import { NestdFactory } from '@nestd/core'
-
-import './setup'
-import { CoreAppModule } from '../src/app/core/app.module'
-
-const loop = () => {
-  setTimeout(() => {
-    loop()
-  }, 100)
-}
+import memdown from 'memdown'
+import { PGCoreApp } from '../src/app'
 
 const main = async () => {
-  const app = await NestdFactory.create(CoreAppModule)
-  await app.start()
+  const pgCoreApp = new PGCoreApp({
+    PLASMA_CHAIN_NAME: 'test',
+    REGISTRY_ADDRESS: '0x0000000000000000000000000000000000000000',
+    ETHEREUM_ENDPOINT: 'http://localhost:8545',
+    BASE_DB_PATH: './tempdb',
+    DB_BACKEND: memdown,
+  })
+  await pgCoreApp.start()
 }
-
 main()

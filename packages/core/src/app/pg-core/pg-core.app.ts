@@ -1,5 +1,5 @@
 import { Process } from '../common'
-import { CoreApp } from '../core'
+import { CoreApp, CoreAppConfig } from '../core'
 import {
   AddressResolver,
   HistoryManager,
@@ -10,13 +10,18 @@ import { PGAddressResolverProcess } from './eth'
 import { PGChainDBProcess } from './db'
 import { PGStateManagerProcess, PGHistoryManagerProcoess } from './state'
 
+export interface PGCoreAppConfig extends CoreAppConfig {
+  PLASMA_CHAIN_NAME: string
+  REGISTRY_ADDRESS: string
+}
+
 export class PGCoreApp extends CoreApp {
   protected addressResolver: Process<AddressResolver>
   protected chaindb: Process<ChainDB>
   protected historyManager: Process<HistoryManager>
   protected stateManager: Process<StateManager>
 
-  constructor(config: Record<string, any>) {
+  constructor(config: PGCoreAppConfig) {
     super(config)
 
     this.addressResolver = new PGAddressResolverProcess(

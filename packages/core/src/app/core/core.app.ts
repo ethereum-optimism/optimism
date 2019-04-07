@@ -1,3 +1,5 @@
+import { AbstractLevelDOWNConstructor } from 'abstract-leveldown'
+
 import {
   ConfigManager,
   LoggerManager,
@@ -10,6 +12,12 @@ import { DefaultConfigManagerProcess, DefaultLoggerManagerProcess } from './app'
 import { DefaultDBManagerProxy } from './db'
 import { DefaultEthClientProcess, DefaultKeyManagerProcess } from './eth'
 
+export interface CoreAppConfig {
+  ETHEREUM_ENDPOINT: string
+  BASE_DB_PATH: string
+  DB_BACKEND: AbstractLevelDOWNConstructor
+}
+
 export class CoreApp extends BaseApp {
   public readonly configManager: Process<ConfigManager>
   public readonly loggerManager: Process<LoggerManager>
@@ -17,7 +25,7 @@ export class CoreApp extends BaseApp {
   public readonly ethClient: Process<EthClient>
   public readonly keyManager: Process<KeyManager>
 
-  constructor(config: Record<string, any>) {
+  constructor(config: CoreAppConfig) {
     super()
 
     this.configManager = new DefaultConfigManagerProcess(config)

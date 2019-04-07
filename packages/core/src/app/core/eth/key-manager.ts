@@ -2,7 +2,7 @@ import { sha3 } from 'web3-utils'
 import { account as accountlib } from 'eth-lib'
 
 import { KeyManager, KeyValueStore, Account } from '../../../interfaces'
-import { BaseKey, Process } from '../../common'
+import { BaseKey } from '../../common'
 
 const addressKey = new BaseKey('a', ['hash160'])
 
