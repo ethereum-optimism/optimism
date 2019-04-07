@@ -1,3 +1,4 @@
+export * from './address-resolver.interface'
 export * from './eth-client.interface'
 export * from './event-watcher-manager.interface'
 export * from './exit-guard.interface'

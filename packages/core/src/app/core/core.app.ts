@@ -5,12 +5,12 @@ import {
   EthClient,
   KeyManager,
 } from '../../interfaces'
-import { Process, Node } from '../common'
+import { Process, BaseApp } from '../common'
 import { DefaultConfigManagerProcess, DefaultLoggerManagerProcess } from './app'
 import { DefaultDBManagerProxy } from './db'
 import { DefaultEthClientProcess, DefaultKeyManagerProcess } from './eth'
 
-export class CoreNode extends Node {
+export class CoreApp extends BaseApp {
   public readonly configManager: Process<ConfigManager>
   public readonly loggerManager: Process<LoggerManager>
   public readonly dbManager: Process<DBManager>

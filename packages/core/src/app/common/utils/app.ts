@@ -1,6 +1,6 @@
 import { Process } from './process'
 
-export class Node {
+export class BaseApp {
   private processes: Record<string, Process<any>> = {}
 
   public register(name: string, process: Process<any>): void {

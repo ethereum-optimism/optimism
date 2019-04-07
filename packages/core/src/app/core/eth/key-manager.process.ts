@@ -11,7 +11,13 @@ export class DefaultKeyManagerProcess extends Process<KeyManager> {
 
   protected async onStart(): Promise<void> {
     await this.dbManager.waitUntilStarted()
+
     this.db = this.dbManager.subject.create('keys')
+    await this.db.open()
     this.subject = new DefaultKeyManager(this.db)
+  }
+
+  protected async onStop() {
+    await this.db.close()
   }
 }
