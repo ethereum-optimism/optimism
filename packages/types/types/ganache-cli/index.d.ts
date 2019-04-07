@@ -10,6 +10,6 @@ declare module 'ganache-cli' {
   }
 
   interface Ganache {
-    server(options: GanacheServerOptions): Http2Server
+    server(options?: GanacheServerOptions): Http2Server
   }
 }
