@@ -3,15 +3,20 @@ import uuid = require('uuid')
 
 /**
  * Represents a basic process with start/stop functionality.
+ * All processes have a "subject" - some value that the
+ * process provides after it's been fully initialized.
  */
-export class Process<Subject> {
-  public subject: Subject
+export class Process<TSubject> {
+  public subject: TSubject
   public readonly pid = uuid.v4()
   private ready = false
   private statusEmitter = new EventEmitter()
   private onStarted: Promise<void>
   private onStopped: Promise<void>
 
+  /**
+   * Creates the process.
+   */
   constructor() {
     this.reset()
   }

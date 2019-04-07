@@ -1,10 +1,19 @@
-import { DebugLogger } from './debug-logger'
+import { DebugLogger } from '../utils'
 import { Process } from './process'
 
+/**
+ * Basic application framework. Makes it easy to
+ * start/stop different processes.
+ */
 export class BaseApp {
   private logger = new DebugLogger('app')
   private processes: Record<string, Process<any>> = {}
 
+  /**
+   * Registers a process to the app.
+   * @param name Name of the process.
+   * @param process Process to register.
+   */
   public register(name: string, process: Process<any>): void {
     if (name in this.processes) {
       throw new Error(`process already registered: ${name}`)
@@ -13,6 +22,22 @@ export class BaseApp {
     this.processes[name] = process
   }
 
+  /**
+   * Queries a specific process by name.
+   * @param name Name of the process.
+   * @returns the process registered with that name.
+   */
+  public query(name: string): Process<any> {
+    if (!(name in this.processes)) {
+      throw new Error(`process does not exist: ${name}`)
+    }
+
+    return this.processes[name]
+  }
+
+  /**
+   * Starts all processes.
+   */
   public async start(): Promise<void> {
     await this.execute(async (name: string, process: Process<any>) => {
       this.logger.log(`starting process: ${name}`)
@@ -21,6 +46,9 @@ export class BaseApp {
     })
   }
 
+  /**
+   * Stops all processes.
+   */
   public async stop(): Promise<void> {
     await this.execute(async (name: string, process: Process<any>) => {
       this.logger.log(`stopping process: ${name}`)
@@ -29,6 +57,10 @@ export class BaseApp {
     })
   }
 
+  /**
+   * Executes some function in parallel for all processes.
+   * @param fn Function to execute.
+   */
   private async execute(
     fn: (name: string, process: Process<any>) => Promise<void>
   ): Promise<void> {

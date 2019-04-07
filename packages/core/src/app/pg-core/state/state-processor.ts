@@ -2,11 +2,18 @@
 import { StateUpdate } from '@pigi/utils'
 
 /* Internal Imports */
-import { RangeStore } from './range-store'
+import { RangeStore } from '../../common'
 
+/**
+ * Used to process state updates.
+ */
 export class StateProcessor {
   private rangeStore: RangeStore<StateUpdate>
 
+  /**
+   * Creates the processor.
+   * @param state Initial state to load.
+   */
   constructor(state: StateUpdate[] = []) {
     this.rangeStore = new RangeStore<StateUpdate>(state)
   }
