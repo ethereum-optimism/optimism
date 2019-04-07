@@ -8,6 +8,11 @@ import { Contract } from 'web3-eth-contract/types'
 export class RegistryContractWrapper {
   private contract: Contract
 
+  /**
+   * Creates the wrapper.
+   * @param web3 Web3 instance used to make calls.
+   * @param address Address to interact with.
+   */
   constructor(web3: Web3, address: string) {
     this.contract = new web3.eth.Contract(
       compiledPlasmaRegistry.abi as any,

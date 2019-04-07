@@ -4,6 +4,10 @@ import { Transaction, TransactionProof, ChainDB } from '../../../interfaces'
  * HistoryManager implementation for PG's Plasma Cashflow variant.
  */
 export class PGHistoryManager {
+  /**
+   * Creates the manager.
+   * @param db ChainDB to interact with.
+   */
   constructor(private db: ChainDB) {}
 
   /**

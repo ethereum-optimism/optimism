@@ -17,6 +17,10 @@ const isDeposit = (transaction: Transaction): boolean => {
  * StateManager implementation for PG's Plasma Cashflow variant.
  */
 export class PGStateManager {
+  /**
+   * Creates the manager.
+   * @param db ChainDB to interact with.
+   */
   constructor(private db: ChainDB) {}
 
   /**

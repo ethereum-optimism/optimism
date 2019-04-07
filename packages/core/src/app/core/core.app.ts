@@ -18,6 +18,10 @@ export interface CoreAppConfig {
   DB_BACKEND: AbstractLevelDOWNConstructor
 }
 
+/**
+ * Core L2 app. Contains all of the basic components
+ * necessary for a layer 2 system.
+ */
 export class CoreApp extends BaseApp {
   public readonly configManager: Process<ConfigManager>
   public readonly loggerManager: Process<LoggerManager>
@@ -25,6 +29,10 @@ export class CoreApp extends BaseApp {
   public readonly ethClient: Process<EthClient>
   public readonly keyManager: Process<KeyManager>
 
+  /**
+   * Creates the app.
+   * @param config Configuration for the app.
+   */
   constructor(config: CoreAppConfig) {
     super()
 

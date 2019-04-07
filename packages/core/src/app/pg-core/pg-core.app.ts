@@ -15,12 +15,20 @@ export interface PGCoreAppConfig extends CoreAppConfig {
   REGISTRY_ADDRESS: string
 }
 
+/**
+ * Core Plasma Group app. Extends the core L2 app to
+ * add support for basic plasma interactions.
+ */
 export class PGCoreApp extends CoreApp {
   protected addressResolver: Process<AddressResolver>
   protected chaindb: Process<ChainDB>
   protected historyManager: Process<HistoryManager>
   protected stateManager: Process<StateManager>
 
+  /**
+   * Creates the app.
+   * @param config Configuration for the app.
+   */
   constructor(config: PGCoreAppConfig) {
     super(config)
 
