@@ -5,7 +5,11 @@ import { ConfigManager } from '../../../interfaces'
  * Object used for storing configuration for other objects.
  */
 export class DefaultConfigManager implements ConfigManager {
-  private db = new Map<string, string>()
+  private config: Record<string, any>
+
+  constructor(config?: Record<string, any>) {
+    this.config = { ...config }
+  }
 
   /**
    * Queries a value from the config.
@@ -13,11 +17,11 @@ export class DefaultConfigManager implements ConfigManager {
    * @returns the config value.
    */
   public get(key: string): any {
-    if (!this.db.has(key)) {
+    if (!(key in this.config)) {
       throw new Error('Key not found in configuration.')
     }
 
-    const value = this.db.get(key)
+    const value = this.config[key]
     return jsonify(value)
   }
 
@@ -28,6 +32,6 @@ export class DefaultConfigManager implements ConfigManager {
    */
   public put(key: string, value: any): void {
     const parsed = stringify(value)
-    this.db.set(key, parsed)
+    this.config[key] = parsed
   }
 }

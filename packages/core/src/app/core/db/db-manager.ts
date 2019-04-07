@@ -9,7 +9,7 @@ import { DBManager, DB } from '../../../interfaces'
  * of a DB type defined at construction time.
  */
 export class DefaultDBManager implements DBManager {
-  private cache: Record<string, DB>
+  private cache: Record<string, DB> = {}
 
   constructor(
     private readonly baseDbPath: string,

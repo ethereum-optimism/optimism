@@ -1,3 +1,4 @@
+export * from './eth-client.process'
 export * from './eth-client'
-export * from './event-watcher'
+export * from './key-manager.process'
 export * from './key-manager'

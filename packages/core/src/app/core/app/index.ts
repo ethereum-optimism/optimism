@@ -1,3 +1,4 @@
+export * from './config-manager.process'
 export * from './config-manager'
-export * from './log-collector'
-export * from './message-bus'
+export * from './logger-manager.process'
+export * from './logger-manager'

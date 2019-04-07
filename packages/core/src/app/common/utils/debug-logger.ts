@@ -13,7 +13,7 @@ export class DebugLogger implements Logger {
    * Logs a message.
    * @param message to log.
    */
-  log(message: string): void {
+  public log(message: string): void {
     this.logger(message)
   }
 
@@ -22,7 +22,7 @@ export class DebugLogger implements Logger {
    * @param message to log.
    * @param [trace] for the error.
    */
-  error(message: string, trace?: string): void {
+  public error(message: string, trace?: string): void {
     this.log(`ERROR: ${message}\n${trace}`)
   }
 
@@ -30,7 +30,7 @@ export class DebugLogger implements Logger {
    * Logs a warning.
    * @param message to log.
    */
-  warn(message: string): void {
+  public warn(message: string): void {
     this.log(`WARNING: ${message}`)
   }
 }
