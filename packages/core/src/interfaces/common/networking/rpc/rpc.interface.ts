@@ -10,3 +10,20 @@ export interface RpcClient {
    */
   handle<T>(method: string, params?: any): Promise<T>
 }
+
+/**
+ * Handles responses to an RpcClient.
+ */
+export interface RpcServer {
+  /**
+   * Registers a method so it can be exposed.
+   * @param name Name of the method.
+   * @param method Function to call.
+   */
+  register(name: string, method: Function): void
+
+  /**
+   * Starts the server.
+   */
+  listen(): Promise<void>
+}
