@@ -1,3 +1,4 @@
+/* External Imports */
 import BigNum = require('bn.js')
 
 /**
