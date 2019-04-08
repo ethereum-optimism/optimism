@@ -1,4 +1,9 @@
-// TODO: Add bcoin acknowledgements for this code!
+/**
+ * Modified from bcoin's bdb (https://github.com/bcoin-org/bdb) (MIT LICENSE).
+ * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
+ */
+
+/* Internal Imports */
 import { Key, KeyType } from '../../../../interfaces'
 import { types } from './types'
 import { makeID, assert } from './utils'

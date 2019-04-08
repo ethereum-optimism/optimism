@@ -1,5 +1,12 @@
+/**
+ * Modified from bcoin's bdb (https://github.com/bcoin-org/bdb) (MIT LICENSE).
+ * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
+ */
+
+/* External Imports */
 import { AbstractIterator } from 'abstract-leveldown'
 
+/* Internal Imports */
 import { Iterator, IteratorOptions, K, V, KV, DB } from '../../../interfaces'
 
 const defaultIteratorOptions: IteratorOptions = {

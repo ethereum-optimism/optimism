@@ -1,4 +1,9 @@
-import { KeyType } from '../../../../interfaces'
+/**
+ * Modified from bcoin's bdb (https://github.com/bcoin-org/bdb) (MIT LICENSE).
+ * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
+ */
+
+/* Internal Imports */
 import {
   assertType,
   assertLen,
@@ -13,8 +18,6 @@ import {
   BUFFER_MIN,
   BUFFER_MAX,
 } from './utils'
-
-// TODO: Add bcoin acknowledgements for this code!
 
 /* tslint:disable:no-bitwise */
 export const types = {
