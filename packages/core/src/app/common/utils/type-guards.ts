@@ -1,4 +1,8 @@
-import { JsonRpcResponse, JsonRpcErrorResponse, JsonRpcRequest } from '../../../interfaces'
+import {
+  JsonRpcResponse,
+  JsonRpcErrorResponse,
+  JsonRpcRequest,
+} from '../../../interfaces'
 
 /**
  * Checks if a JSON-RPC response is an error response.

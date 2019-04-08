@@ -1,5 +1,6 @@
-import { stringify, jsonify } from '../../common'
+/* Internal Imports */
 import { ConfigManager } from '../../../interfaces'
+import { stringify, jsonify } from '../../common'
 
 /**
  * Simple config manager that stores configuration values

@@ -1,12 +1,4 @@
-import BigNum = require('bn.js')
-
-import {
-  TransactionReceipt,
-  EventFilter,
-  EventLog,
-  Abi,
-  Contract,
-} from '../../common'
+/* External Imports */
 import Web3 from 'web3/types'
 
 /**

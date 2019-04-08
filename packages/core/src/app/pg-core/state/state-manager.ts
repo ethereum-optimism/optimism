@@ -1,6 +1,8 @@
+/* External Imports */
 import BigNum = require('bn.js')
 import { MerkleSumTree } from '@pigi/utils'
 
+/* Internal Imports */
 import { Transaction, TransactionProof, ChainDB } from '../../../interfaces'
 import { StateProcessor } from './state-processor'
 

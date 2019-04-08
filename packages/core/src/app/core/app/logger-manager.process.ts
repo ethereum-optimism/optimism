@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { LoggerManager } from '../../../interfaces'
 import { Process } from '../../common'
 import { DebugLoggerManager } from './logger-manager'

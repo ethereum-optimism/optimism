@@ -3,23 +3,23 @@ import { JsonRpcErrorResponse } from '../../../../../interfaces'
 export const JSONRPC_ERRORS = {
   PARSE_ERROR: {
     code: -32700,
-    message: 'Parse error'
+    message: 'Parse error',
   },
   INVALID_REQUEST: {
     code: -32600,
-    message: 'Invalid request'
+    message: 'Invalid request',
   },
   METHOD_NOT_FOUND: {
     code: -32601,
-    message: 'Method not found'
+    message: 'Method not found',
   },
   INVALID_PARAMS: {
     code: -32602,
-    message: 'Invalid params'
+    message: 'Invalid params',
   },
   INTERNAL_ERROR: {
     code: -32603,
-    message: 'Internal error'
+    message: 'Internal error',
   },
 }
 
@@ -29,7 +29,10 @@ export const JSONRPC_ERRORS = {
  * @param id ID for the response.
  * @returns the response object.
  */
-export const buildJsonRpcError = (type: keyof typeof JSONRPC_ERRORS, id: string | number): JsonRpcErrorResponse => {
+export const buildJsonRpcError = (
+  type: keyof typeof JSONRPC_ERRORS,
+  id: string | number
+): JsonRpcErrorResponse => {
   return {
     jsonrpc: '2.0',
     error: JSONRPC_ERRORS[type],

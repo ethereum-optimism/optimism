@@ -1,6 +1,8 @@
+/* External Imports */
 import path = require('path')
 import { AbstractLevelDOWNConstructor } from 'abstract-leveldown'
 
+/* Internal Imports */
 import { BaseDB } from '../../common'
 import { DBManager, DB } from '../../../interfaces'
 

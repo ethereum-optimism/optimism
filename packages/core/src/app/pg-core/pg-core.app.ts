@@ -1,11 +1,12 @@
-import { Process } from '../common'
-import { CoreApp, CoreAppConfig } from '../core'
+/* Internal Imports */
 import {
   AddressResolver,
   HistoryManager,
   StateManager,
   ChainDB,
 } from '../../interfaces'
+import { Process } from '../common'
+import { CoreApp, CoreAppConfig } from '../core'
 import { PGAddressResolverProcess } from './eth'
 import { PGChainDBProcess } from './db'
 import { PGStateManagerProcess, PGHistoryManagerProcoess } from './state'

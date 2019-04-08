@@ -1,5 +1,7 @@
+/* External Imports */
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 
+/* Internal Imports */
 import { HttpClient } from '../../../../../interfaces'
 
 /**
@@ -10,13 +12,18 @@ export class AxiosHttpClient implements HttpClient {
     baseURL: this.baseUrl,
   })
 
+  /**
+   * Creates the client.
+   * @param baseUrl Base URL to make requests to.
+   */
   constructor(private baseUrl: string) {}
 
   /**
    * Sends an HTTP request to a server.
-   * @param data
+   * @param data Data to send to the server.
+   * @returns the HTTP response.
    */
-  async request(data: AxiosRequestConfig): Promise<AxiosResponse> {
+  public async request(data: AxiosRequestConfig): Promise<AxiosResponse> {
     return this.http.request(data)
   }
 }
