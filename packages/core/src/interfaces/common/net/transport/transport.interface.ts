@@ -13,10 +13,9 @@ export interface Client<Request, Response> {
 /**
  * Server sends some data to a client over a transport layer.
  */
-export interface Server<Response> {
+export interface Server {
   /**
-   * Sends a response to a client.
-   * @param data Data to send.
+   * Starts the server.
    */
-  respond(data: Response): Promise<void>
+  listen(): void
 }

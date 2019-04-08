@@ -1,5 +1,7 @@
+/* External Imports */
 import { AbstractLevelDOWNConstructor } from 'abstract-leveldown'
 
+/* Internal Imports */
 import {
   ConfigManager,
   LoggerManager,

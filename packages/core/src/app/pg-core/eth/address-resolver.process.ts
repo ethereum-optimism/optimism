@@ -1,5 +1,6 @@
-import { Process } from '../../common'
+/* Internal Imports */
 import { EthClient, ConfigManager, AddressResolver } from '../../../interfaces'
+import { Process } from '../../common'
 import { PG_CORE_CONFIG_KEYS } from '../constants'
 import { RegistryContractWrapper } from './registry-contract-wrapper'
 

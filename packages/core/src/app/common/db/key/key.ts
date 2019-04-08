@@ -1,4 +1,5 @@
 // TODO: Add bcoin acknowledgements for this code!
+/* Internal Imports */
 import { Key, KeyType } from '../../../../interfaces'
 import { types } from './types'
 import { makeID, assert } from './utils'

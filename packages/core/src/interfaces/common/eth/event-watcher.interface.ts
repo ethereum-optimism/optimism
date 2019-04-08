@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { Abi } from './client-models.interface'
 
 export interface EventFilterOptions {

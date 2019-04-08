@@ -1,3 +1,4 @@
+/* External Imports */
 import { compiledPlasmaRegistry } from '@pigi/contracts'
 import Web3 from 'web3/types'
 import { Contract } from 'web3-eth-contract/types'

@@ -1,5 +1,7 @@
+/* External Imports */
 import { AbstractIterator } from 'abstract-leveldown'
 
+/* Internal Imports */
 import { Iterator, IteratorOptions, K, V, KV, DB } from '../../../interfaces'
 
 const defaultIteratorOptions: IteratorOptions = {

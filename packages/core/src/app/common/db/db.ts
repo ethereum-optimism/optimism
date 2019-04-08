@@ -1,5 +1,7 @@
+/* External Imports */
 import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
 
+/* Internal Imports */
 import {
   DB,
   K,

@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { DBManager, DB, KeyManager } from '../../../interfaces'
 import { Process } from '../../common'
 import { SimpleKeyManager } from './key-manager'

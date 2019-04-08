@@ -1,6 +1,8 @@
+/* External Imports */
 import * as W3 from 'web3'
 const Web3 = require('web3') // tslint:disable-line
 
+/* Internal Imports */
 import { EthClient } from '../../../interfaces'
 
 /**

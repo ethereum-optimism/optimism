@@ -1,5 +1,4 @@
 /* tslint:disable:no-bitwise */
-import { AssertionError } from 'assert'
 
 // TODO: Add bcoin acknowledgements for this code!
 
