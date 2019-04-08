@@ -11,23 +11,23 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
 
 .. toctree::
    :maxdepth: 2
-   :caption: Plasma
+   :caption: Plasma Explainers
 
    src/plasma/sidechains
    src/plasma/operator
-   
+
 .. toctree::
    :maxdepth: 2
-   :caption: Specs
+   :caption: Specifications
 
    src/specs/generalized-plasma-state
 
 .. toctree::
    :maxdepth: 2
-   :caption: @pigi
+   :caption: Reference Materials
 
-   src/pigi/contributing
-   src/pigi/reference
+   src/reference/contributing
+   src/reference/misc
 
 .. toctree::
    :maxdepth: 2
@@ -36,4 +36,3 @@ A lot of our documentation is about Plasma Group projects, but there's also a lo
    src/pg/contributors
    src/pg/community
    src/pg/github
-
