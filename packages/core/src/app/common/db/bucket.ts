@@ -1,3 +1,8 @@
+/**
+ * Modified from bcoin's bdb (https://github.com/bcoin-org/bdb) (MIT LICENSE).
+ * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
+ */
+
 /* Internal Imports */
 import {
   Bucket,

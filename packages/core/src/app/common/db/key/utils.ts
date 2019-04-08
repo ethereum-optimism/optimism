@@ -1,6 +1,7 @@
-/* tslint:disable:no-bitwise */
-
-// TODO: Add bcoin acknowledgements for this code!
+/**
+ * Modified from bcoin's bdb (https://github.com/bcoin-org/bdb) (MIT LICENSE).
+ * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
+ */
 
 /**
  * Checks a length assertion and throws an error
@@ -50,6 +51,7 @@ export const makeID = (id: string | number): number => {
     parsed = id
   }
 
+  /* tslint:disable-next-line:no-bitwise */
   assert((parsed & 0xff) === parsed)
   assert(parsed !== 0xff)
 
@@ -160,6 +162,8 @@ export const sizeHex = (value: Buffer | string): number => {
   if (Buffer.isBuffer(value)) {
     return value.length
   }
+
+  /* tslint:disable-next-line:no-bitwise */
   return value.length >>> 1
 }
 
