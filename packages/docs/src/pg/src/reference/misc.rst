@@ -1,6 +1,6 @@
-=========
-Reference
-=========
+=======================
+Miscellaneous Reference
+=======================
 This page provides a series of miscellaneous reference articles that can be helpful when installing Plasma Group components.
 
 Running a Terminal
