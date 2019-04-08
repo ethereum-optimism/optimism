@@ -1,1 +1,2 @@
-export * from './base-db.interface'
+export * from './db.interface'
+export * from './key.interface'

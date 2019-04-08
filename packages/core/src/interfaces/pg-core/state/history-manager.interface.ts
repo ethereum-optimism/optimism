@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { Transaction, TransactionProof } from '../../common'
 
 /**

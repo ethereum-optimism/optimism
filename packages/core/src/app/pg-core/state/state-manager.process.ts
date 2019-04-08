@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { StateManager, ChainDB } from '../../../interfaces'
 import { Process } from '../../common'
 import { PGStateManager } from './state-manager'

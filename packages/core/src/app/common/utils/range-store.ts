@@ -22,6 +22,10 @@ export interface BlockRange extends Range {
 export class RangeStore<T extends BlockRange> {
   public ranges: T[]
 
+  /**
+   * Creates the store.
+   * @param ranges Initial ranges to store.
+   */
   constructor(ranges: T[] = []) {
     this.ranges = ranges
   }

@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { HistoryManager, ChainDB } from '../../../interfaces'
 import { Process } from '../../common'
 import { PGHistoryManager } from './history-manager'

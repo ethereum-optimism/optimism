@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { ConfigManager, RpcServer } from '../../../interfaces'
 import { Process } from '../../common'
 import { CORE_CONFIG_KEYS } from '../constants'
@@ -24,7 +25,9 @@ export class SimpleJsonRpcServerProcess extends Process<RpcServer> {
     await this.config.waitUntilStarted()
 
     const port = this.config.subject.get(CORE_CONFIG_KEYS.RPC_SERVER_PORT)
-    const hostname = this.config.subject.get(CORE_CONFIG_KEYS.RPC_SERVER_HOSTNAME)
+    const hostname = this.config.subject.get(
+      CORE_CONFIG_KEYS.RPC_SERVER_HOSTNAME
+    )
     this.subject = new SimpleJsonRpcServer({}, port, hostname)
     await this.subject.listen()
   }

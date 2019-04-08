@@ -1,4 +1,4 @@
-import { KeyType } from '../../../../interfaces'
+/* Internal Imports */
 import {
   assertType,
   assertLen,

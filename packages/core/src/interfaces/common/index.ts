@@ -1,4 +1,4 @@
 export * from './db'
 export * from './eth'
-export * from './networking'
+export * from './net'
 export * from './utils'

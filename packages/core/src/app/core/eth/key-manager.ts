@@ -1,6 +1,8 @@
+/* External Imports */
 import { sha3 } from 'web3-utils'
 import { account as accountlib } from 'eth-lib'
 
+/* Internal Imports */
 import { KeyManager, KeyValueStore, Account } from '../../../interfaces'
 import { BaseKey } from '../../common'
 

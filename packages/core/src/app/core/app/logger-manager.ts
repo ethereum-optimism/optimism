@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { LoggerManager } from '../../../interfaces'
 import { DebugLogger } from '../../common'
 

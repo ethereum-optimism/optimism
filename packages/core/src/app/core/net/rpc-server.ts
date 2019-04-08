@@ -1,16 +1,20 @@
-import express = require('express')
-import bodyParser = require('body-parser')
-
-import { JsonRpcRequest, JsonRpcSuccessResponse, RpcServer } from '../../../interfaces'
-import { buildJsonRpcError, isJsonRpcRequest } from '../../common'
+/* Internal Imports */
+import {
+  JsonRpcRequest,
+  JsonRpcSuccessResponse,
+  RpcServer,
+} from '../../../interfaces'
+import {
+  buildJsonRpcError,
+  isJsonRpcRequest,
+  ExpressHttpServer,
+} from '../../common'
 
 /**
  * Basic JSON-RPC server.
  */
-export class SimpleJsonRpcServer implements RpcServer {
-  private app = express()
-  private listening = false
-
+export class SimpleJsonRpcServer extends ExpressHttpServer
+  implements RpcServer {
   /**
    * Creates the server
    * @param methods Methods to expose to the server.
@@ -19,10 +23,16 @@ export class SimpleJsonRpcServer implements RpcServer {
    */
   constructor(
     private methods: Record<string, Function> = {},
-    private port: number,
-    private hostname: string
+    port: number,
+    hostname: string
   ) {
-    this.app.use(bodyParser.json())
+    super(port, hostname)
+  }
+
+  /**
+   * Initializes app routes.
+   */
+  protected initRoutes(): void {
     this.app.get('/', async (req, res) => {
       const request: JsonRpcRequest = req.body
       if (!isJsonRpcRequest(request)) {
@@ -46,22 +56,6 @@ export class SimpleJsonRpcServer implements RpcServer {
         result,
       }
       return res.json(response)
-    })
-  }
-
-  /**
-   * Starts the server.
-   */
-  public async listen(): Promise<void> {
-    if (this.listening) {
-      return
-    }
-
-    return new Promise<void>((resolve, reject) => {
-      this.app.listen(this.port, this.hostname, () => {
-        this.listening = true
-        resolve()
-      })
     })
   }
 

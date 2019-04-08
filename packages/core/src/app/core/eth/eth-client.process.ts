@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { ConfigManager, EthClient } from '../../../interfaces'
 import { Process } from '../../common'
 import { CORE_CONFIG_KEYS } from '../constants'

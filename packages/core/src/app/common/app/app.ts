@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { DebugLogger } from '../utils'
 import { Process } from './process'
 

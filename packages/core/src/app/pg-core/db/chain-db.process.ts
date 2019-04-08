@@ -1,3 +1,4 @@
+/* Internal Imports */
 import { DBManager, DB, AddressResolver, ChainDB } from '../../../interfaces'
 import { Process } from '../../common'
 import { PGChainDB } from './chain-db'
