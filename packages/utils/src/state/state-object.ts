@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { abi } from '../utils'
+import { abi } from '../eth'
 
 const STATE_OBJECT_ABI_TYPES = ['address', 'bytes']
 

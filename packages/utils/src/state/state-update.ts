@@ -2,7 +2,7 @@
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { abi } from '../utils'
+import { abi } from '../eth'
 import { StateObject } from './state-object'
 
 const STATE_OBJECT_ABI_TYPES = [

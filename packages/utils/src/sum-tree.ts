@@ -1,5 +1,9 @@
+/* External Imports */
 import BigNum = require('bn.js')
-import { keccak256, reverse } from './utils'
+
+/* Internal Imports */
+import { keccak256 } from './eth'
+import { reverse } from './misc'
 import { NULL_HASH } from './constants'
 
 export interface ImplicitBounds {

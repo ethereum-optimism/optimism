@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { abi, keccak256 } from '../utils'
+import { abi, keccak256 } from '../eth'
 import { StateUpdate } from './state-update'
 
 const TRANSACTION_ABI_TYPES = ['bytes', 'bytes']
