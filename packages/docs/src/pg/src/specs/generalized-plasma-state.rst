@@ -126,7 +126,7 @@ Generalized Plasma State Spec
          - ``public function finalizeExit(exit: exit):``
                ``redeemedAmount: uint = exit.end - exit.start #length of sequential stateIDs claimed``
                ``ERC20.transferFrom(self.address, exit.update.state.owner, )``
-         - ``public function canInitiateExit(update: stateUpdate, initiationWitness: bytes):
+         - ``public function canInitiateExit(update: stateUpdate, initiationWitness: bytes)``:
               assert tx.sender = commitment.state.parameters.owner``
      - Multisig
      - Atomic Swap
