@@ -17,7 +17,6 @@ import {
 } from '../../common'
 
 // TODO: Where should this stuff sit? Should it be customizeable?
-const TREE_DEPTH = 16
 const computeParent = (leftChild: string, rightChild: string): string => {
   return
 }
@@ -112,6 +111,7 @@ const KEYS = {
   BLOCKS: new BaseKey('b', ['uint32']),
   DEPOSITS: new BaseKey('d', ['uint256']),
   TRANSACTIONS: new BaseKey('t', ['uint32', 'uint256']),
+  TREE_HEIGHTS: new BaseKey('h', ['uint32']),
   TREE_NODES: new BaseKey('n', ['uint32', 'uint32']),
 }
 
@@ -194,6 +194,12 @@ export class PGChainDB implements ChainDB {
     blockNumber: number,
     nodeIndex: number
   ): Promise<string> {
+    // Reject attempts to query invalid nodes.
+    const treeHeight = await this.getBlockTreeHeight(blockNumber)
+    if (nodeIndex < 0 || nodeIndex >= treeHeight) {
+      throw new Error('Invalid node index.')
+    }
+
     const key = KEYS.TREE_NODES.encode([blockNumber, nodeIndex])
     const value = await this.db.get(key)
 
@@ -206,7 +212,7 @@ export class PGChainDB implements ChainDB {
     // children. Recursively find each child and see if we can create the node.
 
     // We're at a leaf node so we can't go any deeper.
-    if (nodeIndex > 2 ** TREE_DEPTH) {
+    if (nodeIndex > 2 ** treeHeight) {
       return null
     }
 
@@ -247,9 +253,6 @@ export class PGChainDB implements ChainDB {
     if ((await this.getMerkleTreeNode(blockNumber, nodeIndex)) !== null) {
       return
     }
-
-    // TODO: Figure out where to store max tree depth since it varies per block.
-    // TODO: Add check to make sure nodeIndex isn't greater than max tree depth.
 
     // Smart parent checks. We don't need to store the parent as long as we
     // have this node's sibling. Parent can simply be re-generated later on.
@@ -318,7 +321,8 @@ export class PGChainDB implements ChainDB {
     // re-generate it. Need to recursively delete any of these children.
 
     // We're at a leaf node so we can't go any deeper.
-    if (nodeIndex > 2 ** TREE_DEPTH) {
+    const treeHeight = await this.getBlockTreeHeight(blockNumber)
+    if (nodeIndex > 2 ** treeHeight) {
       return
     }
 
@@ -343,9 +347,8 @@ export class PGChainDB implements ChainDB {
     leafIndex: number
   ): Promise<void> {
     // TODO: Figure out how to compute the leaf indices of other transactions.
-    // TODO: Figure out how to get tree height.
     const otherLeafIndices: number[] = []
-    const treeHeight = 0
+    const treeHeight = await this.getBlockTreeHeight(blockNumber)
 
     // We don't want to delete any nodes that other transactions still need.
     // Compute the siblings for *all* other stored transactions so we're not
@@ -381,13 +384,10 @@ export class PGChainDB implements ChainDB {
   public async getInclusionProof(
     transaction: Transaction
   ): Promise<InclusionProof> {
-    // TODO: Figure out how to compute block number?
     // TODO: Figure out how to compute the leaf index?
-    // TODO: Figure out how to pull the tree height?
-
-    const blockNumber = 0
+    const blockNumber = transaction.block
     const leafIndex = 0
-    const treeHeight = 0
+    const treeHeight = await this.getBlockTreeHeight(blockNumber)
 
     // Get the list of siblings up the tree.
     const siblingIndices: number[] = getMerkleSiblingIndices(
@@ -423,6 +423,32 @@ export class PGChainDB implements ChainDB {
     const key = KEYS.BLOCKS.encode([blockNumber])
     const value = Buffer.from(blockHash)
     await this.db.put(key, value)
+  }
+
+  /**
+   * Inserts the tree height for a given block.
+   * @param blockNumber Block number to add tree height for.
+   * @param treeHeight Height of the tree.
+   */
+  public async addBlockTreeHeight(
+    blockNumber: number,
+    treeHeight: number
+  ): Promise<void> {
+    const key = KEYS.TREE_HEIGHTS.encode([blockNumber])
+    const value = Buffer.allocUnsafe(4)
+    value.writeUInt32BE(treeHeight, 0)
+    await this.db.put(key, value)
+  }
+
+  /**
+   * Queries the tree height for a given block.
+   * @param blockNumber Block number to query.
+   * @returns the tree height for that block.
+   */
+  public async getBlockTreeHeight(blockNumber: number): Promise<number> {
+    const key = KEYS.TREE_HEIGHTS.encode([blockNumber])
+    const value = await this.db.get(key)
+    return value.readUInt32BE(0)
   }
 
   /**
