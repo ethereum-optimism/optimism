@@ -94,6 +94,23 @@ export const types = {
       return 4
     },
   },
+  uint256: {
+    min: Buffer.alloc(32, 0x00),
+    max: Buffer.alloc(32, 0xff),
+    dynamic: false,
+    size() {
+      return 32
+    },
+    read(k, o) {
+      assertLen(o + 32 <= k.length)
+      return k.slice(o, o + 32)
+    },
+    write(k, v, o) {
+      assertType(Buffer.isBuffer(v))
+      assertType(v.copy(k, o) === 32)
+      return 32
+    },
+  },
   buffer: {
     min: BUFFER_MIN,
     max: BUFFER_MAX,

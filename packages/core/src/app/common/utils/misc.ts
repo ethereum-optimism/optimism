@@ -1,6 +1,9 @@
 /* External Imports */
 import BigNum = require('bn.js')
 
+/* Internal Imports */
+import { Transaction } from '../../../interfaces'
+
 /**
  * JSON-stringifies a value if it's not already a string.
  * @param value Value to stringify.
@@ -56,7 +59,7 @@ export const bnMax = (a: BigNum, b: BigNum): BigNum => {
   return a.gt(b) ? a : b
 }
 
-interface PrettyPrintable {
+export interface PrettyPrintable {
   [key: string]: string | number | BigNum | boolean | any
 }
 
@@ -74,4 +77,23 @@ export const prettify = (obj: PrettyPrintable): string => {
       : value
   }
   return JSON.stringify(parsed, null, 2)
+}
+
+/**
+ * Converts a BigNum to a Uint256 Buffer.
+ * @param bn BigNum to convert.
+ * @returns the Uint256 Buffer.
+ */
+export const bnToUint256 = (bn: BigNum): Buffer => {
+  return bn.toBuffer('be', 32)
+}
+
+/**
+ * Gets the end of a transaction range as a Uint256 Buffer.
+ * @param transaction Transaction to query.
+ * @returns the transacted range's end as a Uint256 Buffer.
+ */
+export const getTransactionRangeEnd = (transaction: Transaction): Buffer => {
+  const end = transaction.stateUpdate.id.end
+  return bnToUint256(end)
 }

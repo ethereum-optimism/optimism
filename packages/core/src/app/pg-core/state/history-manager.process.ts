@@ -17,8 +17,7 @@ export class PGHistoryManagerProcoess extends Process<HistoryManager> {
 
   /**
    * Creates the instance.
-   * Waits for the ChainDB to be ready before
-   * resolving the history manager.
+   * Waits for the ChainDB to be ready before resolving the history manager.
    */
   protected async onStart(): Promise<void> {
     await this.chaindb.waitUntilStarted()

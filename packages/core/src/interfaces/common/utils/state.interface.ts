@@ -1,11 +1,16 @@
+/* External Imports */
+import BigNum = require('bn.js')
+
 export interface StateObject {
   predicate: string
   parameters: any
 }
 
 export interface StateUpdate {
-  stateId: any
-  updateParameters: any
+  id: {
+    start: BigNum
+    end: BigNum
+  }
   newState: StateObject
 }
 
@@ -15,4 +20,17 @@ export interface Transaction {
   block: number
 }
 
-export type TransactionProof = Transaction[]
+export interface InclusionProof {}
+
+export interface ProofElementDeposit {
+  transaction: Transaction
+}
+
+export interface ProofElementTransaction {
+  transaction: Transaction
+  inclusionProof: InclusionProof
+}
+
+export type ProofElement = ProofElementDeposit | ProofElementTransaction
+
+export type TransactionProof = ProofElement[]
