@@ -20,7 +20,7 @@ export interface Transaction {
   block: number
 }
 
-export interface InclusionProof {}
+export type InclusionProof = string[]
 
 export interface ProofElementDeposit {
   transaction: Transaction
