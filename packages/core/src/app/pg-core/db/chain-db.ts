@@ -25,6 +25,15 @@ const computeParent = (leftChild: string, rightChild: string): string => {
 // TODO: Maybe this should go in a utils file?
 
 /**
+ * Checks whether a node is a left child.
+ * @param nodeIndex Node index to check
+ * @returns `true` if the node is a left child, `false` otherwise.
+ */
+const isLeftChild = (nodeIndex: number): boolean => {
+  return nodeIndex % 2 === 1
+}
+
+/**
  * Computes the index of the parent of a node.
  * @param nodeIndex Index of the node to compute parent for.
  * @returns the index of the node's parent.
@@ -57,7 +66,7 @@ const getRightChildIndex = (nodeIndex: number): number => {
  * @returns the index of the node's sibling.
  */
 const getSiblingIndex = (nodeIndex: number): number => {
-  return nodeIndex % 2 === 0 ? nodeIndex - 1 : nodeIndex + 1
+  return isLeftChild(nodeIndex) ? nodeIndex - 1 : nodeIndex + 1
 }
 
 /**
@@ -69,6 +78,33 @@ const getSiblingIndex = (nodeIndex: number): number => {
  */
 const getLeafNodeIndex = (leafIndex: number, treeHeight: number): number => {
   return 2 ** treeHeight - 1 + leafIndex
+}
+
+/**
+ * Computes the indices of each sibling node necessary to generate a Merkle
+ * proof.
+ * @param leafIndex Index of the leaf node to get siblings for.
+ * @param treeHeight Height of the tree.
+ * @returns the indices of each sibling going up the tree.
+ */
+const getMerkleSiblingIndices = (
+  leafIndex: number,
+  treeHeight: number
+): number[] => {
+  const siblingIndices: number[] = []
+  let nodeIndex = getLeafNodeIndex(leafIndex, treeHeight)
+
+  // Go until we're at the root.
+  while (nodeIndex > 0) {
+    // Compute the sibling and add it.
+    const siblingIndex = getSiblingIndex(nodeIndex)
+    siblingIndices.push(siblingIndex)
+
+    // Go on to the parent.
+    nodeIndex = getParentIndex(nodeIndex)
+  }
+
+  return siblingIndices
 }
 
 // TODO: Where should this sit? Probably OK to be here.
@@ -242,13 +278,9 @@ export class PGChainDB implements ChainDB {
     blockNumber: number,
     nodeIndex: number
   ): Promise<void> {
-    // TODO: Smart transaction removal should check that we're not removing
-    // proof elements that might be necessary for other transactions. Need to
-    // find a formula that, given the indices of all other leaf nodes, computes
-    // the nodes that can be safely removed.
-
     // We don't have the node and we can't generate it from children.
-    if ((await this.getMerkleTreeNode(blockNumber, nodeIndex)) === null) {
+    const node = await this.getMerkleTreeNode(blockNumber, nodeIndex)
+    if (node === null) {
       return
     }
 
@@ -259,9 +291,26 @@ export class PGChainDB implements ChainDB {
     const key = KEYS.TREE_NODES.encode([blockNumber, nodeIndex])
     const value = await this.db.get(key)
 
-    // We have this specific node, delete it and stop.
+    // We have this specific node, so operate on it.
     if (value !== null) {
+      // Delete the node.
       await this.db.del(key)
+
+      // Figure out if this node had a sibling. If so, we're going to want to
+      // compute the parent and insert it since we'd be losing that info.
+      const siblingIndex = getSiblingIndex(nodeIndex)
+      const sibling = await this.getMerkleTreeNode(blockNumber, siblingIndex)
+
+      // We have a sibling, so we're going to compute the parent and insert it.
+      if (sibling !== null) {
+        const parentIndex = getParentIndex(nodeIndex)
+        const parent = isLeftChild(nodeIndex)
+          ? computeParent(node, sibling)
+          : computeParent(sibling, node)
+        await this.addMerkleTreeNode(blockNumber, parentIndex, parent)
+      }
+
+      // Stop, don't need to delete anything else.
       return
     }
 
@@ -283,6 +332,48 @@ export class PGChainDB implements ChainDB {
   }
 
   /**
+   * Smart method for removing Merkle proof nodes stored for a specific
+   * transaction. Checks the ensure that deletion of the nodes wouldn't impact
+   * other transaction proofs.
+   * @param blockNumber Block number to delete nodes from.
+   * @param leafIndex Index of the leaf to delete proof nodes for.
+   */
+  public async removeMerkleProofNodes(
+    blockNumber: number,
+    leafIndex: number
+  ): Promise<void> {
+    // TODO: Figure out how to compute the leaf indices of other transactions.
+    // TODO: Figure out how to get tree height.
+    const otherLeafIndices: number[] = []
+    const treeHeight = 0
+
+    // We don't want to delete any nodes that other transactions still need.
+    // Compute the siblings for *all* other stored transactions so we're not
+    // deleting anything critical.
+    let allOtherSiblingIndices: number[] = []
+    for (const otherLeafIndex of otherLeafIndices) {
+      const otherSiblingIndices = getMerkleSiblingIndices(
+        otherLeafIndex,
+        treeHeight
+      )
+      allOtherSiblingIndices = allOtherSiblingIndices.concat(
+        otherSiblingIndices
+      )
+    }
+
+    // Now figure out which sibling indices we can safely get rid of by finding
+    // anything that other nodes don't need. This is a safe operation because
+    // `removeMerkleTreeNode` will insert any parent that could've been
+    // computed by the removed node.
+    const siblingIndices = getMerkleSiblingIndices(leafIndex, treeHeight)
+    for (const siblingIndex of siblingIndices) {
+      if (!allOtherSiblingIndices.includes(siblingIndex)) {
+        await this.removeMerkleTreeNode(blockNumber, siblingIndex)
+      }
+    }
+  }
+
+  /**
    * Creates an inclusion proof for a given transaction.
    * @param transaction Transaction to create a proof for.
    * @returns the inclusion proof for that transaction.
@@ -298,13 +389,15 @@ export class PGChainDB implements ChainDB {
     const leafIndex = 0
     const treeHeight = 0
 
-    const proof: string[] = []
-    let nodeIndex = getLeafNodeIndex(leafIndex, treeHeight)
+    // Get the list of siblings up the tree.
+    const siblingIndices: number[] = getMerkleSiblingIndices(
+      leafIndex,
+      treeHeight
+    )
 
-    // Generate the proof as long as we're not already at the root.
-    while (nodeIndex > 0) {
-      // Get the sibling node.
-      const siblingIndex = getSiblingIndex(nodeIndex)
+    // Get the nodes necessary to generate the proof.
+    const proof: string[] = []
+    for (const siblingIndex of siblingIndices) {
       const sibling = await this.getMerkleTreeNode(blockNumber, siblingIndex)
 
       // Don't have the sibling, can't compute the proof.
@@ -312,9 +405,7 @@ export class PGChainDB implements ChainDB {
         throw new Error('Cannot compute inclusion proof, missing sibling node.')
       }
 
-      // Add the sibling to the proof and go on to the parent.
       proof.push(sibling)
-      nodeIndex = getParentIndex(nodeIndex)
     }
 
     return proof
