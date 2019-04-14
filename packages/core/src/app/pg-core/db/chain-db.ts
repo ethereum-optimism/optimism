@@ -21,8 +21,6 @@ const computeParent = (leftChild: string, rightChild: string): string => {
   return
 }
 
-// TODO: Maybe this should go in a utils file?
-
 /**
  * Checks whether a node is a left child.
  * @param nodeIndex Node index to check
@@ -106,18 +104,18 @@ const getMerkleSiblingIndices = (
   return siblingIndices
 }
 
-// TODO: Where should this sit? Probably OK to be here.
 const KEYS = {
   BLOCKS: new BaseKey('b', ['uint32']),
   DEPOSITS: new BaseKey('d', ['uint256']),
   TRANSACTIONS: new BaseKey('t', ['uint32', 'uint256']),
   TREE_HEIGHTS: new BaseKey('h', ['uint32']),
   TREE_NODES: new BaseKey('n', ['uint32', 'uint32']),
+  LEAF_INDICES: new BaseKey('l', ['uint32', 'uint256']),
 }
 
 /**
- * Basic ChainDB implementation that provides a
- * nice interface to the chain database.
+ * Basic ChainDB implementation that provides a nice interface to the chain
+ * database.
  */
 export class PGChainDB implements ChainDB {
   /**
@@ -346,8 +344,14 @@ export class PGChainDB implements ChainDB {
     blockNumber: number,
     leafIndex: number
   ): Promise<void> {
-    // TODO: Figure out how to compute the leaf indices of other transactions.
-    const otherLeafIndices: number[] = []
+    // Get the leaf indices of all other transactions in the same block.
+    const otherLeafIndices: number[] = (await this.getAllLeafIndices(
+      blockNumber
+    )).filter((otherLeafIndex) => {
+      return otherLeafIndex !== leafIndex
+    })
+
+    // Need the tree height to compute sibling/parent nodes.
     const treeHeight = await this.getBlockTreeHeight(blockNumber)
 
     // We don't want to delete any nodes that other transactions still need.
@@ -384,9 +388,8 @@ export class PGChainDB implements ChainDB {
   public async getInclusionProof(
     transaction: Transaction
   ): Promise<InclusionProof> {
-    // TODO: Figure out how to compute the leaf index?
     const blockNumber = transaction.block
-    const leafIndex = 0
+    const leafIndex = await this.getLeafIndex(transaction)
     const treeHeight = await this.getBlockTreeHeight(blockNumber)
 
     // Get the list of siblings up the tree.
@@ -460,6 +463,51 @@ export class PGChainDB implements ChainDB {
     const key = KEYS.TRANSACTIONS.encode([transaction.block, end])
     const value = encode(transaction)
     await this.db.put(key, value)
+  }
+
+  /**
+   * Sets the leaf index for a given transaction.
+   * @param transaction Transaction to set.
+   * @param leafIndex Leaf index for the transaction.
+   */
+  public async addLeafIndex(
+    transaction: Transaction,
+    leafIndex: number
+  ): Promise<void> {
+    const end = getTransactionRangeEnd(transaction)
+    const key = KEYS.LEAF_INDICES.encode([transaction.block, end])
+    const value = Buffer.allocUnsafe(4)
+    value.writeUInt32BE(leafIndex, 0)
+    await this.db.put(key, value)
+  }
+
+  /**
+   * Gets the leaf index for a transaction.
+   * @param transaction Transaction to query.
+   * @returns the leaf index for that transaction.
+   */
+  public async getLeafIndex(transaction: Transaction): Promise<number> {
+    const end = getTransactionRangeEnd(transaction)
+    const key = KEYS.LEAF_INDICES.encode([transaction.block, end])
+    const value = await this.db.get(key)
+    return value.readUInt32BE(0)
+  }
+
+  /**
+   * Gets all leaf indices for a given block.
+   * @param blockNumber Block to get leaf indices for.
+   * @returns all leaf indices for that block.
+   */
+  public async getAllLeafIndices(blockNumber: number): Promise<number[]> {
+    const iterator = this.db.iterator({
+      gte: KEYS.LEAF_INDICES.min([blockNumber]),
+      lte: KEYS.LEAF_INDICES.max([blockNumber]),
+    })
+
+    const values = await iterator.values()
+    return values.map((value) => {
+      return value.readUInt32BE(0)
+    })
   }
 
   /**
