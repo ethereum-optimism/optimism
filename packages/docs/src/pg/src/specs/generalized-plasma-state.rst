@@ -8,10 +8,11 @@ Generalized Plasma State Spec
       - ``predicate: address`` - the state's predicate ruleset
       - ``parameters: bytes`` - input parameters to the predicate ruleset
    - ``stateUpdate`` struct
-      - ``state: state`` - the new state for this range of ``stateID`` s
+      - ``state: stateObject`` - the new state for this range of ``stateID`` s
       - ``start: uint`` - the start of the range of ``stateID`` s
       - ``end: uint`` - the end of the range of ``stateID`` s
       - ``plasmaBlockNumber: uint`` - the plasma block in which a committment was made
+      - ``plasmaContract: address`` - the address of the plasma contract the state update is meant for
    -  ``stateUpdateWitness`` struct
          - ``inclusionProof: bytes[]`` - array of sibling nodes forming the Merkle inclusion proof
    - ``deposit`` struct:
