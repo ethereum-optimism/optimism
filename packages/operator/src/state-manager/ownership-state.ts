@@ -5,7 +5,7 @@ import level from 'level'
 
 /* Logging */
 import debug from 'debug'
-const log = debug('test:info:state-manager')
+const log = debug('test:info:state-ownership')
 
 export class OwnershipState {
   constructor (readonly db: level) {

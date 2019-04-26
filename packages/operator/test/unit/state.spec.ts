@@ -8,9 +8,9 @@ import level = require('level')
 // import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { OwnershipState } from '../../src/state-manager/state'
+import { OwnershipState } from '../../src/state-manager/ownership-state'
 
-describe.only('merkle-index-tree', () => {
+describe('OwnershipState', () => {
   const db = level(dbRootPath)
   const test = new OwnershipState(db)
   test.applyTransaction(Buffer.from('testing testing 123'))
