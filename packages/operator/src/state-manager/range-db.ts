@@ -35,11 +35,10 @@ export class RangeDB {
     log('Putting range:', start.toString('hex'), end.toString('hex'), value)
     const endBuffer = end.toBuffer(this.endianness, this.keyLength)
     const keyWithPrefix = this.addPrefix(endBuffer)
-    await this.db.put(keyWithPrefix, value)
+    await this.db.put(keyWithPrefix, Buffer.concat([this.bnToKey(start), value]))
   }
 
   public async get(start: BigNum, end: BigNum) {
-    // returns [ { start, end, value }, { start, end, value } ]
     log('Getting range:', start, end)
     const it = this.db.iterator({
       gt: this.bnToKey(start),
@@ -51,11 +50,14 @@ export class RangeDB {
       this.isCorrectPrefix(result.key) &&
       Buffer.compare(result.key, this.bnToKey(end)) < 0
     ) {
-      ranges.push(result)
+      ranges.push({
+        start: result.value.slice(0, this.keyLength),
+        end: result.key,
+        value: result.value.slice(this.keyLength)
+      })
       result = await itNext(it)
     }
     await itEnd(it)
-    log(ranges)
     return ranges
   }
 
