@@ -1,3 +1,4 @@
+export * from './codec'
 export * from './debug-logger'
 export * from './misc'
 export * from './range-store'

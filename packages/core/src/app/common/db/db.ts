@@ -20,6 +20,23 @@ import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
 
 /**
+ * Checks if an error is a NotFoundError.
+ * @param err Error to check.
+ * @return `true` if the error is a NotFoundError, `false` otherwise.
+ */
+const isNotFound = (err: any): boolean => {
+  if (!err) {
+    return false
+  }
+
+  return (
+    err.notFound ||
+    err.type === 'NotFoundError' ||
+    /not\s*found/i.test(err.message)
+  )
+}
+
+/**
  * Basic DB implementation that wraps some underlying store.
  */
 export class BaseDB implements DB {
@@ -67,12 +84,16 @@ export class BaseDB implements DB {
   /**
    * Queries the value at a given key.
    * @param key Key to query.
-   * @returns the value at that key.
+   * @returns the value at that key or `null` if the key was not found.
    */
   public async get(key: K): Promise<V> {
     return new Promise<V>((resolve, reject) => {
       this.db.get(key, (err, value) => {
         if (err) {
+          if (isNotFound(err)) {
+            resolve(null)
+            return
+          }
           reject(err)
           return
         }

@@ -149,6 +149,11 @@ export interface Iterator {
   each(cb: (key: Buffer, value: Buffer) => any): Promise<void>
 
   /**
+   * @returns the items in the iterator.
+   */
+  items(): Promise<KV[]>
+
+  /**
    * @returns all keys in the iterator.
    */
   keys(): Promise<K[]>
