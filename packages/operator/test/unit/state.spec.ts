@@ -8,7 +8,7 @@ import level = require('level')
 // import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { OwnershipState } from '../../src/state-manager/ownership-state'
+import { OwnershipState } from '../../src/app/state-manager/ownership-state'
 
 describe('OwnershipState', () => {
   const db = level(dbRootPath)

@@ -7,7 +7,7 @@ import level = require('level')
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { RangeDB } from '../../src/state-manager/range-db'
+import { RangeDB } from '../../src/app/state-manager/range-db'
 
 const addDefaultRangesToDB = async (rangeDB) => {
   // Generate some ranges
