@@ -112,8 +112,8 @@ describe('RangeDB', () => {
   })
 
   it('returns nothing when querying in between two other values', async() => {
-    // Values added to the database: [0,f] & [20,2f].
-    // We will query [10,19] and it should return nothing.
+    // Values added to the database: [0,10) & [20,30).
+    // We will query [10,20) and it should return nothing.
     const start1 = new BigNum('0', 'hex')
     const end1 = new BigNum('10', 'hex')
     const start2 = new BigNum('20', 'hex')
@@ -128,7 +128,7 @@ describe('RangeDB', () => {
   })
 
   it('splits ranges which has been put in the middle of another range', async() => {
-    // Surrounding: [10, 99], Inner: [50, 59], should result in [10, 49], [50, 59], [60, 99]
+    // Surrounding: [10, 100), Inner: [50, 60), should result in [10, 50), [50, 60), [60, 100)
     const surroundingStart = new BigNum('10', 'hex')
     const surroundingEnd = new BigNum('100', 'hex')
     const innerStart = new BigNum('50', 'hex')
