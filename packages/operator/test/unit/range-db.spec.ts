@@ -1,5 +1,9 @@
 import { dbRootPath } from '../setup'
 
+import {
+  KeyValueStore
+} from '@pigi/core'
+
 /* External Imports */
 import debug from 'debug'
 const log = debug('test:info:range-db')
@@ -7,7 +11,7 @@ import level = require('level')
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { RangeDB } from '../../src/app/state-manager/range-db'
+import { LevelRangeStore } from '../../src/app/db/range-db'
 
 const addDefaultRangesToDB = async (rangeDB) => {
   // Generate some ranges
@@ -34,7 +38,7 @@ describe('RangeDB', () => {
   let rangeDB
 
   beforeEach(async () => {
-    rangeDB = new RangeDB(db, Buffer.from([prefixCounter++]))
+    rangeDB = new LevelRangeStore(db, Buffer.from([prefixCounter++]))
   })
 
   it('allows puts on a range & get should return the range value which was put', async() => {

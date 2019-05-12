@@ -1,1 +1,1 @@
-export { AppModule } from './src/app.module'
+export * from './src/interfaces'
