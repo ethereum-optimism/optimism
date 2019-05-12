@@ -1,6 +1,9 @@
 /* External Imports */
 import level from 'level'
 import BigNum = require('bn.js')
+import {
+  Batch
+} from '@pigi/core'
 
 /* Internal Imports */
 import { itNext, itEnd } from '../utils'
@@ -161,7 +164,7 @@ export class LevelRangeStore implements RangeStore {
    * @param end The end of the range which we want deletion batch operations for.
    * @returns an object which contains both the ranges we queried & the batch deletion operations.
    */
-  private async delBatchOps(start: BigNum, end: BigNum): Promise<any> {
+  private async delBatchOps(start: BigNum, end: BigNum): Promise<{ranges: Range[]; batchOps: Batch[]}> {
     this.validateRange(start, end)
     const ranges = await this.get(start, end)
     const batchOps = []
