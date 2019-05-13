@@ -10,7 +10,7 @@ import level from 'level'
 /**
  * Represents a range of values. Note start & end are big numbers!
  */
-export interface Range {
+export interface RangeEntry {
   start: BigNum,
   end: BigNum,
   value: V
@@ -33,7 +33,7 @@ export interface RangeStore {
    * @param end the start of the range to query.
    * @returns an array of values which are stored at intersecting ranges.
    */
-  get(start: BigNum, end: BigNum): Promise<Range[]>
+  get(start: BigNum, end: BigNum): Promise<RangeEntry[]>
 
   /**
    * Sets a range to be equal to a particular value
@@ -49,5 +49,5 @@ export interface RangeStore {
    * @param end the end of the range which will be deleted.
    * @returns all of the ranges which have been deleted.
    */
-  del(start: BigNum, end: BigNum): Promise<Range[]>
+  del(start: BigNum, end: BigNum): Promise<RangeEntry[]>
 }

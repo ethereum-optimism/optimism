@@ -7,7 +7,7 @@ import {
 
 /* Internal Imports */
 import { itNext, itEnd } from '../utils'
-import { RangeStore, Range, Endianness } from '../../interfaces/db/range-db.interface'
+import { RangeStore, RangeEntry, Endianness } from '../../interfaces/db/range-db.interface'
 
 /* Logging */
 import debug from 'debug'
@@ -148,7 +148,7 @@ export class LevelRangeStore implements RangeStore {
    * @param result The resulting value which has been extracted from our DB.
    * @returns a range object with {start, end, value}
    */
-  private resultToRange(result): Range {
+  private resultToRange(result): RangeEntry {
     // Helper function which gets the start and end position from a DB seek result
     return {
       start: new BigNum(this.getStartFromValue(result.value)),
@@ -164,7 +164,7 @@ export class LevelRangeStore implements RangeStore {
    * @param end The end of the range which we want deletion batch operations for.
    * @returns an object which contains both the ranges we queried & the batch deletion operations.
    */
-  private async delBatchOps(start: BigNum, end: BigNum): Promise<{ranges: Range[]; batchOps: Batch[]}> {
+  private async delBatchOps(start: BigNum, end: BigNum): Promise<{ranges: RangeEntry[]; batchOps: Batch[]}> {
     this.validateRange(start, end)
     const ranges = await this.get(start, end)
     const batchOps = []
@@ -233,7 +233,7 @@ export class LevelRangeStore implements RangeStore {
    * @param end The end of the range we are deleting.
    * @returns all of the ranges which have been deleted.
    */
-  public async del(start: BigNum, end: BigNum): Promise<Range[]> {
+  public async del(start: BigNum, end: BigNum): Promise<RangeEntry[]> {
     // Delete all overlapping ranges and return the values which have been deleted
     const {ranges, batchOps} = await this.delBatchOps(start, end)
     await this.db.batch(batchOps)
@@ -246,7 +246,7 @@ export class LevelRangeStore implements RangeStore {
    * @param end The end of the range we are getting.
    * @returns all of the ranges which have been gotten.
    */
-  public async get(start: BigNum, end: BigNum): Promise<Range[]> {
+  public async get(start: BigNum, end: BigNum): Promise<RangeEntry[]> {
     this.validateRange(start, end)
     log('Getting range: [', start.toString(16), ',', end.toString(16), ')')
     // Seek to the beginning
