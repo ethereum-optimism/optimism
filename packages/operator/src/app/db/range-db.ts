@@ -6,32 +6,12 @@ import {
 } from '@pigi/core'
 
 /* Internal Imports */
-import { itNext, itEnd } from '../utils'
+import { itNext, itEnd, bufferUtils } from '../utils'
 import { RangeStore, RangeEntry, Endianness } from '../../interfaces/db/range-db.interface'
 
 /* Logging */
 import debug from 'debug'
 const log = debug('info:range-db')
-
-/**
- * Checks if buf1 is less than or equal to buf2
- * @param buf1 the first Buffer
- * @param buf2 the second Buffer
- * @returns boolean result of evaluating buf1 <= buf2
- */
-const lte = (buf1: Buffer, buf2: Buffer): boolean => {
-  return Buffer.compare(buf1, buf2) <= 0
-}
-
-/**
- * Checks if buf1 is strictly less than buf2
- * @param buf1 the first Buffer
- * @param buf2 the second Buffer
- * @returns boolean result of evaluating buf1 < buf2
- */
-const lt = (buf1: Buffer, buf2: Buffer): boolean => {
-  return Buffer.compare(buf1, buf2) < 0
-}
 
 /**
  * A RangeStore which uses Level as a backend.
@@ -117,7 +97,7 @@ export class LevelRangeStore implements RangeStore {
   }
 
   /**
-   * Validates the range input to make sure that start < end.
+   * Validates the range input to make sure that start < end and start >= 0.
    * @param start The start of the range.
    * @param end The end of the range.
    * @returns true if start > end, false otherwise.
@@ -126,6 +106,10 @@ export class LevelRangeStore implements RangeStore {
     // Make sure start is less than end
     if (!start.lt(end)) {
       throw new Error('Start not less than end')
+    }
+    // Make sure start is greater than or equal to zero
+    if (!start.gten(0)) {
+      throw new Error('Start less than zero')
     }
   }
 
@@ -138,9 +122,9 @@ export class LevelRangeStore implements RangeStore {
    * @returns true if max(start1, start2) < min(end1, end2), false otherwise.
    */
   private intersects(start1: Buffer, end1: Buffer, start2: Buffer, end2: Buffer): boolean {
-    const maxStart = (lte(start1, start2)) ? start2 : start1
-    const minEnd = (lte(end1, end2)) ? end1 : end2
-    return lt(maxStart, minEnd)
+    const maxStart = bufferUtils.max(start1, start2)
+    const minEnd = bufferUtils.min(end1, end2)
+    return bufferUtils.lt(maxStart, minEnd)
   }
 
   /**

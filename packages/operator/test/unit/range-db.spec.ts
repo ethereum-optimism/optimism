@@ -219,5 +219,4 @@ describe('RangeDB', () => {
       {start: '150', end: '200', value: 'y4'},
     ])
   })
-
 })
