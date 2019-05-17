@@ -195,8 +195,8 @@ export class LevelRangeStore implements RangeStore {
 
     // Step #2: Add back ranges which are split
     //
-    // If the start position is not equal to the first range's start...
-    if (ranges.length > 0 && !ranges[0].start.eq(start)) {
+    // If the start position is greater than the first range's start...
+    if (ranges.length > 0 && start.gt(ranges[0].start)) {
       // Reduce the first affected range's end position. Eg: ##### becomes ###$$
       batchOps.push({
         type: 'put',
@@ -204,13 +204,12 @@ export class LevelRangeStore implements RangeStore {
         value: this.addStartToValue(ranges[0].start, ranges[0].value)
       })
     }
-    // If the end position is not equal to the last range's end...
-    if (ranges.length > 0 && !ranges[ranges.length - 1].end.eq(end)) {
-      // Increase the last affected range's start position. Eg: ##### becomes $$###
+    // If the end position less than the last range's end...
+    if (ranges.length > 0 && ranges[ranges.length - 1].end.gt(end)) {
       batchOps.push({
         type: 'put',
         key: this.bnToKey(ranges[ranges.length - 1].end),
-        value: this.addStartToValue(end, ranges[0].value)
+        value: this.addStartToValue(end, ranges[ranges.length - 1].value)
       })
     }
 
@@ -266,7 +265,7 @@ export class LevelRangeStore implements RangeStore {
     const queryEnd = this.bnToKey(end)
     let resultStart = this.addPrefix(this.getStartFromValue(result.value))
     let resultEnd = result.key
-    while (this.intersects(queryStart, queryEnd, resultStart, resultEnd)) {
+    while (this.intersects(queryStart, queryEnd, resultStart, resultEnd) && this.isCorrectPrefix(result.key)) {
       // If the query & result intersect, add it to our ranges array
       ranges.push(this.resultToRange(result))
       // Get the next result

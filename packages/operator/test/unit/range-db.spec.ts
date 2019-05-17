@@ -12,6 +12,7 @@ import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { LevelRangeStore } from '../../src/app/db/range-db'
+import { RangeEntry } from '../../src/interfaces/db/range-db.interface'
 
 const addDefaultRangesToDB = async (rangeDB) => {
   // Generate some ranges
@@ -30,6 +31,30 @@ const addDefaultRangesToDB = async (rangeDB) => {
     await rangeDB.put(range.start, range.end, Buffer.from('Hello'))
   }
   return ranges
+}
+
+class StringRangeEntry {
+  public stringRangeEntry
+  constructor (
+    rangeEntry: RangeEntry,
+  ) {
+    this.stringRangeEntry = {
+      start: rangeEntry.start.toString('hex'),
+      end: rangeEntry.end.toString('hex'),
+      value: rangeEntry.value.toString()
+    }
+  }
+}
+
+const testPutResults = async (db: LevelRangeStore, putContents: any[], expectedResults: any[]): Promise<void> => {
+  for (const putContent of putContents) {
+    await db.put(new BigNum(putContent.start, 'hex'), new BigNum(putContent.end, 'hex'), Buffer.from(putContent.value))
+  }
+  const res = await db.get(new BigNum('0', 'hex'), new BigNum('100000000000', 'hex'))
+  for (let i = 0; i < res.length; i++) {
+    const strResult = new StringRangeEntry(res[i])
+    strResult.stringRangeEntry.should.deep.equal(expectedResults[i])
+  }
 }
 
 describe('RangeDB', () => {
@@ -87,8 +112,6 @@ describe('RangeDB', () => {
       gottenStart.should.equal(start)
       gottenEnd.should.equal(end)
     }
-    log(gottenRanges)
-    log(ranges.length)
     gottenRanges.length.should.equal(ranges.length)
   })
 
@@ -97,7 +120,6 @@ describe('RangeDB', () => {
     const ranges = await addDefaultRangesToDB(rangeDB)
     // This time get the ranges 22-
     const gottenRanges = await rangeDB.get(ranges[2].start.addn(2), ranges[ranges.length-2].end.subn(2))
-    log(gottenRanges.length)
     // Compare them to the ranges we put & got and make sure they are equal
     for (let i = 2; i < ranges.length - 1; i++) {
       const start = ranges[i].start.toString(16)
@@ -136,7 +158,7 @@ describe('RangeDB', () => {
     // Put our surrounding ranges
     await rangeDB.put(surroundingStart, surroundingEnd, Buffer.from('Hello'))
     // Check that our range was added
-    const res = await rangeDB.get(innerStart, innerEnd, Buffer.from('Hello'))
+    const res = await rangeDB.get(innerStart, innerEnd)
     // Now put the inner range
     await rangeDB.put(innerStart, innerEnd, Buffer.from('world!'))
     // Get all the ranges and see what we get
@@ -156,4 +178,46 @@ describe('RangeDB', () => {
     gottenRanges[2].start.toString(16).should.equal('60')
     gottenRanges[2].end.toString(16).should.equal('100')
   })
+
+  it('splits `put(0, 100, x), put(50, 150, y)` into (0, 50, x), (50, 150, y)', async() => {
+    testPutResults(rangeDB, [
+      {start: '0', end: '100', value: 'x1'},
+      {start: '50', end: '150', value: 'y1'},
+    ], [
+      {start: '0', end: '50', value: 'x1'},
+      {start: '50', end: '150', value: 'y1'},
+    ])
+  })
+
+  it('splits `put(50, 150, x), put(0, 100, y)` into (0, 50, x), (50, 150, y)', async() => {
+    testPutResults(rangeDB, [
+      {start: '50', end: '150', value: 'x2'},
+      {start: '0', end: '100', value: 'y2'},
+    ], [
+      {start: '0', end: '100', value: 'y2'},
+      {start: '100', end: '150', value: 'x2'},
+    ])
+  })
+
+  it('splits `put(0, 100, x), put(0, 100, y)` into (0, 100, y)', async() => {
+    testPutResults(rangeDB, [
+      {start: '0', end: '100', value: 'x3'},
+      {start: '0', end: '100', value: 'y3'},
+    ], [
+      {start: '0', end: '100', value: 'y3'},
+    ])
+  })
+
+  it('splits `put(0, 100, x), put(100, 200, y), put(50, 150, z)` into (0, 50, x), (50, 150, z), (150, 200, y)', async() => {
+    testPutResults(rangeDB, [
+      {start: '0', end: '100', value: 'x4'},
+      {start: '100', end: '200', value: 'y4'},
+      {start: '50', end: '150', value: 'z4'},
+    ], [
+      {start: '0', end: '50', value: 'x4'},
+      {start: '50', end: '150', value: 'z4'},
+      {start: '150', end: '200', value: 'y4'},
+    ])
+  })
+
 })
