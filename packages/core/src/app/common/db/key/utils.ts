@@ -97,7 +97,8 @@ export const writeString = (
   buf: Buffer,
   value: string,
   offset: number,
-  encoding: string
+  encoding: string,
+  length?: number
 ): number => {
   const size = Buffer.byteLength(value, encoding)
 
@@ -107,7 +108,7 @@ export const writeString = (
   buf[offset] = size
 
   if (size > 0) {
-    assertType(buf.write(value, offset + 1, encoding) === size)
+    assertType(buf.write(value, offset + 1, length, encoding) === size)
   }
 
   return 1 + size
@@ -177,12 +178,13 @@ export const sizeHex = (value: Buffer | string): number => {
 export const writeHex = (
   buf: Buffer,
   value: Buffer | string,
-  offset: number
+  offset: number,
+  length?: number
 ): number => {
   if (Buffer.isBuffer(value)) {
     return value.copy(buf, offset)
   }
-  return buf.write(value, offset, 'hex')
+  return buf.write(value, offset, length, 'hex')
 }
 
 export const BUFFER_MIN = Buffer.alloc(0)
