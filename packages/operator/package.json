@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "build": "tsc -p ."
   },
@@ -35,7 +36,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@nestd/core": "^0.0.2-alpha.2",
-    "express": "^4.16.4"
+    "@types/node": "^11.13.7",
+    "debug": "^4.1.1",
+    "express": "^4.16.4",
+    "level": "^5.0.1"
   }
 }

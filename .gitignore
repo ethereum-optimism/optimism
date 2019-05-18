@@ -16,4 +16,4 @@ lerna-debug.log
 npm-debug.log
 /**/npm-debug.log
 /packages/**/LICENSE.txt
-testdb/
+*.test.tmp
