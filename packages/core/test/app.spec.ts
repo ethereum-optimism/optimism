@@ -8,7 +8,9 @@ const main = async () => {
     ETHEREUM_ENDPOINT: 'http://localhost:8545',
     BASE_DB_PATH: './testdb',
     DB_BACKEND: memdown,
+    RPC_SERVER_PORT: 4000,
+    RPC_SERVER_HOSTNAME: 'localhost',
   })
-  await pgCoreApp.start()
+  // await pgCoreApp.start()
 }
 main()
