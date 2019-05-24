@@ -29,16 +29,12 @@
   },
   "devDependencies": {
     "@pigi/prettier-config": "^0.0.2-alpha.2",
-    "@pigi/vyper-js": "^0.0.1-alpha.9",
     "@types/bn.js": "^4.11.4",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
     "@types/node": "^11.11.3",
     "@types/web3": "^1.0.18",
     "chai": "^4.2.0",
-    "ganache-cli": "^6.4.1",
-    "gulp": "^4.0.0",
-    "mkdirp": "^0.5.1",
     "mocha": "^6.0.2",
     "typescript": "^3.3.3333",
     "web3": "^1.0.0-beta.48"
