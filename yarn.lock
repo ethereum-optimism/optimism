@@ -657,11 +657,6 @@
     rxjs "^6.4.0"
     uuid "^3.3.2"
 
-"@nestd/core@^0.0.2-alpha.2":
-  version "0.0.2-alpha.2"
-  resolved "https://registry.yarnpkg.com/@nestd/core/-/core-0.0.2-alpha.2.tgz#1c2e1964c8bdddad8a65cf8d4243deecc6c9522b"
-  integrity sha512-gebnyl/YGfRwSt2Vsbpz4FtvwxVsvtYq9TMS6q3TMaOmFkAaPqyrbtExwsEy7uMulziBhM8vlubscVFKmtyHWQ==
-
 "@nodelib/fs.stat@^1.1.2":
   version "1.1.3"
   resolved "https://registry.yarnpkg.com/@nodelib/fs.stat/-/fs.stat-1.1.3.tgz#2b5a3ab3f918cca48a8c754c08168e3f03eba61b"
