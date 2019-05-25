@@ -14,16 +14,16 @@ describe.only('INTEGRATION: Example', () => {
   const provider = createMockProvider()
   const [wallet, walletTo] = getWallets(provider)
   let token
-  let deposit
+  let depositContract
 
   beforeEach(async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
-    deposit = await deployContract(wallet, Deposit, [token.address])
+    depositContract = await deployContract(wallet, Deposit, [token.address])
   });
 
   it('allows deposit to be called after approving erc20 movement', async () => {
-    await token.approve(deposit.address, 500)
-    await deposit.deposit(123, { predicateAddress: '0xF6c105ED2f0f5Ffe66501a4EEdaD86E10df19054', data: '0x1234' })
+    await token.approve(depositContract.address, 500)
+    await depositContract.deposit(123, { predicateAddress: '0xF6c105ED2f0f5Ffe66501a4EEdaD86E10df19054', data: '0x1234' })
     log('success')
   });
 });

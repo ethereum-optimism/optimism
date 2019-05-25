@@ -46,14 +46,17 @@ contract Deposit {
     /*** Public Constants ***/
     // TODO - Set defaults
     address public constant COMMITMENT_ADDRESS = 0x99EF1a332003a2c93a9f228fd7966CECDE344bcC;
-    address public constant TOKEN_ADDRESS = 0xF6c105ED2f0f5Ffe66501a4EEdaD86E10df19054;
     uint256 public constant CHALLENGE_PERIOD = 10;
     uint256 public constant EXIT_PERIOD = 20;
 
-    // Initialize the contract for a specific ERC20 contract
+    /**
+     * @dev Constructs a deposit contract with a specified erc20 token
+     * @param _erc20 TODO
+     */
     constructor(address _erc20) public {
         erc20 = BasicTokenMock(_erc20);
     }
+
     /**
      * @notice 
      * @param _amount TODO

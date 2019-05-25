@@ -19,5 +19,8 @@ contract Commitment {
         uint256 plasmaBlockNumber;
     }
 
-    function verifyInclusion(StateUpdate memory _stateUpdate, bytes memory _inclusionProof) public returns (bool) {}
+    function verifyInclusion(StateUpdate memory _stateUpdate, bytes memory _inclusionProof) public returns (bool) {
+        // Always return true for now until we can verify inclusion proofs.
+        return true;
+    }
 }
