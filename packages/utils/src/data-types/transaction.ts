@@ -1,32 +1,32 @@
 /* Internal Imports */
 import { abi, keccak256 } from '../eth'
-import { StateUpdate } from './state-update'
+import { AbiStateUpdate } from './state-update'
 
 const TRANSACTION_ABI_TYPES = ['bytes', 'bytes']
 
 interface TransactionArgs {
-  stateUpdate: StateUpdate
+  stateUpdate: AbiStateUpdate
   transactionWitness: string
 }
 
 /**
- * Creates a Transaction from an encoded Transaction.
- * @param encoded The encoded Transaction.
- * @returns the Transaction.
+ * Creates a AbiTransaction from an encoded AbiTransaction.
+ * @param encoded The encoded AbiTransaction.
+ * @returns the AbiTransaction.
  */
-const fromEncoded = (encoded: string): Transaction => {
+const fromEncoded = (encoded: string): AbiTransaction => {
   const decoded = abi.decode(TRANSACTION_ABI_TYPES, encoded)
-  return new Transaction({
+  return new AbiTransaction({
     stateUpdate: decoded[0],
     transactionWitness: decoded[1],
   })
 }
 
 /**
- * Represents a basic plasma chain transaction.
+ * Represents a basic plasma chain AbiTransaction.
  */
-export class Transaction {
-  public stateUpdate: StateUpdate
+export class AbiTransaction {
+  public stateUpdate: AbiStateUpdate
   public transactionWitness: string
 
   constructor(args: TransactionArgs) {
@@ -35,14 +35,14 @@ export class Transaction {
   }
 
   /**
-   * @returns the hash of the transaction.
+   * @returns the hash of the AbiTransaction.
    */
   get hash(): string {
     return keccak256(this.encoded)
   }
 
   /**
-   * @returns the encoded transaction.
+   * @returns the encoded AbiTransaction.
    */
   get encoded(): string {
     return abi.encode(TRANSACTION_ABI_TYPES, [
@@ -52,15 +52,15 @@ export class Transaction {
   }
 
   /**
-   * Casts a value to a Transaction.
-   * @param value Thing to cast to a Transaction.
-   * @returns the Transaction.
+   * Casts a value to a AbiTransaction.
+   * @param value Thing to cast to a AbiTransaction.
+   * @returns the AbiTransaction.
    */
-  public static from(value: string): Transaction {
+  public static from(value: string): AbiTransaction {
     if (typeof value === 'string') {
       return fromEncoded(value)
     }
 
-    throw new Error('Got invalid argument type when casting to Transaction.')
+    throw new Error('Got invalid argument type when casting to AbiTransaction.')
   }
 }

@@ -3,7 +3,7 @@ import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { abi } from '../eth'
-import { StateObject } from './state-object'
+import { AbiStateObject } from './state-object'
 
 const STATE_OBJECT_ABI_TYPES = [
   'uint256',
@@ -18,19 +18,19 @@ export interface StateUpdateArgs {
   end: number | BigNum
   block: number | BigNum
   plasmaContract: string
-  newState: StateObject
+  newState: AbiStateObject
 }
 
 /**
- * Represents a StateUpdate, which wraps each state
+ * Represents a AbiStateUpdate, which wraps each state
  * update but doesn't have a witness.
  */
-export class StateUpdate {
+export class AbiStateUpdate {
   public start: BigNum
   public end: BigNum
   public block: BigNum
   public plasmaContract: string
-  public newState: StateObject
+  public newState: AbiStateObject
 
   public implicit?: boolean
   public implicitStart?: BigNum
@@ -62,17 +62,17 @@ export class StateUpdate {
    * @param other Object to compare to.
    * @returns `true` if the two are equal, `false` otherwise.
    */
-  public equals(other: StateUpdate): boolean {
+  public equals(other: AbiStateUpdate): boolean {
     return this.encoded === other.encoded
   }
 
   /**
-   * Breaks a StateUpdate into the implicit and
+   * Breaks a AbiStateUpdate into the implicit and
    * explicit components that make it up.
-   * @param stateUpdate Object to break down
+   * @param AbistateUpdate Object to break down
    * @returns a list of StateUpdates.
    */
-  public components(): StateUpdate[] {
+  public components(): AbiStateUpdate[] {
     const components = []
 
     if (this.implicitStart === undefined || this.implicitEnd === undefined) {
@@ -82,7 +82,7 @@ export class StateUpdate {
     // Left implicit component.
     if (!this.start.eq(this.implicitStart)) {
       components.push(
-        new StateUpdate({
+        new AbiStateUpdate({
           ...this,
           ...{
             end: this.start,
@@ -96,7 +96,7 @@ export class StateUpdate {
     // Right implicit component.
     if (!this.end.eq(this.implicitEnd)) {
       components.push(
-        new StateUpdate({
+        new AbiStateUpdate({
           ...this,
           ...{
             end: this.implicitEnd,
@@ -110,7 +110,7 @@ export class StateUpdate {
     // Explicit component.
     if (this.start.lt(this.end)) {
       components.push(
-        new StateUpdate({
+        new AbiStateUpdate({
           ...this,
           ...{
             end: this.end,
