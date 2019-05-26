@@ -8,12 +8,7 @@ const log = debug('test:info:state-update')
 /* Internal Imports */
 import { AbiStateObject, AbiStateUpdate } from '../../src/data-types'
 
-// readonly stateObject: AbiStateObject,
-// readonly range: Range,
-// readonly blockNumber: number,
-// readonly plasmaContract: string
-
-describe.only('AbiStateObject', () => {
+describe('AbiStateObject', () => {
   it('should encoded & decode data without throwing', async () => {
     const stateObject = new AbiStateObject('0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F', '0x1234')
     const stateUpdate = new AbiStateUpdate(stateObject, { start: new BigNum(10), end: new BigNum(30) }, 10, '0x3cDb4F0318a01f43dcf92eF09E10c05bF3bfc213')
