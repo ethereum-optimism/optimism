@@ -1,1 +1,1 @@
-export * from './misc'
+export * from './ownership'

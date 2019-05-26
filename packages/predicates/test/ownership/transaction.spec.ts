@@ -1,3 +1,5 @@
+import '../setup'
+
 /* External Imports */
 import debug from 'debug'
 const log = debug('test:info:ownership-predicate')
