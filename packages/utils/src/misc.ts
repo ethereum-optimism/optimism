@@ -78,3 +78,43 @@ export const bnMin = (a: BigNum, b: BigNum) => {
 export const bnMax = (a: BigNum, b: BigNum) => {
   return a.gt(b) ? a : b
 }
+
+/**
+ * Converts a buffer to a hex string.
+ * @param buf the buffer to be converted.
+ * @returns the buffer as a string.
+ */
+export const bufToHexString = (buf: Buffer): string => {
+  return '0x' + buf.toString('hex')
+}
+
+/**
+ * Converts a big number to a hex string.
+ * @param bn the big number to be converted.
+ * @returns the big number as a string.
+ */
+export const bnToHexString = (bn: BigNum): string => {
+  return '0x' + bn.toString('hex')
+}
+
+/**
+ * Converts either a big number or buffer to hex string
+ * @param value the big number or buffer to be converted
+ * @returns the value as a string.
+ */
+export const hexStringify = (value: BigNum | Buffer): string => {
+  if (value instanceof BigNum) {
+    return bnToHexString(value)
+  } else {
+    return bufToHexString(value)
+  }
+}
+
+/**
+ * Converts a hex string to a buffer
+ * @param hexString the hex string to be converted
+ * @returns the hexString as a buffer.
+ */
+export const hexStrToBuf = (hexString: string): Buffer => {
+  return Buffer.from(hexString.slice(2), 'hex')
+}

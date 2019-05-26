@@ -1,60 +1,69 @@
 /* External Imports */
 import BigNum = require('bn.js')
+import debug from 'debug'
+const log = debug('info:state-update')
 
 /* Internal Imports */
 import { abi } from '../eth'
+import { StateUpdate, AbiEncodable, Range } from '../interfaces/data-types'
+import { hexStringify } from '../misc'
 import { AbiStateObject } from './state-object'
 
-const STATE_OBJECT_ABI_TYPES = [
-  'uint256',
-  'uint256',
-  'uint256',
-  'bytes',
-  'bytes',
-]
-
-export interface StateUpdateArgs {
-  start: number | BigNum
-  end: number | BigNum
-  block: number | BigNum
-  plasmaContract: string
-  newState: AbiStateObject
+/**
+ * Creates a AbiStateUpdate from an encoded AbiStateUpdate.
+ * @param encoded The encoded AbiStateUpdate.
+ * @returns the AbiStateUpdate.
+ */
+const fromEncoded = (encoded: string): AbiStateUpdate => {
+  const decoded = abi.decode(AbiStateUpdate.abiTypes, encoded)
+  const stateObject = AbiStateObject.from(decoded[0])
+  return new AbiStateUpdate(
+    stateObject,
+    { start: new BigNum(decoded[1].toString()), end: new BigNum(decoded[2].toString()) },
+    decoded[3],
+    decoded[4]
+  )
 }
 
 /**
- * Represents a AbiStateUpdate, which wraps each state
- * update but doesn't have a witness.
+ * Represents a basic abi encodable AbiStateUpdate
  */
-export class AbiStateUpdate {
-  public start: BigNum
-  public end: BigNum
-  public block: BigNum
-  public plasmaContract: string
-  public newState: AbiStateObject
+export class AbiStateUpdate implements StateUpdate, AbiEncodable {
+  public static abiTypes = ['bytes', 'uint128', 'uint128', 'uint32', 'address']
 
-  public implicit?: boolean
-  public implicitStart?: BigNum
-  public implicitEnd?: BigNum
+  constructor(
+    readonly stateObject: AbiStateObject,
+    readonly range: Range,
+    readonly blockNumber: number,
+    readonly plasmaContract: string
+  ) {}
 
-  constructor(args: StateUpdateArgs) {
-    this.start = new BigNum(args.start, 'hex')
-    this.end = new BigNum(args.end, 'hex')
-    this.block = new BigNum(args.block, 'hex')
-    this.plasmaContract = args.plasmaContract
-    this.newState = args.newState
+  /**
+   * @returns the abi encoded AbiStateUpdate.
+   */
+  get encoded(): string {
+    log('this is the state object:')
+    log(this.stateObject.encoded)
+    return abi.encode(AbiStateUpdate.abiTypes, [
+      this.stateObject.encoded,
+      hexStringify(this.range.start),
+      hexStringify(this.range.end),
+      this.blockNumber,
+      this.plasmaContract,
+    ])
   }
 
   /**
-   * @returns the encoded state update.
+   * Casts a value to a AbiStateUpdate.
+   * @param value Thing to cast to a AbiStateUpdate.
+   * @returns the AbiStateUpdate.
    */
-  get encoded(): string {
-    return abi.encode(STATE_OBJECT_ABI_TYPES, [
-      this.start,
-      this.end,
-      this.block,
-      this.plasmaContract,
-      this.newState.encoded,
-    ])
+  public static from(value: string): AbiStateUpdate {
+    if (typeof value === 'string') {
+      return fromEncoded(value)
+    }
+
+    throw new Error('Got invalid argument type when casting to AbiStateUpdate.')
   }
 
   /**
@@ -64,62 +73,5 @@ export class AbiStateUpdate {
    */
   public equals(other: AbiStateUpdate): boolean {
     return this.encoded === other.encoded
-  }
-
-  /**
-   * Breaks a AbiStateUpdate into the implicit and
-   * explicit components that make it up.
-   * @param AbistateUpdate Object to break down
-   * @returns a list of StateUpdates.
-   */
-  public components(): AbiStateUpdate[] {
-    const components = []
-
-    if (this.implicitStart === undefined || this.implicitEnd === undefined) {
-      return [this]
-    }
-
-    // Left implicit component.
-    if (!this.start.eq(this.implicitStart)) {
-      components.push(
-        new AbiStateUpdate({
-          ...this,
-          ...{
-            end: this.start,
-            start: this.implicitStart,
-            implicit: true,
-          },
-        })
-      )
-    }
-
-    // Right implicit component.
-    if (!this.end.eq(this.implicitEnd)) {
-      components.push(
-        new AbiStateUpdate({
-          ...this,
-          ...{
-            end: this.implicitEnd,
-            start: this.end,
-            implicit: true,
-          },
-        })
-      )
-    }
-
-    // Explicit component.
-    if (this.start.lt(this.end)) {
-      components.push(
-        new AbiStateUpdate({
-          ...this,
-          ...{
-            end: this.end,
-            start: this.start,
-          },
-        })
-      )
-    }
-
-    return components
   }
 }
