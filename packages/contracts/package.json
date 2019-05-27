@@ -41,6 +41,7 @@
     "web3": "^1.0.0-beta.48"
   },
   "dependencies": {
+    "@types/sinon-chai": "^3.2.2",
     "bn.js": "^4.11.8",
     "chai": "^4.2.0",
     "ethereum-waffle": "^2.0.12",

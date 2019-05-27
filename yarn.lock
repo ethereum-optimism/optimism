@@ -877,6 +877,19 @@
     "@types/express-serve-static-core" "*"
     "@types/mime" "*"
 
+"@types/sinon-chai@^3.2.2":
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/@types/sinon-chai/-/sinon-chai-3.2.2.tgz#5cfdbda70bae30f79a9423334af9e490e4cce793"
+  integrity sha512-5zSs2AslzyPZdOsbm2NRtuSNAI2aTWzNKOHa/GRecKo7a5efYD7qGcPxMZXQDayVXT2Vnd5waXxBvV31eCZqiA==
+  dependencies:
+    "@types/chai" "*"
+    "@types/sinon" "*"
+
+"@types/sinon@*":
+  version "7.0.12"
+  resolved "https://registry.yarnpkg.com/@types/sinon/-/sinon-7.0.12.tgz#18412939ae45b225bd38715a25c1040cbad80f42"
+  integrity sha512-fo0MWpVPSUrnZZhp9wyu+hhI3VJ9+Jhs+PWrokBTg3d2ryNPDOAWF1csIhQuYWBTn7KdZzXpRgpX2o6cwOlPWg==
+
 "@types/underscore@*":
   version "1.8.13"
   resolved "https://registry.yarnpkg.com/@types/underscore/-/underscore-1.8.13.tgz#e1bf89141fbccb71dcb3bf12d86a923c007698e3"
