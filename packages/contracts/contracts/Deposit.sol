@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 import "openzeppelin-solidity/contracts/math/Math.sol";
-import "./BasicTokenMock.sol";
+import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /**
  * @title Deposit
@@ -39,7 +39,7 @@ contract Deposit {
     );
 
     /*** Public ***/
-    BasicTokenMock public erc20;
+    ERC20 public erc20;
     uint256 public totalDeposited;
     mapping (bytes32 => CheckpointStatus) public checkpoints;
 
@@ -54,7 +54,7 @@ contract Deposit {
      * @param _erc20 TODO
      */
     constructor(address _erc20) public {
-        erc20 = BasicTokenMock(_erc20);
+        erc20 = ERC20(_erc20);
     }
 
     /**
