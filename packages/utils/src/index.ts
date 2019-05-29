@@ -1,5 +1,6 @@
 export * from './eth'
-export * from './state'
+export * from './data-types'
 export * from './constants'
 export * from './misc'
 export * from './sum-tree'
+export * from './interfaces'
