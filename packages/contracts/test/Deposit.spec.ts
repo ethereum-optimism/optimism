@@ -10,7 +10,7 @@ import * as Deposit from '../build/Deposit.json'
 chai.use(solidity);
 const {expect} = chai;
 
-describe.only('Deposit', () => {
+describe('Deposit', () => {
   const provider = createMockProvider()
   const [wallet, walletTo] = getWallets(provider)
   let token
