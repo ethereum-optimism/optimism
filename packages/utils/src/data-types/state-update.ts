@@ -5,9 +5,10 @@ const log = debug('info:state-update')
 
 /* Internal Imports */
 import { abi } from '../eth'
-import { StateUpdate, AbiEncodable, Range } from '../interfaces/data-types'
+import { StateUpdate, AbiEncodable } from '../interfaces/data-types'
 import { hexStringify } from '../misc'
 import { AbiStateObject } from './state-object'
+import { AbiRange } from './range'
 
 /**
  * Creates a AbiStateUpdate from an encoded AbiStateUpdate.
@@ -17,11 +18,12 @@ import { AbiStateObject } from './state-object'
 const fromEncoded = (encoded: string): AbiStateUpdate => {
   const decoded = abi.decode(AbiStateUpdate.abiTypes, encoded)
   const stateObject = AbiStateObject.from(decoded[0])
+  const range = AbiRange.from(decoded[1])
   return new AbiStateUpdate(
     stateObject,
-    { start: new BigNum(decoded[1].toString()), end: new BigNum(decoded[2].toString()) },
-    decoded[3],
-    decoded[4]
+    range,
+    decoded[2],
+    decoded[3]
   )
 }
 
@@ -29,11 +31,11 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
  * Represents a basic abi encodable AbiStateUpdate
  */
 export class AbiStateUpdate implements StateUpdate, AbiEncodable {
-  public static abiTypes = ['bytes', 'uint128', 'uint128', 'uint32', 'address']
+  public static abiTypes = ['bytes', 'bytes', 'uint32', 'address']
 
   constructor(
     readonly stateObject: AbiStateObject,
-    readonly range: Range,
+    readonly range: AbiRange,
     readonly blockNumber: number,
     readonly plasmaContract: string
   ) {}
@@ -46,8 +48,7 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
     log(this.stateObject.encoded)
     return abi.encode(AbiStateUpdate.abiTypes, [
       this.stateObject.encoded,
-      hexStringify(this.range.start),
-      hexStringify(this.range.end),
+      this.range.encoded,
       this.blockNumber,
       this.plasmaContract,
     ])
