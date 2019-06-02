@@ -1,20 +1,6 @@
 /* External Imports */
-
-
-// Create a defer function which will allow us to add our promise to the messageQueue
-function defer() {
-  const deferred = {
-    promise: null,
-    resolve: null,
-    reject: null,
-  }
-  deferred.promise = new Promise((resolve, reject) => {
-    deferred.resolve = resolve
-    deferred.reject = reject
-  })
-  return deferred
-}
-
+import { abi, AbiRange, AbiStateObject, AbiStateUpdate, hexStringify } from '@pigi/utils'
+import BigNum = require('bn.js')
 
 /* Logging */
 import debug from 'debug'
@@ -23,6 +9,8 @@ const log = debug('test:info:ownership-predicate')
 import chai = require('chai')
 import {createMockProvider, deployContract, getWallets, solidity} from 'ethereum-waffle';
 import * as OwnershipPredicate from '../build/OwnershipPredicate.json'
+import * as BasicTokenMock from '../build/BasicTokenMock.json'
+import * as Deposit from '../build/Deposit.json'
 
 chai.use(solidity);
 const {expect} = chai;
@@ -31,28 +19,38 @@ describe.only('OwnershipPredicate', () => {
   const provider = createMockProvider()
   const [wallet, walletTo] = getWallets(provider)
   let ownershipPredicate
+  let token
+  let depositContract
 
   beforeEach(async () => {
-    ownershipPredicate = await deployContract(wallet, OwnershipPredicate, [])
-  });
+    token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
+    depositContract = await deployContract(wallet, Deposit, [token.address])
+    ownershipPredicate = await deployContract(wallet, OwnershipPredicate, [depositContract.address])
+    // // Set up logging
+    // depositContract.on('LogCheckpoint', (event, otherThing) => {
+    //   log('\nCheckpoint Event:')
+    //   log(event)
+    // })
+    // depositContract.on('CheckpointFinalized', (event, otherThing) => {
+    //   log('\nCheckpoint finalized Event:')
+    //   log(event)
+    // })
+  })
 
-  it('checks if abi encoding works as expected', (done) => {
-    const deferred = defer()
-    let events = 0
-    const numEvents = 6
-    const logEvent = (event, otherthing) => {
-      log('Result of event:')
-      log(event)
-      log('\n')
-      events++
-      if (events === numEvents) {
-        done()
-      }
-    }
-    ownershipPredicate.on('TestEncoding', logEvent)
-    ownershipPredicate.on('TestEncoding2', logEvent)
-    ownershipPredicate.on('TestEncoding3', logEvent)
-    const res = ownershipPredicate.testEncoding()
-    deferred
-  });
+  it('should allow deposits', async () => {
+    await token.approve(depositContract.address, 500)
+    const depositData = abi.encode(['address'], [wallet.address])
+    const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+    await depositContract.deposit(100, depositStateObject)
+    const depositRangeStr = { start: hexStringify(new BigNum(0)), end: new BigNum(100) }
+    await ownershipPredicate.startExit({
+      stateUpdate: {
+        range: depositRangeStr,
+        stateObject: depositStateObject,
+        plasmaContract: depositContract.address,
+        plasmaBlockNumber: 0
+      },
+      subrange: depositRangeStr
+    })
+  })
 });
