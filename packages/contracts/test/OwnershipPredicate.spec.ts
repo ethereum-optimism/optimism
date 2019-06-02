@@ -42,15 +42,15 @@ describe.only('OwnershipPredicate', () => {
     const depositData = abi.encode(['address'], [wallet.address])
     const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
     await depositContract.deposit(100, depositStateObject)
-    const depositRangeStr = { start: hexStringify(new BigNum(0)), end: new BigNum(100) }
+    const depositRange = { start: hexStringify(new BigNum(0)), end: new BigNum(100) }
     await ownershipPredicate.startExit({
       stateUpdate: {
-        range: depositRangeStr,
+        range: depositRange,
         stateObject: depositStateObject,
         plasmaContract: depositContract.address,
         plasmaBlockNumber: 0
       },
-      subrange: depositRangeStr
+      subrange: depositRange
     })
   })
 });
