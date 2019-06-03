@@ -21,7 +21,7 @@ contract DataTypes {
     struct StateUpdate {
         Range range;
         StateObject stateObject;
-        address plasmaContract;
+        address depositAddress;
         uint256 plasmaBlockNumber;
     }
 

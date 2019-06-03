@@ -29,16 +29,18 @@ describe.only('OwnershipPredicate', () => {
   })
 
   it('should allow exits to be started on deposits', async () => {
+    // Deposit some money into the ownership predicate
     await token.approve(depositContract.address, 500)
     const depositData = abi.encode(['address'], [wallet.address])
     const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
     await depositContract.deposit(100, depositStateObject)
+    // Attempt to start an exit on this deposit
     const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
     await ownershipPredicate.startExit({
       stateUpdate: {
         range: depositRange,
         stateObject: depositStateObject,
-        plasmaContract: depositContract.address,
+        depositAddress: depositContract.address,
         plasmaBlockNumber: 0
       },
       subrange: depositRange

@@ -22,7 +22,7 @@ contract OwnershipPredicate {
     }
 
     struct UnsignedOwnershipTransaction {
-        address plasmaContract;
+        address depositAddress;
         dt.Range range;
         bytes32 methodId;
         Parameters parameters;
@@ -51,7 +51,7 @@ contract OwnershipPredicate {
         // Require that this is called by the owner
         require(msg.sender == owner, "Only owner may initiate the exit");
         // Forward the authenticated startExit to the deposit contract
-        Deposit depositContract = Deposit(_checkpoint.stateUpdate.plasmaContract);
+        Deposit depositContract = Deposit(_checkpoint.stateUpdate.depositAddress);
         depositContract.startExit(_checkpoint);
     }
 }

@@ -67,7 +67,7 @@ contract Deposit {
         dt.Range memory depositRange = dt.Range({start:totalDeposited, end: totalDeposited + _amount });
         dt.StateUpdate memory stateUpdate = dt.StateUpdate({
             range: depositRange, stateObject: _initialState, 
-            plasmaContract: address(this), plasmaBlockNumber: getLatestPlasmaBlockNumber() 
+            depositAddress: address(this), plasmaBlockNumber: getLatestPlasmaBlockNumber() 
         });
         dt.Checkpoint memory checkpoint = dt.Checkpoint({
             stateUpdate: stateUpdate,
