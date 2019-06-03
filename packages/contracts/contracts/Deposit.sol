@@ -39,6 +39,7 @@ contract Deposit {
     uint256 public totalDeposited;
     mapping (bytes32 => CheckpointStatus) public checkpoints;
     mapping (bytes32 => uint256) public exits; // the uint256 when it is "redeemableAfter"
+    mapping (uint256 => dt.Range) public exitableRanges;
 
     /*** Public Constants ***/
     // TODO - Set defaults
@@ -84,6 +85,14 @@ contract Deposit {
         emit LogCheckpoint(checkpoint);
     }
 
+    function startCheckpoint(
+        dt.Checkpoint memory _checkpoint,
+        bytes memory _inclusionProof,
+        uint256 _exitableRangeId
+    ) public {
+        // TODO
+    }
+
     function startExit(dt.Checkpoint memory _checkpoint) public {
         bytes32 checkpointId = getCheckpointId(_checkpoint);
         // Verify this exit may be started
@@ -94,9 +103,11 @@ contract Deposit {
         emit ExitStarted(checkpointId, exits[checkpointId]);
     }
 
-    // TODO: startCheckpoint()
+    function finalizeExit(dt.Checkpoint memory _exit) public {
+        // TODO
+    }
+
     // TODO: deprecateExit()
-    // TODO: finalizeExit()
 
     /* 
     * Helpers

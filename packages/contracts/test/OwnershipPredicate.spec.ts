@@ -26,23 +26,14 @@ describe.only('OwnershipPredicate', () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
     depositContract = await deployContract(wallet, Deposit, [token.address])
     ownershipPredicate = await deployContract(wallet, OwnershipPredicate, [depositContract.address])
-    // // Set up logging
-    // depositContract.on('LogCheckpoint', (event, otherThing) => {
-    //   log('\nCheckpoint Event:')
-    //   log(event)
-    // })
-    // depositContract.on('CheckpointFinalized', (event, otherThing) => {
-    //   log('\nCheckpoint finalized Event:')
-    //   log(event)
-    // })
   })
 
-  it('should allow deposits', async () => {
+  it('should allow exits to be started on deposits', async () => {
     await token.approve(depositContract.address, 500)
     const depositData = abi.encode(['address'], [wallet.address])
     const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
     await depositContract.deposit(100, depositStateObject)
-    const depositRange = { start: hexStringify(new BigNum(0)), end: new BigNum(100) }
+    const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
     await ownershipPredicate.startExit({
       stateUpdate: {
         range: depositRange,
