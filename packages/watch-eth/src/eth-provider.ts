@@ -1,9 +1,15 @@
-import { BaseEthProvider, FullEventFilter } from './base-eth-provider'
+/* External Imports */
 import Web3 from 'web3'
 
+/* Internal Imports */
+import { EthProvider, FullEventFilter } from './interfaces'
 import { EventLog } from '../models'
 
-export class EthWrapper implements BaseEthProvider {
+
+/**
+ * Basic EthProvider implementation.
+ */
+export class DefaultEthProvider implements EthProvider {
   constructor(private web3: Web3) {}
 
   /**

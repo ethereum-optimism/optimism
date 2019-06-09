@@ -1,9 +1,7 @@
+/* Internal Imports */
 import { hash } from '../utils'
+import { EventFilterOptions } from '../interfaces'
 
-export interface EventFilterOptions {
-  event: string
-  indexed?: { [key: string]: any }
-}
 
 /**
  * Represents an event filter.

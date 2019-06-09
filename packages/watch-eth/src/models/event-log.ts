@@ -1,9 +1,7 @@
+/* Internal Imports */
 import { hash } from '../utils'
+import { EventLogData } from '../interfaces'
 
-export interface EventLogData {
-  transactionHash: string
-  logIndex: number
-}
 
 /**
  * Represents a single event log.

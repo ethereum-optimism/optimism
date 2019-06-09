@@ -1,7 +1,8 @@
 export { EventWatcher, EventWatcherOptions } from './src/event-watcher'
+export { EventLog, EventFilter } from './src/models'
 export {
-  BaseEthProvider,
+  EventDB,
+  EthProvider,
   FullEventFilter,
-} from './src/eth-provider/base-eth-provider'
-export { BaseEventDB } from './src/event-db/base-event-db'
-export { EventFilterOptions, EventLog } from './src/models'
+  EventFilterOptions
+} from './src/interfaces'

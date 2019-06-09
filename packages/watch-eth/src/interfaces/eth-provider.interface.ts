@@ -1,5 +1,5 @@
-import { EventLog } from '../models/event-log'
-import { EventFilterOptions } from '../models'
+/* Internal Imports */
+import { EventFilterOptions } from './event-filter'
 
 export interface FullEventFilter extends EventFilterOptions {
   address: string
@@ -8,7 +8,7 @@ export interface FullEventFilter extends EventFilterOptions {
   toBlock: number
 }
 
-export interface BaseEthProvider {
+export interface EthProvider {
   connected(): Promise<boolean>
   getCurrentBlock(): Promise<number>
   getEvents(filter: FullEventFilter): Promise<EventLog[]>

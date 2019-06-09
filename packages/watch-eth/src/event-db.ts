@@ -1,6 +1,11 @@
-import { BaseEventDB } from './base-event-db'
+/* Internal Imports */
+import { EventDB } from './interfaces'
 
-export class EventDBWrapper implements BaseEventDB {
+
+/**
+ * Basic EventDB implementation.
+ */
+export class DefaultEventDB implements EventDB {
   constructor(private db: any) {}
 
   /**
