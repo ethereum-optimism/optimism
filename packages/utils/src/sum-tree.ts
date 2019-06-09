@@ -3,7 +3,7 @@ import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { keccak256 } from './eth'
-import { reverse } from './misc'
+import { reverse } from './utils'
 import { NULL_HASH } from './constants'
 
 export interface ImplicitBounds {

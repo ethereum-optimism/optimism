@@ -1,7 +1,7 @@
 import '../setup'
 
 /* Internal Imports */
-import { keccak256 } from '../../src/eth'
+import { keccak256 } from '../../src/eth/utils'
 
 describe('Ethereum Utils', () => {
   describe('keccak256', () => {
