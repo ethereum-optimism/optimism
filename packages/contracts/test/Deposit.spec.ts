@@ -16,8 +16,16 @@ const log = debug('test:info:state-ownership')
 
 async function mineBlocks(provider: any, numBlocks: number = 1) {
   for (let i = 0; i < numBlocks ; i++) {
-    await provider.send("evm_mine", []);
+    await provider.send('evm_mine', []);
   }
+}
+
+async function depositErc20(wallet, token, depositContract, ownershipPredicate) {
+  // Deposit some money into the ownership predicate
+  await token.approve(depositContract.address, 500)
+  const depositData = abi.encode(['address'], [wallet.address])
+  const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+  await depositContract.deposit(100, depositStateObject)
 }
 
 describe('Deposit with Ownership', () => {
@@ -96,6 +104,71 @@ describe('Deposit with Ownership', () => {
       await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
       await ownershipPredicate.startExit(checkpoint)
       // should not throw
+    })
+  })
+
+  describe('deprecateExit', () => {
+    it('should deprecate an exit without throwing', async () => {
+      // Deposit some money into the ownership predicate
+      await token.approve(depositContract.address, 500)
+      const depositData = abi.encode(['address'], [wallet.address])
+      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      await depositContract.deposit(100, depositStateObject)
+      // Attempt to start an exit on this deposit
+      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const checkpoint = {
+        stateUpdate: {
+          range: depositRange,
+          stateObject: depositStateObject,
+          depositAddress: depositContract.address,
+          plasmaBlockNumber: 0
+        },
+        subrange: depositRange
+      }
+      await ownershipPredicate.startExit(checkpoint)
+      // Now deprecate the exit
+      await ownershipPredicate.deprecateExit(checkpoint)
+    })
+  })
+
+  describe('deleteOutdatedExit', () => {
+    it('should delete an exit if there is a later checkpoint on that range', async () => {
+      // Deposit some money into the ownership predicate
+      await token.approve(depositContract.address, 500)
+      const depositData = abi.encode(['address'], [wallet.address])
+      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      await depositContract.deposit(100, depositStateObject)
+      // Add a later checkpoint
+      const stateUpdateRange = { start: hexStringify(new BigNum(10)), end: hexStringify(new BigNum(20)) }
+      const checkpoint = {
+        stateUpdate: {
+          range: stateUpdateRange,
+          stateObject: depositStateObject,
+          depositAddress: depositContract.address,
+          plasmaBlockNumber: 10
+        },
+        subrange: stateUpdateRange
+      }
+      await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
+      // Now fast forward until the checkpoint is finalized
+      // Get the challenge peroid
+      const challengePeroid = await depositContract.CHALLENGE_PERIOD()
+      // Mine the blocks
+      await mineBlocks(provider, challengePeroid + 1)
+      // Now that we have a finalized checkpoint, attempt an exit on the original deposit
+      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const depositCheckpoint = {
+        stateUpdate: {
+          range: depositRange,
+          stateObject: depositStateObject,
+          depositAddress: depositContract.address,
+          plasmaBlockNumber: 0
+        },
+        subrange: depositRange
+      }
+      await ownershipPredicate.startExit(depositCheckpoint)
+      // Uh oh! This exit is invalid! Let's delete it
+      await depositContract.deleteOutdatedExit(depositCheckpoint, checkpoint)
     })
   })
 

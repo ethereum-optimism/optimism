@@ -195,7 +195,21 @@ contract Deposit {
         emit ExitFinalized(checkpointId);
     }
 
-    // TODO: deprecateExit()
+    function deprecateExit(dt.Checkpoint memory _exit) public {
+        bytes32 checkpointId = getCheckpointId(_exit);
+        require(_exit.stateUpdate.stateObject.predicateAddress == msg.sender, "Exit must be deprecated by its predicate");
+        delete exitRedeemableAfter[checkpointId];
+    }
+
+    function deleteOutdatedExit(dt.Checkpoint memory _exit, dt.Checkpoint memory _newerCheckpoint) public {
+        bytes32 outdatedExitId = getCheckpointId(_exit);
+        bytes32 newerCheckpointId = getCheckpointId(_newerCheckpoint);
+        require(intersects(_exit.subrange, _newerCheckpoint.subrange), "Exit and newer checkpoint must overlap");
+        require(_exit.stateUpdate.plasmaBlockNumber < _newerCheckpoint.stateUpdate.plasmaBlockNumber, "Exit must be before a checkpoint");
+        require(checkpoints[newerCheckpointId].outstandingChallenges == 0, "Newer checkpoint must have no challenges");
+        require(checkpoints[newerCheckpointId].challengeableUntil < block.number, "Newer checkpoint must no longer be challengeable");
+        delete exitRedeemableAfter[outdatedExitId];
+    }
 
     /* 
     * Helpers
@@ -210,5 +224,9 @@ contract Deposit {
 
     function isSubrange(dt.Range memory _subRange, dt.Range memory _surroundingRange) public pure returns (bool) {
         return _subRange.start >= _surroundingRange.start && _subRange.end <= _surroundingRange.end;
+    }
+
+    function intersects(dt.Range memory _range1, dt.Range memory _range2) public pure returns (bool) {
+        return Math.max(_range1.start, _range2.start) < Math.min(_range1.end, _range2.end);
     }
 }
