@@ -172,6 +172,51 @@ describe('Deposit with Ownership', () => {
     })
   })
 
+  describe('challengeCheckpoint & removeChallenge', () => {
+    it('allows one exit to challenge another exit', async () => {
+      // Deposit some money into the ownership predicate
+      await token.approve(depositContract.address, 500)
+      const depositData = abi.encode(['address'], [wallet.address])
+      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      await depositContract.deposit(100, depositStateObject)
+      // Add a later checkpoint
+      const stateUpdateRange = { start: hexStringify(new BigNum(10)), end: hexStringify(new BigNum(20)) }
+      const checkpoint = {
+        stateUpdate: {
+          range: stateUpdateRange,
+          stateObject: depositStateObject,
+          depositAddress: depositContract.address,
+          plasmaBlockNumber: 10
+        },
+        subrange: stateUpdateRange
+      }
+      await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
+      await ownershipPredicate.startExit(checkpoint)
+      // Now we use the deposit to challenge this exit
+      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const depositCheckpoint = {
+        stateUpdate: {
+          range: depositRange,
+          stateObject: depositStateObject,
+          depositAddress: depositContract.address,
+          plasmaBlockNumber: 0
+        },
+        subrange: depositRange
+      }
+      // Start the exit and then challenge
+      await ownershipPredicate.startExit(depositCheckpoint)
+      const challenge = {
+        challengedCheckpoint: checkpoint,
+        challengingCheckpoint: depositCheckpoint
+      }
+      await depositContract.challengeCheckpoint(challenge)
+      // Deprecate the exit so we can remove the challenge
+      await ownershipPredicate.deprecateExit(depositCheckpoint)
+      // Now remove the challenge
+      await depositContract.removeChallenge(challenge)
+    })
+  })
+
   describe('helper functions', () => {
     describe('subRange', () => {
       it('returns true for equal ranges', async () => {

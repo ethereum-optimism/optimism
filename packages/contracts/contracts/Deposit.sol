@@ -21,6 +21,11 @@ contract Deposit {
         uint256 outstandingChallenges;
     }
 
+    struct Challenge {
+        dt.Checkpoint challengedCheckpoint;
+        dt.Checkpoint challengingCheckpoint;
+    }
+
     /*** Events ***/
     event CheckpointStarted(
         dt.Checkpoint checkpoint,
@@ -44,13 +49,18 @@ contract Deposit {
         bytes32 exit
     );
 
+    event CheckpointChallenged(
+        Challenge challenge
+    );
+
     /*** Public ***/
     ERC20 public erc20;
     Commitment public commitmentChain;
     uint256 public totalDeposited;
     mapping (bytes32 => CheckpointStatus) public checkpoints;
-    mapping (bytes32 => uint256) public exitRedeemableAfter; // the uint256 when it is "redeemableAfter"
+    mapping (bytes32 => uint256) public exitRedeemableAfter;
     mapping (uint256 => dt.Range) public depositedRanges;
+    mapping (bytes32 => bool) public challenges;
 
     /*** Public Constants ***/
     // TODO - Set defaults
@@ -158,8 +168,7 @@ contract Deposit {
         require(commitmentChain.verifyInclusion(_checkpoint.stateUpdate, _inclusionProof), "Checkpoint must be included");
         require(isSubrange(_checkpoint.subrange, _checkpoint.stateUpdate.range), "Checkpoint must be on a subrange of the StateUpdate");
         require(isSubrange(_checkpoint.subrange, depositedRanges[_depositedRangeId]), "Checkpoint subrange must be on a depositedRange");
-        require(checkpoints[checkpointId].challengeableUntil == 0, "Checkpoint must not have already been started");
-        require(checkpoints[checkpointId].outstandingChallenges == 0, "Checkpoint must not have already been started");
+        require(!checkpointExists(checkpointId), "Checkpoint must not already exist");
         // Create a new checkpoint
         checkpoints[checkpointId] = CheckpointStatus(block.number + CHALLENGE_PERIOD, 0);
         emit CheckpointStarted(_checkpoint, checkpoints[checkpointId].challengeableUntil);
@@ -211,11 +220,43 @@ contract Deposit {
         delete exitRedeemableAfter[outdatedExitId];
     }
 
+    function challengeCheckpoint(Challenge memory _challenge) public {
+        bytes32 challengedCheckpointId = getCheckpointId(_challenge.challengedCheckpoint);
+        bytes32 challengingCheckpointId = getCheckpointId(_challenge.challengingCheckpoint);
+        bytes32 challengeId = getChallengeId(_challenge);
+        // Verify that the challenge may be added
+        require(exitExists(challengingCheckpointId), "Challenging exit must exist");
+        require(checkpointExists(challengedCheckpointId), "Challenged checkpoint must exist");
+        require(intersects(_challenge.challengedCheckpoint.subrange, _challenge.challengingCheckpoint.subrange), "Challenge ranges must intersect");
+        require(_challenge.challengingCheckpoint.stateUpdate.plasmaBlockNumber < _challenge.challengedCheckpoint.stateUpdate.plasmaBlockNumber, "Challenging cp after challenged cp");
+        require(challenges[challengeId] != true, "Challenge must not already exist");
+        require(checkpoints[challengedCheckpointId].challengeableUntil > block.number, "Checkpoint must still be challengable");
+        // Add the challenge
+        checkpoints[challengedCheckpointId].outstandingChallenges += 1;
+        challenges[challengeId] = true;
+    }
+
+    function removeChallenge(Challenge memory _challenge) public {
+        bytes32 challengedCheckpointId = getCheckpointId(_challenge.challengedCheckpoint);
+        bytes32 challengingCheckpointId = getCheckpointId(_challenge.challengingCheckpoint);
+        bytes32 challengeId = getChallengeId(_challenge);
+        // Verify that the challenge may be added
+        require(challenges[challengeId] == true, "Challenge must exist");
+        require(!exitExists(challengingCheckpointId), "Challenging exit must no longer exist");
+        // Remove the challenge
+        challenges[challengeId] = false;
+        checkpoints[challengedCheckpointId].outstandingChallenges -= 1;
+    }
+
     /* 
     * Helpers
     */ 
     function getCheckpointId(dt.Checkpoint memory _checkpoint) private pure returns (bytes32) {
         return keccak256(abi.encode(_checkpoint.stateUpdate, _checkpoint.subrange));
+    }
+
+    function getChallengeId(Challenge memory _challenge) private pure returns (bytes32) {
+        return keccak256(abi.encode(_challenge));
     }
 
     function getLatestPlasmaBlockNumber() private returns (uint256) {
@@ -228,5 +269,13 @@ contract Deposit {
 
     function intersects(dt.Range memory _range1, dt.Range memory _range2) public pure returns (bool) {
         return Math.max(_range1.start, _range2.start) < Math.min(_range1.end, _range2.end);
+    }
+
+    function checkpointExists(bytes32 checkpointId) public view returns (bool) {
+        return checkpoints[checkpointId].challengeableUntil != 0 || checkpoints[checkpointId].outstandingChallenges != 0;
+    }
+
+    function exitExists(bytes32 checkpointId) public view returns (bool) {
+        return exitRedeemableAfter[checkpointId] != 0;
     }
 }
