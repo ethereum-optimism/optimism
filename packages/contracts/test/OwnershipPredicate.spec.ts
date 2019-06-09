@@ -6,6 +6,7 @@ import BigNum = require('bn.js')
 import {createMockProvider, deployContract, getWallets, solidity} from 'ethereum-waffle';
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
 import * as Deposit from '../build/Deposit.json'
+import * as Commitment from '../build/Commitment.json'
 import * as OwnershipPredicate from '../build/OwnershipPredicate.json'
 
 /* Logging */
@@ -21,10 +22,12 @@ describe('OwnershipPredicate', () => {
   let ownershipPredicate
   let token
   let depositContract
+  let commitmentContract
 
   beforeEach(async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
-    depositContract = await deployContract(wallet, Deposit, [token.address])
+    commitmentContract = await deployContract(wallet, Commitment, [])
+    depositContract = await deployContract(wallet, Deposit, [token.address, commitmentContract.address])
     ownershipPredicate = await deployContract(wallet, OwnershipPredicate, [depositContract.address])
   })
 

@@ -7,6 +7,7 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
 import {DataTypes as dt} from "./DataTypes.sol";
+import {Commitment} from "./Commitment.sol";
 
 /**
  * @title Deposit
@@ -21,6 +22,11 @@ contract Deposit {
     }
 
     /*** Events ***/
+    event CheckpointStarted(
+        dt.Checkpoint checkpoint,
+        uint256 challengeableUntil
+    );
+
     event CheckpointFinalized(
         bytes32 checkpoint
     );
@@ -40,6 +46,7 @@ contract Deposit {
 
     /*** Public ***/
     ERC20 public erc20;
+    Commitment public commitmentChain;
     uint256 public totalDeposited;
     mapping (bytes32 => CheckpointStatus) public checkpoints;
     mapping (bytes32 => uint256) public exitRedeemableAfter; // the uint256 when it is "redeemableAfter"
@@ -47,16 +54,17 @@ contract Deposit {
 
     /*** Public Constants ***/
     // TODO - Set defaults
-    address public constant COMMITMENT_ADDRESS = 0x99EF1a332003a2c93a9f228fd7966CECDE344bcC;
     uint256 public constant CHALLENGE_PERIOD = 10;
     uint256 public constant EXIT_PERIOD = 20;
 
     /**
      * @dev Constructs a deposit contract with a specified erc20 token
      * @param _erc20 TODO
+     * @param _commitmentChain TODO
      */
-    constructor(address _erc20) public {
+    constructor(address _erc20, address _commitmentChain) public {
         erc20 = ERC20(_erc20);
+        commitmentChain = Commitment(_commitmentChain);
     }
 
     /**
@@ -146,7 +154,15 @@ contract Deposit {
         bytes memory _inclusionProof,
         uint256 _depositedRangeId
     ) public {
-        // TODO
+        bytes32 checkpointId = getCheckpointId(_checkpoint);
+        require(commitmentChain.verifyInclusion(_checkpoint.stateUpdate, _inclusionProof), "Checkpoint must be included");
+        require(isSubrange(_checkpoint.subrange, _checkpoint.stateUpdate.range), "Checkpoint must be on a subrange of the StateUpdate");
+        require(isSubrange(_checkpoint.subrange, depositedRanges[_depositedRangeId]), "Checkpoint subrange must be on a depositedRange");
+        require(checkpoints[checkpointId].challengeableUntil == 0, "Checkpoint must not have already been started");
+        require(checkpoints[checkpointId].outstandingChallenges == 0, "Checkpoint must not have already been started");
+        // Create a new checkpoint
+        checkpoints[checkpointId] = CheckpointStatus(block.number + CHALLENGE_PERIOD, 0);
+        emit CheckpointStarted(_checkpoint, checkpoints[checkpointId].challengeableUntil);
     }
 
     function startExit(dt.Checkpoint memory _checkpoint) public {

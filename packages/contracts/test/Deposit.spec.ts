@@ -7,6 +7,7 @@ import BigNum = require('bn.js')
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle';
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
 import * as Deposit from '../build/Deposit.json'
+import * as Commitment from '../build/Commitment.json'
 import * as OwnershipPredicate from '../build/OwnershipPredicate.json'
 
 /* Logging */
@@ -24,11 +25,13 @@ describe('Deposit with Ownership', () => {
   const [wallet, walletTo] = getWallets(provider)
   let token
   let depositContract
+  let commitmentContract
   let ownershipPredicate
 
   beforeEach(async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
-    depositContract = await deployContract(wallet, Deposit, [token.address])
+    commitmentContract = await deployContract(wallet, Commitment, [])
+    depositContract = await deployContract(wallet, Deposit, [token.address, commitmentContract.address])
     ownershipPredicate = await deployContract(wallet, OwnershipPredicate, [depositContract.address])
   });
 
@@ -69,6 +72,30 @@ describe('Deposit with Ownership', () => {
         },
         subrange: depositRange
       }, 100)
+    })
+  })
+
+  describe('startCheckpoint', () => {
+    it('should create a checkpoint which can be exited without throwing', async () => {
+      // Deposit some money into the ownership predicate
+      await token.approve(depositContract.address, 500)
+      const depositData = abi.encode(['address'], [wallet.address])
+      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      await depositContract.deposit(100, depositStateObject)
+      // Attempt to start a checkpoint on a stateUpdate
+      const stateUpdateRange = { start: hexStringify(new BigNum(10)), end: hexStringify(new BigNum(20)) }
+      const checkpoint = {
+        stateUpdate: {
+          range: stateUpdateRange,
+          stateObject: depositStateObject,
+          depositAddress: depositContract.address,
+          plasmaBlockNumber: 10
+        },
+        subrange: stateUpdateRange
+      }
+      await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
+      await ownershipPredicate.startExit(checkpoint)
+      // should not throw
     })
   })
 
