@@ -54,4 +54,9 @@ contract OwnershipPredicate {
         Deposit depositContract = Deposit(_checkpoint.stateUpdate.depositAddress);
         depositContract.startExit(_checkpoint);
     }
+
+    function finalizeExit(dt.Checkpoint memory _exit, uint256 depositedRangeId) public {
+        Deposit depositContract = Deposit(_exit.stateUpdate.depositAddress);
+        depositContract.finalizeExit(_exit, depositedRangeId);
+    }
 }

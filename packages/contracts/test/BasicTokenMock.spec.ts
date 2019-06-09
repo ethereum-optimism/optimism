@@ -5,7 +5,7 @@ import * as BasicTokenMock from '../build/BasicTokenMock.json';
 chai.use(solidity);
 const {expect} = chai;
 
-describe('INTEGRATION: Example', () => {
+describe('Basic ERC20 Token', () => {
   const provider = createMockProvider();
   const [wallet, walletTo] = getWallets(provider);
   let token;
