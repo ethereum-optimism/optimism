@@ -2,8 +2,8 @@
 import Web3 from 'web3'
 
 /* Internal Imports */
-import { EthProvider, FullEventFilter } from './interfaces'
-import { EventLog } from '../models'
+import { EthProvider, FullEventFilter, EventLog } from './interfaces'
+import { DefaultEventLog } from './models'
 
 
 /**
@@ -45,7 +45,7 @@ export class DefaultEthProvider implements EthProvider {
       toBlock: filter.toBlock,
     } as any)
     return events.map((event) => {
-      return new EventLog(event)
+      return new DefaultEventLog(event)
     })
   }
 }

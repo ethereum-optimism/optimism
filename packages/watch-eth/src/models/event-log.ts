@@ -1,12 +1,12 @@
 /* Internal Imports */
 import { hash } from '../utils'
-import { EventLogData } from '../interfaces'
+import { EventLog, EventLogData } from '../interfaces'
 
 
 /**
  * Represents a single event log.
  */
-export class EventLog {
+export class DefaultEventLog implements EventLog {
   public data: EventLogData
 
   constructor(data: EventLogData) {
@@ -16,7 +16,7 @@ export class EventLog {
   /**
    * Returns a unique hash for this event log.
    */
-  get hash(): string {
+  getHash(): string {
     return hash(this.data.transactionHash + this.data.logIndex)
   }
 }

@@ -1,5 +1,6 @@
 /* Internal Imports */
-import { EventFilterOptions } from './event-filter'
+import { EventFilterOptions } from './event-filter-options.interface'
+import { EventLog } from './event-log.interface'
 
 export interface FullEventFilter extends EventFilterOptions {
   address: string

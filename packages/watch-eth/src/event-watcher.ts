@@ -5,8 +5,8 @@ const Web3 = require('web3') // tslint:disable-line
 
 /* Internal Imports */
 import { sleep } from './utils'
-import { EventFilter, EventLog } from './models'
-import { EventDB, EthProvider } from './interfaces'
+import { EventFilter, DefaultEventLog } from './models'
+import { EventDB, EthProvider, EventFilterOptions, EventLog } from './interfaces'
 import { DefaultEventDB } from './event-db'
 import { DefaultEthProvider } from './eth-provider'
 
@@ -36,8 +36,8 @@ const defaultOptions = {
  */
 export class EventWatcher extends EventEmitter {
   private options: EventWatcherOptions
-  private eth: BaseEthProvider
-  private db: BaseEventDB
+  private eth: EthProvider
+  private db: EventDB
   private polling = false
   private subscriptions: { [key: string]: EventSubscription } = {}
 
@@ -238,7 +238,7 @@ export class EventWatcher extends EventEmitter {
       return (
         index ===
         self.findIndex((e) => {
-          return e.hash === event.hash
+          return e.getHash() === event.getHash()
         })
       )
     })
@@ -246,7 +246,7 @@ export class EventWatcher extends EventEmitter {
     // Filter out events we've already seen.
     const isUnique = await Promise.all(
       events.map(async (event) => {
-        return !(await this.db.getEventSeen(event.hash))
+        return !(await this.db.getEventSeen(event.getHash()))
       })
     )
     return events.filter((_, i) => isUnique[i])
@@ -268,7 +268,7 @@ export class EventWatcher extends EventEmitter {
 
     // Mark these events as seen.
     for (const event of events) {
-      await this.db.setEventSeen(event.hash)
+      await this.db.setEventSeen(event.getHash())
     }
 
     // Alert any listeners.
