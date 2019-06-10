@@ -841,6 +841,11 @@
     universal-user-agent "^2.0.0"
     url-template "^2.0.8"
 
+"@pigi/core@^0.0.1-alpha.1":
+  version "0.0.1-alpha.1"
+  resolved "https://registry.yarnpkg.com/@pigi/core/-/core-0.0.1-alpha.1.tgz#09afa39eedd6d988a8a24173c4f01a060c8d1e3b"
+  integrity sha512-OggIZxHB5ZApeT3s14GIiqzZolzA+8UVk2Y1J0sRDyPW55G+Bc+OzcmXGhQeKLHslT54K1Y5DhW+YyrE9z/utg==
+
 "@resolver-engine/core@^0.3.0":
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@resolver-engine/core/-/core-0.3.0.tgz#8d0e254ab0a73ed60f1bdd4e89d1aa081e8ecf11"
@@ -1057,7 +1062,7 @@ abstract-leveldown@^5.0.0, abstract-leveldown@~5.0.0:
   dependencies:
     xtend "~4.0.0"
 
-abstract-leveldown@^6.0.0, abstract-leveldown@~6.0.0, abstract-leveldown@~6.0.1, abstract-leveldown@~6.0.3:
+abstract-leveldown@^6.0.0, abstract-leveldown@^6.0.3, abstract-leveldown@~6.0.0, abstract-leveldown@~6.0.1, abstract-leveldown@~6.0.3:
   version "6.0.3"
   resolved "https://registry.yarnpkg.com/abstract-leveldown/-/abstract-leveldown-6.0.3.tgz#b4b6159343c74b0c5197b2817854782d8f748c4a"
   integrity sha512-jzewKKpZbaYUa6HTThnrl+GrJhzjEAeuc7hTVpZdzg7kupXZFoqQDFwyOwLNbmJKJlmzw8yiipMPkDiuKkT06Q==
@@ -7575,7 +7580,7 @@ retry@^0.10.0:
   resolved "https://registry.yarnpkg.com/retry/-/retry-0.10.1.tgz#e76388d217992c252750241d3d3956fed98d8ff4"
   integrity sha1-52OI0heZLCUnUCQdPTlW/tmNj/Q=
 
-rimraf@2, rimraf@^2.2.8, rimraf@^2.5.4, rimraf@^2.6.2:
+rimraf@2, rimraf@^2.2.8, rimraf@^2.5.4, rimraf@^2.6.2, rimraf@^2.6.3:
   version "2.6.3"
   resolved "https://registry.yarnpkg.com/rimraf/-/rimraf-2.6.3.tgz#b2d104fe0d8fb27cf9e0a1cda8262dd3833c6cab"
   integrity sha512-mwqeW5XsA2qAejG46gYdENaxXjx9onRNCfn7L0duuP4hCuTIi/QO7PDK07KJfp1d+izWPrzEJDcSqBa0OZQriA==

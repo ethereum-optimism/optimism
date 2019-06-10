@@ -1,13 +1,15 @@
 /* External Imports */
 import level from 'level'
 import BigNum = require('bn.js')
-import {
-  Batch
-} from '@pigi/core'
+import { Batch } from '@pigi/core'
 
 /* Internal Imports */
 import { itNext, itEnd, bufferUtils } from '../utils'
-import { RangeStore, RangeEntry, Endianness } from '../../interfaces/db/range-db.interface'
+import {
+  RangeStore,
+  RangeEntry,
+  Endianness,
+} from '../../interfaces/db/range-db.interface'
 
 /* Logging */
 import debug from 'debug'
@@ -17,7 +19,6 @@ const log = debug('info:range-db')
  * A RangeStore which uses Level as a backend.
  */
 export class LevelRangeStore implements RangeStore {
-
   /**
    * Creates the LevelRangeStore.
    * @param db Pointer to the Level instance to be used.
@@ -25,11 +26,11 @@ export class LevelRangeStore implements RangeStore {
    * @param keyLength The number of bytes which should be used for the range keys.
    * @param endianness The endianness of the range keys.
    */
-  constructor (
+  constructor(
     readonly db: level,
     readonly prefix: Buffer,
-    readonly keyLength: number=16,
-    readonly endianness: Endianness='be'
+    readonly keyLength: number = 16,
+    readonly endianness: Endianness = 'be'
   ) {}
 
   /**
@@ -50,7 +51,10 @@ export class LevelRangeStore implements RangeStore {
    * @returns resulting concatenation of the start key & input value
    */
   private addStartToValue(start: BigNum, value: Buffer): Buffer {
-    return Buffer.concat([start.toBuffer(this.endianness, this.keyLength), value])
+    return Buffer.concat([
+      start.toBuffer(this.endianness, this.keyLength),
+      value,
+    ])
   }
 
   /**
@@ -121,7 +125,12 @@ export class LevelRangeStore implements RangeStore {
    * @param end2 The end of the second range.
    * @returns true if max(start1, start2) < min(end1, end2), false otherwise.
    */
-  private intersects(start1: Buffer, end1: Buffer, start2: Buffer, end2: Buffer): boolean {
+  private intersects(
+    start1: Buffer,
+    end1: Buffer,
+    start2: Buffer,
+    end2: Buffer
+  ): boolean {
     const maxStart = bufferUtils.max(start1, start2)
     const minEnd = bufferUtils.min(end1, end2)
     return bufferUtils.lt(maxStart, minEnd)
@@ -137,7 +146,7 @@ export class LevelRangeStore implements RangeStore {
     return {
       start: new BigNum(this.getStartFromValue(result.value)),
       end: new BigNum(result.key.slice(this.prefix.length)),
-      value: this.getDataFromValue(result.value)
+      value: this.getDataFromValue(result.value),
     }
   }
 
@@ -148,17 +157,20 @@ export class LevelRangeStore implements RangeStore {
    * @param end The end of the range which we want deletion batch operations for.
    * @returns an object which contains both the ranges we queried & the batch deletion operations.
    */
-  private async delBatchOps(start: BigNum, end: BigNum): Promise<{ranges: RangeEntry[]; batchOps: Batch[]}> {
+  private async delBatchOps(
+    start: BigNum,
+    end: BigNum
+  ): Promise<{ ranges: RangeEntry[]; batchOps: Batch[] }> {
     this.validateRange(start, end)
     const ranges = await this.get(start, end)
     const batchOps = []
     for (const range of ranges) {
       batchOps.push({
         type: 'del',
-        key: this.bnToKey(range.end)
+        key: this.bnToKey(range.end),
       })
     }
-    return {ranges, batchOps}
+    return { ranges, batchOps }
   }
 
   /**
@@ -171,11 +183,18 @@ export class LevelRangeStore implements RangeStore {
    */
   public async put(start: BigNum, end: BigNum, value: Buffer): Promise<void> {
     this.validateRange(start, end)
-    log('Putting range: [', start.toString(16), ',', end.toString(16), ') with value:', value)
+    log(
+      'Putting range: [',
+      start.toString(16),
+      ',',
+      end.toString(16),
+      ') with value:',
+      value
+    )
 
     // Step #1: get all overlapping ranges and queue them for deletion
     //
-    const {ranges, batchOps} = await this.delBatchOps(start, end)
+    const { ranges, batchOps } = await this.delBatchOps(start, end)
 
     // Step #2: Add back ranges which are split
     //
@@ -185,7 +204,7 @@ export class LevelRangeStore implements RangeStore {
       batchOps.push({
         type: 'put',
         key: this.bnToKey(start),
-        value: this.addStartToValue(ranges[0].start, ranges[0].value)
+        value: this.addStartToValue(ranges[0].start, ranges[0].value),
       })
     }
     // If the end position less than the last range's end...
@@ -193,7 +212,7 @@ export class LevelRangeStore implements RangeStore {
       batchOps.push({
         type: 'put',
         key: this.bnToKey(ranges[ranges.length - 1].end),
-        value: this.addStartToValue(end, ranges[ranges.length - 1].value)
+        value: this.addStartToValue(end, ranges[ranges.length - 1].value),
       })
     }
 
@@ -202,7 +221,7 @@ export class LevelRangeStore implements RangeStore {
     batchOps.push({
       type: 'put',
       key: this.bnToKey(end),
-      value: this.addStartToValue(start, value)
+      value: this.addStartToValue(start, value),
     })
 
     // Step #4: Execute the batch!
@@ -218,7 +237,7 @@ export class LevelRangeStore implements RangeStore {
    */
   public async del(start: BigNum, end: BigNum): Promise<RangeEntry[]> {
     // Delete all overlapping ranges and return the values which have been deleted
-    const {ranges, batchOps} = await this.delBatchOps(start, end)
+    const { ranges, batchOps } = await this.delBatchOps(start, end)
     await this.db.batch(batchOps)
     return ranges
   }
@@ -235,7 +254,7 @@ export class LevelRangeStore implements RangeStore {
     // Seek to the beginning
     const it = this.db.iterator({
       gt: this.bnToKey(start),
-      keyAsBuffer: true
+      keyAsBuffer: true,
     })
     const ranges = []
     let result = await itNext(it)
@@ -249,13 +268,16 @@ export class LevelRangeStore implements RangeStore {
     const queryEnd = this.bnToKey(end)
     let resultStart = this.addPrefix(this.getStartFromValue(result.value))
     let resultEnd = result.key
-    while (this.intersects(queryStart, queryEnd, resultStart, resultEnd) && this.isCorrectPrefix(result.key)) {
+    while (
+      this.intersects(queryStart, queryEnd, resultStart, resultEnd) &&
+      this.isCorrectPrefix(result.key)
+    ) {
       // If the query & result intersect, add it to our ranges array
       ranges.push(this.resultToRange(result))
       // Get the next result
       result = await itNext(it)
       // Make sure the result returned a value
-      if (typeof(result.key) === 'undefined') {
+      if (typeof result.key === 'undefined') {
         break
       }
       // Format the result start & end as buffers with the correct prefix

@@ -1,5 +1,5 @@
 // Promisify the it.next(cb) function
-export const itNext = (it): Promise<{ key: Buffer, value: Buffer }> => {
+export const itNext = (it): Promise<{ key: Buffer; value: Buffer }> => {
   return new Promise((resolve, reject) => {
     it.next((err, key, value) => {
       if (err) {
@@ -69,7 +69,7 @@ const gte = (buf1: Buffer, buf2: Buffer): boolean => {
  * @returns Buffer the larger Buffer
  */
 const max = (buf1: Buffer, buf2: Buffer): Buffer => {
-  return (gte(buf1, buf2)) ? buf1 : buf2
+  return gte(buf1, buf2) ? buf1 : buf2
 }
 
 /**
@@ -79,12 +79,17 @@ const max = (buf1: Buffer, buf2: Buffer): Buffer => {
  * @returns Buffer the smaller Buffer
  */
 const min = (buf1: Buffer, buf2: Buffer): Buffer => {
-  return (lte(buf1, buf2)) ? buf1 : buf2
+  return lte(buf1, buf2) ? buf1 : buf2
 }
 
 /**
  * A collection of useful utilities for comparing buffers.
  */
 export const bufferUtils = {
-  lt, lte, gt, gte, max, min
+  lt,
+  lte,
+  gt,
+  gte,
+  max,
+  min,
 }

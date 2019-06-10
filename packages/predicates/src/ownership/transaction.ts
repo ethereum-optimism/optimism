@@ -1,6 +1,15 @@
 /* External Imports */
 import BigNum = require('bn.js')
-import { Transaction, Range, AbiStateObject, EcdsaSignature, AbiEncodable, abi, keccak256, hexStringify } from '@pigi/utils'
+import {
+  Transaction,
+  Range,
+  AbiStateObject,
+  EcdsaSignature,
+  AbiEncodable,
+  abi,
+  keccak256,
+  hexStringify,
+} from '@pigi/utils'
 
 /**
  * Creates a Transaction from an encoded Transaction.
@@ -12,7 +21,10 @@ const fromEncoded = (encoded: string): OwnershipTransaction => {
   return new OwnershipTransaction(
     decoded[0],
     parseInt(decoded[1].toString(), 10),
-    { start: new BigNum(decoded[2].toString()), end: new BigNum(decoded[3].toString()) },
+    {
+      start: new BigNum(decoded[2].toString()),
+      end: new BigNum(decoded[3].toString()),
+    },
     decoded[4],
     { newStateObject: AbiStateObject.from(decoded[5]) },
     { v: decoded[6], r: decoded[7], s: decoded[8] }
@@ -23,7 +35,17 @@ const fromEncoded = (encoded: string): OwnershipTransaction => {
  * Represents an Ownership transaction
  */
 export class OwnershipTransaction implements Transaction, AbiEncodable {
-  public static abiTypes = ['address', 'uint64', 'uint128', 'uint128', 'bytes1', 'bytes', 'bytes32', 'bytes32', 'bytes1']
+  public static abiTypes = [
+    'address',
+    'uint64',
+    'uint128',
+    'uint128',
+    'bytes1',
+    'bytes',
+    'bytes32',
+    'bytes32',
+    'bytes1',
+  ]
 
   constructor(
     readonly plasmaContract: string,

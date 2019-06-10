@@ -2,7 +2,6 @@
 import { hash } from '../utils'
 import { EventFilterOptions } from '../interfaces'
 
-
 /**
  * Represents an event filter.
  */

@@ -6,10 +6,14 @@ const Web3 = require('web3') // tslint:disable-line
 /* Internal Imports */
 import { sleep } from './utils'
 import { EventFilter, DefaultEventLog } from './models'
-import { EventDB, EthProvider, EventFilterOptions, EventLog } from './interfaces'
+import {
+  EventDB,
+  EthProvider,
+  EventFilterOptions,
+  EventLog,
+} from './interfaces'
 import { DefaultEventDB } from './event-db'
 import { DefaultEthProvider } from './eth-provider'
-
 
 export interface EventSubscription {
   filter: EventFilter

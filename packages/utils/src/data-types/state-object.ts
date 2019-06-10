@@ -9,10 +9,7 @@ import { StateObject, AbiEncodable } from '../interfaces/data-types'
  */
 const fromEncoded = (encoded: string): AbiStateObject => {
   const decoded = abi.decode(AbiStateObject.abiTypes, encoded)
-  return new AbiStateObject(
-    decoded[0],
-    decoded[1]
-  )
+  return new AbiStateObject(decoded[0], decoded[1])
 }
 
 /**
@@ -21,10 +18,7 @@ const fromEncoded = (encoded: string): AbiStateObject => {
 export class AbiStateObject implements StateObject, AbiEncodable {
   public static abiTypes = ['address', 'bytes']
 
-  constructor(
-    readonly predicateAddress: string,
-    readonly data: string,
-  ) {}
+  constructor(readonly predicateAddress: string, readonly data: string) {}
 
   /**
    * @returns the abi encoded StateObject.
@@ -32,7 +26,7 @@ export class AbiStateObject implements StateObject, AbiEncodable {
   get encoded(): string {
     return abi.encode(AbiStateObject.abiTypes, [
       this.predicateAddress,
-      this.data
+      this.data,
     ])
   }
 
