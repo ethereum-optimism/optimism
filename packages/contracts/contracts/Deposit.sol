@@ -7,7 +7,7 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
 import {DataTypes as dt} from "./DataTypes.sol";
-import {Commitment} from "./Commitment.sol";
+import {CommitmentChain} from "./Commitment.sol";
 
 /**
  * @title Deposit
@@ -55,7 +55,7 @@ contract Deposit {
 
     /*** Public ***/
     ERC20 public erc20;
-    Commitment public commitmentChain;
+    CommitmentChain public commitmentChain;
     uint256 public totalDeposited;
     mapping (bytes32 => CheckpointStatus) public checkpoints;
     mapping (bytes32 => uint256) public exitRedeemableAfter;
@@ -74,7 +74,7 @@ contract Deposit {
      */
     constructor(address _erc20, address _commitmentChain) public {
         erc20 = ERC20(_erc20);
-        commitmentChain = Commitment(_commitmentChain);
+        commitmentChain = CommitmentChain(_commitmentChain);
     }
 
     /**
