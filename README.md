@@ -19,7 +19,7 @@ All of the core plasma group projects are hosted inside of the [packages](https:
 | [`@pigi/vyper-js`](/packages/vyper-js)                              | [![npm](https://img.shields.io/npm/v/@pigi/vyper-js.svg)](https://www.npmjs.com/package/@pigi/vyper-js)                                     | JavaScript bindings for the Vyper compiler.                                                   |
 
 ## Repo Status
-[![Build Status](https://travis-ci.org/plasma-group/pigi.svg?branch=master)](https://travis-ci.org/plasma-group/pigi)
+[![Build Status](https://travis-ci.org/plasma-group/pigi.svg?branch=master)](https://travis-ci.org/plasma-group/pigi) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/a822ee0425164be586235be45100f7d6)](https://www.codacy.com/app/kfichter/pigi?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=plasma-group/pigi&amp;utm_campaign=Badge_Grade)
 
 ## Contributing
 Welcome! If you're looking to contribute to the future of plasma, you're in the right place.
