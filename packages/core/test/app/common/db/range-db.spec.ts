@@ -1,16 +1,15 @@
-import { dbRootPath } from '../setup'
-
-import { KeyValueStore } from '@pigi/core'
-
 /* External Imports */
 import debug from 'debug'
-const log = debug('test:info:range-db')
 import level = require('level')
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { LevelRangeStore } from '../../src/app/db/range-db'
-import { RangeEntry } from '../../src/interfaces/db/range-db.interface'
+import { dbRootPath } from '../../../setup'
+import { KeyValueStore } from '../../../../src/interfaces'
+import { LevelRangeStore } from '../../../../src/app/common/db/range-db'
+import { RangeEntry } from '../../../../src/interfaces/common/db/range-db.interface'
+
+const log = debug('test:info:range-db')
 
 const addDefaultRangesToDB = async (rangeDB) => {
   // Generate some ranges
