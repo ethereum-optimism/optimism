@@ -13,8 +13,8 @@ There are several easy ways to start using `plasma-utils`!
 ### Node.js
 If you're developing a `Node.js` application, you can simply install `plasma-utils` via `npm`:
 
-```
-$ npm install --save plasma-utils
+```sh
+npm install --save plasma-utils
 ```
 
 ### Browser
@@ -48,7 +48,7 @@ cd plasma-utils
 
 #### Node.js
 `plasma-utils` is tested and built with [`Node.js`](https://nodejs.org/en/).
-Although you **do not need [`Node.js`] to use this library in your application**, you'll need to install `Node.js` (and it's corresponding package manager, `npm`) for your system before contributing.
+Although you **do not need `Node.js` to use this library in your application**, you'll need to install `Node.js` (and it's corresponding package manager, `npm`) for your system before contributing.
 
 We've provided a [detailed explanation of now to install `Node.js`](https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js) on Windows, Mac, and Linux.
 

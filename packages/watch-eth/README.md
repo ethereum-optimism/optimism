@@ -7,7 +7,7 @@ It's therefore important that these applications have a way to watch for events 
 ### npm
 You can install `watch-eth` via `npm`:
 
-```
+```sh
 npm install --save watch-eth
 ```
 
