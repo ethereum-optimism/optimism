@@ -6,8 +6,8 @@ import "openzeppelin-solidity/contracts/math/Math.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
-import {DataTypes as dt} from "./DataTypes.sol";
-import {Commitment} from "./Commitment.sol";
+import {DataTypes as types} from "./DataTypes.sol";
+import {CommitmentChain} from "./Commitment.sol";
 
 /**
  * @title Deposit
@@ -22,13 +22,13 @@ contract Deposit {
     }
 
     struct Challenge {
-        dt.Checkpoint challengedCheckpoint;
-        dt.Checkpoint challengingCheckpoint;
+        types.Checkpoint challengedCheckpoint;
+        types.Checkpoint challengingCheckpoint;
     }
 
     /*** Events ***/
     event CheckpointStarted(
-        dt.Checkpoint checkpoint,
+        types.Checkpoint checkpoint,
         uint256 challengeableUntil
     );
 
@@ -37,7 +37,7 @@ contract Deposit {
     );
 
     event LogCheckpoint(
-        dt.Checkpoint checkpoint
+        types.Checkpoint checkpoint
     );
 
     event ExitStarted(
@@ -55,11 +55,11 @@ contract Deposit {
 
     /*** Public ***/
     ERC20 public erc20;
-    Commitment public commitmentChain;
+    CommitmentChain public commitmentChain;
     uint256 public totalDeposited;
     mapping (bytes32 => CheckpointStatus) public checkpoints;
     mapping (bytes32 => uint256) public exitRedeemableAfter;
-    mapping (uint256 => dt.Range) public depositedRanges;
+    mapping (uint256 => types.Range) public depositedRanges;
     mapping (bytes32 => bool) public challenges;
 
     /*** Public Constants ***/
@@ -74,7 +74,7 @@ contract Deposit {
      */
     constructor(address _erc20, address _commitmentChain) public {
         erc20 = ERC20(_erc20);
-        commitmentChain = Commitment(_commitmentChain);
+        commitmentChain = CommitmentChain(_commitmentChain);
     }
 
     /**
@@ -82,25 +82,25 @@ contract Deposit {
      * @param _amount TODO
      * @param _initialState  TODO
      */
-    function deposit(uint256 _amount, dt.StateObject memory _initialState) public {
+    function deposit(uint256 _amount, types.StateObject memory _initialState) public {
         // Transfer tokens to the deposit contract
         erc20.transferFrom(msg.sender, address(this), _amount);
         // Create the Range, StateUpdate & Checkpoint
-        dt.Range memory depositRange = dt.Range({start:totalDeposited, end: totalDeposited + _amount });
-        dt.StateUpdate memory stateUpdate = dt.StateUpdate({
+        types.Range memory depositRange = types.Range({start:totalDeposited, end: totalDeposited + _amount });
+        types.StateUpdate memory stateUpdate = types.StateUpdate({
             range: depositRange, stateObject: _initialState, 
             depositAddress: address(this), plasmaBlockNumber: getLatestPlasmaBlockNumber() 
         });
-        dt.Checkpoint memory checkpoint = dt.Checkpoint({
+        types.Checkpoint memory checkpoint = types.Checkpoint({
             stateUpdate: stateUpdate,
             subrange: depositRange
         });
         // Extend depositedRanges & increment totalDeposits
         extendDepositedRanges(_amount);
-        // Calculate the checkpointId and add it to our finalized checkpoints
+        // Calculate the checkpointId and add it checkpoints "pre-finalzed"
         bytes32 checkpointId = getCheckpointId(checkpoint);
         CheckpointStatus memory status = CheckpointStatus(
-            {challengeableUntil: block.number + CHALLENGE_PERIOD, outstandingChallenges: 0});
+            {challengeableUntil: block.number - 1, outstandingChallenges: 0});
         checkpoints[checkpointId] = status;
         // Emit an event which informs us that the checkpoint was finalized
         emit CheckpointFinalized(checkpointId);
@@ -110,7 +110,6 @@ contract Deposit {
     function extendDepositedRanges(uint256 _amount) public {
         uint256 oldStart = depositedRanges[totalDeposited].start;
         uint256 oldEnd = depositedRanges[totalDeposited].end;
-        dt.Range memory newRange;
         // Set the newStart for the last range
         uint256 newStart;
         if (oldStart == 0 && oldEnd == 0) {
@@ -123,23 +122,23 @@ contract Deposit {
         }
         // Set the newEnd to the totalDeposited plus how much was deposited
         uint256 newEnd = totalDeposited + _amount;
-        // Finally create the range!
-        newRange = dt.Range(newStart, newEnd);
-        // Store the result
-        depositedRanges[newRange.end] = newRange;
+        // Finally create and store the range!
+        depositedRanges[newEnd] = types.Range(newStart, newEnd);
         // Increment total deposited now that we've extended our depositedRanges
         totalDeposited += _amount;
     }
 
-    function removeDepositedRange(dt.Range memory range, uint256 depositedRangeId) public {
-        dt.Range memory encompasingRange = depositedRanges[depositedRangeId];
+    // This function is called when an exit is finalized to "burn" it--so that checkpoints and exits 
+    // on the range cannot be made.  It is equivalent to the range having never been deposited.
+    function removeDepositedRange(types.Range memory range, uint256 depositedRangeId) public {
+        types.Range memory encompasingRange = depositedRanges[depositedRangeId];
 
         // Split the LEFT side
 
         // check if we we have a new deposited region to the left
         if (range.start != encompasingRange.start) {
             // new deposited range from the unexited old start until the newly exited start
-            dt.Range memory leftSplitRange = dt.Range(encompasingRange.start, range.start);
+            types.Range memory leftSplitRange = types.Range(encompasingRange.start, range.start);
             // Store the new deposited range
             depositedRanges[leftSplitRange.end] = leftSplitRange;
         }
@@ -149,7 +148,7 @@ contract Deposit {
         // 1) ##### -> $$$## -- check if we have leftovers to the right which are deposited
         if (range.end != encompasingRange.end) {
             // new deposited range from the newly exited end until the old unexited end
-            dt.Range memory rightSplitRange = dt.Range(range.end, encompasingRange.end);
+            types.Range memory rightSplitRange = types.Range(range.end, encompasingRange.end);
             // Store the new deposited range
             depositedRanges[rightSplitRange.end] = rightSplitRange;
             // We're done!
@@ -160,7 +159,7 @@ contract Deposit {
     }
 
     function startCheckpoint(
-        dt.Checkpoint memory _checkpoint,
+        types.Checkpoint memory _checkpoint,
         bytes memory _inclusionProof,
         uint256 _depositedRangeId
     ) public {
@@ -174,22 +173,21 @@ contract Deposit {
         emit CheckpointStarted(_checkpoint, checkpoints[checkpointId].challengeableUntil);
     }
 
-    function startExit(dt.Checkpoint memory _checkpoint) public {
+    function startExit(types.Checkpoint memory _checkpoint) public {
         bytes32 checkpointId = getCheckpointId(_checkpoint);
         // Verify this exit may be started
-        require(checkpoints[checkpointId].challengeableUntil != 0, "Checkpoint must exist in order to begin exit");
+        require(checkpointExists(checkpointId), "Checkpoint must exist in order to begin exit");
         require(exitRedeemableAfter[checkpointId] == 0, "There must not exist an exit on this checkpoint already");
         require(_checkpoint.stateUpdate.stateObject.predicateAddress == msg.sender, "Exit must be started by its predicate");
         exitRedeemableAfter[checkpointId] = block.number + EXIT_PERIOD;
         emit ExitStarted(checkpointId, exitRedeemableAfter[checkpointId]);
     }
 
-    function finalizeExit(dt.Checkpoint memory _exit, uint256 depositedRangeId) public {
+    function finalizeExit(types.Checkpoint memory _exit, uint256 depositedRangeId) public {
         bytes32 checkpointId = getCheckpointId(_exit);
         // Check that we are authorized to finalize this exit
         require(_exit.stateUpdate.stateObject.predicateAddress == msg.sender, "Exit must be finalized by its predicate");
-        require(checkpoints[checkpointId].outstandingChallenges == 0, "Checkpoint must have no outstanding challenges");
-        require(block.number > checkpoints[checkpointId].challengeableUntil, "Checkpoint must no longer be challengable");
+        require(checkpointFinalized(checkpointId), "Checkpoint must be finalized to finalize an exit");
         require(block.number > exitRedeemableAfter[checkpointId], "Exit must be redeemable after this block");
         require(isSubrange(_exit.subrange, depositedRanges[depositedRangeId]), "Exit must be of an deposited range (one that hasn't been exited)");
         // Remove the deposited range
@@ -204,19 +202,18 @@ contract Deposit {
         emit ExitFinalized(checkpointId);
     }
 
-    function deprecateExit(dt.Checkpoint memory _exit) public {
+    function deprecateExit(types.Checkpoint memory _exit) public {
         bytes32 checkpointId = getCheckpointId(_exit);
         require(_exit.stateUpdate.stateObject.predicateAddress == msg.sender, "Exit must be deprecated by its predicate");
         delete exitRedeemableAfter[checkpointId];
     }
 
-    function deleteOutdatedExit(dt.Checkpoint memory _exit, dt.Checkpoint memory _newerCheckpoint) public {
+    function deleteOutdatedExit(types.Checkpoint memory _exit, types.Checkpoint memory _newerCheckpoint) public {
         bytes32 outdatedExitId = getCheckpointId(_exit);
         bytes32 newerCheckpointId = getCheckpointId(_newerCheckpoint);
         require(intersects(_exit.subrange, _newerCheckpoint.subrange), "Exit and newer checkpoint must overlap");
         require(_exit.stateUpdate.plasmaBlockNumber < _newerCheckpoint.stateUpdate.plasmaBlockNumber, "Exit must be before a checkpoint");
-        require(checkpoints[newerCheckpointId].outstandingChallenges == 0, "Newer checkpoint must have no challenges");
-        require(checkpoints[newerCheckpointId].challengeableUntil < block.number, "Newer checkpoint must no longer be challengeable");
+        require(checkpointFinalized(newerCheckpointId), "Newer checkpoint must be finalized to delete an earlier exit");
         delete exitRedeemableAfter[outdatedExitId];
     }
 
@@ -229,7 +226,7 @@ contract Deposit {
         require(checkpointExists(challengedCheckpointId), "Challenged checkpoint must exist");
         require(intersects(_challenge.challengedCheckpoint.subrange, _challenge.challengingCheckpoint.subrange), "Challenge ranges must intersect");
         require(_challenge.challengingCheckpoint.stateUpdate.plasmaBlockNumber < _challenge.challengedCheckpoint.stateUpdate.plasmaBlockNumber, "Challenging cp after challenged cp");
-        require(challenges[challengeId] != true, "Challenge must not already exist");
+        require(!challenges[challengeId], "Challenge must not already exist");
         require(checkpoints[challengedCheckpointId].challengeableUntil > block.number, "Checkpoint must still be challengable");
         // Add the challenge
         checkpoints[challengedCheckpointId].outstandingChallenges += 1;
@@ -241,7 +238,7 @@ contract Deposit {
         bytes32 challengingCheckpointId = getCheckpointId(_challenge.challengingCheckpoint);
         bytes32 challengeId = getChallengeId(_challenge);
         // Verify that the challenge may be added
-        require(challenges[challengeId] == true, "Challenge must exist");
+        require(challenges[challengeId], "Challenge must exist");
         require(!exitExists(challengingCheckpointId), "Challenging exit must no longer exist");
         // Remove the challenge
         challenges[challengeId] = false;
@@ -251,7 +248,7 @@ contract Deposit {
     /* 
     * Helpers
     */ 
-    function getCheckpointId(dt.Checkpoint memory _checkpoint) private pure returns (bytes32) {
+    function getCheckpointId(types.Checkpoint memory _checkpoint) private pure returns (bytes32) {
         return keccak256(abi.encode(_checkpoint.stateUpdate, _checkpoint.subrange));
     }
 
@@ -263,16 +260,23 @@ contract Deposit {
         return 0;
     }
 
-    function isSubrange(dt.Range memory _subRange, dt.Range memory _surroundingRange) public pure returns (bool) {
+    function isSubrange(types.Range memory _subRange, types.Range memory _surroundingRange) public pure returns (bool) {
         return _subRange.start >= _surroundingRange.start && _subRange.end <= _surroundingRange.end;
     }
 
-    function intersects(dt.Range memory _range1, dt.Range memory _range2) public pure returns (bool) {
+    function intersects(types.Range memory _range1, types.Range memory _range2) public pure returns (bool) {
         return Math.max(_range1.start, _range2.start) < Math.min(_range1.end, _range2.end);
     }
 
     function checkpointExists(bytes32 checkpointId) public view returns (bool) {
         return checkpoints[checkpointId].challengeableUntil != 0 || checkpoints[checkpointId].outstandingChallenges != 0;
+    }
+
+    function checkpointFinalized(bytes32 checkpointId) public view returns (bool) {
+        // To be considered finalized, a checkpoint:
+        // - MUST have no outstanding challenges
+        // - MUST no longer be challengable
+        return checkpoints[checkpointId].outstandingChallenges == 0 && checkpoints[checkpointId].challengeableUntil < block.number;
     }
 
     function exitExists(bytes32 checkpointId) public view returns (bool) {
