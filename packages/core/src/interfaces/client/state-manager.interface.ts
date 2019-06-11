@@ -1,4 +1,6 @@
-import {HistoryProof, Range, StateQuery, StateQueryResult, StateUpdate, Transaction} from "@pigi/utils";
+import {StateUpdate, Transaction} from "../common/utils";
+import {Range} from "../../app/common/utils";
+
 
 export interface StateManager {
   /**

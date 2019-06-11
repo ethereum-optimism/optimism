@@ -1,17 +1,8 @@
-/* External Imports */
-import BigNum = require('bn.js')
-
 /* Internal Imports */
 import { bnMax, bnMin } from './misc'
+import {BlockRange, Range} from "../../../interfaces/common/utils";
 
-export interface Range {
-  start: BigNum
-  end: BigNum
-}
 
-export interface BlockRange extends Range {
-  block: BigNum
-}
 
 /**
  * RangeStore makes it easy to store ranges.
