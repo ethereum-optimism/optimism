@@ -9,7 +9,7 @@ import {
   RangeStore,
   RangeEntry,
   Endianness,
-} from '../../../interfaces/common/db/range-db.interface'
+} from '../../interfaces/db/range-db.interface'
 
 /* Logging */
 import debug from 'debug'
