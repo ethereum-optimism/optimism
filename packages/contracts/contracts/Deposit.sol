@@ -97,10 +97,10 @@ contract Deposit {
         });
         // Extend depositedRanges & increment totalDeposits
         extendDepositedRanges(_amount);
-        // Calculate the checkpointId and add it to our finalized checkpoints
+        // Calculate the checkpointId and add it checkpoints "pre-finalzed"
         bytes32 checkpointId = getCheckpointId(checkpoint);
         CheckpointStatus memory status = CheckpointStatus(
-            {challengeableUntil: block.number + CHALLENGE_PERIOD, outstandingChallenges: 0});
+            {challengeableUntil: block.number - 1, outstandingChallenges: 0});
         checkpoints[checkpointId] = status;
         // Emit an event which informs us that the checkpoint was finalized
         emit CheckpointFinalized(checkpointId);
