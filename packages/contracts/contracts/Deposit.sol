@@ -7,7 +7,7 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
 import {DataTypes as types} from "./DataTypes.sol";
-import {CommitmentChain} from "./Commitment.sol";
+import {CommitmentChain} from "./CommitmentChain.sol";
 
 /**
  * @title Deposit
