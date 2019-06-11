@@ -1,7 +1,6 @@
 /* Internal Imports */
 import { EventDB } from './interfaces'
 
-
 /**
  * Basic EventDB implementation.
  */

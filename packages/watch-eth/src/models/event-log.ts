@@ -2,7 +2,6 @@
 import { hash } from '../utils'
 import { EventLog, EventLogData } from '../interfaces'
 
-
 /**
  * Represents a single event log.
  */
@@ -16,7 +15,7 @@ export class DefaultEventLog implements EventLog {
   /**
    * Returns a unique hash for this event log.
    */
-  getHash(): string {
+  public getHash(): string {
     return hash(this.data.transactionHash + this.data.logIndex)
   }
 }

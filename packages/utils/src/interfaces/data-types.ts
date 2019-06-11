@@ -25,13 +25,13 @@ export interface Transaction {
 }
 
 export interface StateObject {
-  predicateAddress: string,
+  predicateAddress: string
   data: any
 }
 
 export interface StateUpdate {
-  stateObject: StateObject,
-  range: Range,
-  blockNumber: number,
+  stateObject: StateObject
+  range: Range
+  blockNumber: number
   plasmaContract: string
 }

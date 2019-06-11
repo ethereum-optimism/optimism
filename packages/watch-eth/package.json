@@ -9,7 +9,8 @@
   "scripts": {
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' 'src/**/*.ts'",
-    "build": "tsc -p ."
+    "build": "tsc -p .",
+    "clean": "rimraf build/"
   },
   "husky": {
     "hooks": {
@@ -46,6 +47,8 @@
     "tslint": "^5.13.1",
     "tslint-config-prettier": "^1.18.0",
     "tslint-plugin-prettier": "^2.0.1",
-    "typescript": "^3.3.3333"
+    "typescript": "^3.3.3333",
+    "rimraf": "^2.6.3",
+    "chai-as-promised": "^7.1.1"
   }
 }

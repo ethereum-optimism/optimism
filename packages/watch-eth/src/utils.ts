@@ -1,7 +1,6 @@
 /* External Imports */
 import crypto = require('crypto')
 
-
 /**
  * Creates a simple (not cryptographically secure) hash.
  * @param message Message to be hashed.

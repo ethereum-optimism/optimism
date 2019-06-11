@@ -1,18 +1,15 @@
 /* External Imports */
 import { AbstractOpenOptions } from 'abstract-leveldown'
 import BigNum = require('bn.js')
-import {
-  KeyValueStore,
-  V
-} from '@pigi/core'
+import { KeyValueStore, V } from '@pigi/core'
 import level from 'level'
 
 /**
  * Represents a range of values. Note start & end are big numbers!
  */
 export interface RangeEntry {
-  start: BigNum,
-  end: BigNum,
+  start: BigNum
+  end: BigNum
   value: V
 }
 

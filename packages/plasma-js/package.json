@@ -9,7 +9,8 @@
   "scripts": {
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p ."
+    "build": "tsc -p .",
+    "clean": "rimraf build/"
   },
   "keywords": [
     "plasma",
@@ -27,7 +28,8 @@
     "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@types/axios": "^0.14.0",
     "@types/uuid": "^3.4.4",
-    "typescript": "^3.3.3333"
+    "typescript": "^3.3.3333",
+    "rimraf": "^2.6.3"
   },
   "publishConfig": {
     "access": "public"

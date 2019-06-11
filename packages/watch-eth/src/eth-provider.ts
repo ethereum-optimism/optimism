@@ -5,7 +5,6 @@ import Web3 from 'web3'
 import { EthProvider, FullEventFilter, EventLog } from './interfaces'
 import { DefaultEventLog } from './models'
 
-
 /**
  * Basic EthProvider implementation.
  */

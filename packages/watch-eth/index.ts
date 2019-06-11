@@ -5,5 +5,5 @@ export {
   EthProvider,
   FullEventFilter,
   EventFilterOptions,
-  EventLog
+  EventLog,
 } from './src/interfaces'

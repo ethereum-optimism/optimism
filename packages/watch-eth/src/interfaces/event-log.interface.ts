@@ -1,4 +1,4 @@
-import {EventLogData} from "./event-log-data.interface";
+import { EventLogData } from './event-log-data.interface'
 
 export interface EventLog {
   data: EventLogData
