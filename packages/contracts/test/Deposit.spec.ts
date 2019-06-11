@@ -7,7 +7,7 @@ import BigNum = require('bn.js')
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle';
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
 import * as Deposit from '../build/Deposit.json'
-import * as Commitment from '../build/Commitment.json'
+import * as Commitment from '../build/CommitmentChain.json'
 import * as OwnershipPredicate from '../build/OwnershipPredicate.json'
 
 /* Logging */
