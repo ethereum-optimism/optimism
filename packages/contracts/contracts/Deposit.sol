@@ -110,7 +110,6 @@ contract Deposit {
     function extendDepositedRanges(uint256 _amount) public {
         uint256 oldStart = depositedRanges[totalDeposited].start;
         uint256 oldEnd = depositedRanges[totalDeposited].end;
-        types.Range memory newRange;
         // Set the newStart for the last range
         uint256 newStart;
         if (oldStart == 0 && oldEnd == 0) {
@@ -177,7 +176,7 @@ contract Deposit {
     function startExit(types.Checkpoint memory _checkpoint) public {
         bytes32 checkpointId = getCheckpointId(_checkpoint);
         // Verify this exit may be started
-        require(checkpoints[checkpointId].challengeableUntil != 0, "Checkpoint must exist in order to begin exit");
+        require(checkpointExists(checkpointId), "Checkpoint must exist in order to begin exit");
         require(exitRedeemableAfter[checkpointId] == 0, "There must not exist an exit on this checkpoint already");
         require(_checkpoint.stateUpdate.stateObject.predicateAddress == msg.sender, "Exit must be started by its predicate");
         exitRedeemableAfter[checkpointId] = block.number + EXIT_PERIOD;
@@ -188,8 +187,7 @@ contract Deposit {
         bytes32 checkpointId = getCheckpointId(_exit);
         // Check that we are authorized to finalize this exit
         require(_exit.stateUpdate.stateObject.predicateAddress == msg.sender, "Exit must be finalized by its predicate");
-        require(checkpoints[checkpointId].outstandingChallenges == 0, "Checkpoint must have no outstanding challenges");
-        require(block.number > checkpoints[checkpointId].challengeableUntil, "Checkpoint must no longer be challengable");
+        require(checkpointFinalized(checkpointId), "Checkpoint must be finalized to finalize an exit");
         require(block.number > exitRedeemableAfter[checkpointId], "Exit must be redeemable after this block");
         require(isSubrange(_exit.subrange, depositedRanges[depositedRangeId]), "Exit must be of an deposited range (one that hasn't been exited)");
         // Remove the deposited range
@@ -215,8 +213,7 @@ contract Deposit {
         bytes32 newerCheckpointId = getCheckpointId(_newerCheckpoint);
         require(intersects(_exit.subrange, _newerCheckpoint.subrange), "Exit and newer checkpoint must overlap");
         require(_exit.stateUpdate.plasmaBlockNumber < _newerCheckpoint.stateUpdate.plasmaBlockNumber, "Exit must be before a checkpoint");
-        require(checkpoints[newerCheckpointId].outstandingChallenges == 0, "Newer checkpoint must have no challenges");
-        require(checkpoints[newerCheckpointId].challengeableUntil < block.number, "Newer checkpoint must no longer be challengeable");
+        require(checkpointFinalized(newerCheckpointId), "Newer checkpoint must be finalized to delete an earlier exit");
         delete exitRedeemableAfter[outdatedExitId];
     }
 
@@ -273,6 +270,13 @@ contract Deposit {
 
     function checkpointExists(bytes32 checkpointId) public view returns (bool) {
         return checkpoints[checkpointId].challengeableUntil != 0 || checkpoints[checkpointId].outstandingChallenges != 0;
+    }
+
+    function checkpointFinalized(bytes32 checkpointId) public view returns (bool) {
+        // To be considered finalized, a checkpoint:
+        // - MUST have no outstanding challenges
+        // - MUST no longer be challengable
+        return checkpoints[checkpointId].outstandingChallenges == 0 && checkpoints[checkpointId].challengeableUntil < block.number;
     }
 
     function exitExists(bytes32 checkpointId) public view returns (bool) {
