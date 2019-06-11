@@ -229,7 +229,7 @@ contract Deposit {
         require(checkpointExists(challengedCheckpointId), "Challenged checkpoint must exist");
         require(intersects(_challenge.challengedCheckpoint.subrange, _challenge.challengingCheckpoint.subrange), "Challenge ranges must intersect");
         require(_challenge.challengingCheckpoint.stateUpdate.plasmaBlockNumber < _challenge.challengedCheckpoint.stateUpdate.plasmaBlockNumber, "Challenging cp after challenged cp");
-        require(challenges[challengeId] != true, "Challenge must not already exist");
+        require(!challenges[challengeId], "Challenge must not already exist");
         require(checkpoints[challengedCheckpointId].challengeableUntil > block.number, "Checkpoint must still be challengable");
         // Add the challenge
         checkpoints[challengedCheckpointId].outstandingChallenges += 1;
@@ -241,7 +241,7 @@ contract Deposit {
         bytes32 challengingCheckpointId = getCheckpointId(_challenge.challengingCheckpoint);
         bytes32 challengeId = getChallengeId(_challenge);
         // Verify that the challenge may be added
-        require(challenges[challengeId] == true, "Challenge must exist");
+        require(challenges[challengeId], "Challenge must exist");
         require(!exitExists(challengingCheckpointId), "Challenging exit must no longer exist");
         // Remove the challenge
         challenges[challengeId] = false;
