@@ -1,7 +1,7 @@
 {
   "name": "@pigi/core",
-  "version": "0.0.1-alpha.7",
-  "description": "Plasma Group client core",
+  "version": "0.0.2-alpha.1",
+  "description": "Plasma Group client",
   "main": "build/index.js",
   "files": [
     "build/**/.js"
@@ -12,7 +12,6 @@
     "plasma",
     "group",
     "ethereum",
-    "core",
     "client"
   ],
   "author": "Plasma Group",
@@ -22,49 +21,8 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "dependencies": {
-    "@nestd/core": "0.0.2-alpha.3",
-    "@pigi/contracts": "^0.0.1-alpha.9",
-    "@pigi/utils": "^0.0.1-alpha.10",
-    "@pigi/verifier": "^0.0.1-alpha.7",
-    "@types/bn.js": "^4.11.4",
-    "@types/memdown": "^3.0.0",
-    "async-lock": "^1.1.4",
-    "axios": "^0.18.0",
-    "bn.js": "^4.11.8",
-    "body-parser": "^1.18.3",
-    "debug": "^4.1.1",
-    "eth-lib": "^0.2.8",
-    "ethereumjs-tx": "^1.3.7",
-    "ethereumjs-vm": "^2.6.0",
-    "ethers": "^4.0.27",
-    "express": "^4.16.4",
-    "lodash": "^4.17.11",
-    "memdown": "^4.0.0",
-    "reflect-metadata": "^0.1.13",
-    "uuid": "^3.3.2",
-    "watch-eth": "0.0.1-beta.7",
-    "web3": "^1.0.0-beta.48",
-    "web3-core": "^1.0.0-beta.48",
-    "web3-eth-contract": "^1.0.0-beta.48",
-    "web3-utils": "^1.0.0-beta.48"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.2",
-    "@pigi/watch-eth": "^0.0.1-alpha.1",
-    "@types/abstract-leveldown": "^5.0.1",
-    "@types/async-lock": "^1.1.1",
-    "@types/chai": "^4.1.7",
-    "@types/chai-as-promised": "^7.1.0",
-    "@types/debug": "^4.1.2",
-    "@types/lodash": "^4.14.123",
-    "@types/mocha": "^5.2.6",
-    "@types/uuid": "^3.4.4",
-    "abstract-leveldown": "^6.0.2",
-    "chai": "^4.2.0",
-    "chai-as-promised": "^7.1.1",
-    "ganache-cli": "^6.4.1",
-    "ts-mockito": "^2.3.1",
-    "typescript": "^3.3.3333"
   },
   "publishConfig": {
     "access": "public"
