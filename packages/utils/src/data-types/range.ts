@@ -6,7 +6,7 @@ const log = debug('info:abiRange')
 /* Internal Imports */
 import { abi } from '../eth'
 import { AbiEncodable, Range } from '../interfaces/data-types'
-import { hexStringify } from '../misc'
+import { hexStringify } from '../utils'
 
 /**
  * Creates a Range from an encoded Range.
