@@ -14,10 +14,22 @@ export interface StateUpdate {
   newState: StateObject
 }
 
+export interface StateQuery {
+  // TODO: Define this
+}
+
+export interface StateQueryResult {
+  // TODO: Define this
+}
+
 export interface Transaction {
   stateUpdate: StateUpdate
   witness: any
   block: number
+}
+
+export interface HistoryProof {
+  // TODO: Define this
 }
 
 export type InclusionProof = string[]

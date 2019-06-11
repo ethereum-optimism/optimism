@@ -35,15 +35,3 @@ export interface StateUpdate {
   blockNumber: number
   plasmaContract: string
 }
-
-export interface HistoryProof {
-  // TODO: Define this
-}
-
-export interface StateQuery {
-  // TODO: Define this
-}
-
-export interface StateQueryResult {
-  // TODO: Define this
-}
