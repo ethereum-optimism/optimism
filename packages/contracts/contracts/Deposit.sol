@@ -123,14 +123,14 @@ contract Deposit {
         }
         // Set the newEnd to the totalDeposited plus how much was deposited
         uint256 newEnd = totalDeposited + _amount;
-        // Finally create the range!
-        newRange = types.Range(newStart, newEnd);
-        // Store the result
-        depositedRanges[newRange.end] = newRange;
+        // Finally create and store the range!
+        depositedRanges[newEnd] = types.Range(newStart, newEnd);
         // Increment total deposited now that we've extended our depositedRanges
         totalDeposited += _amount;
     }
 
+    // This function is called when an exit is finalized to "burn" it--so that checkpoints and exits 
+    // on the range cannot be made.  It is equivalent to the range having never been deposited.
     function removeDepositedRange(types.Range memory range, uint256 depositedRangeId) public {
         types.Range memory encompasingRange = depositedRanges[depositedRangeId];
 
