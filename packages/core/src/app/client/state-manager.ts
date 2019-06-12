@@ -25,7 +25,7 @@ export class DefaultStateManager implements StateManager {
     this.pluginManager = pluginManager
   }
 
-  public async executeTransaction(transaction: Transaction): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }> {
+  public async executeTransaction(transaction: Transaction): Promise<{ stateUpdate: StateUpdate, validRanges: Range[] }> {
     const result = {
       stateUpdate: undefined,
       validRanges: []
@@ -35,7 +35,7 @@ export class DefaultStateManager implements StateManager {
       return result
     }
 
-    // TODO: Check that transaction.block < SyncManager.getLastSyncedBlock()
+    // TODO: Check that transaction.block > SyncManager.getLastSyncedBlock()
 
     const {start, end}: Range = transaction.stateUpdate.id
     const verifiedUpdates: VerifiedStateUpdate[] = await this.stateDB.getVerifiedStateUpdates(start, end)
@@ -47,7 +47,7 @@ export class DefaultStateManager implements StateManager {
       }
 
       const {start: verifiedStart, end: verifiedEnd}: Range = verifiedUpdate.stateUpdate.id
-      if (transaction.block !== verifiedUpdate.verifiedBlockNumber + 1 || verifiedEnd <= start || verifiedStart >= end) {
+      if (transaction.block !== verifiedUpdate.verifiedBlockNumber + 1 || verifiedEnd.lte(start) || verifiedStart.gte(end)) {
         // log here?
         return
       }
@@ -69,7 +69,7 @@ export class DefaultStateManager implements StateManager {
         result.stateUpdate = computedState
       } else if (result.stateUpdate !== computedState) {
         throw new Error(`State transition resulted in two different states: ${result.stateUpdate} and 
-          ${computedState}. Latter differed from former range ${result.validRanges.pop()}.`)
+          ${computedState}. Latter differed from former at range ${result.validRanges.pop()}.`)
       }
     })
 
