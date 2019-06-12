@@ -21,6 +21,7 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "dependencies": {
+    "bn.js": "^4.11.8"
   },
   "devDependencies": {
   },
