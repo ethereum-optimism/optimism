@@ -1,6 +1,4 @@
-import {StateUpdate, Transaction} from "../common/utils";
-import {Range} from "../../app/common/utils";
-
+import {HistoryProof, Range, StateQuery, StateQueryResult, StateUpdate, Transaction} from "../common/utils";
 
 export interface StateManager {
   /**
