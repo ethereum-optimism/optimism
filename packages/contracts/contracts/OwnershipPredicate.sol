@@ -34,17 +34,6 @@ contract OwnershipPredicate {
         uint64 maxBlock;
     }
 
-    /*** Public ***/
-    address public depositContractAddress;
-
-    /**
-     * @dev Constructs an ownership predicate contract with a specified deposit contract
-     * @param _depositContractAddress TODO
-     */
-    constructor(address _depositContractAddress) public {
-        depositContractAddress = _depositContractAddress;
-    }
-
     function startExit(types.Checkpoint memory _checkpoint) public {
         // Extract the owner from the state object data field
         address owner = abi.decode(_checkpoint.stateUpdate.stateObject.data, (address));

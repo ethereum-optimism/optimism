@@ -28,7 +28,7 @@ describe('OwnershipPredicate', () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
     commitmentContract = await deployContract(wallet, Commitment, [])
     depositContract = await deployContract(wallet, Deposit, [token.address, commitmentContract.address])
-    ownershipPredicate = await deployContract(wallet, OwnershipPredicate, [depositContract.address])
+    ownershipPredicate = await deployContract(wallet, OwnershipPredicate)
   })
 
   it('should allow exits to be started on deposits', async () => {
