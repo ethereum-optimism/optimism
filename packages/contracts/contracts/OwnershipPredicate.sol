@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes as dt } from "./DataTypes.sol";
+import { DataTypes as types } from "./DataTypes.sol";
 import { Deposit } from "./Deposit.sol";
 
 /**
@@ -23,13 +23,13 @@ contract OwnershipPredicate {
 
     struct UnsignedOwnershipTransaction {
         address depositAddress;
-        dt.Range range;
+        types.Range range;
         bytes32 methodId;
         Parameters parameters;
     }
 
     struct Parameters {
-        dt.StateObject newState;
+        types.StateObject newState;
         uint64 originBlock;
         uint64 maxBlock;
     }
@@ -45,7 +45,7 @@ contract OwnershipPredicate {
         depositContractAddress = _depositContractAddress;
     }
 
-    function startExit(dt.Checkpoint memory _checkpoint) public {
+    function startExit(types.Checkpoint memory _checkpoint) public {
         // Extract the owner from the state object data field
         address owner = abi.decode(_checkpoint.stateUpdate.stateObject.data, (address));
         // Require that this is called by the owner
@@ -55,12 +55,12 @@ contract OwnershipPredicate {
         depositContract.startExit(_checkpoint);
     }
 
-    function deprecateExit(dt.Checkpoint memory _exit) public {
+    function deprecateExit(types.Checkpoint memory _exit) public {
         Deposit depositContract = Deposit(_exit.stateUpdate.depositAddress);
         depositContract.deprecateExit(_exit);
     }
 
-    function finalizeExit(dt.Checkpoint memory _exit, uint256 depositedRangeId) public {
+    function finalizeExit(types.Checkpoint memory _exit, uint256 depositedRangeId) public {
         Deposit depositContract = Deposit(_exit.stateUpdate.depositAddress);
         depositContract.finalizeExit(_exit, depositedRangeId);
     }
