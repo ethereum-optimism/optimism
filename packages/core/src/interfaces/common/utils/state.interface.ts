@@ -14,12 +14,29 @@ export interface StateUpdate {
   newState: StateObject
 }
 
+export interface VerifiedStateUpdate {
+  start: number
+  end: number
+  verifiedBlockNumber: number
+  stateUpdate: StateUpdate
+}
+
+// TODO: Define this properly if not `string`. Just adding it to be able to define StateQuery.
+export type Expression = string
+
 export interface StateQuery {
-  // TODO: Define this
+  plasmaContract: string
+  predicateAddress: string
+  start?: number
+  end?: number
+  method: string
+  params: string[]
+  filter?: Expression
 }
 
 export interface StateQueryResult {
-  // TODO: Define this
+  stateUpdate: StateUpdate
+  result: string[]
 }
 
 export interface Transaction {
@@ -28,11 +45,8 @@ export interface Transaction {
   block: number
 }
 
-export interface HistoryProof {
-  // TODO: Define this
-}
-
 export type InclusionProof = string[]
+export type ExclusionProof = string[]
 
 export interface ProofElementDeposit {
   transaction: Transaction
@@ -43,6 +57,13 @@ export interface ProofElementTransaction {
   inclusionProof: InclusionProof
 }
 
+export interface ProofElementTransactionExclusion {
+  transaction: Transaction
+  exclusionProof: ExclusionProof
+}
+
 export type ProofElement = ProofElementDeposit | ProofElementTransaction
 
 export type TransactionProof = ProofElement[]
+
+export type HistoryProof = Array<ProofElementDeposit | ProofElementTransaction | ExclusionProof>
