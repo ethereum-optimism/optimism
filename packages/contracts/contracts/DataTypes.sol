@@ -29,4 +29,11 @@ contract DataTypes {
         StateUpdate stateUpdate;
         Range subrange;
     }
+
+    struct Transaction {
+        address depositAddress;
+        uint128 start;
+        uint128 end;
+        bytes parameters;
+    }
 }
