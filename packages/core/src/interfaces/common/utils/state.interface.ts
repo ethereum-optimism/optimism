@@ -15,8 +15,8 @@ export interface StateUpdate {
 }
 
 export interface VerifiedStateUpdate {
-  start: number
-  end: number
+  start: BigNum
+  end: BigNum
   verifiedBlockNumber: number
   stateUpdate: StateUpdate
 }
@@ -27,8 +27,8 @@ export type Expression = string
 export interface StateQuery {
   plasmaContract: string
   predicateAddress: string
-  start?: number
-  end?: number
+  start?: BigNum
+  end?: BigNum
   method: string
   params: string[]
   filter?: Expression

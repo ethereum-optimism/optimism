@@ -1,3 +1,5 @@
+import BigNum = require('bn.js')
+
 import {VerifiedStateUpdate} from "../common/utils";
 
 export interface StateDB {
@@ -8,7 +10,7 @@ export interface StateDB {
    * @param end the end (exclusive) of the range for which VerifiedStateUpdates are being requested
    * @returns the VerifiedStateUpdates that intersect with the provided range.
    */
-  getVerifiedStateUpdates(start: number, end: number): Promise<VerifiedStateUpdate[]>
+  getVerifiedStateUpdates(start: BigNum, end: BigNum): Promise<VerifiedStateUpdate[]>
 
   /**
    * Adds the provided VerifiedStateUpdate to the State DB, overwriting, modifying, and/or breaking apart any existing
