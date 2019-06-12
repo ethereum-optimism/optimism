@@ -1,4 +1,3 @@
-
 import BigNum = require('bn.js')
 
 export interface Range {

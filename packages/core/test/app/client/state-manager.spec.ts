@@ -4,82 +4,122 @@ import '../../setup'
 import debug from 'debug'
 const log = debug('test:info:state-manager')
 import BigNum = require('bn.js')
-import {DefaultStateDB, DefaultStateManager} from "../../../src/app/client";
-import {PluginManager, PredicatePlugin, StateDB, StateManager} from "../../../src/interfaces/client";
-import {Range, StateUpdate, Transaction, VerifiedStateUpdate} from "../../../src/interfaces/common/utils";
-
+import { DefaultStateDB, DefaultStateManager } from '../../../src/app/client'
+import {
+  PluginManager,
+  PredicatePlugin,
+  Range,
+  StateDB,
+  StateManager,
+  StateUpdate,
+  Transaction,
+  VerifiedStateUpdate,
+} from '../../../src/interfaces'
 
 /*******************
  * Mocks & Helpers *
  *******************/
 
-class DummyPluginManager implements PluginManager{
+class DummyPluginManager implements PluginManager {
   public getPlugin(address: string): Promise<PredicatePlugin | undefined> {
-    return undefined;
+    return undefined
   }
 
   public loadPlugin(address: string, path: string): Promise<PredicatePlugin> {
-    return undefined;
+    return undefined
   }
 }
 
 class DummyPredicatePlugin implements PredicatePlugin {
-  public executeStateTransition(previousStateUpdate: StateUpdate, transaction: Transaction): Promise<StateUpdate> {
-    return undefined;
+  public executeStateTransition(
+    previousStateUpdate: StateUpdate,
+    transaction: Transaction
+  ): Promise<StateUpdate> {
+    return undefined
   }
 }
 
-function getPluginThatReturns(stateUpdate: StateUpdate) : PredicatePlugin {
-  const predicatePlugin: PredicatePlugin = new DummyPredicatePlugin();
-  predicatePlugin.executeStateTransition = async (previousStateUpdate: StateUpdate, transaction: Transaction): Promise<StateUpdate> => {
+function getPluginThatReturns(stateUpdate: StateUpdate): PredicatePlugin {
+  const predicatePlugin: PredicatePlugin = new DummyPredicatePlugin()
+  predicatePlugin.executeStateTransition = async (
+    previousStateUpdate: StateUpdate,
+    transaction: Transaction
+  ): Promise<StateUpdate> => {
     return stateUpdate
   }
   return predicatePlugin
 }
 
-function getPluginManagerThatReturns(pluginMap: Map<string, PredicatePlugin>): PluginManager {
-  const pluginManager: PluginManager = new DummyPluginManager();
-  pluginManager.getPlugin = async (address: string): Promise<PredicatePlugin | undefined> => {
+function getPluginManagerThatReturns(
+  pluginMap: Map<string, PredicatePlugin>
+): PluginManager {
+  const pluginManager: PluginManager = new DummyPluginManager()
+  pluginManager.getPlugin = async (
+    address: string
+  ): Promise<PredicatePlugin | undefined> => {
     return pluginMap.get(address)
   }
   return pluginManager
 }
 
-function getStateDBThatReturns(verifiedStateUpdates: VerifiedStateUpdate[]) : StateDB {
-  const stateDB = new DefaultStateDB();
-  stateDB.getVerifiedStateUpdates = async (start: BigNum, end: BigNum): Promise<VerifiedStateUpdate[]> => {
+function getStateDBThatReturns(
+  verifiedStateUpdates: VerifiedStateUpdate[]
+): StateDB {
+  const stateDB = new DefaultStateDB()
+  stateDB.getVerifiedStateUpdates = async (
+    start: BigNum,
+    end: BigNum
+  ): Promise<VerifiedStateUpdate[]> => {
     return verifiedStateUpdates
   }
   return stateDB
 }
 
-function getStateUpdate(start: BigNum, end: BigNum, predicateAddress: string, parameters: any = {}) {
+function getStateUpdate(
+  start: BigNum,
+  end: BigNum,
+  predicate: string = '0x1234567890',
+  parameters: any = { dummyData: false }
+) {
   return {
     id: {
-      start: start,
-      end: end
+      start,
+      end,
     },
     newState: {
-      predicate: predicateAddress,
-      parameters: parameters
-    }
+      predicate,
+      parameters,
+    },
   }
 }
 
-function getVerifiedStateUpdate(start: BigNum, end: BigNum, block: number, predicateAddress: string, parameters: any = {}) {
+function getVerifiedStateUpdate(
+  start: BigNum,
+  end: BigNum,
+  block: number,
+  predicateAddress: string,
+  parameters: any = { dummyData: false }
+) {
   return {
-    start: start,
-    end: end,
+    start,
+    end,
     verifiedBlockNumber: block,
-    stateUpdate: getStateUpdate(start, end, predicateAddress, parameters)
+    stateUpdate: getStateUpdate(start, end, predicateAddress, parameters),
   }
 }
 
-function getTransaction(start: BigNum, end: BigNum, predicateAddress: string, block: number, witness: any = undefined, parameters: any = {}) {
+function getTransaction(
+  start: BigNum,
+  end: BigNum,
+  predicateAddress: string,
+  block: number,
+  parameters: any = { dummyData: false },
+  witness: any = '0x123456'
+) {
   return {
     stateUpdate: getStateUpdate(start, end, predicateAddress, parameters),
-    witness: witness,
-    block: block
+    witness,
+    block,
   }
 }
 
@@ -100,26 +140,108 @@ describe('DefaultStateManager', () => {
     const previousBlockNumber: number = 10
     const nextBlockNumber: number = 11
 
-
-    it('should process transaction for contiguous range', async () => {
+    it('should process simple transaction for contiguous range', async () => {
       const predicateAddress = '0x12345678'
-      const verifiedStateUpdates: VerifiedStateUpdate[] = [getVerifiedStateUpdate(start, end, previousBlockNumber, predicateAddress)]
-      const transaction: Transaction = getTransaction(start, end, predicateAddress, nextBlockNumber, '0x12345678')
+      const verifiedStateUpdates: VerifiedStateUpdate[] = [
+        getVerifiedStateUpdate(
+          start,
+          end,
+          previousBlockNumber,
+          predicateAddress
+        ),
+      ]
+      const transaction: Transaction = getTransaction(
+        start,
+        end,
+        predicateAddress,
+        nextBlockNumber
+      )
 
-      const endStateUpdate: StateUpdate = getStateUpdate(start, end, predicateAddress, {testResult: "test"})
+      const endStateUpdate: StateUpdate = getStateUpdate(
+        start,
+        end,
+        predicateAddress,
+        { testResult: 'test' }
+      )
       const plugin: PredicatePlugin = getPluginThatReturns(endStateUpdate)
 
-      const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates);
-      const pluginManager: PluginManager = getPluginManagerThatReturns(new Map<string, PredicatePlugin>([[predicateAddress, plugin]]))
-      const stateManager: StateManager = new DefaultStateManager(stateDB, pluginManager)
+      const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
+      const pluginManager: PluginManager = getPluginManagerThatReturns(
+        new Map<string, PredicatePlugin>([[predicateAddress, plugin]])
+      )
+      const stateManager: StateManager = new DefaultStateManager(
+        stateDB,
+        pluginManager
+      )
 
-      const result: {stateUpdate: StateUpdate, validRanges: Range[]} = await stateManager.executeTransaction(transaction)
+      const result: {
+        stateUpdate: StateUpdate
+        validRanges: Range[]
+      } = await stateManager.executeTransaction(transaction)
 
       result.stateUpdate.should.equal(endStateUpdate)
 
       result.validRanges.length.should.equal(1)
       result.validRanges[0].start.should.equal(start)
       result.validRanges[0].end.should.equal(end)
+    })
+
+    it('should process complex transaction for contiguous range', async () => {
+      const predicateAddress = '0x12345678'
+      const midPoint = end
+        .sub(start)
+        .divRound(new BigNum(2))
+        .add(start)
+      const verifiedStateUpdates: VerifiedStateUpdate[] = [
+        getVerifiedStateUpdate(
+          start,
+          midPoint,
+          previousBlockNumber,
+          predicateAddress
+        ),
+        getVerifiedStateUpdate(
+          midPoint,
+          end,
+          previousBlockNumber,
+          predicateAddress
+        ),
+      ]
+      const transaction: Transaction = getTransaction(
+        start,
+        end,
+        predicateAddress,
+        nextBlockNumber
+      )
+
+      const endStateUpdate: StateUpdate = getStateUpdate(
+        start,
+        end,
+        predicateAddress,
+        { testResult: 'test' }
+      )
+      const plugin: PredicatePlugin = getPluginThatReturns(endStateUpdate)
+
+      const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
+      const pluginManager: PluginManager = getPluginManagerThatReturns(
+        new Map<string, PredicatePlugin>([[predicateAddress, plugin]])
+      )
+      const stateManager: StateManager = new DefaultStateManager(
+        stateDB,
+        pluginManager
+      )
+
+      const result: {
+        stateUpdate: StateUpdate
+        validRanges: Range[]
+      } = await stateManager.executeTransaction(transaction)
+
+      result.stateUpdate.should.equal(endStateUpdate)
+
+      result.validRanges.length.should.equal(2)
+      result.validRanges[0].start.should.equal(start)
+      result.validRanges[0].end.should.equal(midPoint)
+      result.validRanges[1].start.should.equal(midPoint)
+      result.validRanges[1].end.should.equal(end)
     })
   })
 })

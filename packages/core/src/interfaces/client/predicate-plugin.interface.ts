@@ -1,4 +1,4 @@
-import {StateUpdate, Transaction} from "../common/utils";
+import { StateUpdate, Transaction } from '../common/utils'
 
 export interface PredicatePlugin {
   /**
@@ -8,7 +8,10 @@ export interface PredicatePlugin {
    * @param transaction the Transaction to execute
    * @returns the resulting StateUpdate
    */
-  executeStateTransition(previousStateUpdate: StateUpdate, transaction: Transaction): Promise<StateUpdate>
+  executeStateTransition(
+    previousStateUpdate: StateUpdate,
+    transaction: Transaction
+  ): Promise<StateUpdate>
 
   // TODO: Add other methods when used
 }

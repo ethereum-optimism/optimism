@@ -1,8 +1,6 @@
 /* Internal Imports */
 import { bnMax, bnMin } from './misc'
-import {BlockRange, Range} from "../../../interfaces/common/utils";
-
-
+import { BlockRange, Range } from '../../../interfaces/common/utils'
 
 /**
  * RangeStore makes it easy to store ranges.

@@ -1,4 +1,11 @@
-import {HistoryProof, Range, StateQuery, StateQueryResult, StateUpdate, Transaction} from "../common/utils";
+import {
+  HistoryProof,
+  Range,
+  StateQuery,
+  StateQueryResult,
+  StateUpdate,
+  Transaction,
+} from '../common/utils'
 
 export interface StateManager {
   /**
@@ -7,7 +14,9 @@ export interface StateManager {
    * @param transaction the transaction to execute
    * @returns the resulting StateUpdate and a list of Ranges over which the StateUpdate has been validated
    */
-  executeTransaction(transaction: Transaction) : Promise<{stateUpdate: StateUpdate, validRanges: Range[]}>
+  executeTransaction(
+    transaction: Transaction
+  ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }>
 
   /**
    * Validates the provided HistoryProof.

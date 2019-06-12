@@ -1,7 +1,6 @@
-import {PredicatePlugin} from "./predicate-plugin.interface";
+import { PredicatePlugin } from './predicate-plugin.interface'
 
 export interface PluginManager {
-
   /**
    * Loads the PredicatePlugin at the provided path and associates it with the provided address.
    *

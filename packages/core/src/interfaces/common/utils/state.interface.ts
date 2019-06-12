@@ -66,4 +66,6 @@ export type ProofElement = ProofElementDeposit | ProofElementTransaction
 
 export type TransactionProof = ProofElement[]
 
-export type HistoryProof = Array<ProofElementDeposit | ProofElementTransaction | ExclusionProof>
+export type HistoryProof = Array<
+  ProofElementDeposit | ProofElementTransaction | ExclusionProof
+>
