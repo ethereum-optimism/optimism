@@ -32,6 +32,7 @@ export class DefaultStateManager implements StateManager {
     }
 
     if ( ! this.validateTransaction(transaction)) {
+      // log here?
       return result
     }
 
@@ -40,7 +41,7 @@ export class DefaultStateManager implements StateManager {
     const {start, end}: Range = transaction.stateUpdate.id
     const verifiedUpdates: VerifiedStateUpdate[] = await this.stateDB.getVerifiedStateUpdates(start, end)
 
-    verifiedUpdates.forEach((verifiedUpdate: VerifiedStateUpdate) => {
+    for (const verifiedUpdate of verifiedUpdates) {
       if ( ! this.validateVerifiedStateUpdate(verifiedUpdate)) {
         // log here?
         return
@@ -71,7 +72,7 @@ export class DefaultStateManager implements StateManager {
         throw new Error(`State transition resulted in two different states: ${result.stateUpdate} and 
           ${computedState}. Latter differed from former at range ${result.validRanges.pop()}.`)
       }
-    })
+    }
 
     return result;
   }

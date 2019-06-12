@@ -10,7 +10,7 @@ import { AbiStateObject } from '@pigi/utils'
 import { OwnershipTransaction } from '../..//src/ownership/transaction'
 
 describe('OwnershipTransaction', () => {
-  it.only('should initalize', async () => {
+  it('should initalize', async () => {
     const newStateObject = new AbiStateObject(
       '0x7Fa6da9966869B56Dd08cb111Efed88FDF799545',
       '0x00'
