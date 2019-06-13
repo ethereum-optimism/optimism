@@ -39,9 +39,11 @@ export class DefaultStateManager implements StateManager {
     }
 
     if (!isValidTransaction(transaction)) {
+      // log here?
       return result
     }
 
+    // Get Verified updates for range
     const { start, end }: Range = transaction.stateUpdate.id
     const verifiedUpdates: VerifiedStateUpdate[] = await this.stateDB.getVerifiedStateUpdates(
       start,
@@ -50,7 +52,8 @@ export class DefaultStateManager implements StateManager {
 
     for (const verifiedUpdate of verifiedUpdates) {
       if (!isValidVerifiedStateUpdate(verifiedUpdate)) {
-        return
+        // log here?
+        continue
       }
 
       const {
@@ -63,7 +66,7 @@ export class DefaultStateManager implements StateManager {
         verifiedStart.gte(end)
       ) {
         // log here?
-        return
+        continue
       }
 
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
@@ -71,7 +74,7 @@ export class DefaultStateManager implements StateManager {
       )
       if (!predicatePlugin) {
         // log here?
-        return
+        continue
       }
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
