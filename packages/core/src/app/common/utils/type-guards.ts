@@ -76,10 +76,12 @@ export const isValidStateUpdate = (
 ): stateUpdate is StateUpdate => {
   return (
     !!stateUpdate &&
-    !!stateUpdate.newState &&
-    !!stateUpdate.id &&
-    isValidRange(stateUpdate.id) &&
-    isValidStateObject(stateUpdate.newState)
+    !!stateUpdate.stateObject &&
+    !!stateUpdate.range &&
+    !!stateUpdate.depositContract &&
+    stateUpdate.plasmaBlockNumber > 0 &&
+    isValidRange(stateUpdate.range) &&
+    isValidStateObject(stateUpdate.stateObject)
   )
 }
 
@@ -94,10 +96,10 @@ export const isValidTransaction = (
 ): transaction is Transaction => {
   return (
     !!transaction &&
-    transaction.block > 0 &&
-    !!transaction.witness &&
-    !!transaction.stateUpdate &&
-    isValidStateUpdate(transaction.stateUpdate)
+    !!transaction.range &&
+    !!transaction.depositContract &&
+    !!transaction.methodId &&
+    isValidRange(transaction.range)
   )
 }
 
@@ -112,10 +114,9 @@ export const isValidVerifiedStateUpdate = (
 ): verifiedUpdate is VerifiedStateUpdate => {
   return (
     !!verifiedUpdate &&
-    !!verifiedUpdate.start &&
-    !!verifiedUpdate.end &&
+    !!verifiedUpdate.range &&
     verifiedUpdate.verifiedBlockNumber >= 0 &&
-    verifiedUpdate.start.lt(verifiedUpdate.end) &&
+    isValidRange(verifiedUpdate.range) &&
     isValidStateUpdate(verifiedUpdate.stateUpdate)
   )
 }

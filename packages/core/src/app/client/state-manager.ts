@@ -39,12 +39,13 @@ export class DefaultStateManager implements StateManager {
     }
 
     if (!isValidTransaction(transaction)) {
-      // log here?
-      return result
+      throw new Error(
+        `Cannot execute invalid Transaction: ${JSON.stringify(transaction)}`
+      )
     }
 
     // Get verified updates for range
-    const { start, end }: Range = transaction.stateUpdate.id
+    const { start, end }: Range = transaction.range
     const verifiedUpdates: VerifiedStateUpdate[] = await this.stateDB.getVerifiedStateUpdates(
       start,
       end
@@ -53,22 +54,27 @@ export class DefaultStateManager implements StateManager {
     // Iterate over the verified updates, transition their state, and add their ranges to the return object
     for (const verifiedUpdate of verifiedUpdates) {
       if (!isValidVerifiedStateUpdate(verifiedUpdate)) {
-        // log here?
-        continue
+        throw new Error(
+          `Cannot process transaction for invalid VerifiedStateUpdate: ${JSON.stringify(
+            verifiedUpdate
+          )}`
+        )
       }
 
       const {
         start: verifiedStart,
         end: verifiedEnd,
-      }: Range = verifiedUpdate.stateUpdate.id
+      }: Range = verifiedUpdate.stateUpdate.range
       // If the ranges don't overlap, eagerly exit
       if (verifiedEnd.lte(start) || verifiedStart.gte(end)) {
-        // log here?
-        continue
+        throw new Error(`VerifiedStateUpdate for range [${start}, ${end}) is outside of range: 
+        ${JSON.stringify(
+          verifiedUpdate.stateUpdate.range
+        )}. VerifiedStateUpdate: ${verifiedUpdate}.`)
       }
 
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
-        verifiedUpdate.stateUpdate.newState.predicate
+        verifiedUpdate.stateUpdate.stateObject.predicate
       )
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
@@ -76,6 +82,17 @@ export class DefaultStateManager implements StateManager {
         verifiedUpdate.verifiedBlockNumber,
         transaction
       )
+
+      if (
+        computedState.plasmaBlockNumber !==
+        verifiedUpdate.verifiedBlockNumber + 1
+      ) {
+        throw new Error(`Transaction resulted in StateUpdate with unexpected block number.
+          Expected: ${verifiedUpdate.verifiedBlockNumber + 1}, found: ${
+          computedState.plasmaBlockNumber
+        }.
+          VerifiedStateUpdate transitioned: ${JSON.stringify(verifiedUpdate)}`)
+      }
 
       result.validRanges.push({
         start: BigNum.max(start, verifiedStart),
@@ -85,10 +102,12 @@ export class DefaultStateManager implements StateManager {
       if (result.stateUpdate === undefined) {
         result.stateUpdate = computedState
       } else if (result.stateUpdate !== computedState) {
-        throw new Error(`State transition resulted in two different states: ${
+        throw new Error(`State transition resulted in two different states: ${JSON.stringify(
           result.stateUpdate
-        } and 
-          ${computedState}. Latter differed from former at range ${result.validRanges.pop()}.`)
+        )} and 
+          ${computedState}. Latter differed from former at range ${JSON.stringify(
+          result.validRanges.pop()
+        )}.`)
       }
     }
 

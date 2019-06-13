@@ -84,18 +84,22 @@ function getStateDBThatReturns(
 function getStateUpdate(
   start: BigNum,
   end: BigNum,
+  plasmaBlockNumber: number,
+  depositContract: string = '0x1234',
   predicate: string = '0x1234567890',
   parameters: any = { dummyData: false }
-) {
+): StateUpdate {
   return {
-    id: {
+    range: {
       start,
       end,
     },
-    newState: {
+    stateObject: {
       predicate,
       parameters,
     },
+    depositContract,
+    plasmaBlockNumber,
   }
 }
 
@@ -103,29 +107,42 @@ function getVerifiedStateUpdate(
   start: BigNum,
   end: BigNum,
   block: number,
+  depositContract: string,
   predicateAddress: string,
   parameters: any = { dummyData: false }
-) {
+): VerifiedStateUpdate {
   return {
-    start,
-    end,
+    range: {
+      start,
+      end,
+    },
     verifiedBlockNumber: block,
-    stateUpdate: getStateUpdate(start, end, predicateAddress, parameters),
+    stateUpdate: getStateUpdate(
+      start,
+      end,
+      block,
+      depositContract,
+      predicateAddress,
+      parameters
+    ),
   }
 }
 
 function getTransaction(
+  depositContract: string,
+  methodId: string,
   start: BigNum,
   end: BigNum,
-  predicateAddress: string,
-  block: number,
-  parameters: any = { dummyData: false },
-  witness: any = '0x123456'
+  parameters: any = { dummyData: false }
 ) {
   return {
-    stateUpdate: getStateUpdate(start, end, predicateAddress, parameters),
-    witness,
-    block,
+    depositContract,
+    methodId,
+    parameters,
+    range: {
+      start,
+      end,
+    },
   }
 }
 
@@ -145,30 +162,37 @@ describe('DefaultStateManager', () => {
     const end: BigNum = new BigNum(20)
     const previousBlockNumber: number = 10
     const nextBlockNumber: number = 11
+    const depositContract = '0x1234'
+    const methodId = '0x11122'
+    const predicateAddress = '0x12345678'
+
+    const transaction: Transaction = getTransaction(
+      depositContract,
+      methodId,
+      start,
+      end
+    )
+
+    const endStateUpdate: StateUpdate = getStateUpdate(
+      start,
+      end,
+      nextBlockNumber,
+      depositContract,
+      predicateAddress,
+      { testResult: 'test' }
+    )
 
     it('should process simple transaction for contiguous range', async () => {
-      const predicateAddress = '0x12345678'
       const verifiedStateUpdates: VerifiedStateUpdate[] = [
         getVerifiedStateUpdate(
           start,
           end,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
-      const endStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        predicateAddress,
-        { testResult: 'test' }
-      )
       const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -193,7 +217,6 @@ describe('DefaultStateManager', () => {
     })
 
     it('should process complex transaction for contiguous range', async () => {
-      const predicateAddress = '0x12345678'
       const midPoint = end
         .sub(start)
         .divRound(new BigNum(2))
@@ -203,28 +226,18 @@ describe('DefaultStateManager', () => {
           start,
           midPoint,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
-      const endStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        predicateAddress,
-        { testResult: 'test' }
-      )
       const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -251,7 +264,6 @@ describe('DefaultStateManager', () => {
     })
 
     it('should process complex transaction for non-subset range', async () => {
-      const predicateAddress = '0x12345678'
       const midPoint = end
         .sub(start)
         .divRound(new BigNum(2))
@@ -261,28 +273,18 @@ describe('DefaultStateManager', () => {
           start.sub(new BigNum(5)),
           midPoint,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end.add(new BigNum(4)),
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
-      const endStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        predicateAddress,
-        { testResult: 'test' }
-      )
       const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -309,7 +311,6 @@ describe('DefaultStateManager', () => {
     })
 
     it('should process complex transaction for non-contiguous range', async () => {
-      const predicateAddress = '0x12345678'
       const endRange1: BigNum = start.add(new BigNum(1))
       const startRange2: BigNum = end.sub(new BigNum(1))
       const verifiedStateUpdates: VerifiedStateUpdate[] = [
@@ -317,28 +318,18 @@ describe('DefaultStateManager', () => {
           start,
           endRange1,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           startRange2,
           end,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
-      const endStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        predicateAddress,
-        { testResult: 'test' }
-      )
       const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -365,14 +356,7 @@ describe('DefaultStateManager', () => {
     })
 
     it('should return empty range if no VerifiedStateUpdates', async () => {
-      const predicateAddress = '0x12345678'
       const verifiedStateUpdates: VerifiedStateUpdate[] = []
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
       // This should never be called
       const plugin: PredicatePlugin = undefined
@@ -396,34 +380,23 @@ describe('DefaultStateManager', () => {
     })
 
     it('should return empty range if VerifiedStateUpdates do not overlap', async () => {
-      const predicateAddress = '0x12345678'
       const verifiedStateUpdates: VerifiedStateUpdate[] = [
         getVerifiedStateUpdate(
           end,
           end.add(new BigNum(1)),
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           start.sub(new BigNum(1)),
           start,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
-      const endStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        predicateAddress,
-        { testResult: 'test' }
-      )
       const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -435,17 +408,15 @@ describe('DefaultStateManager', () => {
         pluginManager
       )
 
-      const result: {
-        stateUpdate: StateUpdate
-        validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction)
-
-      assert(result.stateUpdate === undefined)
-      result.validRanges.length.should.equal(0)
+      try {
+        await stateManager.executeTransaction(transaction)
+        assert(false, 'this call should have thrown an error.')
+      } catch (e) {
+        assert(true, 'this call threw an error as expected.')
+      }
     })
 
     it('should throw if VerifiedStateUpdates have different predicates', async () => {
-      const predicateAddress = '0x12345678'
       const secondPredicateAddress = '0x87654321'
       const midPoint = end
         .sub(start)
@@ -456,25 +427,23 @@ describe('DefaultStateManager', () => {
           start,
           midPoint,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end,
           previousBlockNumber,
-          secondPredicateAddress
+          depositContract,
+          predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
       const firstStateUpdate: StateUpdate = getStateUpdate(
         start,
         end,
+        nextBlockNumber,
+        depositContract,
         predicateAddress,
         { testResult: 'test' }
       )
@@ -483,6 +452,8 @@ describe('DefaultStateManager', () => {
       const secondStateUpdate: StateUpdate = getStateUpdate(
         start,
         end,
+        nextBlockNumber,
+        depositContract,
         secondPredicateAddress,
         { testResult: 'test 2' }
       )
@@ -511,7 +482,6 @@ describe('DefaultStateManager', () => {
     })
 
     it('should fail if same predicate but StateUpdates do not match', async () => {
-      const predicateAddress = '0x12345678'
       const midPoint = end
         .sub(start)
         .divRound(new BigNum(2))
@@ -521,31 +491,31 @@ describe('DefaultStateManager', () => {
           start,
           midPoint,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end,
           previousBlockNumber,
+          depositContract,
           predicateAddress
         ),
       ]
-      const transaction: Transaction = getTransaction(
-        start,
-        end,
-        predicateAddress,
-        nextBlockNumber
-      )
 
       const firstStateUpdate: StateUpdate = getStateUpdate(
         start,
         end,
+        nextBlockNumber,
+        depositContract,
         predicateAddress,
         { testResult: 'test' }
       )
       const secondStateUpdate: StateUpdate = getStateUpdate(
         start,
         end,
+        nextBlockNumber,
+        depositContract,
         predicateAddress,
         { testResult: 'test 2' }
       )

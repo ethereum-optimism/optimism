@@ -94,6 +94,6 @@ export const bnToUint256 = (bn: BigNum): Buffer => {
  * @returns the transacted range's end as a Uint256 Buffer.
  */
 export const getTransactionRangeEnd = (transaction: Transaction): Buffer => {
-  const end = transaction.stateUpdate.id.end
+  const end = transaction.range.end
   return bnToUint256(end)
 }
