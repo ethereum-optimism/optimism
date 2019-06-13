@@ -12,10 +12,12 @@ export interface StateManager {
    * Executes the provided Transaction against the current verified State.
    *
    * @param transaction the transaction to execute
+   * @param inBlock the block in which this transaction is expected to be executed
    * @returns the resulting StateUpdate and a list of Ranges over which the StateUpdate has been validated
    */
   executeTransaction(
-    transaction: Transaction
+    transaction: Transaction,
+    inBlock: number
   ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }>
 
   /**

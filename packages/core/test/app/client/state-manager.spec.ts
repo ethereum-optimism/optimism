@@ -207,7 +207,7 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction)
+      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -252,7 +252,7 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction)
+      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -299,7 +299,7 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction)
+      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -344,7 +344,7 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction)
+      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -373,7 +373,7 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction)
+      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
 
       assert(result.stateUpdate === undefined)
       result.validRanges.length.should.equal(0)
@@ -409,7 +409,7 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction)
+        await stateManager.executeTransaction(transaction, nextBlockNumber)
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')
@@ -474,7 +474,7 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction)
+        await stateManager.executeTransaction(transaction, nextBlockNumber)
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')
@@ -534,7 +534,37 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction)
+        await stateManager.executeTransaction(transaction, nextBlockNumber)
+        assert(false, 'this call should have thrown an error.')
+      } catch (e) {
+        assert(true, 'this call threw an error as expected.')
+      }
+    })
+
+    it('should throw if block number is incorrect', async () => {
+      const verifiedStateUpdates: VerifiedStateUpdate[] = [
+        getVerifiedStateUpdate(
+          start,
+          end,
+          previousBlockNumber,
+          depositContract,
+          predicateAddress
+        ),
+      ]
+
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+
+      const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
+      const pluginManager: PluginManager = getPluginManagerThatReturns(
+        new Map<string, PredicatePlugin>([[predicateAddress, plugin]])
+      )
+      const stateManager: StateManager = new DefaultStateManager(
+        stateDB,
+        pluginManager
+      )
+
+      try {
+        await stateManager.executeTransaction(transaction, nextBlockNumber + 1)
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')

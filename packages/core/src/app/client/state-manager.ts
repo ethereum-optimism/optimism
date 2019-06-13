@@ -31,7 +31,8 @@ export class DefaultStateManager implements StateManager {
   }
 
   public async executeTransaction(
-    transaction: Transaction
+    transaction: Transaction,
+    inBlock: number
   ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }> {
     const result = {
       stateUpdate: undefined,
@@ -67,10 +68,17 @@ export class DefaultStateManager implements StateManager {
       }: Range = verifiedUpdate.stateUpdate.range
       // If the ranges don't overlap, eagerly exit
       if (verifiedEnd.lte(start) || verifiedStart.gte(end)) {
-        throw new Error(`VerifiedStateUpdate for range [${start}, ${end}) is outside of range: 
+        throw Error(`VerifiedStateUpdate for range [${start}, ${end}) is outside of range: 
         ${JSON.stringify(
           verifiedUpdate.stateUpdate.range
         )}. VerifiedStateUpdate: ${verifiedUpdate}.`)
+      }
+
+      if (verifiedUpdate.verifiedBlockNumber + 1 !== inBlock) {
+        throw Error(`VerifiedStateUpdate has block ${
+          verifiedUpdate.verifiedBlockNumber
+        } and ${inBlock - 1} was expected. 
+          VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}`)
       }
 
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
