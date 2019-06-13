@@ -72,10 +72,6 @@ export class DefaultStateManager implements StateManager {
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
         verifiedUpdate.stateUpdate.newState.predicate
       )
-      if (!predicatePlugin) {
-        // log here?
-        continue
-      }
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
         verifiedUpdate.stateUpdate,

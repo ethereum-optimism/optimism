@@ -14,7 +14,7 @@ export interface PluginManager {
    * Gets the PredicatePlugin associated with the provided address, if one exists.
    *
    * @param address the address of the PredicatePlugin
-   * @returns the PredicatePlugin if one is associated with the provided Address, else undefined
+   * @returns the PredicatePlugin if one is associated with the provided Address, otherwise it throws an error
    */
-  getPlugin(address: string): Promise<PredicatePlugin | undefined>
+  getPlugin(address: string): Promise<PredicatePlugin>
 }
