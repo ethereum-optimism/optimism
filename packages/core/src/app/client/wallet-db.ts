@@ -46,7 +46,6 @@ export class DefaultWalletDB implements WalletDB {
    */
   public async listAddresses(): Promise<string[]> {
     const keys = await this.db.iterator().keys()
-    console.log(keys)
     return keys.map((key) => key.toString())
   }
 

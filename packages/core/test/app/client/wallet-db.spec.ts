@@ -1,7 +1,7 @@
-import { should } from '../../setup'
+import '../../setup'
 
 /* External Imports */
-const memdown = require('memdown')
+import MemDown from 'memdown'
 
 /* Internal Imports */
 import { Keystore } from '../../../src/interfaces'
@@ -34,7 +34,7 @@ const keystore: Keystore = {
 describe('DefaultWalletDB', () => {
   let walletdb: DefaultWalletDB
   beforeEach(() => {
-    walletdb = new DefaultWalletDB(new BaseDB(memdown()))
+    walletdb = new DefaultWalletDB(new BaseDB(new MemDown('') as any))
   })
 
   describe('putKeystore', () => {
