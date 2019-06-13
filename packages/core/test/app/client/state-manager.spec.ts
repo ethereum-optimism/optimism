@@ -34,6 +34,7 @@ class DummyPluginManager implements PluginManager {
 class DummyPredicatePlugin implements PredicatePlugin {
   public executeStateTransition(
     previousStateUpdate: StateUpdate,
+    stateUpdateBlock: number,
     transaction: Transaction
   ): Promise<StateUpdate> {
     return undefined
@@ -44,6 +45,7 @@ function getPluginThatReturns(stateUpdates: StateUpdate[]): PredicatePlugin {
   const predicatePlugin: PredicatePlugin = new DummyPredicatePlugin()
   predicatePlugin.executeStateTransition = async (
     previousStateUpdate: StateUpdate,
+    stateUpdateBlock: number,
     transaction: Transaction
   ): Promise<StateUpdate> => {
     if (stateUpdates.length > 1) {
@@ -206,6 +208,64 @@ describe('DefaultStateManager', () => {
         getVerifiedStateUpdate(
           midPoint,
           end,
+          previousBlockNumber,
+          predicateAddress
+        ),
+      ]
+      const transaction: Transaction = getTransaction(
+        start,
+        end,
+        predicateAddress,
+        nextBlockNumber
+      )
+
+      const endStateUpdate: StateUpdate = getStateUpdate(
+        start,
+        end,
+        predicateAddress,
+        { testResult: 'test' }
+      )
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+
+      const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
+      const pluginManager: PluginManager = getPluginManagerThatReturns(
+        new Map<string, PredicatePlugin>([[predicateAddress, plugin]])
+      )
+      const stateManager: StateManager = new DefaultStateManager(
+        stateDB,
+        pluginManager
+      )
+
+      const result: {
+        stateUpdate: StateUpdate
+        validRanges: Range[]
+      } = await stateManager.executeTransaction(transaction)
+
+      result.stateUpdate.should.equal(endStateUpdate)
+
+      result.validRanges.length.should.equal(2)
+      result.validRanges[0].start.should.equal(start)
+      result.validRanges[0].end.should.equal(midPoint)
+      result.validRanges[1].start.should.equal(midPoint)
+      result.validRanges[1].end.should.equal(end)
+    })
+
+    it('should process complex transaction for non-subset range', async () => {
+      const predicateAddress = '0x12345678'
+      const midPoint = end
+        .sub(start)
+        .divRound(new BigNum(2))
+        .add(start)
+      const verifiedStateUpdates: VerifiedStateUpdate[] = [
+        getVerifiedStateUpdate(
+          start.sub(new BigNum(5)),
+          midPoint,
+          previousBlockNumber,
+          predicateAddress
+        ),
+        getVerifiedStateUpdate(
+          midPoint,
+          end.add(new BigNum(4)),
           previousBlockNumber,
           predicateAddress
         ),

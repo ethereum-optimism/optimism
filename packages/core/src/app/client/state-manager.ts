@@ -43,13 +43,14 @@ export class DefaultStateManager implements StateManager {
       return result
     }
 
-    // Get Verified updates for range
+    // Get verified updates for range
     const { start, end }: Range = transaction.stateUpdate.id
     const verifiedUpdates: VerifiedStateUpdate[] = await this.stateDB.getVerifiedStateUpdates(
       start,
       end
     )
 
+    // Iterate over the verified updates, transition their state, and add their ranges to the return object
     for (const verifiedUpdate of verifiedUpdates) {
       if (!isValidVerifiedStateUpdate(verifiedUpdate)) {
         // log here?
@@ -60,11 +61,8 @@ export class DefaultStateManager implements StateManager {
         start: verifiedStart,
         end: verifiedEnd,
       }: Range = verifiedUpdate.stateUpdate.id
-      if (
-        transaction.block !== verifiedUpdate.verifiedBlockNumber + 1 ||
-        verifiedEnd.lte(start) ||
-        verifiedStart.gte(end)
-      ) {
+      // If the ranges don't overlap, eagerly exit
+      if (verifiedEnd.lte(start) || verifiedStart.gte(end)) {
         // log here?
         continue
       }
@@ -75,8 +73,10 @@ export class DefaultStateManager implements StateManager {
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
         verifiedUpdate.stateUpdate,
+        verifiedUpdate.verifiedBlockNumber,
         transaction
       )
+
       result.validRanges.push({
         start: BigNum.max(start, verifiedStart),
         end: BigNum.min(end, verifiedEnd),
