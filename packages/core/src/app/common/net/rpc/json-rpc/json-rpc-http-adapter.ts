@@ -16,7 +16,7 @@ export class JsonRpcHttpAdapter
    * @param request JSON-RPC request to encode.
    * @returns the encoded HTTP request.
    */
-  encodeRequest(request: JsonRpcRequest): HttpRequest {
+  public encodeRequest(request: JsonRpcRequest): HttpRequest {
     return {
       url: '',
       method: 'post',
@@ -29,7 +29,7 @@ export class JsonRpcHttpAdapter
    * @param response HTTP response to decode.
    * @returns the decoded JSON-RPC response.
    */
-  decodeResponse(response: HttpResponse): JsonRpcResponse {
+  public decodeResponse(response: HttpResponse): JsonRpcResponse {
     return response.data
   }
 }
