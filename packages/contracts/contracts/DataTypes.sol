@@ -34,6 +34,7 @@ contract DataTypes {
         address depositAddress;
         uint128 start;
         uint128 end;
+        bytes32 methodId;
         bytes parameters;
     }
 }

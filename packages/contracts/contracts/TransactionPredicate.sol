@@ -20,21 +20,18 @@ contract TransactionPredicate {
         types.Transaction memory _transaction,
         bytes memory _witness,
         types.StateUpdate memory _postState
-    ) public returns (bool) {
+    ) public pure returns (bool) {
         return true;
     }
 
-    function startExit(types.Checkpoint memory _checkpoint) public {
-        // Extract the owner from the state object data field
-        address owner = abi.decode(_checkpoint.stateUpdate.stateObject.data, (address));
-        // Require that this is called by the owner
-        require(msg.sender == owner, "Only owner may initiate the exit");
-        // Forward the authenticated startExit to the deposit contract
+    // Note: child contracts also must add functions which authenticate calls to startExit and finalizeEexit
+
+    /* Standard functions used by these predicates */
+    function startExit(types.Checkpoint memory _checkpoint) internal {
         Deposit depositContract = Deposit(_checkpoint.stateUpdate.depositAddress);
         depositContract.startExit(_checkpoint);
     }
 
-    /* Standard functions used by these predicates */
     function deprecateExit(
         types.Checkpoint memory _deprecatedExit,
         types.Transaction memory _transaction,
@@ -53,7 +50,7 @@ contract TransactionPredicate {
     }
 
     // Note: in theory we might want custom functionality here, but usually for predicates inheriting this model they will be the same.
-    function finalizeExit(types.Checkpoint memory _exit, uint256 depositedRangeId) public {
+    function finalizeExit(types.Checkpoint memory _exit, uint256 depositedRangeId) internal {
         Deposit depositContract = Deposit(_exit.stateUpdate.depositAddress);
         depositContract.finalizeExit(_exit, depositedRangeId);
     }
