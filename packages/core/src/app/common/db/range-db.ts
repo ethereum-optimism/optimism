@@ -1,10 +1,10 @@
 /* External Imports */
 import level from 'level'
 import BigNum = require('bn.js')
-import { Batch } from '@pigi/core'
 
 /* Internal Imports */
 import { itNext, itEnd, bufferUtils } from '../utils'
+import { Batch } from '../../../interfaces/common/db/db.interface'
 import {
   RangeStore,
   RangeEntry,

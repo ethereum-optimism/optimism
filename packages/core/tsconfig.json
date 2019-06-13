@@ -4,6 +4,5 @@
     "outDir": "./build",
     "baseUrl": "./"
   },
-  "include": ["*.ts", "**/*.ts"],
-  "exclude": ["build/"]
+  "include": ["*.ts", "**/*.ts"]
 }
