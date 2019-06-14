@@ -32,7 +32,9 @@
     "body-parser": "^1.19.0",
     "debug": "^4.1.1",
     "eth-lib": "^0.2.8",
+    "ethers": "^4.0.30",
     "express": "^4.17.1",
+    "ganache-cli": "^6.4.4",
     "uuid": "^3.3.2",
     "web3": "^1.0.0-beta.55",
     "web3-utils": "^1.0.0-beta.55"

@@ -14,8 +14,17 @@ export interface StateUpdate {
   newState: StateObject
 }
 
+export interface Range {
+  start: BigNum
+  end: BigNum
+}
+
+export interface BlockRange extends Range {
+  block: BigNum
+}
+
 export interface Transaction {
-  stateUpdate: StateUpdate
+  range: Range
   witness: any
   block: number
 }

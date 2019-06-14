@@ -9,7 +9,8 @@ import {
   abi,
   keccak256,
   hexStringify,
-} from '@pigi/utils'
+  StateUpdate,
+} from '@pigi/core'
 
 /**
  * Creates a Transaction from an encoded Transaction.
