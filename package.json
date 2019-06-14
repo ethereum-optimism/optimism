@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "pkgparse": "echo ${PKGS:-'*'} | sed -e 's#,# @pigi/#g' -e 's#^#@pigi/#'",
-    "lint": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --exclude-missing lint",
+    "lint": "wsrun -p $(yarn --silent run pkgparse) --parallel --exclude-missing lint",
     "fix": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --exclude-missing fix",
     "clean": "wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --parallel --exclude-missing clean",
     "test": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --no-prefix --exclude-missing test",

@@ -64,7 +64,7 @@ export const makeID = (id: string | number): number => {
  * @param encoding Encoding of the string.
  * @returns the size of the string.
  */
-export const sizeString = (value: string, encoding: string): number => {
+export const sizeString = (value: string, encoding: BufferEncoding): number => {
   return 1 + Buffer.byteLength(value, encoding)
 }
 
@@ -78,7 +78,7 @@ export const sizeString = (value: string, encoding: string): number => {
 export const readString = (
   buf: Buffer,
   offset: number,
-  encoding: string
+  encoding: BufferEncoding
 ): string => {
   assertLen(offset + 1 <= buf.length)
   assertLen(offset + 1 + buf[offset] <= buf.length)
@@ -97,7 +97,7 @@ export const writeString = (
   buf: Buffer,
   value: string,
   offset: number,
-  encoding: string,
+  encoding: BufferEncoding,
   length?: number
 ): number => {
   const size = Buffer.byteLength(value, encoding)
