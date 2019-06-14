@@ -30,9 +30,11 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "scripts": {
-    "lint": "tslint --format stylish --project .",
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p ."
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
   },
   "dependencies": {
     "abstract-leveldown": "^6.0.3",
@@ -56,7 +58,8 @@
     "chai-as-promised": "^7.1.1",
     "mocha": "^6.1.4",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1"
+    "typescript": "^3.5.1",
+    "rimraf": "^2.6.3"
   },
   "publishConfig": {
     "access": "public"

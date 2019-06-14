@@ -15,6 +15,7 @@ import {
   Transaction,
   VerifiedStateUpdate,
 } from '../../interfaces'
+import { getOverlappingRange, rangesIntersect } from '../common/utils/range'
 
 /**
  * StateManager that validates transactions and wraps and modifies StateDB as necessary.
@@ -62,16 +63,12 @@ export class DefaultStateManager implements StateManager {
         )
       }
 
-      const {
-        start: verifiedStart,
-        end: verifiedEnd,
-      }: Range = verifiedUpdate.stateUpdate.range
       // If the ranges don't overlap, eagerly exit
-      if (verifiedEnd.lte(start) || verifiedStart.gte(end)) {
+      if (!rangesIntersect(verifiedUpdate.range, transaction.range)) {
         throw Error(`VerifiedStateUpdate for range [${start}, ${end}) is outside of range: 
         ${JSON.stringify(
-          verifiedUpdate.stateUpdate.range
-        )}. VerifiedStateUpdate: ${verifiedUpdate}.`)
+          verifiedUpdate.range
+        )}. VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}.`)
       }
 
       if (verifiedUpdate.verifiedBlockNumber + 1 !== inBlock) {
@@ -102,10 +99,9 @@ export class DefaultStateManager implements StateManager {
           VerifiedStateUpdate transitioned: ${JSON.stringify(verifiedUpdate)}`)
       }
 
-      result.validRanges.push({
-        start: BigNum.max(start, verifiedStart),
-        end: BigNum.min(end, verifiedEnd),
-      })
+      result.validRanges.push(
+        getOverlappingRange(transaction.range, verifiedUpdate.range)
+      )
 
       if (result.stateUpdate === undefined) {
         result.stateUpdate = computedState
