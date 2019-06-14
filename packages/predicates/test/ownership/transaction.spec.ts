@@ -4,7 +4,7 @@ import '../setup'
 import debug from 'debug'
 const log = debug('test:info:ownership-predicate')
 import BigNum = require('bn.js')
-import { AbiStateObject } from '@pigi/utils'
+import { AbiStateObject } from '@pigi/core'
 
 /* Internal Imports */
 import { OwnershipTransaction } from '../..//src/ownership/transaction'
@@ -16,6 +16,7 @@ describe('OwnershipTransaction', () => {
       '0x00'
     )
     const ownershipTx = new OwnershipTransaction(
+      '0x7Fa6da9966869B56Dd08cb111Efed88FDF799545',
       '0x7Fa6da9966869B56Dd08cb111Efed88FDF799545',
       1,
       { start: new BigNum(1), end: new BigNum(10) },
