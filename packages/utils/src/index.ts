@@ -1,6 +1,6 @@
 export * from './utils'
 export * from './constants'
 export * from './eth'
-export * from './sum-tree'
+export * from './merkle-interval-tree'
 export * from './interfaces'
 export * from './data-types'

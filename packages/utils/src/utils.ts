@@ -118,3 +118,16 @@ export const hexStringify = (value: BigNum | Buffer): string => {
 export const hexStrToBuf = (hexString: string): Buffer => {
   return Buffer.from(hexString.slice(2), 'hex')
 }
+
+/**
+ * Creates a new version of a list with all instances of a specific element
+ * removed.
+ * @param list List to remove elements from.
+ * @param element Element to remove from the list.
+ * @returns the list without the given element.
+ */
+export const except = <T>(list: T[], element: T): T[] => {
+  return list.filter((item) => {
+    return item !== element
+  })
+}

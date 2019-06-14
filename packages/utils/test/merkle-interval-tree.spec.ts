@@ -4,12 +4,12 @@ import { should } from './setup'
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { MerkleSumTree, MerkleTreeNode } from '../src/sum-tree'
+import { MerkleIntervalTree, MerkleTreeNode } from '../src/merkle-interval-tree'
 
-describe('MerkleSumTree', () => {
+describe('MerkleIntervalTree', () => {
   describe('construction', () => {
     it('should be created correctly with no leaves', () => {
-      const tree = new MerkleSumTree()
+      const tree = new MerkleIntervalTree()
 
       should.not.exist(tree.root)
       tree.leaves.should.deep.equal([])
@@ -23,7 +23,7 @@ describe('MerkleSumTree', () => {
           data: '0x123',
         },
       ]
-      const tree = new MerkleSumTree({
+      const tree = new MerkleIntervalTree({
         leaves,
       })
 
@@ -43,7 +43,7 @@ describe('MerkleSumTree', () => {
           data: '0x456',
         },
       ]
-      const tree = new MerkleSumTree({
+      const tree = new MerkleIntervalTree({
         leaves,
       })
 
@@ -55,7 +55,7 @@ describe('MerkleSumTree', () => {
 
   describe('verify', () => {
     it('should correctly verify a valid proof', () => {
-      const tree = new MerkleSumTree()
+      const tree = new MerkleIntervalTree()
       const leaf: MerkleTreeNode = {
         end: new BigNum(100),
         data: '0x123',
@@ -76,7 +76,7 @@ describe('MerkleSumTree', () => {
     })
 
     it('should correctly reject a proof with the wrong root', () => {
-      const tree = new MerkleSumTree()
+      const tree = new MerkleIntervalTree()
       const leaf: MerkleTreeNode = {
         end: new BigNum(100),
         data: '0x123',
@@ -96,7 +96,7 @@ describe('MerkleSumTree', () => {
     })
 
     it('should correctly reject a proof with the wrong siblings', () => {
-      const tree = new MerkleSumTree()
+      const tree = new MerkleIntervalTree()
       const leaf: MerkleTreeNode = {
         end: new BigNum(100),
         data: '0x123',
@@ -116,7 +116,7 @@ describe('MerkleSumTree', () => {
     })
 
     it('should correctly reject a proof with an invalid sibling', () => {
-      const tree = new MerkleSumTree()
+      const tree = new MerkleIntervalTree()
       const leaf: MerkleTreeNode = {
         end: new BigNum(100),
         data: '0x123',
@@ -149,7 +149,7 @@ describe('MerkleSumTree', () => {
           data: '0x456',
         },
       ]
-      const tree = new MerkleSumTree({
+      const tree = new MerkleIntervalTree({
         leaves,
       })
       const expected: MerkleTreeNode[] = [
