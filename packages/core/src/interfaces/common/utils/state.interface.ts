@@ -41,7 +41,7 @@ export interface StateQueryResult {
 export interface Transaction {
   depositContract: string
   methodId: string
-  parameters: string
+  parameters: any
   range: Range
 }
 
