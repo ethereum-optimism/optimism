@@ -1,9 +1,53 @@
-/* External Imports */
-import BigNum = require('bn.js')
-
 /* Internal Imports */
+import BigNum = require('bn.js')
 import { bnMax, bnMin } from './misc'
-import { Range, BlockRange } from '../../../interfaces/common/utils'
+import { BlockRange, Range } from '../../../interfaces/common/utils'
+import { bufferUtils } from './buffer-utils'
+
+/**
+ * Checks if two ranges intersect, eg. [1,10) & [8,11) would return true.
+ * @param start1 The start of the first range.
+ * @param end1 The end of the first range.
+ * @param start2 The start of the second range.
+ * @param end2 The end of the second range.
+ * @returns true if max(start1, start2) < min(end1, end2), false otherwise.
+ */
+export const intersects = (
+  start1: Buffer,
+  end1: Buffer,
+  start2: Buffer,
+  end2: Buffer
+): boolean => {
+  const maxStart = bufferUtils.max(start1, start2)
+  const minEnd = bufferUtils.min(end1, end2)
+  return bufferUtils.lt(maxStart, minEnd)
+}
+
+/**
+ * Gets the intersection of two Ranges, eg. [1,10) & [8,11) would return [8,10).
+ * @param range1 the first range
+ * @param range2 the second range
+ * @returns true if ranges overlap, false otherwise
+ */
+export const getOverlappingRange = (
+  range1: Range,
+  range2: Range
+): Range | undefined => {
+  const start: BigNum = bnMax(range1.start, range2.start)
+  const end: BigNum = bnMin(range1.end, range2.end)
+
+  return start.lt(end) ? { start, end } : undefined
+}
+
+/**
+ * Checks if two ranges intersect, eg. [1,10) & [8,11) would return true.
+ * @param range1 the first range
+ * @param range2 the second range
+ * @returns true if ranges overlap, false otherwise
+ */
+export const rangesIntersect = (range1: Range, range2: Range): boolean => {
+  return !!getOverlappingRange(range1, range2)
+}
 
 /**
  * RangeStore makes it easy to store ranges.
@@ -11,7 +55,7 @@ import { Range, BlockRange } from '../../../interfaces/common/utils'
  * a higher block number than existing ranges
  * that they overlap with will be inserted.
  */
-export class RangeStore<T extends BlockRange> {
+export class DefaultBlockRange<T extends BlockRange> {
   public ranges: T[]
 
   /**
@@ -26,7 +70,7 @@ export class RangeStore<T extends BlockRange> {
    * Merges the ranges of another RangeStore into this one.
    * @param other The other RangeStore.
    */
-  public merge(other: RangeStore<T>): void {
+  public merge(other: DefaultBlockRange<T>): void {
     for (const range of other.ranges) {
       this.addRange(range)
     }
@@ -40,13 +84,15 @@ export class RangeStore<T extends BlockRange> {
    */
   public getOverlapping(range: Range): T[] {
     return this.ranges.reduce((overlap, existing) => {
-      const overlapStart = bnMax(existing.start, range.start)
-      const overlapEnd = bnMin(existing.end, range.end)
-      if (overlapStart.lt(overlapEnd)) {
+      const overlapping: Range | undefined = getOverlappingRange(
+        existing,
+        range
+      )
+      if (!!overlapping) {
         overlap.push({
           ...existing,
-          start: overlapStart,
-          end: overlapEnd,
+          start: overlapping.start,
+          end: overlapping.end,
         })
       }
       return overlap
@@ -65,7 +111,7 @@ export class RangeStore<T extends BlockRange> {
       throw new Error('Invalid range')
     }
 
-    const toAdd = new RangeStore([range])
+    const toAdd = new DefaultBlockRange([range])
     for (const overlap of this.getOverlapping(range)) {
       if (overlap.block.gt(range.block)) {
         // Existing range has a greater block number,

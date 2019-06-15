@@ -10,12 +10,13 @@ import { AbiStateObject } from '@pigi/core'
 import { OwnershipTransaction } from '../..//src/ownership/transaction'
 
 describe('OwnershipTransaction', () => {
-  it.only('should initalize', async () => {
+  it('should initalize', async () => {
     const newStateObject = new AbiStateObject(
       '0x7Fa6da9966869B56Dd08cb111Efed88FDF799545',
       '0x00'
     )
     const ownershipTx = new OwnershipTransaction(
+      '0x7Fa6da9966869B56Dd08cb111Efed88FDF799545',
       '0x7Fa6da9966869B56Dd08cb111Efed88FDF799545',
       1,
       { start: new BigNum(1), end: new BigNum(10) },
