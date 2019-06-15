@@ -10,7 +10,8 @@
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts'",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p ."
+    "build": "tsc -p .",
+    "clean": "rimraf build/"
   },
   "keywords": [
     "plasma",
@@ -30,15 +31,20 @@
     "@types/cors": "^2.8.4",
     "@types/express": "^4.16.1",
     "body-parser": "^1.18.3",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "rimraf": "^2.6.3",
+    "chai": "^4.2.0"
   },
   "publishConfig": {
     "access": "public"
   },
   "dependencies": {
     "@types/node": "^11.13.7",
+    "@pigi/core": "^0.0.1-alpha.1",
     "debug": "^4.1.1",
     "express": "^4.16.4",
-    "level": "^5.0.1"
+    "level": "^5.0.1",
+    "bn.js": "^4.11.8",
+    "abstract-leveldown": "^6.0.3"
   }
 }

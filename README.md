@@ -11,13 +11,15 @@ All of the core plasma group projects are hosted inside of the [packages](https:
 ## Packages
 
 | Package                                                             | Version                                                                                                                                     | Description                                                                                                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@pigi/contracts`](/packages/contracts)                            | [![npm](https://img.shields.io/npm/v/@pigi/contracts.svg)](https://www.npmjs.com/package/@pigi/contracts)                                       | Core Vyper contracts used for the PG plasma chain.
-| [`@pigi/core`](/packages/core)                                      | [![npm](https://img.shields.io/npm/v/@pigi/core.svg)](https://www.npmjs.com/package/@pigi/core)                                                  | Core PG plasma chain client modules.
-| [`@pigi/plasma-js`](/packages/plasma-js)                            | [![npm](https://img.shields.io/npm/v/@pigi/plasma-js.svg)](https://www.npmjs.com/package/@pigi/plasma-js)                                       | JS client library for interacting with PG plasma chains.
-| [`@pigi/utils`](/packages/utils)                                    | [![npm](https://img.shields.io/npm/v/@pigi/utils.svg)](https://www.npmjs.com/package/@pigi/utils)                                           | Utilities used in many PG projects.
-| [`@pigi/vyper-js`](/packages/vyper-js)                              | [![npm](https://img.shields.io/npm/v/@pigi/vyper-js.svg)](https://www.npmjs.com/package/@pigi/vyper-js)                                        | JavaScript bindings for the Vyper compiler.
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------|
+| [`@pigi/contracts`](/packages/contracts)                            | [![npm](https://img.shields.io/npm/v/@pigi/contracts.svg)](https://www.npmjs.com/package/@pigi/contracts)                                   | Core Vyper contracts used for the PG plasma chain.                                            |
+| [`@pigi/core`](/packages/core)                                      | [![npm](https://img.shields.io/npm/v/@pigi/core.svg)](https://www.npmjs.com/package/@pigi/core)                                             | Core PG plasma chain client modules.                                                          |
+| [`@pigi/plasma-js`](/packages/plasma-js)                            | [![npm](https://img.shields.io/npm/v/@pigi/plasma-js.svg)](https://www.npmjs.com/package/@pigi/plasma-js)                                   | JS client library for interacting with PG plasma chains.                                      |
+| [`@pigi/utils`](/packages/utils)                                    | [![npm](https://img.shields.io/npm/v/@pigi/utils.svg)](https://www.npmjs.com/package/@pigi/utils)                                           | Utilities used in many PG projects.                                                           |
+| [`@pigi/vyper-js`](/packages/vyper-js)                              | [![npm](https://img.shields.io/npm/v/@pigi/vyper-js.svg)](https://www.npmjs.com/package/@pigi/vyper-js)                                     | JavaScript bindings for the Vyper compiler.                                                   |
 
+## Repo Status
+[![Build Status](https://travis-ci.org/plasma-group/pigi.svg?branch=master)](https://travis-ci.org/plasma-group/pigi) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/a822ee0425164be586235be45100f7d6)](https://www.codacy.com/app/kfichter/pigi?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=plasma-group/pigi&amp;utm_campaign=Badge_Grade)
 
 ## Contributing
 Welcome! If you're looking to contribute to the future of plasma, you're in the right place.
@@ -31,13 +33,13 @@ We're here to cultivate a welcoming and inclusive contributing environment, and 
 #### Cloning the Repo
 Before you start working on a Plasma Group project, you'll need to clone our GitHub repository:
 
-```
+```sh
 git clone git@github.com:plasma-group/pigi.git
 ```
 
 Now, enter the repository.
 
-```
+```sh
 cd pigi
 ```
 
@@ -45,6 +47,8 @@ cd pigi
 Most of the projects in `@pigi` are [`Node.js`](https://nodejs.org/en/) projects.
 You'll need to install `Node.js` for your system before continuing.
 We've provided a [detailed explanation of now to install `Node.js`](https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js) on Windows, Mac, and Linux.
+
+**Note**: This is confirmed to work on `Node.js v11.6`, but there may be issues on other versions. If you have trouble, please peg your Node.js version to 11.6.
 
 #### Yarn
 We're using a package manager called [Yarn](https://yarnpkg.com/en/).
@@ -55,7 +59,7 @@ You'll need to [install Yarn](https://yarnpkg.com/en/docs/install) before contin
 
 Install all required packages with:
 
-```
+```sh
 yarn install
 ```
 
@@ -64,13 +68,13 @@ yarn install
 
 Build all packages:
 
-```
+```sh
 yarn run build
 ```
 
 Build a specific package or set of packages:
 
-```
+```sh
 PKGS=your,packages,here yarn run build
 ```
 
@@ -79,13 +83,13 @@ Clean code is the best code, so we've provided tools to automatically lint your 
 
 Lint all packages:
 
-```
+```sh
 yarn run lint
 ```
 
 Lint a specific package or set of packages:
 
-```
+```sh
 PKGS=your,packages,here yarn run lint
 ```
 
@@ -95,13 +99,13 @@ It's much easier than trying to fix issues manually.
 
 Fix all packages:
 
-```
+```sh
 yarn run fix
 ```
 
 Fix a specific package or set of packages:
 
-```
+```sh
 PKGS=your,packages,here yarn run fix
 ```
 
@@ -110,19 +114,19 @@ PKGS=your,packages,here yarn run fix
 
 Run all tests:
 
-```
+```sh
 yarn test
 ```
 
 Run tests for a specific package or set of packages:
 
-```
+```sh
 PKGS=your,packages,here yarn test
 ```
 
 **Contributors: remember to run tests before submitting a pull request!**
 Code with passing tests makes life easier for everyone and means your contribution can get pulled into this project faster.
 
-## Credit where credit is due!
+## Acknowledgements
 We'd like to give a big shoutout to [0x](https://0x.org/) and [Nest.js](https://nestjs.com/) for inspiration about the best ways to design this monorepo.
 Please check out their respective repos ([0x](https://github.com/0xProject/0x-monorepo) and [Nest.js](https://github.com/nestjs/nest)) if you're looking for other cool projects to work on :blush:!

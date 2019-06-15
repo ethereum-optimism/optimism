@@ -4,7 +4,7 @@
 `@pigi/predicates` is a set of basic predicates which are critical for the basic functioning of a plasma chain.
 
 ## Documentation
-Detailed documentation for `predicates` is available on ReadTheDocs: https://docs.plasma.group/projects/utils/en/latest/.
+Detailed documentation for `predicates` is available on ReadTheDocs: <https://docs.plasma.group/projects/utils/en/latest/.>
 
 ## Installation
 There are several easy ways to start using `@pigi/predicates`! For now we just describe the node install.
@@ -12,8 +12,8 @@ There are several easy ways to start using `@pigi/predicates`! For now we just d
 ### Node.js
 If you're developing a `Node.js` application, you can simply install `@pigi/predicates` via `npm`:
 
-```
-$ npm install --save @pigi/predicates
+```sh
+npm install --save @pigi/predicates
 ```
 
 ## Contributing

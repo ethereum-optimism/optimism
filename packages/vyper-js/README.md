@@ -8,7 +8,7 @@ As a result, you currently need to [install Vyper](https://vyper.readthedocs.io/
 It's pretty easy to use `vyper-js` in a `Node.js` application.
 Simply install the package via `npm`:
 
-```
+```sh
 npm install --save @pigi/vyper-js
 ```
 
@@ -29,23 +29,47 @@ Check out our detailed [Contributing Guide](https://github.com/plasma-group/pigi
 ## Documentation
 The `vyper-js` API is pretty simple - there's currently only a single function!
 
-### vyperjs.compile
-```js
-vyperjs.compile(path)
+### Data Structures
+
+#### VyperCompilationResult
+
+```ts
+interface VyperCompilationResult {
+  bytecode: string
+  bytecodeRuntime: string
+  abi: VyperAbiMethod[]
+  sourceMap: VyperSourceMap
+  methodIdentifiers: { [key: string]: string }
+  version: string
+}
 ```
 
+##### Description
+Result of compiling a Vyper file.
+
+##### Fields
+- `bytecode` - `string`: EVM bytecode of the compiled contract.
+- `bytecodeRuntime` - `string`: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
+- `abi` - `VyperAbiItem | VyperAbiItem[]`: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
+- `sourceMap` - `Object`: Source mapping object.
+    - `breakpoints` - `number[]`: List of lines that have breakpoints.
+    - `pcPosMap` - `{ [key: string]: [number, number] }`: Mapping of opcode positions to `[line_number, column_offset]` in the original file.
+- `methodIdentifiers` - `{ [key: string]: string }`: Mapping of method signatures to their unique hashes.
+- `version` - `string`: Vyper compiler version used to compile the file.
+
+### Methods
+
+#### compile
+
+```js
+async function compile(path: string): Promise<VyperCompilationResult>
+```
+
+##### Description
 Compiles the vyper contract at the given path and outputs the compilation result
 
 #### Params
 1. `path` - `string`: Path to the Vyper file to compile.
 
 #### Returns
-1. `Object`: The compilation result.
-    * `bytecode` - `string`: EVM bytecode of the compiled contract.
-    * `bytecodeRuntime` - `string`: [Runtime bytecode](https://ethereum.stackexchange.com/questions/32234/difference-between-bytecode-and-runtime-bytecode) for the contract.
-    * `abi` - `VyperAbiItem | VyperAbiItem[]`: Ethereum [contract ABI](https://github.com/ethereum/wiki/wiki/Ethereum-Contract-ABI).
-    * `sourceMap` - `Object`: Source mapping object.
-        * `breakpoints` - `number[]`: List of lines that have breakpoints.
-        * `pcPosMap` - `{ [key: string]: [number, number] }`: Mapping of opcode positions to `[line_number, column_offset]` in the original file.
-    * `methodIdentifiers` - `{ [key: string]: string }`: Mapping of method signatures to their unique hashes.
-    * `version` - `string`: Vyper compiler version used to compile the file.
+`Promise<VyperCompilatinResult>`: The compilation result.

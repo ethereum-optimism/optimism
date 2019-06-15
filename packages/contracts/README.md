@@ -11,12 +11,13 @@ Plasma Group follows a [Contributing Guide and Code of Conduct](https://github.c
 
 ### Requirements and Setup
 The first step is cloning this repo.  Via https:
-```
-$ git clone https://github.com/plasma-group/plasma-contracts.git
+
+```sh
+git clone https://github.com/plasma-group/plasma-contracts.git
 ```
 or ssh:
-```
-$ git clone git@github.com:plasma-group/plasma-contracts.git
+```sh
+git clone git@github.com:plasma-group/plasma-contracts.git
 ```
 
 #### Node.js
@@ -31,22 +32,28 @@ If you're having trouble getting `plasma-contracts` tests running, please make s
 
 Install all required packages with:
 
+```sh
+npm install
 ```
-$ npm install
-```
+
 #### Python and Vyper
 `plasma-contracts` is written in Vyper, a pythonic Ethereum smart contract language. You'll need [Python 3.6 or above](https://www.python.org/downloads/) to install Vyper.
 
 We reccomend setting up a [virtual environment](https://cewing.github.io/training.python_web/html/presentations/venv_intro.html) instead of installing globally:
-```
+
+```sh
 python3 -m venv venv
 ```
+
 To activate:
+
+```sh
+source venv/bin/activate
 ```
-$ source venv/bin/activate
-```
+
 Install Vyper:
-```
+
+```sh
 pip3 install vyper
 ```
 Your `venv` must be activated whenever testing or otherwise using Vyper, but it will break the `npm install`, so be sure to `$ deactivate` if you still need to do that and reactivate afterwards.
@@ -56,7 +63,7 @@ Your `venv` must be activated whenever testing or otherwise using Vyper, but it 
 
 Run all tests with:
 
-```
-$ npm test
+```sh
+npm test
 ```
 So that Python and Vyper aren't requirements for our other components, we do include a `compiled-contracts` folder which contains JS exports of the bytecode and ABI. Compilation is done automatically before testing.
