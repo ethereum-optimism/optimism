@@ -1,7 +1,16 @@
 {
   "name": "@pigi/core",
   "version": "0.0.2-alpha.1",
-  "description": "Plasma Group generalized plasma client",
+  "description": "Plasma Group client",
+  "main": "build/index.js",
+  "files": [
+    "build/**/.js"
+  ],
+  "scripts": {
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
+  },
   "keywords": [
     "plasma",
     "group",
@@ -21,9 +30,11 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "scripts": {
-    "lint": "tslint --format stylish --project .",
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p ."
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
   },
   "dependencies": {
     "abstract-leveldown": "^6.0.3",
@@ -32,8 +43,10 @@
     "body-parser": "^1.19.0",
     "debug": "^4.1.1",
     "eth-lib": "^0.2.8",
+    "ethers": "^4.0.30",
     "express": "^4.17.1",
     "level": "^5.0.1",
+    "ganache-cli": "^6.4.4",
     "uuid": "^3.3.2",
     "web3": "^1.0.0-beta.55",
     "web3-utils": "^1.0.0-beta.55"
@@ -47,7 +60,8 @@
     "chai-as-promised": "^7.1.1",
     "mocha": "^6.1.4",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1"
+    "typescript": "^3.5.1",
+    "rimraf": "^2.6.3"
   },
   "publishConfig": {
     "access": "public"
