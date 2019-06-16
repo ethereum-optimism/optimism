@@ -2,7 +2,8 @@
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
-import { bnMin, bnMax, except } from './utils'
+import { keccak256 } from './eth/utils'
+import { bnMin, bnMax, except, reverse } from './utils'
 
 /**
  * Computes the index of the sibling of a node.
@@ -27,6 +28,7 @@ const getParentIndex = (index: number): number => {
  * @param rangeA First range to check.
  * @param rangeB Second range to check.
  * @returns `true` if the ranges overlap, `false` otherwise.
+ */
 const intersects = (rangeA: Range, rangeB: Range): boolean => {
   const maxStart = bnMax(rangeA.start, rangeB.start)
   const minEnd = bnMin(rangeA.end, rangeB.end)
@@ -65,13 +67,19 @@ export class MerkleIntervalTree {
   private levels: MerkleIntervalTreeInternalNode[][]
 
   constructor(
-    private leaves: MerkleIntervalTreeLeafNode[],
-    private hashfn: (value: Buffer) => Buffer
+    private leaves: MerkleIntervalTreeLeafNode[] = [],
+    private hashfn: (value: Buffer) => Buffer = keccak256
   ) {
     this.validateLeaves(this.leaves)
 
     this.leaves.sort((a, b) => {
-      return a.start.sub(b.start)
+      if (a.start.lt(b.start)) {
+        return -1
+      } else if (a.start.gt(b.start)) {
+        return 1
+      } else {
+        return 0
+      }
     })
 
     const bottom = this.leaves.map((leaf) => {
@@ -80,6 +88,22 @@ export class MerkleIntervalTree {
 
     this.levels = [bottom]
     this.generateTree()
+  }
+
+  /**
+   * @returns the root of the tree.
+   */
+  public getRoot(): MerkleIntervalTreeInternalNode {
+    return this.levels[0].length > 0
+      ? this.levels[this.levels.length - 1][0]
+      : null
+  }
+
+  /**
+   * @returns the levels of the tree.
+   */
+  public getLevels(): MerkleIntervalTreeInternalNode[][] {
+    return this.levels
   }
 
   /**
@@ -125,7 +149,7 @@ export class MerkleIntervalTree {
   public checkInclusionProof(
     leafNode: MerkleIntervalTreeLeafNode,
     leafPosition: number,
-    inclusionProof: MerkleIntervalTreeInternalNode,
+    inclusionProof: MerkleIntervalTreeInclusionProof,
     rootHash: Buffer
   ): Range {
     if (leafPosition < 0) {
@@ -133,7 +157,7 @@ export class MerkleIntervalTree {
     }
 
     const path = reverse(
-      new BigNum(leafPosition).toString(2, inclusionProof.length)
+      new BigNumber(leafPosition).toString(2, inclusionProof.length)
     )
 
     const firstRightSiblingIndex = path.indexOf('0')
@@ -175,7 +199,7 @@ export class MerkleIntervalTree {
       )
     }
 
-    const implicitStart = leafPosition === 0 ? new BigNumber(0) : leafNode.index
+    const implicitStart = leafPosition === 0 ? new BigNumber(0) : leafNode.start
     const implicitEnd =
       firstRightSibling !== null ? firstRightSibling.index : null
 
@@ -215,8 +239,8 @@ export class MerkleIntervalTree {
       index: leaf.start,
       hash: this.hashfn(
         Buffer.concat([
-          leaf.start.toBuffer('BE', 16),
-          leaf.end.toBuffer('BE', 16),
+          leaf.start.toBuffer('be', 16),
+          leaf.end.toBuffer('be', 16),
           leaf.data,
         ])
       ),
@@ -249,9 +273,9 @@ export class MerkleIntervalTree {
     rightChild: MerkleIntervalTreeInternalNode
   ): MerkleIntervalTreeInternalNode {
     const data = Buffer.concat([
-      leftChild.index,
+      leftChild.index.toBuffer('be', 16),
       leftChild.hash,
-      rightChild.index,
+      rightChild.index.toBuffer('be', 16),
       rightChild.hash,
     ])
     const hash = this.hashfn(data)
