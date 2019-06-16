@@ -4,11 +4,9 @@ import { should } from '../../../setup'
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
-import {
-  MerkleIntervalTree,
-} from '../../../../src/app/common/utils/merkle-interval-tree'
+import { MerkleIntervalTree } from '../../../../src/app/common/utils/merkle-interval-tree'
 
-import { 
+import {
   MerkleIntervalTreeLeafNode,
   MerkleIntervalTreeInternalNode,
   MerkleIntervalTreeInclusionProof,

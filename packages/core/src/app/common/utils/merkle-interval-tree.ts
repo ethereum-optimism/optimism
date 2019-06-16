@@ -2,7 +2,12 @@
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
-import { Range, MerkleIntervalTreeLeafNode, MerkleIntervalTreeInternalNode, MerkleIntervalTreeInclusionProof } from '../../../interfaces'
+import {
+  Range,
+  MerkleIntervalTreeLeafNode,
+  MerkleIntervalTreeInternalNode,
+  MerkleIntervalTreeInclusionProof,
+} from '../../../interfaces'
 import { keccak256 } from '../eth/utils'
 import { bnMin, bnMax, except, reverse } from './misc'
 

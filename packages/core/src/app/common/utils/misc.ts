@@ -196,7 +196,6 @@ export const hexStrToBuf = (hexString: string): Buffer => {
   return Buffer.from(hexString.slice(2), 'hex')
 }
 
-
 /**
  * Creates a new version of a list with all instances of a specific element
  * removed.

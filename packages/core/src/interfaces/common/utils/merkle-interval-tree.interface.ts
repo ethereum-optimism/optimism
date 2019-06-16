@@ -1,3 +1,6 @@
+/* External Imports */
+import BigNumber = require('bn.js')
+
 export interface MerkleIntervalTreeLeafNode {
   start: BigNumber
   end: BigNumber
