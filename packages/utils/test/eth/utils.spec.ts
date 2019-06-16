@@ -9,17 +9,16 @@ describe('Ethereum Utils', () => {
       const value = Buffer.from('1234', 'hex')
       const hash = keccak256(value)
 
-      const expected = Buffer.from('387a8233c96e1fc0ad5e284353276177af2186e7afa85296f106336e376669f7', 'hex')
+      const expected = Buffer.from('56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432', 'hex')
       hash.should.deep.equal(expected)
     })
 
-    it('should automatically add 0x if it does not exist', () => {
-      const valueA = Buffer.from('123')
-      const valueB = Buffer.from('0x123')
-      const hashA = keccak256(valueA)
-      const hashB = keccak256(valueB)
+    it('should return the keccak256 of the empty string', () => {
+      const value = Buffer.from('', 'hex')
+      const hash = keccak256(value)
 
-      hashA.should.deep.equal(hashB)
+      const expected = Buffer.from('c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470', 'hex')
+      hash.should.deep.equal(expected)
     })
   })
 })
