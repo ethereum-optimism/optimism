@@ -2,6 +2,7 @@
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
+import { Range } from './interfaces'
 import { keccak256 } from './eth/utils'
 import { bnMin, bnMax, except, reverse } from './utils'
 
@@ -43,11 +44,6 @@ const intersects = (rangeA: Range, rangeB: Range): boolean => {
  */
 const outOfBounds = (list: any[], index: number): boolean => {
   return index < 0 || index >= list.length
-}
-
-export interface Range {
-  start: BigNumber
-  end: BigNumber
 }
 
 export interface MerkleIntervalTreeLeafNode {
@@ -126,8 +122,8 @@ export class MerkleIntervalTree {
       const currentLevel = this.levels[i]
       const childNode = currentLevel[childIndex]
       const siblingNode = outOfBounds(currentLevel, siblingIndex)
-        ? currentLevel[siblingIndex]
-        : this.createEmptyNode(childNode.index)
+        ? this.createEmptyNode(childNode.index)
+        : currentLevel[siblingIndex]
 
       inclusionProof.push(siblingNode)
 
@@ -160,15 +156,10 @@ export class MerkleIntervalTree {
       new BigNumber(leafPosition).toString(2, inclusionProof.length)
     )
 
-    const firstRightSiblingIndex = path.indexOf('0')
-    const firstRightSibling =
-      firstRightSiblingIndex >= 0
-        ? inclusionProof[firstRightSiblingIndex]
-        : null
-
     let computedNode = this.parseLeaf(leafNode)
     let leftChild: MerkleIntervalTreeInternalNode
     let rightChild: MerkleIntervalTreeInternalNode
+    let prevRightSibling: MerkleIntervalTreeInternalNode = null
 
     for (let i = 0; i < inclusionProof.length; i++) {
       const siblingNode = inclusionProof[i]
@@ -181,13 +172,16 @@ export class MerkleIntervalTree {
         rightChild = siblingNode
 
         if (
-          firstRightSibling !== null &&
-          rightChild.index.lt(firstRightSibling.index)
+          (prevRightSibling !== null &&
+            rightChild.index.lt(prevRightSibling.index)) ||
+          rightChild.index.lt(leafNode.end)
         ) {
           throw new Error(
             'Invalid Merkle Interval Tree proof -- potential intersection detected.'
           )
         }
+
+        prevRightSibling = rightChild
       }
 
       computedNode = this.computeParent(leftChild, rightChild)
@@ -198,6 +192,12 @@ export class MerkleIntervalTree {
         'Invalid Merkle Interval Tree proof -- invalid root hash.'
       )
     }
+
+    const firstRightSiblingIndex = path.indexOf('0')
+    const firstRightSibling =
+      firstRightSiblingIndex >= 0
+        ? inclusionProof[firstRightSiblingIndex]
+        : null
 
     const implicitStart = leafPosition === 0 ? new BigNumber(0) : leafNode.start
     const implicitEnd =
