@@ -2,9 +2,9 @@
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
-import { Range } from './interfaces'
-import { keccak256 } from './eth/utils'
-import { bnMin, bnMax, except, reverse } from './utils'
+import { Range, MerkleIntervalTreeLeafNode, MerkleIntervalTreeInternalNode, MerkleIntervalTreeInclusionProof } from '../../../interfaces'
+import { keccak256 } from '../eth/utils'
+import { bnMin, bnMax, except, reverse } from './misc'
 
 /**
  * Computes the index of the sibling of a node.
@@ -45,19 +45,6 @@ const intersects = (rangeA: Range, rangeB: Range): boolean => {
 const outOfBounds = (list: any[], index: number): boolean => {
   return index < 0 || index >= list.length
 }
-
-export interface MerkleIntervalTreeLeafNode {
-  start: BigNumber
-  end: BigNumber
-  data: Buffer
-}
-
-export interface MerkleIntervalTreeInternalNode {
-  index: BigNumber
-  hash: Buffer
-}
-
-export type MerkleIntervalTreeInclusionProof = MerkleIntervalTreeInternalNode[]
 
 export class MerkleIntervalTree {
   private levels: MerkleIntervalTreeInternalNode[][]

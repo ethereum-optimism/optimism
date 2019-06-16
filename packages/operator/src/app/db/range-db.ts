@@ -1,10 +1,9 @@
 /* External Imports */
 import level from 'level'
 import BigNum = require('bn.js')
-import { Batch } from '@pigi/core'
+import { Batch, intersects, itEnd, itNext } from '@pigi/core'
 
 /* Internal Imports */
-import { itNext, itEnd, bufferUtils } from '../utils'
 import {
   RangeStore,
   RangeEntry,
@@ -115,25 +114,6 @@ export class LevelRangeStore implements RangeStore {
     if (!start.gten(0)) {
       throw new Error('Start less than zero')
     }
-  }
-
-  /**
-   * Checks if two ranges intersect, eg. [1,10) & [8,11) would return true.
-   * @param start1 The start of the first range.
-   * @param end1 The end of the first range.
-   * @param start2 The start of the second range.
-   * @param end2 The end of the second range.
-   * @returns true if max(start1, start2) < min(end1, end2), false otherwise.
-   */
-  private intersects(
-    start1: Buffer,
-    end1: Buffer,
-    start2: Buffer,
-    end2: Buffer
-  ): boolean {
-    const maxStart = bufferUtils.max(start1, start2)
-    const minEnd = bufferUtils.min(end1, end2)
-    return bufferUtils.lt(maxStart, minEnd)
   }
 
   /**
@@ -269,7 +249,7 @@ export class LevelRangeStore implements RangeStore {
     let resultStart = this.addPrefix(this.getStartFromValue(result.value))
     let resultEnd = result.key
     while (
-      this.intersects(queryStart, queryEnd, resultStart, resultEnd) &&
+      intersects(queryStart, queryEnd, resultStart, resultEnd) &&
       this.isCorrectPrefix(result.key)
     ) {
       // If the query & result intersect, add it to our ranges array
