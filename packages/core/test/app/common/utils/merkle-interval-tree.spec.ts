@@ -96,17 +96,14 @@ describe('MerkleIntervalTree', () => {
         'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
       )
 
-      const bounds = new MerkleIntervalTree().checkInclusionProof(
+      const valid = new MerkleIntervalTree().checkInclusionProof(
         leaf,
         0,
         inclusionProof,
         rootHash
       )
 
-      bounds.should.deep.equal({
-        start: new BigNumber(0),
-        end: new BigNumber(100),
-      })
+      valid.should.be.true
     })
 
     it('should correctly reject a proof with the wrong root', () => {
@@ -127,14 +124,14 @@ describe('MerkleIntervalTree', () => {
         '0000000000000000000000000000000000000000000000000000000000000000'
       )
 
-      should.Throw(() => {
-        new MerkleIntervalTree().checkInclusionProof(
-          leaf,
-          0,
-          inclusionProof,
-          rootHash
-        )
-      }, 'Invalid Merkle Interval Tree proof -- invalid root hash.')
+      const valid = new MerkleIntervalTree().checkInclusionProof(
+        leaf,
+        0,
+        inclusionProof,
+        rootHash
+      )
+
+      valid.should.be.false
     })
 
     it('should correctly reject a proof with an invalid sibling hash', () => {
@@ -155,14 +152,14 @@ describe('MerkleIntervalTree', () => {
         'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
       )
 
-      should.Throw(() => {
-        new MerkleIntervalTree().checkInclusionProof(
-          leaf,
-          0,
-          inclusionProof,
-          rootHash
-        )
-      }, 'Invalid Merkle Interval Tree proof -- invalid root hash.')
+      const valid = new MerkleIntervalTree().checkInclusionProof(
+        leaf,
+        0,
+        inclusionProof,
+        rootHash
+      )
+
+      valid.should.be.false
     })
 
     it('should correctly reject a proof with an overlapping sibling', () => {

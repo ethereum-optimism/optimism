@@ -51,9 +51,17 @@ const outOfBounds = (list: any[], index: number): boolean => {
   return index < 0 || index >= list.length
 }
 
+/**
+ * Merkle Interval Tree implementation.
+ */
 export class MerkleIntervalTree {
   private levels: MerkleIntervalTreeInternalNode[][]
 
+  /**
+   * Creates the tree.
+   * @param leaves Leaves of the tree.
+   * @param hashfn Hash function to use for the tree.
+   */
   constructor(
     private leaves: MerkleIntervalTreeLeafNode[] = [],
     private hashfn: (value: Buffer) => Buffer = keccak256
@@ -127,19 +135,17 @@ export class MerkleIntervalTree {
   }
 
   /**
-   * Checks an inclusion proof. Throws if the proof is invalid at any point.
-   * @param leafNode Leaf node to check inclusion of.
+   * Gets the root and implicit bounds for a given leaf.
+   * @param leafNode Leaf to get root and bounds for.
    * @param leafPosition Index of the leaf in the list of leaves.
-   * @param inclusionProof Inclusion proof for the leaf node.
-   * @param rootHash Hash of the root of the tree.
-   * @returns the "implicit range" covered by leaf node if the proof is valid.
+   * @param inclusionProof Inclusion proof for the leaf.
+   * @returns the root and bounds for the leaf.
    */
-  public checkInclusionProof(
+  public getRootAndBounds(
     leafNode: MerkleIntervalTreeLeafNode,
     leafPosition: number,
-    inclusionProof: MerkleIntervalTreeInclusionProof,
-    rootHash: Buffer
-  ): Range {
+    inclusionProof: MerkleIntervalTreeInclusionProof
+  ): { root: MerkleIntervalTreeInternalNode; bounds: Range } {
     if (leafPosition < 0) {
       throw new Error('Invalid leaf index.')
     }
@@ -179,12 +185,6 @@ export class MerkleIntervalTree {
       computedNode = this.computeParent(leftChild, rightChild)
     }
 
-    if (Buffer.compare(computedNode.hash, rootHash) !== 0) {
-      throw new Error(
-        'Invalid Merkle Interval Tree proof -- invalid root hash.'
-      )
-    }
-
     const firstRightSiblingIndex = path.indexOf('0')
     const firstRightSibling =
       firstRightSiblingIndex >= 0
@@ -196,9 +196,35 @@ export class MerkleIntervalTree {
       firstRightSibling !== null ? firstRightSibling.index : null
 
     return {
-      start: implicitStart,
-      end: implicitEnd,
+      root: computedNode,
+      bounds: {
+        start: implicitStart,
+        end: implicitEnd,
+      },
     }
+  }
+
+  /**
+   * Checks an inclusion proof. Throws if the proof is invalid at any point.
+   * @param leafNode Leaf node to check inclusion of.
+   * @param leafPosition Index of the leaf in the list of leaves.
+   * @param inclusionProof Inclusion proof for the leaf node.
+   * @param rootHash Hash of the root of the tree.
+   * @returns the "implicit range" covered by leaf node if the proof is valid.
+   */
+  public checkInclusionProof(
+    leafNode: MerkleIntervalTreeLeafNode,
+    leafPosition: number,
+    inclusionProof: MerkleIntervalTreeInclusionProof,
+    rootHash: Buffer
+  ): boolean {
+    const { root, bounds } = this.getRootAndBounds(
+      leafNode,
+      leafPosition,
+      inclusionProof
+    )
+
+    return Buffer.compare(root.hash, rootHash) === 0
   }
 
   /**
