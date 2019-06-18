@@ -17,10 +17,6 @@ export class DefaultWalletDB implements WalletDB {
     const key = Buffer.from(keystore.address)
     const value = Buffer.from(JSON.stringify(keystore))
 
-    if (await this.hasKeystore(keystore.address)) {
-      throw new Error('Keystore file already exists.')
-    }
-
     await this.db.put(key, value)
   }
 

@@ -41,14 +41,6 @@ describe('DefaultWalletDB', () => {
     it('should correctly insert valid keystore files', async () => {
       await walletdb.putKeystore(keystore).should.be.fulfilled
     })
-
-    it('should not allow trying to set the same address twice', async () => {
-      await walletdb.putKeystore(keystore)
-
-      await walletdb
-        .putKeystore(keystore)
-        .should.be.rejectedWith('Keystore file already exists.')
-    })
   })
 
   describe('getKeystore', () => {
