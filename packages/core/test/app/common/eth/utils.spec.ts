@@ -6,21 +6,25 @@ import { keccak256 } from '../../../../src/app/common/eth/utils'
 describe('Ethereum Utils', () => {
   describe('keccak256', () => {
     it('should return the keccak256 hash of a value', () => {
-      const value = '0x123'
+      const value = Buffer.from('1234', 'hex')
       const hash = keccak256(value)
 
-      hash.should.equal(
-        '0x667d3611273365cfb6e64399d5af0bf332ec3e5d6986f76bc7d10839b680eb58'
+      const expected = Buffer.from(
+        '56570de287d73cd1cb6092bb8fdee6173974955fdef345ae579ee9f475ea7432',
+        'hex'
       )
+      hash.should.deep.equal(expected)
     })
 
-    it('should automatically add 0x if it does not exist', () => {
-      const valueA = '123'
-      const valueB = '0x123'
-      const hashA = keccak256(valueA)
-      const hashB = keccak256(valueB)
+    it('should return the keccak256 of the empty string', () => {
+      const value = Buffer.from('', 'hex')
+      const hash = keccak256(value)
 
-      hashA.should.equal(hashB)
+      const expected = Buffer.from(
+        'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470',
+        'hex'
+      )
+      hash.should.deep.equal(expected)
     })
   })
 })
