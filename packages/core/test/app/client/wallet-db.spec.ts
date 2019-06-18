@@ -2,6 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import MemDown from 'memdown'
+import { ethers } from 'ethers'
 
 /* Internal Imports */
 import { Keystore } from '../../../src/interfaces'
@@ -30,10 +31,12 @@ const keystore: Keystore = {
     mac: 'cbe1a233297b97518efdbebe4a250bf5b29461537384f0d83d9f016c747eff5f',
   },
 }
+const checksummed = ethers.utils.getAddress(keystore.address)
 
 describe('DefaultWalletDB', () => {
   let walletdb: DefaultWalletDB
   beforeEach(() => {
+    // Typings for MemDown are wrong so we need to cast to `any`.
     walletdb = new DefaultWalletDB(new BaseDB(new MemDown('') as any))
   })
 
@@ -58,12 +61,12 @@ describe('DefaultWalletDB', () => {
     })
   })
 
-  describe('listAddresses', () => {
+  describe('listAccounts', () => {
     it('should return a single address if only one keystore', async () => {
       await walletdb.putKeystore(keystore)
 
-      const addresses = await walletdb.listAddresses()
-      addresses.should.deep.equal([keystore.address])
+      const addresses = await walletdb.listAccounts()
+      addresses.should.deep.equal([checksummed])
     })
   })
 })
