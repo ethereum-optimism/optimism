@@ -75,6 +75,23 @@ describe('MerkleIntervalTree', () => {
         ),
       })
     })
+
+    it('should throw if trying to create with overlapping leaves', () => {
+      should.Throw(() => {
+        new MerkleIntervalTree([
+          {
+            start: new BigNumber(0),
+            end: new BigNumber(100),
+            data: hexify('1234'),
+          },
+          {
+            start: new BigNumber(50),
+            end: new BigNumber(150),
+            data: hexify('5678'),
+          },
+        ])
+      }, 'Merkle Interval Tree leaves must not overlap.')
+    })
   })
 
   describe('checkInclusionProof', () => {
