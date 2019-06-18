@@ -8,7 +8,7 @@ import { Wallet, WalletDB } from '../../interfaces'
  * Simple Wallet implementation.
  */
 export class DefaultWallet implements Wallet {
-  private unlocked: Map<string, ethers.Wallet>
+  private unlocked: Record<string, ethers.Wallet> = {}
 
   /**
    * Initializes the wallet.
@@ -42,10 +42,6 @@ export class DefaultWallet implements Wallet {
    * @param password Password for the account.
    */
   public async unlockAccount(address: string, password: string): Promise<void> {
-    if (address in this.unlocked) {
-      return
-    }
-
     if (!(await this.walletdb.hasKeystore(address))) {
       throw new Error('Account does not exist.')
     }
@@ -54,7 +50,10 @@ export class DefaultWallet implements Wallet {
 
     let wallet
     try {
-      wallet = ethers.Wallet.fromEncryptedJson(JSON.stringify(keystore), password)
+      wallet = await ethers.Wallet.fromEncryptedJson(
+        JSON.stringify(keystore),
+        password
+      )
     } catch (err) {
       // TODO: Figure out how to handle other decryption errors.
       throw new Error('Invalid account password.')

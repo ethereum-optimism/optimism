@@ -1,3 +1,6 @@
+/* External Imports */
+import { ethers } from 'ethers'
+
 /* Internal Imports */
 import { WalletDB, Keystore, KeyValueStore } from '../../interfaces'
 
@@ -14,7 +17,7 @@ export class DefaultWalletDB implements WalletDB {
    * @returns a Promise that resolves once the keystore has been inserted.
    */
   public async putKeystore(keystore: Keystore): Promise<void> {
-    const key = Buffer.from(keystore.address)
+    const key = Buffer.from(ethers.utils.getAddress(keystore.address))
     const value = Buffer.from(JSON.stringify(keystore))
 
     await this.db.put(key, value)
@@ -26,7 +29,7 @@ export class DefaultWalletDB implements WalletDB {
    * @returns the keystore file for the given address.
    */
   public async getKeystore(address: string): Promise<Keystore> {
-    const key = Buffer.from(address)
+    const key = Buffer.from(ethers.utils.getAddress(address))
     const value = await this.db.get(key)
 
     if (value === null) {
@@ -60,7 +63,10 @@ export class DefaultWalletDB implements WalletDB {
    * @returns all addresses with stored keystores.
    */
   public async listAccounts(): Promise<string[]> {
-    const keys = await this.db.iterator().keys()
-    return keys.map((key) => key.toString())
+    const keystores = await this.db.iterator().values()
+    return keystores.map((keystore) => {
+      const address = JSON.parse(keystore.toString()).address
+      return ethers.utils.getAddress(address)
+    })
   }
 }

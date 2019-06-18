@@ -2,6 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import MemDown from 'memdown'
+import { ethers } from 'ethers'
 
 /* Internal Imports */
 import { Keystore } from '../../../src/interfaces'
@@ -30,6 +31,7 @@ const keystore: Keystore = {
     mac: 'cbe1a233297b97518efdbebe4a250bf5b29461537384f0d83d9f016c747eff5f',
   },
 }
+const checksummed = ethers.utils.getAddress(keystore.address)
 
 describe('DefaultWalletDB', () => {
   let walletdb: DefaultWalletDB
@@ -63,7 +65,7 @@ describe('DefaultWalletDB', () => {
       await walletdb.putKeystore(keystore)
 
       const addresses = await walletdb.listAccounts()
-      addresses.should.deep.equal([keystore.address])
+      addresses.should.deep.equal([checksummed])
     })
   })
 })
