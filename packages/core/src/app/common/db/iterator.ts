@@ -28,8 +28,8 @@ export class BaseIterator implements Iterator {
   private iterator: AbstractIterator<K, V>
   private finished: boolean
 
-  constructor(readonly db: DB, options: IteratorOptions) {
-    this.prefix = options.prefix
+  constructor(readonly db: DB, options: IteratorOptions = {}) {
+    this.prefix = options.prefix || defaultIteratorOptions.prefix
 
     /**
      * Option values for iterators cannot be `null` or `undefined`.
@@ -62,6 +62,7 @@ export class BaseIterator implements Iterator {
    * @returns the next value in the iterator.
    */
   public async next(): Promise<KV> {
+    this.start()
     const { key, value } = await new Promise<KV>((resolve, reject) => {
       this.iterator.next((err, k, v) => {
         if (err) {
@@ -97,6 +98,10 @@ export class BaseIterator implements Iterator {
   public async each(cb: (key: Buffer, value: Buffer) => any): Promise<void> {
     while (!this.finished) {
       const { key, value } = await this.next()
+
+      if (this.finished) {
+        return this.end()
+      }
 
       let result: any
       try {
