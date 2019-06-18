@@ -154,6 +154,8 @@ export class MerkleIntervalTree {
     leafPosition: number,
     inclusionProof: MerkleIntervalTreeInclusionProof
   ): { root: MerkleIntervalTreeInternalNode; bounds: Range } {
+    this.validateLeaves([leafNode])
+
     if (leafPosition < 0) {
       throw new Error('Invalid leaf position.')
     }
@@ -290,9 +292,11 @@ export class MerkleIntervalTree {
     // Make sure that no two leaves intersect.
     const valid = leaves.every((leaf) => {
       const others = except(leaves, leaf)
-      return others.every((other) => {
-        return !intersects(leaf, other)
-      })
+      return (
+        others.every((other) => {
+          return !intersects(leaf, other)
+        }) && leaf.start.lte(leaf.end)
+      )
     })
 
     if (!valid) {

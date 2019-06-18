@@ -92,6 +92,18 @@ describe('MerkleIntervalTree', () => {
         ])
       }, 'Merkle Interval Tree leaves must not overlap.')
     })
+
+    it('should throw if trying to create with an invalid leaf', () => {
+      should.Throw(() => {
+        new MerkleIntervalTree([
+          {
+            start: new BigNumber(100),
+            end: new BigNumber(0),
+            data: hexify('1234'),
+          },
+        ])
+      }, 'Merkle Interval Tree leaves must not overlap.')
+    })
   })
 
   describe('checkInclusionProof', () => {
@@ -149,6 +161,34 @@ describe('MerkleIntervalTree', () => {
       )
 
       valid.should.be.false
+    })
+
+    it('should correctly reject a proof with an invalid leaf range', () => {
+      const leaf: MerkleIntervalTreeLeafNode = {
+        start: new BigNumber(100),
+        end: new BigNumber(0),
+        data: hexify('1234'),
+      }
+      const inclusionProof: MerkleIntervalTreeInclusionProof = [
+        {
+          index: new BigNumber(100),
+          hash: hexify(
+            '0000000000000000000000000000000000000000000000000000000000000000'
+          ),
+        },
+      ]
+      const rootHash = hexify(
+        'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
+      )
+
+      should.Throw(() => {
+        new MerkleIntervalTree().checkInclusionProof(
+          leaf,
+          0,
+          inclusionProof,
+          rootHash
+        )
+      }, 'Merkle Interval Tree leaves must not overlap.')
     })
 
     it('should correctly reject a proof with an invalid sibling hash', () => {
