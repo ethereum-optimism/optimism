@@ -12,21 +12,21 @@ import { keccak256 } from '../eth/utils'
 import { bnMin, bnMax, except, reverse } from './misc'
 
 /**
- * Computes the index of the sibling of a node.
- * @param index Index of a node.
- * @returns the index of the sibling of that node.
+ * Computes the position of the sibling of a node.
+ * @param position Position of a node.
+ * @returns the position of the sibling of that node.
  */
-const getSiblingIndex = (index: number): number => {
-  return index + (index % 2 === 0 ? 1 : -1)
+const getSiblingPosition = (position: number): number => {
+  return position + (position % 2 === 0 ? 1 : -1)
 }
 
 /**
- * Computes the index of the parent of a node
- * @param index Index of a node.
- * @returns the index of the parent of that node.
+ * Computes the position of the parent of a node
+ * @param position Position of a node.
+ * @returns the position of the parent of that node.
  */
-const getParentIndex = (index: number): number => {
-  return index === 0 ? 0 : Math.floor(index / 2)
+const getParentPosition = (position: number): number => {
+  return position === 0 ? 0 : Math.floor(position / 2)
 }
 
 /**
@@ -42,7 +42,7 @@ const intersects = (rangeA: Range, rangeB: Range): boolean => {
 }
 
 /**
- * Checks if a given index is out of bounds for an array.
+ * Checks if a given position is out of bounds for an array.
  * @param list Array to check against.
  * @param index Index to check.
  * @returns `true` if the index is out of bounds, `false` otherwise.
@@ -106,7 +106,7 @@ export class MerkleIntervalTree {
 
   /**
    * Generates an inclusion proof for a given leaf node.
-   * @param leafPosition Index of the leaf node in the list of leaves.
+   * @param leafPosition Position of the leaf node in the list of leaves.
    * @returns an inclusion proof for the given leaf.
    */
   public getInclusionProof(
@@ -118,25 +118,25 @@ export class MerkleIntervalTree {
 
     // Set up some initial values.
     const inclusionProof: MerkleIntervalTreeInclusionProof = []
-    let computedIndex = leafPosition
-    let siblingIndex = getSiblingIndex(computedIndex)
+    let computedNodePosition = leafPosition
+    let siblingNodePosition = getSiblingPosition(computedNodePosition)
 
     // Add an inclusion proof for each level in the tree.
     for (let i = 0; i < this.levels.length - 1; i++) {
       const currentLevel = this.levels[i]
 
       // Find the computed node and its sibling.
-      const computedNode = currentLevel[computedIndex]
-      const siblingNode = outOfBounds(currentLevel, siblingIndex)
+      const computedNode = currentLevel[computedNodePosition]
+      const siblingNode = outOfBounds(currentLevel, siblingNodePosition)
         ? this.createEmptyNode(computedNode.index)
-        : currentLevel[siblingIndex]
+        : currentLevel[siblingNodePosition]
 
       // Add the sibling to the inclusion proof.
       inclusionProof.push(siblingNode)
 
       // Move up to the next level.
-      computedIndex = getParentIndex(computedIndex)
-      siblingIndex = getSiblingIndex(computedIndex)
+      computedNodePosition = getParentPosition(computedNodePosition)
+      siblingNodePosition = getSiblingPosition(computedNodePosition)
     }
 
     return inclusionProof
@@ -145,7 +145,7 @@ export class MerkleIntervalTree {
   /**
    * Gets the root and implicit bounds for a given leaf.
    * @param leafNode Leaf to get root and bounds for.
-   * @param leafPosition Index of the leaf in the list of leaves.
+   * @param leafPosition Position of the leaf in the list of leaves.
    * @param inclusionProof Inclusion proof for the leaf.
    * @returns the root and bounds for the leaf.
    */
@@ -155,7 +155,7 @@ export class MerkleIntervalTree {
     inclusionProof: MerkleIntervalTreeInclusionProof
   ): { root: MerkleIntervalTreeInternalNode; bounds: Range } {
     if (leafPosition < 0) {
-      throw new Error('Invalid leaf index.')
+      throw new Error('Invalid leaf position.')
     }
 
     /*
@@ -235,10 +235,10 @@ export class MerkleIntervalTree {
      * the inclusion proof (first instance of a '1' in the path). If there's no
      * right sibling, then the node must be the last node in the tree.
      */
-    const firstRightSiblingIndex = path.indexOf('1')
+    const firstRightSiblingPosition = path.indexOf('1')
     const firstRightSibling =
-      firstRightSiblingIndex >= 0
-        ? inclusionProof[firstRightSiblingIndex]
+      firstRightSiblingPosition >= 0
+        ? inclusionProof[firstRightSiblingPosition]
         : null
 
     /*
@@ -261,7 +261,7 @@ export class MerkleIntervalTree {
   /**
    * Checks an inclusion proof. Throws if the proof is invalid at any point.
    * @param leafNode Leaf node to check inclusion of.
-   * @param leafPosition Index of the leaf in the list of leaves.
+   * @param leafPosition Position of the leaf in the list of leaves.
    * @param inclusionProof Inclusion proof for the leaf node.
    * @param rootHash Hash of the root of the tree.
    * @returns the "implicit range" covered by leaf node if the proof is valid.
@@ -323,14 +323,14 @@ export class MerkleIntervalTree {
   /**
    * Creates an empty node for when there are an odd number of elements in a
    * specific layer in the tree.
-   * @param siblingIndex Index of the node's sibling.
+   * @param siblingPosition Position of the node's sibling.
    * @returns the empty node.
    */
   private createEmptyNode(
-    siblingIndex: BigNumber
+    siblingPosition: BigNumber
   ): MerkleIntervalTreeInternalNode {
     return {
-      index: siblingIndex,
+      index: siblingPosition,
       hash: this.hashfn(Buffer.from('0')),
     }
   }
