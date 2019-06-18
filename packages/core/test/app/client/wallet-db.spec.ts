@@ -58,11 +58,11 @@ describe('DefaultWalletDB', () => {
     })
   })
 
-  describe('listAddresses', () => {
+  describe('listAccounts', () => {
     it('should return a single address if only one keystore', async () => {
       await walletdb.putKeystore(keystore)
 
-      const addresses = await walletdb.listAddresses()
+      const addresses = await walletdb.listAccounts()
       addresses.should.deep.equal([keystore.address])
     })
   })

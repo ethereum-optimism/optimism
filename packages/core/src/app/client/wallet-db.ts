@@ -41,7 +41,7 @@ export class DefaultWalletDB implements WalletDB {
    * @param address Address to find a keystore file for.
    * @returns `true` if the database has the keystore, `false` otherwise.
    */
-  private async hasKeystore(address: string): Promise<boolean> {
+  public async hasKeystore(address: string): Promise<boolean> {
     try {
       await this.getKeystore(address)
     } catch (err) {
@@ -59,7 +59,7 @@ export class DefaultWalletDB implements WalletDB {
    * Lists all addresses that the database has keystore files for.
    * @returns all addresses with stored keystores.
    */
-  public async listAddresses(): Promise<string[]> {
+  public async listAccounts(): Promise<string[]> {
     const keys = await this.db.iterator().keys()
     return keys.map((key) => key.toString())
   }

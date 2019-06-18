@@ -5,7 +5,7 @@ import MemDown from 'memdown'
 
 /* Internal Imports */
 import { Wallet } from '../../../src/interfaces'
-import { DefaultWallet, DefaultWalletDB } from '../../../src/app'
+import { DefaultWallet, DefaultWalletDB, BaseDB } from '../../../src/app'
 
 describe('DefaultWallet', () => {
   let walletdb: DefaultWalletDB
