@@ -36,6 +36,7 @@ const checksummed = ethers.utils.getAddress(keystore.address)
 describe('DefaultWalletDB', () => {
   let walletdb: DefaultWalletDB
   beforeEach(() => {
+    // Typings for MemDown are wrong so we need to cast to `any`.
     walletdb = new DefaultWalletDB(new BaseDB(new MemDown('') as any))
   })
 
