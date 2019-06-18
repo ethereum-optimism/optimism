@@ -1,10 +1,10 @@
-import { should } from './setup'
+import { should } from '../../../setup'
 
 /* External Imports */
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { MerkleSumTree, MerkleTreeNode } from '../src/sum-tree'
+import { MerkleSumTree, MerkleTreeNode } from '../../../../src/app/common/utils'
 
 describe('MerkleSumTree', () => {
   describe('construction', () => {

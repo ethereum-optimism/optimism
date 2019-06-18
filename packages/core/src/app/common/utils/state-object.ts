@@ -1,6 +1,6 @@
 /* Internal Imports */
 import { abi } from '../eth'
-import { StateObject, AbiEncodable } from '../interfaces/data-types'
+import { StateObject, AbiEncodable } from '../../../interfaces'
 
 /**
  * Creates a StateObject from an encoded StateObject.
@@ -18,15 +18,15 @@ const fromEncoded = (encoded: string): AbiStateObject => {
 export class AbiStateObject implements StateObject, AbiEncodable {
   public static abiTypes = ['address', 'bytes']
 
-  constructor(readonly predicateAddress: string, readonly data: string) {}
+  constructor(readonly predicate: string, readonly parameters: string) {}
 
   /**
    * @returns the abi encoded StateObject.
    */
   get encoded(): string {
     return abi.encode(AbiStateObject.abiTypes, [
-      this.predicateAddress,
-      this.data,
+      this.predicate,
+      this.parameters,
     ])
   }
 
