@@ -7,6 +7,8 @@
     "build/**/.js"
   ],
   "scripts": {
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
@@ -21,20 +23,9 @@
   "bugs": "https://github.com/plasma-group/pigi/labels/%40pigi%2Fcore",
   "license": "MIT",
   "author": "Plasma Group",
-  "files": [
-    "build/**/.js"
-  ],
-  "main": "build/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/plasma-group/pigi.git"
-  },
-  "scripts": {
-    "build": "tsc -p .",
-    "clean": "rimraf build/",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
   },
   "dependencies": {
     "abstract-leveldown": "^6.0.3",
@@ -56,10 +47,11 @@
     "@types/node": "^12.0.7",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
+    "memdown": "^4.0.0",
     "mocha": "^6.1.4",
+    "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1",
-    "rimraf": "^2.6.3"
+    "typescript": "^3.5.1"
   },
   "publishConfig": {
     "access": "public"

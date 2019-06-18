@@ -3664,7 +3664,7 @@ ethereumjs-wallet@0.6.2:
     utf8 "^3.0.0"
     uuid "^3.3.2"
 
-ethers@^4.0.0, ethers@^4.0.27:
+ethers@^4.0.0, ethers@^4.0.27, ethers@^4.0.30:
   version "4.0.30"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-4.0.30.tgz#140653fd08adf2834bb2f3aceefa10d04205b47d"
   integrity sha512-1a39Y+q5zTfrXCLndV+CHsTHq+T5/TvAx5y0S/PKd700C0lfU70CJnU7q89bd+4pIuWp05TkrEsrTj2dXhkcSA==
@@ -4148,7 +4148,7 @@ function-bind@^1.0.2, function-bind@^1.1.1, function-bind@~1.1.1:
   resolved "https://registry.yarnpkg.com/function-bind/-/function-bind-1.1.1.tgz#a56899d3ea3c9bab874bb9773b7c5ede92f4895d"
   integrity sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
 
-functional-red-black-tree@^1.0.1:
+functional-red-black-tree@^1.0.1, functional-red-black-tree@~1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/functional-red-black-tree/-/functional-red-black-tree-1.0.1.tgz#1b0ab3bd553b2a0d6399d29c0e3ea0b252078327"
   integrity sha1-GwqzvVU7Kg1jmdKcDj6gslIHgyc=
@@ -4162,7 +4162,7 @@ g-status@^2.0.2:
     matcher "^1.0.0"
     simple-git "^1.85.0"
 
-ganache-cli@^6.4.1:
+ganache-cli@^6.4.1, ganache-cli@^6.4.4:
   version "6.4.4"
   resolved "https://registry.yarnpkg.com/ganache-cli/-/ganache-cli-6.4.4.tgz#9772bba8585d6e2049bd85adf24369c1cc165170"
   integrity sha512-JWygbyZuM2GQl2ZvU7tBkjpgJaKE/XEtB99ech17XTouuqLU5rBcyO3sMb/L83wAtzr0gBnTgenIBl+OeREpJw==
@@ -5937,6 +5937,18 @@ memdown@^1.0.0:
     abstract-leveldown "~2.7.1"
     functional-red-black-tree "^1.0.1"
     immediate "^3.2.3"
+    inherits "~2.0.1"
+    ltgt "~2.2.0"
+    safe-buffer "~5.1.1"
+
+memdown@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/memdown/-/memdown-4.0.0.tgz#2b62ce2cefedcd8553665c410025c044cf8cb77e"
+  integrity sha512-n+3M/PXhEaex7dpbL3XDm6JI3QGRN6C3KbeNKEFX7gDNM77/gYOxeAmuPqcPqvYiQI3ix5EdmPgenn4ZEjdGFg==
+  dependencies:
+    abstract-leveldown "~6.0.1"
+    functional-red-black-tree "~1.0.1"
+    immediate "~3.2.3"
     inherits "~2.0.1"
     ltgt "~2.2.0"
     safe-buffer "~5.1.1"
