@@ -18,15 +18,15 @@ const fromEncoded = (encoded: string): AbiStateObject => {
 export class AbiStateObject implements StateObject, AbiEncodable {
   public static abiTypes = ['address', 'bytes']
 
-  constructor(readonly predicate: string, readonly parameters: string) {}
+  constructor(readonly predicateAddress: string, readonly data: string) {}
 
   /**
    * @returns the abi encoded StateObject.
    */
   get encoded(): string {
     return abi.encode(AbiStateObject.abiTypes, [
-      this.predicate,
-      this.parameters,
+      this.predicateAddress,
+      this.data,
     ])
   }
 

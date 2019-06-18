@@ -86,8 +86,8 @@ function getStateUpdate(
   end: BigNum,
   plasmaBlockNumber: number,
   depositContract: string = '0x1234',
-  predicate: string = '0x1234567890',
-  parameters: any = { dummyData: false }
+  predicateAddress: string = '0x1234567890',
+  data: any = { dummyData: false }
 ): StateUpdate {
   return {
     range: {
@@ -95,8 +95,8 @@ function getStateUpdate(
       end,
     },
     stateObject: {
-      predicate,
-      parameters,
+      predicateAddress,
+      data,
     },
     depositContract,
     plasmaBlockNumber,
@@ -109,7 +109,7 @@ function getVerifiedStateUpdate(
   block: number,
   depositContract: string,
   predicateAddress: string,
-  parameters: any = { dummyData: false }
+  data: any = { dummyData: false }
 ): VerifiedStateUpdate {
   return {
     range: {
@@ -123,7 +123,7 @@ function getVerifiedStateUpdate(
       block,
       depositContract,
       predicateAddress,
-      parameters
+      data
     ),
   }
 }

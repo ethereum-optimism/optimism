@@ -6,7 +6,7 @@ import debug from 'debug'
 const log = debug('test:info:state-update')
 
 /* Internal Imports */
-import { AbiStateObject, AbiStateUpdate, AbiRange } from '../../src/data-types'
+import { AbiStateObject, AbiStateUpdate, AbiRange } from '../../../../../src/app/common/utils'
 
 describe('AbiStateObject', () => {
   it('should encoded & decode data without throwing', async () => {

@@ -79,7 +79,7 @@ export class DefaultStateManager implements StateManager {
       }
 
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
-        verifiedUpdate.stateUpdate.stateObject.predicate
+        verifiedUpdate.stateUpdate.stateObject.predicateAddress
       )
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(

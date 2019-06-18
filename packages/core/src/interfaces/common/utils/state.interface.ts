@@ -3,8 +3,8 @@ import BigNum = require('bn.js')
 import { Range } from './range-store.interface'
 
 export interface StateObject {
-  predicate: string
-  parameters: any
+  predicateAddress: string
+  data: any
 }
 
 export interface StateUpdate {
