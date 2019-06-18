@@ -1,3 +1,7 @@
 import chai = require('chai')
+import chaiAsPromised = require('chai-as-promised')
 
-export const should = chai.should()
+chai.use(chaiAsPromised)
+const should = chai.should()
+
+export { should }
