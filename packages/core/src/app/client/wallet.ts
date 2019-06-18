@@ -2,7 +2,7 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { Wallet } from '../../interfaces'
+import { Wallet, WalletDB } from '../../interfaces'
 
 /**
  * Simple Wallet implementation.
@@ -32,7 +32,7 @@ export class DefaultWallet implements Wallet {
   public async createAccount(password: string): Promise<string> {
     const wallet = ethers.Wallet.createRandom()
     const keystore = await wallet.encrypt(password)
-    await this.walletdb.putKeystore(keystore)
+    await this.walletdb.putKeystore(JSON.parse(keystore))
     return wallet.address
   }
 
@@ -54,7 +54,7 @@ export class DefaultWallet implements Wallet {
 
     let wallet
     try {
-      wallet = ethers.Wallet.fromEncryptedJson(keystore, password)
+      wallet = ethers.Wallet.fromEncryptedJson(JSON.stringify(keystore), password)
     } catch (err) {
       // TODO: Figure out how to handle other decryption errors.
       throw new Error('Invalid account password.')
@@ -79,11 +79,11 @@ export class DefaultWallet implements Wallet {
    * @returns the signature over the message.
    */
   public async sign(address: string, message: string): Promise<string> {
-    if (!(await this.wallet.hasKeystore(address))) {
+    if (!(await this.walletdb.hasKeystore(address))) {
       throw new Error('Account does not exist.')
     }
 
-    if (!address in this.unlocked) {
+    if (!(address in this.unlocked)) {
       throw new Error('Account is not unlocked.')
     }
 
