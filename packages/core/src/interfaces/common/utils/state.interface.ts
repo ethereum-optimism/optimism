@@ -10,7 +10,7 @@ export interface StateObject {
 export interface StateUpdate {
   range: Range
   stateObject: StateObject
-  depositContract: string
+  depositAddress: string
   plasmaBlockNumber: number
 }
 
@@ -24,7 +24,7 @@ export interface VerifiedStateUpdate {
 export type Expression = string
 
 export interface StateQuery {
-  plasmaContract: string
+  depositAddress: string
   predicateAddress: string
   start?: BigNum
   end?: BigNum
@@ -39,7 +39,7 @@ export interface StateQueryResult {
 }
 
 export interface Transaction {
-  depositContract: string
+  depositAddress: string
   methodId: string
   parameters: any
   range: Range

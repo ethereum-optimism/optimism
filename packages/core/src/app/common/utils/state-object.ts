@@ -31,6 +31,16 @@ export class AbiStateObject implements StateObject, AbiEncodable {
   }
 
   /**
+   * @returns the jsonified AbiStateObject.
+   */
+  get jsonified(): any {
+    return {
+      predicateAddress: this.predicateAddress,
+      data: this.data
+    }
+  }
+
+  /**
    * Casts a value to a StateObject.
    * @param value Thing to cast to a StateObject.
    * @returns the StateObject.

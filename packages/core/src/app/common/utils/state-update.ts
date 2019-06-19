@@ -31,13 +31,13 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
  * Represents a basic abi encodable AbiStateUpdate
  */
 export class AbiStateUpdate implements StateUpdate, AbiEncodable {
-  public static abiTypes = ['bytes', 'bytes', 'uint32', 'address']
+  public static abiTypes = ['bytes', 'bytes', 'uint256', 'address']
 
   constructor(
     readonly stateObject: AbiStateObject,
     readonly range: AbiRange,
     readonly plasmaBlockNumber: number,
-    readonly depositContract: string
+    readonly depositAddress: string
   ) {}
 
   /**
@@ -48,9 +48,22 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
       this.stateObject.encoded,
       this.range.encoded,
       this.plasmaBlockNumber,
-      this.depositContract,
+      this.depositAddress,
     ])
   }
+
+  /**
+   * @returns the jsonified AbiStateUpdate.
+   */
+  get jsonified(): any {
+    return {
+      stateObject: this.stateObject.jsonified,
+      range: this.range.jsonified,
+      plasmaBlockNumber: this.plasmaBlockNumber,
+      depositAddress: this.depositAddress
+    }
+  }
+
 
   /**
    * Casts a value to a AbiStateUpdate.

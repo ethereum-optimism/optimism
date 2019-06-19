@@ -41,7 +41,7 @@ implements OwnershipParameters, AbiEncodable {
   ) {}
 
   /**
-   * @returns the abi encoded AbiStateUpdate.
+   * @returns the abi encoded AbiOwnershipParameters.
    */
   get encoded(): string {
     return abi.encode(AbiOwnershipParameters.abiTypes, [
@@ -51,6 +51,16 @@ implements OwnershipParameters, AbiEncodable {
     ])
   }
 
+  /**
+   * @returns the jsonified AbiOwnershipParameters.
+   */
+  get jsonified(): any {
+    return {
+      newState: this.newState.jsonified,
+      originBlock: hexStringify(this.originBlock),
+      maxBlock: hexStringify(this.maxBlock)
+    }
+  }
   /**
    * Casts a value to a AbiOwnershipParameters.
    * @param encoded Thing to cast to a AbiOwnershipParameters.
@@ -72,12 +82,12 @@ implements OwnershipParameters, AbiEncodable {
  */
 const fromEncodedOwnershipTransaction = (encoded: string): AbiOwnershipTransaction => {
   const decoded = abi.decode(AbiOwnershipTransaction.abiTypes, encoded)
-  const depositContract = decoded[0]
+  const depositAddress = decoded[0]
   const methodId = decoded[1]
   const parameters = AbiOwnershipParameters.from(decoded[2])
   const range = AbiRange.from(decoded[3])
   return new AbiOwnershipTransaction(
-    depositContract,
+    depositAddress,
     methodId,
     parameters,
     range
@@ -86,25 +96,25 @@ const fromEncodedOwnershipTransaction = (encoded: string): AbiOwnershipTransacti
 
 
 /**
- * Represents a basic abi encodable AbiTransaction
+ * Represents a basic abi encodable AbiOwnershipTransaction
  */
 export class AbiOwnershipTransaction 
 implements Transaction, AbiEncodable {
   public static abiTypes = ['address', 'bytes32', 'bytes', 'bytes']
 
   constructor(
-    readonly depositContract: string,
+    readonly depositAddress: string,
     readonly methodId: string,
     readonly parameters: AbiEncodable,
     readonly range: AbiRange
   ) {}
 
   /**
-   * @returns the abi encoded AbiStateUpdate.
+   * @returns the abi encoded AbiOwnershipTransaction.
    */
   get encoded(): string {
     return abi.encode(AbiOwnershipTransaction.abiTypes, [
-      this.depositContract,
+      this.depositAddress,
       this.methodId,
       this.parameters.encoded,
       this.range.encoded,
@@ -112,9 +122,21 @@ implements Transaction, AbiEncodable {
   }
 
   /**
-   * Casts a value to a AbiStateUpdate.
-   * @param value Thing to cast to a AbiStateUpdate.
-   * @returns the AbiStateUpdate.
+   * @returns the jsonified AbiOwnershipTransaction.
+   */
+  get jsonified(): any {
+    return {
+      depositAddress: this.depositAddress,
+      methodId: this.methodId,
+      parameters: this.parameters.encoded,
+      range: this.range.jsonified
+    }
+  }
+
+  /**
+   * Casts a value to a AbiOwnershipTransaction.
+   * @param value Thing to cast to a AbiOwnershipTransaction.
+   * @returns the AbiOwnershipTransaction.
    */
   public static from(encoded: string): AbiOwnershipTransaction {
     if (typeof encoded === 'string') {
