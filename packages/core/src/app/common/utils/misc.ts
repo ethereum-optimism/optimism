@@ -182,7 +182,7 @@ export const bnToHexString = (bn: BigNum): string => {
 export const hexStringify = (value: BigNum | Buffer): string => {
   if (value instanceof BigNum) {
     return bnToHexString(value)
-  } else {
+  } else if (value instanceof Buffer) {
     return bufToHexString(value)
   }
 }

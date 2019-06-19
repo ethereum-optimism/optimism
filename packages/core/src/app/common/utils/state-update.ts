@@ -44,8 +44,6 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
    * @returns the abi encoded AbiStateUpdate.
    */
   get encoded(): string {
-    log('this is the state object:')
-    log(this.stateObject.encoded)
     return abi.encode(AbiStateUpdate.abiTypes, [
       this.stateObject.encoded,
       this.range.encoded,

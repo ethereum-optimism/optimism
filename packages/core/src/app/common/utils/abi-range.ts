@@ -16,8 +16,8 @@ import { hexStringify } from '../utils'
 const fromEncoded = (encoded: string): AbiRange => {
   const decoded = abi.decode(AbiRange.abiTypes, encoded)
   return new AbiRange(
-    decoded[0],
-    decoded[1]
+    new BigNum(decoded[0].toString()),
+    new BigNum(decoded[1].toString())
   )
 }
 
@@ -36,13 +36,9 @@ export class AbiRange implements Range, AbiEncodable {
    * @returns the abi encoded AbiRange.
    */
   get encoded(): string {
-    log('this is the start:')
-    log(this.start)
-    log('this is the end:')
-    log(this.end)
     return abi.encode(AbiRange.abiTypes, [
-      this.start,
-      this.end
+      hexStringify(this.start),
+      hexStringify(this.end)
     ])
   }
 

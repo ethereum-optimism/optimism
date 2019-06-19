@@ -45,6 +45,12 @@ export interface Transaction {
   range: Range
 }
 
+export interface OwnershipParameters {
+  newState: StateObject
+  originBlock: BigNum
+  maxBlock: BigNum
+}
+
 export type InclusionProof = string[]
 export type ExclusionProof = string[]
 
