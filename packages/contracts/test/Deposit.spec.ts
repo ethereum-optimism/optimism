@@ -1,21 +1,20 @@
-import './setup'
-
 /* External Imports */
-import { abi, AbiRange, AbiStateObject, AbiStateUpdate, hexStringify, StateObject } from '@pigi/utils'
+import { abi, AbiStateObject, AbiRange, hexStringify, AbiOwnershipParameters, AbiOwnershipTransaction } from '@pigi/core'
 import BigNum = require('bn.js')
 /* Contract Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle';
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
 import * as Deposit from '../build/Deposit.json'
 import * as Commitment from '../build/CommitmentChain.json'
-//import * as OwnershipPredicate from '../build/OwnershipPredicate.json'
 import * as TransactionPredicate from '../build/TransactionPredicate.json'
 import * as OwnershipTransactionPredicate from '../build/OwnershipTransactionPredicate.json'
-
 /* Logging */
 import debug from 'debug'
 import { check } from 'ethers/utils/wordlist';
 const log = debug('test:info:state-ownership')
+/* Testing Setup */
+import chai = require('chai')
+export const should = chai.should()
 
 async function mineBlocks(provider: any, numBlocks: number = 1) {
   for (let i = 0; i < numBlocks ; i++) {
@@ -31,7 +30,7 @@ async function depositErc20(wallet, token, depositContract, ownershipPredicate) 
   await depositContract.deposit(100, depositStateObject)
 }
 
-describe('Deposit with Ownership', () => {
+describe.only('Deposit with Ownership', () => {
   const provider = createMockProvider()
   const [wallet, walletTo] = getWallets(provider)
   let token
@@ -130,23 +129,14 @@ describe('Deposit with Ownership', () => {
       }
       await ownershipPredicate.startExitByOwner(checkpoint)
       // Now deprecate the exit
-      const transactionParams = {
-        newState: {
-          predicateAddress: `0x0000000000000000000000000000000000000000`,
-          data: '0x00'
-        },
-        originBlock: new BigNum(0),
-        targetBlock: new BigNum(1)
-      }
-          const transaction = {
-          depositAddress: depositContract.address,
-          start: 0,
-          end: 10,
-          methodId: '0x0000000000000000000000000000000000000000000000000000000000000000',
-          parameters: '0x00' // need to abi encode transactionParams
-      }
+      const stateObject = new AbiStateObject('0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F', '0x1234')
+      const txParams = new AbiOwnershipParameters(stateObject, new BigNum(0), new BigNum(0))
+      const txDepositContract = depositContract.address
+      const txMethodId = '0x0000000000000000000000000000000000000000000000000000000000000000'
+      const txRange = new AbiRange(new BigNum(10), new BigNum(30))
+      const transaction = new AbiOwnershipTransaction(txDepositContract, txMethodId, txParams, txRange)
       const witness: string  = '0x00' 
-      await ownershipPredicate.deprecateExit(checkpoint, transaction, witness, checkpoint.stateUpdate)
+      await ownershipPredicate.deprecateExit(checkpoint, transaction.jsonified, witness, checkpoint.stateUpdate)
     })
   })
 
@@ -230,16 +220,14 @@ describe('Deposit with Ownership', () => {
       }
       await depositContract.challengeCheckpoint(challenge)
       // Deprecate the exit so we can remove the challenge
-      const transactionParams: string = '0x00'
-      const transaction = {
-          depositAddress: depositContract.address,
-          start: 0,
-          end: 10,
-          methodId: '0x0000000000000000000000000000000000000000000000000000000000000000',
-          parameters: transactionParams,
-      }
-      const witness: string  = '0x00'
-      await ownershipPredicate.deprecateExit(depositCheckpoint, transaction, witness, checkpoint.stateUpdate)
+      const stateObject = new AbiStateObject('0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F', '0x1234')
+      const txParams = new AbiOwnershipParameters(stateObject, new BigNum(0), new BigNum(0))
+      const txDepositContract = depositContract.address
+      const txMethodId = '0x0000000000000000000000000000000000000000000000000000000000000000'
+      const txRange = new AbiRange(new BigNum(10), new BigNum(30))
+      const transaction = new AbiOwnershipTransaction(txDepositContract, txMethodId, txParams, txRange)
+      const witness: string  = '0x00' 
+      await ownershipPredicate.deprecateExit(depositCheckpoint, transaction.jsonified, witness, checkpoint.stateUpdate)
       // Now remove the challenge
       await depositContract.removeChallenge(challenge)
     })

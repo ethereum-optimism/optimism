@@ -19,10 +19,10 @@ contract DataTypes {
     }
 
     struct StateUpdate {
-        Range range;
         StateObject stateObject;
-        address depositAddress;
+        Range range;
         uint256 plasmaBlockNumber;
+        address depositAddress;
     }
 
     struct Checkpoint {
@@ -32,9 +32,8 @@ contract DataTypes {
 
     struct Transaction {
         address depositAddress;
-        uint128 start;
-        uint128 end;
         bytes32 methodId;
         bytes parameters;
+        Range range;
     }
 }

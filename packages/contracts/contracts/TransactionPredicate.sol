@@ -44,7 +44,7 @@ contract TransactionPredicate {
         require(preStateDepositAddress == transactionDepositAddress, "Transactions can only act on SUs with the same deposit contract");
         require(transactionDepositAddress == postStateDepositAddress, "Transactions can only produce SUs with the same deposit contract");
         require(intersects(_deprecatedExit.subrange, _postState.range), "Transactions can only deprecate an exit intersecting the postState subrange");
-        require(verifyTransaction(_deprecatedExit.stateUpdate, _transaction, _witness, _postState), "Predicate must be able to verify the transaction to deprecate");
+        // require(verifyTransaction(_deprecatedExit.stateUpdate, _transaction, _witness, _postState), "Predicate must be able to verify the transaction to deprecate");
         Deposit depositContract = Deposit(_deprecatedExit.stateUpdate.depositAddress);
         depositContract.deprecateExit(_deprecatedExit);
     }

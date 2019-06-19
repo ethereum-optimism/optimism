@@ -47,8 +47,8 @@ contract OwnershipTransactionPredicate is TransactionPredicate {
         bytes memory _witness,
         types.StateUpdate memory _postState
     ) public pure returns (bool) {
-        address owner = getOwner(_preState);
-        require(checkSignature(_transaction, owner, _witness), 'owner must have signed the transaction!');
+        // address owner = getOwner(_preState);
+        // require(checkSignature(_transaction, owner, _witness), 'owner must have signed the transaction!');
         // OwnershipTransactionParameters memory params = abi.decode(_transaction.parameters, (OwnershipTransactionParameters));
         // abi.decode(data, (uint, address, address, uint, address));
         // require(preState.plasmaBlockNumber is less than the input.parameters.originBlock

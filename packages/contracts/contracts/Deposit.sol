@@ -78,7 +78,7 @@ contract Deposit {
     }
 
     /**
-     * @notice 
+     * @notice
      * @param _amount TODO
      * @param _initialState  TODO
      */
@@ -88,8 +88,8 @@ contract Deposit {
         // Create the Range, StateUpdate & Checkpoint
         types.Range memory depositRange = types.Range({start:totalDeposited, end: totalDeposited + _amount });
         types.StateUpdate memory stateUpdate = types.StateUpdate({
-            range: depositRange, stateObject: _initialState, 
-            depositAddress: address(this), plasmaBlockNumber: getLatestPlasmaBlockNumber() 
+            range: depositRange, stateObject: _initialState,
+            depositAddress: address(this), plasmaBlockNumber: getLatestPlasmaBlockNumber()
         });
         types.Checkpoint memory checkpoint = types.Checkpoint({
             stateUpdate: stateUpdate,
