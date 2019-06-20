@@ -31,7 +31,8 @@ const fromEncodedOwnershipParams = (encoded: string): AbiOwnershipParameters => 
  * Represents a basic abi encodable AbiOwnershipParameters
  */
 export class AbiOwnershipParameters 
-implements OwnershipParameters, AbiEncodable {
+implements AbiEncodable {
+  // implements OwnershipParameters, AbiEncodable {
   public static abiTypes = ['bytes', 'uint128', 'uint128']
 
   constructor(
@@ -56,9 +57,9 @@ implements OwnershipParameters, AbiEncodable {
    */
   get jsonified(): any {
     return {
-      newState: this.newState.jsonified,
+      // newState: this.newState.jsonified,
       originBlock: hexStringify(this.originBlock),
-      maxBlock: hexStringify(this.maxBlock)
+      // maxBlock: hexStringify(this.maxBlock)
     }
   }
   /**
