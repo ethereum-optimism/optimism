@@ -17,9 +17,9 @@ import { Deposit } from "./Deposit.sol";
 contract OwnershipTransactionPredicate is TransactionPredicate {
     /* Structs */
     struct OwnershipTransactionParameters {
-        types.StateObject newState;
+        bytes32 newStateObject;
         uint128 originBlock;
-        uint128 maxblock;
+        uint128 maxBlock;
     }
 
     function startExitByOwner(types.Checkpoint memory _checkpoint) public {
@@ -41,20 +41,28 @@ contract OwnershipTransactionPredicate is TransactionPredicate {
     }
 
     /* Functions which must be defined in each inheriting predicate */
-    function  verifyTransaction(
+    function verifyTransaction(
         types.StateUpdate memory _preState,
         types.Transaction memory _transaction,
         bytes memory _witness,
         types.StateUpdate memory _postState
-    ) public pure returns (bool) {
-        // address owner = getOwner(_preState);
-        // require(checkSignature(_transaction, owner, _witness), 'owner must have signed the transaction!');
-        // OwnershipTransactionParameters memory params = abi.decode(_transaction.parameters, (OwnershipTransactionParameters));
-        // abi.decode(data, (uint, address, address, uint, address));
-        // require(preState.plasmaBlockNumber is less than the input.parameters.originBlock
+    ) public returns (bool) {
+        // check prestate.owner consented
+        address owner = getOwner(_preState);
+        require(checkSignature(_transaction, owner, _witness), 'Owner must have signed the transaction!');
+        // decode parameters manually, nested struct is broken
+        (bytes memory encodedNewState, uint128 originBlock, uint128 maxBlock) = abi.decode(_transaction.parameters, (bytes, uint128, uint128));
+        // check the prestate came after or at the originating block
+        require(_preState.plasmaBlockNumber <= originBlock, 'Transaction preState must come before or on the transaction parameters origin block.');
+        // check the poststate came before or at the max block
+        require(_postState.plasmaBlockNumber <= maxBlock, 'Transaction postState must come before or on the transaction parameters max block.');
+        // check the state objects are the same
+        bytes memory encodedPostState = abi.encode(_postState.stateObject.predicateAddress, _postState.stateObject.data);
+        require(keccak256(encodedNewState) == keccak256(encodedPostState), 'postState must be the transaction.parameters.newState');
+
         return true;
     }
-    
+
     function getOwner(types.StateUpdate memory _stateUpdate) public pure returns(address) {
         return abi.decode(_stateUpdate.stateObject.data, (address));
     }
