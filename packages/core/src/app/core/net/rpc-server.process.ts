@@ -1,8 +1,7 @@
 /* Internal Imports */
 import { ConfigManager, RpcServer } from '../../../interfaces'
-import { Process } from '../../common'
+import { Process, JsonRpcServer } from '../../common'
 import { CORE_CONFIG_KEYS } from '../constants'
-import { SimpleJsonRpcServer } from './rpc-server'
 
 /**
  * Creates a JSON-RPC server.
@@ -28,7 +27,7 @@ export class SimpleJsonRpcServerProcess extends Process<RpcServer> {
     const hostname = this.config.subject.get(
       CORE_CONFIG_KEYS.RPC_SERVER_HOSTNAME
     )
-    this.subject = new SimpleJsonRpcServer({}, port, hostname)
+    this.subject = new JsonRpcServer({}, port, hostname)
     await this.subject.listen()
   }
 }

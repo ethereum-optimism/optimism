@@ -3,18 +3,15 @@ import {
   JsonRpcRequest,
   JsonRpcSuccessResponse,
   RpcServer,
-} from '../../../interfaces'
-import {
-  buildJsonRpcError,
-  isJsonRpcRequest,
-  ExpressHttpServer,
-} from '../../common'
+} from '../../../../../interfaces'
+import { buildJsonRpcError } from './json-rpc-errors'
+import { isJsonRpcRequest } from '../../../utils/type-guards'
+import { ExpressHttpServer } from '../../transport/http/express-http-server'
 
 /**
  * Basic JSON-RPC server.
  */
-export class SimpleJsonRpcServer extends ExpressHttpServer
-  implements RpcServer {
+export class JsonRpcServer extends ExpressHttpServer implements RpcServer {
   /**
    * Creates the server
    * @param methods Methods to expose to the server.

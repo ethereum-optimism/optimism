@@ -1,14 +1,16 @@
 /* External Imports */
 import level from 'level'
 import BigNum = require('bn.js')
-import { Batch, intersects, itEnd, itNext } from '@pigi/core'
 
 /* Internal Imports */
+import { itNext, itEnd, bufferUtils, intersects } from '../utils'
+import { Batch } from '../../../interfaces/common/db/db.interface'
+
 import {
   RangeStore,
   RangeEntry,
   Endianness,
-} from '../../interfaces/db/range-db.interface'
+} from '../../../interfaces/common/db/range-db.interface'
 
 /* Logging */
 import debug from 'debug'
