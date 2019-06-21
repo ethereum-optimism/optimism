@@ -184,6 +184,8 @@ export const hexStringify = (value: BigNum | Buffer): string => {
     return bnToHexString(value)
   } else if (value instanceof Buffer) {
     return bufToHexString(value)
+  } else {
+    throw new Error('Can\'t hexStringify--invalid type passed')
   }
 }
 
