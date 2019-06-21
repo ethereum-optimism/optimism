@@ -58,9 +58,9 @@ export class AbiOwnershipParameters implements AbiEncodable {
    */
   get jsonified(): any {
     return {
-      // newState: this.newState.jsonified,
+      newState: this.newState.jsonified,
       originBlock: hexStringify(this.originBlock),
-      // maxBlock: hexStringify(this.maxBlock)
+      maxBlock: hexStringify(this.maxBlock)
     }
   }
   /**
