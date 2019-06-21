@@ -11,7 +11,7 @@ export interface StateUpdate {
   range: Range
   stateObject: StateObject
   depositAddress: string
-  plasmaBlockNumber: number
+  plasmaBlockNumber: BigNum
 }
 
 export interface VerifiedStateUpdate {

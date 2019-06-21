@@ -19,7 +19,11 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
   const decoded = abi.decode(AbiStateUpdate.abiTypes, encoded)
   const stateObject = AbiStateObject.from(decoded[0])
   const range = AbiRange.from(decoded[1])
-  return new AbiStateUpdate(stateObject, range, decoded[2], decoded[3])
+  return new AbiStateUpdate(
+    stateObject,
+    range,
+    new BigNum(decoded[2].toString()),
+    decoded[3])
 }
 
 /**
@@ -31,7 +35,7 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
   constructor(
     readonly stateObject: AbiStateObject,
     readonly range: AbiRange,
-    readonly plasmaBlockNumber: number,
+    readonly plasmaBlockNumber: BigNum,
     readonly depositAddress: string
   ) {}
 
@@ -42,7 +46,7 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
     return abi.encode(AbiStateUpdate.abiTypes, [
       this.stateObject.encoded,
       this.range.encoded,
-      this.plasmaBlockNumber,
+      hexStringify(this.plasmaBlockNumber),
       this.depositAddress,
     ])
   }

@@ -15,7 +15,7 @@ import {
 } from '../../../../../src/app/common/utils'
 
 describe.only('AbiEncoding', () => {
-  it('should encoded & decode AbiStateObject without throwing', async () => {
+  it('should encoded & decode AbiStateUpdate without throwing', async () => {
     const stateObject = new AbiStateObject(
       '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F',
       '0x1234'
@@ -24,7 +24,7 @@ describe.only('AbiEncoding', () => {
     const stateUpdate = new AbiStateUpdate(
       stateObject,
       range,
-      10,
+      new BigNum(10),
       '0x3cDb4F0318a01f43dcf92eF09E10c05bF3bfc213'
     )
     const stateUpdateEncoding = stateUpdate.encoded

@@ -99,7 +99,7 @@ function getStateUpdate(
       data,
     },
     depositAddress,
-    plasmaBlockNumber,
+    plasmaBlockNumber: new BigNum(plasmaBlockNumber),
   }
 }
 
