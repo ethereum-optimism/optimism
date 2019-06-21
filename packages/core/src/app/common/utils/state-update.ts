@@ -19,12 +19,7 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
   const decoded = abi.decode(AbiStateUpdate.abiTypes, encoded)
   const stateObject = AbiStateObject.from(decoded[0])
   const range = AbiRange.from(decoded[1])
-  return new AbiStateUpdate(
-    stateObject,
-    range,
-    decoded[2],
-    decoded[3]
-  )
+  return new AbiStateUpdate(stateObject, range, decoded[2], decoded[3])
 }
 
 /**
@@ -60,10 +55,9 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
       stateObject: this.stateObject.jsonified,
       range: this.range.jsonified,
       plasmaBlockNumber: this.plasmaBlockNumber,
-      depositAddress: this.depositAddress
+      depositAddress: this.depositAddress,
     }
   }
-
 
   /**
    * Casts a value to a AbiStateUpdate.

@@ -1,4 +1,4 @@
-import { fr } from 'ethers/wordlists';
+import { fr } from 'ethers/wordlists'
 
 export * from './buffer-utils'
 export * from './codec'

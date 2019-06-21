@@ -5,8 +5,12 @@ const log = debug('info:state-update')
 
 /* Internal Imports */
 import { abi } from '../eth'
-import { AbiEncodable, Transaction, OwnershipParameters } from '../../../interfaces'
-import { AbiStateObject } from './state-object';
+import {
+  AbiEncodable,
+  Transaction,
+  OwnershipParameters,
+} from '../../../interfaces'
+import { AbiStateObject } from './state-object'
 import { AbiRange } from './abi-range'
 import { hexStringify } from '../utils'
 
@@ -15,23 +19,20 @@ import { hexStringify } from '../utils'
  * @param encoded The encoded AbiOwnershipParameters.
  * @returns the AbiOwnershipParameters.
  */
-const fromEncodedOwnershipParams = (encoded: string): AbiOwnershipParameters => {
+const fromEncodedOwnershipParams = (
+  encoded: string
+): AbiOwnershipParameters => {
   const decoded = abi.decode(AbiOwnershipParameters.abiTypes, encoded)
   const newState = AbiStateObject.from(decoded[0])
   const originBlock = new BigNum(decoded[1].toString())
   const maxBlock = new BigNum(decoded[2].toString())
-  return new AbiOwnershipParameters(
-    newState,
-    originBlock,
-    maxBlock
-  )
+  return new AbiOwnershipParameters(newState, originBlock, maxBlock)
 }
 
 /**
  * Represents a basic abi encodable AbiOwnershipParameters
  */
-export class AbiOwnershipParameters 
-implements AbiEncodable {
+export class AbiOwnershipParameters implements AbiEncodable {
   // implements OwnershipParameters, AbiEncodable {
   public static abiTypes = ['bytes', 'uint128', 'uint128']
 
@@ -48,7 +49,7 @@ implements AbiEncodable {
     return abi.encode(AbiOwnershipParameters.abiTypes, [
       this.newState.encoded,
       hexStringify(this.originBlock),
-      hexStringify(this.maxBlock)
+      hexStringify(this.maxBlock),
     ])
   }
 
@@ -81,7 +82,9 @@ implements AbiEncodable {
  * @param encoded The encoded AbiOwnershipParameters.
  * @returns the AbiOwnershipParameters.
  */
-const fromEncodedOwnershipTransaction = (encoded: string): AbiOwnershipTransaction => {
+const fromEncodedOwnershipTransaction = (
+  encoded: string
+): AbiOwnershipTransaction => {
   const decoded = abi.decode(AbiOwnershipTransaction.abiTypes, encoded)
   const depositAddress = decoded[0]
   const methodId = decoded[1]
@@ -95,12 +98,10 @@ const fromEncodedOwnershipTransaction = (encoded: string): AbiOwnershipTransacti
   )
 }
 
-
 /**
  * Represents a basic abi encodable AbiOwnershipTransaction
  */
-export class AbiOwnershipTransaction 
-implements Transaction, AbiEncodable {
+export class AbiOwnershipTransaction implements Transaction, AbiEncodable {
   public static abiTypes = ['address', 'bytes32', 'bytes', 'bytes']
 
   constructor(
@@ -130,7 +131,7 @@ implements Transaction, AbiEncodable {
       depositAddress: this.depositAddress,
       methodId: this.methodId,
       parameters: this.parameters.encoded,
-      range: this.range.jsonified
+      range: this.range.jsonified,
     }
   }
 

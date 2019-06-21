@@ -11,9 +11,9 @@ chai.use(solidity)
 const { expect } = chai
 
 describe('Basic ERC20 Token', () => {
-  const provider = createMockProvider();
-  const [wallet, walletTo] = getWallets(provider);
-  let token;
+  const provider = createMockProvider()
+  const [wallet, walletTo] = getWallets(provider)
+  let token
 
   beforeEach(async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])

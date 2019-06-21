@@ -27,10 +27,7 @@ const fromEncoded = (encoded: string): AbiRange => {
 export class AbiRange implements Range, AbiEncodable {
   public static abiTypes = ['uint256', 'uint256']
 
-  constructor(
-    readonly start: BigNum,
-    readonly end: BigNum
-  ) {}
+  constructor(readonly start: BigNum, readonly end: BigNum) {}
 
   /**
    * @returns the abi encoded AbiRange.
@@ -38,7 +35,7 @@ export class AbiRange implements Range, AbiEncodable {
   get encoded(): string {
     return abi.encode(AbiRange.abiTypes, [
       hexStringify(this.start),
-      hexStringify(this.end)
+      hexStringify(this.end),
     ])
   }
 
@@ -48,7 +45,7 @@ export class AbiRange implements Range, AbiEncodable {
   get jsonified(): any {
     return {
       start: hexStringify(this.start),
-      end: hexStringify(this.end)
+      end: hexStringify(this.end),
     }
   }
 

@@ -36,7 +36,7 @@ export class AbiStateObject implements StateObject, AbiEncodable {
   get jsonified(): any {
     return {
       predicateAddress: this.predicateAddress,
-      data: this.data
+      data: this.data,
     }
   }
 
