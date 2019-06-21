@@ -77,9 +77,9 @@ export class AbiOwnershipParameters implements OwnershipParameters, AbiEncodable
 }
 
 /**
- * Creates a AbiOwnershipParameters from an encoded AbiOwnershipParameters.
- * @param encoded The encoded AbiOwnershipParameters.
- * @returns the AbiOwnershipParameters.
+ * Creates a AbiOwnershipTransaction from an encoded AbiOwnershipTransaction.
+ * @param encoded The encoded AbiOwnershipTransaction.
+ * @returns the AbiOwnershipTransaction.
  */
 const fromEncodedOwnershipTransaction = (
   encoded: string
