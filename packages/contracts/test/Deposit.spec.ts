@@ -1,8 +1,15 @@
 /* External Imports */
-import { abi, AbiStateObject, AbiRange, hexStringify, AbiOwnershipParameters, AbiOwnershipTransaction } from '@pigi/core'
+import {
+  abi,
+  AbiStateObject,
+  AbiRange,
+  hexStringify,
+  AbiOwnershipParameters,
+  AbiOwnershipTransaction,
+} from '@pigi/core'
 import BigNum = require('bn.js')
 /* Contract Imports */
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle';
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
 import * as Deposit from '../build/Deposit.json'
 import * as Commitment from '../build/CommitmentChain.json'
@@ -10,27 +17,35 @@ import * as TransactionPredicate from '../build/TransactionPredicate.json'
 import * as OwnershipTransactionPredicate from '../build/OwnershipTransactionPredicate.json'
 /* Logging */
 import debug from 'debug'
-import { check } from 'ethers/utils/wordlist';
+import { check } from 'ethers/utils/wordlist'
 const log = debug('test:info:state-ownership')
 /* Testing Setup */
 import chai = require('chai')
 export const should = chai.should()
 
 async function mineBlocks(provider: any, numBlocks: number = 1) {
-  for (let i = 0; i < numBlocks ; i++) {
-    await provider.send('evm_mine', []);
+  for (let i = 0; i < numBlocks; i++) {
+    await provider.send('evm_mine', [])
   }
 }
 
-async function depositErc20(wallet, token, depositContract, ownershipPredicate) {
+async function depositErc20(
+  wallet,
+  token,
+  depositContract,
+  ownershipPredicate
+) {
   // Deposit some money into the ownership predicate
   await token.approve(depositContract.address, 500)
   const depositData = abi.encode(['address'], [wallet.address])
-  const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+  const depositStateObject = new AbiStateObject(
+    ownershipPredicate.address,
+    depositData
+  )
   await depositContract.deposit(100, depositStateObject)
 }
 
-describe.only('Deposit with Ownership', () => {
+describe('Deposit with Ownership', () => {
   const provider = createMockProvider()
   const [wallet, walletTo] = getWallets(provider)
   let token
@@ -41,47 +56,65 @@ describe.only('Deposit with Ownership', () => {
   beforeEach(async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
     commitmentContract = await deployContract(wallet, Commitment, [])
-    depositContract = await deployContract(wallet, Deposit, [token.address, commitmentContract.address])
-    ownershipPredicate = await deployContract(wallet, OwnershipTransactionPredicate)
-  });
+    depositContract = await deployContract(wallet, Deposit, [
+      token.address,
+      commitmentContract.address,
+    ])
+    ownershipPredicate = await deployContract(
+      wallet,
+      OwnershipTransactionPredicate
+    )
+  })
 
   describe('Deposit', () => {
     it('does not throw when deposit is called after approving erc20 movement', async () => {
       await token.approve(depositContract.address, 500)
-      await depositContract.deposit(123, { predicateAddress: '0xF6c105ED2f0f5Ffe66501a4EEdaD86E10df19054', data: '0x1234' })
+      await depositContract.deposit(123, {
+        predicateAddress: '0xF6c105ED2f0f5Ffe66501a4EEdaD86E10df19054',
+        data: '0x1234',
+      })
     })
 
     it('allows exits to be started and finalized on deposits', async () => {
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
-      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      const depositStateObject = new AbiStateObject(
+        ownershipPredicate.address,
+        depositData
+      )
       await depositContract.deposit(100, depositStateObject)
       // Attempt to start an exit on this deposit
-      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const depositRange = {
+        start: hexStringify(new BigNum(0)),
+        end: hexStringify(new BigNum(100)),
+      }
       await ownershipPredicate.startExitByOwner({
         stateUpdate: {
           range: depositRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 0
+          plasmaBlockNumber: 0,
         },
-        subrange: depositRange
+        subrange: depositRange,
       })
       // Get the challenge peroid
       const challengePeroid = await depositContract.CHALLENGE_PERIOD()
       // Mine the blocks
       await mineBlocks(provider, challengePeroid + 1)
       // Now finalize the exit
-      await ownershipPredicate.finalizeExitByOwner({
-        stateUpdate: {
-          range: depositRange,
-          stateObject: depositStateObject,
-          depositAddress: depositContract.address,
-          plasmaBlockNumber: 0
+      await ownershipPredicate.finalizeExitByOwner(
+        {
+          stateUpdate: {
+            range: depositRange,
+            stateObject: depositStateObject,
+            depositAddress: depositContract.address,
+            plasmaBlockNumber: 0,
+          },
+          subrange: depositRange,
         },
-        subrange: depositRange
-      }, 100)
+        100
+      )
     })
   })
 
@@ -90,18 +123,24 @@ describe.only('Deposit with Ownership', () => {
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
-      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      const depositStateObject = new AbiStateObject(
+        ownershipPredicate.address,
+        depositData
+      )
       await depositContract.deposit(100, depositStateObject)
       // Attempt to start a checkpoint on a stateUpdate
-      const stateUpdateRange = { start: hexStringify(new BigNum(10)), end: hexStringify(new BigNum(20)) }
+      const stateUpdateRange = {
+        start: hexStringify(new BigNum(10)),
+        end: hexStringify(new BigNum(20)),
+      }
       const checkpoint = {
         stateUpdate: {
           range: stateUpdateRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 10
+          plasmaBlockNumber: 10,
         },
-        subrange: stateUpdateRange
+        subrange: stateUpdateRange,
       }
       await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
       await ownershipPredicate.startExitByOwner(checkpoint)
@@ -114,29 +153,50 @@ describe.only('Deposit with Ownership', () => {
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
-      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      const depositStateObject = new AbiStateObject(
+        ownershipPredicate.address,
+        depositData
+      )
       await depositContract.deposit(100, depositStateObject)
       // Attempt to start an exit on this deposit
-      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const depositRange = {
+        start: hexStringify(new BigNum(0)),
+        end: hexStringify(new BigNum(100)),
+      }
       const checkpoint = {
         stateUpdate: {
           range: depositRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 0
+          plasmaBlockNumber: 0,
         },
-        subrange: depositRange
+        subrange: depositRange,
       }
       await ownershipPredicate.startExitByOwner(checkpoint)
       // Now deprecate the exit
-      const txParams = new AbiOwnershipParameters(depositStateObject, new BigNum(0), new BigNum(9))
+      const txParams = new AbiOwnershipParameters(
+        depositStateObject,
+        new BigNum(0),
+        new BigNum(9)
+      )
       const txDepositContract = depositContract.address
-      const txMethodId = '0x0000000000000000000000000000000000000000000000000000000000000000'
+      const txMethodId =
+        '0x0000000000000000000000000000000000000000000000000000000000000000'
       const txRange = new AbiRange(new BigNum(10), new BigNum(30))
-      const transaction = new AbiOwnershipTransaction(txDepositContract, txMethodId, txParams, txRange)
-      const witness: string  = '0x00' 
+      const transaction = new AbiOwnershipTransaction(
+        txDepositContract,
+        txMethodId,
+        txParams,
+        txRange
+      )
+      const witness: string = '0x00'
 
-      await ownershipPredicate.deprecateExit(checkpoint, transaction.jsonified, witness, checkpoint.stateUpdate)
+      await ownershipPredicate.deprecateExit(
+        checkpoint,
+        transaction.jsonified,
+        witness,
+        checkpoint.stateUpdate
+      )
     })
   })
 
@@ -145,18 +205,24 @@ describe.only('Deposit with Ownership', () => {
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
-      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      const depositStateObject = new AbiStateObject(
+        ownershipPredicate.address,
+        depositData
+      )
       await depositContract.deposit(100, depositStateObject)
       // Add a later checkpoint
-      const stateUpdateRange = { start: hexStringify(new BigNum(10)), end: hexStringify(new BigNum(20)) }
+      const stateUpdateRange = {
+        start: hexStringify(new BigNum(10)),
+        end: hexStringify(new BigNum(20)),
+      }
       const checkpoint = {
         stateUpdate: {
           range: stateUpdateRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 10
+          plasmaBlockNumber: 10,
         },
-        subrange: stateUpdateRange
+        subrange: stateUpdateRange,
       }
       await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
       // Now fast forward until the checkpoint is finalized
@@ -165,15 +231,18 @@ describe.only('Deposit with Ownership', () => {
       // Mine the blocks
       await mineBlocks(provider, challengePeroid + 1)
       // Now that we have a finalized checkpoint, attempt an exit on the original deposit
-      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const depositRange = {
+        start: hexStringify(new BigNum(0)),
+        end: hexStringify(new BigNum(100)),
+      }
       const depositCheckpoint = {
         stateUpdate: {
           range: depositRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 0
+          plasmaBlockNumber: 0,
         },
-        subrange: depositRange
+        subrange: depositRange,
       }
       await ownershipPredicate.startExitByOwner(depositCheckpoint)
       // Uh oh! This exit is invalid! Let's delete it
@@ -186,47 +255,71 @@ describe.only('Deposit with Ownership', () => {
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
-      const depositStateObject = new AbiStateObject(ownershipPredicate.address, depositData)
+      const depositStateObject = new AbiStateObject(
+        ownershipPredicate.address,
+        depositData
+      )
       await depositContract.deposit(100, depositStateObject)
       // Add a later checkpoint
-      const stateUpdateRange = { start: hexStringify(new BigNum(10)), end: hexStringify(new BigNum(20)) }
+      const stateUpdateRange = {
+        start: hexStringify(new BigNum(10)),
+        end: hexStringify(new BigNum(20)),
+      }
       const checkpoint = {
         stateUpdate: {
           range: stateUpdateRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 10
+          plasmaBlockNumber: 10,
         },
-        subrange: stateUpdateRange
+        subrange: stateUpdateRange,
       }
       await depositContract.startCheckpoint(checkpoint, '0x1234', 100)
       await ownershipPredicate.startExitByOwner(checkpoint)
       // Now we use the deposit to challenge this exit
-      const depositRange = { start: hexStringify(new BigNum(0)), end: hexStringify(new BigNum(100)) }
+      const depositRange = {
+        start: hexStringify(new BigNum(0)),
+        end: hexStringify(new BigNum(100)),
+      }
       const depositCheckpoint = {
         stateUpdate: {
           range: depositRange,
           stateObject: depositStateObject,
           depositAddress: depositContract.address,
-          plasmaBlockNumber: 0
+          plasmaBlockNumber: 0,
         },
-        subrange: depositRange
+        subrange: depositRange,
       }
       // Start the exit and then challenge
       await ownershipPredicate.startExitByOwner(depositCheckpoint)
       const challenge = {
         challengedCheckpoint: checkpoint,
-        challengingCheckpoint: depositCheckpoint
+        challengingCheckpoint: depositCheckpoint,
       }
       await depositContract.challengeCheckpoint(challenge)
       // Deprecate the exit so we can remove the challenge
-      const txParams = new AbiOwnershipParameters(checkpoint.stateUpdate.stateObject, new BigNum(0), new BigNum(10))
+      const txParams = new AbiOwnershipParameters(
+        checkpoint.stateUpdate.stateObject,
+        new BigNum(0),
+        new BigNum(10)
+      )
       const txDepositContract = depositContract.address
-      const txMethodId = '0x0000000000000000000000000000000000000000000000000000000000000000'
+      const txMethodId =
+        '0x0000000000000000000000000000000000000000000000000000000000000000'
       const txRange = new AbiRange(new BigNum(10), new BigNum(30))
-      const transaction = new AbiOwnershipTransaction(txDepositContract, txMethodId, txParams, txRange)
-      const witness: string  = '0x00' 
-      await ownershipPredicate.deprecateExit(depositCheckpoint, transaction.jsonified, witness, checkpoint.stateUpdate)
+      const transaction = new AbiOwnershipTransaction(
+        txDepositContract,
+        txMethodId,
+        txParams,
+        txRange
+      )
+      const witness: string = '0x00'
+      await ownershipPredicate.deprecateExit(
+        depositCheckpoint,
+        transaction.jsonified,
+        witness,
+        checkpoint.stateUpdate
+      )
       // Now remove the challenge
       await depositContract.removeChallenge(challenge)
     })
@@ -235,38 +328,44 @@ describe.only('Deposit with Ownership', () => {
   describe('helper functions', () => {
     describe('subRange', () => {
       it('returns true for equal ranges', async () => {
-        const res = await depositContract.isSubrange({
-          start: 50,
-          end: 100
-        },
-        {
-          start: 50,
-          end: 100
-        })
+        const res = await depositContract.isSubrange(
+          {
+            start: 50,
+            end: 100,
+          },
+          {
+            start: 50,
+            end: 100,
+          }
+        )
         res.should.equal(true)
       })
 
       it('returns true for a strict subrange', async () => {
-        const res = await depositContract.isSubrange({
-          start: 51,
-          end: 99
-        },
-        {
-          start: 50,
-          end: 100
-        })
+        const res = await depositContract.isSubrange(
+          {
+            start: 51,
+            end: 99,
+          },
+          {
+            start: 50,
+            end: 100,
+          }
+        )
         res.should.equal(true)
       })
 
       it('returns false for not a subrange', async () => {
-        const res = await depositContract.isSubrange({
-          start: 49,
-          end: 100
-        },
-        {
-          start: 50,
-          end: 100
-        })
+        const res = await depositContract.isSubrange(
+          {
+            start: 49,
+            end: 100,
+          },
+          {
+            start: 50,
+            end: 100,
+          }
+        )
         res.should.equal(false)
       })
     })
@@ -294,10 +393,13 @@ describe.only('Deposit with Ownership', () => {
 
     it('can be extended and then deleted', async () => {
       await depositContract.extendDepositedRanges(100)
-      await depositContract.removeDepositedRange({
-        start: 0,
-        end: 100
-      }, 100)
+      await depositContract.removeDepositedRange(
+        {
+          start: 0,
+          end: 100,
+        },
+        100
+      )
       const res = await depositContract.depositedRanges(100)
       res.start.toString().should.equal('0')
       res.end.toString().should.equal('0')
@@ -305,10 +407,13 @@ describe.only('Deposit with Ownership', () => {
 
     it('can be extended and then shortend on the left side', async () => {
       await depositContract.extendDepositedRanges(100)
-      await depositContract.removeDepositedRange({
-        start: 0,
-        end: 75
-      }, 100)
+      await depositContract.removeDepositedRange(
+        {
+          start: 0,
+          end: 75,
+        },
+        100
+      )
       const res = await depositContract.depositedRanges(100)
       res.start.toString().should.equal('75')
       res.end.toString().should.equal('100')
@@ -316,10 +421,13 @@ describe.only('Deposit with Ownership', () => {
 
     it('can be extended and then shortend on the right side', async () => {
       await depositContract.extendDepositedRanges(100)
-      await depositContract.removeDepositedRange({
-        start: 25,
-        end: 100
-      }, 100)
+      await depositContract.removeDepositedRange(
+        {
+          start: 25,
+          end: 100,
+        },
+        100
+      )
       const res = await depositContract.depositedRanges(25)
       res.start.toString().should.equal('0')
       res.end.toString().should.equal('25')
@@ -327,10 +435,13 @@ describe.only('Deposit with Ownership', () => {
 
     it('can be extended and then split into two', async () => {
       await depositContract.extendDepositedRanges(100)
-      await depositContract.removeDepositedRange({
-        start: 25,
-        end: 75
-      }, 100)
+      await depositContract.removeDepositedRange(
+        {
+          start: 25,
+          end: 75,
+        },
+        100
+      )
       const range1 = await depositContract.depositedRanges(25)
       const range2 = await depositContract.depositedRanges(100)
       // check first range
@@ -343,10 +454,13 @@ describe.only('Deposit with Ownership', () => {
 
     it('can be extended, right side deleted, and then extended again', async () => {
       await depositContract.extendDepositedRanges(100)
-      await depositContract.removeDepositedRange({
-        start: 25,
-        end: 100
-      }, 100)
+      await depositContract.removeDepositedRange(
+        {
+          start: 25,
+          end: 100,
+        },
+        100
+      )
       await depositContract.extendDepositedRanges(50)
       // check that everything is there
       const range1 = await depositContract.depositedRanges(25)
@@ -359,4 +473,5 @@ describe.only('Deposit with Ownership', () => {
       range2.start.toString().should.equal('100')
     })
   })
+
 })
