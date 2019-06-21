@@ -3,15 +3,15 @@ import BigNum = require('bn.js')
 import { Range } from './range-store.interface'
 
 export interface StateObject {
-  predicate: string
-  parameters: any
+  predicateAddress: string
+  data: any
 }
 
 export interface StateUpdate {
   range: Range
   stateObject: StateObject
-  depositContract: string
-  plasmaBlockNumber: number
+  depositAddress: string
+  plasmaBlockNumber: BigNum
 }
 
 export interface VerifiedStateUpdate {
@@ -24,7 +24,7 @@ export interface VerifiedStateUpdate {
 export type Expression = string
 
 export interface StateQuery {
-  plasmaContract: string
+  depositAddress: string
   predicateAddress: string
   start?: BigNum
   end?: BigNum
@@ -39,10 +39,16 @@ export interface StateQueryResult {
 }
 
 export interface Transaction {
-  depositContract: string
+  depositAddress: string
   methodId: string
   parameters: any
   range: Range
+}
+
+export interface OwnershipParameters {
+  newState: StateObject
+  originBlock: BigNum
+  maxBlock: BigNum
 }
 
 export type InclusionProof = string[]

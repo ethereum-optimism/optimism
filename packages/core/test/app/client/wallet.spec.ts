@@ -54,7 +54,7 @@ describe('DefaultWallet', () => {
       const account = await wallet.createAccount('password')
 
       await wallet.unlockAccount(account, 'password').should.be.fulfilled
-    }).timeout(5000)
+    }).timeout(10000)
 
     it('should throw if trying to unlock with the wrong password', async () => {
       const account = await wallet.createAccount('password')
@@ -62,7 +62,7 @@ describe('DefaultWallet', () => {
       await wallet
         .unlockAccount(account, 'wrongpassword')
         .should.be.rejectedWith('Invalid account password.')
-    }).timeout(5000)
+    }).timeout(10000)
 
     it('should throw if the account does not exist', async () => {
       const account = '0x0000000000000000000000000000000000000000'

@@ -79,7 +79,7 @@ export class DefaultStateManager implements StateManager {
       }
 
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
-        verifiedUpdate.stateUpdate.stateObject.predicate
+        verifiedUpdate.stateUpdate.stateObject.predicateAddress
       )
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
@@ -89,7 +89,7 @@ export class DefaultStateManager implements StateManager {
       )
 
       if (
-        computedState.plasmaBlockNumber !==
+        computedState.plasmaBlockNumber.toNumber() !==
         verifiedUpdate.verifiedBlockNumber + 1
       ) {
         throw new Error(`Transaction resulted in StateUpdate with unexpected block number.

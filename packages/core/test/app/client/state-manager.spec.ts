@@ -85,9 +85,9 @@ function getStateUpdate(
   start: BigNum,
   end: BigNum,
   plasmaBlockNumber: number,
-  depositContract: string = '0x1234',
-  predicate: string = '0x1234567890',
-  parameters: any = { dummyData: false }
+  depositAddress: string = '0x1234',
+  predicateAddress: string = '0x1234567890',
+  data: any = { dummyData: false }
 ): StateUpdate {
   return {
     range: {
@@ -95,11 +95,11 @@ function getStateUpdate(
       end,
     },
     stateObject: {
-      predicate,
-      parameters,
+      predicateAddress,
+      data,
     },
-    depositContract,
-    plasmaBlockNumber,
+    depositAddress,
+    plasmaBlockNumber: new BigNum(plasmaBlockNumber),
   }
 }
 
@@ -107,9 +107,9 @@ function getVerifiedStateUpdate(
   start: BigNum,
   end: BigNum,
   block: number,
-  depositContract: string,
+  depositAddress: string,
   predicateAddress: string,
-  parameters: any = { dummyData: false }
+  data: any = { dummyData: false }
 ): VerifiedStateUpdate {
   return {
     range: {
@@ -121,22 +121,22 @@ function getVerifiedStateUpdate(
       start,
       end,
       block,
-      depositContract,
+      depositAddress,
       predicateAddress,
-      parameters
+      data
     ),
   }
 }
 
 function getTransaction(
-  depositContract: string,
+  depositAddress: string,
   methodId: string,
   start: BigNum,
   end: BigNum,
   parameters: any = { dummyData: false }
 ) {
   return {
-    depositContract,
+    depositAddress,
     methodId,
     parameters,
     range: {
@@ -162,12 +162,12 @@ describe('DefaultStateManager', () => {
     const end: BigNum = new BigNum(20)
     const previousBlockNumber: number = 10
     const nextBlockNumber: number = 11
-    const depositContract = '0x1234'
+    const depositAddress = '0x1234'
     const methodId = '0x11122'
     const predicateAddress = '0x12345678'
 
     const transaction: Transaction = getTransaction(
-      depositContract,
+      depositAddress,
       methodId,
       start,
       end
@@ -177,7 +177,7 @@ describe('DefaultStateManager', () => {
       start,
       end,
       nextBlockNumber,
-      depositContract,
+      depositAddress,
       predicateAddress,
       { testResult: 'test' }
     )
@@ -188,7 +188,7 @@ describe('DefaultStateManager', () => {
           start,
           end,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -226,14 +226,14 @@ describe('DefaultStateManager', () => {
           start,
           midPoint,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -273,14 +273,14 @@ describe('DefaultStateManager', () => {
           start.sub(new BigNum(5)),
           midPoint,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end.add(new BigNum(4)),
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -318,14 +318,14 @@ describe('DefaultStateManager', () => {
           start,
           endRange1,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           startRange2,
           end,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -385,14 +385,14 @@ describe('DefaultStateManager', () => {
           end,
           end.add(new BigNum(1)),
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           start.sub(new BigNum(1)),
           start,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -427,14 +427,14 @@ describe('DefaultStateManager', () => {
           start,
           midPoint,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -443,7 +443,7 @@ describe('DefaultStateManager', () => {
         start,
         end,
         nextBlockNumber,
-        depositContract,
+        depositAddress,
         predicateAddress,
         { testResult: 'test' }
       )
@@ -453,7 +453,7 @@ describe('DefaultStateManager', () => {
         start,
         end,
         nextBlockNumber,
-        depositContract,
+        depositAddress,
         secondPredicateAddress,
         { testResult: 'test 2' }
       )
@@ -491,14 +491,14 @@ describe('DefaultStateManager', () => {
           start,
           midPoint,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
         getVerifiedStateUpdate(
           midPoint,
           end,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
@@ -507,7 +507,7 @@ describe('DefaultStateManager', () => {
         start,
         end,
         nextBlockNumber,
-        depositContract,
+        depositAddress,
         predicateAddress,
         { testResult: 'test' }
       )
@@ -515,7 +515,7 @@ describe('DefaultStateManager', () => {
         start,
         end,
         nextBlockNumber,
-        depositContract,
+        depositAddress,
         predicateAddress,
         { testResult: 'test 2' }
       )
@@ -547,7 +547,7 @@ describe('DefaultStateManager', () => {
           start,
           end,
           previousBlockNumber,
-          depositContract,
+          depositAddress,
           predicateAddress
         ),
       ]
