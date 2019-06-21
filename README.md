@@ -46,7 +46,7 @@ cd pigi
 #### Node.js
 Most of the projects in `@pigi` are [`Node.js`](https://nodejs.org/en/) projects.
 You'll need to install `Node.js` for your system before continuing.
-We've provided a [detailed explanation of now to install `Node.js`](https://docs.plasma.group/en/latest/src/pigi/reference.html#installing-node-js) on Windows, Mac, and Linux.
+We've provided a [detailed explanation of now to install `Node.js`](https://github.com/plasma-group/pigi/blob/c1c70a9ac6fe741fd937b9ca13ee7c1f6f9f4061/packages/docs/src/pg/src/reference/misc.rst#installing-node-js) on Windows, Mac, and Linux.
 
 **Note**: This is confirmed to work on `Node.js v11.6`, but there may be issues on other versions. If you have trouble, please peg your Node.js version to 11.6.
 
