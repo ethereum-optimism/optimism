@@ -32,8 +32,7 @@ const fromEncodedOwnershipParams = (
 /**
  * Represents a basic abi encodable AbiOwnershipParameters
  */
-export class AbiOwnershipParameters implements AbiEncodable {
-  // implements OwnershipParameters, AbiEncodable {
+export class AbiOwnershipParameters implements OwnershipParameters, AbiEncodable {
   public static abiTypes = ['bytes', 'uint128', 'uint128']
 
   constructor(
