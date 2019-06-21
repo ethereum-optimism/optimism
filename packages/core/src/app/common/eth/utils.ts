@@ -2,7 +2,7 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { add0x } from '../utils'
+import { add0x, remove0x } from '../utils'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -11,7 +11,7 @@ export const abi = new ethers.utils.AbiCoder()
  * @param value Value to hash
  * @returns the hash of the value.
  */
-export const keccak256 = (value: string): string => {
-  const preimage = add0x(value.replace(/0x/g, ''))
-  return ethers.utils.keccak256(preimage)
+export const keccak256 = (value: Buffer): Buffer => {
+  const preimage = add0x(value.toString('hex'))
+  return Buffer.from(remove0x(ethers.utils.keccak256(preimage)), 'hex')
 }

@@ -7,9 +7,11 @@
     "build/**/.js"
   ],
   "scripts": {
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
+    "test": "mocha --require ts-node/register --require tsconfig-paths/register 'test/**/*.spec.ts'"
   },
   "keywords": [
     "plasma",
@@ -21,20 +23,9 @@
   "bugs": "https://github.com/plasma-group/pigi/labels/%40pigi%2Fcore",
   "license": "MIT",
   "author": "Plasma Group",
-  "files": [
-    "build/**/.js"
-  ],
-  "main": "build/index.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/plasma-group/pigi.git"
-  },
-  "scripts": {
-    "build": "tsc -p .",
-    "clean": "rimraf build/",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
   },
   "dependencies": {
     "abstract-leveldown": "^6.0.3",
@@ -46,20 +37,24 @@
     "ethers": "^4.0.30",
     "express": "^4.17.1",
     "ganache-cli": "^6.4.4",
+    "level": "^5.0.1",
     "uuid": "^3.3.2",
     "web3": "^1.0.0-beta.55",
     "web3-utils": "^1.0.0-beta.55"
   },
   "devDependencies": {
+    "@types/abstract-leveldown": "^5.0.1",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.7",
     "@types/node": "^12.0.7",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
+    "memdown": "^4.0.0",
     "mocha": "^6.1.4",
+    "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1",
-    "rimraf": "^2.6.3"
+    "tsconfig-paths": "^3.8.0",
+    "typescript": "^3.5.1"
   },
   "publishConfig": {
     "access": "public"
