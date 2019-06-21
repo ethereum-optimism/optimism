@@ -11,7 +11,7 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
+    "test": "mocha --require ts-node/register --require tsconfig-paths/register 'test/**/*.spec.ts'"
   },
   "keywords": [
     "plasma",
@@ -36,8 +36,8 @@
     "eth-lib": "^0.2.8",
     "ethers": "^4.0.30",
     "express": "^4.17.1",
-    "level": "^5.0.1",
     "ganache-cli": "^6.4.4",
+    "level": "^5.0.1",
     "uuid": "^3.3.2",
     "web3": "^1.0.0-beta.55",
     "web3-utils": "^1.0.0-beta.55"
@@ -53,6 +53,7 @@
     "mocha": "^6.1.4",
     "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
+    "tsconfig-paths": "^3.8.0",
     "typescript": "^3.5.1"
   },
   "publishConfig": {
