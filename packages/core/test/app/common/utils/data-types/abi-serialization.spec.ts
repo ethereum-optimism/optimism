@@ -14,7 +14,7 @@ import {
   AbiOwnershipTransaction,
 } from '../../../../../src/app/common/utils'
 
-describe.only('AbiEncoding', () => {
+describe('AbiEncoding', () => {
   it('should encoded & decode AbiStateUpdate without throwing', async () => {
     const stateObject = new AbiStateObject(
       '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F',
