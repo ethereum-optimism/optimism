@@ -38,15 +38,18 @@
     "@types/web3": "^1.0.18",
     "chai": "^4.2.0",
     "mocha": "^6.0.2",
+    "rimraf": "^2.6.3",
     "typescript": "^3.3.3333",
-    "web3": "^1.0.0-beta.48",
-    "rimraf": "^2.6.3"
+    "web3": "^1.0.0-beta.48"
   },
   "dependencies": {
+    "@pigi/core": "^0.0.1-alpha.1",
     "@types/sinon-chai": "^3.2.2",
     "bn.js": "^4.11.8",
     "chai": "^4.2.0",
+    "debug": "^4.1.1",
     "ethereum-waffle": "^2.0.12",
+    "ethers": "^4.0.30",
     "openzeppelin-solidity": "^2.2.0"
   }
 }

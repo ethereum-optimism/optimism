@@ -62,7 +62,7 @@ export const isValidRange = (range: any): range is Range => {
 export const isValidStateObject = (
   stateObject: any
 ): stateObject is StateObject => {
-  return !!stateObject.predicate && !!stateObject.parameters
+  return !!stateObject.predicateAddress && !!stateObject.data
 }
 
 /**
@@ -78,7 +78,7 @@ export const isValidStateUpdate = (
     !!stateUpdate &&
     !!stateUpdate.stateObject &&
     !!stateUpdate.range &&
-    !!stateUpdate.depositContract &&
+    !!stateUpdate.depositAddress &&
     stateUpdate.plasmaBlockNumber > 0 &&
     isValidRange(stateUpdate.range) &&
     isValidStateObject(stateUpdate.stateObject)
@@ -97,7 +97,7 @@ export const isValidTransaction = (
   return (
     !!transaction &&
     !!transaction.range &&
-    !!transaction.depositContract &&
+    !!transaction.depositAddress &&
     !!transaction.methodId &&
     isValidRange(transaction.range)
   )
