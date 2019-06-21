@@ -473,5 +473,4 @@ describe('Deposit with Ownership', () => {
       range2.start.toString().should.equal('100')
     })
   })
-
 })

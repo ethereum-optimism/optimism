@@ -23,7 +23,8 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
     stateObject,
     range,
     new BigNum(decoded[2].toString()),
-    decoded[3])
+    decoded[3]
+  )
 }
 
 /**
