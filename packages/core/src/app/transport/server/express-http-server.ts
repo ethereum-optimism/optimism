@@ -11,6 +11,7 @@ import { HttpServer } from 'src/interfaces'
 export class ExpressHttpServer implements HttpServer {
   protected app = express()
   private listening = false
+  private server
 
   /**
    * Creates the server.
@@ -39,10 +40,22 @@ export class ExpressHttpServer implements HttpServer {
     }
 
     return new Promise<void>((resolve, reject) => {
-      this.app.listen(this.port, this.hostname, () => {
+      this.server = this.app.listen(this.port, this.hostname, () => {
         this.listening = true
         resolve()
       })
     })
+  }
+
+  /**
+   * Stops the server.
+   */
+  public async close(): Promise<void> {
+    if (!this.listening) {
+      return
+    }
+
+    await this.server.close()
+    this.listening = false
   }
 }
