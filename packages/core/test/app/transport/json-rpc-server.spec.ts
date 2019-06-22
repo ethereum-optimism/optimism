@@ -7,7 +7,7 @@ const log = debug('test:info:state-manager')
 /* Internal Imports */
 import { SimpleClient, SimpleServer } from 'src/app'
 
-describe.only('Simple JSON RPC Server', () => {
+describe('Simple JSON RPC Server', () => {
   it('should send a request to a server and then respond', async () => {
     // Set up a server with a single method "greeter"
     const greeter = (name) => {
