@@ -5,9 +5,8 @@ import MemDown from 'memdown'
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { Keystore } from '../../../src/interfaces'
-import { BaseDB } from '../../../src/app/common/db'
-import { DefaultWalletDB } from '../../../src/app/client/wallet-db'
+import { Keystore } from 'src/interfaces'
+import { BaseDB, DefaultWalletDB } from 'src/app'
 
 const keystore: Keystore = {
   address: '2600a448db443dc49f3c0b6bf46e6f9110914568',

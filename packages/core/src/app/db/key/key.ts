@@ -4,7 +4,7 @@
  */
 
 /* Internal Imports */
-import { Key, KeyType } from '../../../../interfaces'
+import { Key, KeyType } from 'src/interfaces'
 import { types } from './types'
 import { makeID, assert } from './utils'
 

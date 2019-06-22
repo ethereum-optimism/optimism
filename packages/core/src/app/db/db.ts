@@ -15,7 +15,7 @@ import {
   IteratorOptions,
   Iterator,
   Bucket,
-} from '../../../interfaces'
+} from 'src/interfaces'
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
 

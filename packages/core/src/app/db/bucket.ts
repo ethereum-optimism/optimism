@@ -12,7 +12,7 @@ import {
   Iterator,
   K,
   V,
-} from '../../../interfaces'
+} from 'src/interfaces'
 
 /**
  * Simple bucket implementation that forwards all

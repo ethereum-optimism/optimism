@@ -3,14 +3,14 @@ import level from 'level'
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { itNext, itEnd, bufferUtils, intersects } from '../utils'
-import { Batch } from '../../../interfaces/common/db/db.interface'
-
-import {
+import { itNext, itEnd, bufferUtils, intersects } from 'src/app'
+import { 
+  Batch, 
   RangeStore,
   RangeEntry,
   Endianness,
-} from '../../../interfaces/common/db/range-db.interface'
+} from 'src/interfaces'
+
 
 /* Logging */
 import debug from 'debug'

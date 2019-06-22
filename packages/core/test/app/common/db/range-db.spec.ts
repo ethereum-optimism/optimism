@@ -5,9 +5,8 @@ import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { dbRootPath } from '../../../setup'
-import { KeyValueStore } from '../../../../src/interfaces'
-import { LevelRangeStore } from '../../../../src/app/common/db/range-db'
-import { RangeEntry } from '../../../../src/interfaces/common/db/range-db.interface'
+import { KeyValueStore, RangeEntry } from 'src/interfaces'
+import { LevelRangeStore } from 'src/app'
 
 const log = debug('test:info:range-db')
 

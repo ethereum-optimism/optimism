@@ -6,7 +6,7 @@ import { ethers } from 'ethers'
 
 /* Internal Imports */
 import { Wallet } from '../../../src/interfaces'
-import { DefaultWallet, DefaultWalletDB, BaseDB } from '../../../src/app'
+import { DefaultWallet, DefaultWalletDB, BaseDB } from 'src/app'
 
 describe('DefaultWallet', () => {
   let walletdb: DefaultWalletDB
