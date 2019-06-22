@@ -30,7 +30,7 @@ export class JsonRpcServer extends ExpressHttpServer implements RpcServer {
    * Initializes app routes.
    */
   protected initRoutes(): void {
-    this.app.get('/', async (req, res) => {
+    this.app.post('/', async (req, res) => {
       const request: JsonRpcRequest = req.body
       if (!isJsonRpcRequest(request)) {
         return res.json(buildJsonRpcError('INVALID_REQUEST', null))
