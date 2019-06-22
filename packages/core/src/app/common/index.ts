@@ -1,4 +1,3 @@
-export * from './app'
 export * from './eth'
 export * from './db'
 export * from './net'
