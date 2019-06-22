@@ -3,10 +3,10 @@ import {
   JsonRpcRequest,
   JsonRpcSuccessResponse,
   RpcServer,
-} from '../../../../../interfaces'
+} from 'src/interfaces'
 import { buildJsonRpcError } from './json-rpc-errors'
-import { isJsonRpcRequest } from '../../../utils/type-guards'
-import { ExpressHttpServer } from '../../transport/http/express-http-server'
+import { isJsonRpcRequest } from 'src/app/common/utils/type-guards'
+import { ExpressHttpServer } from './express-http-server'
 
 /**
  * Basic JSON-RPC server.
@@ -20,8 +20,8 @@ export class JsonRpcServer extends ExpressHttpServer implements RpcServer {
    */
   constructor(
     private methods: Record<string, Function> = {},
-    port: number,
-    hostname: string
+    hostname: string,
+    port: number
   ) {
     super(port, hostname)
   }
