@@ -1,6 +1,6 @@
 /* Internal Imports */
 import { abi } from 'src/app'
-import { StateObject, AbiEncodable } from 'src/interfaces'
+import { StateObject, AbiEncodable } from 'src/types'
 
 /**
  * Creates a StateObject from an encoded StateObject.

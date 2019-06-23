@@ -14,7 +14,7 @@ import {
   StateUpdate,
   Transaction,
   VerifiedStateUpdate,
-} from '../../../src/interfaces'
+} from '../../../src/types'
 import * as assert from 'assert'
 
 /*******************

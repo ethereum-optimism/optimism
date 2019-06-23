@@ -5,7 +5,7 @@ import MemDown from 'memdown'
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { Wallet } from '../../../src/interfaces'
+import { Wallet } from '../../../src/types'
 import { DefaultWallet, DefaultWalletDB, BaseDB } from 'src/app'
 
 describe('DefaultWallet', () => {

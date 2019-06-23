@@ -10,7 +10,7 @@ import {
   MerkleIntervalTreeLeafNode,
   MerkleIntervalTreeInternalNode,
   MerkleIntervalTreeInclusionProof,
-} from '../../../../src/interfaces/common/utils/merkle-interval-tree.interface'
+} from 'src/types'
 
 /**
  * Converts a string to a hex buffer.

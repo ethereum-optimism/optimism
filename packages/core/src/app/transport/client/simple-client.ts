@@ -2,7 +2,7 @@ import { JsonRpcClient, JsonRpcHttpAdapter, AxiosHttpClient } from 'src/app'
 import {
   HttpRequest,
   HttpResponse,
-} from 'src/interfaces'
+} from 'src/types'
 
 /**
  * Wrapper class around a Http-based JsonRpcClient

@@ -7,7 +7,7 @@ import {
   MerkleIntervalTreeLeafNode,
   MerkleIntervalTreeInternalNode,
   MerkleIntervalTreeInclusionProof,
-} from '../../../interfaces'
+} from 'src/types'
 import {  bnMin, bnMax, except, reverse, keccak256 } from 'src/app'
 
 /**

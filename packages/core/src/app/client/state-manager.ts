@@ -14,7 +14,7 @@ import {
   StateUpdate,
   Transaction,
   VerifiedStateUpdate,
-} from '../../interfaces'
+} from 'src/types'
 import { getOverlappingRange, rangesIntersect } from 'src/app'
 
 /**

@@ -1,7 +1,7 @@
 /* Internal Imports */
 import BigNum = require('bn.js')
 import { bnMax, bnMin } from './misc'
-import { BlockRange, Range } from 'src/interfaces'
+import { BlockRange, Range } from 'src/types'
 import { bufferUtils } from 'src/app'
 
 /**

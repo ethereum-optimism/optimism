@@ -5,7 +5,7 @@ import MemDown from 'memdown'
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { Keystore } from 'src/interfaces'
+import { Keystore } from 'src/types'
 import { BaseDB, DefaultWalletDB } from 'src/app'
 
 const keystore: Keystore = {

@@ -5,7 +5,7 @@
     "baseUrl": "./",
     "paths": {
         "~app/*": ["src/app/*"],
-        "~interfaces/*": ["src/interfaces/*"],
+        "~types/*": ["src/types/*"],
         "~test/*": ["test/*"]
     }
   },

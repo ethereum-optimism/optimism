@@ -9,7 +9,7 @@ import {
   RangeStore,
   RangeEntry,
   Endianness,
-} from 'src/interfaces'
+} from 'src/types'
 
 
 /* Logging */
