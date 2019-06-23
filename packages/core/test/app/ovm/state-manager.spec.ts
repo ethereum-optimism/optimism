@@ -4,7 +4,7 @@ import '../../setup'
 import debug from 'debug'
 const log = debug('test:info:state-manager')
 import BigNum = require('bn.js')
-import { DefaultStateDB, DefaultStateManager } from '../../../src/app/client'
+import { DefaultStateDB, DefaultStateManager } from 'src/app'
 import {
   PluginManager,
   PredicatePlugin,

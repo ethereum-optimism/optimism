@@ -1,4 +1,5 @@
-export * from './client'
+export * from './ovm'
+export * from './keystore'
 export * from './block-production'
 export * from './transport'
 export * from './serialization'
