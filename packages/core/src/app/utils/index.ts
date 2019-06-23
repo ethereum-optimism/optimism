@@ -2,10 +2,14 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { add0x, remove0x } from '../utils'
+import { add0x, remove0x } from 'src/app'
 
+
+/* Abi */
 export const abi = new ethers.utils.AbiCoder()
 
+
+/* Crypto */
 /**
  * Computes the keccak256 hash of a value.
  * @param value Value to hash

@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { abi } from '../eth'
+import { abi } from 'src/app'
 import { StateObject, AbiEncodable } from '../../../interfaces'
 
 /**

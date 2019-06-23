@@ -4,7 +4,7 @@ import debug from 'debug'
 const log = debug('info:state-update')
 
 /* Internal Imports */
-import { abi } from '../eth'
+import { abi } from 'src/app'
 import {
   AbiEncodable,
   Transaction,

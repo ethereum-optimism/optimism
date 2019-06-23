@@ -8,7 +8,7 @@ import {
   MerkleIntervalTreeInternalNode,
   MerkleIntervalTreeInclusionProof,
 } from '../../../interfaces'
-import { keccak256 } from '../eth/utils'
+import { keccak256 } from 'src/app'
 import { bnMin, bnMax, except, reverse } from './misc'
 
 /**
