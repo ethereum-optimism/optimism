@@ -7,8 +7,8 @@ import {
   JsonRpcAdapter,
   JsonRpcRequest,
   Client,
+  isJsonRpcErrorResponse 
 } from 'src/types'
-import { isJsonRpcErrorResponse } from 'src/app/common/utils'
 
 /**
  * Client for making requests to a JSON-RPC server.

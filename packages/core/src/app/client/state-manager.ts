@@ -1,7 +1,5 @@
 import BigNum = require('bn.js')
 
-import { isValidTransaction, isValidVerifiedStateUpdate } from '../common/utils'
-
 import {
   HistoryProof,
   PluginManager,
@@ -14,6 +12,8 @@ import {
   StateUpdate,
   Transaction,
   VerifiedStateUpdate,
+  isValidTransaction,
+  isValidVerifiedStateUpdate 
 } from 'src/types'
 import { getOverlappingRange, rangesIntersect } from 'src/app'
 

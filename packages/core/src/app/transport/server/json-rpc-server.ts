@@ -3,9 +3,9 @@ import {
   JsonRpcRequest,
   JsonRpcSuccessResponse,
   RpcServer,
+  isJsonRpcRequest
 } from 'src/types'
 import { buildJsonRpcError } from './json-rpc-errors'
-import { isJsonRpcRequest } from 'src/app/common/utils/type-guards'
 import { ExpressHttpServer } from './express-http-server'
 
 /**
