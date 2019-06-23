@@ -1,4 +1,4 @@
-import '../../../setup'
+import '../../setup'
 
 /* Internal Imports */
 import { keccak256 } from 'src/app'

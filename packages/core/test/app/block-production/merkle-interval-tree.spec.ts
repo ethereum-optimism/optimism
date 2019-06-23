@@ -1,10 +1,10 @@
-import { should } from '../../../setup'
+import { should } from '../../setup'
 
 /* External Imports */
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
-import { MerkleIntervalTree } from '../../../../src/app/common/utils/merkle-interval-tree'
+import { MerkleIntervalTree } from 'src/app'
 
 import {
   MerkleIntervalTreeLeafNode,

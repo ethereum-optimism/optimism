@@ -4,7 +4,7 @@ import level = require('level')
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { dbRootPath } from '../../../setup'
+import { dbRootPath } from '../../setup'
 import { KeyValueStore, RangeEntry } from 'src/types'
 import { LevelRangeStore } from 'src/app'
 
