@@ -9,7 +9,7 @@ import {
   Range,
   StateUpdate,
   StateObject,
-} from '../../../interfaces'
+} from 'src/interfaces'
 
 /**
  * Checks if a JSON-RPC response is an error response.

@@ -1,4 +1,4 @@
-import '../../../setup'
+import '../../setup'
 
 /* Internal Imports */
 import {
@@ -7,7 +7,7 @@ import {
   add0x,
   getNullString,
   isObject,
-} from '../../../../src/app/common/utils'
+} from 'src/app'
 
 describe('Miscellanous Utils', () => {
   describe('sleep', () => {

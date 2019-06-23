@@ -9,7 +9,7 @@ import {
   AbiEncodable,
   Transaction,
   OwnershipParameters,
-} from '../../../interfaces'
+} from 'src/interfaces'
 import { AbiStateObject } from './state-object'
 import { AbiRange } from './abi-range'
 import { hexStringify } from '../utils'

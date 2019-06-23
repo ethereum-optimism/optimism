@@ -5,7 +5,7 @@ const log = debug('info:state-update')
 
 /* Internal Imports */
 import { abi } from 'src/app'
-import { AbiEncodable, Range } from '../../../interfaces/common/utils'
+import { AbiEncodable, Range } from 'src/interfaces'
 import { hexStringify } from '../utils'
 
 /**

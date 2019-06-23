@@ -1,8 +1,8 @@
 /* Internal Imports */
 import BigNum = require('bn.js')
 import { bnMax, bnMin } from './misc'
-import { BlockRange, Range } from '../../../interfaces/common/utils'
-import { bufferUtils } from './buffer-utils'
+import { BlockRange, Range } from 'src/interfaces'
+import { bufferUtils } from 'src/app'
 
 /**
  * Checks if two ranges intersect, eg. [1,10) & [8,11) would return true.

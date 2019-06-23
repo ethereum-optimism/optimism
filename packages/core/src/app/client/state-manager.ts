@@ -15,7 +15,7 @@ import {
   Transaction,
   VerifiedStateUpdate,
 } from '../../interfaces'
-import { getOverlappingRange, rangesIntersect } from '../common/utils/range'
+import { getOverlappingRange, rangesIntersect } from 'src/app'
 
 /**
  * StateManager that validates transactions and wraps and modifies StateDB as necessary.

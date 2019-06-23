@@ -1,4 +1,4 @@
-import '../../../../setup'
+import '../../setup'
 
 /* External Imports */
 import BigNum = require('bn.js')
@@ -12,7 +12,7 @@ import {
   AbiRange,
   AbiOwnershipParameters,
   AbiOwnershipTransaction,
-} from '../../../../../src/app/common/utils'
+} from 'src/app'
 
 describe('AbiEncoding', () => {
   it('should encoded & decode AbiStateUpdate without throwing', async () => {

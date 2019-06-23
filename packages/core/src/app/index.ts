@@ -1,5 +1,6 @@
 export * from './client'
 export * from './common'
 export * from './transport'
+export * from './serialization'
 export * from './db'
 export * from './utils'

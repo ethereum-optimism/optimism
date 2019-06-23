@@ -4,9 +4,8 @@ import debug from 'debug'
 const log = debug('info:state-update')
 
 /* Internal Imports */
-import { abi } from 'src/app'
-import { StateUpdate, AbiEncodable } from '../../../interfaces'
-import { hexStringify } from '../utils'
+import { abi, hexStringify } from 'src/app'
+import { StateUpdate, AbiEncodable } from 'src/interfaces'
 import { AbiStateObject } from './state-object'
 import { AbiRange } from './abi-range'
 
