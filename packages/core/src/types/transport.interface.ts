@@ -25,7 +25,6 @@ export interface RpcTransportAdapter<
   decodeResponse(response: TransportResponse): RpcResponse
 }
 
-
 /*************** rpc ***************/
 /**
  * RpcClient handles requests to an RpcServer.
@@ -57,7 +56,6 @@ export interface RpcServer {
   listen(): Promise<void>
 }
 
-
 /*************** json-rpc-adapter ***************/
 export type JsonRpcAdapter<
   TransportRequest,
@@ -68,7 +66,6 @@ export type JsonRpcAdapter<
   TransportRequest,
   TransportResponse
 >
-
 
 /*************** json-rpc-message ***************/
 export interface JsonRpcMessage {
@@ -97,7 +94,6 @@ export interface JsonRpcSuccessResponse extends JsonRpcMessage {
 
 export type JsonRpcResponse = JsonRpcSuccessResponse | JsonRpcErrorResponse
 
-
 /*************** transport ***************/
 /**
  * Client sends some data to a server over a transport layer.
@@ -120,7 +116,6 @@ export interface Server {
    */
   listen(): void
 }
-
 
 /*************** transport-http-message ***************/
 export interface HttpRequest {
@@ -152,7 +147,6 @@ export interface HttpResponse {
   headers?: Record<any, any>
   data?: any
 }
-
 
 /*************** transport-http-message ***************/
 export type HttpClient = Client<HttpRequest, HttpResponse>

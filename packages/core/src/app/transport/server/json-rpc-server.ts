@@ -3,7 +3,7 @@ import {
   JsonRpcRequest,
   JsonRpcSuccessResponse,
   RpcServer,
-  isJsonRpcRequest
+  isJsonRpcRequest,
 } from 'src/types'
 import { buildJsonRpcError } from './json-rpc-errors'
 import { ExpressHttpServer } from './express-http-server'

@@ -5,11 +5,7 @@ const log = debug('info:state-update')
 
 /* Internal Imports */
 import { abi } from 'src/app'
-import {
-  AbiEncodable,
-  Transaction,
-  OwnershipParameters,
-} from 'src/types'
+import { AbiEncodable, Transaction, OwnershipParameters } from 'src/types'
 import { AbiStateObject } from './state-object'
 import { AbiRange } from './abi-range'
 import { hexStringify } from '../utils'

@@ -4,15 +4,7 @@
  */
 
 /* Internal Imports */
-import {
-  Bucket,
-  Batch,
-  DB,
-  IteratorOptions,
-  Iterator,
-  K,
-  V,
-} from 'src/types'
+import { Bucket, Batch, DB, IteratorOptions, Iterator, K, V } from 'src/types'
 
 /**
  * Simple bucket implementation that forwards all

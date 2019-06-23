@@ -1,5 +1,3 @@
-export * from './wallet.interface'
-export * from './wallet-db.interface'
 export * from './state-manager.interface'
 export * from './state-db.interface'
 export * from './predicate-plugin.interface'

@@ -2,6 +2,6 @@
   "extends": ["./../../tslint.json"],
   "rules": {
     "prettier": [true, "./.prettierrc.js"],
-    "no-implicit-dependencies": [true, "dev", ["~app", "~interfaces", "~test"]]
+    "no-implicit-dependencies": [true, ["src", "app", "types", "test"]]
   }
 }

@@ -13,9 +13,13 @@ describe('Simple JSON RPC Server', () => {
     const greeter = (name) => {
       return 'Hello ' + name
     }
-    const server = new SimpleServer({
-      greeter
-    }, 'localhost', 3000)
+    const server = new SimpleServer(
+      {
+        greeter,
+      },
+      'localhost',
+      3000
+    )
     await server.listen()
 
     // Set up a client which will call greeter with the name "World!"

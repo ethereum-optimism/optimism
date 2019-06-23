@@ -4,13 +4,7 @@ import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { itNext, itEnd, bufferUtils, intersects } from 'src/app'
-import { 
-  Batch, 
-  RangeStore,
-  RangeEntry,
-  Endianness,
-} from 'src/types'
-
+import { Batch, RangeStore, RangeEntry, Endianness } from 'src/types'
 
 /* Logging */
 import debug from 'debug'

@@ -13,7 +13,7 @@ import {
   Transaction,
   VerifiedStateUpdate,
   isValidTransaction,
-  isValidVerifiedStateUpdate 
+  isValidVerifiedStateUpdate,
 } from 'src/types'
 import { getOverlappingRange, rangesIntersect } from 'src/app'
 

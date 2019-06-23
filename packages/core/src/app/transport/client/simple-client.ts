@@ -1,23 +1,21 @@
 import { JsonRpcClient, JsonRpcHttpAdapter, AxiosHttpClient } from 'src/app'
-import {
-  HttpRequest,
-  HttpResponse,
-} from 'src/types'
+import { HttpRequest, HttpResponse } from 'src/types'
 
 /**
  * Wrapper class around a Http-based JsonRpcClient
  */
-export class SimpleClient { 
+export class SimpleClient {
   private jsonRpcClient: JsonRpcClient<HttpRequest, HttpResponse>
 
   /**
    * Initializes an internal jsonRpcClient which will be used for handling requests
    * @param baseUrl the url which json RPC requests will be sent to
    */
-  constructor(
-    private baseUrl: string,
-  ) {
-    this.jsonRpcClient = new JsonRpcClient<HttpRequest, HttpResponse>(new JsonRpcHttpAdapter(), new AxiosHttpClient(baseUrl))
+  constructor(private baseUrl: string) {
+    this.jsonRpcClient = new JsonRpcClient<HttpRequest, HttpResponse>(
+      new JsonRpcHttpAdapter(),
+      new AxiosHttpClient(baseUrl)
+    )
   }
 
   /**

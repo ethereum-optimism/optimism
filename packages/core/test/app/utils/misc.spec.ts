@@ -1,13 +1,7 @@
 import '../../setup'
 
 /* Internal Imports */
-import {
-  sleep,
-  remove0x,
-  add0x,
-  getNullString,
-  isObject,
-} from 'src/app'
+import { sleep, remove0x, add0x, getNullString, isObject } from 'src/app'
 
 describe('Miscellanous Utils', () => {
   describe('sleep', () => {

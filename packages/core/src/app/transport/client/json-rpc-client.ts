@@ -7,7 +7,7 @@ import {
   JsonRpcAdapter,
   JsonRpcRequest,
   Client,
-  isJsonRpcErrorResponse 
+  isJsonRpcErrorResponse,
 } from 'src/types'
 
 /**
