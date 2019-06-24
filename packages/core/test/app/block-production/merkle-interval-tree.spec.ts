@@ -11,7 +11,7 @@ import {
     MerkleIntervalTree, MerkleIntervalTreeNode, MerkleStateIntervalTree, PlasmaBlock
   }  from '../../../src/app/'
 
-describe.only('merkle-index-tree', () => {
+describe('merkle-index-tree', () => {
   describe('MerkleIntervalTreeNode', () => {
     it('should concatenate index and hash after construction', async() => {
       const node = new MerkleIntervalTreeNode(Buffer.from([255]), Buffer.from([0])) 
