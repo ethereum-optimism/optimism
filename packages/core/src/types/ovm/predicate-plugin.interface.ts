@@ -1,4 +1,4 @@
-import { StateUpdate, Transaction } from '../common/utils'
+import { StateUpdate, Transaction } from 'src/types'
 
 export interface PredicatePlugin {
   /**
