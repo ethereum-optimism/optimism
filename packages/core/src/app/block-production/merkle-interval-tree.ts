@@ -6,12 +6,6 @@ const log = debug('info:merkle-interval-tree')
 /* Internal Imports */
 import { reverse, keccak256, AbiStateUpdate } from '../'
 
-const STATE_ID_LENGTH = 16
-
-function getHash(value: Buffer) {
-  return keccak256(value)
-}
-
 /**
  * Computes the index of the sibling of a node.
  * @param index Index of a node.
@@ -52,12 +46,16 @@ export class MerkleIntervalTree {
     return this.levels[this.levels.length - 1][0]
   }
 
+  public static hash(value: Buffer): Buffer {
+    return keccak256(value)
+  }
+
   public static parent (left: MerkleIntervalTreeNode, right: MerkleIntervalTreeNode): MerkleIntervalTreeNode {
     if (Buffer.compare(left.index, right.index) >= 0) {
       throw new Error('Left index (0x' + left.index.toString('hex') + ') not less than right index (0x' + right.index.toString('hex') + ')')
     }
     const concatenated = Buffer.concat([left.data, right.data])
-    return new MerkleIntervalTreeNode(getHash(concatenated), left.index)
+    return new MerkleIntervalTreeNode(MerkleIntervalTree.hash(concatenated), left.index)
   }
 
   public static emptyNode (ofLength: number): MerkleIntervalTreeNode {
@@ -71,13 +69,13 @@ export class MerkleIntervalTree {
     this.numLeaves = this.dataBlocks.length
   }
 
-  public parseLeaf(dataBlock: any): MerkleIntervalTreeNode {
+  public parseLeaf(dataBlock: any, leafIndex: number): MerkleIntervalTreeNode {
     return dataBlock
   }
 
   public parseLeaves() {
     for (let i = 0; i < this.dataBlocks.length; i++) {
-      this.levels[0][i] = this.parseLeaf(this.dataBlocks[i])
+      this.levels[0][i] = this.parseLeaf(this.dataBlocks[i], i)
     }
   }
 
@@ -210,71 +208,5 @@ export class MerkleIntervalTree {
         implicitEnd: firstRightSibling ? firstRightSibling.index : MerkleIntervalTree.emptyNode(leafNode.index.length).index // messy way to get the max index, TODO clean
       }
     }
-  }
-}
-
-export class MerkleStateIntervalTree extends MerkleIntervalTree {
-  public parseLeaf(stateUpdate: AbiStateUpdate): MerkleIntervalTreeNode {
-    const hash = getHash(Buffer.from(stateUpdate.encoded))
-    const index = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
-    return new MerkleIntervalTreeNode(hash, index)
-  }
-}
-
-export interface SubtreeContents {
-  address: Buffer
-  stateUpdates: AbiStateUpdate[]
-}
-
-export class PlasmaBlock extends MerkleIntervalTree {
-  public subtrees: MerkleStateIntervalTree[]
-
-  public parseLeaves() {
-    this.subtrees = []
-    super.parseLeaves()
-  }
-
-  public parseLeaf(subtree: SubtreeContents): MerkleIntervalTreeNode {
-    const merkleStateIntervalTree = new MerkleStateIntervalTree(subtree.stateUpdates)
-    this.subtrees.push(merkleStateIntervalTree)
-    return new MerkleIntervalTreeNode(merkleStateIntervalTree.root().hash, subtree.address)
-  }
-
-  public getStateUpdateInclusionProof(
-    stateUpdatePosition: number,
-    addressPosition: number
-  ): any {
-    return {
-      stateTreeInclusionProof: this.subtrees[addressPosition].getInclusionProof(stateUpdatePosition),
-      addressTreeInclusionProof: this.getInclusionProof(addressPosition)
-    }
-  }
-
-  public static verifyStateUpdateInclusionProof(
-    stateUpdate: AbiStateUpdate,
-    stateTreeInclusionProof: MerkleIntervalTreeNode[],
-    stateUpdatePosition: number,
-    addressTreeInclusionProof: MerkleIntervalTreeNode[],
-    addressPosition: number,
-    blockRootHash: Buffer
-  ): any {
-    const leafNodeHash: Buffer = getHash(Buffer.from(stateUpdate.encoded))
-    const leafNodeIndex: Buffer = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
-    const stateLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(leafNodeHash, leafNodeIndex)
-    const stateUpdateRootAndBounds = MerkleIntervalTree.getRootAndBounds(
-      stateLeafNode,
-      stateUpdatePosition,
-      stateTreeInclusionProof
-    )
-
-    const addressLeafHash: Buffer = stateUpdateRootAndBounds.root.hash
-    const addressLeafIndex: Buffer = Buffer.from(stateUpdate.depositAddress.slice(2), 'hex')
-    const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(addressLeafHash, addressLeafIndex)
-    return MerkleIntervalTree.verify(
-      addressLeafNode,
-      addressPosition,
-      addressTreeInclusionProof,
-      blockRootHash
-    )
   }
 }

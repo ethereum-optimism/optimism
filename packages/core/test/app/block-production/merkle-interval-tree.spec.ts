@@ -11,8 +11,6 @@ import {
     MerkleIntervalTree, MerkleIntervalTreeNode, MerkleStateIntervalTree, PlasmaBlock
   }  from '../../../src/app/'
 
-import { AssertionError } from 'assert'
-
 describe.only('merkle-index-tree', () => {
   describe('MerkleIntervalTreeNode', () => {
     it('should concatenate index and hash after construction', async() => {
