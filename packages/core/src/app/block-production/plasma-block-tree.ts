@@ -6,9 +6,9 @@ import { SubtreeContents } from '../../types'
 export class PlasmaBlock extends MerkleIntervalTree {
 public subtrees: MerkleStateIntervalTree[]
 
-public parseLeaves() {
+public generateLeafNodes() {
     this.subtrees = []
-    super.parseLeaves()
+    super.generateLeafNodes()
 }
 
 public parseLeaf(subtree: SubtreeContents): MerkleIntervalTreeNode {
@@ -39,19 +39,19 @@ public static verifyStateUpdateInclusionProof(
     const leafNodeIndex: Buffer = stateUpdate.range.start.toBuffer('be', MerkleStateIntervalTree.STATE_ID_LENGTH)
     const stateLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(leafNodeHash, leafNodeIndex)
     const stateUpdateRootAndBounds = MerkleIntervalTree.getRootAndBounds(
-    stateLeafNode,
-    stateUpdatePosition,
-    stateTreeInclusionProof
+        stateLeafNode,
+        stateUpdatePosition,
+        stateTreeInclusionProof
     )
 
     const addressLeafHash: Buffer = stateUpdateRootAndBounds.root.hash
     const addressLeafIndex: Buffer = Buffer.from(stateUpdate.depositAddress.slice(2), 'hex')
     const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(addressLeafHash, addressLeafIndex)
     return MerkleIntervalTree.verify(
-    addressLeafNode,
-    addressPosition,
-    addressTreeInclusionProof,
-    blockRootHash
+        addressLeafNode,
+        addressPosition,
+        addressTreeInclusionProof,
+        blockRootHash
     )
 }
 }

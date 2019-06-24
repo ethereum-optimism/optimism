@@ -6,24 +6,6 @@ const log = debug('info:merkle-interval-tree')
 /* Internal Imports */
 import { reverse, keccak256, AbiStateUpdate } from '../'
 
-/**
- * Computes the index of the sibling of a node.
- * @param index Index of a node.
- * @returns the index of the sibling of that node.
- */
-const getSiblingIndex = (index: number): number => {
-  return index + (index % 2 === 0 ? 1 : -1)
-}
-
-/**
- * Computes the index of the parent of a node
- * @param index Index of a node.
- * @returns the index of the parent of that node.
- */
-const getParentIndex = (index: number): number => {
-  return index === 0 ? 0 : Math.floor(index / 2)
-}
-
 export class MerkleIntervalTreeNode {
   public data: Buffer
 
@@ -32,14 +14,35 @@ export class MerkleIntervalTreeNode {
   }
 }
 
+/**
+ * Computes the index of the sibling of a node in some level.
+ * @param index Index of a node.
+ * @returns the index of the sibling of that node.
+ */
+const getSiblingIndex = (index: number): number => {
+  return index + (index % 2 === 0 ? 1 : -1)
+}
+
+/**
+ * Computes the index of the parent of a node at the level above.
+ * @param index Index of a node.
+ * @returns the index of the parent of that node.
+ */
+const getParentIndex = (index: number): number => {
+  return index === 0 ? 0 : Math.floor(index / 2)
+}
+
 export class MerkleIntervalTree {
   public levels: MerkleIntervalTreeNode[][] = [[]]
   public numLeaves: number
 
   constructor (readonly dataBlocks: any) {
+    // Store the number of leaves so that generation can use it.
     this.parseNumLeaves()
-    this.parseLeaves()
-    this.generateFromLeaves()
+    // Convert the data blocks into leaf nodes so that the tree can be built.
+    this.generateLeafNodes()
+    // Build the remaining levels of the tree.
+    this.generateInternalNodes()
   }
 
   public root(): MerkleIntervalTreeNode {
@@ -49,7 +52,11 @@ export class MerkleIntervalTree {
   public static hash(value: Buffer): Buffer {
     return keccak256(value)
   }
-
+  /**
+   * Computes the parent of two MerkleIntervalTreeNode siblings in a tree.
+   * @param left The left sibling to compute the parent of.
+   * @param right The right sibling to compute the parent of.
+   */
   public static parent (left: MerkleIntervalTreeNode, right: MerkleIntervalTreeNode): MerkleIntervalTreeNode {
     if (Buffer.compare(left.index, right.index) >= 0) {
       throw new Error('Left index (0x' + left.index.toString('hex') + ') not less than right index (0x' + right.index.toString('hex') + ')')
@@ -58,6 +65,11 @@ export class MerkleIntervalTree {
     return new MerkleIntervalTreeNode(MerkleIntervalTree.hash(concatenated), left.index)
   }
 
+  /**
+   * Computes an "empty node" whose hash value is 0 and whose index is the max.
+   * Used to pad a tree which has less  than 2^n nodes.
+   * @param ofLength The length in bytes of the start value for the empty node.
+   */
   public static emptyNode (ofLength: number): MerkleIntervalTreeNode {
     const hash = Buffer.from(new Array(32).fill(0))
     const filledArray = new Array(ofLength).fill(255)
@@ -65,34 +77,53 @@ export class MerkleIntervalTree {
     return new MerkleIntervalTreeNode(hash, index)
   }
 
+  /**
+   * Returns the number of leaves the tree has.
+   */
   private parseNumLeaves() {
     this.numLeaves = this.dataBlocks.length
   }
 
-  public parseLeaf(dataBlock: any, leafIndex: number): MerkleIntervalTreeNode {
+  /**
+   * Calculates the leaf MerkleIntervalTreeNode for a given data block.
+   */
+  public parseLeaf(dataBlock: any): MerkleIntervalTreeNode {
     return dataBlock
   }
 
-  public parseLeaves() {
+  /**
+   * Fills the bottom (level 0) of the tree by parsing each data block into a node.
+   */
+  public generateLeafNodes() {
     for (let i = 0; i < this.dataBlocks.length; i++) {
-      this.levels[0][i] = this.parseLeaf(this.dataBlocks[i], i)
+      this.levels[0][i] = this.parseLeaf(this.dataBlocks[i])
     }
   }
 
-  private generateFromLeaves() {
+  /**
+   * Generates the other levels of the tree once the leaf nodes have been parsed.
+   */
+  private generateInternalNodes() {
     // Calculate the depth of the tree
     const numInternalLevels = Math.ceil(Math.log2(this.numLeaves))
     for (let level = 0; level < numInternalLevels; level++) {
-      this.generateLevel(level)
+      this.generateLevelAbove(level)
     }
   }
 
-  // leaves are level 0 in this model, so that level = height - depth
+  /**
+   * Calculates the number of nodes which will be used in a given level of the tree based on the number of leaves.
+   * @param level the level of the tree, such that leaf nodes are at level 0, and the root is at the maximum level.
+   */
   private calculateNumNodesinLevel(level: number) {
     return Math.ceil(this.numLeaves / (2**level))
   }
 
-  private generateLevel(level: number) {
+  /**
+   * Generates and stores an individual level of the tree from its children.
+   * @param level the level of the children nodes for which we are storing parents.
+   */
+  private generateLevelAbove(level: number) {
     this.levels[level+1] = []
     const numNodesInLevel: number = this.calculateNumNodesinLevel(level)
     for (let i = 0; i < numNodesInLevel; i += 2) {
@@ -105,6 +136,10 @@ export class MerkleIntervalTree {
     }
   }
 
+  /**
+   * Gets an inclusion proof for the merkle interval tree.
+   * @param leafPosition the index in the tree of the leaf we are generating a merkle proof for.
+   */
   public getInclusionProof(leafPosition: number): MerkleIntervalTreeNode[] {
     if (!(leafPosition in this.levels[0])) {
       throw new Error('Leaf index ' + leafPosition + ' not in bottom level of tree')
