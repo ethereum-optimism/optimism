@@ -5,7 +5,7 @@ import {
   StateQueryResult,
   StateUpdate,
   Transaction,
-} from 'src/types'
+} from '../../types'
 
 export interface StateManager {
   /**

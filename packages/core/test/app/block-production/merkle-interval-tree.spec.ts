@@ -4,13 +4,13 @@ import { should } from '../../setup'
 import BigNumber = require('bn.js')
 
 /* Internal Imports */
-import { MerkleIntervalTree } from 'src/app'
+import { MerkleIntervalTree } from '../../../src/app'
 
 import {
   MerkleIntervalTreeLeafNode,
   MerkleIntervalTreeInternalNode,
   MerkleIntervalTreeInclusionProof,
-} from 'src/types'
+} from '../../../src/types'
 
 /**
  * Converts a string to a hex buffer.

@@ -4,8 +4,8 @@ import debug from 'debug'
 const log = debug('info:state-update')
 
 /* Internal Imports */
-import { abi } from 'src/app'
-import { AbiEncodable, Range } from 'src/types'
+import { abi } from '../../app'
+import { AbiEncodable, Range } from '../../types'
 import { hexStringify } from '../utils'
 
 /**

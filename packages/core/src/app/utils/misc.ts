@@ -2,7 +2,7 @@
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { Transaction } from 'src/types'
+import { Transaction } from '../../types'
 
 /**
  * JSON-stringifies a value if it's not already a string.

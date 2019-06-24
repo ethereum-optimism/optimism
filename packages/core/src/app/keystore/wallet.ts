@@ -2,7 +2,7 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { Wallet, WalletDB } from 'src/types'
+import { Wallet, WalletDB } from '../../types'
 
 /**
  * Simple Wallet implementation.

@@ -1,14 +1,7 @@
 {
   "extends": "./../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./build",
-    "baseUrl": "./",
-    "paths": {
-        "~src/*": ["src/*"],
-        "~app/*": ["src/app/*"],
-        "~types/*": ["src/types/*"],
-        "~test/*": ["test/*"]
-    }
+    "outDir": "./build"
   },
   "include": ["*.ts", "**/*.ts"]
 }

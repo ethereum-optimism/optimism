@@ -5,7 +5,7 @@ import debug from 'debug'
 const log = debug('test:info:state-manager')
 
 /* Internal Imports */
-import { SimpleClient, SimpleServer } from 'src/app'
+import { SimpleClient, SimpleServer } from '../../../src/app'
 
 describe('Simple JSON RPC Server', () => {
   it('should send a request to a server and then respond', async () => {

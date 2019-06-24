@@ -2,7 +2,7 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { add0x, remove0x } from 'src/app'
+import { add0x, remove0x } from '../../app'
 
 /* Abi */
 export const abi = new ethers.utils.AbiCoder()

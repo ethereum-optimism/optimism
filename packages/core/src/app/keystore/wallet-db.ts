@@ -2,7 +2,7 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { WalletDB, Keystore, KeyValueStore } from 'src/types'
+import { WalletDB, Keystore, KeyValueStore } from '../../types'
 
 export class DefaultWalletDB implements WalletDB {
   /**

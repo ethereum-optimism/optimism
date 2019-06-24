@@ -4,7 +4,7 @@ import {
   JsonRpcSuccessResponse,
   RpcServer,
   isJsonRpcRequest,
-} from 'src/types'
+} from '../../../types'
 import { buildJsonRpcError } from './json-rpc-errors'
 import { ExpressHttpServer } from './express-http-server'
 

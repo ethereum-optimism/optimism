@@ -9,7 +9,7 @@ import {
   Range,
   StateUpdate,
   StateObject,
-} from 'src/types'
+} from '../types'
 
 /**
  * Checks if a JSON-RPC response is an error response.

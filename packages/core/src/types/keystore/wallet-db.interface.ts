@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { Keystore } from '../common'
+import { Keystore } from '../miscellaneous'
 
 export interface WalletDB {
   putKeystore(keystore: Keystore): Promise<void>

@@ -7,8 +7,8 @@ import {
   MerkleIntervalTreeLeafNode,
   MerkleIntervalTreeInternalNode,
   MerkleIntervalTreeInclusionProof,
-} from 'src/types'
-import { bnMin, bnMax, except, reverse, keccak256 } from 'src/app'
+} from '../../types'
+import { bnMin, bnMax, except, reverse, keccak256 } from '../../app'
 
 /**
  * Computes the position of the sibling of a node.

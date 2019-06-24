@@ -1,6 +1,6 @@
 /* External Imports */
 import BigNum = require('bn.js')
-import { Range } from 'src/types'
+import { Range } from '../../types'
 
 export interface StateObject {
   predicateAddress: string

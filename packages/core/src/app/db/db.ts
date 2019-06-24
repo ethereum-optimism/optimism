@@ -7,7 +7,7 @@
 import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
 
 /* Internal Imports */
-import { DB, K, V, Batch, IteratorOptions, Iterator, Bucket } from 'src/types'
+import { DB, K, V, Batch, IteratorOptions, Iterator, Bucket } from '../../types'
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
 

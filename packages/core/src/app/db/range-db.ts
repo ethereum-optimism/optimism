@@ -3,8 +3,8 @@ import level from 'level'
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { itNext, itEnd, bufferUtils, intersects } from 'src/app'
-import { Batch, RangeStore, RangeEntry, Endianness } from 'src/types'
+import { itNext, itEnd, bufferUtils, intersects } from '../../app'
+import { Batch, RangeStore, RangeEntry, Endianness } from '../../types'
 
 /* Logging */
 import debug from 'debug'

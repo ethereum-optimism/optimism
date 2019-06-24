@@ -4,7 +4,7 @@ import {
   JsonRpcResponse,
   HttpRequest,
   HttpResponse,
-} from 'src/types'
+} from '../../../types'
 
 /**
  * Adapter for using JSON-RPC over HTTP.

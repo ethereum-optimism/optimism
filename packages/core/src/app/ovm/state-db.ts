@@ -1,6 +1,6 @@
 import BigNum = require('bn.js')
 
-import { StateDB, VerifiedStateUpdate } from 'src/types'
+import { StateDB, VerifiedStateUpdate } from '../../types'
 
 /**
  * StateDB used to store the state for different ranges.

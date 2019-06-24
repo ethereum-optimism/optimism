@@ -14,8 +14,8 @@ import {
   VerifiedStateUpdate,
   isValidTransaction,
   isValidVerifiedStateUpdate,
-} from 'src/types'
-import { getOverlappingRange, rangesIntersect } from 'src/app'
+} from '../../types'
+import { getOverlappingRange, rangesIntersect } from '../../app'
 
 /**
  * StateManager that validates transactions and wraps and modifies StateDB as necessary.

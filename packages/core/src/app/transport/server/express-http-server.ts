@@ -3,7 +3,7 @@ import express = require('express')
 import bodyParser = require('body-parser')
 
 /* Internal Imports */
-import { HttpServer } from 'src/types'
+import { HttpServer } from '../../../types'
 
 /**
  * HTTP server that uses Express under the hood.

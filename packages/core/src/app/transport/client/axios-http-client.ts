@@ -2,7 +2,7 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 
 /* Internal Imports */
-import { HttpClient } from 'src/types'
+import { HttpClient } from '../../../types'
 
 /**
  * HTTP client that uses the axios client library.

@@ -8,7 +8,7 @@ import {
   JsonRpcRequest,
   Client,
   isJsonRpcErrorResponse,
-} from 'src/types'
+} from '../../../types'
 
 /**
  * Client for making requests to a JSON-RPC server.

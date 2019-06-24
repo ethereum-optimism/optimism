@@ -1,5 +1,5 @@
-import { JsonRpcClient, JsonRpcHttpAdapter, AxiosHttpClient } from 'src/app'
-import { HttpRequest, HttpResponse } from 'src/types'
+import { JsonRpcClient, JsonRpcHttpAdapter, AxiosHttpClient } from '../../../app'
+import { HttpRequest, HttpResponse } from '../../../types'
 
 /**
  * Wrapper class around a Http-based JsonRpcClient

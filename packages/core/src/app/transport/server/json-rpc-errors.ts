@@ -1,4 +1,4 @@
-import { JsonRpcErrorResponse } from 'src/types'
+import { JsonRpcErrorResponse } from '../../../types'
 
 export const JSONRPC_ERRORS = {
   PARSE_ERROR: {

@@ -1,6 +1,6 @@
 import BigNum = require('bn.js')
 
-import { VerifiedStateUpdate } from 'src/types'
+import { VerifiedStateUpdate } from '../../types'
 
 export interface StateDB {
   /**

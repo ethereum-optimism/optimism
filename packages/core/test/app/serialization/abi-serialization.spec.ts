@@ -12,7 +12,7 @@ import {
   AbiRange,
   AbiOwnershipParameters,
   AbiOwnershipTransaction,
-} from 'src/app'
+} from '../../../src/app'
 
 describe('AbiEncoding', () => {
   it('should encoded & decode AbiStateUpdate without throwing', async () => {
