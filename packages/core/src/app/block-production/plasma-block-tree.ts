@@ -1,11 +1,7 @@
-
+/*Internal Imports */
 import { MerkleIntervalTree, MerkleIntervalTreeNode, MerkleStateIntervalTree }  from './'
 import { AbiStateUpdate } from '../'
-
-export interface SubtreeContents {
-    address: Buffer
-    stateUpdates: AbiStateUpdate[]
-}
+import { SubtreeContents } from '../../types'
 
 export class PlasmaBlock extends MerkleIntervalTree {
 public subtrees: MerkleStateIntervalTree[]
