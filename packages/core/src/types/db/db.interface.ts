@@ -5,6 +5,9 @@ import {
   AbstractOpenOptions,
 } from 'abstract-leveldown'
 
+/* Internal Imports */
+import { RangeBucket } from '../../types'
+
 export type K = NonNullable<Buffer>
 export type V = NonNullable<Buffer>
 export interface KV {
@@ -76,6 +79,14 @@ export interface KeyValueStore {
    * @returns the bucket instance.
    */
   bucket(prefix: K): Bucket
+
+  /**
+   * Creates a prefixed range bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the range bucket.
+   * @returns the range bucket instance.
+   */
+  rangeBucket(prefix: K): RangeBucket
 }
 
 /**

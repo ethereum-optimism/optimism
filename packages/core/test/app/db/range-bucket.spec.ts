@@ -2,11 +2,12 @@
 import debug from 'debug'
 import level = require('level')
 import BigNum = require('bn.js')
+import MemDown from 'memdown'
 
 /* Internal Imports */
 import { dbRootPath } from '../../setup'
-import { KeyValueStore, RangeEntry } from '../../../src/types'
-import { LevelRangeStore } from '../../../src/app'
+import { KeyValueStore, RangeEntry, RangeBucket } from '../../../src/types'
+import { BaseDB } from '../../../src/app'
 
 const log = debug('test:info:range-db')
 
@@ -41,7 +42,7 @@ class StringRangeEntry {
 }
 
 const testPutResults = async (
-  db: LevelRangeStore,
+  db: RangeBucket,
   putContents: any[],
   expectedResults: any[]
 ): Promise<void> => {
@@ -71,7 +72,8 @@ describe('RangeDB', () => {
   let rangeDB
 
   beforeEach(async () => {
-    rangeDB = new LevelRangeStore(db, Buffer.from([prefixCounter++]))
+    const baseDB = new BaseDB(new MemDown('') as any)
+    rangeDB = baseDB.rangeBucket(Buffer.from([prefixCounter++]))
   })
 
   it('allows puts on a range & get should return the range value which was put', async () => {
