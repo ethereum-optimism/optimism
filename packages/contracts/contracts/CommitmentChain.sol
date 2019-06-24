@@ -9,4 +9,16 @@ contract CommitmentChain {
         // Always return true for now until we can verify inclusion proofs.
         return true;
     }
+
+    function stateSubtreeParent(
+            dt.StateSubtreeNode memory _leftSibling,
+            dt.StateSubtreeNode memory _rightSibling
+        ) public pure returns (dt.StateSubtreeNode memory) {
+            bytes32 memory computedHash = keccak256(
+                _leftSibling.hashValue,
+                _leftSibling.start,
+                _rightSibling.hashValue,
+                _rightSibling.start
+            );
+    }
 }
