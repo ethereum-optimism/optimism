@@ -11,28 +11,47 @@ public generateLeafNodes() {
     super.generateLeafNodes()
 }
 
-public parseLeaf(subtree: SubtreeContents): MerkleIntervalTreeNode {
+// The "leaf node" for the plasma block is itself the root hash of a state update tree.
+// Thus, its data blocks are in fact entire subtrees.
+public generateLeafNode(subtree: SubtreeContents): MerkleIntervalTreeNode {
+    // Create a state subtree for these state updates.
     const merkleStateIntervalTree = new MerkleStateIntervalTree(subtree.stateUpdates)
+    // Store the state subtree.
     this.subtrees.push(merkleStateIntervalTree)
-    return new MerkleIntervalTreeNode(merkleStateIntervalTree.root().hash, subtree.address)
+    // Return a leaf node with the root of the state tree and an index of the depositAddress.
+    return new MerkleIntervalTreeNode(merkleStateIntervalTree.root().hash, subtree.assetId)
 }
 
+/**
+ * Returns a double inclusion proof which demonstrates the existence of a state update within the plasma block.
+ * @param stateUpdatePosition index of the state udpate in the state subtree of the block.
+ * @param assetIdPosition index of the assetId in the top-level asset id of the block
+ */
 public getStateUpdateInclusionProof(
     stateUpdatePosition: number,
-    addressPosition: number
+    assetIdPosition: number
 ): any {
     return {
-    stateTreeInclusionProof: this.subtrees[addressPosition].getInclusionProof(stateUpdatePosition),
-    addressTreeInclusionProof: this.getInclusionProof(addressPosition)
+    stateTreeInclusionProof: this.subtrees[assetIdPosition].getInclusionProof(stateUpdatePosition),
+    addressTreeInclusionProof: this.getInclusionProof(assetIdPosition)
     }
 }
 
+/**
+ * Verifies a double inclusion proof which demonstrates the existence of a state update within the plasma block.
+ * @param stateUpdate 
+ * @param stateTreeInclusionProof 
+ * @param stateUpdatePosition 
+ * @param addressTreeInclusionProof 
+ * @param assetIdPosition 
+ * @param blockRootHash 
+ */
 public static verifyStateUpdateInclusionProof(
     stateUpdate: AbiStateUpdate,
     stateTreeInclusionProof: MerkleIntervalTreeNode[],
     stateUpdatePosition: number,
     addressTreeInclusionProof: MerkleIntervalTreeNode[],
-    addressPosition: number,
+    assetIdPosition: number,
     blockRootHash: Buffer
 ): any {
     const leafNodeHash: Buffer = MerkleIntervalTree.hash(Buffer.from(stateUpdate.encoded))
@@ -49,7 +68,7 @@ public static verifyStateUpdateInclusionProof(
     const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(addressLeafHash, addressLeafIndex)
     return MerkleIntervalTree.verify(
         addressLeafNode,
-        addressPosition,
+        assetIdPosition,
         addressTreeInclusionProof,
         blockRootHash
     )

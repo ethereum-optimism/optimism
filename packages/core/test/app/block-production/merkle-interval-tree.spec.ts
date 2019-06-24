@@ -85,11 +85,11 @@ describe.only('merkle-index-tree', () => {
       }
       const blockContents = [
         {
-          address: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates
         },
         {
-          address: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates
         }
       ]
@@ -106,11 +106,11 @@ describe.only('merkle-index-tree', () => {
       }
       const blockContents = [
         {
-          address: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates
         },
         {
-          address: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates
         }
       ]

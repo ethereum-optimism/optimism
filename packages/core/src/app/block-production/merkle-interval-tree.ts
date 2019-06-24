@@ -87,7 +87,7 @@ export class MerkleIntervalTree {
   /**
    * Calculates the leaf MerkleIntervalTreeNode for a given data block.
    */
-  public parseLeaf(dataBlock: any): MerkleIntervalTreeNode {
+  public generateLeafNode(dataBlock: any): MerkleIntervalTreeNode {
     return dataBlock
   }
 
@@ -96,7 +96,7 @@ export class MerkleIntervalTree {
    */
   public generateLeafNodes() {
     for (let i = 0; i < this.dataBlocks.length; i++) {
-      this.levels[0][i] = this.parseLeaf(this.dataBlocks[i])
+      this.levels[0][i] = this.generateLeafNode(this.dataBlocks[i])
     }
   }
 

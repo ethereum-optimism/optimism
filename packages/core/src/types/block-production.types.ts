@@ -5,6 +5,6 @@ import BigNumber = require('bn.js')
 import { AbiStateUpdate } from '../app'
 
 export interface SubtreeContents {
-  address: Buffer
+  assetId: Buffer
   stateUpdates: AbiStateUpdate[]
 }
