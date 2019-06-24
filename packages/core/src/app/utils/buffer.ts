@@ -59,6 +59,36 @@ const min = (buf1: Buffer, buf2: Buffer): Buffer => {
 }
 
 /**
+ * Pad Buffer with zeros to the left
+ * @param buf the Buffer we want to pad
+ * @param totalWidth the total number of bytes the Buffer should be after being padded
+ * @returns Buffer the original buffer padded with zeros
+ */
+const padLeft = (buf: Buffer, totalWidth: number): Buffer => {
+  if (buf.length > totalWidth) {
+    throw new Error('Attempting to pad a buffer which is too large')
+  }
+  const newBuf = Buffer.alloc(totalWidth)
+  newBuf.fill(buf, totalWidth - buf.length, totalWidth)
+  return newBuf
+}
+
+/**
+ * Pad Buffer with zeros to the right
+ * @param buf the Buffer we want to pad
+ * @param totalWidth the total number of bytes the Buffer should be after being padded
+ * @returns Buffer the original buffer padded with zeros
+ */
+const padRight = (buf: Buffer, totalWidth: number): Buffer => {
+  if (buf.length > totalWidth) {
+    throw new Error('Attempting to pad a buffer which is too large')
+  }
+  const newBuf = Buffer.alloc(totalWidth)
+  newBuf.fill(buf, 0, buf.length)
+  return newBuf
+}
+
+/**
  * A collection of useful utilities for comparing buffers.
  */
 export const bufferUtils = {
@@ -68,4 +98,6 @@ export const bufferUtils = {
   gte,
   max,
   min,
+  padLeft,
+  padRight,
 }

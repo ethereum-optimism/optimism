@@ -20,6 +20,7 @@ import {
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
 import { BaseRangeBucket } from './range-bucket'
+import { bufferUtils } from '../../app'
 
 /**
  * Checks if an error is a NotFoundError.
@@ -186,7 +187,7 @@ export class BaseDB implements DB {
    * @returns the bucket instance.
    */
   public bucket(prefix: Buffer): Bucket {
-    return new BaseBucket(this, prefix)
+    return new BaseBucket(this, bufferUtils.padLeft(prefix, this.prefixLength))
   }
 
   /**
@@ -196,6 +197,9 @@ export class BaseDB implements DB {
    * @returns the bucket instance.
    */
   public rangeBucket(prefix: Buffer): RangeBucket {
-    return new BaseRangeBucket(this, prefix)
+    return new BaseRangeBucket(
+      this,
+      bufferUtils.padLeft(prefix, this.prefixLength)
+    )
   }
 }
