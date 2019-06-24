@@ -38,12 +38,12 @@ contract DataTypes {
     }
 
     struct AssetTreeNode {
-        bytes32 hash;
+        bytes32 hashValue;
         uint256 start;
     }
     
     struct StateSubtreeNode {
-        bytes32 hash;
+        bytes32 hashValue;
         uint128 start;
     }
 }
