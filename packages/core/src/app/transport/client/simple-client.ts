@@ -1,4 +1,8 @@
-import { JsonRpcClient, JsonRpcHttpAdapter, AxiosHttpClient } from '../../../app'
+import {
+  JsonRpcClient,
+  JsonRpcHttpAdapter,
+  AxiosHttpClient,
+} from '../../../app'
 import { HttpRequest, HttpResponse } from '../../../types'
 
 /**
