@@ -4,7 +4,7 @@ import BigNum = require('bn.js')
 import level from 'level'
 
 /* Internal Imports */
-import { KeyValueStore, V } from './db.interface'
+import { KeyValueStore, V, Bucket } from './db.interface'
 
 /**
  * Represents a range of values. Note start & end are big numbers!
@@ -49,4 +49,22 @@ export interface RangeStore {
    * @returns all of the ranges which have been deleted.
    */
   del(start: BigNum, end: BigNum): Promise<RangeEntry[]>
+}
+
+export interface RangeBucket extends RangeStore {
+  /**
+   * Creates a prefixed bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the bucket.
+   * @returns the bucket instance.
+   */
+  bucket(prefix: Buffer): Bucket
+
+  /**
+   * Creates a prefixed range bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the bucket.
+   * @returns the range bucket instance.
+   */
+  rangeBucket(prefix: Buffer): RangeBucket
 }
