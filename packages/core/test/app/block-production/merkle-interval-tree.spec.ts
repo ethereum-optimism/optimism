@@ -8,11 +8,8 @@ import BigNum = require('bn.js')
 /* Internal Imports */
 import {
     AbiStateUpdate, AbiStateObject, AbiRange,
+    MerkleIntervalTree, MerkleIntervalTreeNode, MerkleStateIntervalTree, PlasmaBlock
   }  from '../../../src/app/'
-import {
-  MerkleIntervalTree, MerkleIntervalTreeNode
-  // MerkleIntervalTree, MerkleStateIntervalTree, PlasmaBlock, MerkleIntervalTreeNode
-} from '../../../src/app/'
 
 import { AssertionError } from 'assert'
 
@@ -58,8 +55,6 @@ describe.only('merkle-index-tree', () => {
       const IntervalTree = new MerkleIntervalTree(leaves)
       const leafPosition = 3
       const inclusionProof = IntervalTree.getInclusionProof(leafPosition)
-      console.log('tree: ', IntervalTree.levels)
-      console.log('inclusopn proof length is: ', inclusionProof.length)
       MerkleIntervalTree.verify(
         leaves[leafPosition],
         leafPosition,
@@ -68,76 +63,69 @@ describe.only('merkle-index-tree', () => {
       )
     })
   })
-//   describe('MerkleStateIntervalTree', () => {
-//     it('should generate a tree without throwing', async() => {
-//       const stateUpdates = []
-//       for (let i = 0; i < 4; i++) {
-//         const stateObject = new AbiStateObject('0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63', '0x123456')
-//         const range = new AbiRange( new BigNum(i*100), new BigNum((i+0.5)* 100) )
-//         const stateUpdate = new AbiStateUpdate(stateObject, range, new BigNum(1), '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63')
-//         stateUpdates.push(stateUpdate)
-//       }
-//       const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
-//       log('root', merkleStateIntervalTree.root())
-//     })
-//   })
-//   describe('PlasmaBlock', () => {
-//     it('should generate a tree without throwing', async() => {
-//       const stateUpdates = []
-//       for (let i = 0; i < 4; i++) {
-//         const stateObject = new AbiStateObject('0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63', '0x123456')
-//         const range = new AbiRange( new BigNum(i*100), new BigNum((i+0.5)* 100) )
-//         const stateUpdate = new AbiStateUpdate(stateObject, range, new BigNum(1), '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63')
-//         stateUpdates.push(stateUpdate)
-//       }
-//       const blockContents = [
-//         {
-//           address: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
-//           stateUpdates
-//         },
-//         {
-//           address: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
-//           stateUpdates
-//         },
-//       ]
-//       const plasmaBlock = new PlasmaBlock(blockContents)
-//       log(plasmaBlock)
-//     })
-//     it('should generate and verify a StateUpdateInclusionProof', async() => {
-//       const stateUpdates = []
-//       for (let i = 0; i < 4; i++) {
-//         const stateObject = new AbiStateObject('0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63', '0x123456')
-//         const range = new AbiRange( new BigNum(i*100), new BigNum((i+0.5)* 100) )
-//         const stateUpdate = new AbiStateUpdate(stateObject, range, new BigNum(1), '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63')
-//         stateUpdates.push(stateUpdate)
-//       }
-//       const blockContents = [
-//         {
-//           address: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
-//           stateUpdates
-//         },
-//         {
-//           address: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
-//           stateUpdates
-//         },
-//       ]
-//       const plasmaBlock = new PlasmaBlock(blockContents)
-//       console.log('subtree stateLeafNode: ', plasmaBlock.subtrees[1].levels[0][1])
-//       const stateProof = (plasmaBlock.getStateUpdateInclusionProof(1, 1))
-//       console.log('subtree roothash: ', plasmaBlock.subtrees[1].root().hash)
-//       console.log('plasma block levels: ', plasmaBlock.levels)
-//       console.log('state proof: ', stateProof)
-//       console.log(
-//         'staate update verification: ', 
-//         PlasmaBlock.verifyStateUpdateInclusionProof(
-//           blockContents[1].stateUpdates[1],
-//           stateProof.stateTreeInclusionProof,
-//           1,
-//           stateProof.addressTreeInclusionProof,
-//           1,
-//           plasmaBlock.root().hash
-//         )
-//       )
-//     })
-//   })
+  describe('MerkleStateIntervalTree', () => {
+    it('should generate a tree without throwing', async() => {
+      const stateUpdates = []
+      for (let i = 0; i < 4; i++) {
+        const stateObject = new AbiStateObject('0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63', '0x123456')
+        const range = new AbiRange( new BigNum(i*100), new BigNum((i+0.5)* 100) )
+        const stateUpdate = new AbiStateUpdate(stateObject, range, new BigNum(1), '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63')
+        stateUpdates.push(stateUpdate)
+      }
+      const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
+      log('root', merkleStateIntervalTree.root())
+    })
+  })
+  describe('PlasmaBlock', () => {
+    it('should generate a tree without throwing', async() => {
+      const stateUpdates = []
+      for (let i = 0; i < 4; i++) {
+        const stateObject = new AbiStateObject('0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63', '0x123456')
+        const range = new AbiRange( new BigNum(i*100), new BigNum((i+0.5)* 100) )
+        const stateUpdate = new AbiStateUpdate(stateObject, range, new BigNum(1), '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63')
+        stateUpdates.push(stateUpdate)
+      }
+      const blockContents = [
+        {
+          address: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          stateUpdates
+        },
+        {
+          address: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          stateUpdates
+        }
+      ]
+      const plasmaBlock = new PlasmaBlock(blockContents)
+      log(plasmaBlock)
+    })
+    it('should generate and verify a StateUpdateInclusionProof', async() => {
+      const stateUpdates = []
+      for (let i = 0; i < 4; i++) {
+        const stateObject = new AbiStateObject('0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63', '0x123456')
+        const range = new AbiRange( new BigNum(i*100), new BigNum((i+0.5)* 100) )
+        const stateUpdate = new AbiStateUpdate(stateObject, range, new BigNum(1), '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63')
+        stateUpdates.push(stateUpdate)
+      }
+      const blockContents = [
+        {
+          address: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          stateUpdates
+        },
+        {
+          address: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          stateUpdates
+        }
+      ]
+      const plasmaBlock = new PlasmaBlock(blockContents)
+      const stateProof = (plasmaBlock.getStateUpdateInclusionProof(1, 1))
+      PlasmaBlock.verifyStateUpdateInclusionProof(
+        blockContents[1].stateUpdates[1],
+        stateProof.stateTreeInclusionProof,
+        1,
+        stateProof.addressTreeInclusionProof,
+        1,
+        plasmaBlock.root().hash
+      )
+    })
+  })
 })

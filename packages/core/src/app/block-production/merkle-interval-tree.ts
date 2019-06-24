@@ -84,12 +84,9 @@ export class MerkleIntervalTree {
   private generateFromLeaves() {
     // Calculate the depth of the tree
     const numInternalLevels = Math.ceil(Math.log2(this.numLeaves))
-    console.log('expecting ', numInternalLevels, ' internal levels for this tree which has', this.numLeaves, ' leaves.')
     for (let level = 0; level < numInternalLevels; level++) {
       this.generateLevel(level)
     }
-    console.log('tree generated! :')
-    console.log(this.levels)
   }
 
   // leaves are level 0 in this model, so that level = height - depth
@@ -170,7 +167,6 @@ export class MerkleIntervalTree {
     const path = reverse(
       new BigNum(leafPosition).toString(2, inclusionProof.length)
     )
-    console.log('path: ', path)
 
     // Need the first right sibling to ensure
     // that the tree is monotonically increasing.
@@ -200,14 +196,11 @@ export class MerkleIntervalTree {
             firstRightSibling && // if it's the last leaf in tree, this doesn't exist
             Buffer.compare(right.index, firstRightSibling.index) === -1)
           {
-            console.log('right: ', right)
-            console.log('firstRightSibling: ', firstRightSibling)
           throw new Error('Invalid Merkle Index Tree proof--potential intersection detected.')
         }
       }
 
       computed = this.parent(left, right) // note: this checks left.index < right.index
-      // console.log('computed at ' + i + ': ', computed)
     }
 
     return {
@@ -220,74 +213,68 @@ export class MerkleIntervalTree {
   }
 }
 
-// export class MerkleStateIntervalTree extends MerkleIntervalTree {
-//   public parseLeaves(dataBlocks: AbiStateUpdate[]): MerkleIntervalTreeNode[] {
-//     const bottom = dataBlocks.map((stateUpdate) => {
-//       const hash = getHash(Buffer.from(stateUpdate.encoded))
-//       const index = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
-//       return new MerkleIntervalTreeNode(hash, index)
-//     })
-//     return bottom
-//   }
-// }
+export class MerkleStateIntervalTree extends MerkleIntervalTree {
+  public parseLeaf(stateUpdate: AbiStateUpdate): MerkleIntervalTreeNode {
+    const hash = getHash(Buffer.from(stateUpdate.encoded))
+    const index = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
+    return new MerkleIntervalTreeNode(hash, index)
+  }
+}
 
-// export interface SubtreeContents {
-//   address: Buffer
-//   stateUpdates: AbiStateUpdate[]
-// }
+export interface SubtreeContents {
+  address: Buffer
+  stateUpdates: AbiStateUpdate[]
+}
 
-// export class PlasmaBlock extends MerkleIntervalTree {
-//   public subtrees: MerkleStateIntervalTree[]
+export class PlasmaBlock extends MerkleIntervalTree {
+  public subtrees: MerkleStateIntervalTree[]
 
-//   public parseLeaves(blockContents: SubtreeContents[]): MerkleIntervalTreeNode[] {
-//     const sortedBlockContents = blockContents.sort((subTreeContents1, subTreeContents2) => Buffer.compare(subTreeContents1.address, subTreeContents2.address))
-//     this.subtrees = []
-//     const bottom = []
-//     for (const subtreeContents of sortedBlockContents) {
-//       const merkleStateIntervalTree = new MerkleStateIntervalTree(subtreeContents.stateUpdates)
-//       this.subtrees.push(merkleStateIntervalTree)
-//       bottom.push(new MerkleIntervalTreeNode(merkleStateIntervalTree.root().hash, subtreeContents.address))
-//     }
-//     return bottom
-//   }
+  public parseLeaves() {
+    this.subtrees = []
+    super.parseLeaves()
+  }
 
-//   public getStateUpdateInclusionProof(
-//     stateUpdatePosition: number,
-//     addressPosition: number
-//   ): any {
-//     return {
-//       stateTreeInclusionProof: this.subtrees[addressPosition].getInclusionProof(stateUpdatePosition),
-//       addressTreeInclusionProof: this.getInclusionProof(addressPosition)
-//     }
-//   }
+  public parseLeaf(subtree: SubtreeContents): MerkleIntervalTreeNode {
+    const merkleStateIntervalTree = new MerkleStateIntervalTree(subtree.stateUpdates)
+    this.subtrees.push(merkleStateIntervalTree)
+    return new MerkleIntervalTreeNode(merkleStateIntervalTree.root().hash, subtree.address)
+  }
 
-//   public static verifyStateUpdateInclusionProof(
-//     stateUpdate: AbiStateUpdate,
-//     stateTreeInclusionProof: MerkleIntervalTreeNode[],
-//     stateUpdatePosition: number,
-//     addressTreeInclusionProof: MerkleIntervalTreeNode[],
-//     addressPosition: number,
-//     blockRootHash: Buffer
-//   ): any {
-//     const leafNodeHash: Buffer = getHash(Buffer.from(stateUpdate.encoded))
-//     const leafNodeIndex: Buffer = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
-//     const stateLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(leafNodeHash, leafNodeIndex)
-//     console.log('calculaated stateLeafNode: ', stateLeafNode)
-//     const stateUpdateRootAndBounds = MerkleIntervalTree.getRootAndBounds(
-//       stateLeafNode,
-//       stateUpdatePosition,
-//       stateTreeInclusionProof
-//     )
-//     console.log('stateUpdateRootAndBounds', stateUpdateRootAndBounds)
+  public getStateUpdateInclusionProof(
+    stateUpdatePosition: number,
+    addressPosition: number
+  ): any {
+    return {
+      stateTreeInclusionProof: this.subtrees[addressPosition].getInclusionProof(stateUpdatePosition),
+      addressTreeInclusionProof: this.getInclusionProof(addressPosition)
+    }
+  }
 
-//     const addressLeafHash: Buffer = stateUpdateRootAndBounds.root.hash
-//     const addressLeafIndex: Buffer = Buffer.from(stateUpdate.depositAddress.slice(2), 'hex')
-//     const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(addressLeafHash, addressLeafIndex)
-//     return MerkleIntervalTree.verify(
-//       addressLeafNode,
-//       addressPosition,
-//       addressTreeInclusionProof,
-//       blockRootHash
-//     )
-//   }
-// }
+  public static verifyStateUpdateInclusionProof(
+    stateUpdate: AbiStateUpdate,
+    stateTreeInclusionProof: MerkleIntervalTreeNode[],
+    stateUpdatePosition: number,
+    addressTreeInclusionProof: MerkleIntervalTreeNode[],
+    addressPosition: number,
+    blockRootHash: Buffer
+  ): any {
+    const leafNodeHash: Buffer = getHash(Buffer.from(stateUpdate.encoded))
+    const leafNodeIndex: Buffer = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
+    const stateLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(leafNodeHash, leafNodeIndex)
+    const stateUpdateRootAndBounds = MerkleIntervalTree.getRootAndBounds(
+      stateLeafNode,
+      stateUpdatePosition,
+      stateTreeInclusionProof
+    )
+
+    const addressLeafHash: Buffer = stateUpdateRootAndBounds.root.hash
+    const addressLeafIndex: Buffer = Buffer.from(stateUpdate.depositAddress.slice(2), 'hex')
+    const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(addressLeafHash, addressLeafIndex)
+    return MerkleIntervalTree.verify(
+      addressLeafNode,
+      addressPosition,
+      addressTreeInclusionProof,
+      blockRootHash
+    )
+  }
+}
