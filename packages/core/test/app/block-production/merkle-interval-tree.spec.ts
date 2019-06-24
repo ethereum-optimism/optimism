@@ -1,331 +1,208 @@
 import { should } from '../../setup'
 
 /* External Imports */
-import BigNumber = require('bn.js')
+import debug from 'debug'
+const log = debug('test:info:merkle-index-tree')
+import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { MerkleIntervalTree } from '../../../src/app'
-
 import {
-  MerkleIntervalTreeLeafNode,
-  MerkleIntervalTreeInternalNode,
-  MerkleIntervalTreeInclusionProof,
-} from '../../../src/types'
+  AbiStateUpdate,
+  AbiStateObject,
+  AbiRange,
+  MerkleIntervalTree,
+  MerkleIntervalTreeNode,
+  MerkleStateIntervalTree,
+  PlasmaBlock,
+} from '../../../src/app/'
 
-/**
- * Converts a string to a hex buffer.
- * @param value String value to convert.
- * @returns the string as a hex buffer.
- */
-const hexify = (value: string): Buffer => {
-  return Buffer.from(value, 'hex')
-}
-
-describe('MerkleIntervalTree', () => {
-  describe('construction', () => {
-    it('should be created correctly with no leaves', () => {
-      const tree = new MerkleIntervalTree()
-
-      const root = tree.getRoot()
-      const levels = tree.getLevels()
-
-      should.not.exist(root)
-      levels.should.deep.equal([[]])
-    })
-
-    it('should be created correctly with one leaf', () => {
-      const tree = new MerkleIntervalTree([
-        {
-          start: new BigNumber(0),
-          end: new BigNumber(100),
-          data: hexify('1234'),
-        },
-      ])
-
-      const root = tree.getRoot()
-
-      root.should.deep.equal({
-        index: new BigNumber(0),
-        hash: hexify(
-          '4d7654430bd809384e15ef3e842aad2449b6310b25c652a220af74716b37e0ae'
-        ),
-      })
-    })
-
-    it('should be created correctly with two leaves', () => {
-      const tree = new MerkleIntervalTree([
-        {
-          start: new BigNumber(0),
-          end: new BigNumber(100),
-          data: hexify('1234'),
-        },
-        {
-          start: new BigNumber(100),
-          end: new BigNumber(200),
-          data: hexify('5678'),
-        },
-      ])
-
-      const root = tree.getRoot()
-
-      root.should.deep.equal({
-        index: new BigNumber(0),
-        hash: hexify(
-          'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
-        ),
-      })
-    })
-
-    it('should throw if trying to create with overlapping leaves', () => {
-      should.Throw(() => {
-        new MerkleIntervalTree([
-          {
-            start: new BigNumber(0),
-            end: new BigNumber(100),
-            data: hexify('1234'),
-          },
-          {
-            start: new BigNumber(50),
-            end: new BigNumber(150),
-            data: hexify('5678'),
-          },
-        ])
-      }, 'Merkle Interval Tree leaves must not overlap.')
-    })
-
-    it('should throw if trying to create with an invalid leaf', () => {
-      should.Throw(() => {
-        new MerkleIntervalTree([
-          {
-            start: new BigNumber(100),
-            end: new BigNumber(0),
-            data: hexify('1234'),
-          },
-        ])
-      }, 'Merkle Interval Tree leaves must not overlap.')
+describe('merkle-index-tree', () => {
+  describe('MerkleIntervalTreeNode', () => {
+    it('should concatenate index and hash after construction', async () => {
+      const node = new MerkleIntervalTreeNode(
+        Buffer.from([255]),
+        Buffer.from([0])
+      )
+      log('New merkle index tree node:', node)
+      const expected = Buffer.concat([Buffer.from([255]), Buffer.from([0])])
+      node.data.should.deep.equal(expected)
     })
   })
-
-  describe('checkInclusionProof', () => {
-    it('should correctly verify a valid proof', () => {
-      const leaf: MerkleIntervalTreeLeafNode = {
-        start: new BigNumber(0),
-        end: new BigNumber(100),
-        data: hexify('1234'),
-      }
-      const inclusionProof: MerkleIntervalTreeInclusionProof = [
-        {
-          index: new BigNumber(100),
-          hash: hexify(
-            '05cc573cfe77fad641c92f62241633a64f5656275753ae9b8bf67b44f29a777b'
-          ),
-        },
-      ]
-      const rootHash = hexify(
-        'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
-      )
-
-      const valid = new MerkleIntervalTree().checkInclusionProof(
-        leaf,
-        0,
-        inclusionProof,
-        rootHash
-      )
-
-      valid.should.be.true
-    })
-
-    it('should correctly reject a proof with the wrong root', () => {
-      const leaf: MerkleIntervalTreeLeafNode = {
-        start: new BigNumber(0),
-        end: new BigNumber(100),
-        data: hexify('1234'),
-      }
-      const inclusionProof: MerkleIntervalTreeInclusionProof = [
-        {
-          index: new BigNumber(100),
-          hash: hexify(
-            '05cc573cfe77fad641c92f62241633a64f5656275753ae9b8bf67b44f29a777b'
-          ),
-        },
-      ]
-      const rootHash = hexify(
-        '0000000000000000000000000000000000000000000000000000000000000000'
-      )
-
-      const valid = new MerkleIntervalTree().checkInclusionProof(
-        leaf,
-        0,
-        inclusionProof,
-        rootHash
-      )
-
-      valid.should.be.false
-    })
-
-    it('should correctly reject a proof with an invalid leaf range', () => {
-      const leaf: MerkleIntervalTreeLeafNode = {
-        start: new BigNumber(100),
-        end: new BigNumber(0),
-        data: hexify('1234'),
-      }
-      const inclusionProof: MerkleIntervalTreeInclusionProof = [
-        {
-          index: new BigNumber(100),
-          hash: hexify(
-            '0000000000000000000000000000000000000000000000000000000000000000'
-          ),
-        },
-      ]
-      const rootHash = hexify(
-        'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
-      )
-
-      should.Throw(() => {
-        new MerkleIntervalTree().checkInclusionProof(
-          leaf,
-          0,
-          inclusionProof,
-          rootHash
+  describe('MerkleIntervalTree', () => {
+    describe('parent', () => {
+      it('should return the correct parent', async () => {
+        const left = new MerkleIntervalTreeNode(
+          Buffer.from([13]),
+          Buffer.from([10])
         )
-      }, 'Merkle Interval Tree leaves must not overlap.')
+        const right = new MerkleIntervalTreeNode(
+          Buffer.from([31]),
+          Buffer.from([15])
+        )
+        const parent = MerkleIntervalTree.parent(left, right)
+        // We calculated the hash by hand.
+        parent.data
+          .toString('hex')
+          .should.equal(
+            '69b053cd194c51ff15ac9db85fc581c4457a7160c78d878e7c5b84f4c1fbb9140a'
+          )
+      })
+      it('should throw if left & right nodes are out of order', async () => {
+        const left = new MerkleIntervalTreeNode(
+          Buffer.from([13]),
+          Buffer.from([15])
+        )
+        const right = new MerkleIntervalTreeNode(
+          Buffer.from([31]),
+          Buffer.from([10])
+        )
+        const parentCall = () => MerkleIntervalTree.parent(left, right)
+        parentCall.should.throw()
+      })
     })
-
-    it('should correctly reject a proof with an invalid sibling hash', () => {
-      const leaf: MerkleIntervalTreeLeafNode = {
-        start: new BigNumber(0),
-        end: new BigNumber(100),
-        data: hexify('1234'),
+    it('should generate a generic tree', async () => {
+      const leaves = []
+      for (let i = 0; i < 4; i++) {
+        leaves.push(
+          new MerkleIntervalTreeNode(
+            Buffer.from([Math.floor(Math.random() * 100)]),
+            Buffer.from([i])
+          )
+        )
       }
-      const inclusionProof: MerkleIntervalTreeInclusionProof = [
-        {
-          index: new BigNumber(100),
-          hash: hexify(
-            '0000000000000000000000000000000000000000000000000000000000000000'
-          ),
-        },
-      ]
-      const rootHash = hexify(
-        'e1b53cab461af771ad8d060145d2e27a04ee7c2e671efe4feac748de8cef1fc5'
-      )
-
-      const valid = new MerkleIntervalTree().checkInclusionProof(
-        leaf,
-        0,
+      const IntervalTree = new MerkleIntervalTree(leaves)
+      log(IntervalTree.levels)
+      log(IntervalTree.root)
+    })
+    it('should generate and verify inclusion proofs for generic tree', async () => {
+      const leaves = []
+      for (let i = 0; i < 4; i++) {
+        leaves.push(
+          new MerkleIntervalTreeNode(
+            Buffer.from([Math.floor(Math.random() * 100)]),
+            Buffer.from([i])
+          )
+        )
+      }
+      const IntervalTree = new MerkleIntervalTree(leaves)
+      const leafPosition = 3
+      const inclusionProof = IntervalTree.getInclusionProof(leafPosition)
+      MerkleIntervalTree.verify(
+        leaves[leafPosition],
+        leafPosition,
         inclusionProof,
-        rootHash
+        IntervalTree.root().hash
       )
-
-      valid.should.be.false
-    })
-
-    it('should correctly reject a proof with an overlapping sibling', () => {
-      const leaf: MerkleIntervalTreeLeafNode = {
-        start: new BigNumber(0),
-        end: new BigNumber(100),
-        data: hexify('1234'),
-      }
-      const inclusionProof: MerkleIntervalTreeInclusionProof = [
-        {
-          index: new BigNumber(50),
-          hash: hexify(
-            '85c599e3cc2588f5c561128ab27347805ad71c33ea8db75d18823e7117bb9d4b'
-          ),
-        },
-      ]
-      const rootHash = hexify(
-        '224678c7f9b59e07eb036c1914798220b3d1b8d56beb18518f6698d9a0146b84'
-      )
-
-      should.Throw(() => {
-        new MerkleIntervalTree().checkInclusionProof(
-          leaf,
-          0,
-          inclusionProof,
-          rootHash
-        )
-      }, 'Invalid Merkle Interval Tree proof -- potential intersection detected.')
-    })
-
-    it('should correctly reject a proof with a non-monotonic right sibling', () => {
-      const leaf: MerkleIntervalTreeLeafNode = {
-        start: new BigNumber(0),
-        end: new BigNumber(100),
-        data: hexify('1234'),
-      }
-      const inclusionProof: MerkleIntervalTreeInclusionProof = [
-        {
-          index: new BigNumber(300),
-          hash: hexify(
-            '12c3f0bbe76afc5f6aefd5b3584fa90bc9e49f945ebd6fe5f4b86205b44e2b71'
-          ),
-        },
-        {
-          index: new BigNumber(100),
-          hash: hexify(
-            '89e643ad387e04a149ba8c0d7b62ac42ff32c212183035b1a7a720c0ee24699e'
-          ),
-        },
-      ]
-      const rootHash = hexify(
-        'd40fc6083f76dd701db66dfbc465a945d8148067181c4c6e007e8f02c90853e3'
-      )
-
-      should.Throw(() => {
-        new MerkleIntervalTree().checkInclusionProof(
-          leaf,
-          0,
-          inclusionProof,
-          rootHash
-        )
-      }, 'Invalid Merkle Interval Tree proof -- potential intersection detected.')
     })
   })
-
-  describe('getInclusionProof', () => {
-    it('should return a valid proof for a node', () => {
-      const tree = new MerkleIntervalTree([
-        {
-          start: new BigNumber(0),
-          end: new BigNumber(100),
-          data: hexify('1234'),
-        },
-        {
-          start: new BigNumber(100),
-          end: new BigNumber(200),
-          data: hexify('5678'),
-        },
-      ])
-
-      const inclusionProof = tree.getInclusionProof(0)
-
-      inclusionProof.should.deep.equal([
-        {
-          index: new BigNumber(100),
-          hash: hexify(
-            '05cc573cfe77fad641c92f62241633a64f5656275753ae9b8bf67b44f29a777b'
-          ),
-        },
-      ])
+  describe('MerkleStateIntervalTree', () => {
+    it('should generate a tree without throwing', async () => {
+      const stateUpdates = []
+      for (let i = 0; i < 4; i++) {
+        const stateObject = new AbiStateObject(
+          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+          '0x123456'
+        )
+        const range = new AbiRange(
+          new BigNum(i * 100),
+          new BigNum((i + 0.5) * 100)
+        )
+        const stateUpdate = new AbiStateUpdate(
+          stateObject,
+          range,
+          new BigNum(1),
+          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
+        )
+        stateUpdates.push(stateUpdate)
+      }
+      const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
+      log('root', merkleStateIntervalTree.root())
     })
-
-    it('should throw an error when getting a proof for a non-existent node', () => {
-      const tree = new MerkleIntervalTree([
+  })
+  describe('PlasmaBlock', () => {
+    it('should generate a plasma block without throwing', async () => {
+      const stateUpdates = []
+      for (let i = 0; i < 4; i++) {
+        const stateObject = new AbiStateObject(
+          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+          '0x123456'
+        )
+        const range = new AbiRange(
+          new BigNum(i * 100),
+          new BigNum((i + 0.5) * 100)
+        )
+        const stateUpdate = new AbiStateUpdate(
+          stateObject,
+          range,
+          new BigNum(1),
+          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
+        )
+        stateUpdates.push(stateUpdate)
+      }
+      const blockContents = [
         {
-          start: new BigNumber(0),
-          end: new BigNumber(100),
-          data: hexify('1234'),
+          assetId: Buffer.from(
+            '1dAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
+          stateUpdates,
         },
         {
-          start: new BigNumber(100),
-          end: new BigNumber(200),
-          data: hexify('5678'),
+          assetId: Buffer.from(
+            'bdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
+          stateUpdates,
         },
-      ])
-
-      should.Throw(() => {
-        tree.getInclusionProof(2)
-      }, 'Leaf position is out of bounds.')
+      ]
+      const plasmaBlock = new PlasmaBlock(blockContents)
+      log(plasmaBlock)
+    })
+    it.only('should generate and verify a StateUpdateInclusionProof', async () => {
+      const stateUpdates = []
+      for (let i = 0; i < 4; i++) {
+        const stateObject = new AbiStateObject(
+          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+          '0x123456'
+        )
+        const range = new AbiRange(
+          new BigNum(i * 100),
+          new BigNum((i + 0.5) * 100)
+        )
+        const stateUpdate = new AbiStateUpdate(
+          stateObject,
+          range,
+          new BigNum(1),
+          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
+        )
+        stateUpdates.push(stateUpdate)
+      }
+      const blockContents = [
+        {
+          assetId: Buffer.from(
+            '1dAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
+          stateUpdates,
+        },
+        {
+          assetId: Buffer.from(
+            'bdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
+          stateUpdates,
+        },
+      ]
+      const plasmaBlock = new PlasmaBlock(blockContents)
+      const stateProof = plasmaBlock.getStateUpdateInclusionProof(1, 1)
+      PlasmaBlock.verifyStateUpdateInclusionProof(
+        blockContents[1].stateUpdates[1],
+        stateProof.stateTreeInclusionProof,
+        1,
+        stateProof.addressTreeInclusionProof,
+        1,
+        plasmaBlock.root().hash
+      )
     })
   })
 })
