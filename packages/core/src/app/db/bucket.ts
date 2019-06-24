@@ -4,7 +4,16 @@
  */
 
 /* Internal Imports */
-import { Bucket, Batch, DB, IteratorOptions, Iterator, K, V } from '../../types'
+import {
+  Bucket,
+  Batch,
+  DB,
+  IteratorOptions,
+  Iterator,
+  K,
+  V,
+  RangeBucket,
+} from '../../types'
 
 /**
  * Simple bucket implementation that forwards all
@@ -83,6 +92,16 @@ export class BaseBucket implements Bucket {
    */
   public bucket(prefix: Buffer): Bucket {
     return this.db.bucket(this.addPrefix(prefix))
+  }
+
+  /**
+   * Creates a prefixed range bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the bucket.
+   * @returns the range bucket instance.
+   */
+  public rangeBucket(prefix: Buffer): RangeBucket {
+    return this.db.rangeBucket(this.addPrefix(prefix))
   }
 
   /**

@@ -1,35 +1,51 @@
+/**
+ * Modified from bcoin's bdb (https://github.com/bcoin-org/bdb) (MIT LICENSE).
+ * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
+ */
+
 /* External Imports */
-import level from 'level'
 import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { itNext, itEnd, bufferUtils, intersects } from '../../app'
-import { Batch, RangeStore, RangeEntry, Endianness } from '../../types'
+import {
+  Bucket,
+  Batch,
+  DB,
+  IteratorOptions,
+  Iterator,
+  K,
+  V,
+  RangeBucket,
+  RangeEntry,
+  Endianness,
+} from '../../types'
+import { bufferUtils, intersects, BaseDB } from '../../app'
 
 /* Logging */
 import debug from 'debug'
 const log = debug('info:range-db')
 
 /**
- * A RangeStore which uses Level as a backend.
+ * Simple bucket implementation that forwards all
+ * calls up to the database but appends a prefix.
  */
-export class LevelRangeStore implements RangeStore {
+export class BaseRangeBucket implements RangeBucket {
   /**
-   * Creates the LevelRangeStore.
+   * Creates the RangeBucket.
    * @param db Pointer to the Level instance to be used.
    * @param prefix A Buffer which is prepended to each range key.
    * @param keyLength The number of bytes which should be used for the range keys.
    * @param endianness The endianness of the range keys.
    */
   constructor(
-    readonly db: level,
+    readonly db: DB,
     readonly prefix: Buffer,
     readonly keyLength: number = 16,
     readonly endianness: Endianness = 'be'
   ) {}
 
   /**
-   * Adds this RangeStore's prefix to the target Buffer
+   * Adds this RangeBucket's prefix to the target Buffer
    * @param target A Buffer which will have the prefix prepended to it.
    * @returns resulting Buffer `prefix+target`.
    */
@@ -233,11 +249,11 @@ export class LevelRangeStore implements RangeStore {
       keyAsBuffer: true,
     })
     const ranges = []
-    let result = await itNext(it)
+    let result = await it.next()
     // First make sure that the resulting value has the correct prefix.
     if (!this.isCorrectPrefix(result.key)) {
       // If not return because this means there are no values yet put in this RangeDB
-      await itEnd(it)
+      await it.end()
       return []
     }
     const queryStart = this.bnToKey(start)
@@ -251,7 +267,7 @@ export class LevelRangeStore implements RangeStore {
       // If the query & result intersect, add it to our ranges array
       ranges.push(this.resultToRange(result))
       // Get the next result
-      result = await itNext(it)
+      result = await it.next()
       // Make sure the result returned a value
       if (typeof result.key === 'undefined') {
         break
@@ -261,8 +277,28 @@ export class LevelRangeStore implements RangeStore {
       resultEnd = result.key
     }
     // End the iteration
-    await itEnd(it)
+    await it.end()
     // Return the ranges
     return ranges
+  }
+
+  /**
+   * Creates a prefixed bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the bucket.
+   * @returns the bucket instance.
+   */
+  public bucket(prefix: Buffer): Bucket {
+    return this.db.bucket(this.addPrefix(prefix))
+  }
+
+  /**
+   * Creates a prefixed range bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the bucket.
+   * @returns the range bucket instance.
+   */
+  public rangeBucket(prefix: Buffer): RangeBucket {
+    return this.db.rangeBucket(this.addPrefix(prefix))
   }
 }

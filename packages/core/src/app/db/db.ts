@@ -7,9 +7,19 @@
 import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
 
 /* Internal Imports */
-import { DB, K, V, Batch, IteratorOptions, Iterator, Bucket } from '../../types'
+import {
+  DB,
+  K,
+  V,
+  Batch,
+  IteratorOptions,
+  Iterator,
+  Bucket,
+  RangeBucket,
+} from '../../types'
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
+import { BaseRangeBucket } from './range-bucket'
 
 /**
  * Checks if an error is a NotFoundError.
@@ -32,7 +42,10 @@ const isNotFound = (err: any): boolean => {
  * Basic DB implementation that wraps some underlying store.
  */
 export class BaseDB implements DB {
-  constructor(readonly db: AbstractLevelDOWN) {}
+  constructor(
+    readonly db: AbstractLevelDOWN,
+    readonly prefixLength: number = 3
+  ) {}
 
   /**
    * Opens the store.
@@ -174,5 +187,15 @@ export class BaseDB implements DB {
    */
   public bucket(prefix: Buffer): Bucket {
     return new BaseBucket(this, prefix)
+  }
+
+  /**
+   * Creates a prefixed bucket underneath
+   * this bucket.
+   * @param prefix Prefix to use for the bucket.
+   * @returns the bucket instance.
+   */
+  public rangeBucket(prefix: Buffer): RangeBucket {
+    return new BaseRangeBucket(this, prefix)
   }
 }
