@@ -1,13 +1,7 @@
 {
   "extends": "./../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./build",
-    "baseUrl": "./",
-    "paths": {
-        "~app/*": ["src/app/*"],
-        "~interfaces/*": ["src/interfaces/*"],
-        "~test/*": ["test/*"]
-    }
+    "outDir": "./build"
   },
   "include": ["*.ts", "**/*.ts"]
 }
