@@ -5,7 +5,7 @@ const log = debug('info:merkle-interval-tree')
 
 /* Internal Imports */
 import { reverse, keccak256 } from '../'
-import { MerkleIntervalTreeNode, MerkleIntervalTree, MerkleIntervalInclusionProof } from '../../types'
+import { MerkleIntervalTreeNode, MerkleIntervalTree, MerkleIntervalInclusionProof, MerkleIntervalBranchOutput } from '../../types'
 
 export class GenericMerkleIntervalTreeNode implements MerkleIntervalTreeNode {
   public data: Buffer
@@ -210,7 +210,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     leafNode: GenericMerkleIntervalTreeNode,
     leafPosition: number,
     inclusionProof: GenericMerkleIntervalTreeNode[]
-  ): any {
+  ): MerkleIntervalBranchOutput {
     if (leafPosition < 0) {
       throw new Error('Invalid leaf position.')
     }

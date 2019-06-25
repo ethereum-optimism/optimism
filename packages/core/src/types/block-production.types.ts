@@ -12,6 +12,14 @@ export interface MerkleIntervalTreeNode {
 
 export type MerkleIntervalInclusionProof = MerkleIntervalTreeNode[]
 
+export interface MerkleIntervalBranchOutput {
+  root: MerkleIntervalTreeNode
+  bounds: {
+    implicitStart: BigNumber
+    implicitEnd: BigNumber
+  }
+}
+
 export interface MerkleIntervalTree {
   dataBlocks: any
   levels: Array<Array<MerkleIntervalTreeNode>>
