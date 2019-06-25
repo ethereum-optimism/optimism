@@ -12,7 +12,7 @@ export interface MerkleIntervalTreeNode {
 
 export type MerkleIntervalInclusionProof = MerkleIntervalTreeNode[]
 
-export interface MerkleIntervalBranchOutput {
+export interface MerkleIntervalProofOutput {
   root: MerkleIntervalTreeNode
   bounds: {
     implicitStart: BigNumber

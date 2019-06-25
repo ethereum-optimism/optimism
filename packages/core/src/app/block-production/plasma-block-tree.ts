@@ -5,7 +5,7 @@ import {
   MerkleStateIntervalTree,
 } from './'
 import { AbiStateUpdate } from '../'
-import { SubtreeContents, MerkleIntervalBranchOutput } from '../../types'
+import { SubtreeContents, MerkleIntervalProofOutput } from '../../types'
 
 export class PlasmaBlock extends GenericMerkleIntervalTree {
   public subtrees: MerkleStateIntervalTree[]
@@ -76,7 +76,7 @@ export class PlasmaBlock extends GenericMerkleIntervalTree {
       leafNodeHash,
       leafNodeIndex
     )
-    const stateUpdateRootAndBounds: MerkleIntervalBranchOutput = GenericMerkleIntervalTree.getRootAndBounds(
+    const stateUpdateRootAndBounds: MerkleIntervalProofOutput = GenericMerkleIntervalTree.getRootAndBounds(
       stateLeafNode,
       stateUpdatePosition,
       stateTreeInclusionProof
