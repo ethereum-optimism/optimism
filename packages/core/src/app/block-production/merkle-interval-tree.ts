@@ -5,9 +5,9 @@ const log = debug('info:merkle-interval-tree')
 
 /* Internal Imports */
 import { reverse, keccak256 } from '../'
-import { MerkleIntervalTreeNode, MerkleIntervalTree } from '../../types'
+import { MerkleIntervalTreeNode, MerkleIntervalTree, MerkleIntervalInclusionProof } from '../../types'
 
-export class GenericMerkleIntervalTreeNode implements GenericMerkleIntervalTreeNode {
+export class GenericMerkleIntervalTreeNode implements MerkleIntervalTreeNode {
   public data: Buffer
 
   constructor(readonly hash: Buffer, readonly start: Buffer) {
@@ -155,7 +155,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
    * Gets an inclusion proof for the merkle interval tree.
    * @param leafPosition the index in the tree of the leaf we are generating a merkle proof for.
    */
-  public getInclusionProof(leafPosition: number): GenericMerkleIntervalTreeNode[] {
+  public getInclusionProof(leafPosition: number): MerkleIntervalInclusionProof {
     if (!(leafPosition in this.levels[0])) {
       throw new Error(
         'Leaf index ' + leafPosition + ' not in bottom level of tree'

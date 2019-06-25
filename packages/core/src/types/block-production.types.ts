@@ -10,13 +10,20 @@ export interface MerkleIntervalTreeNode {
   data: Buffer // concatenation of (hash, index)
 }
 
+export type MerkleIntervalInclusionProof = MerkleIntervalTreeNode[]
+
 export interface MerkleIntervalTree {
   dataBlocks: any
   levels: Array<Array<MerkleIntervalTreeNode>>
   root(): MerkleIntervalTreeNode
+  getInclusionProof(leafposition: number): MerkleIntervalInclusionProof
 }
 
 export interface SubtreeContents {
   assetId: Buffer
   stateUpdates: AbiStateUpdate[]
+}
+
+export interface lol extends MerkleIntervalTree {
+
 }
