@@ -82,8 +82,13 @@ export class PlasmaBlock extends MerkleIntervalTree {
       stateTreeInclusionProof
     )
 
-    if (stateUpdateRootAndBounds.bounds.end.lt(stateUpdate.range.end)) {
-        throw new Error('state update inclusion failed: inclusion proof bounds: ' + stateUpdateRootAndBounds.bounds + ' disagrees with SU range: ' + stateUpdate.range)
+    if (stateUpdateRootAndBounds.bounds.implicitEnd.lt(stateUpdate.range.end)) {
+      throw new Error(
+        'state update inclusion failed: inclusion proof bounds: ' +
+          stateUpdateRootAndBounds.bounds +
+          ' disagrees with SU range: ' +
+          stateUpdate.range
+      )
     }
 
     const addressLeafHash: Buffer = stateUpdateRootAndBounds.root.hash

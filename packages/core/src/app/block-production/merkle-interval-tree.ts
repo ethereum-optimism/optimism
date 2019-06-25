@@ -257,13 +257,16 @@ export class MerkleIntervalTree {
       computed = this.parent(left, right) // note: this checks left.index < right.index
     }
 
+    const implicitStart = leafPosition === 0 ? new BigNum(0) : leafNode.start
+    const implicitEnd = firstRightSibling
+      ? firstRightSibling.start
+      : MerkleIntervalTree.emptyNode(leafNode.start.length).start // messy way to get the max index, TODO clean
+
     return {
       root: computed,
       bounds: {
-        implicitStart: leafPosition === 0 ? new BigNum(0) : leafNode.start,
-        implicitEnd: firstRightSibling
-          ? firstRightSibling.start
-          : MerkleIntervalTree.emptyNode(leafNode.start.length).start, // messy way to get the max index, TODO clean
+        implicitStart: new BigNum(implicitStart),
+        implicitEnd: new BigNum(implicitEnd),
       },
     }
   }

@@ -158,7 +158,7 @@ describe.only('merkle-index-tree', () => {
       const plasmaBlock = new PlasmaBlock(blockContents)
       log(plasmaBlock)
     })
-    it('should generate and verify a StateUpdateInclusionProof', async () => {
+    it.only('should generate and verify a StateUpdateInclusionProof', async () => {
       const stateUpdates = []
       for (let i = 0; i < 4; i++) {
         const stateObject = new AbiStateObject(
