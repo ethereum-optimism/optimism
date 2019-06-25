@@ -1,13 +1,13 @@
 /*Internal Imports */
 import {
-  MerkleIntervalTree,
+  GenericMerkleIntervalTree,
   GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
 } from './'
 import { AbiStateUpdate } from '../'
 import { SubtreeContents } from '../../types'
 
-export class PlasmaBlock extends MerkleIntervalTree {
+export class PlasmaBlock extends GenericMerkleIntervalTree {
   public subtrees: MerkleStateIntervalTree[]
 
   public generateLeafNodes() {
@@ -65,7 +65,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
     assetIdPosition: number,
     blockRootHash: Buffer
   ): any {
-    const leafNodeHash: Buffer = MerkleIntervalTree.hash(
+    const leafNodeHash: Buffer = GenericMerkleIntervalTree.hash(
       Buffer.from(stateUpdate.encoded)
     )
     const leafNodeIndex: Buffer = stateUpdate.range.start.toBuffer(
@@ -76,7 +76,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
       leafNodeHash,
       leafNodeIndex
     )
-    const stateUpdateRootAndBounds = MerkleIntervalTree.getRootAndBounds(
+    const stateUpdateRootAndBounds = GenericMerkleIntervalTree.getRootAndBounds(
       stateLeafNode,
       stateUpdatePosition,
       stateTreeInclusionProof
@@ -100,7 +100,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
       addressLeafHash,
       addressLeafIndex
     )
-    return MerkleIntervalTree.verify(
+    return GenericMerkleIntervalTree.verify(
       addressLeafNode,
       assetIdPosition,
       addressTreeInclusionProof,

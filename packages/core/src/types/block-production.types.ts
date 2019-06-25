@@ -10,6 +10,12 @@ export interface MerkleIntervalTreeNode {
   data: Buffer // concatenation of (hash, index)
 }
 
+export interface MerkleIntervalTree {
+  dataBlocks: any
+  levels: Array<Array<MerkleIntervalTreeNode>>
+  root(): MerkleIntervalTreeNode
+}
+
 export interface SubtreeContents {
   assetId: Buffer
   stateUpdates: AbiStateUpdate[]

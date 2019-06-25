@@ -10,7 +10,7 @@ import {
   AbiStateUpdate,
   AbiStateObject,
   AbiRange,
-  MerkleIntervalTree,
+  GenericMerkleIntervalTree,
   GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
   PlasmaBlock,
@@ -39,7 +39,7 @@ describe.only('merkle-index-tree', () => {
           Buffer.from([31]),
           Buffer.from([15])
         )
-        const parent = MerkleIntervalTree.parent(left, right)
+        const parent = GenericMerkleIntervalTree.parent(left, right)
         // We calculated the hash by hand.
         parent.data
           .toString('hex')
@@ -56,7 +56,7 @@ describe.only('merkle-index-tree', () => {
           Buffer.from([31]),
           Buffer.from([10])
         )
-        const parentCall = () => MerkleIntervalTree.parent(left, right)
+        const parentCall = () => GenericMerkleIntervalTree.parent(left, right)
         parentCall.should.throw()
       })
     })
@@ -70,7 +70,7 @@ describe.only('merkle-index-tree', () => {
           )
         )
       }
-      const IntervalTree = new MerkleIntervalTree(leaves)
+      const IntervalTree = new GenericMerkleIntervalTree(leaves)
       log(IntervalTree.levels)
       log(IntervalTree.root)
     })
@@ -84,10 +84,10 @@ describe.only('merkle-index-tree', () => {
           )
         )
       }
-      const IntervalTree = new MerkleIntervalTree(leaves)
+      const IntervalTree = new GenericMerkleIntervalTree(leaves)
       const leafPosition = 3
       const inclusionProof = IntervalTree.getInclusionProof(leafPosition)
-      MerkleIntervalTree.verify(
+      GenericMerkleIntervalTree.verify(
         leaves[leafPosition],
         leafPosition,
         inclusionProof,
@@ -158,7 +158,7 @@ describe.only('merkle-index-tree', () => {
       const plasmaBlock = new PlasmaBlock(blockContents)
       log(plasmaBlock)
     })
-    it.only('should generate and verify a StateUpdateInclusionProof', async () => {
+    it('should generate and verify a StateUpdateInclusionProof', async () => {
       const stateUpdates = []
       for (let i = 0; i < 4; i++) {
         const stateObject = new AbiStateObject(
