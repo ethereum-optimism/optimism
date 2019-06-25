@@ -11,15 +11,15 @@ import {
   AbiStateObject,
   AbiRange,
   MerkleIntervalTree,
-  MerkleIntervalTreeNode,
+  GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
   PlasmaBlock,
 } from '../../../src/app/'
 
-describe('merkle-index-tree', () => {
-  describe('MerkleIntervalTreeNode', () => {
+describe.only('merkle-index-tree', () => {
+  describe('GenericMerkleIntervalTreeNode', () => {
     it('should concatenate index and hash after construction', async () => {
-      const node = new MerkleIntervalTreeNode(
+      const node = new GenericMerkleIntervalTreeNode(
         Buffer.from([255]),
         Buffer.from([0])
       )
@@ -31,11 +31,11 @@ describe('merkle-index-tree', () => {
   describe('MerkleIntervalTree', () => {
     describe('parent', () => {
       it('should return the correct parent', async () => {
-        const left = new MerkleIntervalTreeNode(
+        const left = new GenericMerkleIntervalTreeNode(
           Buffer.from([13]),
           Buffer.from([10])
         )
-        const right = new MerkleIntervalTreeNode(
+        const right = new GenericMerkleIntervalTreeNode(
           Buffer.from([31]),
           Buffer.from([15])
         )
@@ -48,11 +48,11 @@ describe('merkle-index-tree', () => {
           )
       })
       it('should throw if left & right nodes are out of order', async () => {
-        const left = new MerkleIntervalTreeNode(
+        const left = new GenericMerkleIntervalTreeNode(
           Buffer.from([13]),
           Buffer.from([15])
         )
-        const right = new MerkleIntervalTreeNode(
+        const right = new GenericMerkleIntervalTreeNode(
           Buffer.from([31]),
           Buffer.from([10])
         )
@@ -64,7 +64,7 @@ describe('merkle-index-tree', () => {
       const leaves = []
       for (let i = 0; i < 4; i++) {
         leaves.push(
-          new MerkleIntervalTreeNode(
+          new GenericMerkleIntervalTreeNode(
             Buffer.from([Math.floor(Math.random() * 100)]),
             Buffer.from([i])
           )
@@ -78,7 +78,7 @@ describe('merkle-index-tree', () => {
       const leaves = []
       for (let i = 0; i < 4; i++) {
         leaves.push(
-          new MerkleIntervalTreeNode(
+          new GenericMerkleIntervalTreeNode(
             Buffer.from([Math.floor(Math.random() * 100)]),
             Buffer.from([i])
           )

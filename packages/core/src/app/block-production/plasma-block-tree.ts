@@ -1,7 +1,7 @@
 /*Internal Imports */
 import {
   MerkleIntervalTree,
-  MerkleIntervalTreeNode,
+  GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
 } from './'
 import { AbiStateUpdate } from '../'
@@ -17,7 +17,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
 
   // The "leaf node" for the plasma block is itself the root hash of a state update tree.
   // Thus, its data blocks are in fact entire subtrees.
-  public generateLeafNode(subtree: SubtreeContents): MerkleIntervalTreeNode {
+  public generateLeafNode(subtree: SubtreeContents): GenericMerkleIntervalTreeNode {
     // Create a state subtree for these state updates.
     const merkleStateIntervalTree = new MerkleStateIntervalTree(
       subtree.stateUpdates
@@ -25,7 +25,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
     // Store the state subtree.
     this.subtrees.push(merkleStateIntervalTree)
     // Return a leaf node with the root of the state tree and an index of the depositAddress.
-    return new MerkleIntervalTreeNode(
+    return new GenericMerkleIntervalTreeNode(
       merkleStateIntervalTree.root().hash,
       subtree.assetId
     )
@@ -59,9 +59,9 @@ export class PlasmaBlock extends MerkleIntervalTree {
    */
   public static verifyStateUpdateInclusionProof(
     stateUpdate: AbiStateUpdate,
-    stateTreeInclusionProof: MerkleIntervalTreeNode[],
+    stateTreeInclusionProof: GenericMerkleIntervalTreeNode[],
     stateUpdatePosition: number,
-    addressTreeInclusionProof: MerkleIntervalTreeNode[],
+    addressTreeInclusionProof: GenericMerkleIntervalTreeNode[],
     assetIdPosition: number,
     blockRootHash: Buffer
   ): any {
@@ -72,7 +72,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
       'be',
       MerkleStateIntervalTree.STATE_ID_LENGTH
     )
-    const stateLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(
+    const stateLeafNode: GenericMerkleIntervalTreeNode = new GenericMerkleIntervalTreeNode(
       leafNodeHash,
       leafNodeIndex
     )
@@ -91,7 +91,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
       stateUpdate.depositAddress.slice(2),
       'hex'
     )
-    const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(
+    const addressLeafNode: GenericMerkleIntervalTreeNode = new GenericMerkleIntervalTreeNode(
       addressLeafHash,
       addressLeafIndex
     )
