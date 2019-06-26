@@ -14,10 +14,7 @@ export type MerkleIntervalInclusionProof = MerkleIntervalTreeNode[]
 
 export interface MerkleIntervalProofOutput {
   root: MerkleIntervalTreeNode
-  bounds: {
-    implicitStart: BigNumber
-    implicitEnd: BigNumber
-  }
+  maxEnd: BigNumber
 }
 
 export interface MerkleIntervalTree {

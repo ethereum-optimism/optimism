@@ -5,6 +5,10 @@ import { MerkleIntervalTreeNode } from '../../types';
 export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
   public static STATE_ID_LENGTH = 16
 
+  public generateLeafNode(dataBlock: AbiStateUpdate): GenericMerkleIntervalTreeNode {
+    return MerkleStateIntervalTree.calculateStateUpdateLeaf(dataBlock)
+  }
+
   // To create a state update tree from the generic interval tree,
   // we simply define how to generate a leaf from its SU data block.
   public static calculateStateUpdateLeaf(stateUpdate: AbiStateUpdate): GenericMerkleIntervalTreeNode {
@@ -16,27 +20,25 @@ export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
     return new GenericMerkleIntervalTreeNode(hash, index)
   }
 
-  public generateLeafNode(dataBlock: AbiStateUpdate): GenericMerkleIntervalTreeNode {
-    return MerkleStateIntervalTree.calculateStateUpdateLeaf(dataBlock)
-  }
   // For a state interval tree to be valid, we have the additional condition that
-  // the SU.end is less than its inclusion proof's implicitEnd
+  // the SU.end is less than its inclusion proof's implicitEnd.  This function checks for that,
+  // and returns the root which it results in to be verified in the assetId tree.
   public static verifyExectedRoot(
     stateUpdate: AbiStateUpdate,
     leafPosition: number,
     inclusionProof: GenericMerkleIntervalTreeNode[],
   ): MerkleIntervalTreeNode {
     const leafNode: MerkleIntervalTreeNode = MerkleStateIntervalTree.calculateStateUpdateLeaf(stateUpdate)
-    const rootAndBounds = GenericMerkleIntervalTree.getRootAndBounds(
+    const rootAndBound = GenericMerkleIntervalTree.getRootAndBounds(
       leafNode,
       leafPosition,
       inclusionProof
     )
     // Check that the bound agrees with the end.
-    if (stateUpdate.range.end.gt(rootAndBounds.bounds.implicitEnd)) {
+    if (stateUpdate.range.end.gt(rootAndBound.maxEnd)) {
       throw new Error('State Update range.end exceeds the max for its inclusion proof.')
     }
 
-    return rootAndBounds.root
+    return rootAndBound.root
   }
 }
