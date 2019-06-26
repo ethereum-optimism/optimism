@@ -2,12 +2,12 @@
 import {
   GenericMerkleIntervalTree,
   GenericMerkleIntervalTreeNode,
-  MerkleStateIntervalTree,
+  MerkleStateIntervalTree
 } from './'
 import { AbiStateUpdate } from '../'
-import { SubtreeContents, MerkleIntervalProofOutput } from '../../types'
+import { SubtreeContents, MerkleIntervalProofOutput, DoubleMerkleIntervalTree, DoubleMerkleInclusionProof } from '../../types'
 
-export class PlasmaBlock extends GenericMerkleIntervalTree {
+export class PlasmaBlock extends GenericMerkleIntervalTree implements DoubleMerkleIntervalTree {
   public subtrees: MerkleStateIntervalTree[]
 
   public generateLeafNodes() {
@@ -39,12 +39,12 @@ export class PlasmaBlock extends GenericMerkleIntervalTree {
   public getStateUpdateInclusionProof(
     stateUpdatePosition: number,
     assetIdPosition: number
-  ): any {
+  ): DoubleMerkleInclusionProof {
     return {
       stateTreeInclusionProof: this.subtrees[assetIdPosition].getInclusionProof(
         stateUpdatePosition
       ),
-      addressTreeInclusionProof: this.getInclusionProof(assetIdPosition),
+      assetTreeInclusionProof: this.getInclusionProof(assetIdPosition),
     }
   }
 
@@ -53,7 +53,7 @@ export class PlasmaBlock extends GenericMerkleIntervalTree {
    * @param stateUpdate
    * @param stateTreeInclusionProof
    * @param stateUpdatePosition
-   * @param addressTreeInclusionProof
+   * @param assetTreeInclusionProof
    * @param assetIdPosition
    * @param blockRootHash
    */
@@ -61,7 +61,7 @@ export class PlasmaBlock extends GenericMerkleIntervalTree {
     stateUpdate: AbiStateUpdate,
     stateTreeInclusionProof: GenericMerkleIntervalTreeNode[],
     stateUpdatePosition: number,
-    addressTreeInclusionProof: GenericMerkleIntervalTreeNode[],
+    assetTreeInclusionProof: GenericMerkleIntervalTreeNode[],
     assetIdPosition: number,
     blockRootHash: Buffer
   ): any {
@@ -103,7 +103,7 @@ export class PlasmaBlock extends GenericMerkleIntervalTree {
     return GenericMerkleIntervalTree.verify(
       addressLeafNode,
       assetIdPosition,
-      addressTreeInclusionProof,
+      assetTreeInclusionProof,
       blockRootHash
     )
   }

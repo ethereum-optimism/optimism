@@ -32,6 +32,13 @@ export interface SubtreeContents {
   stateUpdates: AbiStateUpdate[]
 }
 
-export interface lol extends MerkleIntervalTree {
+export interface DoubleMerkleIntervalTree extends MerkleIntervalTree {
+  dataBlocks: SubtreeContents
+  subtrees: MerkleIntervalTree[]
+  getStateUpdateInclusionProof(stateUpdatePosition: number, assetIdPosition: number): DoubleMerkleInclusionProof
+}
 
+export interface DoubleMerkleInclusionProof {
+  stateTreeInclusionProof: MerkleIntervalInclusionProof
+  assetTreeInclusionProof: MerkleIntervalInclusionProof
 }

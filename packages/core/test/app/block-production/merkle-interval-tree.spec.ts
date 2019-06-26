@@ -199,7 +199,7 @@ describe.only('merkle-index-tree', () => {
         blockContents[1].stateUpdates[1],
         stateProof.stateTreeInclusionProof,
         1,
-        stateProof.addressTreeInclusionProof,
+        stateProof.assetTreeInclusionProof,
         1,
         plasmaBlock.root().hash
       )
