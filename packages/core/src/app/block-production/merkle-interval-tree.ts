@@ -5,7 +5,12 @@ const log = debug('info:merkle-interval-tree')
 
 /* Internal Imports */
 import { reverse, keccak256 } from '../'
-import { MerkleIntervalTreeNode, MerkleIntervalTree, MerkleIntervalInclusionProof, MerkleIntervalProofOutput } from '../../types'
+import {
+  MerkleIntervalTreeNode,
+  MerkleIntervalTree,
+  MerkleIntervalInclusionProof,
+  MerkleIntervalProofOutput,
+} from '../../types'
 
 export class GenericMerkleIntervalTreeNode implements MerkleIntervalTreeNode {
   public data: Buffer
@@ -178,7 +183,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     }
     return {
       siblings: inclusionProof,
-      leafPosition: new BigNum(leafPosition)
+      leafPosition: new BigNum(leafPosition),
     }
   }
 
@@ -217,7 +222,10 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
 
     // Compute the path based on the leaf index.
     const path = reverse(
-      new BigNum(inclusionProof.leafPosition).toString(2, inclusionProof.siblings.length)
+      new BigNum(inclusionProof.leafPosition).toString(
+        2,
+        inclusionProof.siblings.length
+      )
     )
 
     // Need the first right sibling to ensure
@@ -261,8 +269,8 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
       ? firstRightSibling.start
       : GenericMerkleIntervalTree.emptyNode(leafNode.start.length).start // messy way to get the max index, TODO clean
     return {
-        root: computed,
-        maxEnd: new BigNum(implicitEnd)
+      root: computed,
+      maxEnd: new BigNum(implicitEnd),
     }
   }
 }

@@ -2,12 +2,19 @@
 import {
   GenericMerkleIntervalTree,
   GenericMerkleIntervalTreeNode,
-  MerkleStateIntervalTree
+  MerkleStateIntervalTree,
 } from './'
 import { AbiStateUpdate } from '../'
-import { SubtreeContents, MerkleIntervalProofOutput, DoubleMerkleIntervalTree, DoubleMerkleInclusionProof, MerkleIntervalTreeNode } from '../../types'
+import {
+  SubtreeContents,
+  MerkleIntervalProofOutput,
+  DoubleMerkleIntervalTree,
+  DoubleMerkleInclusionProof,
+  MerkleIntervalTreeNode,
+} from '../../types'
 
-export class PlasmaBlock extends GenericMerkleIntervalTree implements DoubleMerkleIntervalTree {
+export class PlasmaBlock extends GenericMerkleIntervalTree
+  implements DoubleMerkleIntervalTree {
   public subtrees: MerkleStateIntervalTree[]
 
   public generateLeafNodes() {
@@ -17,7 +24,9 @@ export class PlasmaBlock extends GenericMerkleIntervalTree implements DoubleMerk
 
   // The "leaf node" for the plasma block is itself the root hash of a state update tree.
   // Thus, its data blocks are in fact entire subtrees.
-  public generateLeafNode(subtree: SubtreeContents): GenericMerkleIntervalTreeNode {
+  public generateLeafNode(
+    subtree: SubtreeContents
+  ): GenericMerkleIntervalTreeNode {
     // Create a state subtree for these state updates.
     const merkleStateIntervalTree = new MerkleStateIntervalTree(
       subtree.stateUpdates
@@ -65,7 +74,10 @@ export class PlasmaBlock extends GenericMerkleIntervalTree implements DoubleMerk
       stateUpdateInclusionProof.stateTreeInclusionProof
     )
     // generate the assetId leaf from the expected subtree root and SU.depositAddress
-    const addressLeafStart: Buffer = Buffer.from(stateUpdate.depositAddress.slice(2), 'hex')
+    const addressLeafStart: Buffer = Buffer.from(
+      stateUpdate.depositAddress.slice(2),
+      'hex'
+    )
     const addressLeafNode: GenericMerkleIntervalTreeNode = new GenericMerkleIntervalTreeNode(
       expectedRoot.hash,
       addressLeafStart

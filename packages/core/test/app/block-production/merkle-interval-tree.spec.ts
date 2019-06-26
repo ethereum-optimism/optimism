@@ -16,17 +16,16 @@ import {
   PlasmaBlock,
 } from '../../../src/app/'
 
-function generateNSequentialStateUpdates(numerOfUpdates: number): AbiStateUpdate[] {
+function generateNSequentialStateUpdates(
+  numerOfUpdates: number
+): AbiStateUpdate[] {
   const stateUpdates: AbiStateUpdate[] = []
   for (let i = 0; i < numerOfUpdates; i++) {
     const stateObject = new AbiStateObject(
       '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
       '0x123456'
     )
-    const range = new AbiRange(
-      new BigNum(i * 100),
-      new BigNum((i + 0.5) * 100)
-    )
+    const range = new AbiRange(new BigNum(i * 100), new BigNum((i + 0.5) * 100))
     const stateUpdate = new AbiStateUpdate(
       stateObject,
       range,
@@ -38,7 +37,7 @@ function generateNSequentialStateUpdates(numerOfUpdates: number): AbiStateUpdate
   return stateUpdates
 }
 
-describe.only('Interval Trees and Plasma Blocks', () => {
+describe('Interval Trees and Plasma Blocks', () => {
   describe('GenericMerkleIntervalTreeNode', () => {
     it('should concatenate index and hash after construction', async () => {
       const node = new GenericMerkleIntervalTreeNode(
@@ -129,7 +128,7 @@ describe.only('Interval Trees and Plasma Blocks', () => {
       const faultyUpdateIndex = 0
       const updateToReplace = stateUpdates[faultyUpdateIndex]
       const conflictingRange = new AbiRange(
-        updateToReplace.range.start, 
+        updateToReplace.range.start,
         stateUpdates[faultyUpdateIndex + 1].range.start.add(new BigNum(1))
       )
       // replace the valid SU range with the conflicting one
@@ -142,10 +141,12 @@ describe.only('Interval Trees and Plasma Blocks', () => {
       stateUpdates[faultyUpdateIndex] = faultyUpdate
       // Generate inclusion proof
       const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
-      const faultyInclusionProof = merkleStateIntervalTree.getInclusionProof(faultyUpdateIndex)
-        
+      const faultyInclusionProof = merkleStateIntervalTree.getInclusionProof(
+        faultyUpdateIndex
+      )
+
       should.throw(
-        () =>  {
+        () => {
           MerkleStateIntervalTree.verifyExectedRoot(
             faultyUpdate,
             faultyInclusionProof
@@ -161,11 +162,17 @@ describe.only('Interval Trees and Plasma Blocks', () => {
       const stateUpdates = generateNSequentialStateUpdates(4)
       const blockContents = [
         {
-          assetId: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from(
+            '1dAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
           stateUpdates,
         },
         {
-          assetId: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from(
+            'bdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
           stateUpdates,
         },
       ]
@@ -176,11 +183,17 @@ describe.only('Interval Trees and Plasma Blocks', () => {
       const stateUpdates = generateNSequentialStateUpdates(4)
       const blockContents = [
         {
-          assetId: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from(
+            '1dAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
           stateUpdates,
         },
         {
-          assetId: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
+          assetId: Buffer.from(
+            'bdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+            'hex'
+          ),
           stateUpdates,
         },
       ]

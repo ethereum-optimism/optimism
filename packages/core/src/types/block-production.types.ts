@@ -22,7 +22,7 @@ export interface MerkleIntervalProofOutput {
 
 export interface MerkleIntervalTree {
   dataBlocks: any
-  levels: Array<Array<MerkleIntervalTreeNode>>
+  levels: MerkleIntervalTreeNode[][]
   root(): MerkleIntervalTreeNode
   getInclusionProof(leafposition: number): MerkleIntervalInclusionProof
 }
@@ -35,7 +35,10 @@ export interface SubtreeContents {
 export interface DoubleMerkleIntervalTree extends MerkleIntervalTree {
   dataBlocks: SubtreeContents
   subtrees: MerkleIntervalTree[]
-  getStateUpdateInclusionProof(stateUpdatePosition: number, assetIdPosition: number): DoubleMerkleInclusionProof
+  getStateUpdateInclusionProof(
+    stateUpdatePosition: number,
+    assetIdPosition: number
+  ): DoubleMerkleInclusionProof
 }
 
 export interface DoubleMerkleInclusionProof {
