@@ -16,7 +16,29 @@ import {
   PlasmaBlock,
 } from '../../../src/app/'
 
-describe.only('merkle-index-tree', () => {
+function generateNSequentialStateUpdates(numerOfUpdates: number): AbiStateUpdate[] {
+  const stateUpdates: AbiStateUpdate[] = []
+  for (let i = 0; i < numerOfUpdates; i++) {
+    const stateObject = new AbiStateObject(
+      '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+      '0x123456'
+    )
+    const range = new AbiRange(
+      new BigNum(i * 100),
+      new BigNum((i + 0.5) * 100)
+    )
+    const stateUpdate = new AbiStateUpdate(
+      stateObject,
+      range,
+      new BigNum(1),
+      '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
+    )
+    stateUpdates.push(stateUpdate)
+  }
+  return stateUpdates
+}
+
+describe.only('Interval Trees and Plasma Blocks', () => {
   describe('GenericMerkleIntervalTreeNode', () => {
     it('should concatenate index and hash after construction', async () => {
       const node = new GenericMerkleIntervalTreeNode(
@@ -97,61 +119,21 @@ describe.only('merkle-index-tree', () => {
   })
   describe('MerkleStateIntervalTree', () => {
     it('should generate a tree without throwing', async () => {
-      const stateUpdates = []
-      for (let i = 0; i < 4; i++) {
-        const stateObject = new AbiStateObject(
-          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
-          '0x123456'
-        )
-        const range = new AbiRange(
-          new BigNum(i * 100),
-          new BigNum((i + 0.5) * 100)
-        )
-        const stateUpdate = new AbiStateUpdate(
-          stateObject,
-          range,
-          new BigNum(1),
-          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
-        )
-        stateUpdates.push(stateUpdate)
-      }
+      const stateUpdates = generateNSequentialStateUpdates(4)
       const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
       log('root', merkleStateIntervalTree.root())
     })
   })
   describe('PlasmaBlock', () => {
     it('should generate a plasma block without throwing', async () => {
-      const stateUpdates = []
-      for (let i = 0; i < 4; i++) {
-        const stateObject = new AbiStateObject(
-          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
-          '0x123456'
-        )
-        const range = new AbiRange(
-          new BigNum(i * 100),
-          new BigNum((i + 0.5) * 100)
-        )
-        const stateUpdate = new AbiStateUpdate(
-          stateObject,
-          range,
-          new BigNum(1),
-          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
-        )
-        stateUpdates.push(stateUpdate)
-      }
+      const stateUpdates = generateNSequentialStateUpdates(4)
       const blockContents = [
         {
-          assetId: Buffer.from(
-            '1dAd2846585129Fc98538ce21cfcED21dDDE0a63',
-            'hex'
-          ),
+          assetId: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates,
         },
         {
-          assetId: Buffer.from(
-            'bdAd2846585129Fc98538ce21cfcED21dDDE0a63',
-            'hex'
-          ),
+          assetId: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates,
         },
       ]
@@ -159,37 +141,14 @@ describe.only('merkle-index-tree', () => {
       log(plasmaBlock)
     })
     it('should generate and verify a StateUpdateInclusionProof', async () => {
-      const stateUpdates = []
-      for (let i = 0; i < 4; i++) {
-        const stateObject = new AbiStateObject(
-          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
-          '0x123456'
-        )
-        const range = new AbiRange(
-          new BigNum(i * 100),
-          new BigNum((i + 0.5) * 100)
-        )
-        const stateUpdate = new AbiStateUpdate(
-          stateObject,
-          range,
-          new BigNum(1),
-          '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
-        )
-        stateUpdates.push(stateUpdate)
-      }
+      const stateUpdates = generateNSequentialStateUpdates(4)
       const blockContents = [
         {
-          assetId: Buffer.from(
-            '1dAd2846585129Fc98538ce21cfcED21dDDE0a63',
-            'hex'
-          ),
+          assetId: Buffer.from('1dAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates,
         },
         {
-          assetId: Buffer.from(
-            'bdAd2846585129Fc98538ce21cfcED21dDDE0a63',
-            'hex'
-          ),
+          assetId: Buffer.from('bdAd2846585129Fc98538ce21cfcED21dDDE0a63', 'hex'),
           stateUpdates,
         },
       ]
