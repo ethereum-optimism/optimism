@@ -123,6 +123,40 @@ describe.only('Interval Trees and Plasma Blocks', () => {
       const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
       log('root', merkleStateIntervalTree.root())
     })
+    it('verification should throw if state update range intersects branch bounds', async () => {
+      // generate some valid tree contents
+      const stateUpdates = generateNSequentialStateUpdates(4)
+      // make an invalid range intersecting the second SU
+      const faultyUpdateIndex = 0
+      const updateToReplace = stateUpdates[faultyUpdateIndex]
+      const conflictingRange = new AbiRange(
+        updateToReplace.range.start, 
+        stateUpdates[faultyUpdateIndex + 1].range.start.add(new BigNum(1))
+      )
+      // replace the valid SU range with the conflicting one
+      const faultyUpdate = new AbiStateUpdate(
+        updateToReplace.stateObject,
+        conflictingRange,
+        updateToReplace.plasmaBlockNumber,
+        updateToReplace.depositAddress
+      )
+      stateUpdates[faultyUpdateIndex] = faultyUpdate
+      // Generate inclusion proof
+      const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
+      const faultyInclusionProof = merkleStateIntervalTree.getInclusionProof(faultyUpdateIndex)
+        
+      should.throw(
+        () =>  {
+          MerkleStateIntervalTree.verifyExectedRoot(
+            faultyUpdate,
+            faultyUpdateIndex,
+            faultyInclusionProof,
+          )
+        },
+        Error,
+        'State Update range.end exceeds the max for its inclusion proof.'
+      )
+    })
   })
   describe('PlasmaBlock', () => {
     it('should generate a plasma block without throwing', async () => {
