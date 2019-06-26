@@ -4,7 +4,7 @@ import '../../setup'
 import debug from 'debug'
 const log = debug('test:info:state-manager')
 import BigNum = require('bn.js')
-import { DefaultStateDB, DefaultStateManager } from '../../../src/app'
+import { DefaultStateDB, DefaultStateManager, ONE } from '../../../src/app'
 import {
   PluginManager,
   PredicatePlugin,
@@ -34,8 +34,8 @@ class DummyPluginManager implements PluginManager {
 class DummyPredicatePlugin implements PredicatePlugin {
   public executeStateTransition(
     previousStateUpdate: StateUpdate,
-    stateUpdateBlock: number,
-    transaction: Transaction
+    transaction: Transaction,
+    witness: string = 'none'
   ): Promise<StateUpdate> {
     return undefined
   }
@@ -45,8 +45,8 @@ function getPluginThatReturns(stateUpdates: StateUpdate[]): PredicatePlugin {
   const predicatePlugin: PredicatePlugin = new DummyPredicatePlugin()
   predicatePlugin.executeStateTransition = async (
     previousStateUpdate: StateUpdate,
-    stateUpdateBlock: number,
-    transaction: Transaction
+    transaction: Transaction,
+    witness: string = 'none'
   ): Promise<StateUpdate> => {
     if (stateUpdates.length > 1) {
       return stateUpdates.shift()
@@ -84,7 +84,7 @@ function getStateDBThatReturns(
 function getStateUpdate(
   start: BigNum,
   end: BigNum,
-  plasmaBlockNumber: number,
+  plasmaBlockNumber: BigNum,
   depositAddress: string = '0x1234',
   predicateAddress: string = '0x1234567890',
   data: any = { dummyData: false }
@@ -106,7 +106,7 @@ function getStateUpdate(
 function getVerifiedStateUpdate(
   start: BigNum,
   end: BigNum,
-  block: number,
+  block: BigNum,
   depositAddress: string,
   predicateAddress: string,
   data: any = { dummyData: false }
@@ -160,8 +160,9 @@ describe('DefaultStateManager', () => {
   describe('executeTransaction', () => {
     const start: BigNum = new BigNum(10)
     const end: BigNum = new BigNum(20)
-    const previousBlockNumber: number = 10
-    const nextBlockNumber: number = 11
+    const defaultWitness: string = 'none'
+    const previousBlockNumber: BigNum = new BigNum(10)
+    const nextBlockNumber: BigNum = new BigNum(11)
     const depositAddress = '0x1234'
     const methodId = '0x11122'
     const predicateAddress = '0x12345678'
@@ -207,7 +208,11 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
+      } = await stateManager.executeTransaction(
+        transaction,
+        nextBlockNumber,
+        defaultWitness
+      )
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -252,7 +257,11 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
+      } = await stateManager.executeTransaction(
+        transaction,
+        nextBlockNumber,
+        defaultWitness
+      )
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -299,7 +308,11 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
+      } = await stateManager.executeTransaction(
+        transaction,
+        nextBlockNumber,
+        defaultWitness
+      )
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -344,7 +357,11 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
+      } = await stateManager.executeTransaction(
+        transaction,
+        nextBlockNumber,
+        defaultWitness
+      )
 
       result.stateUpdate.should.equal(endStateUpdate)
 
@@ -373,7 +390,11 @@ describe('DefaultStateManager', () => {
       const result: {
         stateUpdate: StateUpdate
         validRanges: Range[]
-      } = await stateManager.executeTransaction(transaction, nextBlockNumber)
+      } = await stateManager.executeTransaction(
+        transaction,
+        nextBlockNumber,
+        defaultWitness
+      )
 
       assert(result.stateUpdate === undefined)
       result.validRanges.length.should.equal(0)
@@ -409,7 +430,11 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction, nextBlockNumber)
+        await stateManager.executeTransaction(
+          transaction,
+          nextBlockNumber,
+          defaultWitness
+        )
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')
@@ -474,7 +499,11 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction, nextBlockNumber)
+        await stateManager.executeTransaction(
+          transaction,
+          nextBlockNumber,
+          defaultWitness
+        )
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')
@@ -534,7 +563,11 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction, nextBlockNumber)
+        await stateManager.executeTransaction(
+          transaction,
+          nextBlockNumber,
+          defaultWitness
+        )
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')
@@ -564,7 +597,11 @@ describe('DefaultStateManager', () => {
       )
 
       try {
-        await stateManager.executeTransaction(transaction, nextBlockNumber + 1)
+        await stateManager.executeTransaction(
+          transaction,
+          nextBlockNumber.add(ONE),
+          defaultWitness
+        )
         assert(false, 'this call should have thrown an error.')
       } catch (e) {
         assert(true, 'this call threw an error as expected.')

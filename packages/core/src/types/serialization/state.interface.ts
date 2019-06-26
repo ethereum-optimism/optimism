@@ -16,7 +16,7 @@ export interface StateUpdate {
 
 export interface VerifiedStateUpdate {
   range: Range
-  verifiedBlockNumber: number
+  verifiedBlockNumber: BigNum
   stateUpdate: StateUpdate
 }
 
@@ -49,6 +49,10 @@ export interface OwnershipParameters {
   newState: StateObject
   originBlock: BigNum
   maxBlock: BigNum
+}
+
+export interface OwnershipStateData {
+  owner: string
 }
 
 export type InclusionProof = string[]

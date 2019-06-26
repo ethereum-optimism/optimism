@@ -15,7 +15,7 @@ import {
   isValidTransaction,
   isValidVerifiedStateUpdate,
 } from '../../types'
-import { getOverlappingRange, rangesIntersect } from '../../app'
+import { getOverlappingRange, ONE, rangesIntersect } from '../../app'
 
 /**
  * StateManager that validates transactions and wraps and modifies StateDB as necessary.
@@ -33,7 +33,8 @@ export class DefaultStateManager implements StateManager {
 
   public async executeTransaction(
     transaction: Transaction,
-    inBlock: number
+    inBlock: BigNum,
+    witness: string
   ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }> {
     const result = {
       stateUpdate: undefined,
@@ -71,10 +72,10 @@ export class DefaultStateManager implements StateManager {
         )}. VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}.`)
       }
 
-      if (verifiedUpdate.verifiedBlockNumber + 1 !== inBlock) {
+      if (!verifiedUpdate.verifiedBlockNumber.add(ONE).eq(inBlock)) {
         throw Error(`VerifiedStateUpdate has block ${
           verifiedUpdate.verifiedBlockNumber
-        } and ${inBlock - 1} was expected. 
+        } and ${inBlock.sub(ONE).toNumber()} was expected. 
           VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}`)
       }
 
@@ -84,18 +85,19 @@ export class DefaultStateManager implements StateManager {
 
       const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
         verifiedUpdate.stateUpdate,
-        verifiedUpdate.verifiedBlockNumber,
-        transaction
+        transaction,
+        witness
       )
 
       if (
-        computedState.plasmaBlockNumber.toNumber() !==
-        verifiedUpdate.verifiedBlockNumber + 1
+        !computedState.plasmaBlockNumber.eq(
+          verifiedUpdate.verifiedBlockNumber.add(ONE)
+        )
       ) {
         throw new Error(`Transaction resulted in StateUpdate with unexpected block number.
-          Expected: ${verifiedUpdate.verifiedBlockNumber + 1}, found: ${
-          computedState.plasmaBlockNumber
-        }.
+          Expected: ${verifiedUpdate.verifiedBlockNumber
+            .add(ONE)
+            .toNumber()}, found: ${computedState.plasmaBlockNumber}.
           VerifiedStateUpdate transitioned: ${JSON.stringify(verifiedUpdate)}`)
       }
 

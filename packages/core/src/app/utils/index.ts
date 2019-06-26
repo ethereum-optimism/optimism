@@ -21,3 +21,4 @@ export const keccak256 = (value: Buffer): Buffer => {
 export * from './misc'
 export * from './range'
 export * from './buffer'
+export * from './numbers'
