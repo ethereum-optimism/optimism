@@ -34,7 +34,9 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
       throw new Error(
         `Cannot transition from state [${JSON.stringify(
           previousStateUpdate
-        )}] with transaction [${transaction}] because ranges do not overlap.`
+        )}] with transaction [${JSON.stringify(
+          transaction
+        )}] because ranges do not overlap.`
       )
     }
 
@@ -65,7 +67,9 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
       throw new Error(
         `Cannot transition from state [${JSON.stringify(
           previousStateUpdate
-        )}] with transaction [${transaction}] because witness does not match previousStateUpdate owner.`
+        )}] with transaction [${JSON.stringify(
+          transaction
+        )}] because witness does not match previousStateUpdate owner.`
       )
     }
 
