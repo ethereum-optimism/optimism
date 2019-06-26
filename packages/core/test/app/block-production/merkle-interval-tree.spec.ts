@@ -125,7 +125,7 @@ describe.only('Interval Trees and Plasma Blocks', () => {
     })
     it('verification should throw if state update range intersects branch bounds', async () => {
       // generate some valid tree contents
-      const stateUpdates = generateNSequentialStateUpdates(4)
+      const stateUpdates = generateNSequentialStateUpdates(5)
       // make an invalid range intersecting the second SU
       const faultyUpdateIndex = 0
       const updateToReplace = stateUpdates[faultyUpdateIndex]

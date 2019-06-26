@@ -38,7 +38,6 @@ export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
     if (stateUpdate.range.end.gt(rootAndBound.maxEnd)) {
       throw new Error('State Update range.end exceeds the max for its inclusion proof.')
     }
-
     return rootAndBound.root
   }
 }
