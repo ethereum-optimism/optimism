@@ -176,7 +176,10 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
       parentIndex = getParentIndex(siblingIndex)
       siblingIndex = getSiblingIndex(parentIndex)
     }
-    return inclusionProof
+    return {
+      siblings: inclusionProof,
+      leafPosition: new BigNum(leafPosition)
+    }
   }
 
   /**
@@ -189,13 +192,11 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
    */
   public static verify(
     leafNode: GenericMerkleIntervalTreeNode,
-    leafPosition: number,
-    inclusionProof: GenericMerkleIntervalTreeNode[],
+    inclusionProof: MerkleIntervalInclusionProof,
     rootHash: Buffer
   ): boolean {
     const rootAndBounds = GenericMerkleIntervalTree.getRootAndBounds(
       leafNode,
-      leafPosition,
       inclusionProof
     )
     // Check that the roots match.
@@ -208,16 +209,15 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
 
   public static getRootAndBounds(
     leafNode: GenericMerkleIntervalTreeNode,
-    leafPosition: number,
-    inclusionProof: GenericMerkleIntervalTreeNode[]
+    inclusionProof: MerkleIntervalInclusionProof
   ): MerkleIntervalProofOutput {
-    if (leafPosition < 0) {
+    if (inclusionProof.leafPosition.lt(new BigNum(0))) {
       throw new Error('Invalid leaf position.')
     }
 
     // Compute the path based on the leaf index.
     const path = reverse(
-      new BigNum(leafPosition).toString(2, inclusionProof.length)
+      new BigNum(inclusionProof.leafPosition).toString(2, inclusionProof.siblings.length)
     )
 
     // Need the first right sibling to ensure
@@ -225,14 +225,14 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     const firstRightSiblingIndex = path.indexOf('0')
     const firstRightSibling =
       firstRightSiblingIndex >= 0
-        ? inclusionProof[firstRightSiblingIndex]
+        ? inclusionProof.siblings[firstRightSiblingIndex]
         : undefined
 
     let computed: GenericMerkleIntervalTreeNode = leafNode
     let left: GenericMerkleIntervalTreeNode
     let right: GenericMerkleIntervalTreeNode
-    for (let i = 0; i < inclusionProof.length; i++) {
-      const sibling = inclusionProof[i]
+    for (let i = 0; i < inclusionProof.siblings.length; i++) {
+      const sibling = inclusionProof.siblings[i]
 
       if (path[i] === '1') {
         left = sibling
@@ -257,11 +257,9 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
       computed = this.parent(left, right) // note: this checks left.index < right.index
     }
 
-    const implicitStart = leafPosition === 0 ? new BigNum(0) : leafNode.start
     const implicitEnd = firstRightSibling
       ? firstRightSibling.start
       : GenericMerkleIntervalTree.emptyNode(leafNode.start.length).start // messy way to get the max index, TODO clean
-
     return {
         root: computed,
         maxEnd: new BigNum(implicitEnd)

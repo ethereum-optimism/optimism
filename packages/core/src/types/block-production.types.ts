@@ -10,7 +10,10 @@ export interface MerkleIntervalTreeNode {
   data: Buffer // concatenation of (hash, index)
 }
 
-export type MerkleIntervalInclusionProof = MerkleIntervalTreeNode[]
+export interface MerkleIntervalInclusionProof {
+  siblings: MerkleIntervalTreeNode[]
+  leafPosition: BigNumber
+}
 
 export interface MerkleIntervalProofOutput {
   root: MerkleIntervalTreeNode

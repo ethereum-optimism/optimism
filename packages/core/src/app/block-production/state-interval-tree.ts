@@ -1,6 +1,6 @@
 import { GenericMerkleIntervalTree, GenericMerkleIntervalTreeNode } from './'
 import { AbiStateUpdate } from '../'
-import { MerkleIntervalTreeNode } from '../../types';
+import { MerkleIntervalTreeNode, MerkleIntervalInclusionProof } from '../../types';
 
 export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
   public static STATE_ID_LENGTH = 16
@@ -25,13 +25,11 @@ export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
   // and returns the root which it results in to be verified in the assetId tree.
   public static verifyExectedRoot(
     stateUpdate: AbiStateUpdate,
-    leafPosition: number,
-    inclusionProof: GenericMerkleIntervalTreeNode[],
+    inclusionProof: MerkleIntervalInclusionProof,
   ): MerkleIntervalTreeNode {
     const leafNode: MerkleIntervalTreeNode = MerkleStateIntervalTree.calculateStateUpdateLeaf(stateUpdate)
     const rootAndBound = GenericMerkleIntervalTree.getRootAndBounds(
       leafNode,
-      leafPosition,
       inclusionProof
     )
     // Check that the bound agrees with the end.

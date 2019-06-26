@@ -111,7 +111,6 @@ describe.only('Interval Trees and Plasma Blocks', () => {
       const inclusionProof = IntervalTree.getInclusionProof(leafPosition)
       GenericMerkleIntervalTree.verify(
         leaves[leafPosition],
-        leafPosition,
         inclusionProof,
         IntervalTree.root().hash
       )
@@ -149,8 +148,7 @@ describe.only('Interval Trees and Plasma Blocks', () => {
         () =>  {
           MerkleStateIntervalTree.verifyExectedRoot(
             faultyUpdate,
-            faultyUpdateIndex,
-            faultyInclusionProof,
+            faultyInclusionProof
           )
         },
         Error,
@@ -187,13 +185,10 @@ describe.only('Interval Trees and Plasma Blocks', () => {
         },
       ]
       const plasmaBlock = new PlasmaBlock(blockContents)
-      const stateProof = plasmaBlock.getStateUpdateInclusionProof(1, 1)
+      const stateUpdateProof = plasmaBlock.getStateUpdateInclusionProof(1, 1)
       PlasmaBlock.verifyStateUpdateInclusionProof(
         blockContents[1].stateUpdates[1],
-        stateProof.stateTreeInclusionProof,
-        1,
-        stateProof.assetTreeInclusionProof,
-        1,
+        stateUpdateProof,
         plasmaBlock.root().hash
       )
     })

@@ -51,25 +51,18 @@ export class PlasmaBlock extends GenericMerkleIntervalTree implements DoubleMerk
   /**
    * Verifies a double inclusion proof which demonstrates the existence of a state update within the plasma block.
    * @param stateUpdate
-   * @param stateTreeInclusionProof
-   * @param stateUpdatePosition
-   * @param assetTreeInclusionProof
-   * @param assetIdPosition
+   * @param stateUpdateInclusionProof
    * @param blockRootHash
    */
   public static verifyStateUpdateInclusionProof(
     stateUpdate: AbiStateUpdate,
-    stateTreeInclusionProof: GenericMerkleIntervalTreeNode[],
-    stateUpdatePosition: number,
-    assetTreeInclusionProof: GenericMerkleIntervalTreeNode[],
-    assetIdPosition: number,
+    stateUpdateInclusionProof: DoubleMerkleInclusionProof,
     blockRootHash: Buffer
   ): any {
     // Get the assetId state root we'd expect from this inclusion proof and verify the bounds agree with SU.range.end
     const expectedRoot: MerkleIntervalTreeNode = MerkleStateIntervalTree.verifyExectedRoot(
       stateUpdate,
-      stateUpdatePosition,
-      stateTreeInclusionProof
+      stateUpdateInclusionProof.stateTreeInclusionProof
     )
     // generate the assetId leaf from the expected subtree root and SU.depositAddress
     const addressLeafStart: Buffer = Buffer.from(stateUpdate.depositAddress.slice(2), 'hex')
@@ -80,8 +73,7 @@ export class PlasmaBlock extends GenericMerkleIntervalTree implements DoubleMerk
     // verify the blockhash agrees
     return GenericMerkleIntervalTree.verify(
       addressLeafNode,
-      assetIdPosition,
-      assetTreeInclusionProof,
+      stateUpdateInclusionProof.assetTreeInclusionProof,
       blockRootHash
     )
   }
