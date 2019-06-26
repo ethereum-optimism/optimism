@@ -3,6 +3,7 @@ import BigNum = require('bn.js')
 import {
   getOverlappingRange,
   PredicatePlugin,
+  isRangeSubset,
   StateUpdate,
   SyncManager,
   Transaction,
@@ -26,22 +27,8 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
       witness
     )
 
-    const range = getOverlappingRange(
-      previousStateUpdate.range,
-      transaction.range
-    )
-    if (range === undefined) {
-      throw new Error(
-        `Cannot transition from state [${JSON.stringify(
-          previousStateUpdate
-        )}] with transaction [${JSON.stringify(
-          transaction
-        )}] because ranges do not overlap.`
-      )
-    }
-
     return {
-      range,
+      range: transaction.range,
       stateObject: transaction.parameters.newState,
       depositAddress: transaction.depositAddress,
       plasmaBlockNumber: transaction.parameters.originBlock,
@@ -84,6 +71,16 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
         )}] with transaction [${JSON.stringify(
           transaction
         )}] because block number [${transaction.parameters.originBlock.toNumber()}] is not greater than previous state block number.`
+      )
+    }
+
+    if (!isRangeSubset(transaction.range, previousStateUpdate.range)) {
+      throw new Error(
+        `Cannot transition from state [${JSON.stringify(
+          previousStateUpdate
+        )}] with transaction [${JSON.stringify(
+          transaction
+        )}] because transaction range is not a subset of previous state update range.`
       )
     }
 
