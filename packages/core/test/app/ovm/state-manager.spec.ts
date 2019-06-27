@@ -4,13 +4,19 @@ import '../../setup'
 import debug from 'debug'
 const log = debug('test:info:state-manager')
 import BigNum = require('bn.js')
-import { DefaultStateDB, DefaultStateManager, ONE } from '../../../src/app'
+import {
+  DefaultStateDB,
+  DefaultStateManager,
+  ONE,
+  stateUpdatesEqual,
+} from '../../../src/app'
 import {
   PluginManager,
   PredicatePlugin,
   Range,
   StateDB,
   StateManager,
+  StateObject,
   StateUpdate,
   Transaction,
   VerifiedStateUpdate,
@@ -35,25 +41,23 @@ class DummyPredicatePlugin implements PredicatePlugin {
   public executeStateTransition(
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
-    inBlock: BigNum,
     witness: string = 'none'
-  ): Promise<StateUpdate> {
+  ): Promise<StateObject> {
     return undefined
   }
 }
 
-function getPluginThatReturns(stateUpdates: StateUpdate[]): PredicatePlugin {
+function getPluginThatReturns(stateObjects: StateObject[]): PredicatePlugin {
   const predicatePlugin: PredicatePlugin = new DummyPredicatePlugin()
   predicatePlugin.executeStateTransition = async (
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
-    inBlock: BigNum,
     witness: string = 'none'
-  ): Promise<StateUpdate> => {
-    if (stateUpdates.length > 1) {
-      return stateUpdates.shift()
+  ): Promise<StateObject> => {
+    if (stateObjects.length > 1) {
+      return stateObjects.shift()
     }
-    return stateUpdates[0]
+    return stateObjects[0]
   }
   return predicatePlugin
 }
@@ -87,19 +91,15 @@ function getStateUpdate(
   start: BigNum,
   end: BigNum,
   plasmaBlockNumber: BigNum,
-  depositAddress: string = '0x1234',
-  predicateAddress: string = '0x1234567890',
-  data: any = { dummyData: false }
+  stateObject: StateObject,
+  depositAddress: string = '0x1234'
 ): StateUpdate {
   return {
     range: {
       start,
       end,
     },
-    stateObject: {
-      predicateAddress,
-      data,
-    },
+    stateObject,
     depositAddress,
     plasmaBlockNumber: new BigNum(plasmaBlockNumber),
   }
@@ -123,9 +123,8 @@ function getVerifiedStateUpdate(
       start,
       end,
       block,
-      depositAddress,
-      predicateAddress,
-      data
+      { predicateAddress, data },
+      depositAddress
     ),
   }
 }
@@ -165,16 +164,20 @@ describe('DefaultStateManager', () => {
     const nextBlockNumber: BigNum = new BigNum(11)
     const depositAddress = '0x1234'
     const predicateAddress = '0x12345678'
+    const defaultEndData = { testResult: 'test' }
 
     const transaction: Transaction = getTransaction(depositAddress, start, end)
+    const endStateObject: StateObject = {
+      predicateAddress,
+      data: defaultEndData,
+    }
 
     const endStateUpdate: StateUpdate = getStateUpdate(
       start,
       end,
       nextBlockNumber,
-      depositAddress,
-      predicateAddress,
-      { testResult: 'test' }
+      endStateObject,
+      depositAddress
     )
 
     it('should process simple transaction for contiguous range', async () => {
@@ -188,7 +191,7 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateObject])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
       const pluginManager: PluginManager = getPluginManagerThatReturns(
@@ -208,7 +211,7 @@ describe('DefaultStateManager', () => {
         defaultWitness
       )
 
-      result.stateUpdate.should.equal(endStateUpdate)
+      assert(stateUpdatesEqual(result.stateUpdate, endStateUpdate))
 
       result.validRanges.length.should.equal(1)
       result.validRanges[0].start.should.equal(start)
@@ -237,7 +240,7 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateObject])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
       const pluginManager: PluginManager = getPluginManagerThatReturns(
@@ -257,7 +260,7 @@ describe('DefaultStateManager', () => {
         defaultWitness
       )
 
-      result.stateUpdate.should.equal(endStateUpdate)
+      assert(stateUpdatesEqual(result.stateUpdate, endStateUpdate))
 
       result.validRanges.length.should.equal(2)
       result.validRanges[0].start.should.equal(start)
@@ -288,7 +291,7 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateObject])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
       const pluginManager: PluginManager = getPluginManagerThatReturns(
@@ -308,7 +311,7 @@ describe('DefaultStateManager', () => {
         defaultWitness
       )
 
-      result.stateUpdate.should.equal(endStateUpdate)
+      assert(stateUpdatesEqual(result.stateUpdate, endStateUpdate))
 
       result.validRanges.length.should.equal(2)
       result.validRanges[0].start.should.equal(start)
@@ -337,7 +340,7 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateObject])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
       const pluginManager: PluginManager = getPluginManagerThatReturns(
@@ -357,7 +360,7 @@ describe('DefaultStateManager', () => {
         defaultWitness
       )
 
-      result.stateUpdate.should.equal(endStateUpdate)
+      assert(stateUpdatesEqual(result.stateUpdate, endStateUpdate))
 
       result.validRanges.length.should.equal(2)
       result.validRanges[0].start.should.equal(start)
@@ -412,7 +415,7 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateObject])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
       const pluginManager: PluginManager = getPluginManagerThatReturns(
@@ -458,26 +461,19 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const firstStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        nextBlockNumber,
-        depositAddress,
+      const firstStateObject: StateObject = {
         predicateAddress,
-        { testResult: 'test' }
-      )
-      const plugin: PredicatePlugin = getPluginThatReturns([firstStateUpdate])
+        data: { testResult: 'test' },
+      }
 
-      const secondStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        nextBlockNumber,
-        depositAddress,
-        secondPredicateAddress,
-        { testResult: 'test 2' }
-      )
+      const plugin: PredicatePlugin = getPluginThatReturns([firstStateObject])
+
+      const secondStateObject: StateObject = {
+        predicateAddress: secondPredicateAddress,
+        data: { testResult: 'test' },
+      }
       const secondPlugin: PredicatePlugin = getPluginThatReturns([
-        secondStateUpdate,
+        secondStateObject,
       ])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -504,7 +500,7 @@ describe('DefaultStateManager', () => {
       }
     })
 
-    it('should fail if same predicate but StateUpdates do not match', async () => {
+    it('should fail if same predicate but StateObjects do not match', async () => {
       const midPoint = end
         .sub(start)
         .divRound(new BigNum(2))
@@ -526,25 +522,18 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const firstStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        nextBlockNumber,
-        depositAddress,
+      const firstStateObject: StateObject = {
         predicateAddress,
-        { testResult: 'test' }
-      )
-      const secondStateUpdate: StateUpdate = getStateUpdate(
-        start,
-        end,
-        nextBlockNumber,
-        depositAddress,
+        data: { testResult: 'test' },
+      }
+
+      const secondStateObject: StateObject = {
         predicateAddress,
-        { testResult: 'test 2' }
-      )
+        data: { testResult: 'test 2' },
+      }
       const plugin: PredicatePlugin = getPluginThatReturns([
-        firstStateUpdate,
-        secondStateUpdate,
+        firstStateObject,
+        secondStateObject,
       ])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
@@ -579,7 +568,7 @@ describe('DefaultStateManager', () => {
         ),
       ]
 
-      const plugin: PredicatePlugin = getPluginThatReturns([endStateUpdate])
+      const plugin: PredicatePlugin = getPluginThatReturns([endStateObject])
 
       const stateDB: StateDB = getStateDBThatReturns(verifiedStateUpdates)
       const pluginManager: PluginManager = getPluginManagerThatReturns(

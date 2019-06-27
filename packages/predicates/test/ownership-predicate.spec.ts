@@ -9,7 +9,7 @@ import {
   StateObject,
   StateUpdate,
   Transaction,
-  stateUpdatesEqual,
+  stateObjectsEqual,
 } from '@pigi/core'
 import * as assert from 'assert'
 
@@ -123,18 +123,13 @@ describe('OwnershipPredicate', async () => {
     )
 
     it('should return expected StateUpdate with valid input', async () => {
-      const stateUpdate: StateUpdate = await ownershipPredicate.executeStateTransition(
+      const stateObject: StateObject = await ownershipPredicate.executeStateTransition(
         defaultPreviousStateUpdate,
         defaultTransaction,
-        defaultInBlock,
         defaultWitness
       )
-      const expectedResult: StateUpdate = getStateUpdate(
-        defaultNewState,
-        defaultInBlock
-      )
 
-      assert(stateUpdatesEqual(stateUpdate, expectedResult))
+      assert(stateObjectsEqual(stateObject, defaultNewState))
     })
   })
 })

@@ -12,21 +12,15 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
   public async executeStateTransition(
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
-    inBlock: BigNum,
     witness: string
-  ): Promise<StateUpdate> {
+  ): Promise<StateObject> {
     await this.validateStateTransition(
       previousStateUpdate,
       transaction,
       witness
     )
 
-    return {
-      range: transaction.range,
-      stateObject: transaction.body.newState,
-      depositAddress: transaction.depositAddress,
-      plasmaBlockNumber: inBlock,
-    }
+    return transaction.body.newState
   }
 
   /**

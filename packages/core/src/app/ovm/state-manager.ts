@@ -14,6 +14,7 @@ import {
   VerifiedStateUpdate,
   isValidTransaction,
   isValidVerifiedStateUpdate,
+  StateObject,
 } from '../../types'
 import { getOverlappingRange, ONE, rangesIntersect } from '../../app'
 
@@ -56,49 +57,38 @@ export class DefaultStateManager implements StateManager {
 
     // Iterate over the verified updates, transition their state, and add their ranges to the return object
     for (const verifiedUpdate of verifiedUpdates) {
-      if (!isValidVerifiedStateUpdate(verifiedUpdate)) {
-        throw new Error(
-          `Cannot process transaction for invalid VerifiedStateUpdate: ${JSON.stringify(
-            verifiedUpdate
-          )}`
-        )
-      }
-
-      // If the ranges don't overlap, eagerly exit
-      if (!rangesIntersect(verifiedUpdate.range, transaction.range)) {
-        throw Error(`VerifiedStateUpdate for range [${start}, ${end}) is outside of range: 
-        ${JSON.stringify(
-          verifiedUpdate.range
-        )}. VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}.`)
-      }
-
-      if (!verifiedUpdate.verifiedBlockNumber.add(ONE).eq(inBlock)) {
-        throw Error(`VerifiedStateUpdate has block ${
-          verifiedUpdate.verifiedBlockNumber
-        } and ${inBlock.sub(ONE).toNumber()} was expected. 
-          VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}`)
-      }
+      this.validateVerifiedStateUpdateForTransaction(
+        verifiedUpdate,
+        transaction,
+        inBlock
+      )
 
       const predicatePlugin: PredicatePlugin = await this.pluginManager.getPlugin(
         verifiedUpdate.stateUpdate.stateObject.predicateAddress
       )
 
-      const computedState: StateUpdate = await predicatePlugin.executeStateTransition(
+      const computedState: StateObject = await predicatePlugin.executeStateTransition(
         verifiedUpdate.stateUpdate,
         transaction,
-        inBlock,
         witness
       )
 
+      const computedstateUpdate: StateUpdate = {
+        range: transaction.range,
+        stateObject: computedState,
+        depositAddress: transaction.depositAddress,
+        plasmaBlockNumber: inBlock,
+      }
+
       if (
-        !computedState.plasmaBlockNumber.eq(
+        !computedstateUpdate.plasmaBlockNumber.eq(
           verifiedUpdate.verifiedBlockNumber.add(ONE)
         )
       ) {
         throw new Error(`Transaction resulted in StateUpdate with unexpected block number.
           Expected: ${verifiedUpdate.verifiedBlockNumber
             .add(ONE)
-            .toNumber()}, found: ${computedState.plasmaBlockNumber}.
+            .toNumber()}, found: ${computedstateUpdate.plasmaBlockNumber}.
           VerifiedStateUpdate transitioned: ${JSON.stringify(verifiedUpdate)}`)
       }
 
@@ -107,10 +97,15 @@ export class DefaultStateManager implements StateManager {
       )
 
       if (result.stateUpdate === undefined) {
-        result.stateUpdate = computedState
-      } else if (result.stateUpdate !== computedState) {
+        result.stateUpdate = {
+          range: transaction.range,
+          stateObject: computedState,
+          depositAddress: transaction.depositAddress,
+          plasmaBlockNumber: inBlock,
+        }
+      } else if (result.stateUpdate.stateObject !== computedState) {
         throw new Error(`State transition resulted in two different states: ${JSON.stringify(
-          result.stateUpdate
+          result.stateUpdate.stateObject
         )} and 
           ${computedState}. Latter differed from former at range ${JSON.stringify(
           result.validRanges.pop()
@@ -127,5 +122,45 @@ export class DefaultStateManager implements StateManager {
 
   public queryState(query: StateQuery): Promise<StateQueryResult[]> {
     throw Error('DefaultStateManager.queryState is not implemented.')
+  }
+
+  /**
+   * Validates that the provided VerifiedStateUpdate is valid for the provided Transaction and block.
+   *
+   * @param verifiedUpdate the VerifiedStateUpdate in question
+   * @param transaction the Transaction in question
+   * @param inBlock the Block number
+   *
+   * @throws if invalid
+   */
+  private validateVerifiedStateUpdateForTransaction(
+    verifiedUpdate: VerifiedStateUpdate,
+    transaction: Transaction,
+    inBlock: BigNum
+  ): void {
+    if (!isValidVerifiedStateUpdate(verifiedUpdate)) {
+      throw new Error(
+        `Cannot process transaction for invalid VerifiedStateUpdate: ${JSON.stringify(
+          verifiedUpdate
+        )}`
+      )
+    }
+
+    // If the ranges don't overlap, eagerly exit
+    if (!rangesIntersect(verifiedUpdate.range, transaction.range)) {
+      throw Error(`VerifiedStateUpdate for range [${transaction.range.start}, ${
+        transaction.range.end
+      }) is outside of range: 
+        ${JSON.stringify(
+          verifiedUpdate.range
+        )}. VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}.`)
+    }
+
+    if (!verifiedUpdate.verifiedBlockNumber.add(ONE).eq(inBlock)) {
+      throw Error(`VerifiedStateUpdate has block ${
+        verifiedUpdate.verifiedBlockNumber
+      } and ${inBlock.sub(ONE)} was expected. 
+          VerifiedStateUpdate: ${JSON.stringify(verifiedUpdate)}`)
+    }
   }
 }
