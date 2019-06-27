@@ -267,7 +267,8 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
 
     const implicitEnd = firstRightSibling
       ? firstRightSibling.lowerBound
-      : GenericMerkleIntervalTree.emptyNode(leafNode.lowerBound.length).lowerBound // messy way to get the max index, TODO clean
+      : GenericMerkleIntervalTree.emptyNode(leafNode.lowerBound.length)
+          .lowerBound // messy way to get the max index, TODO clean
     return {
       root: computed,
       upperBound: new BigNum(implicitEnd),

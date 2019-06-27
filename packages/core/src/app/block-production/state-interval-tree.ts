@@ -1,13 +1,11 @@
 import { GenericMerkleIntervalTree, GenericMerkleIntervalTreeNode } from './'
-import { AbiStateUpdate } from '../'
+import { AbiStateUpdate, STATE_ID_LENGTH } from '../'
 import {
   MerkleIntervalTreeNode,
   MerkleIntervalInclusionProof,
 } from '../../types'
 
 export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
-  public static STATE_ID_LENGTH = 16
-
   public generateLeafNode(
     dataBlock: AbiStateUpdate
   ): GenericMerkleIntervalTreeNode {
@@ -22,10 +20,7 @@ export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
     const hash = GenericMerkleIntervalTree.hash(
       Buffer.from(stateUpdate.encoded)
     )
-    const index = stateUpdate.range.start.toBuffer(
-      'be',
-      MerkleStateIntervalTree.STATE_ID_LENGTH
-    )
+    const index = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
     return new GenericMerkleIntervalTreeNode(hash, index)
   }
 

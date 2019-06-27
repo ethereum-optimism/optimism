@@ -17,14 +17,14 @@ export interface MerkleIntervalInclusionProof {
 
 export interface MerkleIntervalProofOutput {
   root: MerkleIntervalTreeNode // the root node resulting from a merkle index tree inclusion proof
-  upperBound: BigNumber // The upper bound that an inclusion proof is valid for.  
-  // For a single MerkleIntervalTree, it is mathematically impossible for two branches to exist 
+  upperBound: BigNumber // The upper bound that an inclusion proof is valid for.
+  // For a single MerkleIntervalTree, it is mathematically impossible for two branches to exist
   // such that their [leaf.lowerBound, proofOutput.upperBound) intersect.
 }
 
 export interface MerkleIntervalTree {
   dataBlocks: any // The blocks of data we are constructing a merkle interval tree for.
-  levels: MerkleIntervalTreeNode[][] // The 'MerkleIntervalTreeNode's which make up the tree. levels[0].length == 
+  levels: MerkleIntervalTreeNode[][] // The 'MerkleIntervalTreeNode's which make up the tree. levels[0].length ==
   root(): MerkleIntervalTreeNode
   getInclusionProof(leafposition: number): MerkleIntervalInclusionProof
 }
