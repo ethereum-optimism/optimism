@@ -50,22 +50,6 @@ export const rangesIntersect = (range1: Range, range2: Range): boolean => {
 }
 
 /**
- * Checks whether or not the provided ranges are equal
- *
- * @param range1 the first range
- * @param range2 the second range
- * @returns true if the ranges are the same, false otherwise
- */
-export const rangesEqual = (range1: Range, range2: Range): boolean => {
-  return (
-    range1 !== undefined &&
-    range2 !== undefined &&
-    range1.start.eq(range2.start) &&
-    range1.end.eq(range2.end)
-  )
-}
-
-/**
  * Checks whether or not a Range is entirely contained within another Range (inclusive)
  *
  * @param subset the Range that is being checked as the subset

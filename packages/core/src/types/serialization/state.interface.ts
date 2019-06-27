@@ -40,12 +40,11 @@ export interface StateQueryResult {
 
 export interface Transaction {
   depositAddress: string
-  methodId: string
-  parameters: any
   range: Range
+  body: any
 }
 
-export interface OwnershipParameters {
+export interface OwnershipBody {
   newState: StateObject
   originBlock: BigNum
   maxBlock: BigNum

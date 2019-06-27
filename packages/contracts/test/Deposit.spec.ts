@@ -4,7 +4,7 @@ import {
   AbiStateObject,
   AbiRange,
   hexStringify,
-  AbiOwnershipParameters,
+  AbiOwnershipBody,
   AbiOwnershipTransaction,
 } from '@pigi/core'
 import BigNum = require('bn.js')
@@ -174,20 +174,17 @@ describe('Deposit with Ownership', () => {
       }
       await ownershipPredicate.startExitByOwner(checkpoint)
       // Now deprecate the exit
-      const txParams = new AbiOwnershipParameters(
+      const txBody = new AbiOwnershipBody(
         depositStateObject,
         new BigNum(0),
         new BigNum(9)
       )
       const txDepositContract = depositContract.address
-      const txMethodId =
-        '0x0000000000000000000000000000000000000000000000000000000000000000'
       const txRange = new AbiRange(new BigNum(10), new BigNum(30))
       const transaction = new AbiOwnershipTransaction(
         txDepositContract,
-        txMethodId,
-        txParams,
-        txRange
+        txRange,
+        txBody
       )
       const witness: string = '0x00'
 
@@ -298,20 +295,17 @@ describe('Deposit with Ownership', () => {
       }
       await depositContract.challengeCheckpoint(challenge)
       // Deprecate the exit so we can remove the challenge
-      const txParams = new AbiOwnershipParameters(
+      const txBody = new AbiOwnershipBody(
         checkpoint.stateUpdate.stateObject,
         new BigNum(0),
         new BigNum(10)
       )
       const txDepositContract = depositContract.address
-      const txMethodId =
-        '0x0000000000000000000000000000000000000000000000000000000000000000'
       const txRange = new AbiRange(new BigNum(10), new BigNum(30))
       const transaction = new AbiOwnershipTransaction(
         txDepositContract,
-        txMethodId,
-        txParams,
-        txRange
+        txRange,
+        txBody
       )
       const witness: string = '0x00'
       await ownershipPredicate.deprecateExit(

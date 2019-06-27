@@ -32,8 +32,7 @@ contract DataTypes {
 
     struct Transaction {
         address depositAddress;
-        bytes32 methodId;
-        bytes parameters;
+        bytes body;
         Range range;
     }
 }

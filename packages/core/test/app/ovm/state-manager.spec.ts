@@ -35,6 +35,7 @@ class DummyPredicatePlugin implements PredicatePlugin {
   public executeStateTransition(
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
+    inBlock: BigNum,
     witness: string = 'none'
   ): Promise<StateUpdate> {
     return undefined
@@ -46,6 +47,7 @@ function getPluginThatReturns(stateUpdates: StateUpdate[]): PredicatePlugin {
   predicatePlugin.executeStateTransition = async (
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
+    inBlock: BigNum,
     witness: string = 'none'
   ): Promise<StateUpdate> => {
     if (stateUpdates.length > 1) {
@@ -130,15 +132,13 @@ function getVerifiedStateUpdate(
 
 function getTransaction(
   depositAddress: string,
-  methodId: string,
   start: BigNum,
   end: BigNum,
-  parameters: any = { dummyData: false }
+  body: any = { dummyData: false }
 ) {
   return {
     depositAddress,
-    methodId,
-    parameters,
+    body,
     range: {
       start,
       end,
@@ -164,15 +164,9 @@ describe('DefaultStateManager', () => {
     const previousBlockNumber: BigNum = new BigNum(10)
     const nextBlockNumber: BigNum = new BigNum(11)
     const depositAddress = '0x1234'
-    const methodId = '0x11122'
     const predicateAddress = '0x12345678'
 
-    const transaction: Transaction = getTransaction(
-      depositAddress,
-      methodId,
-      start,
-      end
-    )
+    const transaction: Transaction = getTransaction(depositAddress, start, end)
 
     const endStateUpdate: StateUpdate = getStateUpdate(
       start,
