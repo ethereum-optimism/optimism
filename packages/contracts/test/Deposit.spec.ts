@@ -45,7 +45,7 @@ async function depositErc20(
   await depositContract.deposit(100, depositStateObject)
 }
 
-describe('Deposit with Ownership', () => {
+describe('Deposit Contract with Ownership', () => {
   const provider = createMockProvider()
   const [wallet, walletTo] = getWallets(provider)
   let token
