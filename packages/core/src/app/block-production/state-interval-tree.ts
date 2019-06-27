@@ -44,7 +44,7 @@ export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
       inclusionProof
     )
     // Check that the bound agrees with the end.
-    if (stateUpdate.range.end.gt(rootAndBound.maxEnd)) {
+    if (stateUpdate.range.end.gt(rootAndBound.upperBound)) {
       throw new Error(
         'State Update range.end exceeds the max for its inclusion proof.'
       )

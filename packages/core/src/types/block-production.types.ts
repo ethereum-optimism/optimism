@@ -17,9 +17,9 @@ export interface MerkleIntervalInclusionProof {
 
 export interface MerkleIntervalProofOutput {
   root: MerkleIntervalTreeNode // the root node resulting from a merkle index tree inclusion proof
-  maxEnd: BigNumber // The upper bound that an inclusion proof is valid for.  
+  upperBound: BigNumber // The upper bound that an inclusion proof is valid for.  
   // For a single MerkleIntervalTree, it is mathematically impossible for two branches to exist 
-  // such that their [leaf.lowerBound, proofOutput.upperBound) ranges intersect.
+  // such that their [leaf.lowerBound, proofOutput.upperBound) intersect.
 }
 
 export interface MerkleIntervalTree {

@@ -270,7 +270,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
       : GenericMerkleIntervalTree.emptyNode(leafNode.start.length).start // messy way to get the max index, TODO clean
     return {
       root: computed,
-      maxEnd: new BigNum(implicitEnd),
+      upperBound: new BigNum(implicitEnd),
     }
   }
 }
