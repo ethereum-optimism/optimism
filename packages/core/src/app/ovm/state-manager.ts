@@ -73,25 +73,6 @@ export class DefaultStateManager implements StateManager {
         witness
       )
 
-      const computedstateUpdate: StateUpdate = {
-        range: transaction.range,
-        stateObject: computedState,
-        depositAddress: transaction.depositAddress,
-        plasmaBlockNumber: inBlock,
-      }
-
-      if (
-        !computedstateUpdate.plasmaBlockNumber.eq(
-          verifiedUpdate.verifiedBlockNumber.add(ONE)
-        )
-      ) {
-        throw new Error(`Transaction resulted in StateUpdate with unexpected block number.
-          Expected: ${verifiedUpdate.verifiedBlockNumber
-            .add(ONE)
-            .toNumber()}, found: ${computedstateUpdate.plasmaBlockNumber}.
-          VerifiedStateUpdate transitioned: ${JSON.stringify(verifiedUpdate)}`)
-      }
-
       result.validRanges.push(
         getOverlappingRange(transaction.range, verifiedUpdate.range)
       )
