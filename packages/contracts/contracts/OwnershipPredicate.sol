@@ -24,11 +24,10 @@ contract OwnershipPredicate {
     struct UnsignedOwnershipTransaction {
         address depositAddress;
         types.Range range;
-        bytes32 methodId;
-        Parameters parameters;
+        Body body;
     }
 
-    struct Parameters {
+    struct Body {
         types.StateObject newState;
         uint64 originBlock;
         uint64 maxBlock;

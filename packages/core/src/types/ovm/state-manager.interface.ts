@@ -1,3 +1,5 @@
+import BigNum = require('bn.js')
+
 import {
   HistoryProof,
   Range,
@@ -13,11 +15,13 @@ export interface StateManager {
    *
    * @param transaction the transaction to execute
    * @param inBlock the block in which this transaction is expected to be executed
+   * @param witness the signature data for the transaction in question
    * @returns the resulting StateUpdate and a list of Ranges over which the StateUpdate has been validated
    */
   executeTransaction(
     transaction: Transaction,
-    inBlock: number
+    inBlock: BigNum,
+    witness: string
   ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }>
 
   /**

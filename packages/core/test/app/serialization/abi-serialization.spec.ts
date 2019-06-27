@@ -10,7 +10,7 @@ import {
   AbiStateObject,
   AbiStateUpdate,
   AbiRange,
-  AbiOwnershipParameters,
+  AbiOwnershipBody,
   AbiOwnershipTransaction,
 } from '../../../src/app'
 
@@ -40,42 +40,39 @@ describe('AbiEncoding', () => {
       '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F',
       '0x1234'
     )
-    const transactionParams = new AbiOwnershipParameters(
+    const transactionBody = new AbiOwnershipBody(
       stateObject,
       new BigNum(0),
       new BigNum(0)
     )
-    const transactionParamsEncoding = transactionParams.encoded
-    const decodedTransactionParams = AbiOwnershipParameters.from(
-      transactionParamsEncoding
+    const transactionBodyEncoding = transactionBody.encoded
+    const decodedTransactionBody = AbiOwnershipBody.from(
+      transactionBodyEncoding
     )
-    log('params encoded:\n', transactionParamsEncoding)
-    log('Decoded paraams encoded:\n', decodedTransactionParams.encoded)
-    decodedTransactionParams.should.deep.equal(transactionParams)
+    log('body encoded:\n', transactionBodyEncoding)
+    log('Decoded body encoded:\n', decodedTransactionBody.encoded)
+    decodedTransactionBody.should.deep.equal(transactionBody)
   })
   it('should encoded & decode AbiOwnershipTransaction without throwing', async () => {
     const stateObject = new AbiStateObject(
       '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F',
       '0x1234'
     )
-    const transactionParams = new AbiOwnershipParameters(
+    const transactionBody = new AbiOwnershipBody(
       stateObject,
       new BigNum(0),
       new BigNum(0)
     )
     const depositContract = '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F'
-    const methodId =
-      '0x0000000000000000000000000000000000000000000000000000000000000000'
     const range = new AbiRange(new BigNum(10), new BigNum(30))
     const transaction = new AbiOwnershipTransaction(
       depositContract,
-      methodId,
-      transactionParams,
-      range
+      range,
+      transactionBody
     )
-    const transactionParamsEncoding = transaction.encoded
+    const transactionBodyEncoding = transaction.encoded
     const decodedTransaction = AbiOwnershipTransaction.from(
-      transactionParamsEncoding
+      transactionBodyEncoding
     )
     decodedTransaction.should.deep.equal(transaction)
   })

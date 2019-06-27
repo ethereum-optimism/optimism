@@ -50,6 +50,22 @@ export const rangesIntersect = (range1: Range, range2: Range): boolean => {
 }
 
 /**
+ * Checks whether or not a Range is entirely contained within another Range (inclusive)
+ *
+ * @param subset the Range that is being checked as the subset
+ * @param superset the Range that is being checked as the superset
+ * @returns true if subset is a subset of superset, false otherwise
+ */
+export const isRangeSubset = (subset: Range, superset: Range): boolean => {
+  return (
+    subset !== undefined &&
+    superset !== undefined &&
+    subset.start.gte(superset.start) &&
+    subset.end.lte(superset.end)
+  )
+}
+
+/**
  * RangeStore makes it easy to store ranges.
  * When ranges are added, only the sections with
  * a higher block number than existing ranges

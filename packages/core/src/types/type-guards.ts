@@ -98,7 +98,6 @@ export const isValidTransaction = (
     !!transaction &&
     !!transaction.range &&
     !!transaction.depositAddress &&
-    !!transaction.methodId &&
     isValidRange(transaction.range)
   )
 }
