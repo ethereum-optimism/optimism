@@ -122,7 +122,7 @@ describe('OwnershipPredicate', async () => {
       defaultTransactionBody
     )
 
-    it('should return expected StateUpdate with valid input', async () => {
+    it('should return expected StateObject with valid input', async () => {
       const stateObject: StateObject = await ownershipPredicate.executeStateTransition(
         defaultPreviousStateUpdate,
         defaultTransaction,
@@ -130,6 +130,37 @@ describe('OwnershipPredicate', async () => {
       )
 
       assert(stateObjectsEqual(stateObject, defaultNewState))
+    })
+
+    it('should throw if witness is not from owner', async () => {
+      try {
+        await ownershipPredicate.executeStateTransition(
+          defaultPreviousStateUpdate,
+          defaultTransaction,
+          '0x0000000'
+        )
+        assert(false, 'Should have thrown an error and not gotten here')
+      } catch (e) {
+        // success
+      }
+    })
+
+    it('should throw if originBlock is <= previous update block number', async () => {
+      const body: OwnershipBody = getTransactionBody(
+        defaultTransaction.body.newState,
+        defaultPreviousStateUpdate.plasmaBlockNumber
+      )
+      const transaction: Transaction = getTransaction(body)
+      try {
+        await ownershipPredicate.executeStateTransition(
+          defaultPreviousStateUpdate,
+          transaction,
+          defaultWitness
+        )
+        assert(false, 'Should have thrown an error and not gotten here')
+      } catch (e) {
+        // success
+      }
     })
   })
 })

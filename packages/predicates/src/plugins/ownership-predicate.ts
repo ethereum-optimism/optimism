@@ -1,5 +1,3 @@
-import BigNum = require('bn.js')
-
 import {
   PredicatePlugin,
   StateUpdate,
