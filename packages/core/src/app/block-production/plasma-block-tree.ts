@@ -1,13 +1,20 @@
 /*Internal Imports */
 import {
-  MerkleIntervalTree,
-  MerkleIntervalTreeNode,
+  GenericMerkleIntervalTree,
+  GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
 } from './'
 import { AbiStateUpdate } from '../'
-import { SubtreeContents } from '../../types'
+import {
+  SubtreeContents,
+  MerkleIntervalProofOutput,
+  DoubleMerkleIntervalTree,
+  DoubleMerkleInclusionProof,
+  MerkleIntervalTreeNode,
+} from '../../types'
 
-export class PlasmaBlock extends MerkleIntervalTree {
+export class PlasmaBlock extends GenericMerkleIntervalTree
+  implements DoubleMerkleIntervalTree {
   public subtrees: MerkleStateIntervalTree[]
 
   public generateLeafNodes() {
@@ -17,7 +24,9 @@ export class PlasmaBlock extends MerkleIntervalTree {
 
   // The "leaf node" for the plasma block is itself the root hash of a state update tree.
   // Thus, its data blocks are in fact entire subtrees.
-  public generateLeafNode(subtree: SubtreeContents): MerkleIntervalTreeNode {
+  public generateLeafNode(
+    subtree: SubtreeContents
+  ): GenericMerkleIntervalTreeNode {
     // Create a state subtree for these state updates.
     const merkleStateIntervalTree = new MerkleStateIntervalTree(
       subtree.stateUpdates
@@ -25,7 +34,7 @@ export class PlasmaBlock extends MerkleIntervalTree {
     // Store the state subtree.
     this.subtrees.push(merkleStateIntervalTree)
     // Return a leaf node with the root of the state tree and an index of the depositAddress.
-    return new MerkleIntervalTreeNode(
+    return new GenericMerkleIntervalTreeNode(
       merkleStateIntervalTree.root().hash,
       subtree.assetId
     )
@@ -39,71 +48,44 @@ export class PlasmaBlock extends MerkleIntervalTree {
   public getStateUpdateInclusionProof(
     stateUpdatePosition: number,
     assetIdPosition: number
-  ): any {
+  ): DoubleMerkleInclusionProof {
     return {
       stateTreeInclusionProof: this.subtrees[assetIdPosition].getInclusionProof(
         stateUpdatePosition
       ),
-      addressTreeInclusionProof: this.getInclusionProof(assetIdPosition),
+      assetTreeInclusionProof: this.getInclusionProof(assetIdPosition),
     }
   }
 
   /**
    * Verifies a double inclusion proof which demonstrates the existence of a state update within the plasma block.
    * @param stateUpdate
-   * @param stateTreeInclusionProof
-   * @param stateUpdatePosition
-   * @param addressTreeInclusionProof
-   * @param assetIdPosition
+   * @param stateUpdateInclusionProof
    * @param blockRootHash
    */
   public static verifyStateUpdateInclusionProof(
     stateUpdate: AbiStateUpdate,
-    stateTreeInclusionProof: MerkleIntervalTreeNode[],
-    stateUpdatePosition: number,
-    addressTreeInclusionProof: MerkleIntervalTreeNode[],
-    assetIdPosition: number,
+    stateUpdateInclusionProof: DoubleMerkleInclusionProof,
     blockRootHash: Buffer
   ): any {
-    const leafNodeHash: Buffer = MerkleIntervalTree.hash(
-      Buffer.from(stateUpdate.encoded)
+    // Get the assetId state root we'd expect from this inclusion proof and verify the bounds agree with SU.range.end
+    const expectedRoot: MerkleIntervalTreeNode = MerkleStateIntervalTree.verifyExectedRoot(
+      stateUpdate,
+      stateUpdateInclusionProof.stateTreeInclusionProof
     )
-    const leafNodeIndex: Buffer = stateUpdate.range.start.toBuffer(
-      'be',
-      MerkleStateIntervalTree.STATE_ID_LENGTH
-    )
-    const stateLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(
-      leafNodeHash,
-      leafNodeIndex
-    )
-    const stateUpdateRootAndBounds = MerkleIntervalTree.getRootAndBounds(
-      stateLeafNode,
-      stateUpdatePosition,
-      stateTreeInclusionProof
-    )
-
-    if (stateUpdateRootAndBounds.bounds.implicitEnd.lt(stateUpdate.range.end)) {
-      throw new Error(
-        'state update inclusion failed: inclusion proof bounds: ' +
-          stateUpdateRootAndBounds.bounds +
-          ' disagrees with SU range: ' +
-          stateUpdate.range
-      )
-    }
-
-    const addressLeafHash: Buffer = stateUpdateRootAndBounds.root.hash
-    const addressLeafIndex: Buffer = Buffer.from(
+    // generate the assetId leaf from the expected subtree root and SU.depositAddress
+    const addressLeafStart: Buffer = Buffer.from(
       stateUpdate.depositAddress.slice(2),
       'hex'
     )
-    const addressLeafNode: MerkleIntervalTreeNode = new MerkleIntervalTreeNode(
-      addressLeafHash,
-      addressLeafIndex
+    const addressLeafNode: GenericMerkleIntervalTreeNode = new GenericMerkleIntervalTreeNode(
+      expectedRoot.hash,
+      addressLeafStart
     )
-    return MerkleIntervalTree.verify(
+    // verify the blockhash agrees
+    return GenericMerkleIntervalTree.verify(
       addressLeafNode,
-      assetIdPosition,
-      addressTreeInclusionProof,
+      stateUpdateInclusionProof.assetTreeInclusionProof,
       blockRootHash
     )
   }

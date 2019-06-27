@@ -36,4 +36,14 @@ contract DataTypes {
         bytes parameters;
         Range range;
     }
+
+    struct AssetTreeNode {
+        bytes32 hashValue;
+        uint256 start;
+    }
+    
+    struct StateSubtreeNode {
+        bytes32 hashValue;
+        uint128 start;
+    }
 }

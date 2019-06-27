@@ -4,13 +4,19 @@ import debug from 'debug'
 const log = debug('info:merkle-interval-tree')
 
 /* Internal Imports */
-import { reverse, keccak256, AbiStateUpdate } from '../'
+import { reverse, keccak256 } from '../'
+import {
+  MerkleIntervalTreeNode,
+  MerkleIntervalTree,
+  MerkleIntervalInclusionProof,
+  MerkleIntervalProofOutput,
+} from '../../types'
 
-export class MerkleIntervalTreeNode {
+export class GenericMerkleIntervalTreeNode implements MerkleIntervalTreeNode {
   public data: Buffer
 
-  constructor(readonly hash: Buffer, readonly index: Buffer) {
-    this.data = Buffer.concat([this.hash, this.index])
+  constructor(readonly hash: Buffer, readonly lowerBound: Buffer) {
+    this.data = Buffer.concat([this.hash, this.lowerBound])
   }
 }
 
@@ -32,8 +38,8 @@ const getParentIndex = (index: number): number => {
   return index === 0 ? 0 : Math.floor(index / 2)
 }
 
-export class MerkleIntervalTree {
-  public levels: MerkleIntervalTreeNode[][] = [[]]
+export class GenericMerkleIntervalTree implements MerkleIntervalTree {
+  public levels: GenericMerkleIntervalTreeNode[][] = [[]]
   public numLeaves: number
 
   constructor(readonly dataBlocks: any) {
@@ -45,7 +51,7 @@ export class MerkleIntervalTree {
     this.generateInternalNodes()
   }
 
-  public root(): MerkleIntervalTreeNode {
+  public root(): GenericMerkleIntervalTreeNode {
     return this.levels[this.levels.length - 1][0]
   }
 
@@ -53,40 +59,40 @@ export class MerkleIntervalTree {
     return keccak256(value)
   }
   /**
-   * Computes the parent of two MerkleIntervalTreeNode siblings in a tree.
+   * Computes the parent of two GenericMerkleIntervalTreeNode siblings in a tree.
    * @param left The left sibling to compute the parent of.
    * @param right The right sibling to compute the parent of.
    */
   public static parent(
-    left: MerkleIntervalTreeNode,
-    right: MerkleIntervalTreeNode
-  ): MerkleIntervalTreeNode {
-    if (Buffer.compare(left.index, right.index) >= 0) {
+    left: GenericMerkleIntervalTreeNode,
+    right: GenericMerkleIntervalTreeNode
+  ): GenericMerkleIntervalTreeNode {
+    if (Buffer.compare(left.lowerBound, right.lowerBound) >= 0) {
       throw new Error(
-        'Left index (0x' +
-          left.index.toString('hex') +
-          ') not less than right index (0x' +
-          right.index.toString('hex') +
+        'Left lowerBound (0x' +
+          left.lowerBound.toString('hex') +
+          ') not less than right lowerBound (0x' +
+          right.lowerBound.toString('hex') +
           ')'
       )
     }
     const concatenated = Buffer.concat([left.data, right.data])
-    return new MerkleIntervalTreeNode(
-      MerkleIntervalTree.hash(concatenated),
-      left.index
+    return new GenericMerkleIntervalTreeNode(
+      GenericMerkleIntervalTree.hash(concatenated),
+      left.lowerBound
     )
   }
 
   /**
    * Computes an "empty node" whose hash value is 0 and whose index is the max.
    * Used to pad a tree which has less  than 2^n nodes.
-   * @param ofLength The length in bytes of the start value for the empty node.
+   * @param ofLength The length in bytes of the lowerBound value for the empty node.
    */
-  public static emptyNode(ofLength: number): MerkleIntervalTreeNode {
+  public static emptyNode(ofLength: number): GenericMerkleIntervalTreeNode {
     const hash = Buffer.from(new Array(32).fill(0))
     const filledArray = new Array(ofLength).fill(255)
     const index = Buffer.from(filledArray)
-    return new MerkleIntervalTreeNode(hash, index)
+    return new GenericMerkleIntervalTreeNode(hash, index)
   }
 
   /**
@@ -97,9 +103,9 @@ export class MerkleIntervalTree {
   }
 
   /**
-   * Calculates the leaf MerkleIntervalTreeNode for a given data block.
+   * Calculates the leaf GenericMerkleIntervalTreeNode for a given data block.
    */
-  public generateLeafNode(dataBlock: any): MerkleIntervalTreeNode {
+  public generateLeafNode(dataBlock: any): GenericMerkleIntervalTreeNode {
     return dataBlock
   }
 
@@ -142,9 +148,9 @@ export class MerkleIntervalTree {
       const left = this.levels[level][i]
       const right =
         i + 1 === numNodesInLevel
-          ? MerkleIntervalTree.emptyNode(left.index.length)
+          ? GenericMerkleIntervalTree.emptyNode(left.lowerBound.length)
           : this.levels[level][i + 1]
-      const parent = MerkleIntervalTree.parent(left, right)
+      const parent = GenericMerkleIntervalTree.parent(left, right)
       const parentIndex = getParentIndex(i)
       this.levels[level + 1][parentIndex] = parent
     }
@@ -154,28 +160,31 @@ export class MerkleIntervalTree {
    * Gets an inclusion proof for the merkle interval tree.
    * @param leafPosition the index in the tree of the leaf we are generating a merkle proof for.
    */
-  public getInclusionProof(leafPosition: number): MerkleIntervalTreeNode[] {
+  public getInclusionProof(leafPosition: number): MerkleIntervalInclusionProof {
     if (!(leafPosition in this.levels[0])) {
       throw new Error(
         'Leaf index ' + leafPosition + ' not in bottom level of tree'
       )
     }
 
-    const inclusionProof: MerkleIntervalTreeNode[] = []
+    const inclusionProof: GenericMerkleIntervalTreeNode[] = []
     let parentIndex: number
     let siblingIndex = getSiblingIndex(leafPosition)
     for (let i = 0; i < this.levels.length - 1; i++) {
       const level = this.levels[i]
       const node =
         level[siblingIndex] ||
-        MerkleIntervalTree.emptyNode(level[0].index.length)
+        GenericMerkleIntervalTree.emptyNode(level[0].lowerBound.length)
       inclusionProof.push(node)
 
       // Figure out the parent and then figure out the parent's sibling.
       parentIndex = getParentIndex(siblingIndex)
       siblingIndex = getSiblingIndex(parentIndex)
     }
-    return inclusionProof
+    return {
+      siblings: inclusionProof,
+      leafPosition: new BigNum(leafPosition),
+    }
   }
 
   /**
@@ -187,36 +196,36 @@ export class MerkleIntervalTree {
    * @returns the implicit bounds covered by the leaf if the proof is valid.
    */
   public static verify(
-    leafNode: MerkleIntervalTreeNode,
-    leafPosition: number,
-    inclusionProof: MerkleIntervalTreeNode[],
+    leafNode: GenericMerkleIntervalTreeNode,
+    inclusionProof: MerkleIntervalInclusionProof,
     rootHash: Buffer
-  ): any {
-    const rootAndBounds = MerkleIntervalTree.getRootAndBounds(
+  ): boolean {
+    const rootAndBounds = GenericMerkleIntervalTree.getRootAndBounds(
       leafNode,
-      leafPosition,
       inclusionProof
     )
     // Check that the roots match.
     if (Buffer.compare(rootAndBounds.root.hash, rootHash) !== 0) {
       throw new Error('Invalid Merkle Index Tree roothash.')
     } else {
-      return rootAndBounds.bounds
+      return true
     }
   }
 
   public static getRootAndBounds(
-    leafNode: MerkleIntervalTreeNode,
-    leafPosition: number,
-    inclusionProof: MerkleIntervalTreeNode[]
-  ): any {
-    if (leafPosition < 0) {
+    leafNode: GenericMerkleIntervalTreeNode,
+    inclusionProof: MerkleIntervalInclusionProof
+  ): MerkleIntervalProofOutput {
+    if (inclusionProof.leafPosition.lt(new BigNum(0))) {
       throw new Error('Invalid leaf position.')
     }
 
     // Compute the path based on the leaf index.
     const path = reverse(
-      new BigNum(leafPosition).toString(2, inclusionProof.length)
+      new BigNum(inclusionProof.leafPosition).toString(
+        2,
+        inclusionProof.siblings.length
+      )
     )
 
     // Need the first right sibling to ensure
@@ -224,14 +233,14 @@ export class MerkleIntervalTree {
     const firstRightSiblingIndex = path.indexOf('0')
     const firstRightSibling =
       firstRightSiblingIndex >= 0
-        ? inclusionProof[firstRightSiblingIndex]
+        ? inclusionProof.siblings[firstRightSiblingIndex]
         : undefined
 
-    let computed: MerkleIntervalTreeNode = leafNode
-    let left: MerkleIntervalTreeNode
-    let right: MerkleIntervalTreeNode
-    for (let i = 0; i < inclusionProof.length; i++) {
-      const sibling = inclusionProof[i]
+    let computed: GenericMerkleIntervalTreeNode = leafNode
+    let left: GenericMerkleIntervalTreeNode
+    let right: GenericMerkleIntervalTreeNode
+    for (let i = 0; i < inclusionProof.siblings.length; i++) {
+      const sibling = inclusionProof.siblings[i]
 
       if (path[i] === '1') {
         left = sibling
@@ -245,7 +254,7 @@ export class MerkleIntervalTree {
         // the tree construction must be invalid.
         if (
           firstRightSibling && // if it's the last leaf in tree, this doesn't exist
-          Buffer.compare(right.index, firstRightSibling.index) === -1
+          Buffer.compare(right.lowerBound, firstRightSibling.lowerBound) === -1
         ) {
           throw new Error(
             'Invalid Merkle Index Tree proof--potential intersection detected.'
@@ -256,17 +265,13 @@ export class MerkleIntervalTree {
       computed = this.parent(left, right) // note: this checks left.index < right.index
     }
 
-    const implicitStart = leafPosition === 0 ? new BigNum(0) : leafNode.index
     const implicitEnd = firstRightSibling
-      ? firstRightSibling.index
-      : MerkleIntervalTree.emptyNode(leafNode.index.length).index // messy way to get the max index, TODO clean
-
+      ? firstRightSibling.lowerBound
+      : GenericMerkleIntervalTree.emptyNode(leafNode.lowerBound.length)
+          .lowerBound // messy way to get the max index, TODO clean
     return {
       root: computed,
-      bounds: {
-        implicitStart: new BigNum(implicitStart),
-        implicitEnd: new BigNum(implicitEnd),
-      },
+      upperBound: new BigNum(implicitEnd),
     }
   }
 }
