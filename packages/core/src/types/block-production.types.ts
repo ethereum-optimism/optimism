@@ -6,7 +6,7 @@ import { AbiStateUpdate } from '../app'
 
 export interface MerkleIntervalTreeNode {
   hash: Buffer // Hash of the sibling or leaf data.
-  start: Buffer // The start interval value for this node.
+  lowerBound: Buffer // The interval lower bound value for this node.
   data: Buffer // Concatenation of (hash, index)
 }
 

@@ -15,8 +15,8 @@ import {
 export class GenericMerkleIntervalTreeNode implements MerkleIntervalTreeNode {
   public data: Buffer
 
-  constructor(readonly hash: Buffer, readonly start: Buffer) {
-    this.data = Buffer.concat([this.hash, this.start])
+  constructor(readonly hash: Buffer, readonly lowerBound: Buffer) {
+    this.data = Buffer.concat([this.hash, this.lowerBound])
   }
 }
 
@@ -67,26 +67,26 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     left: GenericMerkleIntervalTreeNode,
     right: GenericMerkleIntervalTreeNode
   ): GenericMerkleIntervalTreeNode {
-    if (Buffer.compare(left.start, right.start) >= 0) {
+    if (Buffer.compare(left.lowerBound, right.lowerBound) >= 0) {
       throw new Error(
-        'Left index (0x' +
-          left.start.toString('hex') +
-          ') not less than right index (0x' +
-          right.start.toString('hex') +
+        'Left lowerBound (0x' +
+          left.lowerBound.toString('hex') +
+          ') not less than right lowerBound (0x' +
+          right.lowerBound.toString('hex') +
           ')'
       )
     }
     const concatenated = Buffer.concat([left.data, right.data])
     return new GenericMerkleIntervalTreeNode(
       GenericMerkleIntervalTree.hash(concatenated),
-      left.start
+      left.lowerBound
     )
   }
 
   /**
    * Computes an "empty node" whose hash value is 0 and whose index is the max.
    * Used to pad a tree which has less  than 2^n nodes.
-   * @param ofLength The length in bytes of the start value for the empty node.
+   * @param ofLength The length in bytes of the lowerBound value for the empty node.
    */
   public static emptyNode(ofLength: number): GenericMerkleIntervalTreeNode {
     const hash = Buffer.from(new Array(32).fill(0))
@@ -148,7 +148,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
       const left = this.levels[level][i]
       const right =
         i + 1 === numNodesInLevel
-          ? GenericMerkleIntervalTree.emptyNode(left.start.length)
+          ? GenericMerkleIntervalTree.emptyNode(left.lowerBound.length)
           : this.levels[level][i + 1]
       const parent = GenericMerkleIntervalTree.parent(left, right)
       const parentIndex = getParentIndex(i)
@@ -174,7 +174,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
       const level = this.levels[i]
       const node =
         level[siblingIndex] ||
-        GenericMerkleIntervalTree.emptyNode(level[0].start.length)
+        GenericMerkleIntervalTree.emptyNode(level[0].lowerBound.length)
       inclusionProof.push(node)
 
       // Figure out the parent and then figure out the parent's sibling.
@@ -254,7 +254,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
         // the tree construction must be invalid.
         if (
           firstRightSibling && // if it's the last leaf in tree, this doesn't exist
-          Buffer.compare(right.start, firstRightSibling.start) === -1
+          Buffer.compare(right.lowerBound, firstRightSibling.lowerBound) === -1
         ) {
           throw new Error(
             'Invalid Merkle Index Tree proof--potential intersection detected.'
@@ -266,8 +266,8 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     }
 
     const implicitEnd = firstRightSibling
-      ? firstRightSibling.start
-      : GenericMerkleIntervalTree.emptyNode(leafNode.start.length).start // messy way to get the max index, TODO clean
+      ? firstRightSibling.lowerBound
+      : GenericMerkleIntervalTree.emptyNode(leafNode.lowerBound.length).lowerBound // messy way to get the max index, TODO clean
     return {
       root: computed,
       upperBound: new BigNum(implicitEnd),
