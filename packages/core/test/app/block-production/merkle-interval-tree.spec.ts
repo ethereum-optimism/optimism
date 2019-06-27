@@ -116,12 +116,12 @@ describe('Interval Trees and Plasma Blocks', () => {
     })
   })
   describe('MerkleStateIntervalTree', () => {
-    it('should generate a tree without throwing', async () => {
+    it("'new MerkleStateIntervalTree' generate a tree without throwing", async () => {
       const stateUpdates = generateNSequentialStateUpdates(4)
       const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
       log('root', merkleStateIntervalTree.root())
     })
-    it('verification should throw if state update range intersects branch bounds', async () => {
+    it("'MerkleStateIntervalTree.verifyExectedRoot' should throw if state update range intersects branch bounds", async () => {
       // generate some valid tree contents
       const stateUpdates = generateNSequentialStateUpdates(5)
       // make an invalid range intersecting the second SU
