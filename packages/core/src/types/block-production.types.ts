@@ -24,7 +24,7 @@ export interface MerkleIntervalProofOutput {
 
 export interface MerkleIntervalTree {
   dataBlocks: any // The blocks of data we are constructing a merkle interval tree for.
-  levels: MerkleIntervalTreeNode[][] // The 'MerkleIntervalTreeNode's which make up the tree. 
+  levels: MerkleIntervalTreeNode[][] // The 'MerkleIntervalTreeNode's which make up the tree.
   // E.g. levels[0].length == numLeaves (the leaves), levels[levels.length-1].length == 1 (the root).
   root(): MerkleIntervalTreeNode
   getInclusionProof(leafposition: number): MerkleIntervalInclusionProof
