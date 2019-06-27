@@ -2,7 +2,6 @@ import BigNum = require('bn.js')
 
 import {
   PredicatePlugin,
-  isRangeSubset,
   StateUpdate,
   Transaction,
   StateObject,
@@ -71,16 +70,6 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
         )}] with transaction [${JSON.stringify(
           transaction
         )}] because block number [${transaction.body.originBlock.toNumber()}] is not greater than previous state block number.`
-      )
-    }
-
-    if (!isRangeSubset(transaction.range, previousStateUpdate.range)) {
-      throw new Error(
-        `Cannot transition from state [${JSON.stringify(
-          previousStateUpdate
-        )}] with transaction [${JSON.stringify(
-          transaction
-        )}] because transaction range is not a subset of previous state update range.`
       )
     }
   }
