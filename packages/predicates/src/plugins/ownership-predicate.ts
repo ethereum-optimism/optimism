@@ -3,6 +3,7 @@ import {
   StateUpdate,
   Transaction,
   StateObject,
+  verifySignature,
 } from '@pigi/core'
 
 export class OwnershipPredicatePlugin implements PredicatePlugin {
@@ -48,8 +49,13 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
     transaction: Transaction,
     witness: string
   ): Promise<void> {
-    // TODO: Actually check signature stuffs
-    if (previousStateUpdate.stateObject.data.owner !== witness) {
+    if (
+      !verifySignature(
+        witness,
+        transaction,
+        previousStateUpdate.stateObject.data.owner
+      )
+    ) {
       throw new Error(
         `Cannot transition from state [${JSON.stringify(
           previousStateUpdate
