@@ -4,7 +4,7 @@ import BigNum = require('bn.js')
 import level from 'level'
 
 /* Internal Imports */
-import { KeyValueStore, V, Bucket, Iterator, IteratorOptions } from './db.interface'
+import { KeyValueStore, V, Bucket, RangeIterator, IteratorOptions } from './db.interface'
 
 /**
  * Represents a range of values. Note start & end are big numbers!
@@ -55,7 +55,7 @@ export interface RangeStore {
    * @param options Parameters for the iterator.
    * @returns the iterator instance.
    */
-  iterator(options?: IteratorOptions): Iterator
+  iterator(options?: IteratorOptions): RangeIterator
 }
 
 export interface RangeBucket extends RangeStore {

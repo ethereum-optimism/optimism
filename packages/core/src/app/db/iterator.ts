@@ -224,7 +224,7 @@ export class BaseIterator implements Iterator {
  * A special purpose iterator which includes a nextRange() function that returns RangeEntrys instead of simple KVs.
  * This is used by the RangeBucket class.
  */
-export class RangeIterator extends BaseIterator {
+export class BaseRangeIterator extends BaseIterator {
   /**
    * Constructs a RangeIterator with a particular `resultToRange()` function that will transform
    * the it.next() result into a RangeEntry.

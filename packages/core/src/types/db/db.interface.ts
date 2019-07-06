@@ -6,7 +6,7 @@ import {
 } from 'abstract-leveldown'
 
 /* Internal Imports */
-import { RangeBucket } from '../../types'
+import { RangeBucket, RangeEntry } from '../../types'
 
 export type K = NonNullable<Buffer>
 export type V = NonNullable<Buffer>
@@ -178,4 +178,8 @@ export interface Iterator {
    * Ends iteration and frees resources.
    */
   end(): Promise<void>
+}
+
+export interface RangeIterator extends Iterator {
+  nextRange(): Promise<RangeEntry>
 }

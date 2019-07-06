@@ -18,9 +18,10 @@ import {
   KV,
   RangeBucket,
   RangeEntry,
+  RangeIterator,
   Endianness,
 } from '../../types'
-import { bufferUtils, intersects, BaseDB, RangeIterator } from '../../app'
+import { bufferUtils, intersects, BaseDB, BaseRangeIterator } from '../../app'
 
 /* Logging */
 import debug from 'debug'
@@ -290,7 +291,7 @@ export class BaseRangeBucket implements RangeBucket {
    * @returns the iterator instance.
    */
   public iterator(options?: IteratorOptions): RangeIterator {
-    const rangeIterator = new RangeIterator(this.db, {
+    const rangeIterator = new BaseRangeIterator(this.db, {
       ...options,
       prefix: this.addPrefix(this.prefix),
     }, (res: KV) => this.resultToRange(res))
