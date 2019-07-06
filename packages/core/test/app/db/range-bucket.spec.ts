@@ -60,7 +60,7 @@ const testPutResults = async (
 
 const putRanges = async (
   db: RangeBucket,
-  putContents: any[],
+  putContents: any[]
 ): Promise<void> => {
   for (const putContent of putContents) {
     await db.put(
@@ -71,10 +71,7 @@ const putRanges = async (
   }
 }
 
-const compareResult = (
-  res: any,
-  expectedResult: any
-): void => {
+const compareResult = (res: any, expectedResult: any): void => {
   const strResult = new StringRangeEntry(res)
   strResult.stringRangeEntry.should.deep.equal(expectedResult)
 }
@@ -285,7 +282,7 @@ describe('RangeDB', () => {
           { start: '0', end: '50', value: 'x4' },
           { start: '50', end: '150', value: 'z4' },
           { start: '150', end: '200', value: 'y4' },
-        ]
+        ],
       }
 
       // Put our ranges

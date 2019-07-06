@@ -27,7 +27,6 @@ import { bufferUtils, intersects, BaseDB, BaseRangeIterator } from '../../app'
 import debug from 'debug'
 const log = debug('info:range-db')
 
-
 /**
  * Simple bucket implementation that forwards all
  * calls up to the database but appends a prefix.
@@ -291,10 +290,14 @@ export class BaseRangeBucket implements RangeBucket {
    * @returns the iterator instance.
    */
   public iterator(options?: IteratorOptions): RangeIterator {
-    const rangeIterator = new BaseRangeIterator(this.db, {
-      ...options,
-      prefix: this.addPrefix(this.prefix),
-    }, (res: KV) => this.resultToRange(res))
+    const rangeIterator = new BaseRangeIterator(
+      this.db,
+      {
+        ...options,
+        prefix: this.addPrefix(this.prefix),
+      },
+      (res: KV) => this.resultToRange(res)
+    )
     return rangeIterator
   }
 
