@@ -15,15 +15,17 @@ import {
   Iterator,
   K,
   V,
+  KV,
   RangeBucket,
   RangeEntry,
   Endianness,
 } from '../../types'
-import { bufferUtils, intersects, BaseDB } from '../../app'
+import { bufferUtils, intersects, BaseDB, RangeIterator } from '../../app'
 
 /* Logging */
 import debug from 'debug'
 const log = debug('info:range-db')
+
 
 /**
  * Simple bucket implementation that forwards all
@@ -133,7 +135,7 @@ export class BaseRangeBucket implements RangeBucket {
    * @param result The resulting value which has been extracted from our DB.
    * @returns a range object with {start, end, value}
    */
-  private resultToRange(result): RangeEntry {
+  private resultToRange(result: KV): RangeEntry {
     // Helper function which gets the start and end position from a DB seek result
     return {
       start: new BigNum(this.getStartFromValue(result.value)),
@@ -280,6 +282,19 @@ export class BaseRangeBucket implements RangeBucket {
     await it.end()
     // Return the ranges
     return ranges
+  }
+
+  /**
+   * Creates an iterator with some options.
+   * @param options Parameters for the iterator.
+   * @returns the iterator instance.
+   */
+  public iterator(options?: IteratorOptions): RangeIterator {
+    const rangeIterator = new RangeIterator(this.db, {
+      ...options,
+      prefix: this.addPrefix(this.prefix),
+    }, (res: KV) => this.resultToRange(res))
+    return rangeIterator
   }
 
   /**

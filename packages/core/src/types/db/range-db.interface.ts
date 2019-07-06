@@ -4,7 +4,7 @@ import BigNum = require('bn.js')
 import level from 'level'
 
 /* Internal Imports */
-import { KeyValueStore, V, Bucket } from './db.interface'
+import { KeyValueStore, V, Bucket, Iterator, IteratorOptions } from './db.interface'
 
 /**
  * Represents a range of values. Note start & end are big numbers!
@@ -49,6 +49,13 @@ export interface RangeStore {
    * @returns all of the ranges which have been deleted.
    */
   del(start: BigNum, end: BigNum): Promise<RangeEntry[]>
+
+  /**
+   * Creates an iterator with some options.
+   * @param options Parameters for the iterator.
+   * @returns the iterator instance.
+   */
+  iterator(options?: IteratorOptions): Iterator
 }
 
 export interface RangeBucket extends RangeStore {

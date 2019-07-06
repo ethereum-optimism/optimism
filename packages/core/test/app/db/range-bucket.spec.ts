@@ -46,6 +46,22 @@ const testPutResults = async (
   putContents: any[],
   expectedResults: any[]
 ): Promise<void> => {
+  // First put the ranges
+  putRanges(db, putContents)
+  // Now check that they were added correctly
+  const res = await db.get(
+    new BigNum('0', 'hex'),
+    new BigNum('100000000000', 'hex')
+  )
+  for (let i = 0; i < res.length; i++) {
+    compareResult(res[i], expectedResults[i])
+  }
+}
+
+const putRanges = async (
+  db: RangeBucket,
+  putContents: any[],
+): Promise<void> => {
   for (const putContent of putContents) {
     await db.put(
       new BigNum(putContent.start, 'hex'),
@@ -53,14 +69,14 @@ const testPutResults = async (
       Buffer.from(putContent.value)
     )
   }
-  const res = await db.get(
-    new BigNum('0', 'hex'),
-    new BigNum('100000000000', 'hex')
-  )
-  for (let i = 0; i < res.length; i++) {
-    const strResult = new StringRangeEntry(res[i])
-    strResult.stringRangeEntry.should.deep.equal(expectedResults[i])
-  }
+}
+
+const compareResult = (
+  res: any,
+  expectedResult: any
+): void => {
+  const strResult = new StringRangeEntry(res)
+  strResult.stringRangeEntry.should.deep.equal(expectedResult)
 }
 
 describe('RangeDB', () => {
@@ -203,7 +219,7 @@ describe('RangeDB', () => {
   })
 
   it('splits `put(0, 100, x), put(50, 150, y)` into (0, 50, x), (50, 150, y)', async () => {
-    testPutResults(
+    await testPutResults(
       rangeDB,
       [
         { start: '0', end: '100', value: 'x1' },
@@ -217,7 +233,7 @@ describe('RangeDB', () => {
   })
 
   it('splits `put(50, 150, x), put(0, 100, y)` into (0, 50, x), (50, 150, y)', async () => {
-    testPutResults(
+    await testPutResults(
       rangeDB,
       [
         { start: '50', end: '150', value: 'x2' },
@@ -231,7 +247,7 @@ describe('RangeDB', () => {
   })
 
   it('splits `put(0, 100, x), put(0, 100, y)` into (0, 100, y)', async () => {
-    testPutResults(
+    await testPutResults(
       rangeDB,
       [
         { start: '0', end: '100', value: 'x3' },
@@ -242,7 +258,7 @@ describe('RangeDB', () => {
   })
 
   it('splits `put(0, 100, x), put(100, 200, y), put(50, 150, z)` into (0, 50, x), (50, 150, z), (150, 200, y)', async () => {
-    testPutResults(
+    await testPutResults(
       rangeDB,
       [
         { start: '0', end: '100', value: 'x4' },
@@ -255,5 +271,33 @@ describe('RangeDB', () => {
         { start: '150', end: '200', value: 'y4' },
       ]
     )
+  })
+
+  describe('iterator()', () => {
+    it('allows nextRange() to be called by the iterator returning a RangeEntry instead of a KV', async () => {
+      const testRanges = {
+        inputs: [
+          { start: '0', end: '100', value: 'x4' },
+          { start: '100', end: '200', value: 'y4' },
+          { start: '50', end: '150', value: 'z4' },
+        ],
+        expectedResults: [
+          { start: '0', end: '50', value: 'x4' },
+          { start: '50', end: '150', value: 'z4' },
+          { start: '150', end: '200', value: 'y4' },
+        ]
+      }
+
+      // Put our ranges
+      await putRanges(rangeDB, testRanges.inputs)
+      // Use a range iterator to get values we expect
+      const it = rangeDB.iterator()
+      const range0 = await it.nextRange()
+      const range1 = await it.nextRange()
+      const range2 = await it.nextRange()
+      compareResult(range0, testRanges.expectedResults[0])
+      compareResult(range1, testRanges.expectedResults[1])
+      compareResult(range2, testRanges.expectedResults[2])
+    })
   })
 })
