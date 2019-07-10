@@ -9,7 +9,7 @@ import { Aggregator } from "./Aggregator.sol";
 
 contract PlasmaRegistry {
   address[] public aggregators;
-  uint counter;
+  uint public counter;
 
   constructor () public {
     counter = 0;

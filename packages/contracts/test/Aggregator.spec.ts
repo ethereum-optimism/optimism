@@ -15,7 +15,7 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const [wallet] = getWallets(provider)
   let aggregator
 
-  it('it deploys ', async () => {
+  beforeEach(async () => {
     const authenticationAddress = await wallet.getAddress()
     const id = 121
     aggregator = await deployContract(
@@ -26,5 +26,27 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
         gasLimit: 6700000,
       }
     )
+  })
+
+  it('Assigns AuthenticationAddress to Aggregator', async () => {
+    expect(await aggregator.authenticationAddress()).to.eq(
+      await wallet.getAddress()
+    )
+  })
+
+  it('Creates commitment chain', async () => {
+    expect(await aggregator.commitmentContract()).to.exist
+  })
+
+  it('Assigns ID to Aggregator', async () => {
+    expect(await aggregator.id()).to.eq(121)
+  })
+
+  it('Assigns and deletes IP in Metadata', async () => {
+    const addr = '0x00000000000000000000000987654321'
+    await aggregator.setMetadata(addr, 'heyo')
+    expect(await aggregator.metadata(addr)).to.eq('heyo')
+    await aggregator.deleteMetadata(addr)
+    expect(await aggregator.metadata[addr]).to.be.undefined
   })
 })

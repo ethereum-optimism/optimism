@@ -11,10 +11,20 @@ contract Aggregator {
   CommitmentChain public commitmentContract;
   mapping(address => Deposit) depositContracts;
   uint public id;
-  mapping(string => string) metadata;
+  mapping(string => string) public metadata;
 
   constructor(address _authenticationAddress, uint _id) public {
     authenticationAddress = _authenticationAddress;
     id = _id;
+  }
+
+  function setMetadata(string memory _ip, string memory _data) public {
+    require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
+    metadata[_ip] = _data;
+  }
+
+  function deleteMetadata(string memory _ip) public {
+    require(msg.sender == authenticationAddress, "deleteMetadata can only be called by authenticated address.");
+    delete metadata[_ip];
   }
 }
