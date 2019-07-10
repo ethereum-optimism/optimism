@@ -13,7 +13,7 @@ contract AggregatorWithIPCreationProxy {
   PlasmaRegistry plasmaRegistry;
 
   constructor() public {
-    aggregator = new Aggregator();
+    // aggregator = new Aggregator();
     plasmaRegistry = new PlasmaRegistry();
   }
 }

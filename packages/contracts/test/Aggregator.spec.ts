@@ -16,8 +16,15 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   let aggregator
 
   it('it deploys ', async () => {
-    aggregator = await deployContract(wallet, Aggregator, [], {
-      gasLimit: 6700000,
-    })
+    const authenticationAddress = await wallet.getAddress()
+    const id = 121
+    aggregator = await deployContract(
+      wallet,
+      Aggregator,
+      [authenticationAddress, id],
+      {
+        gasLimit: 6700000,
+      }
+    )
   })
 })

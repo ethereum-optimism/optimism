@@ -13,6 +13,8 @@ contract Aggregator {
   uint public id;
   mapping(string => string) metadata;
 
-  constructor() public {
+  constructor(address _authenticationAddress, uint _id) public {
+    authenticationAddress = _authenticationAddress;
+    id = _id;
   }
 }

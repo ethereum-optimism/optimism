@@ -15,9 +15,10 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const [wallet] = getWallets(provider)
   let plasmaRegistry
 
-  it('it deploys ', async () => {
+  beforeEach(async () => {
     plasmaRegistry = await deployContract(wallet, PlasmaRegistry, [], {
       gasLimit: 6700000,
     })
+    // plasmaRegistry.addAggregator()
   })
 })
