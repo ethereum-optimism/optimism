@@ -15,7 +15,7 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const [wallet] = getWallets(provider)
   let aggregatorWithIPCreationProxy
 
-  it('it deploys ', async () => {
+  beforeEach(async () => {
     const authenticationAddress = await wallet.getAddress()
     aggregatorWithIPCreationProxy = await deployContract(
       wallet,
@@ -25,5 +25,10 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
         gasLimit: 6700000,
       }
     )
+  })
+
+  it('Successfully self destructs contract', async () => {
+    aggregatorWithIPCreationProxy.deleteThisContract()
+    expect(aggregatorWithIPCreationProxy.owner()).to.be.empty
   })
 })

@@ -9,17 +9,16 @@ import { Aggregator } from "./Aggregator.sol";
 import { PlasmaRegistry } from "./PlasmaRegistry.sol";
 
 contract AggregatorWithIPCreationProxy {
-  // Aggregator aggregator;
-  PlasmaRegistry plasmaRegistry;
-
-  // constructor() public {
-  //   // aggregator = new Aggregator();
-  //   plasmaRegistry = new PlasmaRegistry();
-  // }
+  address payable public owner;
 
   constructor(address _authenticationAddress, string memory data) public {
-    plasmaRegistry = new PlasmaRegistry();
+    owner = msg.sender;
+    PlasmaRegistry plasmaRegistry = new PlasmaRegistry();
     Aggregator newAggregator = plasmaRegistry.addAggregator(_authenticationAddress);
     newAggregator.setMetadata("ip", data);
+  }
+
+  function deleteThisContract() public {
+    selfdestruct(owner);
   }
 }
