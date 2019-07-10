@@ -16,10 +16,11 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   let aggregatorWithIPCreationProxy
 
   it('it deploys ', async () => {
+    const authenticationAddress = await wallet.getAddress()
     aggregatorWithIPCreationProxy = await deployContract(
       wallet,
       AggregatorWithIPCreationProxy,
-      [],
+      [authenticationAddress, authenticationAddress],
       {
         gasLimit: 6700000,
       }

@@ -23,4 +23,9 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     })
     plasmaRegistry.addAggregator(authenticationAddress)
   })
+
+  // it('assigns aggregators ', async () => {
+  //   plasmaRegistry.addAggregator(authenticationAddress)
+  //   expect(plasmaRegistry.counter()).to.eq(2)
+  // })
 })
