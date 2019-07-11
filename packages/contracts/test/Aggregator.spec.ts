@@ -52,14 +52,17 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   it('Assigns Deposit Contract', async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
     commitmentContract = await deployContract(wallet, Commitment, [])
-    depositContract = await deployContract(wallet, Deposit, [
+    // depositContract = await deployContract(wallet, Deposit, [
+    //   token.address,
+    //   commitmentContract.address,
+    // ])
+    depositContract = await aggregator.addDepositContract(
       token.address,
-      commitmentContract.address,
-    ])
-    await aggregator.addDepositContract(depositContract.address)
-    expect(await aggregator.depositContracts(depositContract.address)).to.eq(
-      depositContract.address
+      commitmentContract.address
     )
+    // expect(await aggregator.depositContracts(depositContract.address)).to.eq(
+    //   depositContract.address
+    // )
   })
 
   it('Assigns and deletes IP in Metadata', async () => {
