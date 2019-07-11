@@ -56,7 +56,10 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
       token.address,
       commitmentContract.address,
     ])
-    expect(await aggregator.addDepositContract(depositContract.address))
+    await aggregator.addDepositContract(depositContract.address)
+    expect(await aggregator.depositContracts(depositContract.address)).to.eq(
+      depositContract.address
+    )
   })
 
   it('Assigns and deletes IP in Metadata', async () => {
@@ -64,6 +67,6 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     await aggregator.setMetadata(addr, 'heyo')
     expect(await aggregator.metadata(addr)).to.eq('heyo')
     await aggregator.deleteMetadata(addr)
-    expect(await aggregator.metadata[addr]).to.be.undefined
+    expect(await aggregator.metadata(addr)).to.eq('')
   })
 })

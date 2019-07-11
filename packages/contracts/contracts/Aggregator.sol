@@ -10,7 +10,7 @@ import { Deposit } from "./Deposit.sol";
 contract Aggregator {
   address public authenticationAddress;
   CommitmentChain public commitmentContract;
-  mapping(address => Deposit) depositContracts;
+  mapping(address => Deposit) public depositContracts;
   uint public id;
   mapping(string => string) public metadata;
 
@@ -20,9 +20,6 @@ contract Aggregator {
     id = _id;
   }
 
-  /**
-    Causes RuntimeError: VM Exception while processing transaction: revert
-   */
   function addDepositContract(address _depositAddress) public returns (Deposit newDepositContract) {
     require(msg.sender == authenticationAddress, "addDepositContract can only be called by authenticated address.");
     Deposit depositContract = Deposit(_depositAddress);
