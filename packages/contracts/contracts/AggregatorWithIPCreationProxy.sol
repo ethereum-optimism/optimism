@@ -10,10 +10,11 @@ import { PlasmaRegistry } from "./PlasmaRegistry.sol";
 
 contract AggregatorWithIPCreationProxy {
   address payable public owner;
+  PlasmaRegistry public plasmaRegistry;
 
-  constructor(address _authenticationAddress, string memory data) public {
+  constructor(PlasmaRegistry _plasmaRegistry, address _authenticationAddress, string memory data) public {
     owner = msg.sender;
-    PlasmaRegistry plasmaRegistry = new PlasmaRegistry();
+    plasmaRegistry = _plasmaRegistry;
     Aggregator newAggregator = plasmaRegistry.addAggregator(_authenticationAddress);
     newAggregator.setMetadata("ip", data);
   }

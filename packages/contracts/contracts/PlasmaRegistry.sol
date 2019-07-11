@@ -21,4 +21,8 @@ contract PlasmaRegistry {
     aggregators.push(address(aggregator));
     return aggregator;
   }
+
+  function getAggregatorCount() public returns (uint count) {
+    return 0;
+  }
 }
