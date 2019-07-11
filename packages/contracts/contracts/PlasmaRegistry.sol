@@ -5,24 +5,22 @@ pragma experimental ABIEncoderV2;
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
-import { Aggregator } from "./Aggregator.sol";
+// import { Aggregator } from "./Aggregator.sol";
+import { DummyAggregator } from "./DummyAggregator.sol";
+
 
 contract PlasmaRegistry {
   address[] public aggregators;
-  uint public counter;
 
-  constructor () public {
-    counter = 0;
-  }
-
-  function addAggregator(address _authenticationAddress) public returns (Aggregator newAggregator) {
-    counter += 1;
-    Aggregator aggregator = new Aggregator(_authenticationAddress, counter);
+  function addAggregator(address _authenticationAddress) public returns (DummyAggregator newAggregator) {
+    uint id = aggregators.length + 1;
+    DummyAggregator aggregator = new DummyAggregator();
+    // DummyAggregator aggregator = new DummyAggregator(_authenticationAddress, id);
     aggregators.push(address(aggregator));
     return aggregator;
   }
 
   function getAggregatorCount() public returns (uint count) {
-    return 0;
+    return aggregators.length;
   }
 }

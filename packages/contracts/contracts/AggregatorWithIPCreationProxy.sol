@@ -15,8 +15,8 @@ contract AggregatorWithIPCreationProxy {
   constructor(PlasmaRegistry _plasmaRegistry, address _authenticationAddress, string memory data) public {
     owner = msg.sender;
     plasmaRegistry = _plasmaRegistry;
-    Aggregator newAggregator = plasmaRegistry.addAggregator(_authenticationAddress);
-    newAggregator.setMetadata("ip", data);
+    // Aggregator newAggregator = plasmaRegistry.addAggregator(_authenticationAddress);
+    // newAggregator.setMetadata("ip", data);
   }
 
   function deleteThisContract() public {
