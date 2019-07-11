@@ -5,7 +5,11 @@ import {
   getWallets,
   solidity,
 } from 'ethereum-waffle'
+
 import * as Aggregator from '../build/Aggregator.json'
+import * as BasicTokenMock from '../build/BasicTokenMock.json'
+import * as Deposit from '../build/Deposit.json'
+import * as Commitment from '../build/CommitmentChain.json'
 
 chai.use(solidity)
 const { expect } = chai
@@ -14,6 +18,9 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let aggregator
+  let commitmentContract
+  let depositContract
+  let token
 
   beforeEach(async () => {
     const authenticationAddress = await wallet.getAddress()
@@ -34,12 +41,22 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     )
   })
 
-  it('Creates commitment chain', async () => {
+  it('Creates Commitment Chain', async () => {
     expect(await aggregator.commitmentContract()).to.exist
   })
 
   it('Assigns ID to Aggregator', async () => {
     expect(await aggregator.id()).to.eq(121)
+  })
+
+  it('Assigns Deposit Contract', async () => {
+    token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
+    commitmentContract = await deployContract(wallet, Commitment, [])
+    depositContract = await deployContract(wallet, Deposit, [
+      token.address,
+      commitmentContract.address,
+    ])
+    expect(await aggregator.addDepositContract(depositContract.address))
   })
 
   it('Assigns and deletes IP in Metadata', async () => {

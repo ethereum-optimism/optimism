@@ -4,6 +4,7 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
 import { CommitmentChain } from "./CommitmentChain.sol";
+import {DataTypes as types} from "./DataTypes.sol";
 import { Deposit } from "./Deposit.sol";
 
 contract Aggregator {
@@ -22,13 +23,12 @@ contract Aggregator {
   /**
     Causes RuntimeError: VM Exception while processing transaction: revert
    */
-  // function addDepositContract(ERC20 _erc20, address _walletAddress) public returns (Deposit newDepositContract) {
-  //   require(msg.sender == authenticationAddress, "addDepositContract can only be called by authenticated address.");
-  //   // Deposit depositContract = new Deposit(address(_erc20), address(commitmentContract));
-  //   Deposit depositContract = new Deposit();
-  //   depositContracts[_walletAddress] = depositContract;
-  //   return depositContract;
-  // }
+  function addDepositContract(address _depositAddress) public returns (Deposit newDepositContract) {
+    require(msg.sender == authenticationAddress, "addDepositContract can only be called by authenticated address.");
+    Deposit depositContract = Deposit(_depositAddress);
+    depositContracts[_depositAddress] = depositContract;
+    return depositContract;
+  }
 
   function setMetadata(string memory _ip, string memory _data) public {
     // require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
