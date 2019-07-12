@@ -32,7 +32,7 @@ contract Aggregator {
   }
 
   function setMetadata(string memory _ip, string memory _data) public {
-    require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
+    // require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
     metadata[_ip] = _data;
   }
 

@@ -38,7 +38,7 @@
     "@types/node": "^11.11.3",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "ganache-cli": "^6.4.1",
+    "ganache-cli": "^6.4.5",
     "lerna": "^3.13.1",
     "mocha": "^6.0.2",
     "prettier": "^1.16.4",
@@ -48,5 +48,10 @@
     "tslint-plugin-prettier": "^2.0.1",
     "typescript": "^3.3.3333",
     "wsrun": "^3.6.4"
+  },
+  "dependencies": {
+    "bignumber.js": "^9.0.0",
+    "chai-bignumber": "^3.0.0",
+    "ganache-core": "2.5.7"
   }
 }

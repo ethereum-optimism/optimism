@@ -1,4 +1,6 @@
 import chai = require('chai')
+chai.use(require('chai-bignumber')())
+
 import {
   createMockProvider,
   deployContract,
@@ -12,25 +14,27 @@ const { expect } = chai
 
 describe('Creates Aggregator and checks that fields are properly assigned', () => {
   const provider = createMockProvider()
-  const [wallet] = getWallets(provider)
+  const [wallet1, wallet2] = getWallets(provider)
   let plasmaRegistry
-  let authenticationAddress
+  let agg1AuthenticationAddress
+  let agg2AuthenticationAddress
+  let agg1
+  let agg2
 
   beforeEach(async () => {
-    authenticationAddress = await wallet.getAddress()
-    plasmaRegistry = await deployContract(wallet, PlasmaRegistry, [], {
+    agg1AuthenticationAddress = await wallet1.getAddress()
+    agg2AuthenticationAddress = await wallet2.getAddress()
+    plasmaRegistry = await deployContract(wallet1, PlasmaRegistry, [], {
       gasLimit: 6700000,
     })
+    agg1 = await plasmaRegistry.addAggregator(agg1AuthenticationAddress)
   })
 
-  /**
-   * AssertionError: expected {} to equal 0
-   * at Context.it (test/PlasmaRegistry.spec.ts:21:46)
-   * at process.internalTickCallback (internal/process/next_tick.js:77:7)
-   * (node:15263) UnhandledPromiseRejectionWarning: TXRejectedError: the tx doesn't have the correct nonce. account has nonce of: 2 tx has nonce of: 1
-   */
-  it('assigns aggregators ', async () => {
-    plasmaRegistry.addAggregator(authenticationAddress)
-    expect(plasmaRegistry.getAggregatorCount()).to.eq(0)
+  it('Creates aggregators and gives correct length ', async () => {
+    let aggregatorCount = await plasmaRegistry.getAggregatorCount()
+    aggregatorCount.should.be.bignumber.equal(1)
+    agg2 = await plasmaRegistry.addAggregator(agg2AuthenticationAddress)
+    aggregatorCount = await plasmaRegistry.getAggregatorCount()
+    aggregatorCount.should.be.bignumber.equal(2)
   })
 })
