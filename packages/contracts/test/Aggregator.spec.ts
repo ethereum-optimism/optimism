@@ -51,24 +51,20 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
 
   it('Assigns Deposit Contract', async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
-    commitmentContract = await deployContract(wallet, Commitment, [])
     depositContract = await aggregator.addDepositContract(
       token.address,
-      commitmentContract.address
+      wallet.address
     )
-    // 0xB20Ff793b68db2E654f1a7A18616DA1Aa417fd82
-    expect(await aggregator.depositContracts(0)).to.eq(depositContract)
-    // expect(await aggregator.deposits.).to.eq(1)
-    // expect(await aggregator.depositContracts(depositContract.address)).to.eq(
-    //   depositContract
+    // expect(await aggregator.depositContracts(wallet.address)).to.eq(
+    //   depositContract.toString()
     // )
   })
 
-  // it('Assigns and deletes IP in Metadata', async () => {
-  //   const addr = '0x00000000000000000000000987654321'
-  //   await aggregator.setMetadata(addr, 'heyo')
-  //   expect(await aggregator.metadata(addr)).to.eq('heyo')
-  //   await aggregator.deleteMetadata(addr)
-  //   expect(await aggregator.metadata(addr)).to.eq('')
-  // })
+  it('Assigns and deletes IP in Metadata', async () => {
+    const addr = '0x00000000000000000000000987654321'
+    await aggregator.setMetadata(addr, 'heyo')
+    expect(await aggregator.metadata(addr)).to.eq('heyo')
+    await aggregator.deleteMetadata(addr)
+    expect(await aggregator.metadata(addr)).to.eq('')
+  })
 })
