@@ -10,15 +10,16 @@ import { DummyDeposit } from "./DummyDeposit.sol";
 
 contract Aggregator {
   address public authenticationAddress;
-  CommitmentChain public commitmentContract;
-  mapping(address => DummyDeposit) public depositContracts;
-    // mapping(address => Deposit) public depositContracts;
+  // CommitmentChain public commitmentContract;
+  DummyDeposit[] public depositContracts;
+  // mapping(address => DummyDeposit) public depositContracts;
+  // mapping(address => Deposit) public depositContracts;
   uint public id;
-  mapping(string => string) public metadata;
+  // mapping(string => string) public metadata;
 
   constructor(address _authenticationAddress, uint _id) public {
     authenticationAddress = _authenticationAddress;
-    commitmentContract = new CommitmentChain();
+    // commitmentContract = new CommitmentChain();
     id = _id;
   }
 
@@ -26,18 +27,24 @@ contract Aggregator {
   function addDepositContract(address _erc20, address _commitmentContract) public returns (DummyDeposit newDepositContract) {
     require(msg.sender == authenticationAddress, "addDepositContract can only be called by authenticated address.");
     // Deposit depositContract = new Deposit(_erc20, _commitmentContract);
-    DummyDeposit depositContract = new DummyDeposit(_erc20, _commitmentContract);
-    depositContracts[address(depositContract)] = depositContract;
-    return depositContract;
+    DummyDeposit deposit = new DummyDeposit(_erc20, _commitmentContract);
+    depositContracts.push(deposit);
+    return deposit;
   }
 
-  function setMetadata(string memory _ip, string memory _data) public {
-    // require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
-    metadata[_ip] = _data;
-  }
+  // function addDeposit() public returns (DummyDeposit newDeposit) {
+  //   DummyDeposit deposit = new DummyDeposit();
+  //   depositContracts.push(deposit);
+  //   return deposit;
+  // }
 
-  function deleteMetadata(string memory _ip) public {
-    require(msg.sender == authenticationAddress, "deleteMetadata can only be called by authenticated address.");
-    delete metadata[_ip];
-  }
+  // function setMetadata(string memory _ip, string memory _data) public {
+  //   // require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
+  //   metadata[_ip] = _data;
+  // }
+
+  // function deleteMetadata(string memory _ip) public {
+  //   require(msg.sender == authenticationAddress, "deleteMetadata can only be called by authenticated address.");
+  //   delete metadata[_ip];
+  // }
 }

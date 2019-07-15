@@ -8,7 +8,7 @@ import {
 
 import * as Aggregator from '../build/Aggregator.json'
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
-import * as Deposit from '../build/Deposit.json'
+import * as DummyDeposit from '../build/DummyDeposit.json'
 import * as Commitment from '../build/CommitmentChain.json'
 
 chai.use(solidity)
@@ -52,24 +52,23 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   it('Assigns Deposit Contract', async () => {
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
     commitmentContract = await deployContract(wallet, Commitment, [])
-    // depositContract = await deployContract(wallet, Deposit, [
-    //   token.address,
-    //   commitmentContract.address,
-    // ])
     depositContract = await aggregator.addDepositContract(
       token.address,
       commitmentContract.address
     )
+    // 0xB20Ff793b68db2E654f1a7A18616DA1Aa417fd82
+    expect(await aggregator.depositContracts(0)).to.eq(depositContract)
+    // expect(await aggregator.deposits.).to.eq(1)
     // expect(await aggregator.depositContracts(depositContract.address)).to.eq(
-    //   depositContract.address
+    //   depositContract
     // )
   })
 
-  it('Assigns and deletes IP in Metadata', async () => {
-    const addr = '0x00000000000000000000000987654321'
-    await aggregator.setMetadata(addr, 'heyo')
-    expect(await aggregator.metadata(addr)).to.eq('heyo')
-    await aggregator.deleteMetadata(addr)
-    expect(await aggregator.metadata(addr)).to.eq('')
-  })
+  // it('Assigns and deletes IP in Metadata', async () => {
+  //   const addr = '0x00000000000000000000000987654321'
+  //   await aggregator.setMetadata(addr, 'heyo')
+  //   expect(await aggregator.metadata(addr)).to.eq('heyo')
+  //   await aggregator.deleteMetadata(addr)
+  //   expect(await aggregator.metadata(addr)).to.eq('')
+  // })
 })
