@@ -15,12 +15,11 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
   let plasmaRegistry
-  let agg1AuthenticationAddress
   let agg2AuthenticationAddress
 
   beforeEach(async () => {
-    agg1AuthenticationAddress = await wallet1.getAddress()
-    agg2AuthenticationAddress = await wallet2.getAddress()
+    const agg1AuthenticationAddress = wallet1.address
+    agg2AuthenticationAddress = wallet2.address
     plasmaRegistry = await deployContract(wallet1, PlasmaRegistry, [], {
       gasLimit: 6700000,
     })

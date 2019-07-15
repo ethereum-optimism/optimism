@@ -9,7 +9,6 @@ import {
 import * as Aggregator from '../build/Aggregator.json'
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
 import * as DummyDeposit from '../build/DummyDeposit.json'
-import * as Commitment from '../build/CommitmentChain.json'
 
 chai.use(solidity)
 const { expect } = chai
