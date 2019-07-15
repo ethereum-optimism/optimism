@@ -11,8 +11,8 @@ import { DummyDeposit } from "./DummyDeposit.sol";
 contract Aggregator {
   address public authenticationAddress;
   CommitmentChain public commitmentContract;
-  mapping(address => DummyDeposit) public depositContracts;
-  // mapping(address => Deposit) public depositContracts;
+  // mapping(address => DummyDeposit) public depositContracts;
+  mapping(address => Deposit) public depositContracts;
   uint public id;
   mapping(string => string) public metadata;
 
@@ -22,17 +22,17 @@ contract Aggregator {
     id = _id;
   }
 
-  // function addDepositContract(address _erc20, address _commitmentContract) public returns (Deposit newDepositContract) {
-  function addDepositContract(address _erc20, address _walletAddress) public returns (address newDepositContract) {
+  function addDepositContract(address _erc20, address _walletAddress) public returns (Deposit newDepositContract) {
+  // function addDepositContract(address _erc20, address _walletAddress) public returns (address newDepositContract) {
     require(msg.sender == authenticationAddress, "addDepositContract can only be called by authenticated address.");
-    // Deposit depositContract = new Deposit(_erc20, _commitmentContract);
-    DummyDeposit depositContract = new DummyDeposit(_erc20, address(commitmentContract));
+    Deposit depositContract = new Deposit(_erc20, address(commitmentContract));
+    // DummyDeposit depositContract = new DummyDeposit(_erc20, address(commitmentContract));
     depositContracts[_walletAddress] = depositContract;
-    return address(depositContract);
+    return depositContract;
   }
 
   function setMetadata(string memory _ip, string memory _data) public {
-    // require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
+    require(msg.sender == authenticationAddress, "setMetadata can only be called by authenticated address.");
     metadata[_ip] = _data;
   }
 

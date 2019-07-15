@@ -18,12 +18,11 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let aggregator
-  let commitmentContract
   let depositContract
   let token
 
   beforeEach(async () => {
-    const authenticationAddress = await wallet.getAddress()
+    const authenticationAddress = wallet.address
     const id = 121
     aggregator = await deployContract(
       wallet,
@@ -36,9 +35,7 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   })
 
   it('Assigns AuthenticationAddress to Aggregator', async () => {
-    expect(await aggregator.authenticationAddress()).to.eq(
-      await wallet.getAddress()
-    )
+    expect(await aggregator.authenticationAddress()).to.eq(wallet.address)
   })
 
   it('Creates Commitment Chain', async () => {
@@ -55,13 +52,14 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
       token.address,
       wallet.address
     )
-    // expect(await aggregator.depositContracts(wallet.address)).to.eq(
-    //   depositContract.toString()
-    // )
+    const depositContractInAggregator = await aggregator.depositContracts(
+      wallet.address
+    )
+    expect(depositContractInAggregator.erc20()).to.eq(token)
   })
 
   it('Assigns and deletes IP in Metadata', async () => {
-    const addr = '0x00000000000000000000000987654321'
+    const addr = wallet.address
     await aggregator.setMetadata(addr, 'heyo')
     expect(await aggregator.metadata(addr)).to.eq('heyo')
     await aggregator.deleteMetadata(addr)
