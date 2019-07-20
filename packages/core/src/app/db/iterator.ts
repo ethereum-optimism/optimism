@@ -249,7 +249,7 @@ export class BaseRangeIterator extends BaseIterator {
    * @returns the RangeEntry at the next key.
    */
   public async nextRange(): Promise<RangeEntry> {
-    const res = await this.next()
+    const res: KV = await this.next()
     if (typeof res.key === 'undefined') {
       return
     }

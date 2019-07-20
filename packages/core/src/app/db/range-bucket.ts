@@ -47,12 +47,14 @@ export class BaseRangeBucket implements RangeBucket {
   ) {}
 
   /**
-   * Adds this RangeBucket's prefix to the target Buffer
-   * @param target A Buffer which will have the prefix prepended to it.
-   * @returns resulting Buffer `prefix+target`.
+   * Concatenates some value to this bucket's prefix.
+   * @param value Value to concatenate.
+   * @returns the value concatenated to the prefix.
    */
-  private addPrefix(target: Buffer): Buffer {
-    return Buffer.concat([this.prefix, target])
+  private addPrefix(value: Buffer): Buffer {
+    return value !== undefined
+      ? Buffer.concat([this.prefix, value])
+      : this.prefix
   }
 
   /**
@@ -289,12 +291,12 @@ export class BaseRangeBucket implements RangeBucket {
    * @param options Parameters for the iterator.
    * @returns the iterator instance.
    */
-  public iterator(options?: IteratorOptions): RangeIterator {
+  public iterator(options: IteratorOptions = {}): RangeIterator {
     const rangeIterator = new BaseRangeIterator(
       this.db,
       {
         ...options,
-        prefix: this.addPrefix(this.prefix),
+        prefix: this.addPrefix(options.prefix),
       },
       (res: KV) => this.resultToRange(res)
     )

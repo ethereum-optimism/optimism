@@ -274,14 +274,14 @@ describe('RangeDB', () => {
     it('allows nextRange() to be called by the iterator returning a RangeEntry instead of a KV', async () => {
       const testRanges = {
         inputs: [
-          { start: '0', end: '100', value: 'x4' },
-          { start: '100', end: '200', value: 'y4' },
-          { start: '50', end: '150', value: 'z4' },
+          { start: '0', end: '100', value: 'x' },
+          { start: '100', end: '200', value: 'y' },
+          { start: '200', end: '225', value: 'z' },
         ],
         expectedResults: [
-          { start: '0', end: '50', value: 'x4' },
-          { start: '50', end: '150', value: 'z4' },
-          { start: '150', end: '200', value: 'y4' },
+          { start: '0', end: '100', value: 'x' },
+          { start: '100', end: '200', value: 'y' },
+          { start: '200', end: '225', value: 'z' },
         ],
       }
 
