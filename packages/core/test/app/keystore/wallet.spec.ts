@@ -21,7 +21,7 @@ describe('DefaultWallet', () => {
   describe('createAccount', () => {
     it('should correctly create an account', async () => {
       await wallet.createAccount('password').should.be.fulfilled
-    }).timeout(5000)
+    }).timeout(10000)
   })
 
   describe('listAccounts', () => {
