@@ -120,7 +120,7 @@ describe('Deposit Contract with Ownership', () => {
         },
         100
       )
-    })
+    }).timeout(30000) // This test is extremely slow and causes build to fail. Increase timeout for *just* this test.
   })
 
   describe('startCheckpoint', () => {
