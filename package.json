@@ -12,7 +12,7 @@
     "lint": "wsrun -p $(yarn --silent run pkgparse) --parallel --exclude-missing lint",
     "fix": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --exclude-missing fix",
     "clean": "wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --parallel --exclude-missing clean",
-    "test": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --no-prefix --exclude-missing --timeout 5000 test",
+    "test": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --no-prefix --exclude-missing --timeout 10000 test",
     "build": "lerna link && wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --stages --exclude-missing build",
     "release": "yarn run build && lerna publish --force-publish --exact -m \"chore(@plasma-group) publish %s release\"",
     "release:rc": "yarn run build && lerna publish --npm-tag=rc -m \"chore(@plasma-group) publish %s release\"",
