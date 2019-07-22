@@ -81,6 +81,7 @@ describe('Deposit Contract with Ownership', () => {
     })
 
     it('allows exits to be started and finalized on deposits', async () => {
+      this.timeout(30000)
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
