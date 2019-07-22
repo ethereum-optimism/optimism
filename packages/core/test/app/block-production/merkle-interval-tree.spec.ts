@@ -8,34 +8,13 @@ import BigNum = require('bn.js')
 /* Internal Imports */
 import {
   AbiStateUpdate,
-  AbiStateObject,
   AbiRange,
   GenericMerkleIntervalTree,
   GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
   PlasmaBlock,
 } from '../../../src/app/'
-
-function generateNSequentialStateUpdates(
-  numerOfUpdates: number
-): AbiStateUpdate[] {
-  const stateUpdates: AbiStateUpdate[] = []
-  for (let i = 0; i < numerOfUpdates; i++) {
-    const stateObject = new AbiStateObject(
-      '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
-      '0x123456'
-    )
-    const range = new AbiRange(new BigNum(i * 100), new BigNum((i + 0.5) * 100))
-    const stateUpdate = new AbiStateUpdate(
-      stateObject,
-      range,
-      new BigNum(1),
-      '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
-    )
-    stateUpdates.push(stateUpdate)
-  }
-  return stateUpdates
-}
+import { TestUtils } from '../utils/test-utils'
 
 describe('Interval Trees and Plasma Blocks', () => {
   describe('GenericMerkleIntervalTreeNode', () => {
@@ -117,13 +96,13 @@ describe('Interval Trees and Plasma Blocks', () => {
   })
   describe('MerkleStateIntervalTree', () => {
     it("'new MerkleStateIntervalTree' generate a tree without throwing", async () => {
-      const stateUpdates = generateNSequentialStateUpdates(4)
+      const stateUpdates = TestUtils.generateNSequentialStateUpdates(4)
       const merkleStateIntervalTree = new MerkleStateIntervalTree(stateUpdates)
       log('root', merkleStateIntervalTree.root())
     })
     it("'MerkleStateIntervalTree.verifyExectedRoot' should throw if state update range intersects branch bounds", async () => {
       // generate some valid tree contents
-      const stateUpdates = generateNSequentialStateUpdates(5)
+      const stateUpdates = TestUtils.generateNSequentialStateUpdates(5)
       // make an invalid range intersecting the second SU
       const faultyUpdateIndex = 0
       const updateToReplace = stateUpdates[faultyUpdateIndex]
@@ -159,7 +138,7 @@ describe('Interval Trees and Plasma Blocks', () => {
   })
   describe('PlasmaBlock', () => {
     it('should generate a plasma block without throwing', async () => {
-      const stateUpdates = generateNSequentialStateUpdates(4)
+      const stateUpdates = TestUtils.generateNSequentialStateUpdates(4)
       const blockContents = [
         {
           assetId: Buffer.from(
@@ -180,7 +159,7 @@ describe('Interval Trees and Plasma Blocks', () => {
       log(plasmaBlock)
     })
     it('should generate and verify a StateUpdateInclusionProof', async () => {
-      const stateUpdates = generateNSequentialStateUpdates(4)
+      const stateUpdates = TestUtils.generateNSequentialStateUpdates(4)
       const blockContents = [
         {
           assetId: Buffer.from(

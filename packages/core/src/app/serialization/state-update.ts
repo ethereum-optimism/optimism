@@ -27,6 +27,35 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
 }
 
 /**
+ * Serializes a StateUpdate to a string.
+ *
+ * @param stateUpdate the StateUpdate to serialize
+ * @returns the serialized StateUpdate
+ */
+export const serializeStateUpdate = (stateUpdate: StateUpdate): string => {
+  return JSON.stringify(stateUpdate)
+}
+
+/**
+ * Deserializes a StateUpdate, parsing it from a string.
+ *
+ * @param stateUpdate the string StateUpdate
+ * @returns the parsed StateUpdate
+ */
+export const deserializeStateUpdate = (stateUpdate: string): StateUpdate => {
+  const obj: {} = JSON.parse(stateUpdate)
+  return {
+    range: {
+      start: new BigNum(obj['range']['start'], 'hex'),
+      end: new BigNum(obj['range']['end'], 'hex'),
+    },
+    stateObject: obj['stateObject'],
+    depositAddress: obj['depositAddress'],
+    plasmaBlockNumber: new BigNum(obj['plasmaBlockNumber']),
+  }
+}
+
+/**
  * Represents a basic abi encodable AbiStateUpdate
  */
 export class AbiStateUpdate implements StateUpdate, AbiEncodable {

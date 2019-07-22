@@ -44,6 +44,21 @@ export interface Transaction {
   body: any
 }
 
+export interface TransactionResult {
+  stateUpdate: StateUpdate
+  validRanges: Range[]
+}
+
+export interface BlockTransaction {
+  blockNumber: BigNum
+  transaction: Transaction
+}
+
+export interface BlockTransactionCommitment {
+  blockTransaction: BlockTransaction
+  witness: any
+}
+
 export interface OwnershipBody {
   newState: StateObject
   originBlock: BigNum

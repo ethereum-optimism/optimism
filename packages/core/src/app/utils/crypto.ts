@@ -13,5 +13,32 @@ export const verifySignature = (
   publicKey: any
 ): boolean => {
   // TODO: Make this do actual signature checking
-  return signature === publicKey
+  return signature === message
+}
+
+/**
+ * Signs the provided message with the provided key
+ *
+ * @param key the key with which the message should be signed
+ * @param message the message to be signed
+ *
+ * @returns the signed message
+ */
+export const sign = (key: any, message: any): any => {
+  // TODO: Actually sign
+  return message
+}
+
+/**
+ * Decrypts the provided encrypted message with the provided public key
+ *
+ * @param publickey the public key in question
+ * @param encryptedMessage the encrypted message to decrypt
+ */
+export const decryptWithPublicKey = (
+  publickey: any,
+  encryptedMessage: any
+): any => {
+  // TODO: Actually decrypt
+  return encryptedMessage
 }

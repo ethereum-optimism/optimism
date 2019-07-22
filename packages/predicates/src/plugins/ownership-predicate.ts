@@ -10,7 +10,7 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
   public async executeStateTransition(
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
-    witness: string
+    witness: any
   ): Promise<StateObject> {
     await this.validateStateTransition(
       previousStateUpdate,

@@ -24,13 +24,10 @@ import { getOverlappingRange, ONE, rangesIntersect } from '../../app'
  * See: http://spec.plasma.group/en/latest/src/05-client-architecture/state-manager.html for more details.
  */
 export class DefaultStateManager implements StateManager {
-  private stateDB: StateDB
-  private pluginManager: PluginManager
-
-  public constructor(stateDB: StateDB, pluginManager: PluginManager) {
-    this.stateDB = stateDB
-    this.pluginManager = pluginManager
-  }
+  public constructor(
+    private stateDB: StateDB,
+    private pluginManager: PluginManager
+  ) {}
 
   public async executeTransaction(
     transaction: Transaction,

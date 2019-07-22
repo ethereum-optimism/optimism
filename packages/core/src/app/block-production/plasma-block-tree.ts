@@ -42,7 +42,7 @@ export class PlasmaBlock extends GenericMerkleIntervalTree
 
   /**
    * Returns a double inclusion proof which demonstrates the existence of a state update within the plasma block.
-   * @param stateUpdatePosition index of the state udpate in the state subtree of the block.
+   * @param stateUpdatePosition index of the state update in the state subtree of the block.
    * @param assetIdPosition index of the assetId in the top-level asset id of the block
    */
   public getStateUpdateInclusionProof(

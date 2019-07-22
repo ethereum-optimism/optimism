@@ -5,18 +5,19 @@
     "tslint-plugin-prettier"
   ],
   "rules": {
-    "prettier": true,
-    "no-unused-expression": false,
+    "ban-types": false,
     "interface-name": false,
+    "max-classes-per-file": false,
+    "member-ordering": false,
+    "no-empty-interface": false,
+    "no-implicit-dependencies": [true, "dev"],
+    "no-string-literal": false,
+    "no-submodule-imports": false,
+    "no-unused-expression": false,
     "object-literal-sort-keys": false,
     "ordered-imports": false,
-    "no-submodule-imports": false,
-    "variable-name": false,
-    "no-empty-interface": false,
-    "max-classes-per-file": false,
-    "no-implicit-dependencies": [true, "dev"],
-    "ban-types": false,
-    "member-ordering": false
+    "prettier": true,
+    "variable-name": false
   },
   "linterOptions": {
     "exclude": [

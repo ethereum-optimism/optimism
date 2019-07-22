@@ -19,6 +19,7 @@ import {
   StateObject,
   StateUpdate,
   Transaction,
+  TransactionResult,
   VerifiedStateUpdate,
 } from '../../../src/types'
 import * as assert from 'assert'
@@ -202,10 +203,7 @@ describe('DefaultStateManager', () => {
         pluginManager
       )
 
-      const result: {
-        stateUpdate: StateUpdate
-        validRanges: Range[]
-      } = await stateManager.executeTransaction(
+      const result: TransactionResult = await stateManager.executeTransaction(
         transaction,
         nextBlockNumber,
         defaultWitness
@@ -251,10 +249,7 @@ describe('DefaultStateManager', () => {
         pluginManager
       )
 
-      const result: {
-        stateUpdate: StateUpdate
-        validRanges: Range[]
-      } = await stateManager.executeTransaction(
+      const result: TransactionResult = await stateManager.executeTransaction(
         transaction,
         nextBlockNumber,
         defaultWitness
@@ -302,10 +297,7 @@ describe('DefaultStateManager', () => {
         pluginManager
       )
 
-      const result: {
-        stateUpdate: StateUpdate
-        validRanges: Range[]
-      } = await stateManager.executeTransaction(
+      const result: TransactionResult = await stateManager.executeTransaction(
         transaction,
         nextBlockNumber,
         defaultWitness
@@ -351,10 +343,7 @@ describe('DefaultStateManager', () => {
         pluginManager
       )
 
-      const result: {
-        stateUpdate: StateUpdate
-        validRanges: Range[]
-      } = await stateManager.executeTransaction(
+      const result: TransactionResult = await stateManager.executeTransaction(
         transaction,
         nextBlockNumber,
         defaultWitness
@@ -384,10 +373,7 @@ describe('DefaultStateManager', () => {
         pluginManager
       )
 
-      const result: {
-        stateUpdate: StateUpdate
-        validRanges: Range[]
-      } = await stateManager.executeTransaction(
+      const result: TransactionResult = await stateManager.executeTransaction(
         transaction,
         nextBlockNumber,
         defaultWitness

@@ -4,7 +4,11 @@
  */
 
 /* External Imports */
-import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
+import {
+  AbstractOpenOptions,
+  AbstractLevelDOWN,
+  AbstractChainedBatch,
+} from 'abstract-leveldown'
 
 /* Internal Imports */
 import {
@@ -16,11 +20,17 @@ import {
   Iterator,
   Bucket,
   RangeBucket,
+  KeyValueStore,
+  PutBatch,
+  PUT_BATCH_TYPE,
+  DEL_BATCH_TYPE,
 } from '../../types'
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
 import { BaseRangeBucket } from './range-bucket'
 import { bufferUtils } from '../../app'
+
+export const DEFAULT_PREFIX_LENGTH = 3
 
 /**
  * Checks if an error is a NotFoundError.
@@ -45,7 +55,7 @@ const isNotFound = (err: any): boolean => {
 export class BaseDB implements DB {
   constructor(
     readonly db: AbstractLevelDOWN,
-    readonly prefixLength: number = 3
+    readonly prefixLength: number = DEFAULT_PREFIX_LENGTH
   ) {}
 
   /**

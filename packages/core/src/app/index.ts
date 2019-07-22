@@ -1,3 +1,4 @@
+export * from './aggregator'
 export * from './ovm'
 export * from './keystore'
 export * from './block-production'

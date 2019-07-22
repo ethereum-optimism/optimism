@@ -22,9 +22,6 @@ const defaultPredicateAddress: string = '0x123456789abcdef'
 const defaultOwner: string = '0x999999999999999'
 const newOwner: string = '0x8888888888888'
 
-// TODO: Change this when we are actually checking signatures
-const defaultWitness: string = defaultOwner
-
 const defaultInBlock: BigNum = new BigNum(2)
 const defaultOriginBlock: BigNum = defaultInBlock
 const defaultMaxBlock: BigNum = new BigNum(10)
@@ -126,7 +123,7 @@ describe('OwnershipPredicate', async () => {
       const stateObject: StateObject = await ownershipPredicate.executeStateTransition(
         defaultPreviousStateUpdate,
         defaultTransaction,
-        defaultWitness
+        defaultTransaction
       )
 
       assert(stateObjectsEqual(stateObject, defaultNewState))
@@ -155,7 +152,7 @@ describe('OwnershipPredicate', async () => {
         await ownershipPredicate.executeStateTransition(
           defaultPreviousStateUpdate,
           transaction,
-          defaultWitness
+          transaction
         )
         assert(false, 'Should have thrown an error and not gotten here')
       } catch (e) {

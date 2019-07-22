@@ -1,0 +1,46 @@
+import BigNum = require('bn.js')
+import {
+  AbiRange,
+  AbiStateObject,
+  AbiStateUpdate,
+} from '../../../src/app/serialization'
+import { TransactionResult } from '../../../src/types/serialization'
+
+export class TestUtils {
+  public static generateNSequentialStateUpdates(
+    numberOfUpdates: number
+  ): AbiStateUpdate[] {
+    const stateUpdates: AbiStateUpdate[] = []
+    for (let i = 0; i < numberOfUpdates; i++) {
+      const stateObject = new AbiStateObject(
+        '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63',
+        '0x123456'
+      )
+      const range = new AbiRange(
+        new BigNum(i * 100),
+        new BigNum((i + 0.5) * 100)
+      )
+      const stateUpdate = new AbiStateUpdate(
+        stateObject,
+        range,
+        new BigNum(1),
+        '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
+      )
+      stateUpdates.push(stateUpdate)
+    }
+    return stateUpdates
+  }
+
+  public static generateNSequentialTransactionResults(
+    numberofUpdates: number
+  ): TransactionResult[] {
+    return this.generateNSequentialStateUpdates(numberofUpdates).map(
+      (abiStateUpdate: AbiStateUpdate): TransactionResult => {
+        return {
+          stateUpdate: abiStateUpdate,
+          validRanges: [abiStateUpdate.range],
+        }
+      }
+    )
+  }
+}

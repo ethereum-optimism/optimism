@@ -1,5 +1,10 @@
 import { Range } from '../../types/db'
-import { StateObject, StateUpdate } from '../../types/serialization'
+import {
+  BlockTransaction,
+  StateObject,
+  StateUpdate,
+  Transaction,
+} from '../../types/serialization'
 
 /**
  * All of the below functions check whether or not the two provided objects are equal,
@@ -66,5 +71,30 @@ export const stateUpdatesEqual = (
     stateUpdate1.depositAddress === stateUpdate2.depositAddress &&
     rangesEqual(stateUpdate1.range, stateUpdate2.range) &&
     stateObjectsEqual(stateUpdate1.stateObject, stateUpdate2.stateObject)
+  )
+}
+
+export const transactionsEqual = (
+  tx1: Transaction,
+  tx2: Transaction
+): boolean => {
+  return (
+    tx1 !== undefined &&
+    tx2 !== undefined &&
+    tx1.depositAddress === tx2.depositAddress &&
+    rangesEqual(tx1.range, tx2.range) &&
+    objectsEqual(tx1.body, tx2.body)
+  )
+}
+
+export const blockTransactionsEqual = (
+  blockTx1: BlockTransaction,
+  blockTx2: BlockTransaction
+): boolean => {
+  return (
+    blockTx1 !== undefined &&
+    blockTx2 !== undefined &&
+    blockTx1.blockNumber.eq(blockTx2.blockNumber) &&
+    transactionsEqual(blockTx1.transaction, blockTx2.transaction)
   )
 }

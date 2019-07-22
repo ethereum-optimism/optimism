@@ -46,14 +46,19 @@ async function depositErc20(
 }
 
 describe('Deposit Contract with Ownership', () => {
-  const provider = createMockProvider()
-  const [wallet, walletTo] = getWallets(provider)
+  let provider
+  let wallet
+  let walletTo
   let token
   let depositContract
   let commitmentContract
   let ownershipPredicate
 
   beforeEach(async () => {
+    provider = createMockProvider()
+    const wallets = getWallets(provider)
+    wallet = wallets[0]
+    walletTo = wallets[1]
     token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
     commitmentContract = await deployContract(wallet, Commitment, [])
     depositContract = await deployContract(wallet, Deposit, [

@@ -13,7 +13,7 @@ export interface PredicatePlugin {
   executeStateTransition(
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
-    witness: string
+    witness: any
   ): Promise<StateObject>
 
   // TODO: Add other methods when used

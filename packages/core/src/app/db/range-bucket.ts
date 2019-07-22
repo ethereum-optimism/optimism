@@ -18,6 +18,7 @@ import {
   RangeBucket,
   RangeEntry,
   Endianness,
+  PUT_BATCH_TYPE,
 } from '../../types'
 import { bufferUtils, intersects, BaseDB } from '../../app'
 
@@ -194,7 +195,7 @@ export class BaseRangeBucket implements RangeBucket {
     if (ranges.length > 0 && start.gt(ranges[0].start)) {
       // Reduce the first affected range's end position. Eg: ##### becomes ###$$
       batchOps.push({
-        type: 'put',
+        type: PUT_BATCH_TYPE,
         key: this.bnToKey(start),
         value: this.addStartToValue(ranges[0].start, ranges[0].value),
       })
@@ -202,7 +203,7 @@ export class BaseRangeBucket implements RangeBucket {
     // If the end position less than the last range's end...
     if (ranges.length > 0 && ranges[ranges.length - 1].end.gt(end)) {
       batchOps.push({
-        type: 'put',
+        type: PUT_BATCH_TYPE,
         key: this.bnToKey(ranges[ranges.length - 1].end),
         value: this.addStartToValue(end, ranges[ranges.length - 1].value),
       })
@@ -211,7 +212,7 @@ export class BaseRangeBucket implements RangeBucket {
     // Step #3: Add our new range
     //
     batchOps.push({
-      type: 'put',
+      type: PUT_BATCH_TYPE,
       key: this.bnToKey(end),
       value: this.addStartToValue(start, value),
     })
@@ -232,6 +233,11 @@ export class BaseRangeBucket implements RangeBucket {
     const { ranges, batchOps } = await this.delBatchOps(start, end)
     await this.db.batch(batchOps)
     return ranges
+  }
+
+  public async hasDataInRange(start: BigNum, end: BigNum): Promise<boolean> {
+    // TODO: can eagerly return when true, but this is good enough or now
+    return (await this.get(start, end)).length > 0
   }
 
   /**

@@ -15,6 +15,9 @@ export interface KV {
   value: V
 }
 
+export const PUT_BATCH_TYPE = 'put'
+export const DEL_BATCH_TYPE = 'del'
+
 export type Batch = PutBatch | DelBatch
 
 export interface PutBatch {

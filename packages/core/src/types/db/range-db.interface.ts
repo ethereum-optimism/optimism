@@ -27,6 +27,14 @@ export interface RangeStore {
   readonly endianness: Endianness // The endianness of the range keys
 
   /**
+   * Determines if there is any data with a Range overlapping the specified Range.
+   * @param start the start of the Range
+   * @param end the end of the Range
+   * @returns true if there is data in the Range, false otherwise
+   */
+  hasDataInRange(start: BigNum, end: BigNum): Promise<boolean>
+
+  /**
    * Queries for all values which are stored over the particular range.
    * @param start the start of the range to query.
    * @param end the start of the range to query.

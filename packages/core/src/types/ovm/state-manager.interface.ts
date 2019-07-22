@@ -7,6 +7,7 @@ import {
   StateQueryResult,
   StateUpdate,
   Transaction,
+  TransactionResult,
 } from '../../types'
 
 export interface StateManager {
@@ -22,7 +23,7 @@ export interface StateManager {
     transaction: Transaction,
     inBlock: BigNum,
     witness: string
-  ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }>
+  ): Promise<TransactionResult>
 
   /**
    * Validates the provided HistoryProof.
