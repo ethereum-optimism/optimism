@@ -81,7 +81,6 @@ describe('Deposit Contract with Ownership', () => {
     })
 
     it('allows exits to be started and finalized on deposits', async () => {
-      this.timeout(30000)
       // Deposit some money into the ownership predicate
       await token.approve(depositContract.address, 500)
       const depositData = abi.encode(['address'], [wallet.address])
@@ -121,7 +120,7 @@ describe('Deposit Contract with Ownership', () => {
         },
         100
       )
-    })
+    }).timeout(30000) // This test is extremely slow and causes build to fail. Increase timeout for *just* this test.
   })
 
   describe('startCheckpoint', () => {
