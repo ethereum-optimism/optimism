@@ -5,9 +5,18 @@
 
 /* External Imports */
 import { AbstractIterator } from 'abstract-leveldown'
+import BigNum = require('bn.js')
 
 /* Internal Imports */
-import { Iterator, IteratorOptions, K, V, KV, DB } from '../../types'
+import {
+  Iterator,
+  IteratorOptions,
+  K,
+  V,
+  KV,
+  DB,
+  RangeEntry,
+} from '../../types'
 
 const defaultIteratorOptions: IteratorOptions = {
   reverse: false,
@@ -215,5 +224,35 @@ export class BaseIterator implements Iterator {
    */
   private removePrefix(value: Buffer): Buffer {
     return value ? value.slice(this.prefix.length) : value
+  }
+}
+
+/**
+ * A special purpose iterator which includes a nextRange() function that returns RangeEntrys instead of simple KVs.
+ * This is used by the RangeBucket class.
+ */
+export class BaseRangeIterator extends BaseIterator {
+  /**
+   * Constructs a RangeIterator with a particular `resultToRange()` function that will transform
+   * the it.next() result into a RangeEntry.
+   */
+  constructor(
+    db: DB,
+    options: IteratorOptions = {},
+    readonly resultToRange: (result: KV) => RangeEntry
+  ) {
+    super(db, options)
+  }
+
+  /**
+   * Advances the iterator to the next key and converts its result into a RangeEntry.
+   * @returns the RangeEntry at the next key.
+   */
+  public async nextRange(): Promise<RangeEntry> {
+    const res: KV = await this.next()
+    if (typeof res.key === 'undefined') {
+      return
+    }
+    return this.resultToRange(res)
   }
 }
