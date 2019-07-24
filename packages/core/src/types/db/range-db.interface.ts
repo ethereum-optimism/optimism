@@ -1,6 +1,4 @@
 /* External Imports */
-import { AbstractOpenOptions } from 'abstract-leveldown'
-import BigNum = require('bn.js')
 import level from 'level'
 
 /* Internal Imports */
@@ -8,20 +6,19 @@ import {
   KeyValueStore,
   V,
   Bucket,
-  RangeIterator,
   IteratorOptions,
+  RangeIterator,
 } from './db.interface'
+import { BigNumber, Endianness } from '../../app/utils'
 
 /**
  * Represents a range of values. Note start & end are big numbers!
  */
 export interface RangeEntry {
-  start: BigNum
-  end: BigNum
+  start: BigNumber
+  end: BigNumber
   value: V
 }
-
-export type Endianness = 'le' | 'be'
 
 /**
  * Represents a key value store which uses ranges as keys
@@ -38,7 +35,7 @@ export interface RangeStore {
    * @param end the end of the Range
    * @returns true if there is data in the Range, false otherwise
    */
-  hasDataInRange(start: BigNum, end: BigNum): Promise<boolean>
+  hasDataInRange(start: BigNumber, end: BigNumber): Promise<boolean>
 
   /**
    * Queries for all values which are stored over the particular range.
@@ -46,7 +43,7 @@ export interface RangeStore {
    * @param end the start of the range to query.
    * @returns an array of values which are stored at intersecting ranges.
    */
-  get(start: BigNum, end: BigNum): Promise<RangeEntry[]>
+  get(start: BigNumber, end: BigNumber): Promise<RangeEntry[]>
 
   /**
    * Sets a range to be equal to a particular value
@@ -54,7 +51,7 @@ export interface RangeStore {
    * @param end the end of the range which we will store the value at.
    * @param value the value which will be stored
    */
-  put(start: BigNum, end: BigNum, value: Buffer): Promise<void>
+  put(start: BigNumber, end: BigNumber, value: Buffer): Promise<void>
 
   /**
    * Deletes all values stored over a given range.
@@ -62,7 +59,7 @@ export interface RangeStore {
    * @param end the end of the range which will be deleted.
    * @returns all of the ranges which have been deleted.
    */
-  del(start: BigNum, end: BigNum): Promise<RangeEntry[]>
+  del(start: BigNumber, end: BigNumber): Promise<RangeEntry[]>
 
   /**
    * Creates an iterator with some options.

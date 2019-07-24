@@ -1,10 +1,9 @@
 /* External Imports */
-import BigNum = require('bn.js')
 import debug from 'debug'
 const log = debug('info:state-update')
 
 /* Internal Imports */
-import { abi } from '../../app'
+import { abi, BigNumber } from '../../app'
 import { AbiEncodable, Transaction, OwnershipBody } from '../../types'
 import { AbiStateObject } from './state-object'
 import { AbiRange } from './abi-range'
@@ -18,8 +17,8 @@ import { hexStringify } from '../utils'
 const fromEncodedOwnershipBody = (encoded: string): AbiOwnershipBody => {
   const decoded = abi.decode(AbiOwnershipBody.abiTypes, encoded)
   const newState = AbiStateObject.from(decoded[0])
-  const originBlock = new BigNum(decoded[1].toString())
-  const maxBlock = new BigNum(decoded[2].toString())
+  const originBlock = new BigNumber(decoded[1].toString())
+  const maxBlock = new BigNumber(decoded[2].toString())
   return new AbiOwnershipBody(newState, originBlock, maxBlock)
 }
 
@@ -31,8 +30,8 @@ export class AbiOwnershipBody implements OwnershipBody, AbiEncodable {
 
   constructor(
     readonly newState: AbiStateObject,
-    readonly originBlock: BigNum,
-    readonly maxBlock: BigNum
+    readonly originBlock: BigNumber,
+    readonly maxBlock: BigNumber
   ) {}
 
   /**

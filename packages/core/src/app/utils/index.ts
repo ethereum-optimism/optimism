@@ -18,9 +18,9 @@ export const keccak256 = (value: Buffer): Buffer => {
   return Buffer.from(remove0x(ethers.utils.keccak256(preimage)), 'hex')
 }
 
+export * from './buffer'
+export * from './crypto'
 export * from './equals'
 export * from './misc'
+export * from './number'
 export * from './range'
-export * from './buffer'
-export * from './numbers'
-export * from './crypto'

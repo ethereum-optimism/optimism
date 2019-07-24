@@ -1,8 +1,8 @@
 /* External Imports */
-import BigNum = require('bn.js')
 
 /* Internal Imports */
 import { Transaction } from '../../types'
+import { BIG_ENDIAN, BigNumber } from './number'
 
 /**
  * JSON-stringifies a value if it's not already a string.
@@ -39,28 +39,8 @@ export const isJson = (value: string): boolean => {
   return true
 }
 
-/**
- * Determines the lesser of two BigNums.
- * @param a First BigNum.
- * @param b Second BigNum.
- * @returns the lesser of the two.
- */
-export const bnMin = (a: BigNum, b: BigNum): BigNum => {
-  return a.lt(b) ? a : b
-}
-
-/**
- * Determines the greater of two BigNums.
- * @param a First BigNum.
- * @param b Second BigNum.
- * @returns the greater of the two.
- */
-export const bnMax = (a: BigNum, b: BigNum): BigNum => {
-  return a.gt(b) ? a : b
-}
-
 export interface PrettyPrintable {
-  [key: string]: string | number | BigNum | boolean | any
+  [key: string]: string | number | BigNumber | boolean | any
 }
 
 /**
@@ -72,7 +52,7 @@ export const prettify = (obj: PrettyPrintable): string => {
   const parsed: PrettyPrintable = {}
   for (const key of Object.keys(obj)) {
     const value = obj[key]
-    parsed[key] = BigNum.isBN(value)
+    parsed[key] = BigNumber.isBigNumber(value)
       ? `${value.toString(16)} (${value.toString(10)})`
       : value
   }
@@ -84,8 +64,8 @@ export const prettify = (obj: PrettyPrintable): string => {
  * @param bn BigNum to convert.
  * @returns the Uint256 Buffer.
  */
-export const bnToUint256 = (bn: BigNum): Buffer => {
-  return bn.toBuffer('be', 32)
+export const bnToUint256 = (bn: BigNumber): Buffer => {
+  return bn.toBuffer(BIG_ENDIAN, 32)
 }
 
 /**
@@ -170,7 +150,7 @@ export const bufToHexString = (buf: Buffer): string => {
  * @param bn the big number to be converted.
  * @returns the big number as a string.
  */
-export const bnToHexString = (bn: BigNum): string => {
+export const bnToHexString = (bn: BigNumber): string => {
   return '0x' + bn.toString('hex')
 }
 
@@ -179,8 +159,8 @@ export const bnToHexString = (bn: BigNum): string => {
  * @param value the big number or buffer to be converted
  * @returns the value as a string.
  */
-export const hexStringify = (value: BigNum | Buffer): string => {
-  if (value instanceof BigNum) {
+export const hexStringify = (value: BigNumber | Buffer): string => {
+  if (value instanceof BigNumber) {
     return bnToHexString(value)
   } else if (value instanceof Buffer) {
     return bufToHexString(value)

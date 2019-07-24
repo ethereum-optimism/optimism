@@ -1,4 +1,4 @@
-import BigNum = require('bn.js')
+import { BigNumber } from '../../app/utils'
 
 export interface SyncManager {
   /**
@@ -6,5 +6,5 @@ export interface SyncManager {
    *
    * @returns the block number
    */
-  getLastSyncedBlock(plasmaContract: string): Promise<BigNum>
+  getLastSyncedBlock(plasmaContract: string): Promise<BigNumber>
 }

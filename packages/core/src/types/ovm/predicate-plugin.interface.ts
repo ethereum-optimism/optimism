@@ -1,4 +1,3 @@
-import BigNum = require('bn.js')
 import { StateObject, StateUpdate, Transaction } from '../../types'
 
 export interface PredicatePlugin {

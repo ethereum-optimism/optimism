@@ -1,9 +1,13 @@
-import BigNum = require('bn.js')
 import * as assert from 'assert'
 import { should } from '../../setup'
 
 import { StateUpdate } from '../../../src/types'
-import { DefaultBlockManager, ONE, stateUpdatesEqual } from '../../../src/app/'
+import {
+  BigNumber,
+  DefaultBlockManager,
+  ONE,
+  stateUpdatesEqual,
+} from '../../../src/app/'
 import { TestUtils } from '../utils/test-utils'
 import {
   BlockDB,
@@ -31,7 +35,7 @@ class DummyCommitmentContract implements CommitmentContract {
 }
 
 class DummyBlockDB implements BlockDB {
-  private nextBlockNumber: BigNum = ONE
+  private nextBlockNumber: BigNumber = ONE
   private pendingStateUpdates: StateUpdate[] = []
   private throwOnFinalize: boolean = false
 
@@ -52,11 +56,11 @@ class DummyBlockDB implements BlockDB {
     this.nextBlockNumber = this.nextBlockNumber.add(ONE)
   }
 
-  public async getMerkleRoot(blockNumber: BigNum): Promise<Buffer> {
+  public async getMerkleRoot(blockNumber: BigNumber): Promise<Buffer> {
     return Buffer.from('placeholder')
   }
 
-  public async getNextBlockNumber(): Promise<BigNum> {
+  public async getNextBlockNumber(): Promise<BigNumber> {
     return this.nextBlockNumber
   }
 
@@ -99,8 +103,8 @@ describe('DefaultBlockManager', () => {
 
   describe('getNextBlockNumber', () => {
     it('is in sync with BlockDB', async () => {
-      const blockDBNextBlock: BigNum = await blockDB.getNextBlockNumber()
-      const blockManagerNextBlock: BigNum = await blockManager.getNextBlockNumber()
+      const blockDBNextBlock: BigNumber = await blockDB.getNextBlockNumber()
+      const blockManagerNextBlock: BigNumber = await blockManager.getNextBlockNumber()
 
       assert(
         blockManagerNextBlock.eq(blockDBNextBlock),
@@ -150,13 +154,13 @@ describe('DefaultBlockManager', () => {
 
   describe('submitNextBlock', () => {
     it('increments next block and clears pending StateUpdates', async () => {
-      const previousNextBlockNumber: BigNum = await blockManager.getNextBlockNumber()
+      const previousNextBlockNumber: BigNumber = await blockManager.getNextBlockNumber()
 
       await addStateUpdateToBlockManager(blockManager)
 
       await blockManager.submitNextBlock()
 
-      const updatedNextBlockNumber: BigNum = await blockManager.getNextBlockNumber()
+      const updatedNextBlockNumber: BigNumber = await blockManager.getNextBlockNumber()
       assert(
         updatedNextBlockNumber.eq(previousNextBlockNumber.add(ONE)),
         `Block Number after submitted block is not incremented. Got ${updatedNextBlockNumber.toString()}, expected ${previousNextBlockNumber
@@ -174,9 +178,9 @@ describe('DefaultBlockManager', () => {
     })
 
     it('does not submit block if there are no updates', async () => {
-      const previousNextBlockNumber: BigNum = await blockManager.getNextBlockNumber()
+      const previousNextBlockNumber: BigNumber = await blockManager.getNextBlockNumber()
       await blockManager.submitNextBlock()
-      const updatedNextBlockNumber: BigNum = await blockManager.getNextBlockNumber()
+      const updatedNextBlockNumber: BigNumber = await blockManager.getNextBlockNumber()
 
       assert(
         previousNextBlockNumber.eq(updatedNextBlockNumber),

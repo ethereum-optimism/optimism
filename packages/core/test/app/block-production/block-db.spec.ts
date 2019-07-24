@@ -1,4 +1,3 @@
-import BigNum = require('bn.js')
 import MemDown from 'memdown'
 import * as assert from 'assert'
 
@@ -7,7 +6,7 @@ import { KeyValueStore } from '../../../src/types/db'
 import { BaseBucket, BaseDB, DEFAULT_PREFIX_LENGTH } from '../../../src/app/db'
 import { BlockDB } from '../../../src/types/block-production'
 import { DefaultBlockDB } from '../../../src/app/block-production'
-import { ONE, stateUpdatesEqual } from '../../../src/app/utils'
+import { BigNumber, ONE, stateUpdatesEqual } from '../../../src/app/utils'
 import { StateUpdate } from '../../../src/types/serialization'
 import { TestUtils } from '../utils/test-utils'
 
@@ -38,7 +37,7 @@ describe('DefaultBlockDB', () => {
 
   describe('getNextBlockNumber', () => {
     it('returns 1 by default', async () => {
-      const nextBlock: BigNum = await blockDB.getNextBlockNumber()
+      const nextBlock: BigNumber = await blockDB.getNextBlockNumber()
       assert(
         nextBlock.eq(ONE),
         `Next Block Number did not default to 1. Expected ${ONE.toString()}, got ${nextBlock.toString()}`
@@ -47,8 +46,8 @@ describe('DefaultBlockDB', () => {
 
     it('increases when finalized', async () => {
       await blockDB.finalizeNextBlock()
-      const nextBlock: BigNum = await blockDB.getNextBlockNumber()
-      const expected: BigNum = new BigNum(2)
+      const nextBlock: BigNumber = await blockDB.getNextBlockNumber()
+      const expected: BigNumber = new BigNumber(2)
       assert(
         nextBlock.eq(expected),
         `Next Block didn't increase after block finalization. Expected ${expected.toString()}, got ${nextBlock.toString()}`
@@ -74,7 +73,9 @@ describe('DefaultBlockDB', () => {
 
       assert(
         stateUpdatesEqual(returnedUpdates[0], stateUpdates[0]),
-        'Added StateUpdate is not the same as returned StateUpdate.'
+        `Added StateUpdate is not the same as returned StateUpdate. 
+        Returned: ${JSON.stringify(returnedUpdates[0])},
+        Added: ${JSON.stringify(stateUpdates[0])}`
       )
 
       await blockDB.addPendingStateUpdate(stateUpdates[1])
@@ -98,7 +99,7 @@ describe('DefaultBlockDB', () => {
 
   describe('finalizeNextBlock', () => {
     it('increments next block and clears pending StateUpdates', async () => {
-      const previousNextBlockNumber: BigNum = await blockDB.getNextBlockNumber()
+      const previousNextBlockNumber: BigNumber = await blockDB.getNextBlockNumber()
 
       const stateUpdate: StateUpdate = TestUtils.generateNSequentialStateUpdates(
         1
@@ -115,7 +116,7 @@ describe('DefaultBlockDB', () => {
 
       await blockDB.finalizeNextBlock()
 
-      const updatedNextBlockNumber: BigNum = await blockDB.getNextBlockNumber()
+      const updatedNextBlockNumber: BigNumber = await blockDB.getNextBlockNumber()
       assert(
         updatedNextBlockNumber.eq(previousNextBlockNumber.add(ONE)),
         `Block Number after submitted block is not incremented. Got ${updatedNextBlockNumber.toString()}, expected ${previousNextBlockNumber

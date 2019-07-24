@@ -1,4 +1,3 @@
-import BigNum = require('bn.js')
 import { Mutex } from 'async-mutex'
 
 import {
@@ -7,6 +6,7 @@ import {
   CommitmentContract,
 } from '../../types/block-production'
 import { StateUpdate } from '../../types/serialization'
+import { BigNumber } from '../utils'
 
 /**
  * Simple BlockManager implementation.
@@ -29,7 +29,7 @@ export class DefaultBlockManager implements BlockManager {
   /**
    * @returns the next plasma block number.
    */
-  public async getNextBlockNumber(): Promise<BigNum> {
+  public async getNextBlockNumber(): Promise<BigNumber> {
     return this.blockdb.getNextBlockNumber()
   }
 

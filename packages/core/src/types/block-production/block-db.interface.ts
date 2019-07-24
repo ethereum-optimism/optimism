@@ -1,11 +1,10 @@
-import BigNum = require('bn.js')
-
 import { StateUpdate } from '../serialization'
+import { BigNumber } from '../../app/utils'
 
 export interface BlockDB {
-  getNextBlockNumber(): Promise<BigNum>
+  getNextBlockNumber(): Promise<BigNumber>
   addPendingStateUpdate(stateUpdate: StateUpdate): Promise<void>
   getPendingStateUpdates(): Promise<StateUpdate[]>
-  getMerkleRoot(blockNumber: BigNum): Promise<Buffer>
+  getMerkleRoot(blockNumber: BigNumber): Promise<Buffer>
   finalizeNextBlock(): Promise<void>
 }

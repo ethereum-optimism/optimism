@@ -1,8 +1,6 @@
 /* Internal Imports */
-import BigNum = require('bn.js')
-import { bnMax, bnMin } from './misc'
 import { BlockRange, Range } from '../../types'
-import { bufferUtils } from '../../app'
+import { BigNumber, bufferUtils, ONE } from '../../app'
 
 /**
  * Checks if two ranges intersect, eg. [1,10) & [8,11) would return true.
@@ -33,8 +31,8 @@ export const getOverlappingRange = (
   range1: Range,
   range2: Range
 ): Range | undefined => {
-  const start: BigNum = bnMax(range1.start, range2.start)
-  const end: BigNum = bnMin(range1.end, range2.end)
+  const start: BigNumber = BigNumber.max(range1.start, range2.start)
+  const end: BigNumber = BigNumber.min(range1.end, range2.end)
 
   return start.lt(end) ? { start, end } : undefined
 }
@@ -85,7 +83,7 @@ export const doRangesSpanRange = (
     return a.start.lt(b.start) ? -1 : a.start.eq(b.start) ? 0 : 1
   })
 
-  let lowestNotSpanned: BigNum = rangeToSpan.start
+  let lowestNotSpanned: BigNumber = rangeToSpan.start
   for (const rangeElem of sortedRanges) {
     // If our lowest range start is greater than our lowestNotSpanned,
     // the range cannot be spanned because the Ranges do not include lowestNotSpanned.
@@ -242,8 +240,8 @@ export class DefaultBlockRange<T extends BlockRange> {
 
     for (const existing of this.ranges) {
       const overlap: Range = {
-        start: bnMax(existing.start, range.start),
-        end: bnMin(existing.end, range.end),
+        start: BigNumber.max(existing.start, range.start),
+        end: BigNumber.min(existing.end, range.end),
       }
 
       // No overlap, can skip.
@@ -255,7 +253,7 @@ export class DefaultBlockRange<T extends BlockRange> {
         ...existing,
         ...overlap,
         ...{
-          block: existing.block.addn(1),
+          block: existing.block.add(ONE),
         },
       })
     }

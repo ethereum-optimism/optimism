@@ -1,6 +1,5 @@
-import BigNum = require('bn.js')
-
 import { StateDB, VerifiedStateUpdate } from '../../types'
+import { BigNumber } from '../utils'
 
 /**
  * StateDB used to store the state for different ranges.
@@ -9,8 +8,8 @@ import { StateDB, VerifiedStateUpdate } from '../../types'
  */
 export class DefaultStateDB implements StateDB {
   public async getVerifiedStateUpdates(
-    start: BigNum,
-    end: BigNum
+    start: BigNumber,
+    end: BigNumber
   ): Promise<VerifiedStateUpdate[]> {
     throw Error('DefaultStateDB.getVerifiedStateUpdates is not implemented.')
   }

@@ -1,10 +1,9 @@
 /* External Imports */
-import BigNum = require('bn.js')
 import debug from 'debug'
 const log = debug('info:merkle-interval-tree')
 
 /* Internal Imports */
-import { reverse, keccak256 } from '../'
+import { reverse, keccak256, BigNumber, ZERO } from '../'
 import {
   MerkleIntervalTreeNode,
   MerkleIntervalTree,
@@ -183,7 +182,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     }
     return {
       siblings: inclusionProof,
-      leafPosition: new BigNum(leafPosition),
+      leafPosition: new BigNumber(leafPosition),
     }
   }
 
@@ -216,13 +215,13 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
     leafNode: GenericMerkleIntervalTreeNode,
     inclusionProof: MerkleIntervalInclusionProof
   ): MerkleIntervalProofOutput {
-    if (inclusionProof.leafPosition.lt(new BigNum(0))) {
+    if (inclusionProof.leafPosition.lt(ZERO)) {
       throw new Error('Invalid leaf position.')
     }
 
     // Compute the path based on the leaf index.
     const path = reverse(
-      new BigNum(inclusionProof.leafPosition).toString(
+      new BigNumber(inclusionProof.leafPosition).toString(
         2,
         inclusionProof.siblings.length
       )
@@ -271,7 +270,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
           .lowerBound // messy way to get the max index, TODO clean
     return {
       root: computed,
-      upperBound: new BigNum(implicitEnd),
+      upperBound: new BigNumber(implicitEnd),
     }
   }
 }

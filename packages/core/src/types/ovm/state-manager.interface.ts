@@ -1,14 +1,11 @@
-import BigNum = require('bn.js')
-
 import {
   HistoryProof,
-  Range,
   StateQuery,
   StateQueryResult,
-  StateUpdate,
   Transaction,
   TransactionResult,
 } from '../../types'
+import { BigNumber } from '../../app/utils'
 
 export interface StateManager {
   /**
@@ -21,7 +18,7 @@ export interface StateManager {
    */
   executeTransaction(
     transaction: Transaction,
-    inBlock: BigNum,
+    inBlock: BigNumber,
     witness: string
   ): Promise<TransactionResult>
 

@@ -1,11 +1,10 @@
 /* External Imports */
-import BigNum = require('bn.js')
 import debug from 'debug'
 const log = debug('info:state-update')
 
 /* Internal Imports */
-import { abi, hexStringify } from '../../app'
-import { StateUpdate, AbiEncodable } from '../../types'
+import { abi, BigNumber, hexStringify } from '../../app'
+import { StateUpdate, AbiEncodable, Range, StateObject } from '../../types'
 import { AbiStateObject } from './state-object'
 import { AbiRange } from './abi-range'
 
@@ -21,7 +20,7 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
   return new AbiStateUpdate(
     stateObject,
     range,
-    new BigNum(decoded[2].toString()),
+    new BigNumber(decoded[2].toString()),
     decoded[3]
   )
 }
@@ -33,7 +32,15 @@ const fromEncoded = (encoded: string): AbiStateUpdate => {
  * @returns the serialized StateUpdate
  */
 export const serializeStateUpdate = (stateUpdate: StateUpdate): string => {
-  return JSON.stringify(stateUpdate)
+  return JSON.stringify({
+    range: {
+      start: stateUpdate.range.start.toString(),
+      end: stateUpdate.range.end.toString(),
+    },
+    stateObject: stateUpdate.stateObject,
+    depositAddress: stateUpdate.depositAddress,
+    plasmaBlockNumber: stateUpdate.plasmaBlockNumber.toString(),
+  })
 }
 
 /**
@@ -46,12 +53,12 @@ export const deserializeStateUpdate = (stateUpdate: string): StateUpdate => {
   const obj: {} = JSON.parse(stateUpdate)
   return {
     range: {
-      start: new BigNum(obj['range']['start'], 'hex'),
-      end: new BigNum(obj['range']['end'], 'hex'),
+      start: new BigNumber(obj['range']['start'], 'hex'),
+      end: new BigNumber(obj['range']['end'], 'hex'),
     },
     stateObject: obj['stateObject'],
     depositAddress: obj['depositAddress'],
-    plasmaBlockNumber: new BigNum(obj['plasmaBlockNumber']),
+    plasmaBlockNumber: new BigNumber(obj['plasmaBlockNumber'], 'hex'),
   }
 }
 
@@ -64,7 +71,7 @@ export class AbiStateUpdate implements StateUpdate, AbiEncodable {
   constructor(
     readonly stateObject: AbiStateObject,
     readonly range: AbiRange,
-    readonly plasmaBlockNumber: BigNum,
+    readonly plasmaBlockNumber: BigNumber,
     readonly depositAddress: string
   ) {}
 

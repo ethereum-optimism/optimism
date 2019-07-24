@@ -1,6 +1,6 @@
 /* External Imports */
-import BigNum = require('bn.js')
 import { Range } from '../../types'
+import { BigNumber } from '../../app/utils'
 
 export interface StateObject {
   predicateAddress: string
@@ -11,12 +11,12 @@ export interface StateUpdate {
   range: Range
   stateObject: StateObject
   depositAddress: string
-  plasmaBlockNumber: BigNum
+  plasmaBlockNumber: BigNumber
 }
 
 export interface VerifiedStateUpdate {
   range: Range
-  verifiedBlockNumber: BigNum
+  verifiedBlockNumber: BigNumber
   stateUpdate: StateUpdate
 }
 
@@ -26,8 +26,8 @@ export type Expression = string
 export interface StateQuery {
   depositAddress: string
   predicateAddress: string
-  start?: BigNum
-  end?: BigNum
+  start?: BigNumber
+  end?: BigNumber
   method: string
   params: string[]
   filter?: Expression
@@ -50,7 +50,7 @@ export interface TransactionResult {
 }
 
 export interface BlockTransaction {
-  blockNumber: BigNum
+  blockNumber: BigNumber
   transaction: Transaction
 }
 
@@ -61,8 +61,8 @@ export interface BlockTransactionCommitment {
 
 export interface OwnershipBody {
   newState: StateObject
-  originBlock: BigNum
-  maxBlock: BigNum
+  originBlock: BigNumber
+  maxBlock: BigNumber
 }
 
 export interface OwnershipStateData {

@@ -1,7 +1,6 @@
 import '../../setup'
 
 /* External Imports */
-import BigNum = require('bn.js')
 import debug from 'debug'
 const log = debug('test:info:abi-stuff')
 
@@ -12,6 +11,7 @@ import {
   AbiRange,
   AbiOwnershipBody,
   AbiOwnershipTransaction,
+  BigNumber,
 } from '../../../src/app'
 
 describe('AbiEncoding', () => {
@@ -20,11 +20,11 @@ describe('AbiEncoding', () => {
       '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F',
       '0x1234'
     )
-    const range = new AbiRange(new BigNum(10), new BigNum(30))
+    const range = new AbiRange(new BigNumber(10), new BigNumber(30))
     const stateUpdate = new AbiStateUpdate(
       stateObject,
       range,
-      new BigNum(10),
+      new BigNumber(10),
       '0x3cDb4F0318a01f43dcf92eF09E10c05bF3bfc213'
     )
     const stateUpdateEncoding = stateUpdate.encoded
@@ -42,8 +42,8 @@ describe('AbiEncoding', () => {
     )
     const transactionBody = new AbiOwnershipBody(
       stateObject,
-      new BigNum(0),
-      new BigNum(0)
+      new BigNumber(0),
+      new BigNumber(0)
     )
     const transactionBodyEncoding = transactionBody.encoded
     const decodedTransactionBody = AbiOwnershipBody.from(
@@ -60,11 +60,11 @@ describe('AbiEncoding', () => {
     )
     const transactionBody = new AbiOwnershipBody(
       stateObject,
-      new BigNum(0),
-      new BigNum(0)
+      new BigNumber(0),
+      new BigNumber(0)
     )
     const depositContract = '0x2b5c5D7D87f2E6C2AC338Cb99a93B7A3aEcA823F'
-    const range = new AbiRange(new BigNum(10), new BigNum(30))
+    const range = new AbiRange(new BigNumber(10), new BigNumber(30))
     const transaction = new AbiOwnershipTransaction(
       depositContract,
       range,

@@ -1,10 +1,10 @@
-import BigNum = require('bn.js')
+import { BigNumber } from '../../app/utils'
 
 export interface Range {
-  start: BigNum
-  end: BigNum
+  start: BigNumber
+  end: BigNumber
 }
 
 export interface BlockRange extends Range {
-  block: BigNum
+  block: BigNumber
 }

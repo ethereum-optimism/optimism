@@ -1,4 +1,3 @@
-import BigNum = require('bn.js')
 import { should } from '../../setup'
 
 import {
@@ -14,6 +13,7 @@ import {
   TransactionResult,
 } from '../../../src/types'
 import {
+  BigNumber,
   blockTransactionsEqual,
   decryptWithPublicKey,
   DefaultAggregator,
@@ -30,7 +30,7 @@ import { BlockManager } from '../../../src/types/block-production'
  *******************/
 
 class DummyBlockManager implements BlockManager {
-  private nextBlockNumber: BigNum
+  private nextBlockNumber: BigNumber
   private readonly stateUpdates: StateUpdate[]
 
   constructor() {
@@ -42,7 +42,7 @@ class DummyBlockManager implements BlockManager {
     this.stateUpdates.push(stateUpdate)
   }
 
-  public async getNextBlockNumber(): Promise<BigNum> {
+  public async getNextBlockNumber(): Promise<BigNumber> {
     return this.nextBlockNumber
   }
 
@@ -72,7 +72,7 @@ class DummyStateManager implements StateManager {
 
   public async executeTransaction(
     transaction: Transaction,
-    inBlock: BigNum,
+    inBlock: BigNumber,
     witness: string
   ): Promise<TransactionResult> {
     if (this.throwOnExecute) {

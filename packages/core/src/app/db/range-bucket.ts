@@ -3,26 +3,26 @@
  * Credit to the original author, Christopher Jeffrey (https://github.com/chjj).
  */
 
-/* External Imports */
-import BigNum = require('bn.js')
-
 /* Internal Imports */
 import {
   Bucket,
   Batch,
   DB,
   IteratorOptions,
-  Iterator,
-  K,
-  V,
   KV,
   RangeBucket,
   RangeEntry,
-  RangeIterator,
-  Endianness,
   PUT_BATCH_TYPE,
+  RangeIterator,
 } from '../../types'
-import { bufferUtils, intersects, BaseDB, BaseRangeIterator } from '../../app'
+import {
+  intersects,
+  BigNumber,
+  BIG_ENDIAN,
+  Endianness,
+  ZERO,
+  BaseRangeIterator,
+} from '../../app'
 
 /* Logging */
 import debug from 'debug'
@@ -44,7 +44,7 @@ export class BaseRangeBucket implements RangeBucket {
     readonly db: DB,
     readonly prefix: Buffer,
     readonly keyLength: number = 16,
-    readonly endianness: Endianness = 'be'
+    readonly endianness: Endianness = BIG_ENDIAN
   ) {}
 
   /**
@@ -66,7 +66,7 @@ export class BaseRangeBucket implements RangeBucket {
    * @param value A Buffer value, likely to be stored.
    * @returns resulting concatenation of the start key & input value
    */
-  private addStartToValue(start: BigNum, value: Buffer): Buffer {
+  private addStartToValue(start: BigNumber, value: Buffer): Buffer {
     return Buffer.concat([
       start.toBuffer(this.endianness, this.keyLength),
       value,
@@ -99,7 +99,7 @@ export class BaseRangeBucket implements RangeBucket {
    * @param value A Buffer value, likely to be stored.
    * @returns resulting concatenation of the start key & input value
    */
-  private bnToKey(bigNum: BigNum): Buffer {
+  private bnToKey(bigNum: BigNumber): Buffer {
     const buf = bigNum.toBuffer(this.endianness, this.keyLength)
     return Buffer.concat([this.prefix, buf])
   }
@@ -122,13 +122,13 @@ export class BaseRangeBucket implements RangeBucket {
    * @param end The end of the range.
    * @returns true if start > end, false otherwise.
    */
-  private validateRange(start: BigNum, end: BigNum): void {
+  private validateRange(start: BigNumber, end: BigNumber): void {
     // Make sure start is less than end
     if (!start.lt(end)) {
       throw new Error('Start not less than end')
     }
     // Make sure start is greater than or equal to zero
-    if (!start.gten(0)) {
+    if (!start.gte(ZERO)) {
       throw new Error('Start less than zero')
     }
   }
@@ -141,8 +141,8 @@ export class BaseRangeBucket implements RangeBucket {
   private resultToRange(result: KV): RangeEntry {
     // Helper function which gets the start and end position from a DB seek result
     return {
-      start: new BigNum(this.getStartFromValue(result.value)),
-      end: new BigNum(result.key.slice(this.prefix.length)),
+      start: new BigNumber(this.getStartFromValue(result.value)),
+      end: new BigNumber(result.key.slice(this.prefix.length)),
       value: this.getDataFromValue(result.value),
     }
   }
@@ -155,8 +155,8 @@ export class BaseRangeBucket implements RangeBucket {
    * @returns an object which contains both the ranges we queried & the batch deletion operations.
    */
   private async delBatchOps(
-    start: BigNum,
-    end: BigNum
+    start: BigNumber,
+    end: BigNumber
   ): Promise<{ ranges: RangeEntry[]; batchOps: Batch[] }> {
     this.validateRange(start, end)
     const ranges = await this.get(start, end)
@@ -178,7 +178,11 @@ export class BaseRangeBucket implements RangeBucket {
    * @param end The end of the range which we are putting values into.
    * @param value The value which we will be putting in these ranges.
    */
-  public async put(start: BigNum, end: BigNum, value: Buffer): Promise<void> {
+  public async put(
+    start: BigNumber,
+    end: BigNumber,
+    value: Buffer
+  ): Promise<void> {
     this.validateRange(start, end)
     log(
       'Putting range: [',
@@ -232,14 +236,17 @@ export class BaseRangeBucket implements RangeBucket {
    * @param end The end of the range we are deleting.
    * @returns all of the ranges which have been deleted.
    */
-  public async del(start: BigNum, end: BigNum): Promise<RangeEntry[]> {
+  public async del(start: BigNumber, end: BigNumber): Promise<RangeEntry[]> {
     // Delete all overlapping ranges and return the values which have been deleted
     const { ranges, batchOps } = await this.delBatchOps(start, end)
     await this.db.batch(batchOps)
     return ranges
   }
 
-  public async hasDataInRange(start: BigNum, end: BigNum): Promise<boolean> {
+  public async hasDataInRange(
+    start: BigNumber,
+    end: BigNumber
+  ): Promise<boolean> {
     // TODO: can eagerly return when true, but this is good enough or now
     return (await this.get(start, end)).length > 0
   }
@@ -250,7 +257,7 @@ export class BaseRangeBucket implements RangeBucket {
    * @param end The end of the range we are getting.
    * @returns all of the ranges which have been gotten.
    */
-  public async get(start: BigNum, end: BigNum): Promise<RangeEntry[]> {
+  public async get(start: BigNumber, end: BigNumber): Promise<RangeEntry[]> {
     this.validateRange(start, end)
     log('Getting range: [', start.toString(16), ',', end.toString(16), ')')
     // Seek to the beginning

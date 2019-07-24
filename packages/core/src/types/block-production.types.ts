@@ -1,8 +1,5 @@
-/* External Imports */
-import BigNumber = require('bn.js')
-
 /* Internal Imports */
-import { AbiStateUpdate } from '../app'
+import { AbiStateUpdate, BigNumber } from '../app'
 
 export interface MerkleIntervalTreeNode {
   hash: Buffer // Hash of the sibling or leaf data.

@@ -3,7 +3,6 @@ import { should } from '../../setup'
 /* External Imports */
 import debug from 'debug'
 const log = debug('test:info:merkle-index-tree')
-import BigNum = require('bn.js')
 
 /* Internal Imports */
 import {
@@ -13,6 +12,7 @@ import {
   GenericMerkleIntervalTreeNode,
   MerkleStateIntervalTree,
   PlasmaBlock,
+  BigNumber,
 } from '../../../src/app/'
 import { TestUtils } from '../utils/test-utils'
 
@@ -108,7 +108,7 @@ describe('Interval Trees and Plasma Blocks', () => {
       const updateToReplace = stateUpdates[faultyUpdateIndex]
       const conflictingRange = new AbiRange(
         updateToReplace.range.start,
-        stateUpdates[faultyUpdateIndex + 1].range.start.add(new BigNum(1))
+        stateUpdates[faultyUpdateIndex + 1].range.start.add(new BigNumber(1))
       )
       // replace the valid SU range with the conflicting one
       const faultyUpdate = new AbiStateUpdate(

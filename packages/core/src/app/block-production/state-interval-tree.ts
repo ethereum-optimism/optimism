@@ -1,5 +1,5 @@
 import { GenericMerkleIntervalTree, GenericMerkleIntervalTreeNode } from './'
-import { AbiStateUpdate, STATE_ID_LENGTH } from '../'
+import { AbiStateUpdate, BIG_ENDIAN, STATE_ID_LENGTH } from '../'
 import {
   MerkleIntervalTreeNode,
   MerkleIntervalInclusionProof,
@@ -20,7 +20,7 @@ export class MerkleStateIntervalTree extends GenericMerkleIntervalTree {
     const hash = GenericMerkleIntervalTree.hash(
       Buffer.from(stateUpdate.encoded)
     )
-    const index = stateUpdate.range.start.toBuffer('be', STATE_ID_LENGTH)
+    const index = stateUpdate.range.start.toBuffer(BIG_ENDIAN, STATE_ID_LENGTH)
     return new GenericMerkleIntervalTreeNode(hash, index)
   }
 

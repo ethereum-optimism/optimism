@@ -1,13 +1,12 @@
 /* External Imports */
 import debug from 'debug'
 import level = require('level')
-import BigNum = require('bn.js')
 import MemDown from 'memdown'
 
 /* Internal Imports */
 import { dbRootPath } from '../../setup'
-import { KeyValueStore, RangeEntry, RangeBucket } from '../../../src/types'
-import { BaseDB } from '../../../src/app'
+import { RangeEntry, RangeBucket } from '../../../src/types'
+import { BaseDB, BigNumber, ZERO } from '../../../src/app'
 
 const log = debug('test:info:range-db')
 
@@ -15,8 +14,8 @@ const addDefaultRangesToDB = async (rangeDB) => {
   // Generate some ranges
   const ranges = []
   for (let i = 0; i < 10; i++) {
-    const start = new BigNum('' + i * 10, 'hex')
-    const end = new BigNum('' + (i + 1) * 10, 'hex')
+    const start = new BigNumber('' + i * 10, 'hex')
+    const end = new BigNumber('' + (i + 1) * 10, 'hex')
     ranges.push({
       start,
       end,
@@ -49,10 +48,7 @@ const testPutResults = async (
   // First put the ranges
   putRanges(db, putContents)
   // Now check that they were added correctly
-  const res = await db.get(
-    new BigNum('0', 'hex'),
-    new BigNum('100000000000', 'hex')
-  )
+  const res = await db.get(ZERO, new BigNumber('100000000000', 'hex'))
   for (let i = 0; i < res.length; i++) {
     compareResult(res[i], expectedResults[i])
   }
@@ -64,8 +60,8 @@ const putRanges = async (
 ): Promise<void> => {
   for (const putContent of putContents) {
     await db.put(
-      new BigNum(putContent.start, 'hex'),
-      new BigNum(putContent.end, 'hex'),
+      new BigNumber(putContent.start, 'hex'),
+      new BigNumber(putContent.end, 'hex'),
       Buffer.from(putContent.value)
     )
   }
@@ -92,16 +88,23 @@ describe('RangeDB', () => {
   it('allows puts on a range & get should return the range value which was put', async () => {
     const start = 0
     const end = 10
-    await rangeDB.put(new BigNum(start), new BigNum(end), Buffer.from('Hello'))
-    const res = await rangeDB.get(new BigNum(start), new BigNum(end))
-    new BigNum(res[0].start, 'hex').toNumber().should.equal(start)
-    new BigNum(res[0].end, 'hex').toNumber().should.equal(end)
+    await rangeDB.put(
+      new BigNumber(start),
+      new BigNumber(end),
+      Buffer.from('Hello')
+    )
+    const res = await rangeDB.get(new BigNumber(start), new BigNumber(end))
+    new BigNumber(res[0].start, 'hex').toNumber().should.equal(start)
+    new BigNumber(res[0].end, 'hex').toNumber().should.equal(end)
   })
 
   it('returns an empty array if the db is empty', async () => {
     const getStart = 4
     const getEnd = 8
-    const res = await rangeDB.get(new BigNum(getStart), new BigNum(getEnd))
+    const res = await rangeDB.get(
+      new BigNumber(getStart),
+      new BigNumber(getEnd)
+    )
     res.length.should.equal(0)
   })
 
@@ -112,10 +115,17 @@ describe('RangeDB', () => {
     const end = 10
     const getStart = 4
     const getEnd = 8
-    await rangeDB.put(new BigNum(start), new BigNum(end), Buffer.from('Hello'))
-    const res = await rangeDB.get(new BigNum(getStart), new BigNum(getEnd))
-    new BigNum(res[0].start, 'hex').toNumber().should.equal(start)
-    new BigNum(res[0].end, 'hex').toNumber().should.equal(end)
+    await rangeDB.put(
+      new BigNumber(start),
+      new BigNumber(end),
+      Buffer.from('Hello')
+    )
+    const res = await rangeDB.get(
+      new BigNumber(getStart),
+      new BigNumber(getEnd)
+    )
+    new BigNumber(res[0].start, 'hex').toNumber().should.equal(start)
+    new BigNumber(res[0].end, 'hex').toNumber().should.equal(end)
     res.length.should.equal(1)
   })
 
@@ -146,8 +156,8 @@ describe('RangeDB', () => {
     const ranges = await addDefaultRangesToDB(rangeDB)
     // This time get the ranges 22-
     const gottenRanges = await rangeDB.get(
-      ranges[2].start.addn(2),
-      ranges[ranges.length - 2].end.subn(2)
+      ranges[2].start.add(new BigNumber(2)),
+      ranges[ranges.length - 2].end.sub(new BigNumber(2))
     )
     // Compare them to the ranges we put & got and make sure they are equal
     for (let i = 2; i < ranges.length - 1; i++) {
@@ -165,10 +175,10 @@ describe('RangeDB', () => {
   it('returns nothing when querying in between two other values', async () => {
     // Values added to the database: [0,10) & [20,30).
     // We will query [10,20) and it should return nothing.
-    const start1 = new BigNum('0', 'hex')
-    const end1 = new BigNum('10', 'hex')
-    const start2 = new BigNum('20', 'hex')
-    const end2 = new BigNum('30', 'hex')
+    const start1 = new BigNumber('0', 'hex')
+    const end1 = new BigNumber('10', 'hex')
+    const start2 = new BigNumber('20', 'hex')
+    const end2 = new BigNumber('30', 'hex')
     // Put range 1
     await rangeDB.put(start1, end1, Buffer.from('Hello'))
     // Put range 2
@@ -180,10 +190,10 @@ describe('RangeDB', () => {
 
   it('splits ranges which has been put in the middle of another range', async () => {
     // Surrounding: [10, 100), Inner: [50, 60), should result in [10, 50), [50, 60), [60, 100)
-    const surroundingStart = new BigNum('10', 'hex')
-    const surroundingEnd = new BigNum('100', 'hex')
-    const innerStart = new BigNum('50', 'hex')
-    const innerEnd = new BigNum('60', 'hex')
+    const surroundingStart = new BigNumber('10', 'hex')
+    const surroundingEnd = new BigNumber('100', 'hex')
+    const innerStart = new BigNumber('50', 'hex')
+    const innerEnd = new BigNumber('60', 'hex')
     // Put our surrounding ranges
     await rangeDB.put(surroundingStart, surroundingEnd, Buffer.from('Hello'))
     // Check that our range was added

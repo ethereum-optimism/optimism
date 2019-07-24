@@ -1,10 +1,10 @@
-import BigNum = require('bn.js')
 import {
   AbiRange,
   AbiStateObject,
   AbiStateUpdate,
 } from '../../../src/app/serialization'
 import { TransactionResult } from '../../../src/types/serialization'
+import { BigNumber, ONE } from '../../../src/app/utils'
 
 export class TestUtils {
   public static generateNSequentialStateUpdates(
@@ -17,13 +17,13 @@ export class TestUtils {
         '0x123456'
       )
       const range = new AbiRange(
-        new BigNum(i * 100),
-        new BigNum((i + 0.5) * 100)
+        new BigNumber(i * 100),
+        new BigNumber((i + 0.5) * 100)
       )
       const stateUpdate = new AbiStateUpdate(
         stateObject,
         range,
-        new BigNum(1),
+        ONE,
         '0xbdAd2846585129Fc98538ce21cfcED21dDDE0a63'
       )
       stateUpdates.push(stateUpdate)

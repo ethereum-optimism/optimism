@@ -1,5 +1,3 @@
-import BigNum = require('bn.js')
-
 import { Aggregator } from '../../types/aggregator'
 import { StateManager } from '../../types/ovm'
 import {
@@ -8,7 +6,7 @@ import {
   Transaction,
   TransactionResult,
 } from '../../types/serialization'
-import { doRangesSpanRange, sign } from '../utils'
+import { BigNumber, doRangesSpanRange, sign } from '../utils'
 import { BlockManager } from '../../types/block-production'
 
 export class DefaultAggregator implements Aggregator {
@@ -25,7 +23,7 @@ export class DefaultAggregator implements Aggregator {
   public async ingestTransaction(
     transaction: Transaction
   ): Promise<BlockTransactionCommitment> {
-    const blockNumber: BigNum = await this.blockManager.getNextBlockNumber()
+    const blockNumber: BigNumber = await this.blockManager.getNextBlockNumber()
 
     const {
       stateUpdate,

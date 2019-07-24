@@ -47,7 +47,7 @@ export class OwnershipPredicatePlugin implements PredicatePlugin {
   private async validateStateTransition(
     previousStateUpdate: StateUpdate,
     transaction: Transaction,
-    witness: string
+    witness: any
   ): Promise<void> {
     if (
       !verifySignature(

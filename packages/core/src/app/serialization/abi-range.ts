@@ -1,10 +1,9 @@
 /* External Imports */
-import BigNum = require('bn.js')
 import debug from 'debug'
 const log = debug('info:state-update')
 
 /* Internal Imports */
-import { abi } from '../../app'
+import { abi, BigNumber } from '../../app'
 import { AbiEncodable, Range } from '../../types'
 import { hexStringify } from '../utils'
 
@@ -16,8 +15,8 @@ import { hexStringify } from '../utils'
 const fromEncoded = (encoded: string): AbiRange => {
   const decoded = abi.decode(AbiRange.abiTypes, encoded)
   return new AbiRange(
-    new BigNum(decoded[0].toString()),
-    new BigNum(decoded[1].toString())
+    new BigNumber(decoded[0].toString()),
+    new BigNumber(decoded[1].toString())
   )
 }
 
@@ -27,7 +26,7 @@ const fromEncoded = (encoded: string): AbiRange => {
 export class AbiRange implements Range, AbiEncodable {
   public static abiTypes = ['uint256', 'uint256']
 
-  constructor(readonly start: BigNum, readonly end: BigNum) {}
+  constructor(readonly start: BigNumber, readonly end: BigNumber) {}
 
   /**
    * @returns the abi encoded AbiRange.

@@ -6,8 +6,8 @@ import {
   hexStringify,
   AbiOwnershipBody,
   AbiOwnershipTransaction,
+  BigNumber,
 } from '@pigi/core'
-import BigNum = require('bn.js')
 /* Contract Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as BasicTokenMock from '../build/BasicTokenMock.json'
@@ -91,8 +91,8 @@ describe('Deposit Contract with Ownership', () => {
       await depositContract.deposit(100, depositStateObject)
       // Attempt to start an exit on this deposit
       const depositRange = {
-        start: hexStringify(new BigNum(0)),
-        end: hexStringify(new BigNum(100)),
+        start: hexStringify(new BigNumber(0)),
+        end: hexStringify(new BigNumber(100)),
       }
       await ownershipPredicate.startExitByOwner({
         stateUpdate: {
@@ -135,8 +135,8 @@ describe('Deposit Contract with Ownership', () => {
       await depositContract.deposit(100, depositStateObject)
       // Attempt to start a checkpoint on a stateUpdate
       const stateUpdateRange = {
-        start: hexStringify(new BigNum(10)),
-        end: hexStringify(new BigNum(20)),
+        start: hexStringify(new BigNumber(10)),
+        end: hexStringify(new BigNumber(20)),
       }
       const checkpoint = {
         stateUpdate: {
@@ -165,8 +165,8 @@ describe('Deposit Contract with Ownership', () => {
       await depositContract.deposit(100, depositStateObject)
       // Attempt to start an exit on this deposit
       const depositRange = {
-        start: hexStringify(new BigNum(0)),
-        end: hexStringify(new BigNum(100)),
+        start: hexStringify(new BigNumber(0)),
+        end: hexStringify(new BigNumber(100)),
       }
       const checkpoint = {
         stateUpdate: {
@@ -181,11 +181,11 @@ describe('Deposit Contract with Ownership', () => {
       // Now deprecate the exit
       const txBody = new AbiOwnershipBody(
         depositStateObject,
-        new BigNum(0),
-        new BigNum(9)
+        new BigNumber(0),
+        new BigNumber(9)
       )
       const txDepositContract = depositContract.address
-      const txRange = new AbiRange(new BigNum(10), new BigNum(30))
+      const txRange = new AbiRange(new BigNumber(10), new BigNumber(30))
       const transaction = new AbiOwnershipTransaction(
         txDepositContract,
         txRange,
@@ -214,8 +214,8 @@ describe('Deposit Contract with Ownership', () => {
       await depositContract.deposit(100, depositStateObject)
       // Add a later checkpoint
       const stateUpdateRange = {
-        start: hexStringify(new BigNum(10)),
-        end: hexStringify(new BigNum(20)),
+        start: hexStringify(new BigNumber(10)),
+        end: hexStringify(new BigNumber(20)),
       }
       const checkpoint = {
         stateUpdate: {
@@ -234,8 +234,8 @@ describe('Deposit Contract with Ownership', () => {
       await mineBlocks(provider, challengePeroid + 1)
       // Now that we have a finalized checkpoint, attempt an exit on the original deposit
       const depositRange = {
-        start: hexStringify(new BigNum(0)),
-        end: hexStringify(new BigNum(100)),
+        start: hexStringify(new BigNumber(0)),
+        end: hexStringify(new BigNumber(100)),
       }
       const depositCheckpoint = {
         stateUpdate: {
@@ -264,8 +264,8 @@ describe('Deposit Contract with Ownership', () => {
       await depositContract.deposit(100, depositStateObject)
       // Add a later checkpoint
       const stateUpdateRange = {
-        start: hexStringify(new BigNum(10)),
-        end: hexStringify(new BigNum(20)),
+        start: hexStringify(new BigNumber(10)),
+        end: hexStringify(new BigNumber(20)),
       }
       const checkpoint = {
         stateUpdate: {
@@ -280,8 +280,8 @@ describe('Deposit Contract with Ownership', () => {
       await ownershipPredicate.startExitByOwner(checkpoint)
       // Now we use the deposit to challenge this exit
       const depositRange = {
-        start: hexStringify(new BigNum(0)),
-        end: hexStringify(new BigNum(100)),
+        start: hexStringify(new BigNumber(0)),
+        end: hexStringify(new BigNumber(100)),
       }
       const depositCheckpoint = {
         stateUpdate: {
@@ -302,11 +302,11 @@ describe('Deposit Contract with Ownership', () => {
       // Deprecate the exit so we can remove the challenge
       const txBody = new AbiOwnershipBody(
         checkpoint.stateUpdate.stateObject,
-        new BigNum(0),
-        new BigNum(10)
+        new BigNumber(0),
+        new BigNumber(10)
       )
       const txDepositContract = depositContract.address
-      const txRange = new AbiRange(new BigNum(10), new BigNum(30))
+      const txRange = new AbiRange(new BigNumber(10), new BigNumber(30))
       const transaction = new AbiOwnershipTransaction(
         txDepositContract,
         txRange,

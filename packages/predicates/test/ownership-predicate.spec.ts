@@ -1,5 +1,3 @@
-import BigNum = require('bn.js')
-
 import './setup'
 import { OwnershipPredicatePlugin } from '../src/plugins/ownership-predicate'
 import {
@@ -10,6 +8,7 @@ import {
   StateUpdate,
   Transaction,
   stateObjectsEqual,
+  BigNumber,
 } from '@pigi/core'
 import * as assert from 'assert'
 
@@ -22,14 +21,14 @@ const defaultPredicateAddress: string = '0x123456789abcdef'
 const defaultOwner: string = '0x999999999999999'
 const newOwner: string = '0x8888888888888'
 
-const defaultInBlock: BigNum = new BigNum(2)
-const defaultOriginBlock: BigNum = defaultInBlock
-const defaultMaxBlock: BigNum = new BigNum(10)
-const defaultCurrentBlock: BigNum = ONE
+const defaultInBlock: BigNumber = new BigNumber(2)
+const defaultOriginBlock: BigNumber = defaultInBlock
+const defaultMaxBlock: BigNumber = new BigNumber(10)
+const defaultCurrentBlock: BigNumber = ONE
 
 const defaultRange: Range = {
   start: ONE,
-  end: new BigNum(10),
+  end: new BigNumber(10),
 }
 
 const getStateObject = (
@@ -46,7 +45,7 @@ const getStateObject = (
 
 const getStateUpdate = (
   stateObject: StateObject,
-  plasmaBlockNumber: BigNum,
+  plasmaBlockNumber: BigNumber,
   range: Range = defaultRange,
   depositAddress: string = defaultDepositAddress
 ): StateUpdate => {
@@ -60,8 +59,8 @@ const getStateUpdate = (
 
 const getTransactionBody = (
   newState: StateObject,
-  originBlock: BigNum = defaultOriginBlock,
-  maxBlock: BigNum = defaultMaxBlock
+  originBlock: BigNumber = defaultOriginBlock,
+  maxBlock: BigNumber = defaultMaxBlock
 ): OwnershipBody => {
   return {
     newState,

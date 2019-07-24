@@ -1,12 +1,11 @@
 /* External Imports */
-import BigNum = require('bn.js')
 import { Mutex } from 'async-mutex'
 
 import { BaseKey, BaseRangeBucket } from '../db'
 import { BlockDB } from '../../types/block-production'
 import { KeyValueStore, RangeStore } from '../../types/db'
 import { StateUpdate } from '../../types/serialization'
-import { MAX_BIG_NUM, ONE, ZERO } from '../utils'
+import { BIG_ENDIAN, BigNumber, MAX_BIG_NUM, ONE, ZERO } from '../utils'
 import { GenericMerkleIntervalTree } from './merkle-interval-tree'
 import { deserializeStateUpdate, serializeStateUpdate } from '../serialization'
 
@@ -36,10 +35,10 @@ export class DefaultBlockDB implements BlockDB {
   /**
    * @returns the next plasma block number.
    */
-  public async getNextBlockNumber(): Promise<BigNum> {
+  public async getNextBlockNumber(): Promise<BigNumber> {
     // TODO: Cache this when it makes sense
     const buf = await this.vars.get(KEYS.NEXT_BLOCK)
-    return !buf ? ONE : new BigNum(buf, 'be')
+    return !buf ? ONE : new BigNumber(buf, 'hex', BIG_ENDIAN)
   }
 
   /**
@@ -79,7 +78,7 @@ export class DefaultBlockDB implements BlockDB {
    * @param blockNumber Block to compute a root for.
    * @returns the root of the block.
    */
-  public async getMerkleRoot(blockNumber: BigNum): Promise<Buffer> {
+  public async getMerkleRoot(blockNumber: BigNumber): Promise<Buffer> {
     const stateUpdates = await this.getStateUpdates(blockNumber)
 
     const leaves = stateUpdates.map((stateUpdate) => {
@@ -104,8 +103,10 @@ export class DefaultBlockDB implements BlockDB {
    */
   public async finalizeNextBlock(): Promise<void> {
     await this.blockMutex.runExclusive(async () => {
-      const prevBlockNumber: BigNum = await this.getNextBlockNumber()
-      const nextBlockNumber: Buffer = prevBlockNumber.add(ONE).toBuffer('be')
+      const prevBlockNumber: BigNumber = await this.getNextBlockNumber()
+      const nextBlockNumber: Buffer = prevBlockNumber
+        .add(ONE)
+        .toBuffer(BIG_ENDIAN)
 
       await this.vars.put(KEYS.NEXT_BLOCK, nextBlockNumber)
     })
@@ -116,8 +117,8 @@ export class DefaultBlockDB implements BlockDB {
    * @param blockNumber Block to open the RangeDB for.
    * @returns the RangeDB instance for the given block.
    */
-  private async getBlockStore(blockNumber: BigNum): Promise<RangeStore> {
-    const key = KEYS.BLOCK.encode([blockNumber.toBuffer('be')])
+  private async getBlockStore(blockNumber: BigNumber): Promise<RangeStore> {
+    const key = KEYS.BLOCK.encode([blockNumber.toBuffer(BIG_ENDIAN)])
     const bucket = this.blocks.bucket(key)
     return new BaseRangeBucket(bucket.db, bucket.prefix)
   }
@@ -141,7 +142,9 @@ export class DefaultBlockDB implements BlockDB {
    * @param blockNumber Block to query state updates for.
    * @returns the list of state updates for that block.
    */
-  private async getStateUpdates(blockNumber: BigNum): Promise<StateUpdate[]> {
+  private async getStateUpdates(
+    blockNumber: BigNumber
+  ): Promise<StateUpdate[]> {
     const block = await this.getBlockStore(blockNumber)
     const values = await block.get(ZERO, MAX_BIG_NUM)
     return values.map((value) => {

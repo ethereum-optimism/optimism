@@ -1,5 +1,3 @@
-import BigNum = require('bn.js')
-
 import {
   HistoryProof,
   PluginManager,
@@ -16,7 +14,7 @@ import {
   isValidVerifiedStateUpdate,
   StateObject,
 } from '../../types'
-import { getOverlappingRange, ONE, rangesIntersect } from '../../app'
+import { BigNumber, getOverlappingRange, ONE, rangesIntersect } from '../../app'
 
 /**
  * StateManager that validates transactions and wraps and modifies StateDB as necessary.
@@ -31,7 +29,7 @@ export class DefaultStateManager implements StateManager {
 
   public async executeTransaction(
     transaction: Transaction,
-    inBlock: BigNum,
+    inBlock: BigNumber,
     witness: string
   ): Promise<{ stateUpdate: StateUpdate; validRanges: Range[] }> {
     const result = {
@@ -114,7 +112,7 @@ export class DefaultStateManager implements StateManager {
   private validateVerifiedStateUpdateForTransaction(
     verifiedUpdate: VerifiedStateUpdate,
     transaction: Transaction,
-    inBlock: BigNum
+    inBlock: BigNumber
   ): void {
     if (!isValidVerifiedStateUpdate(verifiedUpdate)) {
       throw new Error(
