@@ -1,3 +1,5 @@
+import { Md5 } from 'ts-md5'
+
 /**
  * Checks that the message with the provided signature was signed by the private key
  * associated with the provided public key.
@@ -41,4 +43,14 @@ export const decryptWithPublicKey = (
 ): any => {
   // TODO: Actually decrypt
   return encryptedMessage
+}
+
+/**
+ * Creates an Md5 hash of the provided input
+ *
+ * @param preimage the Buffer to hash
+ * @returns the hash as a Buffer
+ */
+export const Md5Hash = (preimage: Buffer): Buffer => {
+  return Buffer.from(Md5.hashStr(preimage.toString()) as string)
 }

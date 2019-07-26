@@ -5,7 +5,6 @@
 
 /* External Imports */
 import { AbstractIterator } from 'abstract-leveldown'
-import BigNum = require('bn.js')
 
 /* Internal Imports */
 import {

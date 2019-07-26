@@ -17,5 +17,5 @@ export interface Quantifier {
    * @param parameters the input indicating how the results will be quantified
    * @returns the QuantifierResult with results and our level of knowledge of the results.
    */
-  getAllQuantified(parameters: any): QuantifierResult
+  getAllQuantified(parameters: any): Promise<QuantifierResult>
 }

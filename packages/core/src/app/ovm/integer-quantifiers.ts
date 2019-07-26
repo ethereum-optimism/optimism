@@ -26,10 +26,10 @@ export class IntegerRangeQuantifier implements Quantifier {
    *
    * @param withinThisRange the range of the integers we would like to return.
    */
-  public getAllQuantified(withinThisRange: {
+  public async getAllQuantified(withinThisRange: {
     start: number
     end: number
-  }): QuantifierResult {
+  }): Promise<QuantifierResult> {
     if (withinThisRange.end < withinThisRange.start) {
       throw new Error('Invalid quantifier input! End is less than the start.')
     }
@@ -55,9 +55,9 @@ export class NonnegativeIntegerLessThanQuantifier implements Quantifier {
    *
    * @param lessThanThis the upper bound for the array. Note this is non-inclusive.
    */
-  public getAllQuantified(
+  public async getAllQuantified(
     lessThanThis: NonnegativeIntegerLessThanQuantifierParameters
-  ): QuantifierResult {
+  ): Promise<QuantifierResult> {
     if (lessThanThis < 0) {
       throw new Error(
         'Invalid quantifier input! Cannot quantify negative number.'
