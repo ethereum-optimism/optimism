@@ -1,4 +1,4 @@
-import { QuantifierResult, Quantifier } from '../../types'
+import { QuantifierResult, Quantifier } from '../../../types'
 
 // Helper function which returns an array of numbers, starting at start, ending at end, incrementing by 1.
 // Eg. [0, 1, 2,...end]

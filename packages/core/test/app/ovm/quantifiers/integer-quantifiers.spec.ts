@@ -2,7 +2,7 @@
 import {
   IntegerRangeQuantifier,
   NonnegativeIntegerLessThanQuantifier,
-} from '../../../src/app'
+} from '../../../../src/app'
 import * as assert from 'assert'
 
 describe('IntegerQuantifiers', () => {

@@ -10,14 +10,10 @@ import { Md5Hash } from '../../../../src/app/utils'
 import {
   Decider,
   Decision,
-  ImplicationProofElement,
+  ImplicationProofItem,
 } from '../../../../src/types/ovm/decider.interface'
 import * as assert from 'assert'
 import { DB } from '../../../../src/types/db'
-
-/*********
- * TESTS *
- *********/
 
 describe('HashPreimageExistenceDecider', () => {
   const preimage: Buffer = Buffer.from('really great preimage')
@@ -54,7 +50,7 @@ describe('HashPreimageExistenceDecider', () => {
       decision.outcome.should.equal(true)
       decision.justification.length.should.equal(1)
 
-      const justification: ImplicationProofElement = decision.justification[0]
+      const justification: ImplicationProofItem = decision.justification[0]
       justification.implication.decider.should.equal(decider)
       justification.implication.input['hash'].should.equal(hash)
       justification.implicationWitness['preimage'].should.equal(preimage)
@@ -117,7 +113,7 @@ describe('HashPreimageExistenceDecider', () => {
       checkedDecision.outcome.should.equal(true)
       checkedDecision.justification.length.should.equal(1)
 
-      const justification: ImplicationProofElement =
+      const justification: ImplicationProofItem =
         checkedDecision.justification[0]
       justification.implication.decider.should.equal(decider)
       assert(
@@ -143,8 +139,7 @@ describe('HashPreimageExistenceDecider', () => {
       checkedDecision.outcome.should.equal(true)
       checkedDecision.justification.length.should.equal(1)
 
-      let justification: ImplicationProofElement =
-        checkedDecision.justification[0]
+      let justification: ImplicationProofItem = checkedDecision.justification[0]
       justification.implication.decider.should.equal(decider)
       assert(
         justification.implication.input['hash'].equals(hash),

@@ -1,4 +1,4 @@
-import { Decider, Decision } from '../../../types/ovm/decider.interface'
+import { Decider, Decision } from '../../../types/ovm'
 import { Bucket, DB } from '../../../types/db'
 import { Md5Hash } from '../../utils'
 

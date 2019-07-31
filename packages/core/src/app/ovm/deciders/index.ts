@@ -1,3 +1,5 @@
+export * from './and-decider'
 export * from './hash-preimage-existence-decider'
 export * from './key-value-store-decider'
+export * from './not-decider'
 export * from './utils'

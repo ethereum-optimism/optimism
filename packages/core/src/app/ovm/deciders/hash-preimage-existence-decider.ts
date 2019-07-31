@@ -1,4 +1,4 @@
-import { Decision } from '../../../types/ovm/decider.interface'
+import { Decision } from '../../../types/ovm'
 import { DB } from '../../../types/db'
 import { KeyValueStoreDecider } from './key-value-store-decider'
 import { CannotDecideError, HashFunction } from './utils'

@@ -1,9 +1,9 @@
-export interface ProofElement {
+export interface ProofItem {
   property: Property
   witness: {}
 }
 
-export type Proof = ProofElement[]
+export type Proof = ProofItem[]
 
 export interface Property {
   decider: Decider
@@ -12,14 +12,14 @@ export interface Property {
 
 export type PropertyFactory = (input: any) => Property
 
-export interface ImplicationProofElement {
+export interface ImplicationProofItem {
   implication: Property
   implicationWitness: any
 }
 
 export interface Decision {
   outcome: boolean
-  justification: ImplicationProofElement[] // constructed such that claim[N] --> claim[N-1] --> claim[N-2]... Claim[0]
+  justification: ImplicationProofItem[] // constructed such that claim[N] --> claim[N-1] --> claim[N-2]... Claim[0]
 }
 
 /**
