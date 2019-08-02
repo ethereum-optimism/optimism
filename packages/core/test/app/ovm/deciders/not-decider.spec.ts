@@ -21,98 +21,64 @@ describe('NotDecider', () => {
     decider = new NotDecider()
   })
 
-  const testReturnTrueWithFalseDecision = async (isDecide: boolean = true) => {
-    const notInput: NotDeciderInput = {
-      property: {
-        decider: falseDecider,
-        input,
-      },
-      witness,
-    }
-
-    const decision: Decision = isDecide
-      ? await decider.decide(notInput, undefined)
-      : await decider.checkDecision(notInput)
-
-    decision.outcome.should.eq(true)
-    decision.justification.length.should.eq(2)
-    decision.justification[0].implication.decider.should.eq(decider)
-    decision.justification[1].implication.decider.should.eq(falseDecider)
-
-    decision.justification[1].implication.input.should.eq(input)
-    decision.justification[1].implicationWitness.should.eq(witness)
-  }
-
-  const testReturnFalseWithTrueDecision = async (isDecide: boolean = true) => {
-    const notInput: NotDeciderInput = {
-      property: {
-        decider: trueDecider,
-        input,
-      },
-      witness,
-    }
-
-    const decision: Decision = isDecide
-      ? await decider.decide(notInput, undefined)
-      : await decider.checkDecision(notInput)
-
-    decision.outcome.should.eq(false)
-    decision.justification.length.should.eq(2)
-    decision.justification[0].implication.decider.should.eq(decider)
-    decision.justification[1].implication.decider.should.eq(trueDecider)
-
-    decision.justification[1].implication.input.should.eq(input)
-    decision.justification[1].implicationWitness.should.eq(witness)
-  }
-
-  const testThrowWhenCannotDecide = async (isDecide: boolean = true) => {
-    const notInput: NotDeciderInput = {
-      property: {
-        decider: cannotDecideDecider,
-        input,
-      },
-      witness,
-    }
-
-    try {
-      if (isDecide) {
-        await decider.decide(notInput, undefined)
-      } else {
-        await decider.checkDecision(notInput)
-      }
-      assert(false, 'This should throw a CannotDecideError')
-    } catch (e) {
-      if (!(e instanceof CannotDecideError)) {
-        assert(false, 'Error thrown should be CannotDecideError')
-      }
-    }
-  }
-
   describe('decide', () => {
     it('should return true with false decision', async () => {
-      await testReturnTrueWithFalseDecision()
+      const notInput: NotDeciderInput = {
+        property: {
+          decider: falseDecider,
+          input,
+        },
+        witness,
+      }
+
+      const decision: Decision = await decider.decide(notInput, undefined)
+
+      decision.outcome.should.eq(true)
+      decision.justification.length.should.eq(2)
+      decision.justification[0].implication.decider.should.eq(decider)
+      decision.justification[1].implication.decider.should.eq(falseDecider)
+
+      decision.justification[1].implication.input.should.eq(input)
+      decision.justification[1].implicationWitness.should.eq(witness)
     })
 
     it('should return false with true decision', async () => {
-      await testReturnFalseWithTrueDecision()
+      const notInput: NotDeciderInput = {
+        property: {
+          decider: trueDecider,
+          input,
+        },
+        witness,
+      }
+
+      const decision: Decision = await decider.decide(notInput, undefined)
+
+      decision.outcome.should.eq(false)
+      decision.justification.length.should.eq(2)
+      decision.justification[0].implication.decider.should.eq(decider)
+      decision.justification[1].implication.decider.should.eq(trueDecider)
+
+      decision.justification[1].implication.input.should.eq(input)
+      decision.justification[1].implicationWitness.should.eq(witness)
     })
 
     it('should throw when cannot decide', async () => {
-      await testThrowWhenCannotDecide()
-    })
-  })
+      const notInput: NotDeciderInput = {
+        property: {
+          decider: cannotDecideDecider,
+          input,
+        },
+        witness,
+      }
 
-  describe('checkDecision', () => {
-    it('should return true with false decision', async () => {
-      await testReturnTrueWithFalseDecision(false)
-    })
-
-    it('should return false with true decision', async () => {
-      await testReturnFalseWithTrueDecision(false)
-    })
-
-    it('should throw when cannot decide', async () => {
-      await testThrowWhenCannotDecide(false)
+      try {
+        await decider.decide(notInput, undefined)
+        assert(false, 'This should throw a CannotDecideError')
+      } catch (e) {
+        if (!(e instanceof CannotDecideError)) {
+          assert(false, 'Error thrown should be CannotDecideError')
+        }
+      }
     })
   })
 })

@@ -7,11 +7,7 @@ import {
 } from '../../../../src/app/ovm/deciders'
 import { BaseDB } from '../../../../src/app/db'
 import { Md5Hash } from '../../../../src/app/utils'
-import {
-  Decider,
-  Decision,
-  ImplicationProofItem,
-} from '../../../../src/types/ovm/decider.interface'
+import { Decision, ImplicationProofItem } from '../../../../src/types/ovm'
 import * as assert from 'assert'
 import { DB } from '../../../../src/types/db'
 
@@ -29,7 +25,7 @@ describe('HashPreimageExistenceDecider', () => {
   })
 
   describe('decide', () => {
-    let decider: Decider
+    let decider: HashPreimageExistenceDecider
     let db: DB
     let memdown: any
 
@@ -69,8 +65,8 @@ describe('HashPreimageExistenceDecider', () => {
     })
   })
 
-  describe('checkDecision', () => {
-    let decider: Decider
+  describe('decide with cache', () => {
+    let decider: HashPreimageExistenceDecider
     let db: DB
     let memdown: any
 
@@ -85,12 +81,19 @@ describe('HashPreimageExistenceDecider', () => {
       memdown = undefined
     })
 
-    it('should not return anything if no decision', async () => {
-      assert(
-        (await decider.checkDecision({ hash })) === undefined,
-        '' +
+    it('should throw if no decision', async () => {
+      try {
+        await decider.decide({ hash })
+        assert(
+          false,
           'No decision should exist for input on which a decision has not been made.'
-      )
+        )
+      } catch (e) {
+        assert(
+          e instanceof CannotDecideError,
+          `Expected error, but got ${JSON.stringify(e)}`
+        )
+      }
     })
 
     it('should not return anything if no decision with previous attempt', async () => {
@@ -100,15 +103,23 @@ describe('HashPreimageExistenceDecider', () => {
         // No-Op
       }
 
-      assert(
-        (await decider.checkDecision({ hash })) === undefined,
-        'No decision should exist for input on which a decision has not been made.'
-      )
+      try {
+        await decider.decide({ hash })
+        assert(
+          false,
+          'No decision should exist for input on which a decision has not been made.'
+        )
+      } catch (e) {
+        assert(
+          e instanceof CannotDecideError,
+          `Expected error, but not ${JSON.stringify(e)}`
+        )
+      }
     })
 
     it('should return Decisions that have been made', async () => {
       await decider.decide({ hash }, { preimage })
-      const checkedDecision: Decision = await decider.checkDecision({ hash })
+      const checkedDecision: Decision = await decider.decide({ hash })
 
       checkedDecision.outcome.should.equal(true)
       checkedDecision.justification.length.should.equal(1)
@@ -134,7 +145,7 @@ describe('HashPreimageExistenceDecider', () => {
       await decider.decide({ hash }, { preimage })
       await decider.decide({ hash: secondHash }, { preimage: secondPreimage })
 
-      const checkedDecision: Decision = await decider.checkDecision({ hash })
+      const checkedDecision: Decision = await decider.decide({ hash })
 
       checkedDecision.outcome.should.equal(true)
       checkedDecision.justification.length.should.equal(1)
@@ -150,7 +161,7 @@ describe('HashPreimageExistenceDecider', () => {
         'decided preimage is not what it should be'
       )
 
-      const secondCheckedDecision: Decision = await decider.checkDecision({
+      const secondCheckedDecision: Decision = await decider.decide({
         hash: secondHash,
       })
 

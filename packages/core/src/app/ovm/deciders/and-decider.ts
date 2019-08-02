@@ -18,11 +18,16 @@ export interface AndDeciderInput {
 export class AndDecider implements Decider {
   public async decide(
     input: AndDeciderInput,
-    witness: undefined
+    witness?: undefined,
+    noCache?: boolean
   ): Promise<Decision> {
     const [leftDecision, rightDecision] = await Promise.all([
-      input.left.decider.decide(input.left.input, input.leftWitness),
-      input.right.decider.decide(input.right.input, input.rightWitness),
+      input.left.decider.decide(input.left.input, input.leftWitness, noCache),
+      input.right.decider.decide(
+        input.right.input,
+        input.rightWitness,
+        noCache
+      ),
     ])
 
     if (!leftDecision.outcome) {
@@ -41,10 +46,6 @@ export class AndDecider implements Decider {
     }
 
     return this.getDecision(input, { outcome: true, justification })
-  }
-
-  public async checkDecision(input: AndDeciderInput): Promise<Decision> {
-    return this.decide(input, undefined)
   }
 
   /**

@@ -11,6 +11,7 @@ export interface Property {
 }
 
 export type PropertyFactory = (input: any) => Property
+export type WitnessFactory = (input: any) => any
 
 export interface ImplicationProofItem {
   implication: Property
@@ -27,21 +28,22 @@ export interface Decision {
  * on the provided input according to the logic of the specific implementation.
  *
  * For example: A PreimageExistsDecider would be able to make decisions on whether
- * or not the provided _witness, when hashed, results in the provided _input.
+ * or not the provided witness, when hashed, results in the provided input.
  */
 export interface Decider {
   /**
-   * Makes a Decision on the provided input
-   * @param input
-   * @param witness
+   * Makes a Decision on the provided input, given the provided witness.
+   *
+   * If this Decider is capable of caching and the noCache flag is not set,
+   * it will first check to see if a decision has already been made on this input.
+   * If this Decider is capable of caching and the noCache flag is set,
+   * it will make the Decision, if possible, and overwrite the cache.
+   *
+   * @param input The input on which a decision is being made
+   * @param witness [optional] The evidence for the decision if not relying on cached decisions
+   * @param noCache [optional] Flag set when caching should not be used.
+   * @returns the Decision that was made if one was possible
+   * @throws CannotDecideError if it cannot decide.
    */
-  decide(input: any, witness: any): Promise<Decision>
-
-  /**
-   * Checks whether or not a decision has been made for the provided Input
-   * Note: This should access a cache decisions that have been made
-   * @param _input
-   * @returns the Decision that was made, if one was made.
-   */
-  checkDecision(input: any): Promise<Decision>
+  decide(input: any, witness?: any, noCache?: boolean): Promise<Decision>
 }

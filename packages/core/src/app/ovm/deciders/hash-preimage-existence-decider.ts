@@ -25,15 +25,20 @@ export class HashPreimageExistenceDecider extends KeyValueStoreDecider {
     this.hashFunction = hashFunction
   }
 
-  public async decide(
+  protected async makeDecision(
     input: HashInput,
     witness: PreimageWitness
   ): Promise<Decision> {
-    const outcome = this.hashFunction(witness.preimage).equals(input.hash)
+    const outcome =
+      !!witness && this.hashFunction(witness.preimage).equals(input.hash)
 
     if (!outcome) {
       throw new CannotDecideError(
-        `Preimage [${witness.preimage}] does not match hash [${input.hash}], so we cannot decide whether a preimage exists for the hash.`
+        `Witness [${JSON.stringify(
+          witness
+        )}] does not match hash [${JSON.stringify(
+          input
+        )}], so we cannot decide whether a preimage exists for the hash.`
       )
     }
 

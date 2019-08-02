@@ -1,6 +1,7 @@
 import { Decider, Decision } from '../../../types/ovm'
 import { Bucket, DB } from '../../../types/db'
 import { Md5Hash } from '../../utils'
+import { CannotDecideError } from './utils'
 
 export abstract class KeyValueStoreDecider implements Decider {
   private readonly decisionBucket: Bucket
@@ -9,12 +10,30 @@ export abstract class KeyValueStoreDecider implements Decider {
     this.decisionBucket = db.bucket(Buffer.from(this.getUniqueId()))
   }
 
-  public async checkDecision(input: any): Promise<Decision> {
+  public async decide(
+    input: any,
+    witness?: any,
+    noCache?: boolean
+  ): Promise<Decision> {
+    if (!noCache) {
+      try {
+        return await this.checkDecision(input)
+      } catch (e) {
+        if (!(e instanceof CannotDecideError)) {
+          throw e
+        }
+      }
+    }
+
+    return this.makeDecision(input, witness)
+  }
+
+  private async checkDecision(input: any): Promise<Decision> {
     const hash: Buffer = this.getCacheKey(input)
     const decisionBuffer: Buffer = await this.decisionBucket.get(hash)
 
-    if (decisionBuffer === null) {
-      return undefined
+    if (decisionBuffer === null || decisionBuffer === undefined) {
+      throw new CannotDecideError('No decision was made!')
     }
 
     return this.deserializeDecision(decisionBuffer)
@@ -49,7 +68,7 @@ export abstract class KeyValueStoreDecider implements Decider {
    * ABSTRACT METHODS *
    ********************/
 
-  public abstract decide(input: any, witness: any): Promise<Decision>
+  protected abstract makeDecision(input: any, witness: any): Promise<Decision>
 
   /**
    * Returns the unique ID of this Decider.
