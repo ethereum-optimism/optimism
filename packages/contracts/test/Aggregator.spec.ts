@@ -51,10 +51,7 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
       token.address,
       wallet.address
     )
-    const depositContractInAggregator = await aggregator.depositContracts(
-      wallet.address
-    )
-    expect(depositContractInAggregator.erc20()).to.eq(token)
+    expect(await aggregator.depositContracts(wallet.address)).to.exist
   })
 
   it('Assigns and deletes IP in Metadata', async () => {
