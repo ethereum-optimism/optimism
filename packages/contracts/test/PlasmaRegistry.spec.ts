@@ -1,5 +1,6 @@
 import chai = require('chai')
-chai.use(require('chai-bignumber')())
+import bignum = require('chai-bignumber')
+chai.use(bignum())
 
 import {
   createMockProvider,
