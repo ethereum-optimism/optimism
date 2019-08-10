@@ -8,30 +8,30 @@ import {
   getWallets,
   solidity,
 } from 'ethereum-waffle'
-import * as PlasmaRegistry from '../build/PlasmaRegistry.json'
+import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
 
 chai.use(solidity)
 
 describe('Creates Aggregator and checks that fields are properly assigned', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
-  let plasmaRegistry
+  let aggregatorRegistry
   let agg2AuthenticationAddress
 
   beforeEach(async () => {
     const agg1AuthenticationAddress = wallet1.address
     agg2AuthenticationAddress = wallet2.address
-    plasmaRegistry = await deployContract(wallet1, PlasmaRegistry, [], {
+    aggregatorRegistry = await deployContract(wallet1, AggregatorRegistry, [], {
       gasLimit: 6700000,
     })
-    await plasmaRegistry.addAggregator(agg1AuthenticationAddress)
+    await aggregatorRegistry.addAggregator(agg1AuthenticationAddress)
   })
 
   it('Creates aggregators and gives correct length ', async () => {
-    let aggregatorCount = await plasmaRegistry.getAggregatorCount()
+    let aggregatorCount = await aggregatorRegistry.getAggregatorCount()
     aggregatorCount.should.be.bignumber.equal(1)
-    await plasmaRegistry.addAggregator(agg2AuthenticationAddress)
-    aggregatorCount = await plasmaRegistry.getAggregatorCount()
+    await aggregatorRegistry.addAggregator(agg2AuthenticationAddress)
+    aggregatorCount = await aggregatorRegistry.getAggregatorCount()
     aggregatorCount.should.be.bignumber.equal(2)
   })
 })

@@ -6,7 +6,7 @@ import {
   solidity,
 } from 'ethereum-waffle'
 import * as AggregatorWithIPCreationProxy from '../build/AggregatorWithIPCreationProxy.json'
-import * as PlasmaRegistry from '../build/PlasmaRegistry.json'
+import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
 
 chai.use(solidity)
 const { expect } = chai
@@ -15,17 +15,17 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let aggregatorWithIPCreationProxy
-  let plasmaRegistry
+  let aggregatorRegistry
 
   beforeEach(async () => {
     const authenticationAddress = await wallet.getAddress()
-    plasmaRegistry = await deployContract(wallet, PlasmaRegistry, [], {
+    aggregatorRegistry = await deployContract(wallet, AggregatorRegistry, [], {
       gasLimit: 6700000,
     })
     aggregatorWithIPCreationProxy = await deployContract(
       wallet,
       AggregatorWithIPCreationProxy,
-      [plasmaRegistry.address, authenticationAddress, authenticationAddress],
+      [aggregatorRegistry.address, authenticationAddress, authenticationAddress],
       {
         gasLimit: 6700000,
       }

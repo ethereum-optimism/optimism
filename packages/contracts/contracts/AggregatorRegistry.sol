@@ -8,7 +8,7 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import { Aggregator } from "./Aggregator.sol";
 
 
-contract PlasmaRegistry {
+contract AggregatorRegistry {
   address[] public aggregators;
 
   function addAggregator(address _authenticationAddress) public returns (Aggregator newAggregator) {

@@ -45,15 +45,6 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     expect(await aggregator.id()).to.eq(121)
   })
 
-  it('Assigns Deposit Contract', async () => {
-    token = await deployContract(wallet, BasicTokenMock, [wallet.address, 1000])
-    depositContract = await aggregator.addDepositContract(
-      token.address,
-      wallet.address
-    )
-    expect(await aggregator.depositContracts(wallet.address)).to.exist
-  })
-
   it('Assigns and deletes IP in Metadata', async () => {
     const addr = wallet.address
     await aggregator.setMetadata(addr, 'heyo')

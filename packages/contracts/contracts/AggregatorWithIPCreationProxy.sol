@@ -6,16 +6,16 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
 /* Internal Imports */
 import { Aggregator } from "./Aggregator.sol";
-import { PlasmaRegistry } from "./PlasmaRegistry.sol";
+import { AggregatorRegistry } from "./AggregatorRegistry.sol";
 
 contract AggregatorWithIPCreationProxy {
   address payable public owner;
-  PlasmaRegistry public plasmaRegistry;
+  AggregatorRegistry public aggregatorRegistry;
 
-  constructor(PlasmaRegistry _plasmaRegistry, address _authenticationAddress, string memory data) public {
+  constructor(AggregatorRegistry _aggregatorRegistry, address _authenticationAddress, string memory data) public {
     owner = msg.sender;
-    plasmaRegistry = _plasmaRegistry;
-    plasmaRegistry.addAggregator(_authenticationAddress);
+    aggregatorRegistry = _aggregatorRegistry;
+    aggregatorRegistry.addAggregator(_authenticationAddress);
   }
 
   function deleteThisContract() public {
