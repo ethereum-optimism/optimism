@@ -6,6 +6,7 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import { CommitmentChain } from "./CommitmentChain.sol";
 import {DataTypes as types} from "./DataTypes.sol";
 
+/* Represents a single aggregator */
 contract Aggregator {
   address public authenticationAddress;
   CommitmentChain public commitmentContract;

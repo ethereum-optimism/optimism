@@ -8,17 +8,17 @@ import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import { Aggregator } from "./Aggregator.sol";
 import { AggregatorRegistry } from "./AggregatorRegistry.sol";
 
+/* This contract is used just to create an Aggregator Registry, then destroyed */
 contract AggregatorWithIPCreationProxy {
-  address payable public owner;
   AggregatorRegistry public aggregatorRegistry;
 
-  constructor(AggregatorRegistry _aggregatorRegistry, address _authenticationAddress, string memory data) public {
-    owner = msg.sender;
+  constructor(AggregatorRegistry _aggregatorRegistry, address _authenticationAddress, string data) public {
     aggregatorRegistry = _aggregatorRegistry;
     aggregatorRegistry.addAggregator(_authenticationAddress);
   }
 
+  /* The contract is destroyed and remaining ether balance (0) is sent to burner contract at address 0 */
   function deleteThisContract() public {
-    selfdestruct(owner);
+    selfdestruct(address(0));
   }
 }
