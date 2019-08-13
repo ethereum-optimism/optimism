@@ -4,6 +4,7 @@ import {
   ImplicationProofItem,
   Property,
 } from '../../../types/ovm'
+import { CannotDecideError } from './utils'
 
 export interface AndDeciderInput {
   left: Property
@@ -16,25 +17,39 @@ export interface AndDeciderInput {
  * Decider that decides true iff both of the provided properties evaluate to true.
  */
 export class AndDecider implements Decider {
+  private static _instance: AndDecider
+
+  public static instance(): AndDecider {
+    if (!AndDecider._instance) {
+      AndDecider._instance = new AndDecider()
+    }
+    return AndDecider._instance
+  }
+
   public async decide(
     input: AndDeciderInput,
     witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
     const [leftDecision, rightDecision] = await Promise.all([
-      input.left.decider.decide(input.left.input, input.leftWitness, noCache),
-      input.right.decider.decide(
-        input.right.input,
-        input.rightWitness,
-        noCache
-      ),
+      input.left.decider
+        .decide(input.left.input, input.leftWitness, noCache)
+        .catch(() => undefined),
+      input.right.decider
+        .decide(input.right.input, input.rightWitness, noCache)
+        .catch(() => undefined),
     ])
 
-    if (!leftDecision.outcome) {
+    if (!!leftDecision && !leftDecision.outcome) {
       return this.getDecision(input, leftDecision)
     }
-    if (!rightDecision.outcome) {
+    if (!!rightDecision && !rightDecision.outcome) {
       return this.getDecision(input, rightDecision)
+    }
+    if (!leftDecision || !rightDecision) {
+      throw new CannotDecideError(
+        'One of the AND deciders could not decide, and neither decided false.'
+      )
     }
 
     const justification: ImplicationProofItem[] = []

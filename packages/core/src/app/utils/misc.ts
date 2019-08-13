@@ -2,7 +2,7 @@
 
 /* Internal Imports */
 import { Transaction } from '../../types'
-import { BIG_ENDIAN, BigNumber } from './number'
+import { BIG_ENDIAN, BigNumber } from '../../types/number'
 
 /**
  * JSON-stringifies a value if it's not already a string.

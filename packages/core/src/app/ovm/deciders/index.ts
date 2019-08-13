@@ -1,4 +1,5 @@
 export * from './and-decider'
+export * from './examples'
 export * from './for-all-such-that-decider'
 export * from './hash-preimage-existence-decider'
 export * from './key-value-store-decider'

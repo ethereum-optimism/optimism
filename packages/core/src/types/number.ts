@@ -302,6 +302,13 @@ export class BigNumber {
   }
 
   /**
+   * eq alias to comply with standard
+   */
+  public equals(other: BigNumber): boolean {
+    return this.eq(other)
+  }
+
+  /**
    * Compares this BigNumber to the provided BigNumber.
    *
    * @param other the BigNumber to compare to

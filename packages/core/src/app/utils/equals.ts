@@ -12,12 +12,16 @@ import {
  */
 
 export const objectsEqual = (obj1: {}, obj2: {}): boolean => {
-  if (obj1 === undefined && obj2 === undefined) {
+  if (!obj1 && !obj2) {
     return true
   }
 
-  if (obj1 === undefined || obj2 === undefined) {
+  if (!obj1 || !obj2) {
     return false
+  }
+
+  if (obj1.hasOwnProperty('equals')) {
+    return obj1['equals'](obj2)
   }
 
   const props: string[] = Object.getOwnPropertyNames(obj1)
@@ -28,6 +32,14 @@ export const objectsEqual = (obj1: {}, obj2: {}): boolean => {
   for (const prop of props) {
     if (!obj2.hasOwnProperty(prop)) {
       return false
+    }
+
+    if (typeof obj1[prop] === 'object' && typeof obj2[prop] === 'object') {
+      if (objectsEqual(obj1[prop], obj2[prop])) {
+        continue
+      } else {
+        return false
+      }
     }
 
     // TODO: This won't work for reference types, but it'll work for now

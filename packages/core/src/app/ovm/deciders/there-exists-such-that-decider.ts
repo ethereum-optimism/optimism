@@ -10,7 +10,7 @@ import {
 } from '../../../types/ovm'
 import { CannotDecideError } from './utils'
 
-export interface ForAllSuchThatInput {
+export interface ThereExistsSuchThatInput {
   quantifier: Quantifier
   quantifierParameters: any
   propertyFactory: PropertyFactory
@@ -18,20 +18,12 @@ export interface ForAllSuchThatInput {
 }
 
 /**
- * Decider that decides true iff the provided quantifier quantifies all results and they all evaluate to true.
- * If any evaluates to false, it will decide false. Otherwise, it is undecidable.
+ * Decider that decides true if the provided quantifier quantifies any results that evaluate to true.
+ * If not, and the quantifier quantifies all results, it'll return false, else undecided.
  */
-export class ForAllSuchThatDecider implements Decider {
-  private static _instance: ForAllSuchThatDecider
-  public static instance(): ForAllSuchThatDecider {
-    if (!ForAllSuchThatDecider._instance) {
-      ForAllSuchThatDecider._instance = new ForAllSuchThatDecider()
-    }
-    return ForAllSuchThatDecider._instance
-  }
-
+export class ThereExistsSuchThatDecider implements Decider {
   public async decide(
-    input: ForAllSuchThatInput,
+    input: ThereExistsSuchThatInput,
     _witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
@@ -40,8 +32,8 @@ export class ForAllSuchThatDecider implements Decider {
     )
 
     let anyUndecided: boolean = false
-    let falseDecision: Decision
-    const trueDecisions: Decision[] = []
+    let trueDecision: Decision
+    const falseDecisions: Decision[] = []
     for (const res of quantifierResult.results) {
       const prop: Property = input.propertyFactory(res)
       const witness: any = !!input.witnessFactory
@@ -53,11 +45,11 @@ export class ForAllSuchThatDecider implements Decider {
           witness,
           noCache
         )
-        if (!decision.outcome) {
-          falseDecision = decision
+        if (decision.outcome) {
+          trueDecision = decision
           break
         }
-        trueDecisions.push(decision)
+        falseDecisions.push(decision)
       } catch (e) {
         if (e instanceof CannotDecideError) {
           anyUndecided = true
@@ -69,30 +61,36 @@ export class ForAllSuchThatDecider implements Decider {
 
     return this.getDecision(
       input,
-      falseDecision,
-      trueDecisions,
+      trueDecision,
+      falseDecisions,
       anyUndecided || !quantifierResult.allResultsQuantified
     )
   }
 
+  private async checkDecision(
+    input: ThereExistsSuchThatInput
+  ): Promise<Decision> {
+    return this.decide(input, undefined)
+  }
+
   /**
-   * Gets the Decision that results from invocation of the ForAllSuchThat Decider.
+   * Gets the Decision that results from invocation of the ThereExistsSuchThat Decider.
    *
    * @param input The input that led to the Decision
-   * @param falseDecision A [possibly undefined] Decision failing this Decider to be used as proof
-   * @param trueDecisions An array of true Decisions to use as justification for this Decider returning True.
+   * @param trueDecision A [possibly undefined] Decision passing this Decider to be used as proof
+   * @param falseDecisions An array of false Decisions to use as justification for this Decider returning False.
    * @param undecided Whether or not some results of this Decider are undecided
    * @returns The Decision.
    */
   private getDecision(
-    input: ForAllSuchThatInput,
-    falseDecision: Decision,
-    trueDecisions: Decision[],
+    input: ThereExistsSuchThatInput,
+    trueDecision: Decision,
+    falseDecisions: Decision[],
     undecided: boolean
   ): Decision {
-    if (!falseDecision && undecided) {
+    if (!trueDecision && undecided) {
       throw new CannotDecideError(
-        'Cannot decide ForAllSuchThat due to undecided Decision or not all results being quantified.'
+        'Cannot decide ThereExistsSuchThat due to undecided Decision or not all results being quantified.'
       )
     }
     const justification: ImplicationProofItem[] = [
@@ -105,16 +103,16 @@ export class ForAllSuchThatDecider implements Decider {
       },
     ]
 
-    if (!!falseDecision) {
-      justification.push(...falseDecision.justification)
+    if (!!trueDecision) {
+      justification.push(...trueDecision.justification)
     } else {
-      for (const decision of trueDecisions) {
+      for (const decision of falseDecisions) {
         justification.push(...decision.justification)
       }
     }
 
     return {
-      outcome: !falseDecision,
+      outcome: !!trueDecision,
       justification,
     }
   }

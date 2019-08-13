@@ -1,3 +1,4 @@
+export * from './db/'
 export * from './decider.interface'
 export * from './predicate-plugin.interface'
 export * from './plugin-manager.interface'
