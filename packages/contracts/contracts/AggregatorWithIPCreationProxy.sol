@@ -12,7 +12,7 @@ import { AggregatorRegistry } from "./AggregatorRegistry.sol";
 contract AggregatorWithIPCreationProxy {
   AggregatorRegistry public aggregatorRegistry;
 
-  constructor(AggregatorRegistry _aggregatorRegistry, address _authenticationAddress, string data) public {
+  constructor(AggregatorRegistry _aggregatorRegistry, address _authenticationAddress, string memory data) public {
     aggregatorRegistry = _aggregatorRegistry;
     aggregatorRegistry.addAggregator(_authenticationAddress);
   }

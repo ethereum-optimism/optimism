@@ -16,9 +16,10 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const [wallet] = getWallets(provider)
   let aggregatorWithIPCreationProxy
   let aggregatorRegistry
+  let authenticationAddress
 
   beforeEach(async () => {
-    const authenticationAddress = await wallet.getAddress()
+    authenticationAddress = await wallet.getAddress()
     aggregatorRegistry = await deployContract(wallet, AggregatorRegistry, [], {
       gasLimit: 6700000,
     })
@@ -37,17 +38,19 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   })
 
   it('Successfully self destructs contract', async () => {
-    aggregatorWithIPCreationProxy.deleteThisContract()
+    expect(await provider.getCode(aggregatorWithIPCreationProxy.address)).to
+      .exist
+    await aggregatorWithIPCreationProxy.deleteThisContract()
+    expect(await provider.getCode(aggregatorWithIPCreationProxy.address)).to.eq('0x')
   })
 
   it('Check that the aggregator registry added the aggregator', async () => {
-    expect(await aggregatorRegistry.aggregators().length).to.eq(1)
+    const aggregatorCount = await aggregatorRegistry.getAggregatorCount()
+    aggregatorCount.should.be.bignumber.equal(1)
   })
 
   it('Check that the aggregator contract is deployed', async () => {
-    // You can check that it’s deployed with getCode in ethers.js
-    expect(await provider.getCode(aggregatorRegistry.aggregators().get(0))).to
+    expect(await provider.getCode(await aggregatorRegistry.aggregators(0))).to
       .exist
   })
-
 })
