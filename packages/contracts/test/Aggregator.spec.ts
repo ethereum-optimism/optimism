@@ -7,8 +7,6 @@ import {
 } from 'ethereum-waffle'
 
 import * as Aggregator from '../build/Aggregator.json'
-import * as BasicTokenMock from '../build/BasicTokenMock.json'
-import * as DummyDeposit from '../build/DummyDeposit.json'
 
 chai.use(solidity)
 const { expect } = chai
@@ -17,8 +15,6 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let aggregator
-  let depositContract
-  let token
 
   beforeEach(async () => {
     const authenticationAddress = wallet.address

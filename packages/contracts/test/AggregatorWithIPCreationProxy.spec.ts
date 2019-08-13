@@ -41,7 +41,9 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     expect(await provider.getCode(aggregatorWithIPCreationProxy.address)).to
       .exist
     await aggregatorWithIPCreationProxy.deleteThisContract()
-    expect(await provider.getCode(aggregatorWithIPCreationProxy.address)).to.eq('0x')
+    expect(await provider.getCode(aggregatorWithIPCreationProxy.address)).to.eq(
+      '0x'
+    )
   })
 
   it('Check that the aggregator registry added the aggregator', async () => {
