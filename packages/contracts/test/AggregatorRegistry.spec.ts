@@ -12,7 +12,7 @@ import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
 
 chai.use(solidity)
 
-describe('Creates Aggregator and checks that fields are properly assigned', () => {
+describe('AggregatorRegistry', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
   let aggregatorRegistry
@@ -27,7 +27,7 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     await aggregatorRegistry.addAggregator(agg1AuthenticationAddress)
   })
 
-  it('Creates aggregators and gives correct length ', async () => {
+  it('getAggregatorCount() ', async () => {
     let aggregatorCount = await aggregatorRegistry.getAggregatorCount()
     aggregatorCount.should.be.bignumber.equal(1)
     await aggregatorRegistry.addAggregator(agg2AuthenticationAddress)

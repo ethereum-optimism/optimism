@@ -11,7 +11,7 @@ import * as Aggregator from '../build/Aggregator.json'
 chai.use(solidity)
 const { expect } = chai
 
-describe('Creates Aggregator and checks that fields are properly assigned', () => {
+describe('Aggregator', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let aggregator
@@ -29,19 +29,19 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     )
   })
 
-  it('Assigns AuthenticationAddress to Aggregator', async () => {
+  it('authenticationAddress()', async () => {
     expect(await aggregator.authenticationAddress()).to.eq(wallet.address)
   })
 
-  it('Creates Commitment Chain', async () => {
+  it('commitmentContract()', async () => {
     expect(await aggregator.commitmentContract()).to.exist
   })
 
-  it('Assigns ID to Aggregator', async () => {
+  it('id()', async () => {
     expect(await aggregator.id()).to.eq(121)
   })
 
-  it('Assigns and deletes IP in Metadata', async () => {
+  it('setMetadata(), deleteMetadata()', async () => {
     const addr = wallet.address
     await aggregator.setMetadata(addr, 'heyo')
     expect(await aggregator.metadata(addr)).to.eq('heyo')

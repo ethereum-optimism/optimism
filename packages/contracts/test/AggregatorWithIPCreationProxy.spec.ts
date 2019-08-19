@@ -11,7 +11,7 @@ import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
 chai.use(solidity)
 const { expect } = chai
 
-describe('Creates Aggregator and checks that fields are properly assigned', () => {
+describe('AggregatorWithIPCreationProxy', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let aggregatorWithIPCreationProxy
@@ -37,7 +37,7 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     )
   })
 
-  it('Successfully self destructs contract', async () => {
+  it('deleteThisContract()', async () => {
     expect(await provider.getCode(aggregatorWithIPCreationProxy.address)).to
       .exist
     await aggregatorWithIPCreationProxy.deleteThisContract()
@@ -46,12 +46,12 @@ describe('Creates Aggregator and checks that fields are properly assigned', () =
     )
   })
 
-  it('Check that the aggregator registry added the aggregator', async () => {
+  it('aggregatorRegistry.getAggregatorCount()', async () => {
     const aggregatorCount = await aggregatorRegistry.getAggregatorCount()
     aggregatorCount.should.be.bignumber.equal(1)
   })
 
-  it('Check that the aggregator contract is deployed', async () => {
+  it('aggregatorRegistry.aggregators()', async () => {
     expect(await provider.getCode(await aggregatorRegistry.aggregators(0))).to
       .exist
   })
