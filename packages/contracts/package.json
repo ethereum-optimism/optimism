@@ -36,6 +36,7 @@
     "@types/node": "^11.11.3",
     "@types/web3": "^1.0.18",
     "chai": "^4.2.0",
+    "chai-bignumber": "^3.0.0",
     "mocha": "^6.0.2",
     "rimraf": "^2.6.3",
     "typescript": "^3.3.3333",
