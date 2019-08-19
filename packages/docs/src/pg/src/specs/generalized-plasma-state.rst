@@ -22,13 +22,13 @@ Generalized Plasma State Spec
    - ``exitableRange`` struct:
          - ``start: uint`` - The first ``stateID`` of a still-exitable range. The plasma contract stores a mapping from ``cexitableRangeEnd->exitableableRange``
          - ``isSet: bool`` - whether or not this value in the mapping has been initialized. Needed because EVM can't differentiate between a mapping set to 0 and an unset mapping.
-     - ``exit`` struct:
+   - ``exit`` struct:
          - ``update: stateUpdate`` - the state being claimed.
          - ``exitStart`` - the start of the update's subrange claiming to be undeprecated.
          - ``exitEnd`` - the end of the update's subrange claiming to be undeprecated.
          - ``ethBlockRedeemable: uint`` - when the ``exit``'s dispute period expires.
          - ``numChallenges: uint`` - the number of pending challenges preventing a ``exit``'s redemption.
-     - ``challenge`` struct:
+   - ``challenge`` struct:
          - ``earlierExitID: uint`` - the earlier undeprecated ``exit`` being used to challenge an invlaid ``exit``.
          - ``laterExitID: uint`` - the challenged ``exit``.
 - Commitment Contract
