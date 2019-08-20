@@ -1,11 +1,14 @@
 import { MessageDB } from './message-db.interface'
 import { ParsedMessage } from '../../serialization'
+import { SignedByDBInterface } from './signed-by-db.interface'
 
 /**
  * The MessageDB interface specific to StateChannelMessages, offering various
  * StateChannelMessage-specific CRUD operations.
  */
-export interface StateChannelMessageDB extends MessageDB {
+export interface StateChannelMessageDBInterface
+  extends MessageDB,
+    SignedByDBInterface {
   /**
    * Gets the ParsedMessage of the StateChannelMessage with the provided
    * ChannelID that is signed by both parties and has the highest nonce.

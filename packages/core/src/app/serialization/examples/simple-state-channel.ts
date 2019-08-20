@@ -62,10 +62,6 @@ export interface StateChannelMessage {
   addressBalance: AddressBalance
 }
 
-const signaturePlaceholder: Buffer = Buffer.from(
-  'Trust me, this is totally signed.'
-)
-
 /**
  * Parses the signed message into a ParsedMessage, if possible.
  * If not, it throws.
@@ -85,7 +81,7 @@ export const parseStateChannelSignedMessage = (
     stateChannelMessageDeserializer
   )
   const signatures = {}
-  signatures[signedMessage.sender.toString()] = signaturePlaceholder
+  signatures[signedMessage.sender.toString()] = signedMessage.signedMessage
   return {
     sender: signedMessage.sender,
     recipient: myAddress,

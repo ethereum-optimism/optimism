@@ -1,73 +1,66 @@
 import '../../../setup'
 
-import { MessageDB } from '../../../../src/types/ovm/db'
-import { BigNumber, ParsedMessage } from '../../../../src/types'
+import { Message, SignedMessage } from '../../../../src/types'
 import { SignedByQuantifier } from '../../../../src/app/ovm/quantifiers/signed-by-quantifier'
 import { QuantifierResult } from '../../../../src/types/ovm'
-import { Message } from '../../../../src/types/serialization'
+import { SignedByDBInterface } from '../../../../src/types/ovm/db/signed-by-db.interface'
+import { decryptWithPublicKey } from '../../../../src/app/utils'
 
 /*******************
  * Mocks & Helpers *
  *******************/
 
-class MockedMessageDB implements MessageDB {
-  public async getMessageByChannelIdAndNonce(
-    channelId: Buffer,
-    nonce: BigNumber
-  ): Promise<ParsedMessage> {
-    return undefined
+class MockedMessageDB implements SignedByDBInterface {
+  private readonly signedMessages: {} = {}
+
+  public async handleMessage(
+    message: Message,
+    signedMessage?: SignedMessage
+  ): Promise<void> {
+    if (!!signedMessage) {
+      await this.storeSignedMessage(
+        signedMessage.signedMessage,
+        signedMessage.sender
+      )
+    }
   }
 
-  public async getMessagesByRecipient(
-    address: Buffer,
-    channelId?: Buffer,
-    nonce?: BigNumber
-  ): Promise<ParsedMessage[]> {
-    return undefined
+  public async storeSignedMessage(
+    signature: Buffer,
+    signerPublicKey: Buffer
+  ): Promise<void> {
+    const keyString: string = signerPublicKey.toString()
+    if (!(keyString in this.signedMessages)) {
+      this.signedMessages[keyString] = []
+    }
+
+    this.signedMessages[keyString].push(signature)
   }
 
-  public async getMessagesBySender(
-    address: Buffer,
-    channelId?: Buffer,
-    nonce?: BigNumber
-  ): Promise<ParsedMessage[]> {
-    return undefined
+  public async getAllSignedBy(publicKey: Buffer): Promise<Buffer[]> {
+    const keyString: string = publicKey.toString()
+    return keyString in this.signedMessages
+      ? this.signedMessages[keyString]
+      : []
   }
 
-  public async getMessagesSignedBy(
-    signer: Buffer,
-    channelId?: Buffer,
-    nonce?: BigNumber
-  ): Promise<ParsedMessage[]> {
+  public async getMessageSignature(
+    message: Buffer,
+    signerPublicKey
+  ): Promise<Buffer | undefined> {
+    const keyString: string = signerPublicKey.toString()
+    if (!(keyString in this.signedMessages)) {
+      return undefined
+    }
+
+    for (const signed of this.signedMessages[keyString]) {
+      if (decryptWithPublicKey(signerPublicKey, signed).equals(message)) {
+        return signed
+      }
+    }
+
     return undefined
   }
-
-  public async getConflictingCounterpartyMessage(
-    channelId: Buffer,
-    nonce: BigNumber
-  ): Promise<ParsedMessage> {
-    return undefined
-  }
-
-  public async storeMessage(message: ParsedMessage): Promise<void> {
-    return undefined
-  }
-
-  public getMyAddress(): Buffer {
-    return undefined
-  }
-}
-
-const getMessageDBThatReturns = (
-  messages: ParsedMessage[]
-): MockedMessageDB => {
-  const db: MockedMessageDB = new MockedMessageDB()
-  db.getMessagesSignedBy = async (
-    signer: Buffer,
-    channelId?: Buffer,
-    nonce?: BigNumber
-  ) => messages
-  return db
 }
 
 /*********
@@ -75,34 +68,20 @@ const getMessageDBThatReturns = (
  *********/
 
 describe('SignedByQuantifier', () => {
+  let db: SignedByDBInterface
+  const message1: Buffer = Buffer.from('a')
+  const message2: Buffer = Buffer.from('b')
+  const myAddress: Buffer = Buffer.from('0xMY_ADDRESS =D')
+  const notMyAddress: Buffer = Buffer.from('0xNOT_MY_ADDRESS =|')
+
+  beforeEach(() => {
+    db = new MockedMessageDB()
+  })
+
   describe('getAllQuantified', () => {
-    const myAddress: Buffer = Buffer.from('0xMY_ADDRESS =D')
-    const notMyAddress: Buffer = Buffer.from('0xNOT_MY_ADDRESS =|')
-    const mySignatures: {} = {}
-    mySignatures[myAddress.toString()] = Buffer.from('My Signature')
-
     it('returns messages from the DB with my address', async () => {
-      const message1: ParsedMessage = {
-        sender: Buffer.from('sender'),
-        recipient: Buffer.from('recipient'),
-        message: {
-          channelId: Buffer.from('channel'),
-          data: {},
-        },
-        signatures: mySignatures,
-      }
-
-      const message2: ParsedMessage = {
-        sender: Buffer.from('sender'),
-        recipient: Buffer.from('recipient'),
-        message: {
-          channelId: Buffer.from('channel'),
-          data: {},
-        },
-        signatures: mySignatures,
-      }
-      const messages: ParsedMessage[] = [message1, message2]
-      const db: MockedMessageDB = getMessageDBThatReturns(messages)
+      await db.storeSignedMessage(message1, myAddress)
+      await db.storeSignedMessage(message2, myAddress)
       const quantifier: SignedByQuantifier = new SignedByQuantifier(
         db,
         myAddress
@@ -118,27 +97,8 @@ describe('SignedByQuantifier', () => {
     })
 
     it('returns messages from the DB not with my address', async () => {
-      const message1: ParsedMessage = {
-        sender: Buffer.from('sender'),
-        recipient: Buffer.from('recipient'),
-        message: {
-          channelId: Buffer.from('channel'),
-          data: {},
-        },
-        signatures: mySignatures,
-      }
-
-      const message2: ParsedMessage = {
-        sender: Buffer.from('sender'),
-        recipient: Buffer.from('recipient'),
-        message: {
-          channelId: Buffer.from('channel'),
-          data: {},
-        },
-        signatures: mySignatures,
-      }
-      const messages: ParsedMessage[] = [message1, message2]
-      const db: MockedMessageDB = getMessageDBThatReturns(messages)
+      await db.storeSignedMessage(message1, notMyAddress)
+      await db.storeSignedMessage(message2, notMyAddress)
       const quantifier: SignedByQuantifier = new SignedByQuantifier(
         db,
         myAddress
@@ -154,7 +114,6 @@ describe('SignedByQuantifier', () => {
     })
 
     it('returns empty list from DB with my address', async () => {
-      const db: MockedMessageDB = getMessageDBThatReturns([])
       const quantifier: SignedByQuantifier = new SignedByQuantifier(
         db,
         myAddress
@@ -168,7 +127,6 @@ describe('SignedByQuantifier', () => {
     })
 
     it('returns empty list from the DB not with my address', async () => {
-      const db: MockedMessageDB = getMessageDBThatReturns([])
       const quantifier: SignedByQuantifier = new SignedByQuantifier(
         db,
         myAddress

@@ -1,6 +1,5 @@
 import { Quantifier, QuantifierResult } from '../../../types/ovm'
-import { MessageDB } from '../../../types/ovm/db'
-import { ParsedMessage } from '../../../types/serialization'
+import { SignedByDBInterface } from '../../../types/ovm/db/signed-by-db.interface'
 
 interface SignedByQuantifierParameters {
   address: Buffer
@@ -11,7 +10,7 @@ interface SignedByQuantifierParameters {
  */
 export class SignedByQuantifier implements Quantifier {
   constructor(
-    private readonly db: MessageDB,
+    private readonly db: SignedByDBInterface,
     private readonly myAddress: Buffer
   ) {}
 
@@ -23,7 +22,7 @@ export class SignedByQuantifier implements Quantifier {
   public async getAllQuantified(
     signerParams: SignedByQuantifierParameters
   ): Promise<QuantifierResult> {
-    const messages: ParsedMessage[] = await this.db.getMessagesSignedBy(
+    const messages: Buffer[] = await this.db.getAllSignedBy(
       signerParams.address
     )
 

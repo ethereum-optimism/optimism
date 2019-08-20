@@ -4,7 +4,7 @@ import {
   ImplicationProofItem,
   Property,
 } from '../../../types/ovm'
-import { CannotDecideError } from './utils'
+import { CannotDecideError, handleCannotDecideError } from './utils'
 
 export interface OrDeciderInput {
   properties: Property[]
@@ -30,13 +30,11 @@ export class OrDecider implements Decider {
     noCache?: boolean
   ): Promise<Decision> {
     const decisions: Decision[] = await Promise.all(
-      input.properties.map((property: Property, index: number) => {
-        return this.decideWithoutThrowingCannotDecide(
-          property,
-          input.witnesses[index],
-          noCache
-        )
-      })
+      input.properties.map((property: Property, index: number) =>
+        property.decider
+          .decide(property.input, input.witnesses[index], noCache)
+          .catch(handleCannotDecideError)
+      )
     )
 
     let trueDecision: Decision
@@ -69,29 +67,6 @@ export class OrDecider implements Decider {
       outcome: false,
       justification: falseJustifications,
     })
-  }
-
-  /**
-   * Calls decide on the provided Property's Decider with the appropriate input and catches
-   * CannotDecideError, returning undefined if it occurs.
-   *
-   * @param property the Property with the Decider to decide and the input to pass it
-   * @param witness the witness for the Decider
-   * @param noCache whether or not to use the cache if one is available for previous decisions
-   */
-  private async decideWithoutThrowingCannotDecide(
-    property: Property,
-    witness: any,
-    noCache: boolean
-  ): Promise<Decision> {
-    try {
-      return await property.decider.decide(property.input, witness, noCache)
-    } catch (e) {
-      if (e instanceof CannotDecideError) {
-        return undefined
-      }
-      throw e
-    }
   }
 
   /**

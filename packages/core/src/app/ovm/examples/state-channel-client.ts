@@ -5,18 +5,21 @@ import {
   ZERO,
   ParsedMessage,
   SignedMessage,
-  StateChannelMessageDB,
+  StateChannelMessageDBInterface,
   ImplicationProofItem,
   Decision,
   BigNumber,
 } from '../../../types'
 import {
   AddressBalance,
+  deserializeBuffer,
+  deserializeMessage,
   messageToBuffer,
   objectToBuffer,
   parseStateChannelSignedMessage,
   StateChannelExitClaim,
   StateChannelMessage,
+  stateChannelMessageDeserializer,
   stateChannelMessageToString,
 } from '../../serialization'
 import {
@@ -28,17 +31,14 @@ import {
 } from '../deciders'
 import { SignedByDecider } from '../deciders/signed-by-decider'
 import { SignedByQuantifier } from '../quantifiers/signed-by-quantifier'
-
-const signaturePlaceholder: Buffer = Buffer.from(
-  'Trust me, this is totally signed.'
-)
+import { sign } from '../../utils'
 
 /**
  * Client responsible for State Channel communication
  */
 export class StateChannelClient {
   public constructor(
-    private readonly messageDB: StateChannelMessageDB,
+    private readonly messageDB: StateChannelMessageDBInterface,
     private readonly signedByDecider: SignedByDecider,
     private readonly signedByQuantifier: SignedByQuantifier,
     private readonly myPrivateKey: Buffer,
@@ -141,19 +141,21 @@ export class StateChannelClient {
             publicKey: counterparty,
           },
         },
-        leftWitness: {
-          signature: mostRecent.signatures[counterparty.toString()],
-        },
+        leftWitness: undefined,
         right: {
           decider: ForAllSuchThatDecider.instance(),
           input: {
             quantifier: this.signedByQuantifier,
             quantifierParameters: { address: this.myAddress },
-            propertyFactory: (message: ParsedMessage) => {
+            propertyFactory: (signedMessage: Buffer) => {
               return {
                 decider: MessageNonceLessThanDecider.instance(),
                 input: {
-                  messageWithNonce: message,
+                  messageWithNonce: deserializeBuffer(
+                    signedMessage,
+                    deserializeMessage,
+                    stateChannelMessageDeserializer
+                  ),
                   lessThanThis: mostRecent.message.nonce.add(ONE),
                 },
               }
@@ -218,11 +220,7 @@ export class StateChannelClient {
     )
 
     // Store message no matter what
-    if (!!mergedMessage) {
-      await this.messageDB.storeMessage(mergedMessage)
-    } else {
-      await this.messageDB.storeMessage(parsedMessage)
-    }
+    await this.messageDB.storeMessage(mergedMessage || parsedMessage)
 
     if (!!existingMessage) {
       return undefined
@@ -321,7 +319,10 @@ export class StateChannelClient {
   private async signAndSaveMessage(
     message: ParsedMessage
   ): Promise<SignedMessage> {
-    message.signatures[this.myAddress.toString()] = signaturePlaceholder
+    message.signatures[this.myAddress.toString()] = sign(
+      this.myPrivateKey,
+      messageToBuffer(message.message, stateChannelMessageToString)
+    )
 
     await this.messageDB.storeMessage(message)
 

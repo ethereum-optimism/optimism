@@ -1,5 +1,5 @@
 export * from './deciders'
 export * from './examples'
 export * from './quantifiers'
-export * from './state-db'
+export * from './db/state-db'
 export * from './state-manager'

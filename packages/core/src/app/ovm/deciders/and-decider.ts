@@ -4,7 +4,7 @@ import {
   ImplicationProofItem,
   Property,
 } from '../../../types/ovm'
-import { CannotDecideError } from './utils'
+import { CannotDecideError, handleCannotDecideError } from './utils'
 
 export interface AndDeciderInput {
   left: Property
@@ -34,10 +34,10 @@ export class AndDecider implements Decider {
     const [leftDecision, rightDecision] = await Promise.all([
       input.left.decider
         .decide(input.left.input, input.leftWitness, noCache)
-        .catch(() => undefined),
+        .catch(handleCannotDecideError),
       input.right.decider
         .decide(input.right.input, input.rightWitness, noCache)
-        .catch(() => undefined),
+        .catch(handleCannotDecideError),
     ])
 
     if (!!leftDecision && !leftDecision.outcome) {

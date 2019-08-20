@@ -1,9 +1,9 @@
 import { Decider, Decision, ImplicationProofItem } from '../../../../types/ovm'
-import { ParsedMessage } from '../../../../types/serialization'
+import { Message } from '../../../../types/serialization'
 import { BigNumber } from '../../../utils'
 
 export interface MessageNonceLessThanInput {
-  messageWithNonce: ParsedMessage
+  messageWithNonce: Message
   lessThanThis: BigNumber
 }
 
@@ -35,7 +35,7 @@ export class MessageNonceLessThanDecider implements Decider {
     ]
 
     return {
-      outcome: input.messageWithNonce.message.nonce.lt(input.lessThanThis),
+      outcome: input.messageWithNonce.nonce.lt(input.lessThanThis),
       justification,
     }
   }

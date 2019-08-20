@@ -1,66 +1,39 @@
-import { Decision } from '../../../types/ovm'
-import { DB } from '../../../types/db'
-import { KeyValueStoreDecider } from './key-value-store-decider'
-import { CannotDecideError, HashFunction } from './utils'
+import { Decider, Decision, HashPreimageDbInterface } from '../../../types/ovm'
+import { CannotDecideError } from './utils'
+import { HashAlgorithm } from '../../../types/utils'
 
 export interface HashInput {
   hash: Buffer
 }
 
-export interface PreimageWitness {
-  preimage: Buffer
-}
-
 /**
  * Decider that determines whether the provided witness is the preimage to the hash in question.
  */
-export class HashPreimageExistenceDecider extends KeyValueStoreDecider {
-  private static readonly UNIQUE_ID = 'HashPreimageDecider'
+export class HashPreimageExistenceDecider implements Decider {
+  constructor(
+    private readonly db: HashPreimageDbInterface,
+    private readonly hashAlgorithm: HashAlgorithm
+  ) {}
 
-  private readonly hashFunction: HashFunction
-
-  constructor(db: DB, hashFunction: HashFunction) {
-    super(db)
-
-    this.hashFunction = hashFunction
-  }
-
-  protected async makeDecision(
+  public async decide(
     input: HashInput,
-    witness: PreimageWitness
+    _witness?: undefined,
+    _noCache?: boolean
   ): Promise<Decision> {
-    const outcome =
-      !!witness && this.hashFunction(witness.preimage).equals(input.hash)
+    const preimage: Buffer = await this.db.getPreimage(
+      input.hash,
+      this.hashAlgorithm
+    )
 
-    if (!outcome) {
+    if (!preimage) {
       throw new CannotDecideError(
-        `Witness [${JSON.stringify(
-          witness
-        )}] does not match hash [${JSON.stringify(
+        `No preimage is stored for hash [${JSON.stringify(
           input
         )}], so we cannot decide whether a preimage exists for the hash.`
       )
     }
 
-    await this.storeDecision(
-      input,
-      HashPreimageExistenceDecider.serializeDecision(witness, input, outcome)
-    )
-
-    return this.constructDecision(witness.preimage, input.hash, outcome)
-  }
-
-  protected getUniqueId(): string {
-    return HashPreimageExistenceDecider.UNIQUE_ID
-  }
-
-  protected deserializeDecision(decision: Buffer): Decision {
-    const json: any[] = JSON.parse(decision.toString())
-    return this.constructDecision(
-      Buffer.from(json[0]),
-      Buffer.from(json[1]),
-      json[2]
-    )
+    return this.constructDecision(preimage, input.hash, true)
   }
 
   /**
@@ -92,27 +65,5 @@ export class HashPreimageExistenceDecider extends KeyValueStoreDecider {
         },
       ],
     }
-  }
-
-  /**
-   * Creates the buffer to be stored for a Decision
-   *
-   * @param witness the HashPreimageWitness
-   * @param input the input that led to the Decision
-   * @param outcome the outcome of the Decision
-   * @returns the Buffer of the serialized data
-   */
-  private static serializeDecision(
-    witness: PreimageWitness,
-    input: HashInput,
-    outcome: boolean
-  ): Buffer {
-    return Buffer.from(
-      JSON.stringify([
-        witness.preimage.toString(),
-        input.hash.toString(),
-        outcome,
-      ])
-    )
   }
 }

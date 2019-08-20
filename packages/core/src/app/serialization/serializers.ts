@@ -56,7 +56,7 @@ export const messageToBuffer = (
   messageSerializer: ({}) => string
 ): Buffer => {
   return objectToBuffer({
-    channelId: message.channelId,
+    channelId: message.channelId.toString(),
     nonce: message.nonce,
     data: messageSerializer(message.data),
   })

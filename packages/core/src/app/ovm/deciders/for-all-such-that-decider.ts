@@ -14,7 +14,7 @@ export interface ForAllSuchThatInput {
   quantifier: Quantifier
   quantifierParameters: any
   propertyFactory: PropertyFactory
-  witnessFactory: WitnessFactory | undefined
+  witnessFactory?: WitnessFactory | undefined
 }
 
 /**
