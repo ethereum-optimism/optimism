@@ -1,8 +1,11 @@
 import { Quantifier, QuantifierResult } from '../../../types/ovm'
 import { SignedByDBInterface } from '../../../types/ovm/db/signed-by-db.interface'
+import { deserializeBuffer, deserializeMessage } from '../../serialization'
+import { Message } from '../../../types/serialization'
 
 interface SignedByQuantifierParameters {
   address: Buffer
+  channelID?: Buffer
 }
 
 /*
@@ -22,9 +25,18 @@ export class SignedByQuantifier implements Quantifier {
   public async getAllQuantified(
     signerParams: SignedByQuantifierParameters
   ): Promise<QuantifierResult> {
-    const messages: Buffer[] = await this.db.getAllSignedBy(
-      signerParams.address
-    )
+    let messages: Buffer[] = await this.db.getAllSignedBy(signerParams.address)
+
+    if ('channelID' in signerParams && signerParams['channelID']) {
+      messages = messages.filter((m) => {
+        try {
+          const message: Message = deserializeBuffer(m, deserializeMessage)
+          return signerParams.channelID.equals(message.channelID)
+        } catch (e) {
+          return false
+        }
+      })
+    }
 
     return {
       results: messages,

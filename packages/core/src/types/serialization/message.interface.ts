@@ -6,7 +6,7 @@ export interface SignedMessage {
 }
 
 export interface Message {
-  channelId: Buffer
+  channelID: Buffer
   nonce?: BigNumber
   data: {}
 }

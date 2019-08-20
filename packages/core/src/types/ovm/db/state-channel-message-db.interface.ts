@@ -13,23 +13,23 @@ export interface StateChannelMessageDBInterface
    * Gets the ParsedMessage of the StateChannelMessage with the provided
    * ChannelID that is signed by both parties and has the highest nonce.
    *
-   * @param channelId The channel ID
+   * @param channelID The channel ID
    * @returns The ParsedMessage, if one exits
    */
   getMostRecentValidStateChannelMessage(
-    channelId: Buffer
+    channelID: Buffer
   ): Promise<ParsedMessage>
 
   /**
    * Gets the ParsedMessage of the StateChannelMessage with the provided
    * ChannelID that is signed by the provided address and has the highest nonce.
    *
-   * @param channelId The channel ID
+   * @param channelID The channel ID
    * @param address The signer's address
    * @returns The ParsedMessage, if one exits
    */
   getMostRecentMessageSignedBy(
-    channelId: Buffer,
+    channelID: Buffer,
     address: Buffer
   ): Promise<ParsedMessage>
 
@@ -47,17 +47,17 @@ export interface StateChannelMessageDBInterface
    * Determines whether the channel with the provided ChannelID has been
    * exited or has an active exit attempt by either party.
    *
-   * @param channelId The Channel ID in question
+   * @param channelID The Channel ID in question
    * @returns True if exited, false otherwise.
    */
-  isChannelExited(channelId: Buffer): Promise<boolean>
+  isChannelExited(channelID: Buffer): Promise<boolean>
 
   /**
    * Marks the provided Channel ID as exited.
    *
-   * @param channelId The Channel ID in question
+   * @param channelID The Channel ID in question
    */
-  markChannelExited(channelId: Buffer): Promise<void>
+  markChannelExited(channelID: Buffer): Promise<void>
 
   /**
    * Gets the ChannelID associated with the provided counterparty address.
@@ -71,8 +71,8 @@ export interface StateChannelMessageDBInterface
    * Determines whether or not the provided Channel ID represents a
    * State Channel that we are a party of.
    *
-   * @param channelId The Channel ID in question
+   * @param channelID The Channel ID in question
    * @returns True if so, false otherwise
    */
-  channelIdExists(channelId: Buffer): Promise<boolean>
+  channelIDExists(channelID: Buffer): Promise<boolean>
 }

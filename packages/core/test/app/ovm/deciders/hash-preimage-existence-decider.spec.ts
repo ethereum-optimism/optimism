@@ -71,7 +71,7 @@ describe('HashPreimageExistenceDecider', () => {
 
     it('should decide true for valid preimage from Message', async () => {
       await preimageDB.handleMessage({
-        channelId: Buffer.from('chan'),
+        channelID: Buffer.from('chan'),
         data: { preimage },
       })
       const decision: Decision = await decider.decide({ hash })

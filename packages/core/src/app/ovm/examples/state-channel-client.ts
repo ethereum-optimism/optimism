@@ -58,20 +58,20 @@ export class StateChannelClient {
     addressBalance: AddressBalance,
     recipient: Buffer
   ): Promise<SignedMessage> {
-    let channelId: Buffer = await this.messageDB.getChannelForCounterparty(
+    let channelID: Buffer = await this.messageDB.getChannelForCounterparty(
       recipient
     )
     let nonce: BigNumber
 
-    if (!!channelId) {
+    if (!!channelID) {
       const [lastValid, lastSigned, exited]: [
         ParsedMessage,
         ParsedMessage,
         boolean
       ] = await Promise.all([
-        this.messageDB.getMostRecentValidStateChannelMessage(channelId),
-        this.messageDB.getMostRecentMessageSignedBy(channelId, this.myAddress),
-        this.messageDB.isChannelExited(channelId),
+        this.messageDB.getMostRecentValidStateChannelMessage(channelID),
+        this.messageDB.getMostRecentMessageSignedBy(channelID, this.myAddress),
+        this.messageDB.isChannelExited(channelID),
       ])
 
       if (
@@ -89,7 +89,7 @@ export class StateChannelClient {
 
       nonce = lastValid.message.nonce.add(ONE)
     } else {
-      channelId = Buffer.from(uuid.v4())
+      channelID = Buffer.from(uuid.v4())
       nonce = ONE
     }
 
@@ -97,7 +97,7 @@ export class StateChannelClient {
       sender: this.myAddress,
       recipient,
       message: {
-        channelId,
+        channelID,
         nonce,
         data: { addressBalance },
       },
@@ -114,19 +114,19 @@ export class StateChannelClient {
   public async exitChannel(
     counterparty: Buffer
   ): Promise<StateChannelExitClaim> {
-    const channelId: Buffer = await this.messageDB.getChannelForCounterparty(
+    const channelID: Buffer = await this.messageDB.getChannelForCounterparty(
       counterparty
     )
 
-    if (!channelId) {
+    if (!channelID) {
       throw Error('Cannot exit a channel that does not exist.')
     }
 
     const mostRecent: ParsedMessage = await this.messageDB.getMostRecentValidStateChannelMessage(
-      channelId
+      channelID
     )
 
-    await this.messageDB.markChannelExited(channelId)
+    await this.messageDB.markChannelExited(channelID)
 
     return {
       decider: AndDecider.instance(),
@@ -172,12 +172,12 @@ export class StateChannelClient {
    * counter-claim that disproves it.
    *
    * TODO: Improve this signature so that channel ID doesn't need to be passed
-   * @param channelId the ChannelID in question
+   * @param channelID the ChannelID in question
    * @param exitClaim the Exit claim in question
    * @returns the counter-claim that the original claim is invalid
    */
   public async handleChannelExit(
-    channelId: Buffer,
+    channelID: Buffer,
     exitClaim: StateChannelExitClaim
   ): Promise<ImplicationProofItem[]> {
     let decision: Decision
@@ -190,7 +190,7 @@ export class StateChannelClient {
     }
 
     if (!decision || decision.outcome) {
-      await this.messageDB.markChannelExited(channelId)
+      await this.messageDB.markChannelExited(channelID)
       return undefined
     }
 
@@ -210,7 +210,7 @@ export class StateChannelClient {
     )
 
     const existingMessage: ParsedMessage = await this.messageDB.getMessageByChannelIdAndNonce(
-      parsedMessage.message.channelId,
+      parsedMessage.message.channelID,
       parsedMessage.message.nonce
     )
 
@@ -268,10 +268,10 @@ export class StateChannelClient {
       ParsedMessage,
       ParsedMessage
     ] = await Promise.all([
-      this.messageDB.isChannelExited(message.message.channelId),
+      this.messageDB.isChannelExited(message.message.channelID),
       this.messageDB.conflictsWithAnotherMessage(message),
       this.messageDB.getMostRecentValidStateChannelMessage(
-        message.message.channelId
+        message.message.channelID
       ),
     ])
     if (!!conflicts || exited) {
@@ -329,7 +329,7 @@ export class StateChannelClient {
     return {
       sender: this.myAddress,
       signedMessage: objectToBuffer({
-        channelId: message.message.channelId.toString(),
+        channelID: message.message.channelID.toString(),
         nonce: message.message.nonce,
         data: stateChannelMessageToString(message.message
           .data as StateChannelMessage),

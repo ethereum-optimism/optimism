@@ -53,10 +53,10 @@ export const stateChannelMessageToString = (
  */
 export const messageToBuffer = (
   message: Message,
-  messageSerializer: ({}) => string
+  messageSerializer: ({}) => string = (_) => '{}'
 ): Buffer => {
   return objectToBuffer({
-    channelId: message.channelId.toString(),
+    channelID: message.channelID.toString(),
     nonce: message.nonce,
     data: messageSerializer(message.data),
   })
@@ -87,11 +87,11 @@ export const deserializeBuffer = (
  */
 export const deserializeMessage = (
   message: string,
-  dataDeserializer: (string) => {}
+  dataDeserializer: (string) => {} = (d) => d
 ): Message => {
   const parsedObject = deserializeObject(message)
   return {
-    channelId: Buffer.from(parsedObject['channelId']),
+    channelID: Buffer.from(parsedObject['channelID']),
     nonce:
       'nonce' in parsedObject
         ? new BigNumber(parsedObject['nonce'])

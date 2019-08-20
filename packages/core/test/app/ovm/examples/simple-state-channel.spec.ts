@@ -85,7 +85,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
 
     // Check if conflict, and if so, store separately
     const potentialConflict: ParsedMessage = await this.getMessageByChannelIdAndNonce(
-      parsedMessage.message.channelId,
+      parsedMessage.message.channelID,
       parsedMessage.message.nonce
     )
 
@@ -94,13 +94,13 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
       return
     }
 
-    const channelId: Buffer = await this.getChannelForCounterparty(
+    const channelID: Buffer = await this.getChannelForCounterparty(
       parsedMessage.sender.equals(this.myAddress)
         ? parsedMessage.recipient
         : parsedMessage.sender
     )
 
-    if (channelId && !channelId.equals(parsedMessage.message.channelId)) {
+    if (channelID && !channelID.equals(parsedMessage.message.channelID)) {
       throw Error(
         'Cannot store message because at least one participant is not a part of the listed channel.'
       )
@@ -109,7 +109,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     for (let i = 0; i < this.messageStore.length; i++) {
       const parsedMsg: ParsedMessage = this.messageStore[i]
       if (
-        parsedMsg.message.channelId.equals(parsedMessage.message.channelId) &&
+        parsedMsg.message.channelID.equals(parsedMessage.message.channelID) &&
         objectsEqual(parsedMsg.message, parsedMessage.message) &&
         ((!parsedMsg.message.nonce && !parsedMessage.message.nonce) ||
           (parsedMsg.message.nonce &&
@@ -125,12 +125,12 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMessageByChannelIdAndNonce(
-    channelId: Buffer,
+    channelID: Buffer,
     nonce: BigNumber
   ): Promise<ParsedMessage> {
     for (const parsedMsg of this.messageStore) {
       if (
-        parsedMsg.message.channelId.equals(channelId) &&
+        parsedMsg.message.channelID.equals(channelID) &&
         parsedMsg.message.nonce &&
         parsedMsg.message.nonce.eq(nonce)
       ) {
@@ -142,7 +142,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
 
   public async getMessagesByRecipient(
     recipient: Buffer,
-    channelId?: Buffer,
+    channelID?: Buffer,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]> {
     // passes back live references to messages, but that doesn't matter for these tests.
@@ -150,7 +150,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     for (const parsedMsg of this.messageStore) {
       if (
         parsedMsg.recipient.equals(recipient) &&
-        (!channelId || parsedMsg.message.channelId.equals(channelId)) &&
+        (!channelID || parsedMsg.message.channelID.equals(channelID)) &&
         (!nonce ||
           (parsedMsg.message.nonce && parsedMsg.message.nonce.eq(nonce)))
       ) {
@@ -163,7 +163,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
 
   public async getMessagesBySender(
     sender: Buffer,
-    channelId?: Buffer,
+    channelID?: Buffer,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]> {
     // passes back live references to messages, but that doesn't matter for these tests.
@@ -171,7 +171,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     for (const msg of this.messageStore) {
       if (
         msg.sender.equals(sender) &&
-        (!channelId || msg.message.channelId.equals(channelId)) &&
+        (!channelID || msg.message.channelID.equals(channelID)) &&
         (!nonce || (msg.message.nonce && msg.message.nonce.eq(nonce)))
       ) {
         messages.push(msg)
@@ -183,7 +183,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
 
   public async getMessagesSignedBy(
     signer: Buffer,
-    channelId?: Buffer,
+    channelID?: Buffer,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]> {
     // passes back live references to messages, but that doesn't matter for these tests.
@@ -191,7 +191,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     for (const parsedMsg of this.messageStore) {
       if (
         TestStateChannelMessageDB.messageSignedBy(parsedMsg, signer) &&
-        (!channelId || parsedMsg.message.channelId.equals(channelId)) &&
+        (!channelID || parsedMsg.message.channelID.equals(channelID)) &&
         (!nonce ||
           (parsedMsg.message.nonce && parsedMsg.message.nonce.eq(nonce)))
       ) {
@@ -242,15 +242,15 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getConflictingCounterpartyMessage(
-    channelId: Buffer,
+    channelID: Buffer,
     nonce: BigNumber
   ): Promise<ParsedMessage> {
-    return this.getConflict(channelId, nonce)
+    return this.getConflict(channelID, nonce)
   }
 
-  public async channelIdExists(channelId: Buffer): Promise<boolean> {
+  public async channelIDExists(channelID: Buffer): Promise<boolean> {
     for (const message of this.messageStore) {
-      if (channelId.equals(message.message.channelId)) {
+      if (channelID.equals(message.message.channelID)) {
         return true
       }
     }
@@ -261,7 +261,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     message: ParsedMessage
   ): Promise<ParsedMessage> {
     const conflict: ParsedMessage = this.getConflict(
-      message.message.channelId,
+      message.message.channelID,
       message.message.nonce
     )
     if (!!conflict) {
@@ -270,7 +270,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
 
     for (const msg of this.messageStore) {
       const storedConflict = this.getConflict(
-        msg.message.channelId,
+        msg.message.channelID,
         msg.message.nonce
       )
       if (
@@ -285,20 +285,20 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   public async getChannelForCounterparty(address: Buffer): Promise<Buffer> {
     for (const message of this.messageStore) {
       if (message.recipient.equals(address) || message.sender.equals(address)) {
-        return message.message.channelId
+        return message.message.channelID
       }
     }
   }
 
   public async getMostRecentMessageSignedBy(
-    channelId: Buffer,
+    channelID: Buffer,
     address: Buffer
   ): Promise<ParsedMessage> {
     const addressString: string = address.toString()
     let mostRecent: ParsedMessage
     for (const message of this.messageStore) {
       if (
-        message.message.channelId.equals(channelId) &&
+        message.message.channelID.equals(channelID) &&
         (!mostRecent || message.message.nonce.gt(mostRecent.message.nonce)) &&
         addressString in message.signatures
       ) {
@@ -309,12 +309,12 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMostRecentValidStateChannelMessage(
-    channelId: Buffer
+    channelID: Buffer
   ): Promise<ParsedMessage> {
     let mostRecent: ParsedMessage
     for (const message of this.messageStore) {
       if (
-        message.message.channelId.equals(channelId) &&
+        message.message.channelID.equals(channelID) &&
         (!mostRecent || message.message.nonce.gt(mostRecent.message.nonce)) &&
         Object.keys(message.signatures).length === 2
       ) {
@@ -324,20 +324,20 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     return mostRecent
   }
 
-  public async isChannelExited(channelId: Buffer): Promise<boolean> {
-    return this.exitedChannels.has(channelId.toString())
+  public async isChannelExited(channelID: Buffer): Promise<boolean> {
+    return this.exitedChannels.has(channelID.toString())
   }
 
-  public async markChannelExited(channelId: Buffer): Promise<void> {
-    this.exitedChannels.add(channelId.toString())
+  public async markChannelExited(channelID: Buffer): Promise<void> {
+    this.exitedChannels.add(channelID.toString())
   }
 
   public getMyAddress(): Buffer {
     return this.myAddress
   }
 
-  private getConflict(channelId: Buffer, nonce: BigNumber): ParsedMessage {
-    const channelString: string = channelId.toString()
+  private getConflict(channelID: Buffer, nonce: BigNumber): ParsedMessage {
+    const channelString: string = channelID.toString()
     const nonceString: string = nonce.toString()
     if (
       channelString in this.conflictingMessageStore &&
@@ -349,7 +349,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   private putConflict(message: ParsedMessage): void {
-    const channelString: string = message.message.channelId.toString()
+    const channelString: string = message.message.channelID.toString()
     const nonceString: string = message.message.nonce.toString()
     if (!(channelString in this.conflictingMessageStore)) {
       this.conflictingMessageStore[channelString] = {}
@@ -362,7 +362,7 @@ const checkSignedMessage = (
   signedMessage: SignedMessage,
   sender: Buffer,
   nonce?: BigNumber,
-  channelId?: Buffer,
+  channelID?: Buffer,
   signers?: Buffer[],
   addressBalance?: AddressBalance
 ) => {
@@ -386,14 +386,14 @@ const checkSignedMessage = (
     )
   }
 
-  if (!!channelId) {
+  if (!!channelID) {
     assert(
-      channelId.equals(parsedMessage.message.channelId),
-      `Channel ID should equal ${channelId.toString()}`
+      channelID.equals(parsedMessage.message.channelID),
+      `Channel ID should equal ${channelID.toString()}`
     )
   } else {
     assert(
-      !!parsedMessage.message.channelId,
+      !!parsedMessage.message.channelID,
       `Channel ID should exist for all messages`
     )
   }
@@ -430,7 +430,7 @@ const getChannelId = (
   myAddress: Buffer = undefined
 ): Buffer => {
   return parseStateChannelSignedMessage(signedMessage, myAddress).message
-    .channelId
+    .channelID
 }
 
 describe('State Channel Tests', () => {
@@ -528,7 +528,7 @@ describe('State Channel Tests', () => {
       counterSigned,
       myClient.myAddress,
       nonce,
-      parsedMessage.message.channelId,
+      parsedMessage.message.channelID,
       [myClient.myAddress],
       parsedMessage.message.data['addressBalance']
     )
@@ -575,7 +575,7 @@ describe('State Channel Tests', () => {
         nextMessage,
         aAddress,
         new BigNumber(2),
-        parsedMessage.message.channelId,
+        parsedMessage.message.channelID,
         [aAddress],
         parsedMessage.message.data['addressBalance']
       )
@@ -603,7 +603,7 @@ describe('State Channel Tests', () => {
         nextMessage,
         bAddress,
         new BigNumber(2),
-        parsedMessage.message.channelId,
+        parsedMessage.message.channelID,
         [bAddress],
         parsedMessage.message.data['addressBalance']
       )
@@ -631,7 +631,7 @@ describe('State Channel Tests', () => {
         nextMessage,
         aAddress,
         new BigNumber(2),
-        parsedMessage.message.channelId,
+        parsedMessage.message.channelID,
         [aAddress],
         parsedMessage.message.data['addressBalance']
       )
@@ -661,7 +661,7 @@ describe('State Channel Tests', () => {
         nextMessage,
         bAddress,
         new BigNumber(2),
-        parsedMessage.message.channelId,
+        parsedMessage.message.channelID,
         [bAddress],
         parsedMessage.message.data['addressBalance']
       )
@@ -728,7 +728,7 @@ describe('State Channel Tests', () => {
           nextMessage,
           aAddress,
           new BigNumber(2),
-          parsedMessage.message.channelId,
+          parsedMessage.message.channelID,
           [aAddress],
           parsedMessage.message.data['addressBalance']
         )
@@ -781,7 +781,10 @@ describe('State Channel Tests', () => {
               decider: ForAllSuchThatDecider.instance(),
               input: {
                 quantifier: bSignedByQuantifier,
-                quantifierParameters: { address: aAddress },
+                quantifierParameters: {
+                  address: aAddress,
+                  channelID: mostRecentMessage.message.channelID,
+                },
                 propertyFactory: (message: Buffer) => {
                   return {
                     decider: MessageNonceLessThanDecider.instance(),
@@ -863,7 +866,7 @@ describe('State Channel Tests', () => {
           input: {
             // Claim that A has signed the message to be exited (this will evaluate to true)
             left: {
-              decider: bSignedByDecider,
+              decider: aSignedByDecider,
               input: {
                 message: messageToBuffer(
                   mostRecentMessage.message,
@@ -879,8 +882,11 @@ describe('State Channel Tests', () => {
             right: {
               decider: ForAllSuchThatDecider.instance(),
               input: {
-                quantifier: bSignedByQuantifier,
-                quantifierParameters: { address: bAddress },
+                quantifier: aSignedByQuantifier,
+                quantifierParameters: {
+                  address: bAddress,
+                  channelID: mostRecentMessage.message.channelID,
+                },
                 propertyFactory: (message: Buffer) => {
                   return {
                     decider: MessageNonceLessThanDecider.instance(),

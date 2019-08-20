@@ -17,7 +17,7 @@ export class Utils {
     return (
       !!message &&
       !!other &&
-      message.message.channelId.equals(other.message.channelId) &&
+      message.message.channelID.equals(other.message.channelID) &&
       message.message.nonce.equals(other.message.nonce) &&
       (message.sender.equals(other.sender) ||
         message.sender.equals(other.recipient)) &&
