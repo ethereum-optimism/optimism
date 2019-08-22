@@ -15,11 +15,7 @@ export class HashPreimageExistenceDecider implements Decider {
     private readonly hashAlgorithm: HashAlgorithm
   ) {}
 
-  public async decide(
-    input: HashInput,
-    _witness?: undefined,
-    _noCache?: boolean
-  ): Promise<Decision> {
+  public async decide(input: HashInput, _noCache?: boolean): Promise<Decision> {
     const preimage: Buffer = await this.db.getPreimage(
       input.hash,
       this.hashAlgorithm

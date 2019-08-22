@@ -17,11 +17,7 @@ export class SignedByDecider implements Decider {
     private readonly myAddress: Buffer
   ) {}
 
-  public async decide(
-    input: any,
-    _witness?: undefined,
-    _noCache?: boolean
-  ): Promise<Decision> {
+  public async decide(input: any, _noCache?: boolean): Promise<Decision> {
     const signature: Buffer = await this.signedByDb.getMessageSignature(
       input.message,
       input.publicKey
@@ -29,7 +25,7 @@ export class SignedByDecider implements Decider {
 
     if (!signature && !input.publicKey.equals(this.myAddress)) {
       throw new CannotDecideError(
-        'Signature does not match the provided witness, but we do not know for certain that the message was not signed by the private key associated with the provided public key.'
+        'We do not have a signature for this public key and message, but we do not know for certain that the message was not signed by the private key associated with the provided public key.'
       )
     }
 

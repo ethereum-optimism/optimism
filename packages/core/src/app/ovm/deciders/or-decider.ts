@@ -8,7 +8,6 @@ import { CannotDecideError, handleCannotDecideError } from './utils'
 
 export interface OrDeciderInput {
   properties: Property[]
-  witnesses: any[]
 }
 
 /**
@@ -26,13 +25,12 @@ export class OrDecider implements Decider {
 
   public async decide(
     input: OrDeciderInput,
-    witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
     const decisions: Decision[] = await Promise.all(
       input.properties.map((property: Property, index: number) =>
         property.decider
-          .decide(property.input, input.witnesses[index], noCache)
+          .decide(property.input, noCache)
           .catch(handleCannotDecideError)
       )
     )
@@ -74,7 +72,7 @@ export class OrDecider implements Decider {
    * returns true if any of the sub-Decisions returned true.
    *
    * @param input The input that led to the Decision
-   * @param subDecision The decision of the wrapped Property, provided the witness
+   * @param subDecision The decision of the wrapped Property
    * @returns The Decision
    */
   private getDecision(input: OrDeciderInput, subDecision: Decision): Decision {

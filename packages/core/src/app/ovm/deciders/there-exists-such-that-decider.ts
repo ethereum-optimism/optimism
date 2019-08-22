@@ -14,7 +14,6 @@ export interface ThereExistsSuchThatInput {
   quantifier: Quantifier
   quantifierParameters: any
   propertyFactory: PropertyFactory
-  witnessFactory: WitnessFactory | undefined
 }
 
 /**
@@ -24,7 +23,6 @@ export interface ThereExistsSuchThatInput {
 export class ThereExistsSuchThatDecider implements Decider {
   public async decide(
     input: ThereExistsSuchThatInput,
-    _witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
     const quantifierResult: QuantifierResult = await input.quantifier.getAllQuantified(
@@ -36,13 +34,9 @@ export class ThereExistsSuchThatDecider implements Decider {
     const falseDecisions: Decision[] = []
     for (const res of quantifierResult.results) {
       const prop: Property = input.propertyFactory(res)
-      const witness: any = !!input.witnessFactory
-        ? input.witnessFactory(res)
-        : undefined
       try {
         const decision: Decision = await prop.decider.decide(
           prop.input,
-          witness,
           noCache
         )
         if (decision.outcome) {

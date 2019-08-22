@@ -34,20 +34,21 @@ export type NonceLessThanPropertyFactory = (input: any) => NonceLessThanProperty
 export interface StateChannelExitClaim extends Property {
   decider: AndDecider
   input: {
-    left: {
-      decider: SignedByDecider // Asserts this message is signed by counter-party
-      input: SignedByInput
-    }
-    leftWitness: any
-    right: {
-      decider: ForAllSuchThatDecider
-      input: {
-        quantifier: SignedByQuantifier
-        quantifierParameters: any
-        propertyFactory: NonceLessThanPropertyFactory
+    properties: [
+      {
+        decider: SignedByDecider // Asserts this message is signed by counter-party
+        input: SignedByInput
+        witness: {}
+      },
+      {
+        decider: ForAllSuchThatDecider
+        input: {
+          quantifier: SignedByQuantifier
+          quantifierParameters: any
+          propertyFactory: NonceLessThanPropertyFactory
+        }
       }
-    }
-    rightWitness: any
+    ]
   }
 }
 

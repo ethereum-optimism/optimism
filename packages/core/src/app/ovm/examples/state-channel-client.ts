@@ -131,38 +131,41 @@ export class StateChannelClient {
     return {
       decider: AndDecider.instance(),
       input: {
-        left: {
-          decider: this.signedByDecider,
-          input: {
-            message: messageToBuffer(
-              mostRecent.message,
-              stateChannelMessageToString
-            ),
-            publicKey: counterparty,
-          },
-        },
-        leftWitness: undefined,
-        right: {
-          decider: ForAllSuchThatDecider.instance(),
-          input: {
-            quantifier: this.signedByQuantifier,
-            quantifierParameters: { address: this.myAddress },
-            propertyFactory: (signedMessage: Buffer) => {
-              return {
-                decider: MessageNonceLessThanDecider.instance(),
-                input: {
-                  messageWithNonce: deserializeBuffer(
-                    signedMessage,
-                    deserializeMessage,
-                    stateChannelMessageDeserializer
-                  ),
-                  lessThanThis: mostRecent.message.nonce.add(ONE),
-                },
-              }
+        properties: [
+          {
+            decider: this.signedByDecider,
+            input: {
+              message: messageToBuffer(
+                mostRecent.message,
+                stateChannelMessageToString
+              ),
+              publicKey: counterparty,
+            },
+            witness: {
+              signature: mostRecent.signatures[counterparty.toString()],
             },
           },
-        },
-        rightWitness: undefined,
+          {
+            decider: ForAllSuchThatDecider.instance(),
+            input: {
+              quantifier: this.signedByQuantifier,
+              quantifierParameters: { address: this.myAddress },
+              propertyFactory: (signedMessage: Buffer) => {
+                return {
+                  decider: MessageNonceLessThanDecider.instance(),
+                  input: {
+                    messageWithNonce: deserializeBuffer(
+                      signedMessage,
+                      deserializeMessage,
+                      stateChannelMessageDeserializer
+                    ),
+                    lessThanThis: mostRecent.message.nonce.add(ONE),
+                  },
+                }
+              },
+            },
+          },
+        ],
       },
     }
   }

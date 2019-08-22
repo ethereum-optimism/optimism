@@ -21,7 +21,6 @@ export class MessageNonceLessThanDecider implements Decider {
 
   public async decide(
     input: MessageNonceLessThanInput,
-    witness: undefined,
     noCache?: boolean
   ): Promise<Decision> {
     const justification: ImplicationProofItem[] = [
@@ -30,7 +29,7 @@ export class MessageNonceLessThanDecider implements Decider {
           decider: this,
           input,
         },
-        implicationWitness: witness,
+        implicationWitness: undefined,
       },
     ]
 

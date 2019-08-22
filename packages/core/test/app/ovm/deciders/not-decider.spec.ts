@@ -12,7 +12,6 @@ import * as assert from 'assert'
 describe('NotDecider', () => {
   let decider: NotDecider
   const input: string = 'test'
-  const witness: string = 'witness'
 
   const trueDecider: TrueDecider = new TrueDecider()
   const falseDecider: FalseDecider = new FalseDecider()
@@ -28,7 +27,6 @@ describe('NotDecider', () => {
           decider: falseDecider,
           input,
         },
-        witness,
       }
 
       const decision: Decision = await decider.decide(notInput, undefined)
@@ -39,7 +37,6 @@ describe('NotDecider', () => {
       decision.justification[1].implication.decider.should.eq(falseDecider)
 
       decision.justification[1].implication.input.should.eq(input)
-      decision.justification[1].implicationWitness.should.eq(witness)
     })
 
     it('should return false with true decision', async () => {
@@ -48,7 +45,6 @@ describe('NotDecider', () => {
           decider: trueDecider,
           input,
         },
-        witness,
       }
 
       const decision: Decision = await decider.decide(notInput, undefined)
@@ -59,7 +55,6 @@ describe('NotDecider', () => {
       decision.justification[1].implication.decider.should.eq(trueDecider)
 
       decision.justification[1].implication.input.should.eq(input)
-      decision.justification[1].implicationWitness.should.eq(witness)
     })
 
     it('should throw when cannot decide', async () => {
@@ -68,7 +63,6 @@ describe('NotDecider', () => {
           decider: cannotDecideDecider,
           input,
         },
-        witness,
       }
 
       try {

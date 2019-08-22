@@ -763,45 +763,46 @@ describe('State Channel Tests', () => {
           decider: AndDecider.instance(),
           input: {
             // Claim that B has signed the message to be exited (this will evaluate to true)
-            left: {
-              decider: bSignedByDecider,
-              input: {
-                message: messageToBuffer(
-                  mostRecentMessage.message,
-                  stateChannelMessageToString
-                ),
-                publicKey: bAddress,
-              },
-            },
-            leftWitness: {
-              signature: mostRecentMessage.signatures[bAddress.toString()],
-            },
-            // Claim that A has not signed any message with nonce higher than the previous message (wrong)
-            right: {
-              decider: ForAllSuchThatDecider.instance(),
-              input: {
-                quantifier: bSignedByQuantifier,
-                quantifierParameters: {
-                  address: aAddress,
-                  channelID: mostRecentMessage.message.channelID,
+            properties: [
+              {
+                decider: bSignedByDecider,
+                input: {
+                  message: messageToBuffer(
+                    mostRecentMessage.message,
+                    stateChannelMessageToString
+                  ),
+                  publicKey: bAddress,
                 },
-                propertyFactory: (message: Buffer) => {
-                  return {
-                    decider: MessageNonceLessThanDecider.instance(),
-                    input: {
-                      messageWithNonce: deserializeBuffer(
-                        message,
-                        deserializeMessage,
-                        stateChannelMessageDeserializer
-                      ),
-                      // This will be disputed because mostRecentMessage has been signed by A
-                      lessThanThis: mostRecentMessage.message.nonce,
-                    },
-                  }
+                witness: {
+                  signature: mostRecentMessage.signatures[bAddress.toString()],
                 },
               },
-            },
-            rightWitness: undefined,
+              // Claim that A has not signed any message with nonce higher than the previous message (wrong)
+              {
+                decider: ForAllSuchThatDecider.instance(),
+                input: {
+                  quantifier: bSignedByQuantifier,
+                  quantifierParameters: {
+                    address: aAddress,
+                    channelID: mostRecentMessage.message.channelID,
+                  },
+                  propertyFactory: (message: Buffer) => {
+                    return {
+                      decider: MessageNonceLessThanDecider.instance(),
+                      input: {
+                        messageWithNonce: deserializeBuffer(
+                          message,
+                          deserializeMessage,
+                          stateChannelMessageDeserializer
+                        ),
+                        // This will be disputed because mostRecentMessage has been signed by A
+                        lessThanThis: mostRecentMessage.message.nonce,
+                      },
+                    }
+                  },
+                },
+              },
+            ],
           },
         }
 
@@ -864,46 +865,47 @@ describe('State Channel Tests', () => {
         const refutableClaim: StateChannelExitClaim = {
           decider: AndDecider.instance(),
           input: {
-            // Claim that A has signed the message to be exited (this will evaluate to true)
-            left: {
-              decider: aSignedByDecider,
-              input: {
-                message: messageToBuffer(
-                  mostRecentMessage.message,
-                  stateChannelMessageToString
-                ),
-                publicKey: aAddress,
-              },
-            },
-            leftWitness: {
-              signature: mostRecentMessage.signatures[aAddress.toString()],
-            },
-            // Claim that B has not signed any message with nonce higher than the previous message (wrong)
-            right: {
-              decider: ForAllSuchThatDecider.instance(),
-              input: {
-                quantifier: aSignedByQuantifier,
-                quantifierParameters: {
-                  address: bAddress,
-                  channelID: mostRecentMessage.message.channelID,
+            // Claim that B has signed the message to be exited (this will evaluate to true)
+            properties: [
+              {
+                decider: aSignedByDecider,
+                input: {
+                  message: messageToBuffer(
+                    mostRecentMessage.message,
+                    stateChannelMessageToString
+                  ),
+                  publicKey: aAddress,
                 },
-                propertyFactory: (message: Buffer) => {
-                  return {
-                    decider: MessageNonceLessThanDecider.instance(),
-                    input: {
-                      messageWithNonce: deserializeBuffer(
-                        message,
-                        deserializeMessage,
-                        stateChannelMessageDeserializer
-                      ),
-                      // This will be disputed because mostRecentMessage has been signed by B
-                      lessThanThis: mostRecentMessage.message.nonce,
-                    },
-                  }
+                witness: {
+                  signature: mostRecentMessage.signatures[aAddress.toString()],
                 },
               },
-            },
-            rightWitness: undefined,
+              // Claim that A has not signed any message with nonce higher than the previous message (wrong)
+              {
+                decider: ForAllSuchThatDecider.instance(),
+                input: {
+                  quantifier: aSignedByQuantifier,
+                  quantifierParameters: {
+                    address: bAddress,
+                    channelID: mostRecentMessage.message.channelID,
+                  },
+                  propertyFactory: (message: Buffer) => {
+                    return {
+                      decider: MessageNonceLessThanDecider.instance(),
+                      input: {
+                        messageWithNonce: deserializeBuffer(
+                          message,
+                          deserializeMessage,
+                          stateChannelMessageDeserializer
+                        ),
+                        // This will be disputed because mostRecentMessage has been signed by A
+                        lessThanThis: mostRecentMessage.message.nonce,
+                      },
+                    }
+                  },
+                },
+              },
+            ],
           },
         }
 

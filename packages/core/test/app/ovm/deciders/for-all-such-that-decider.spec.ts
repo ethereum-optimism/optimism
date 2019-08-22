@@ -48,8 +48,6 @@ const getPropertyFactoryThatReturns = (
   }
 }
 
-const undefinedWitnessFactory = (input: any) => undefined
-
 /*********
  * TESTS *
  *********/
@@ -70,7 +68,6 @@ describe('ForAllSuchThatDecider', () => {
         quantifier: getQuantifierThatReturns([], true),
         quantifierParameters: undefined,
         propertyFactory: getPropertyFactoryThatReturns([]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -85,7 +82,6 @@ describe('ForAllSuchThatDecider', () => {
         quantifier: getQuantifierThatReturns([], true),
         quantifierParameters: undefined,
         propertyFactory: getPropertyFactoryThatReturns([]),
-        witnessFactory: undefined,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -102,7 +98,6 @@ describe('ForAllSuchThatDecider', () => {
         propertyFactory: getPropertyFactoryThatReturns([
           { decider: trueDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -122,7 +117,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: trueDecider, input: undefined },
           { decider: trueDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -142,7 +136,6 @@ describe('ForAllSuchThatDecider', () => {
         propertyFactory: getPropertyFactoryThatReturns([
           { decider: falseDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -162,7 +155,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: falseDecider, input: undefined },
           { decider: trueDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -182,7 +174,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: cannotDecideDecider, input: undefined },
           { decider: falseDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)
@@ -200,7 +191,6 @@ describe('ForAllSuchThatDecider', () => {
         propertyFactory: getPropertyFactoryThatReturns([
           { decider: cannotDecideDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       try {
@@ -225,7 +215,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: cannotDecideDecider, input: undefined },
           { decider: cannotDecideDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       try {
@@ -250,7 +239,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: trueDecider, input: undefined },
           { decider: cannotDecideDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       try {
@@ -275,7 +263,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: trueDecider, input: undefined },
           { decider: trueDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       try {
@@ -300,7 +287,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: cannotDecideDecider, input: undefined },
           { decider: trueDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       try {
@@ -325,7 +311,6 @@ describe('ForAllSuchThatDecider', () => {
           { decider: cannotDecideDecider, input: undefined },
           { decider: falseDecider, input: undefined },
         ]),
-        witnessFactory: undefinedWitnessFactory,
       }
 
       const decision: Decision = await decider.decide(input)

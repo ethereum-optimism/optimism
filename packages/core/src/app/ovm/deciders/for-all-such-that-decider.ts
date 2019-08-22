@@ -14,7 +14,6 @@ export interface ForAllSuchThatInput {
   quantifier: Quantifier
   quantifierParameters: any
   propertyFactory: PropertyFactory
-  witnessFactory?: WitnessFactory | undefined
 }
 
 /**
@@ -32,7 +31,6 @@ export class ForAllSuchThatDecider implements Decider {
 
   public async decide(
     input: ForAllSuchThatInput,
-    _witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
     const quantifierResult: QuantifierResult = await input.quantifier.getAllQuantified(
@@ -44,13 +42,9 @@ export class ForAllSuchThatDecider implements Decider {
     const trueDecisions: Decision[] = []
     for (const res of quantifierResult.results) {
       const prop: Property = input.propertyFactory(res)
-      const witness: any = !!input.witnessFactory
-        ? input.witnessFactory(res)
-        : undefined
       try {
         const decision: Decision = await prop.decider.decide(
           prop.input,
-          witness,
           noCache
         )
         if (!decision.outcome) {

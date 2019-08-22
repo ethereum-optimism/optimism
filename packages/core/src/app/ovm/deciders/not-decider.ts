@@ -7,7 +7,6 @@ import {
 
 export interface NotDeciderInput {
   property: Property
-  witness: any
 }
 
 /**
@@ -16,12 +15,10 @@ export interface NotDeciderInput {
 export class NotDecider implements Decider {
   public async decide(
     input: NotDeciderInput,
-    witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
     const decision: Decision = await input.property.decider.decide(
       input.property.input,
-      input.witness,
       noCache
     )
 

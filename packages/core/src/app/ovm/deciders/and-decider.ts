@@ -7,10 +7,7 @@ import {
 import { CannotDecideError, handleCannotDecideError } from './utils'
 
 export interface AndDeciderInput {
-  left: Property
-  leftWitness: any
-  right: Property
-  rightWitness: any
+  properties: Property[]
 }
 
 /**
@@ -28,36 +25,38 @@ export class AndDecider implements Decider {
 
   public async decide(
     input: AndDeciderInput,
-    witness?: undefined,
     noCache?: boolean
   ): Promise<Decision> {
-    const [leftDecision, rightDecision] = await Promise.all([
-      input.left.decider
-        .decide(input.left.input, input.leftWitness, noCache)
-        .catch(handleCannotDecideError),
-      input.right.decider
-        .decide(input.right.input, input.rightWitness, noCache)
-        .catch(handleCannotDecideError),
-    ])
-
-    if (!!leftDecision && !leftDecision.outcome) {
-      return this.getDecision(input, leftDecision)
-    }
-    if (!!rightDecision && !rightDecision.outcome) {
-      return this.getDecision(input, rightDecision)
-    }
-    if (!leftDecision || !rightDecision) {
-      throw new CannotDecideError(
-        'One of the AND deciders could not decide, and neither decided false.'
+    const decisions: Decision[] = await Promise.all(
+      input.properties.map((p) =>
+        p.decider.decide(p.input, noCache).catch(handleCannotDecideError)
       )
-    }
+    )
 
     const justification: ImplicationProofItem[] = []
-    if (!!leftDecision.justification.length) {
-      justification.push(...leftDecision.justification)
+    let undecideable = false
+    let falseDecision
+    for (const decision of decisions) {
+      if (!decision) {
+        undecideable = true
+        continue
+      }
+
+      if (!decision.outcome) {
+        falseDecision = decision
+        break
+      }
+      justification.push(...decision.justification)
     }
-    if (!!rightDecision.justification.length) {
-      justification.push(...rightDecision.justification)
+
+    if (!!falseDecision) {
+      return this.getDecision(input, falseDecision)
+    }
+
+    if (undecideable) {
+      throw new CannotDecideError(
+        'One of the AND deciders could not decide, and none decided false.'
+      )
     }
 
     return this.getDecision(input, { outcome: true, justification })
@@ -68,7 +67,7 @@ export class AndDecider implements Decider {
    * returns true if both sub-Decisions returned true.
    *
    * @param input The input that led to the Decision
-   * @param subDecision The decision of the wrapped Property, provided the witness
+   * @param subDecision The decision of the wrapped Property
    * @returns The Decision
    */
   private getDecision(input: AndDeciderInput, subDecision: Decision): Decision {

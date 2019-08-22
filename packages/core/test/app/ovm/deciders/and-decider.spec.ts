@@ -26,16 +26,16 @@ describe('AndDecider', () => {
   describe('decide', () => {
     it('should return true with two true decisions', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: trueDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: trueDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: trueDecider,
+            input: leftInput,
+          },
+          {
+            decider: trueDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       const decision: Decision = await decider.decide(andInput)
@@ -48,23 +48,20 @@ describe('AndDecider', () => {
 
       decision.justification[1].implication.input.should.eq(leftInput)
       decision.justification[2].implication.input.should.eq(rightInput)
-
-      decision.justification[1].implicationWitness.should.eq(leftWitness)
-      decision.justification[2].implicationWitness.should.eq(rightWitness)
     })
 
     it('should return false with left false', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: falseDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: trueDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: falseDecider,
+            input: leftInput,
+          },
+          {
+            decider: trueDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       const decision: Decision = await decider.decide(andInput)
@@ -75,21 +72,20 @@ describe('AndDecider', () => {
       decision.justification[1].implication.decider.should.eq(falseDecider)
 
       decision.justification[1].implication.input.should.eq(leftInput)
-      decision.justification[1].implicationWitness.should.eq(leftWitness)
     })
 
     it('should return false with right false', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: trueDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: falseDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: trueDecider,
+            input: leftInput,
+          },
+          {
+            decider: falseDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       const decision: Decision = await decider.decide(andInput, undefined)
@@ -100,21 +96,20 @@ describe('AndDecider', () => {
       decision.justification[1].implication.decider.should.eq(falseDecider)
 
       decision.justification[1].implication.input.should.eq(rightInput)
-      decision.justification[1].implicationWitness.should.eq(rightWitness)
     })
 
     it('should return false with both false', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: falseDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: falseDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: falseDecider,
+            input: leftInput,
+          },
+          {
+            decider: falseDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       const decision: Decision = await decider.decide(andInput)
@@ -125,21 +120,20 @@ describe('AndDecider', () => {
       decision.justification[1].implication.decider.should.eq(falseDecider)
 
       decision.justification[1].implication.input.should.eq(leftInput)
-      decision.justification[1].implicationWitness.should.eq(leftWitness)
     })
 
     it('should throw when left cannot decide', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: cannotDecideDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: trueDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: cannotDecideDecider,
+            input: leftInput,
+          },
+          {
+            decider: trueDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       try {
@@ -154,16 +148,16 @@ describe('AndDecider', () => {
 
     it('should throw when right cannot decide', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: trueDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: cannotDecideDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: trueDecider,
+            input: leftInput,
+          },
+          {
+            decider: cannotDecideDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       try {
@@ -178,16 +172,16 @@ describe('AndDecider', () => {
 
     it('should throw when both cannot decide', async () => {
       const andInput: AndDeciderInput = {
-        left: {
-          decider: cannotDecideDecider,
-          input: leftInput,
-        },
-        leftWitness,
-        right: {
-          decider: cannotDecideDecider,
-          input: rightInput,
-        },
-        rightWitness,
+        properties: [
+          {
+            decider: cannotDecideDecider,
+            input: leftInput,
+          },
+          {
+            decider: cannotDecideDecider,
+            input: rightInput,
+          },
+        ],
       }
 
       try {
