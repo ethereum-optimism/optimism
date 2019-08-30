@@ -5,6 +5,7 @@ import {
 } from '../../../src/app/serialization'
 import { TransactionResult } from '../../../src/types/serialization'
 import { BigNumber, ONE } from '../../../src/app/utils'
+import * as assert from 'assert'
 
 export class TestUtils {
   public static generateNSequentialStateUpdates(
@@ -41,6 +42,23 @@ export class TestUtils {
           validRanges: [abiStateUpdate.range],
         }
       }
+    )
+  }
+
+  public static assertThrows(func: () => any, errorType: any): void {
+    let succeeded = true
+    try {
+      func()
+      succeeded = false
+    } catch (e) {
+      if (!!errorType && !(e instanceof errorType)) {
+        succeeded = false
+      }
+    }
+
+    assert(
+      succeeded,
+      "Function didn't throw as expected or threw the wrong error."
     )
   }
 }

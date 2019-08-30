@@ -241,10 +241,64 @@ export class BigNumber {
   }
 
   /**
+   * Mods this BigNumber by the provided BigNumber and returns the result.
+   *
+   * @param other the BigNumber to mod by
+   * @returns a *new* BigNumber with the result
+   */
+  public modNum(mod: number): BigNumber {
+    assert(
+      !this.num.isNeg() || mod >= 0,
+      'Big number does not support negative mod negative.'
+    )
+    return new BigNumber(this.num.modn(mod))
+  }
+
+  /**
    * Returns the absolute value of this BigNumber as a *new* BigNumber.
    */
   public abs(): BigNumber {
     return new BigNumber(this.num.abs())
+  }
+
+  /**
+   * Bitwise left-shifts the BigNumber the provided number of places
+   * returning a new BigNumber as the result.
+   *
+   * @param num the number of places to shift
+   */
+  public shiftLeft(num: number): BigNumber {
+    return new BigNumber(this.num.shln(num))
+  }
+
+  /**
+   * Bitwise right-shifts the BigNumber the provided number of places
+   * returning a new BigNumber as the result.
+   *
+   * @param num the number of places to shift
+   */
+  public shiftRight(num: number): BigNumber {
+    return new BigNumber(this.num.shrn(num))
+  }
+
+  /**
+   * Bitwise left-shifts the BigNumber the provided number of places
+   *
+   * @param num the number of places to shift
+   */
+  public shiftLeftInPlace(num: number): BigNumber {
+    this.num.ishln(num)
+    return this
+  }
+
+  /**
+   * Bitwise right-shifts the BigNumber the provided number of places
+   *
+   * @param num the number of places to shift
+   */
+  public shiftRightInPlace(num: number): BigNumber {
+    this.num.ishrn(num)
+    return this
   }
 
   /***************
@@ -336,5 +390,7 @@ export class BigNumber {
 
 export const ZERO = new BigNumber(0)
 export const ONE = new BigNumber(1)
+export const TWO = new BigNumber(2)
+export const THREE = new BigNumber(3)
 export const ONE_HALF = new BigNumber(0.5)
 export const MAX_BIG_NUM = new BigNumber('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
