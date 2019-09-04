@@ -40,7 +40,7 @@ export class JsonRpcClient<TransportRequest, TransportResponse>
     const response = this.adapter.decodeResponse(encodedResponse)
 
     if (isJsonRpcErrorResponse(response)) {
-      throw new Error(`${response.error}`)
+      throw new Error(`${JSON.stringify(response.error)}`)
     }
     return response.result
   }

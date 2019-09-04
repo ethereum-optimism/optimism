@@ -1,7 +1,7 @@
 {
-  "name": "@pigi/predicates",
+  "name": "@pigi/wallet",
   "version": "0.0.1-alpha.1",
-  "description": "Plasma Group core predicates",
+  "description": "Pigi client-side smart wallet",
   "main": "build/index.js",
   "files": [
     "build/**/.js"
@@ -17,31 +17,33 @@
     "plasma",
     "group",
     "ethereum",
-    "predicates"
+    "wallet"
   ],
-  "author": "Plasma Group",
+  "author": "PG",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "dependencies": {
+    "@pigi/core": "^0.0.1-alpha.1"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@pigi/core": "^0.0.1-alpha.1",
+    "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@types/chai": "^4.1.7",
     "@types/debug": "^4.1.2",
     "@types/mocha": "^5.2.6",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
+    "debug": "^4.1.1",
+    "memdown": "^5.0.0",
     "mocha": "^6.1.2",
     "prettier": "^1.16.4",
+    "rimraf": "^2.6.3",
     "ts-node": "^8.0.3",
     "tslint": "^5.15.0",
-    "typescript": "^3.4.2",
-    "rimraf": "^2.6.3",
-    "debug": "^4.1.1"
+    "typescript": "^3.4.2"
   },
   "publishConfig": {
     "access": "public"

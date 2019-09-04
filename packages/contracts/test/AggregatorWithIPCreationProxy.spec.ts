@@ -1,14 +1,10 @@
+import './setup'
+
 import chai = require('chai')
-import {
-  createMockProvider,
-  deployContract,
-  getWallets,
-  solidity,
-} from 'ethereum-waffle'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as AggregatorWithIPCreationProxy from '../build/AggregatorWithIPCreationProxy.json'
 import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
 
-chai.use(solidity)
 const { expect } = chai
 
 describe('AggregatorWithIPCreationProxy', () => {

@@ -1,6 +1,4 @@
-import chai = require('chai')
-import bignum = require('chai-bignumber')
-chai.use(bignum())
+import './setup'
 
 import {
   createMockProvider,
@@ -9,8 +7,6 @@ import {
   solidity,
 } from 'ethereum-waffle'
 import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
-
-chai.use(solidity)
 
 describe('AggregatorRegistry', () => {
   const provider = createMockProvider()

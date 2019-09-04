@@ -21,9 +21,10 @@ export class JsonRpcServer extends ExpressHttpServer implements RpcServer {
   constructor(
     private methods: Record<string, Function> = {},
     hostname: string,
-    port: number
+    port: number,
+    middleware?: any[]
   ) {
-    super(port, hostname)
+    super(port, hostname, middleware)
   }
 
   /**
@@ -43,7 +44,7 @@ export class JsonRpcServer extends ExpressHttpServer implements RpcServer {
       let result: any
       try {
         result = await this.methods[request.method](request.params)
-      } catch {
+      } catch (err) {
         return res.json(buildJsonRpcError('INTERNAL_ERROR', request.id))
       }
 

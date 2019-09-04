@@ -1,5 +1,4 @@
 /* External Imports */
-import express = require('express')
 import bodyParser = require('body-parser')
 
 /* Internal Imports */
@@ -9,7 +8,7 @@ import { HttpServer } from '../../../types'
  * HTTP server that uses Express under the hood.
  */
 export class ExpressHttpServer implements HttpServer {
-  protected app = express()
+  protected app
   private listening = false
   private server
 
@@ -18,8 +17,21 @@ export class ExpressHttpServer implements HttpServer {
    * @param port Port to listen on.
    * @param hostname Hostname to listen on.
    */
-  constructor(private port: number, private hostname: string) {
+  constructor(
+    private port: number,
+    private hostname: string,
+    middleware?: Function[]
+  ) {
+    const express = require('express')
+    this.app = express()
+    // By default use bodyParser
     this.app.use(bodyParser.json())
+    // Add any other middleware desired
+    if (typeof middleware !== 'undefined') {
+      for (const m of middleware) {
+        this.app.use(m())
+      }
+    }
     this.initRoutes()
   }
 
