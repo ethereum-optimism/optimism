@@ -3,10 +3,13 @@ import './setup'
 /* External Imports */
 
 /* Internal Imports */
-import { getGenesisState } from './helpers'
+import {
+  calculateSwapWithFees,
+  getGenesisState,
+  getGenesisStateLargeEnoughForFees,
+} from './helpers'
 import {
   UNI_TOKEN_TYPE,
-  Address,
   MockRollupStateMachine,
   UNISWAP_ADDRESS,
   InsufficientBalanceError,
@@ -19,7 +22,7 @@ import {
 describe('RollupStateMachine', async () => {
   let rollupState
   beforeEach(() => {
-    rollupState = new MockRollupStateMachine(getGenesisState())
+    rollupState = new MockRollupStateMachine(getGenesisState(), 0)
   })
 
   describe('getBalances', async () => {
@@ -72,17 +75,29 @@ describe('RollupStateMachine', async () => {
   })
 
   describe('applySwap', async () => {
-    const inputAmount = 25
-    const minOutputAmount = 16
-    const txAliceSwapUni = {
-      signature: 'alice',
-      transaction: {
-        tokenType: UNI_TOKEN_TYPE,
-        inputAmount,
-        minOutputAmount,
-        timeout: +new Date() + 1000,
-      },
-    }
+    let uniInput
+    let expectedPigiAfterFees
+    let txAliceSwapUni
+
+    beforeEach(() => {
+      uniInput = 25
+      expectedPigiAfterFees = calculateSwapWithFees(
+        uniInput,
+        getGenesisState()[UNISWAP_ADDRESS].balances.uni,
+        getGenesisState()[UNISWAP_ADDRESS].balances.pigi,
+        0
+      )
+
+      txAliceSwapUni = {
+        signature: 'alice',
+        transaction: {
+          tokenType: UNI_TOKEN_TYPE,
+          inputAmount: uniInput,
+          minOutputAmount: expectedPigiAfterFees,
+          timeout: +new Date() + 1000,
+        },
+      }
+    })
 
     it('should not throw when alice swaps 5 uni from genesis', () => {
       const result = rollupState.applyTransaction(txAliceSwapUni)
@@ -92,22 +107,76 @@ describe('RollupStateMachine', async () => {
       const result = rollupState.applyTransaction(txAliceSwapUni)
       rollupState
         .getBalances('alice')
-        .uni.should.equal(getGenesisState().alice.balances.uni - inputAmount)
+        .uni.should.equal(getGenesisState().alice.balances.uni - uniInput)
       rollupState
         .getBalances('alice')
         .pigi.should.equal(
-          getGenesisState().alice.balances.pigi + minOutputAmount
+          getGenesisState().alice.balances.pigi + expectedPigiAfterFees
         )
       // And we should have the opposite balances for uniswap
       rollupState
         .getBalances(UNISWAP_ADDRESS)
         .uni.should.equal(
-          getGenesisState()[UNISWAP_ADDRESS].balances.uni + inputAmount
+          getGenesisState()[UNISWAP_ADDRESS].balances.uni + uniInput
         )
       rollupState
         .getBalances(UNISWAP_ADDRESS)
         .pigi.should.equal(
-          getGenesisState()[UNISWAP_ADDRESS].balances.pigi - minOutputAmount
+          getGenesisState()[UNISWAP_ADDRESS].balances.pigi -
+            expectedPigiAfterFees
+        )
+    })
+
+    it('should update balances after swap including fee', () => {
+      const feeBasisPoints = 30
+      rollupState = new MockRollupStateMachine(
+        getGenesisStateLargeEnoughForFees(),
+        feeBasisPoints
+      )
+
+      uniInput = 2500
+      expectedPigiAfterFees = calculateSwapWithFees(
+        uniInput,
+        getGenesisStateLargeEnoughForFees()[UNISWAP_ADDRESS].balances.uni,
+        getGenesisStateLargeEnoughForFees()[UNISWAP_ADDRESS].balances.pigi,
+        feeBasisPoints
+      )
+
+      txAliceSwapUni = {
+        signature: 'alice',
+        transaction: {
+          tokenType: UNI_TOKEN_TYPE,
+          inputAmount: uniInput,
+          minOutputAmount: expectedPigiAfterFees,
+          timeout: +new Date() + 1000,
+        },
+      }
+
+      rollupState.applyTransaction(txAliceSwapUni)
+
+      rollupState
+        .getBalances('alice')
+        .uni.should.equal(
+          getGenesisStateLargeEnoughForFees().alice.balances.uni - uniInput
+        )
+      rollupState
+        .getBalances('alice')
+        .pigi.should.equal(
+          getGenesisStateLargeEnoughForFees().alice.balances.pigi +
+            expectedPigiAfterFees
+        )
+      // And we should have the opposite balances for uniswap
+      rollupState
+        .getBalances(UNISWAP_ADDRESS)
+        .uni.should.equal(
+          getGenesisStateLargeEnoughForFees()[UNISWAP_ADDRESS].balances.uni +
+            uniInput
+        )
+      rollupState
+        .getBalances(UNISWAP_ADDRESS)
+        .pigi.should.equal(
+          getGenesisStateLargeEnoughForFees()[UNISWAP_ADDRESS].balances.pigi -
+            expectedPigiAfterFees
         )
     })
   })
