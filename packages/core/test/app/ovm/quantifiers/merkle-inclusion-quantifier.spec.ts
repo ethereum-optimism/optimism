@@ -2,7 +2,10 @@ import '../../../setup'
 
 import * as assert from 'assert'
 
-import { MerkleTree } from '../../../../src/types/utils'
+import {
+  MerkleTree,
+  MerkleTreeInclusionProof,
+} from '../../../../src/types/utils'
 import { BigNumber, QuantifierResult, TWO, ZERO } from '../../../../src/types'
 import { MerkleInclusionQuantifier } from '../../../../src/app/ovm/quantifiers'
 
@@ -32,6 +35,13 @@ class MockedMerkleTree implements MerkleTree {
   }
 
   public async update(key: BigNumber, value: Buffer): Promise<boolean> {
+    return undefined
+  }
+
+  public async getMerkleProof(
+    leafKey: BigNumber,
+    leafValue: Buffer
+  ): Promise<MerkleTreeInclusionProof> {
     return undefined
   }
 }

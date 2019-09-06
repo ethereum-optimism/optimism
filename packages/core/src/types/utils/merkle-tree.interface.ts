@@ -7,6 +7,7 @@ export interface MerkleTreeNode {
 }
 
 export interface MerkleTreeInclusionProof {
+  rootHash: Buffer
   key: BigNumber
   value: Buffer
   siblings: Buffer[]
@@ -24,15 +25,24 @@ export interface MerkleTree {
    * Updates the provided key in the Merkle Tree to have the value as data,
    * including all ancestors' hashes that result from this modification.
    *
-   * @param key The key to update
-   * @param value The new value
+   * @param leafKey The leaf key to update
+   * @param leafValue The new value
    * @return true if the update succeeded, false if we're missing the intermediate nodes / siblings required for this
    */
-  update(key: BigNumber, value: Buffer): Promise<boolean>
+  update(leafKey: BigNumber, leafValue: Buffer): Promise<boolean>
 
-  /* TODO when we need it
-   * getMerkleProof(key: BigNumber, value: Buffer): Promise<MerkleTreeInclusionProof>
+  /**
+   * Gets a Merkle proof for the provided leaf value at the provided key in the tree.
+   *
+   * @param leafKey The exact path from the root to the leaf value in question
+   * @param leafValue The leaf data
+   * @returns The MerkleTreeInclusionProof if one is possible, else undefined
+   * @throws If data required to calculate the Merkle proof is missing
    */
+  getMerkleProof(
+    leafKey: BigNumber,
+    leafValue: Buffer
+  ): Promise<MerkleTreeInclusionProof>
 
   /**
    * Gets the leaf data at the provided key in the tree, if any exists.

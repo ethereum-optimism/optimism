@@ -262,6 +262,26 @@ export class BigNumber {
   }
 
   /**
+   * Bitwise XORs the BigNumber with the provided BigNumber
+   *
+   * @param num The BigNumber to XOR
+   * @returns The resulting BigNumber
+   */
+  public xor(num: BigNumber): BigNumber {
+    return new BigNumber(this.num.xor(num.num))
+  }
+
+  /**
+   * Bitwise ANDs the BigNumber with the provided BigNumber
+   *
+   * @param num The BigNumber to AND
+   * @returns The resulting BigNumber
+   */
+  public and(num: BigNumber): BigNumber {
+    return new BigNumber(this.num.and(num.num))
+  }
+
+  /**
    * Bitwise left-shifts the BigNumber the provided number of places
    * returning a new BigNumber as the result.
    *

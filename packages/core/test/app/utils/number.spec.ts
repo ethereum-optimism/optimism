@@ -5,6 +5,7 @@ import {
   ONE,
   LITTLE_ENDIAN,
   BIG_ENDIAN,
+  TWO,
 } from '../../../src/app/utils'
 import * as assert from 'assert'
 
@@ -230,6 +231,12 @@ describe('BigNumber', () => {
     })
   })
 
+  describe('modNum', () => {
+    it('test positive mod', () => {
+      assert(new BigNumber(10).modNum(3).eq(ONE))
+    })
+  })
+
   describe('abs', () => {
     it('test abs positive', () => {
       assert(new BigNumber(10).abs().eq(new BigNumber(10)))
@@ -237,6 +244,82 @@ describe('BigNumber', () => {
 
     it('test abs negative', () => {
       assert(new BigNumber(-10).abs().eq(new BigNumber(10)))
+    })
+  })
+
+  describe('xor', () => {
+    it('works for 0', () => {
+      assert(ZERO.xor(ONE).equals(ONE))
+      assert(ZERO.xor(ZERO).equals(ZERO))
+    })
+
+    it('works for 1', () => {
+      assert(ONE.xor(ONE).equals(ZERO))
+      assert(ONE.xor(ZERO).equals(ONE))
+    })
+
+    it('works for 2', () => {
+      assert(TWO.xor(ZERO).equals(TWO))
+      assert(TWO.xor(ONE).equals(new BigNumber(3)))
+      assert(TWO.xor(TWO).equals(ZERO))
+    })
+  })
+
+  describe('and', () => {
+    it('works for 0', () => {
+      assert(ZERO.and(ONE).equals(ZERO))
+      assert(ZERO.and(ZERO).equals(ZERO))
+    })
+
+    it('works for 1', () => {
+      assert(ONE.and(ZERO).equals(ZERO))
+      assert(ONE.and(ONE).equals(ONE))
+      assert(ONE.and(TWO).equals(ZERO))
+    })
+
+    it('works for 2', () => {
+      assert(TWO.and(ZERO).equals(ZERO))
+      assert(TWO.and(ONE).equals(ZERO))
+      assert(TWO.and(TWO).equals(TWO))
+    })
+  })
+
+  describe('shiftLeft', () => {
+    it('works for 0', () => {
+      assert(ZERO.shiftLeft(0).equals(ZERO))
+      assert(ZERO.shiftLeft(1).equals(ZERO))
+      assert(ZERO.shiftLeft(5).equals(ZERO))
+    })
+
+    it('works for 1', () => {
+      assert(ONE.shiftLeft(0).equals(ONE))
+      assert(ONE.shiftLeft(1).equals(TWO))
+      assert(ONE.shiftLeft(2).equals(new BigNumber(4)))
+    })
+
+    it('works for 2', () => {
+      assert(TWO.shiftLeft(0).equals(TWO))
+      assert(TWO.shiftLeft(1).equals(new BigNumber(4)))
+    })
+  })
+
+  describe('shiftRight', () => {
+    it('works for 0', () => {
+      assert(ZERO.shiftRight(0).equals(ZERO))
+      assert(ZERO.shiftRight(1).equals(ZERO))
+      assert(ZERO.shiftRight(5).equals(ZERO))
+    })
+
+    it('works for 1', () => {
+      assert(ONE.shiftRight(0).equals(ONE))
+      assert(ONE.shiftRight(1).equals(ZERO))
+      assert(ONE.shiftRight(2).equals(ZERO))
+    })
+
+    it('works for 2', () => {
+      assert(TWO.shiftRight(0).equals(TWO))
+      assert(TWO.shiftRight(1).equals(ONE))
+      assert(TWO.shiftRight(2).equals(ZERO))
     })
   })
 

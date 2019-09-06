@@ -8,35 +8,29 @@ import {
   BigNumber,
   keccak256,
   ONE,
-  OptimizedSparseMerkleTree,
   THREE,
   TWO,
   ZERO,
 } from '../../../src/app/utils'
-import { TestUtils } from './test-utils'
+import { TestUtils } from '../utils/test-utils'
 import {
   HashFunction,
+  MerkleTree,
   MerkleTreeInclusionProof,
   SparseMerkleTree,
 } from '../../../src/types/utils'
 import { DB } from '../../../src/types'
+import { SparseMerkleTreeImpl } from '../../../src/app/block-production'
 
-const hashBuffer: Buffer = new Buffer(64)
+const hashBuffer: Buffer = Buffer.alloc(64)
 const hashFunction: HashFunction = keccak256
-const zeroHash: Buffer = hashFunction(OptimizedSparseMerkleTree.emptyBuffer)
+const zeroHash: Buffer = hashFunction(SparseMerkleTreeImpl.emptyBuffer)
 
-const createAndVerifyEmptyTreeDepthWithDepth = async (
-  db: DB,
+const verifyEmptyTreeWithDepth = async (
+  tree: SparseMerkleTree,
   key: BigNumber,
   depth: number
-): Promise<SparseMerkleTree> => {
-  const tree: SparseMerkleTree = new OptimizedSparseMerkleTree(
-    db,
-    undefined,
-    depth,
-    hashFunction
-  )
-
+): Promise<void> => {
   let zeroHashParent: Buffer = zeroHash
   const siblings: Buffer[] = []
   for (let i = depth - 2; i >= 0; i--) {
@@ -47,8 +41,9 @@ const createAndVerifyEmptyTreeDepthWithDepth = async (
   }
 
   const inclusionProof: MerkleTreeInclusionProof = {
+    rootHash: await tree.getRootHash(),
     key,
-    value: OptimizedSparseMerkleTree.emptyBuffer,
+    value: SparseMerkleTreeImpl.emptyBuffer,
     siblings: siblings.reverse(),
   }
 
@@ -56,6 +51,21 @@ const createAndVerifyEmptyTreeDepthWithDepth = async (
     await tree.verifyAndStore(inclusionProof),
     'Unable to verify inclusion proof on empty tree when it should be valid.'
   )
+}
+
+const createAndVerifyEmptyTreeDepthWithDepth = async (
+  db: DB,
+  key: BigNumber,
+  depth: number
+): Promise<SparseMerkleTree> => {
+  const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
+    db,
+    undefined,
+    depth,
+    hashFunction
+  )
+
+  await verifyEmptyTreeWithDepth(tree, key, depth)
   return tree
 }
 
@@ -100,22 +110,22 @@ describe('OptimizedSparseMerkleTree', () => {
 
   describe('Constructor', () => {
     it('should construct without error', async () => {
-      new OptimizedSparseMerkleTree(db)
+      new SparseMerkleTreeImpl(db)
     })
 
     it('accepts a non-empty root hash', async () => {
-      new OptimizedSparseMerkleTree(db, new Buffer(32).fill('root', 0))
+      new SparseMerkleTreeImpl(db, Buffer.alloc(32).fill('root', 0))
     })
 
     it('throws if root is not 32 bytes', async () => {
       TestUtils.assertThrows(() => {
-        new OptimizedSparseMerkleTree(db, new Buffer(31).fill('root', 0))
+        new SparseMerkleTreeImpl(db, Buffer.alloc(31).fill('root', 0))
       }, assert.AssertionError)
     })
 
     it('throws if height is < 0', async () => {
       TestUtils.assertThrows(() => {
-        new OptimizedSparseMerkleTree(db, undefined, -1)
+        new SparseMerkleTreeImpl(db, undefined, -1)
       }, assert.AssertionError)
     })
   })
@@ -144,7 +154,7 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('fails on invalid proof for empty root', async () => {
-      const tree: SparseMerkleTree = new OptimizedSparseMerkleTree(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
         undefined,
         2,
@@ -152,9 +162,10 @@ describe('OptimizedSparseMerkleTree', () => {
       )
 
       const inclusionProof: MerkleTreeInclusionProof = {
+        rootHash: await tree.getRootHash(),
         key: ZERO,
         value: Buffer.from('this will fail.'),
-        siblings: [hashFunction(OptimizedSparseMerkleTree.emptyBuffer)],
+        siblings: [hashFunction(SparseMerkleTreeImpl.emptyBuffer)],
       }
 
       assert(
@@ -164,14 +175,14 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('verifies non-empty root', async () => {
-      const value: Buffer = new Buffer('non-empty')
+      const value: Buffer = Buffer.from('non-empty')
       const root: Buffer = hashFunction(
         hashBuffer
           .fill(hashFunction(value), 0, 32)
-          .fill(hashFunction(OptimizedSparseMerkleTree.emptyBuffer), 32)
+          .fill(hashFunction(SparseMerkleTreeImpl.emptyBuffer), 32)
       )
 
-      const tree: SparseMerkleTree = new OptimizedSparseMerkleTree(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
         root,
         2,
@@ -179,9 +190,10 @@ describe('OptimizedSparseMerkleTree', () => {
       )
 
       const inclusionProof: MerkleTreeInclusionProof = {
+        rootHash: await tree.getRootHash(),
         key: ZERO,
         value,
-        siblings: [hashFunction(OptimizedSparseMerkleTree.emptyBuffer)],
+        siblings: [hashFunction(SparseMerkleTreeImpl.emptyBuffer)],
       }
 
       assert(
@@ -191,14 +203,14 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('verifies non-empty root with key of 1', async () => {
-      const value: Buffer = new Buffer('non-empty')
+      const value: Buffer = Buffer.from('non-empty')
       const root: Buffer = hashFunction(
         hashBuffer
-          .fill(hashFunction(OptimizedSparseMerkleTree.emptyBuffer), 0, 32)
+          .fill(hashFunction(SparseMerkleTreeImpl.emptyBuffer), 0, 32)
           .fill(hashFunction(value), 32)
       )
 
-      const tree: SparseMerkleTree = new OptimizedSparseMerkleTree(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
         root,
         2,
@@ -206,9 +218,10 @@ describe('OptimizedSparseMerkleTree', () => {
       )
 
       const inclusionProof: MerkleTreeInclusionProof = {
+        rootHash: await tree.getRootHash(),
         key: ONE,
         value,
-        siblings: [hashFunction(OptimizedSparseMerkleTree.emptyBuffer)],
+        siblings: [hashFunction(SparseMerkleTreeImpl.emptyBuffer)],
       }
 
       assert(
@@ -218,14 +231,14 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('fails verifying invalid non-empty root', async () => {
-      const value: Buffer = new Buffer('non-empty')
+      const value: Buffer = Buffer.from('non-empty')
       const root: Buffer = hashFunction(
         hashBuffer
           .fill(hashFunction(value), 0, 32)
-          .fill(hashFunction(OptimizedSparseMerkleTree.emptyBuffer), 32)
+          .fill(hashFunction(SparseMerkleTreeImpl.emptyBuffer), 32)
       )
 
-      const tree: SparseMerkleTree = new OptimizedSparseMerkleTree(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
         root,
         2,
@@ -233,9 +246,10 @@ describe('OptimizedSparseMerkleTree', () => {
       )
 
       const inclusionProof: MerkleTreeInclusionProof = {
+        rootHash: await tree.getRootHash(),
         key: ZERO,
         value: Buffer.from('not the right value'),
-        siblings: [hashFunction(OptimizedSparseMerkleTree.emptyBuffer)],
+        siblings: [hashFunction(SparseMerkleTreeImpl.emptyBuffer)],
       }
 
       assert(
@@ -369,8 +383,9 @@ describe('OptimizedSparseMerkleTree', () => {
       siblings.push(zeroHashParent)
 
       const inclusionProof: MerkleTreeInclusionProof = {
+        rootHash: await tree.getRootHash(),
         key: ONE,
-        value: OptimizedSparseMerkleTree.emptyBuffer,
+        value: SparseMerkleTreeImpl.emptyBuffer,
         siblings: siblings.reverse(),
       }
 
@@ -431,8 +446,9 @@ describe('OptimizedSparseMerkleTree', () => {
       const siblings: Buffer[] = [zeroHash, leftSubtreeSibling]
 
       const inclusionProof: MerkleTreeInclusionProof = {
+        rootHash: await tree.getRootHash(),
         key: TWO,
-        value: OptimizedSparseMerkleTree.emptyBuffer,
+        value: SparseMerkleTreeImpl.emptyBuffer,
         siblings: siblings.reverse(),
       }
 
@@ -455,5 +471,229 @@ describe('OptimizedSparseMerkleTree', () => {
         'Root hashes do not match after update'
       )
     })
+  })
+
+  describe('getMerkleProof', () => {
+    it('gets empty merkle proof', async () => {
+      const tree: MerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+        db,
+        ZERO,
+        3
+      )
+      const proof: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ZERO,
+        SparseMerkleTreeImpl.emptyBuffer
+      )
+
+      assert(proof.value.equals(SparseMerkleTreeImpl.emptyBuffer))
+      assert(proof.key.equals(ZERO))
+      assert(proof.siblings.length === 2)
+
+      let hash: Buffer = zeroHash
+      assert(proof.siblings[1].equals(hash))
+      hash = hashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
+      assert(proof.siblings[0].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+    })
+
+    it('gets merkle proof for non-empty tree', async () => {
+      const tree: MerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+        db,
+        ZERO,
+        3
+      )
+      const data: Buffer = Buffer.from('really great leaf data')
+      await tree.update(ZERO, data)
+
+      const proof: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ZERO,
+        data
+      )
+
+      assert(proof.value.equals(data))
+      assert(proof.key.equals(ZERO))
+      assert(proof.siblings.length === 2)
+
+      let hash: Buffer = zeroHash
+      assert(proof.siblings[1].equals(hash))
+      hash = hashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
+      assert(proof.siblings[0].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+    })
+
+    it('gets merkle proof for non-empty siblings 0 & 1', async () => {
+      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+        db,
+        ZERO,
+        3
+      )
+
+      const zeroData: Buffer = Buffer.from('ZERO 0')
+      await tree.update(ZERO, zeroData)
+
+      const sibs: Buffer[] = [hashFunction(zeroData)]
+      sibs.push(
+        hashFunction(hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32))
+      )
+      assert(
+        await tree.verifyAndStore({
+          rootHash: await tree.getRootHash(),
+          value: SparseMerkleTreeImpl.emptyBuffer,
+          key: ONE,
+          siblings: sibs.reverse(),
+        }),
+        'Verifying empty leaf at ONE failed'
+      )
+
+      const oneData: Buffer = Buffer.from('ONE 1')
+      assert(await tree.update(ONE, oneData), 'Updating data at ONE failed')
+
+      // Check Proof for ZERO
+      let proof: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ZERO,
+        zeroData
+      )
+
+      assert(proof.value.equals(zeroData))
+      assert(proof.key.equals(ZERO))
+
+      assert(proof.siblings.length === 2)
+      let hash: Buffer = hashFunction(oneData)
+      assert(proof.siblings[1].equals(hash))
+      hash = hashFunction(hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32))
+      assert(proof.siblings[0].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+
+      // Check Proof for ONE
+      proof = await tree.getMerkleProof(ONE, oneData)
+
+      assert(proof.value.equals(oneData))
+      assert(proof.key.equals(ONE))
+
+      assert(proof.siblings.length === 2)
+      hash = hashFunction(zeroData)
+      assert(proof.siblings[1].equals(hash))
+      hash = hashFunction(hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32))
+      assert(proof.siblings[0].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+    })
+
+    it('gets merkle proof for non-empty siblings 0 & 2', async () => {
+      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+        db,
+        ZERO,
+        3
+      )
+
+      const zeroData: Buffer = Buffer.from('ZERO 0')
+      await tree.update(ZERO, zeroData)
+
+      const sibs: Buffer[] = [zeroHash]
+      sibs.push(
+        hashFunction(
+          hashBuffer.fill(hashFunction(zeroData), 0, 32).fill(zeroHash, 32)
+        )
+      )
+      assert(
+        await tree.verifyAndStore({
+          rootHash: await tree.getRootHash(),
+          value: SparseMerkleTreeImpl.emptyBuffer,
+          key: TWO,
+          siblings: sibs.reverse(),
+        }),
+        'Verifying and storing empty data at TWO failed'
+      )
+
+      const twoData: Buffer = Buffer.from('TWO 2')
+      assert(await tree.update(TWO, twoData), 'Updating data at TWO failed')
+
+      // Check Proof for ZERO
+      let proof: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ZERO,
+        zeroData
+      )
+
+      assert(proof.value.equals(zeroData))
+      assert(proof.key.equals(ZERO))
+
+      assert(proof.siblings.length === 2)
+
+      let hash: Buffer = zeroHash
+      assert(proof.siblings[1].equals(hash))
+      hash = hashFunction(
+        hashBuffer.fill(hashFunction(twoData), 0, 32).fill(zeroHash, 32)
+      )
+      assert(proof.siblings[0].equals(hash))
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+
+      // Check Proof for TWO
+      proof = await tree.getMerkleProof(TWO, twoData)
+
+      assert(proof.value.equals(twoData))
+      assert(proof.key.equals(TWO))
+
+      assert(proof.siblings.length === 2)
+
+      hash = zeroHash
+      assert(proof.siblings[1].equals(hash))
+      hash = hashFunction(
+        hashBuffer.fill(hashFunction(zeroData), 0, 32).fill(zeroHash, 32)
+      )
+      assert(proof.siblings[0].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+    })
+  })
+
+  describe('benchmarks', () => {
+    const runUpdateTest = async (
+      treeHeight: number,
+      numUpdates: number,
+      keyRange: number
+    ): Promise<void> => {
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
+        db,
+        undefined,
+        treeHeight,
+        hashFunction
+      )
+
+      const startTime = +new Date()
+
+      const dataToStore: Buffer = Buffer.from('yo what is gucci')
+      const promises: Array<Promise<boolean>> = []
+      for (let i = 0; i < numUpdates; i++) {
+        const key = new BigNumber(Math.floor(Math.random() * keyRange))
+        promises.push(tree.update(key, dataToStore))
+      }
+
+      await Promise.all(promises)
+
+      const finishTime = +new Date()
+      const durationInMiliseconds = finishTime - startTime
+      // tslint:disable-next-line:no-console
+      console.log(
+        'Duration:',
+        durationInMiliseconds,
+        ', TPS: ',
+        numUpdates / (durationInMiliseconds / 1_000.0)
+      )
+    }
+
+    it.only('updates: 100, treeHeight: 24, keyRange: 50,000', async () => {
+      await runUpdateTest(24, 100, 50_000)
+    }).timeout(9000)
+
+    it.only('updates: 100, treeHeight: 160, keyRange: 50,000', async () => {
+      await runUpdateTest(160, 100, 50_000)
+    }).timeout(9000)
+
+    it.only('updates: 1000, treeHeight: 160, keyRange: 50,000', async () => {
+      await runUpdateTest(160, 1000, 50_000)
+    }).timeout(9000)
   })
 })
