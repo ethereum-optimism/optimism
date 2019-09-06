@@ -261,12 +261,12 @@ describe('OptimizedSparseMerkleTree', () => {
 
   describe('update', () => {
     it('updates empty tree', async () => {
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ZERO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
-
       const value: Buffer = Buffer.from('much better value')
       assert(await tree.update(ZERO, value))
 
@@ -282,10 +282,11 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('updates empty tree at key 1', async () => {
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ONE,
-        3
+        undefined,
+        3,
+        hashFunction
       )
 
       const value: Buffer = Buffer.from('much better value')
@@ -303,10 +304,11 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('updates empty tree at key 2', async () => {
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        TWO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
 
       const value: Buffer = Buffer.from('much better value')
@@ -324,10 +326,11 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('updates empty tree at key 3', async () => {
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        THREE,
-        3
+        undefined,
+        3,
+        hashFunction
       )
 
       const value: Buffer = Buffer.from('much better value')
@@ -344,7 +347,7 @@ describe('OptimizedSparseMerkleTree', () => {
       )
     })
 
-    it('updates empty tree at key 0 and 1', async () => {
+    it('updates empty tree at key 0 and 1 without verifying first', async () => {
       /*
               zh                    C                  F
              /  \                 /  \              /    \
@@ -353,12 +356,12 @@ describe('OptimizedSparseMerkleTree', () => {
         zh  zh  zh  zh        A  zh  zh  zh     A    D  zh  zh
       */
 
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ZERO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
-
       const value: Buffer = Buffer.from('much better value')
       const valueHash: Buffer = hashFunction(value)
       assert(await tree.update(ZERO, value))
@@ -373,24 +376,7 @@ describe('OptimizedSparseMerkleTree', () => {
         'Root hashes do not match after update'
       )
 
-      // VERIFY AND UPDATE ONE
-
-      // first sibling is other value, next is zero hash because parent's sibling tree is empty
-      const siblings: Buffer[] = [valueHash]
-      const zeroHashParent: Buffer = hashFunction(
-        hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32)
-      )
-      siblings.push(zeroHashParent)
-
-      const inclusionProof: MerkleTreeInclusionProof = {
-        rootHash: await tree.getRootHash(),
-        key: ONE,
-        value: SparseMerkleTreeImpl.emptyBuffer,
-        siblings: siblings.reverse(),
-      }
-
-      assert(await tree.verifyAndStore(inclusionProof))
-
+      // UPDATE ONE
       const secondValue: Buffer = Buffer.from('much better value 2')
       const secondValueHash: Buffer = hashFunction(secondValue)
 
@@ -398,6 +384,9 @@ describe('OptimizedSparseMerkleTree', () => {
 
       let parentHash: Buffer = hashFunction(
         hashBuffer.fill(valueHash, 0, 32).fill(secondValueHash, 32)
+      )
+      const zeroHashParent: Buffer = hashFunction(
+        hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32)
       )
       parentHash = hashFunction(
         hashBuffer.fill(parentHash, 0, 32).fill(zeroHashParent, 32)
@@ -418,10 +407,11 @@ describe('OptimizedSparseMerkleTree', () => {
         zh  zh  zh  zh        A  zh  zh  zh     A    zh  D  zh
       */
 
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ZERO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
 
       const value: Buffer = Buffer.from('much better value')
@@ -438,22 +428,7 @@ describe('OptimizedSparseMerkleTree', () => {
         'Root hashes do not match after update'
       )
 
-      // VERIFY AND UPDATE TWO
-
-      const leftSubtreeSibling: Buffer = hashFunction(
-        hashBuffer.fill(valueHash, 0, 32).fill(zeroHash, 32)
-      )
-      const siblings: Buffer[] = [zeroHash, leftSubtreeSibling]
-
-      const inclusionProof: MerkleTreeInclusionProof = {
-        rootHash: await tree.getRootHash(),
-        key: TWO,
-        value: SparseMerkleTreeImpl.emptyBuffer,
-        siblings: siblings.reverse(),
-      }
-
-      assert(await tree.verifyAndStore(inclusionProof))
-
+      // UPDATE TWO
       const secondValue: Buffer = Buffer.from('much better value 2')
       const secondValueHash: Buffer = hashFunction(secondValue)
 
@@ -461,6 +436,9 @@ describe('OptimizedSparseMerkleTree', () => {
 
       let parentHash: Buffer = hashFunction(
         hashBuffer.fill(secondValueHash, 0, 32).fill(zeroHash, 32)
+      )
+      const leftSubtreeSibling: Buffer = hashFunction(
+        hashBuffer.fill(valueHash, 0, 32).fill(zeroHash, 32)
       )
       parentHash = hashFunction(
         hashBuffer.fill(leftSubtreeSibling, 0, 32).fill(parentHash, 32)
@@ -498,10 +476,11 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('gets merkle proof for non-empty tree', async () => {
-      const tree: MerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ZERO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
       const data: Buffer = Buffer.from('really great leaf data')
       await tree.update(ZERO, data)
@@ -524,10 +503,11 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('gets merkle proof for non-empty siblings 0 & 1', async () => {
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ZERO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
 
       const zeroData: Buffer = Buffer.from('ZERO 0')
@@ -536,15 +516,6 @@ describe('OptimizedSparseMerkleTree', () => {
       const sibs: Buffer[] = [hashFunction(zeroData)]
       sibs.push(
         hashFunction(hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32))
-      )
-      assert(
-        await tree.verifyAndStore({
-          rootHash: await tree.getRootHash(),
-          value: SparseMerkleTreeImpl.emptyBuffer,
-          key: ONE,
-          siblings: sibs.reverse(),
-        }),
-        'Verifying empty leaf at ONE failed'
       )
 
       const oneData: Buffer = Buffer.from('ONE 1')
@@ -583,10 +554,11 @@ describe('OptimizedSparseMerkleTree', () => {
     })
 
     it('gets merkle proof for non-empty siblings 0 & 2', async () => {
-      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,
-        ZERO,
-        3
+        undefined,
+        3,
+        hashFunction
       )
 
       const zeroData: Buffer = Buffer.from('ZERO 0')
@@ -597,15 +569,6 @@ describe('OptimizedSparseMerkleTree', () => {
         hashFunction(
           hashBuffer.fill(hashFunction(zeroData), 0, 32).fill(zeroHash, 32)
         )
-      )
-      assert(
-        await tree.verifyAndStore({
-          rootHash: await tree.getRootHash(),
-          value: SparseMerkleTreeImpl.emptyBuffer,
-          key: TWO,
-          siblings: sibs.reverse(),
-        }),
-        'Verifying and storing empty data at TWO failed'
       )
 
       const twoData: Buffer = Buffer.from('TWO 2')
@@ -662,13 +625,24 @@ describe('OptimizedSparseMerkleTree', () => {
         hashFunction
       )
 
+      const keyMap: Map<string, BigNumber> = new Map<string, BigNumber>()
+      for (let i = 0; i < numUpdates; i++) {
+        const key = new BigNumber(Math.floor(Math.random() * keyRange))
+
+        if (keyMap.has(key.toString())) {
+          i--
+          continue
+        }
+        keyMap.set(key.toString(), key)
+      }
+
+      const keys = Array.from(keyMap.values())
       const startTime = +new Date()
 
       const dataToStore: Buffer = Buffer.from('yo what is gucci')
       const promises: Array<Promise<boolean>> = []
       for (let i = 0; i < numUpdates; i++) {
-        const key = new BigNumber(Math.floor(Math.random() * keyRange))
-        promises.push(tree.update(key, dataToStore))
+        promises.push(tree.update(keys[i], dataToStore))
       }
 
       await Promise.all(promises)
@@ -684,16 +658,12 @@ describe('OptimizedSparseMerkleTree', () => {
       )
     }
 
-    it.only('updates: 100, treeHeight: 24, keyRange: 50,000', async () => {
+    it('updates: 100, treeHeight: 24, keyRange: 50,000', async () => {
       await runUpdateTest(24, 100, 50_000)
     }).timeout(9000)
 
-    it.only('updates: 100, treeHeight: 160, keyRange: 50,000', async () => {
+    it('updates: 100, treeHeight: 160, keyRange: 50,000', async () => {
       await runUpdateTest(160, 100, 50_000)
-    }).timeout(9000)
-
-    it.only('updates: 1000, treeHeight: 160, keyRange: 50,000', async () => {
-      await runUpdateTest(160, 1000, 50_000)
     }).timeout(9000)
   })
 })
