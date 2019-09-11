@@ -1,5 +1,10 @@
 /* External Imports */
-import { KeyValueStore, RpcClient, serializeObject } from '@pigi/core'
+import {
+  KeyValueStore,
+  RpcClient,
+  serializeObject,
+  SignatureProvider,
+} from '@pigi/core'
 
 /* Internal Imports */
 import {
@@ -18,18 +23,16 @@ import {
  */
 export class MockRollupClient {
   public rpcClient: RpcClient
-  public uniswapAddress: Address
 
   /**
    * Initializes the MockRollupClient
    * @param db the KeyValueStore used by the Rollup Client. Note this is mocked
    *           and so we don't currently use the DB.
-   * @param sign a function used for signing messages.
-   *             TODO: replace sign(...) with a reference to the keystore.
+   * @param signatureProvider
    */
   constructor(
     private readonly db: KeyValueStore,
-    readonly sign: (address: string, message: string) => Promise<string>
+    private readonly signatureProvider: SignatureProvider
   ) {}
 
   /**
@@ -62,7 +65,10 @@ export class MockRollupClient {
     transaction: Transaction,
     account: Address
   ): Promise<State> {
-    const signature = await this.sign(account, serializeObject(transaction))
+    const signature = await this.signatureProvider.sign(
+      account,
+      serializeObject(transaction)
+    )
     const result = await this.rpcClient.handle<TransactionReceipt>(
       AGGREGATOR_API.applyTransaction,
       {

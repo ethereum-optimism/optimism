@@ -1,5 +1,11 @@
 /* External Imports */
-import { SimpleServer } from '@pigi/core'
+import {
+  SignatureVerifier,
+  DefaultSignatureVerifier,
+  SimpleServer,
+  serializeObject,
+  DefaultSignatureProvider,
+} from '@pigi/core'
 
 /* Internal Imports */
 import {
@@ -9,31 +15,51 @@ import {
   MockRollupStateMachine,
   Balances,
   TransactionReceipt,
-  UNISWAP_ADDRESS,
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
   AGGREGATOR_ADDRESS,
-  TokenType,
   generateTransferTx,
   AGGREGATOR_API,
+  Transaction,
+  SignatureProvider,
 } from '.'
+import { ethers } from 'ethers'
 
 /*
  * Generate two transactions which together send the user some UNI
  * & some PIGI
  */
-const generateFaucetTxs = (
+const generateFaucetTxs = async (
   recipient: Address,
-  amount: number
-): [SignedTransaction, SignedTransaction] => {
+  amount: number,
+  aggregatorAddress: string = AGGREGATOR_ADDRESS,
+  signatureProvider?: SignatureProvider
+): Promise<SignedTransaction[]> => {
+  const txOne: Transaction = generateTransferTx(
+    recipient,
+    UNI_TOKEN_TYPE,
+    amount
+  )
+  const txTwo: Transaction = generateTransferTx(
+    recipient,
+    PIGI_TOKEN_TYPE,
+    amount
+  )
+
   return [
     {
-      signature: AGGREGATOR_ADDRESS,
-      transaction: generateTransferTx(recipient, UNI_TOKEN_TYPE, amount),
+      signature: await signatureProvider.sign(
+        aggregatorAddress,
+        serializeObject(txOne)
+      ),
+      transaction: txOne,
     },
     {
-      signature: AGGREGATOR_ADDRESS,
-      transaction: generateTransferTx(recipient, PIGI_TOKEN_TYPE, amount),
+      signature: await signatureProvider.sign(
+        aggregatorAddress,
+        serializeObject(txTwo)
+      ),
+      transaction: txTwo,
     },
   ]
 }
@@ -49,9 +75,19 @@ export class MockAggregator extends SimpleServer {
     genesisState: State,
     hostname: string,
     port: number,
+    mnemonic: string,
+    signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
     middleware?: Function[]
   ) {
-    const rollupStateMachine = new MockRollupStateMachine(genesisState)
+    const rollupStateMachine = new MockRollupStateMachine(
+      genesisState,
+      signatureVerifier
+    )
+
+    const wallet: ethers.Wallet = ethers.Wallet.fromMnemonic(mnemonic)
+    const signatureProvider: SignatureProvider = new DefaultSignatureProvider(
+      wallet
+    )
 
     // REST API for our aggregator
     const methods = {
@@ -77,15 +113,20 @@ export class MockAggregator extends SimpleServer {
       /*
        * Request money from a faucet
        */
-      [AGGREGATOR_API.requestFaucetFunds]: (
+      [AGGREGATOR_API.requestFaucetFunds]: async (
         params: [Address, number]
-      ): Balances => {
+      ): Promise<Balances> => {
         const [recipient, amount] = params
         // Generate the faucet txs (one sending uni the other pigi)
-        const faucetTxs = generateFaucetTxs(recipient, amount)
+        const faucetTxs = await generateFaucetTxs(
+          recipient,
+          amount,
+          wallet.address,
+          signatureProvider
+        )
         // Apply the two txs
-        rollupStateMachine.applyTransaction(faucetTxs[0])
-        rollupStateMachine.applyTransaction(faucetTxs[1])
+        faucetTxs.forEach((tx) => rollupStateMachine.applyTransaction(tx))
+
         // Return our new account balance
         return rollupStateMachine.getBalances(recipient)
       },

@@ -11,7 +11,7 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts'"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000"
   },
   "keywords": [
     "plasma",

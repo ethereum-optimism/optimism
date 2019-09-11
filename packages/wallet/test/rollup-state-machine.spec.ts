@@ -13,6 +13,7 @@ import {
   MockRollupStateMachine,
   UNISWAP_ADDRESS,
   InsufficientBalanceError,
+  IdentityVerifier,
 } from '../src'
 
 /*********
@@ -22,7 +23,10 @@ import {
 describe('RollupStateMachine', async () => {
   let rollupState
   beforeEach(() => {
-    rollupState = new MockRollupStateMachine(getGenesisState(), 0)
+    rollupState = new MockRollupStateMachine(
+      getGenesisState(),
+      IdentityVerifier.instance()
+    )
   })
 
   describe('getBalances', async () => {
@@ -131,6 +135,7 @@ describe('RollupStateMachine', async () => {
       const feeBasisPoints = 30
       rollupState = new MockRollupStateMachine(
         getGenesisStateLargeEnoughForFees(),
+        IdentityVerifier.instance(),
         feeBasisPoints
       )
 

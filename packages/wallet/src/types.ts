@@ -43,9 +43,10 @@ export const isTransferTransaction = (
 export type Transaction = Swap | Transfer
 
 export type MockedSignature = Address
+export type Signature = MockedSignature | string
 
 export interface SignedTransaction {
-  signature: MockedSignature // For now the signature is just the address
+  signature: Signature
   transaction: Transaction
 }
 

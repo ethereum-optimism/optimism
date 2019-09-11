@@ -1,4 +1,9 @@
 /* External Imports */
+import {
+  DefaultSignatureVerifier,
+  serializeObject,
+  SignatureVerifier,
+} from '@pigi/core'
 
 /* Internal Imports */
 import {
@@ -9,7 +14,6 @@ import {
   Transfer,
   isTransferTransaction,
   Transaction,
-  MockedSignature,
   SignedTransaction,
   TransactionReceipt,
   UNISWAP_ADDRESS,
@@ -56,7 +60,11 @@ export class InvalidTransactionTypeError extends Error {
 export class MockRollupStateMachine {
   public state: State
 
-  constructor(genesisState: State, private swapFeeBasisPoints: number = 30) {
+  constructor(
+    genesisState: State,
+    private readonly signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
+    private swapFeeBasisPoints: number = 30
+  ) {
     this.state = genesisState
   }
 
@@ -87,15 +95,20 @@ export class MockRollupStateMachine {
     return this.state[account].balances
   }
 
-  private ecdsaRecover(signature: MockedSignature): Address {
-    // TODO: Move this out of this class and instead put in keystore
-    return signature
-  }
-
   public applyTransaction(
     signedTransaction: SignedTransaction
   ): TransactionReceipt {
-    const sender: Address = signedTransaction.signature
+    let sender: Address
+
+    try {
+      sender = this.signatureVerifier.verifyMessage(
+        serializeObject(signedTransaction.transaction),
+        signedTransaction.signature
+      )
+    } catch (e) {
+      throw e
+    }
+
     const transaction: Transaction = signedTransaction.transaction
     if (isTransferTransaction(transaction)) {
       return this.applyTransfer(sender, transaction)
@@ -126,6 +139,7 @@ export class MockRollupStateMachine {
     if (transfer.amount < 1) {
       throw new NegativeAmountError()
     }
+
     // Check that the sender has enough money
     if (!this.hasBalance(sender, transfer.tokenType, transfer.amount)) {
       throw new InsufficientBalanceError()

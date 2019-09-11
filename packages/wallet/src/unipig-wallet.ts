@@ -1,5 +1,12 @@
 /* External Imports */
-import { DefaultWallet, DefaultWalletDB, BaseDB, WalletDB } from '@pigi/core'
+import {
+  DefaultWallet,
+  DefaultWalletDB,
+  BaseDB,
+  WalletDB,
+  sign,
+  SignatureProvider,
+} from '@pigi/core'
 
 /* Internal Imports */
 import { Address, Balances, TransactionReceipt, MockRollupClient } from '.'
@@ -15,7 +22,7 @@ export class UnipigWallet extends DefaultWallet {
   private db: BaseDB
   public rollup: MockRollupClient
 
-  constructor(db: BaseDB) {
+  constructor(db: BaseDB, signatureProvider?: SignatureProvider) {
     // Set up the keystore db
     const keystoreBucket = db.bucket(Buffer.from([KEYSTORE_BUCKET]))
     const keystoreDB: WalletDB = new DefaultWalletDB(keystoreBucket)
@@ -23,15 +30,10 @@ export class UnipigWallet extends DefaultWallet {
 
     // Set up the rollup client db
     const rollupBucket = db.bucket(Buffer.from([ROLLUP_BUCKET]))
-    this.rollup = new MockRollupClient(rollupBucket, this.sign)
+    this.rollup = new MockRollupClient(rollupBucket, signatureProvider || this)
 
     // Save a reference to our db
     this.db = db
-  }
-
-  public async sign(address: string, message: string): Promise<string> {
-    // Mock the signature for now
-    return address
   }
 
   public async getBalances(account: Address): Promise<Balances> {

@@ -17,4 +17,4 @@ export const AGGREGATOR_API = {
   requestFaucetFunds: 'requestFaucetFunds',
 }
 /* Mock-related */
-export const AGGREGATOR_ADDRESS = 'aggregator'
+export const AGGREGATOR_ADDRESS = '0xAc001762c6424F4959852A516368DBf970C835a7'
