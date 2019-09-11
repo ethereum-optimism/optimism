@@ -13,6 +13,13 @@ export interface MerkleTreeInclusionProof {
   siblings: Buffer[]
 }
 
+export interface MerkleUpdate {
+  key: BigNumber
+  oldValue: Buffer
+  oldValueProofSiblings: Buffer[]
+  newValue: Buffer
+}
+
 export interface MerkleTree {
   /**
    * Gets the root hash for this tree.
@@ -30,6 +37,18 @@ export interface MerkleTree {
    * @return true if the update succeeded, false if we're missing the intermediate nodes / siblings required for this
    */
   update(leafKey: BigNumber, leafValue: Buffer): Promise<boolean>
+
+  /**
+   * Updates the provided keys in the Merkle Tree in an atomic fashion
+   * including all ancestor hashes that result from these modifications.
+   *
+   * Note: It is known that applying one update invalidates the proof for the next
+   * update, which should be accounted for within this method.
+   *
+   * @param updates The updates to execute
+   * @return true if the update succeeded, false if we're missing the intermediate nodes / siblings required for this
+   */
+  batchUpdate(updates: MerkleUpdate[]): Promise<boolean>
 
   /**
    * Gets a Merkle proof for the provided leaf value at the provided key in the tree.

@@ -5,6 +5,7 @@ import * as assert from 'assert'
 import {
   MerkleTree,
   MerkleTreeInclusionProof,
+  MerkleUpdate,
 } from '../../../../src/types/utils'
 import { BigNumber, QuantifierResult, TWO, ZERO } from '../../../../src/types'
 import { MerkleInclusionQuantifier } from '../../../../src/app/ovm/quantifiers'
@@ -42,6 +43,10 @@ class MockedMerkleTree implements MerkleTree {
     leafKey: BigNumber,
     leafValue: Buffer
   ): Promise<MerkleTreeInclusionProof> {
+    return undefined
+  }
+
+  public async batchUpdate(updates: MerkleUpdate[]): Promise<boolean> {
     return undefined
   }
 }

@@ -1,7 +1,9 @@
 /* External Imports */
-import { Mutex } from 'async-mutex'
+import * as AsyncLock from 'async-lock'
+import * as domain from 'domain'
 import * as assert from 'assert'
 
+/* Internal Imports */
 import {
   BIG_ENDIAN,
   BigNumber,
@@ -9,12 +11,14 @@ import {
   HashFunction,
   MerkleTreeInclusionProof,
   MerkleTreeNode,
+  MerkleUpdate,
   ONE,
   SparseMerkleTree,
   TWO,
   ZERO,
 } from '../../types'
 import { keccak256 } from '../utils/crypto'
+import { runInDomain } from '../utils'
 
 /**
  * SparseMerkleTree implementation assuming a 256-bit hash algorithm is used.
@@ -25,7 +29,10 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
 
   private root: MerkleTreeNode
   private zeroHashes: Buffer[]
-  private readonly treeMutex: Mutex = new Mutex()
+  private static readonly lockKey: string = 'lock'
+  private readonly treeLock: AsyncLock = new AsyncLock({
+    domainReentrant: true,
+  })
   private readonly hashBuffer: Buffer = Buffer.alloc(64)
 
   constructor(
@@ -46,7 +53,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   }
 
   public async getLeaf(leafKey: BigNumber, rootHash?: Buffer): Promise<Buffer> {
-    return this.treeMutex.runExclusive(async () => {
+    return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
       if (!!rootHash && !rootHash.equals(this.root.hash)) {
         return undefined
       }
@@ -55,7 +62,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
       if (!nodesInPath || !nodesInPath.length) {
         return undefined
       }
-      const leaf: MerkleTreeNode = nodesInPath[nodesInPath.length]
+      const leaf: MerkleTreeNode = nodesInPath[nodesInPath.length - 1]
       // Will only match if we were able to traverse all the way to the leaf
       return leaf.key.equals(leafKey) ? leaf.value : undefined
     })
@@ -69,7 +76,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
       return false
     }
 
-    return this.treeMutex.runExclusive(async () => {
+    return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
       const leafHash: Buffer = this.hashFunction(inclusionProof.value)
       if (!!(await this.getNode(leafHash, inclusionProof.key))) {
         return true
@@ -126,64 +133,87 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     })
   }
 
-  public async update(leafKey: BigNumber, leafValue: Buffer): Promise<boolean> {
-    let nodesToUpdate: MerkleTreeNode[] = await this.treeMutex.runExclusive(
-      () => {
-        return this.getNodesInPath(leafKey)
-      }
-    )
+  public async update(
+    leafKey: BigNumber,
+    leafValue: Buffer,
+    d?: domain.Domain
+  ): Promise<boolean> {
+    return runInDomain(d, async () => {
+      return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
+        let nodesToUpdate: MerkleTreeNode[] = await this.getNodesInPath(leafKey)
 
-    if (!nodesToUpdate) {
-      return false
-    } else if (nodesToUpdate.length !== this.height) {
-      if (
-        !(await this.verifyAndStorePartiallyEmptyPath(
-          leafKey,
-          nodesToUpdate.length
-        ))
-      ) {
-        return false
-      }
-      nodesToUpdate = await this.getNodesInPath(leafKey)
-    }
+        if (!nodesToUpdate) {
+          return false
+        } else if (nodesToUpdate.length !== this.height) {
+          if (
+            !(await this.verifyAndStorePartiallyEmptyPath(
+              leafKey,
+              nodesToUpdate.length
+            ))
+          ) {
+            return false
+          }
+          nodesToUpdate = await this.getNodesInPath(leafKey)
+        }
 
-    return this.treeMutex.runExclusive(async () => {
-      // Have to check to make sure nodesToUpdate didn't change while we didn't have the lock.
-      const prevLeaf = nodesToUpdate[nodesToUpdate.length - 1]
-      const leafStillExists: MerkleTreeNode = await this.getNode(
-        prevLeaf.hash,
-        prevLeaf.key
-      )
-      if (!leafStillExists) {
-        nodesToUpdate = await this.getNodesInPath(leafKey)
-      }
+        const leaf: MerkleTreeNode = nodesToUpdate[nodesToUpdate.length - 1]
+        const idsToDelete: Buffer[] = [this.getNodeID(leaf)]
+        leaf.hash = this.hashFunction(leafValue)
+        leaf.value = leafValue
 
-      const leaf: MerkleTreeNode = nodesToUpdate[nodesToUpdate.length - 1]
-      const idsToDelete: Buffer[] = [this.getNodeID(leaf)]
-      leaf.hash = this.hashFunction(leafValue)
-      leaf.value = leafValue
+        let updatedChild: MerkleTreeNode = leaf
+        let depth: number = nodesToUpdate.length - 2 // -2 because this array also contains the leaf
 
-      let updatedChild: MerkleTreeNode = leaf
-      let depth: number = nodesToUpdate.length - 2 // -2 because this array also contains the leaf
+        // Iteratively update all nodes from the leaf-pointer node up to the root
+        for (; depth >= 0; depth--) {
+          idsToDelete.push(this.getNodeID(nodesToUpdate[depth]))
+          updatedChild = this.updateNode(
+            nodesToUpdate[depth],
+            updatedChild,
+            leafKey,
+            depth
+          )
+        }
 
-      // Iteratively update all nodes from the leaf-pointer node up to the root
-      for (; depth >= 0; depth--) {
-        idsToDelete.push(this.getNodeID(nodesToUpdate[depth]))
-        updatedChild = this.updateNode(
-          nodesToUpdate[depth],
-          updatedChild,
-          leafKey,
-          depth
-        )
-      }
+        await Promise.all([
+          ...nodesToUpdate.map((n) => this.db.put(this.getNodeID(n), n.value)),
+          ...idsToDelete.map((id) => this.db.del(id)),
+        ])
 
-      await Promise.all([
-        ...nodesToUpdate.map((n) => this.db.put(this.getNodeID(n), n.value)),
-        ...idsToDelete.map((id) => this.db.del(id)),
-      ])
+        this.root = nodesToUpdate[0]
+        return true
+      })
+    })
+  }
 
-      this.root = nodesToUpdate[0]
-      return true
+  public async batchUpdate(updates: MerkleUpdate[]): Promise<boolean> {
+    const d: domain.Domain = domain.create()
+
+    return runInDomain(d, () => {
+      return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
+        for (const update of updates) {
+          if (
+            !(await this.verifyAndStore({
+              rootHash: this.root.hash,
+              key: update.key,
+              value: update.oldValue,
+              siblings: update.oldValueProofSiblings,
+            }))
+          ) {
+            return false
+          }
+        }
+
+        for (const update of updates) {
+          if (!(await this.update(update.key, update.newValue, d))) {
+            throw Error(
+              "Verify and Store worked but update didn't! This should never happen!"
+            )
+          }
+        }
+
+        return true
+      })
     })
   }
 
@@ -191,7 +221,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     leafKey: BigNumber,
     leafValue: Buffer
   ): Promise<MerkleTreeInclusionProof> {
-    return this.treeMutex.runExclusive(async () => {
+    return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
       if (!this.root || !this.root.hash || !this.root.value) {
         return undefined
       }

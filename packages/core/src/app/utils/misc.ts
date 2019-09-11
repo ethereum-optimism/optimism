@@ -1,4 +1,5 @@
 /* External Imports */
+import * as domain from 'domain'
 
 /* Internal Imports */
 import { Transaction } from '../../types'
@@ -189,4 +190,19 @@ export const except = <T>(list: T[], element: T): T[] => {
   return list.filter((item) => {
     return item !== element
   })
+}
+
+/**
+ * Runs the provided function in the provided domain if one is provided.
+ * If a domain is falsy, this will create a domain for this function to run in.
+ * @param d The domain in which this function should run.
+ * @param func The function to run.
+ * @returns The result of the function to be run
+ */
+export const runInDomain = async (
+  d: domain.Domain,
+  func: () => any
+): Promise<any> => {
+  const domainToUse: domain.Domain = !!d ? d : domain.create()
+  return domainToUse.run(func)
 }
