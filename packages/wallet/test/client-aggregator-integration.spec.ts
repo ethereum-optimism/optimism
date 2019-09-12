@@ -1,12 +1,14 @@
 import './setup'
 
 /* External Imports */
-import { SimpleClient, BaseDB } from '@pigi/core'
+import { SimpleClient, BaseDB, DB } from '@pigi/core'
 import MemDown from 'memdown'
 
 /* Internal Imports */
 import { AGGREGATOR_MNEMONIC, getGenesisState } from './helpers'
 import { UnipigWallet, MockAggregator, UNI_TOKEN_TYPE } from '../src'
+import { RollupStateMachine } from '../src/types'
+import { DefaultRollupStateMachine } from '../src/rollup-state-machine'
 
 /*********
  * TESTS *
@@ -15,26 +17,32 @@ import { UnipigWallet, MockAggregator, UNI_TOKEN_TYPE } from '../src'
 const timeout = 20_000
 
 describe('Mock Client/Aggregator Integration', async () => {
-  let db
-  let accountAddress
-  let aggregator
-  let unipigWallet
+  let db: DB
+  let accountAddress: string
+  let aggregator: MockAggregator
+  let unipigWallet: UnipigWallet
+  let memdown: any
   const walletPassword = 'Really great password'
 
   beforeEach(async function() {
     this.timeout(timeout)
 
-    // Typings for MemDown are wrong so we need to cast to `any`.
-    db = new BaseDB(new MemDown('') as any)
+    memdown = new MemDown('') as any
+    db = new BaseDB(memdown)
     unipigWallet = new UnipigWallet(db)
 
     // Now create a wallet account
     accountAddress = await unipigWallet.createAccount(walletPassword)
 
+    const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
+      getGenesisState(accountAddress),
+      db
+    )
+
     // Initialize a mock aggregator
     await unipigWallet.unlockAccount(accountAddress, walletPassword)
     aggregator = new MockAggregator(
-      getGenesisState(accountAddress),
+      rollupStateMachine,
       'localhost',
       3000,
       AGGREGATOR_MNEMONIC
@@ -50,6 +58,8 @@ describe('Mock Client/Aggregator Integration', async () => {
       // Close the server
       await aggregator.close()
     }
+    await db.close()
+    memdown = undefined
   })
 
   describe('UnipigWallet', async () => {
@@ -75,18 +85,20 @@ describe('Mock Client/Aggregator Integration', async () => {
 
     it('should successfully transfer if alice sends money', async () => {
       // Set "sign" to instead sign for alice
+      const recipient = 'testing123'
       const response = await unipigWallet.rollup.sendTransaction(
         {
           tokenType: UNI_TOKEN_TYPE,
-          recipient: 'testing123',
+          recipient,
           amount: 10,
         },
         accountAddress
       )
-      response.recipient.balances.uni.should.equal(10)
+      response[recipient].balances.uni.should.equal(10)
     }).timeout(timeout)
 
     it('should successfully transfer if first faucet is requested', async () => {
+      const recipient = 'testing123'
       const newPassword = 'new address password'
       const newAddress = await unipigWallet.createAccount(newPassword)
       await unipigWallet.unlockAccount(newAddress, newPassword)
@@ -100,15 +112,16 @@ describe('Mock Client/Aggregator Integration', async () => {
         uni: 10,
         pigi: 10,
       })
+
       const transferRes = await unipigWallet.rollup.sendTransaction(
         {
           tokenType: UNI_TOKEN_TYPE,
-          recipient: 'testing123',
+          recipient,
           amount: 10,
         },
         newAddress
       )
-      transferRes.recipient.balances.uni.should.equal(10)
+      transferRes[recipient].balances.uni.should.equal(10)
     }).timeout(timeout)
   })
 })

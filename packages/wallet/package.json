@@ -26,6 +26,7 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "dependencies": {
+    "async-lock": "^1.2.2",
     "@pigi/core": "^0.0.1-alpha.1"
   },
   "devDependencies": {

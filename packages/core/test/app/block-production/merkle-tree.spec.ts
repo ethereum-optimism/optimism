@@ -584,6 +584,102 @@ describe('OptimizedSparseMerkleTree', () => {
       assert(newLeafTwo.equals(newValueTwo), 'Updated leaf 2 does not match.')
     })
 
+    it('updates 4 values', async () => {
+      const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+
+      const valueZero = Buffer.from('Zero')
+      const valueOne = Buffer.from('One')
+      const valueTwo = Buffer.from('Two')
+      const valueThree = Buffer.from('Three')
+
+      assert(await tree.update(ZERO, valueZero), 'Initial update 0 failed')
+      assert(await tree.update(ONE, valueOne), 'Initial update 1 failed')
+      assert(await tree.update(TWO, valueTwo), 'Initial update 2 failed')
+      assert(await tree.update(THREE, valueThree), 'Initial update 3 failed')
+
+      const proofZero: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ZERO,
+        valueZero
+      )
+      const proofOne: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ONE,
+        valueOne
+      )
+      const proofTwo: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        TWO,
+        valueTwo
+      )
+      const proofThree: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        THREE,
+        valueThree
+      )
+
+      const newValueZero: Buffer = Buffer.from('ZERO 0')
+      const newValueOne: Buffer = Buffer.from('ONE 1')
+      const newValueTwo: Buffer = Buffer.from('TWO 2')
+      const newValueThree: Buffer = Buffer.from('Three 3')
+
+      const updates: MerkleUpdate[] = []
+      updates.push({
+        key: proofZero.key,
+        oldValue: proofZero.value,
+        oldValueProofSiblings: proofZero.siblings,
+        newValue: newValueZero,
+      })
+
+      updates.push({
+        key: proofOne.key,
+        oldValue: proofOne.value,
+        oldValueProofSiblings: proofOne.siblings,
+        newValue: newValueOne,
+      })
+
+      updates.push({
+        key: proofTwo.key,
+        oldValue: proofTwo.value,
+        oldValueProofSiblings: proofTwo.siblings,
+        newValue: newValueTwo,
+      })
+      updates.push({
+        key: proofThree.key,
+        oldValue: proofThree.value,
+        oldValueProofSiblings: proofThree.siblings,
+        newValue: newValueThree,
+      })
+
+      assert(await tree.batchUpdate(updates), 'Batch update failed')
+
+      const newLeafZero: Buffer = await tree.getLeaf(
+        ZERO,
+        await tree.getRootHash()
+      )
+      const newLeafOne: Buffer = await tree.getLeaf(
+        ONE,
+        await tree.getRootHash()
+      )
+      const newLeafTwo: Buffer = await tree.getLeaf(
+        TWO,
+        await tree.getRootHash()
+      )
+      const newLeafThree: Buffer = await tree.getLeaf(
+        THREE,
+        await tree.getRootHash()
+      )
+
+      assert(newLeafZero.equals(newValueZero), 'Updated leaf 0 does not match.')
+      assert(newLeafOne.equals(newValueOne), 'Updated leaf 1 does not match.')
+      assert(newLeafTwo.equals(newValueTwo), 'Updated leaf 2 does not match.')
+      assert(
+        newLeafThree.equals(newValueThree),
+        'Updated leaf 3 does not match.'
+      )
+    })
+
     it('fails if one proof fails', async () => {
       const tree: SparseMerkleTree = new SparseMerkleTreeImpl(
         db,

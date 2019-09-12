@@ -2,7 +2,8 @@
  * HELPERS *
  ***********/
 
-import { State, UNISWAP_ADDRESS, AGGREGATOR_ADDRESS } from '../src'
+import { AGGREGATOR_ADDRESS, State, UNISWAP_ADDRESS } from '../src'
+import * as assert from 'assert'
 
 export const AGGREGATOR_MNEMONIC: string =
   'rebel talent argue catalog maple duty file taxi dust hire funny steak'
@@ -78,5 +79,42 @@ export const calculateSwapWithFees = (
 
   return Math.floor(
     expectedOutputBeforeFees - expectedOutputBeforeFees * feePct
+  )
+}
+
+export const assertThrows = (func: () => any, errorType: any): void => {
+  let succeeded = true
+  try {
+    func()
+    succeeded = false
+  } catch (e) {
+    if (!!errorType && !(e instanceof errorType)) {
+      succeeded = false
+    }
+  }
+
+  assert(
+    succeeded,
+    "Function didn't throw as expected or threw the wrong error."
+  )
+}
+
+export const assertThrowsAsync = async (
+  func: () => Promise<any>,
+  errorType: any
+): Promise<void> => {
+  let succeeded = true
+  try {
+    await func()
+    succeeded = false
+  } catch (e) {
+    if (!!errorType && !(e instanceof errorType)) {
+      succeeded = false
+    }
+  }
+
+  assert(
+    succeeded,
+    "Function didn't throw as expected or threw the wrong error."
   )
 }

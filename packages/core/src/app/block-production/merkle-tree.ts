@@ -17,8 +17,7 @@ import {
   TWO,
   ZERO,
 } from '../../types'
-import { keccak256 } from '../utils/crypto'
-import { runInDomain } from '../utils'
+import { keccak256, runInDomain } from '../utils'
 
 /**
  * SparseMerkleTree implementation assuming a 256-bit hash algorithm is used.
@@ -44,6 +43,10 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     assert(!rootHash || rootHash.length === 32, 'Root hash must be 32 bytes')
     assert(height > 0, 'SMT height needs to be > 0')
     this.populateZeroHashesAndRoot(rootHash)
+  }
+
+  public getHeight(): number {
+    return this.height
   }
 
   public async getRootHash(): Promise<Buffer> {
@@ -274,7 +277,10 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     const siblings: Buffer[] = []
     let node: MerkleTreeNode = this.root
     for (let i = 0; i < this.height - 1; i++) {
-      if (i >= existingChildren) {
+      if (
+        i > existingChildren ||
+        (i === existingChildren && (!node.value || node.value.length !== 64))
+      ) {
         siblings.push(...this.zeroHashes.slice(i + 1))
         break
       }

@@ -49,6 +49,10 @@ class MockedMerkleTree implements MerkleTree {
   public async batchUpdate(updates: MerkleUpdate[]): Promise<boolean> {
     return undefined
   }
+
+  public getHeight(): number {
+    return undefined
+  }
 }
 
 describe('MerkleTreeQuantifier', () => {

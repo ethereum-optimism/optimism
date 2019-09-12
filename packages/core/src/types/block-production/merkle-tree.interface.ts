@@ -71,6 +71,13 @@ export interface MerkleTree {
    * @returns The value at the key if one exists, else undefined
    */
   getLeaf(leafKey: BigNumber, rootHash?: Buffer): Promise<Buffer>
+
+  /**
+   * Gets the height of the Merkle tree, including the root node.
+   *
+   * @returns the height
+   */
+  getHeight(): number
 }
 
 export interface SparseMerkleTree extends MerkleTree {

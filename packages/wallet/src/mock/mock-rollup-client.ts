@@ -12,11 +12,10 @@ import {
   Balances,
   State,
   Transaction,
-  MockedSignature,
   TransactionReceipt,
   UNISWAP_ADDRESS,
   AGGREGATOR_API,
-} from '.'
+} from '../index'
 
 /**
  * Simple Rollup Client enabling getting balances & sending transactions.

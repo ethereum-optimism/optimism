@@ -2,10 +2,9 @@
 import {
   DefaultWallet,
   DefaultWalletDB,
-  BaseDB,
   WalletDB,
-  sign,
   SignatureProvider,
+  DB,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -19,10 +18,10 @@ const ROLLUP_BUCKET = 1
  * all the L2s under it.
  */
 export class UnipigWallet extends DefaultWallet {
-  private db: BaseDB
+  private db: DB
   public rollup: MockRollupClient
 
-  constructor(db: BaseDB, signatureProvider?: SignatureProvider) {
+  constructor(db: DB, signatureProvider?: SignatureProvider) {
     // Set up the keystore db
     const keystoreBucket = db.bucket(Buffer.from([KEYSTORE_BUCKET]))
     const keystoreDB: WalletDB = new DefaultWalletDB(keystoreBucket)

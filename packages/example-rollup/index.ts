@@ -3,10 +3,8 @@ import { BaseDB, SimpleClient } from '@pigi/core'
 import MemDown from 'memdown'
 import {
   State,
-  UNISWAP_ADDRESS,
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
-  AGGREGATOR_ADDRESS,
   UnipigWallet,
 } from '@pigi/wallet'
 

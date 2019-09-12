@@ -72,7 +72,7 @@ export const messageToBuffer = (
  */
 export const deserializeBuffer = (
   buffer: Buffer,
-  messageDeserializer: (string, any?) => any,
+  messageDeserializer: (string, any?) => any = (s) => JSON.parse(s),
   functionParams?: any
 ): any => {
   return messageDeserializer(buffer.toString(), functionParams)
