@@ -1,3 +1,5 @@
+import { InclusionProof } from '@pigi/core'
+
 export type UniTokenType = 'uni'
 export type PigiTokenType = 'pigi'
 export type TokenType = UniTokenType | PigiTokenType
@@ -35,19 +37,25 @@ export const isTransferTransaction = (
   return 'recipient' in transaction
 }
 
-export type Transaction = Swap | Transfer
+export interface FaucetRequest {
+  requester: Address
+  // Todo: might want to change this to token -> amount map
+  amount: number
+}
 
-export type MockedSignature = Address
-export type Signature = MockedSignature | string
+export const isFaucetTransaction = (
+  transaction: Transaction
+): transaction is FaucetRequest => {
+  return 'requester' in transaction
+}
+
+export type Transaction = Swap | Transfer | FaucetRequest
+
+export type Signature = string
 
 export interface SignedTransaction {
   signature: Signature
   transaction: Transaction
-}
-
-export interface TransactionReceipt {
-  aggregatorSignature: Signature
-  stateUpdate: any
 }
 
 export interface Storage {
@@ -60,4 +68,44 @@ export interface SignatureProvider {
 
 export interface State {
   [address: string]: Storage
+}
+
+export interface StateInclusionProof {
+  [address: string]: string[]
+}
+
+export interface StateUpdate {
+  transactions: SignedTransaction[]
+  startRoot: string
+  endRoot: string
+  updatedState: State
+  updatedStateInclusionProof: StateInclusionProof
+}
+
+export interface RollupTransition {
+  number: number
+  blockNumber: number
+  transactions: SignedTransaction[]
+  startRoot: string
+  endRoot: string
+}
+
+export interface RollupBlock {
+  number: number
+  transitions: RollupTransition[]
+}
+
+export interface TransactionReceipt {
+  blockNumber: number
+  transitionIndex: number
+  transaction: SignedTransaction
+  startRoot: string
+  endRoot: string
+  updatedState: State
+  updatedStateInclusionProof: StateInclusionProof
+}
+
+export interface SignedTransactionReceipt {
+  aggregatorSignature: Signature
+  transactionReceipt: TransactionReceipt
 }

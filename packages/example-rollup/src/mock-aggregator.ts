@@ -35,14 +35,16 @@ const host = 'localhost'
 const port = 3000
 
 async function runAggregator() {
-  const db = new BaseDB(new MemDown('') as any)
+  const stateDB = new BaseDB(new MemDown('state') as any)
+  const blockDB = new BaseDB(new MemDown('blocks') as any)
 
   const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
     genesisState,
-    db
+    stateDB
   )
 
   const aggregator = new MockAggregator(
+    blockDB,
     rollupStateMachine,
     host,
     port,

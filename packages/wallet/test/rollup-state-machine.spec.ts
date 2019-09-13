@@ -25,7 +25,7 @@ import { DB, BaseDB } from '@pigi/core'
  * TESTS *
  *********/
 
-describe('RollupStateMachine', async () => {
+describe('RollupStateMachine', () => {
   let rollupState
   let db: DB
 
@@ -42,7 +42,7 @@ describe('RollupStateMachine', async () => {
     await db.close()
   })
 
-  describe('getBalances', async () => {
+  describe('getBalances', () => {
     it('should not throw even if the account doesnt exist', async () => {
       const response = await rollupState.getBalances('this is not an address!')
       response.should.deep.equal({
@@ -52,7 +52,7 @@ describe('RollupStateMachine', async () => {
     })
   })
 
-  describe('applyTransfer', async () => {
+  describe('applyTransfer', () => {
     const txAliceToBob: SignedTransaction = {
       signature: 'alice',
       transaction: {
@@ -92,7 +92,7 @@ describe('RollupStateMachine', async () => {
     })
   })
 
-  describe('applySwap', async () => {
+  describe('applySwap', () => {
     let uniInput
     let expectedPigiAfterFees
     let txAliceSwapUni

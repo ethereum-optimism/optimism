@@ -1,5 +1,6 @@
 /* External Imports */
 import * as AsyncLock from 'async-lock'
+
 import {
   DefaultSignatureVerifier,
   serializeObject,
@@ -12,6 +13,8 @@ import {
   objectToBuffer,
   deserializeBuffer,
   ONE,
+  runInDomain,
+  MerkleTreeInclusionProof,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -29,6 +32,8 @@ import {
   PIGI_TOKEN_TYPE,
   TokenType,
   State,
+  StateUpdate,
+  StateInclusionProof,
 } from './index'
 import {
   InsufficientBalanceError,
@@ -42,7 +47,9 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
   private static readonly lockKey: string = 'lock'
 
   private readonly tree: SparseMerkleTree
-  private readonly lock: AsyncLock = new AsyncLock()
+  private readonly lock: AsyncLock = new AsyncLock({
+    domainReentrant: true,
+  })
 
   public static async create(
     genesisState: State,
@@ -93,9 +100,44 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     return balances
   }
 
+  public async applyTransactions(
+    transactions: SignedTransaction[]
+  ): Promise<StateUpdate> {
+    return runInDomain(undefined, async () => {
+      return this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+        const stateUpdates: StateUpdate[] = []
+
+        for (const tx of transactions) {
+          // TODO: How do we represent when some fail and some succeed, since the state will be partially updated?
+          stateUpdates.push(await this.applyTransaction(tx))
+        }
+
+        const startRoot: string = stateUpdates[0].startRoot
+        const endRoot: string = stateUpdates[stateUpdates.length - 1].endRoot
+        const updatedState: State = {}
+        const updatedStateInclusionProof: StateInclusionProof = {}
+        for (const update of stateUpdates) {
+          Object.assign(updatedState, update.updatedState)
+          Object.assign(
+            updatedStateInclusionProof,
+            update.updatedStateInclusionProof
+          )
+        }
+
+        return {
+          transactions,
+          startRoot,
+          endRoot,
+          updatedState,
+          updatedStateInclusionProof,
+        }
+      })
+    })
+  }
+
   public async applyTransaction(
     signedTransaction: SignedTransaction
-  ): Promise<State> {
+  ): Promise<StateUpdate> {
     let sender: Address
 
     try {
@@ -108,13 +150,37 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     }
 
     return this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+      const startRoot: string = (await this.tree.getRootHash()).toString('hex')
       const transaction: Transaction = signedTransaction.transaction
+      let updatedState: State
       if (isTransferTransaction(transaction)) {
-        return this.applyTransfer(sender, transaction)
+        updatedState = await this.applyTransfer(sender, transaction)
       } else if (isSwapTransaction(transaction)) {
-        return this.applySwap(sender, transaction)
+        updatedState = await this.applySwap(sender, transaction)
+      } else {
+        throw new InvalidTransactionTypeError()
       }
-      throw new InvalidTransactionTypeError()
+
+      const updatedStateInclusionProof: StateInclusionProof = {}
+      for (const key of Object.keys(updatedState)) {
+        const proof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
+          this.getAddressKey(key),
+          this.serializeBalances(key, updatedState[key].balances)
+        )
+        updatedStateInclusionProof[key] = proof.siblings.map((p) =>
+          p.toString('hex')
+        )
+      }
+
+      const endRoot: string = (await this.tree.getRootHash()).toString('hex')
+
+      return {
+        transactions: [signedTransaction],
+        startRoot,
+        endRoot,
+        updatedState,
+        updatedStateInclusionProof,
+      }
     })
   }
 

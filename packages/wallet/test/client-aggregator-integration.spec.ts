@@ -6,7 +6,13 @@ import MemDown from 'memdown'
 
 /* Internal Imports */
 import { AGGREGATOR_MNEMONIC, getGenesisState } from './helpers'
-import { UnipigWallet, MockAggregator, UNI_TOKEN_TYPE } from '../src'
+import {
+  UnipigWallet,
+  MockAggregator,
+  UNI_TOKEN_TYPE,
+  FaucetRequest,
+  SignedTransaction,
+} from '../src'
 import { RollupStateMachine } from '../src/types'
 import { DefaultRollupStateMachine } from '../src/rollup-state-machine'
 
@@ -16,32 +22,37 @@ import { DefaultRollupStateMachine } from '../src/rollup-state-machine'
 
 const timeout = 20_000
 
-describe('Mock Client/Aggregator Integration', async () => {
-  let db: DB
+describe('Mock Client/Aggregator Integration', () => {
+  let stateDB: DB
+  let blockDB: DB
   let accountAddress: string
   let aggregator: MockAggregator
   let unipigWallet: UnipigWallet
-  let memdown: any
+  let stateMemdown: any
+  let blockMemdown: any
   const walletPassword = 'Really great password'
 
   beforeEach(async function() {
     this.timeout(timeout)
 
-    memdown = new MemDown('') as any
-    db = new BaseDB(memdown)
-    unipigWallet = new UnipigWallet(db)
+    stateMemdown = new MemDown('state') as any
+    stateDB = new BaseDB(stateMemdown)
+    blockMemdown = new MemDown('block') as any
+    blockDB = new BaseDB(blockMemdown, 256)
+    unipigWallet = new UnipigWallet(stateDB)
 
     // Now create a wallet account
     accountAddress = await unipigWallet.createAccount(walletPassword)
 
     const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
       getGenesisState(accountAddress),
-      db
+      stateDB
     )
 
     // Initialize a mock aggregator
     await unipigWallet.unlockAccount(accountAddress, walletPassword)
     aggregator = new MockAggregator(
+      blockDB,
       rollupStateMachine,
       'localhost',
       3000,
@@ -58,11 +69,13 @@ describe('Mock Client/Aggregator Integration', async () => {
       // Close the server
       await aggregator.close()
     }
-    await db.close()
-    memdown = undefined
+    await stateDB.close()
+    stateMemdown = undefined
+    await blockDB.close()
+    blockMemdown = undefined
   })
 
-  describe('UnipigWallet', async () => {
+  describe('UnipigWallet', () => {
     it('should be able to query the aggregators balances', async () => {
       const response = await unipigWallet.getBalances(accountAddress)
       response.should.deep.equal({ uni: 50, pigi: 50 })
@@ -103,10 +116,16 @@ describe('Mock Client/Aggregator Integration', async () => {
       const newAddress = await unipigWallet.createAccount(newPassword)
       await unipigWallet.unlockAccount(newAddress, newPassword)
 
+      // Request some money for new wallet
+      const transaction: FaucetRequest = {
+        requester: newAddress,
+        amount: 10,
+      }
+
       // First collect some funds from the faucet
       const faucetRes = await unipigWallet.rollup.requestFaucetFunds(
-        newAddress,
-        10
+        transaction,
+        newAddress
       )
       faucetRes.should.deep.equal({
         uni: 10,

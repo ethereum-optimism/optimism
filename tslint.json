@@ -6,6 +6,7 @@
   ],
   "rules": {
     "ban-types": false,
+    "comment-format": false,
     "interface-name": false,
     "max-classes-per-file": false,
     "member-ordering": false,

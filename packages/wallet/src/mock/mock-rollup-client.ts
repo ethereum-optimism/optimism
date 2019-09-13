@@ -15,6 +15,7 @@ import {
   TransactionReceipt,
   UNISWAP_ADDRESS,
   AGGREGATOR_API,
+  SignedTransactionReceipt,
 } from '../index'
 
 /**
@@ -68,24 +69,32 @@ export class MockRollupClient {
       account,
       serializeObject(transaction)
     )
-    const result = await this.rpcClient.handle<TransactionReceipt>(
-      AGGREGATOR_API.applyTransaction,
+    const result: SignedTransactionReceipt = await this.rpcClient.handle<
+      SignedTransactionReceipt
+    >(AGGREGATOR_API.applyTransaction, {
+      signature,
+      transaction,
+    })
+    // TODO: Probably want too check aggregator sig and store some stuff
+    return result.transactionReceipt.updatedState
+  }
+
+  public async requestFaucetFunds(
+    transaction: Transaction,
+    account: Address
+  ): Promise<Balances> {
+    const signature = await this.signatureProvider.sign(
+      account,
+      serializeObject(transaction)
+    )
+    const result = await this.rpcClient.handle<SignedTransactionReceipt>(
+      AGGREGATOR_API.requestFaucetFunds,
       {
         signature,
         transaction,
       }
     )
-    return result.stateUpdate
-  }
-
-  public async requestFaucetFunds(
-    account: Address,
-    amount: number
-  ): Promise<Balances> {
-    const result = await this.rpcClient.handle<Balances>(
-      AGGREGATOR_API.requestFaucetFunds,
-      [account, amount]
-    )
-    return result
+    // TODO: Probably want too check aggregator sig and store some stuff
+    return result.transactionReceipt.updatedState[account].balances
   }
 }

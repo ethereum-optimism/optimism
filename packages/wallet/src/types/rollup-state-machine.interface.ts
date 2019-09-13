@@ -1,4 +1,10 @@
-import { Address, Balances, SignedTransaction, State } from './types'
+import {
+  Address,
+  Balances,
+  SignedTransaction,
+  State,
+  StateUpdate,
+} from './types'
 
 export interface RollupStateMachine {
   /**
@@ -14,7 +20,19 @@ export interface RollupStateMachine {
    * Applies the provided signed transaction, adjusting balances accordingly.
    *
    * @param signedTransaction The signed transaction to execute.
-   * @returns The updated state resulting from the transaction
+   * @returns The StateUpdate updated state resulting from the transaction
    */
-  applyTransaction(signedTransaction: SignedTransaction): Promise<State>
+  applyTransaction(signedTransaction: SignedTransaction): Promise<StateUpdate>
+
+  /**
+   * Atomically applies the provided signed transactions,
+   * adjusting balances accordingly and returning a single StateUpdate.
+   * Transactions are guaranteed to be applied sequentially.
+   *
+   * @param signedTransactions The signed transactions to execute.
+   * @returns The StateUpdate updated state resulting from the transactions
+   */
+  applyTransactions(
+    signedTransactions: SignedTransaction[]
+  ): Promise<StateUpdate>
 }
