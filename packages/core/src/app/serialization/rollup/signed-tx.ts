@@ -9,15 +9,15 @@ import { AbiTransferTx, AbiSwapTx } from '.'
  * @returns the SignedTx.
  */
 const fromEncoded = (encoded: string): AbiSignedTx => {
-  const decoded = abi.decode(AbiSignedTx.abiTypes, encoded)
+  const [signature, tx] = abi.decode(AbiSignedTx.abiTypes, encoded)
   // Check to see if the tx is a transfer
   try {
-    const transferTx = AbiTransferTx.from(decoded[1])
-    return new AbiSignedTx(decoded[0], transferTx)
+    const transferTx = AbiTransferTx.from(tx)
+    return new AbiSignedTx(signature, transferTx)
   } catch (err) {
     // If it's not a transfer, it must be a swap
-    const swapTx = AbiSwapTx.from(decoded[1])
-    return new AbiSignedTx(decoded[0], swapTx)
+    const swapTx = AbiSwapTx.from(tx)
+    return new AbiSignedTx(signature, swapTx)
   }
 }
 

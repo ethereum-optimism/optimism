@@ -8,13 +8,16 @@ import { AbiEncodable } from '../../../types'
  * @returns the SwapTx.
  */
 const fromEncoded = (encoded: string): AbiSwapTx => {
-  const decoded = abi.decode(AbiSwapTx.abiTypes, encoded)
+  const [sender, tokenType, inputAmount, minOutputAmount, timeout] = abi.decode(
+    AbiSwapTx.abiTypes,
+    encoded
+  )
   return new AbiSwapTx(
-    decoded[0],
-    +decoded[1],
-    decoded[2],
-    decoded[3],
-    decoded[4]
+    sender,
+    +tokenType,
+    inputAmount,
+    minOutputAmount,
+    timeout
   )
 }
 

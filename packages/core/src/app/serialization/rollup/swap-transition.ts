@@ -8,16 +8,25 @@ import { AbiEncodable } from '../../../types'
  * @returns the TransferNewAccountTx.
  */
 const fromEncoded = (encoded: string): AbiSwapTransition => {
-  const decoded = abi.decode(AbiSwapTransition.abiTypes, encoded)
+  const [
+    stateRoot,
+    senderSlot,
+    recipientSlot,
+    tokenType,
+    inputAmount,
+    minOutputAmount,
+    timeout,
+    signature,
+  ] = abi.decode(AbiSwapTransition.abiTypes, encoded)
   return new AbiSwapTransition(
-    decoded[0],
-    decoded[1],
-    decoded[2],
-    +decoded[3],
-    decoded[4],
-    decoded[5],
-    decoded[6],
-    decoded[7]
+    stateRoot,
+    senderSlot,
+    recipientSlot,
+    +tokenType,
+    inputAmount,
+    minOutputAmount,
+    timeout,
+    signature
   )
 }
 

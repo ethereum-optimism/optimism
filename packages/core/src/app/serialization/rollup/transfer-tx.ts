@@ -8,8 +8,11 @@ import { AbiEncodable } from '../../../types'
  * @returns the TransferTx.
  */
 const fromEncoded = (encoded: string): AbiTransferTx => {
-  const decoded = abi.decode(AbiTransferTx.abiTypes, encoded)
-  return new AbiTransferTx(decoded[0], decoded[1], +decoded[2], decoded[3])
+  const [sender, recipient, tokenType, amount] = abi.decode(
+    AbiTransferTx.abiTypes,
+    encoded
+  )
+  return new AbiTransferTx(sender, recipient, +tokenType, amount)
 }
 
 /**
