@@ -21,3 +21,9 @@ export class InvalidTransactionTypeError extends Error {
     super('Invalid transaction type!')
   }
 }
+
+export class StateMachineCapacityError extends Error {
+  constructor() {
+    super('State machine is at capacity. No more addresses may be added!')
+  }
+}
