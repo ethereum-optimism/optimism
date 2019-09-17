@@ -5,17 +5,38 @@ import { BaseDB, SimpleServer, SimpleClient } from '@pigi/core'
 import MemDown from 'memdown'
 
 /* Internal Imports */
-import { UnipigWallet, Address, SignedTransaction } from '../src'
+import {
+  UnipigWallet,
+  Address,
+  SignedTransaction,
+  SignedStateReceipt,
+} from '../src'
 
 /***********
  * HELPERS *
  ***********/
 
-// A mocked getBalances api
-const getBalances = (address: Address) => {
+const balances = {
+  uni: 5,
+  pigi: 10,
+}
+
+// A mocked getState api
+const getState = (address: Address): SignedStateReceipt => {
   return {
-    uni: 5,
-    pigi: 10,
+    signature: 'mocked',
+    stateReceipt: {
+      address,
+      stateRoot: 'mocked',
+      inclusionProof: [],
+      blockNumber: 1,
+      transitionIndex: 0,
+      state: {
+        [address]: {
+          balances,
+        },
+      },
+    },
   }
 }
 
@@ -40,11 +61,11 @@ describe('UnipigWallet', async () => {
     db = new BaseDB(new MemDown('') as any)
     unipigWallet = new UnipigWallet(db)
     // Now create a wallet account
-    accountAddress = unipigWallet.createAccount('')
+    accountAddress = await unipigWallet.createAccount('')
     // Initialize a mock aggregator
     aggregator = new SimpleServer(
       {
-        getBalances,
+        getState,
       },
       'localhost',
       3000
@@ -61,8 +82,8 @@ describe('UnipigWallet', async () => {
 
   describe('getBalance()', () => {
     it('should return an empty balance after initialized', async () => {
-      const balances = await unipigWallet.getBalances(accountAddress)
-      balances.should.deep.equal(getBalances(''))
+      const result = await unipigWallet.getBalances(accountAddress)
+      result.should.deep.equal(balances)
     }).timeout(timeout)
   })
 })

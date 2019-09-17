@@ -34,6 +34,8 @@ import {
   State,
   StateUpdate,
   StateInclusionProof,
+  StateSnapshot,
+  InclusionProof,
 } from './index'
 import {
   InsufficientBalanceError,
@@ -84,20 +86,46 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     this.tree = new SparseMerkleTreeImpl(db)
   }
 
-  public async getBalances(account: Address): Promise<Balances> {
+  public async getState(account: Address): Promise<StateSnapshot> {
     const key: BigNumber = this.getAddressKey(account)
-    const accountState: Buffer = await this.tree.getLeaf(key)
 
-    let balances: Balances
-    if (!accountState) {
-      balances = {
-        uni: 0,
-        pigi: 0,
+    const [accountState, proof, stateRoot]: [
+      Buffer,
+      MerkleTreeInclusionProof,
+      string
+    ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+      const leaf: Buffer = await this.tree.getLeaf(key)
+      if (!leaf) {
+        return [
+          undefined,
+          undefined,
+          (await this.tree.getRootHash()).toString('hex'),
+        ]
       }
+
+      const merkleProof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
+        key,
+        leaf
+      )
+      return [leaf, merkleProof, merkleProof.rootHash.toString('hex')]
+    })
+
+    let state: State
+    let inclusionProof: InclusionProof
+    if (!accountState) {
+      state = undefined
+      inclusionProof = undefined
     } else {
-      balances = this.deserializeBalances(account, accountState)
+      state = this.deserializeState(account, accountState)
+      inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))
     }
-    return balances
+
+    return {
+      address: account,
+      state,
+      stateRoot,
+      inclusionProof,
+    }
   }
 
   public async applyTransactions(
@@ -182,6 +210,15 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
         updatedStateInclusionProof,
       }
     })
+  }
+
+  private async getBalances(account: string): Promise<Balances> {
+    const key: BigNumber = this.getAddressKey(account)
+
+    const leaf: Buffer = await this.tree.getLeaf(key)
+    return !!leaf
+      ? this.deserializeState(account, leaf)[account].balances
+      : { uni: 0, pigi: 0 }
   }
 
   private async setAddressState(
@@ -322,9 +359,8 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     return objectToBuffer(this.getStateFromBalances(address, balances))
   }
 
-  private deserializeBalances(address: string, state: Buffer): Balances {
-    const stateObj: State = deserializeBuffer(state)
-    return stateObj[address].balances
+  private deserializeState(address: string, state: Buffer): State {
+    return deserializeBuffer(state)
   }
 
   private getStateFromBalances(address: string, balances: Balances): State {

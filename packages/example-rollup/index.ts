@@ -7,11 +7,14 @@ import {
   PIGI_TOKEN_TYPE,
   UnipigWallet,
   FaucetRequest,
+  SignedTransactionReceipt,
 } from '@pigi/wallet'
 import { ethers } from 'ethers'
 
 /* Global declarations */
 declare var document: any
+
+const UNISWAP_ADDRESS = '0x' + 'ff'.repeat(32)
 
 /* Functions which update UI */
 const updateAccountAddress = (address) => {
@@ -82,7 +85,7 @@ async function onTransferFundsClicked() {
   const tokenType = selectedIndex === 0 ? UNI_TOKEN_TYPE : PIGI_TOKEN_TYPE
   const amount = parseInt(document.getElementById('send-amount').value, 10)
   const recipient = document.getElementById('send-recipient').value
-  const response: State = await unipigWallet.rollup.sendTransaction(
+  const response: SignedTransactionReceipt = await unipigWallet.rollup.sendTransaction(
     {
       tokenType,
       recipient,
@@ -90,14 +93,16 @@ async function onTransferFundsClicked() {
     },
     wallet.address
   )
-  updateBalances(response.sender.balances)
+  updateBalances(
+    response.transactionReceipt.updatedState[wallet.address].balances
+  )
 }
 
 async function onSwapFundsClicked() {
   const selectedIndex = document.getElementById('swap-token-type').selectedIndex
   const tokenType = selectedIndex === 0 ? UNI_TOKEN_TYPE : PIGI_TOKEN_TYPE
   const inputAmount = parseInt(document.getElementById('swap-amount').value, 10)
-  const response: State = await unipigWallet.rollup.sendTransaction(
+  const response: SignedTransactionReceipt = await unipigWallet.rollup.sendTransaction(
     {
       tokenType,
       inputAmount,
@@ -106,8 +111,12 @@ async function onSwapFundsClicked() {
     },
     wallet.address
   )
-  updateBalances(response.sender.balances)
-  updateUniswapBalances(response.uniswap.balances)
+  updateBalances(
+    response.transactionReceipt.updatedState[wallet.address].balances
+  )
+  updateUniswapBalances(
+    response.transactionReceipt.updatedState[UNISWAP_ADDRESS].balances
+  )
 }
 
 fetchBalanceUpdate()

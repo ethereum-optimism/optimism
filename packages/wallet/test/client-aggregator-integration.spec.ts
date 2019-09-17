@@ -7,14 +7,14 @@ import MemDown from 'memdown'
 /* Internal Imports */
 import { AGGREGATOR_MNEMONIC, getGenesisState } from './helpers'
 import {
+  DefaultRollupStateMachine,
   UnipigWallet,
-  MockAggregator,
+  RollupAggregator,
+  RollupStateMachine,
   UNI_TOKEN_TYPE,
   FaucetRequest,
-  SignedTransaction,
+  SignedTransactionReceipt,
 } from '../src'
-import { RollupStateMachine } from '../src/types'
-import { DefaultRollupStateMachine } from '../src/rollup-state-machine'
 
 /*********
  * TESTS *
@@ -26,7 +26,7 @@ describe('Mock Client/Aggregator Integration', () => {
   let stateDB: DB
   let blockDB: DB
   let accountAddress: string
-  let aggregator: MockAggregator
+  let aggregator: RollupAggregator
   let unipigWallet: UnipigWallet
   let stateMemdown: any
   let blockMemdown: any
@@ -51,7 +51,7 @@ describe('Mock Client/Aggregator Integration', () => {
 
     // Initialize a mock aggregator
     await unipigWallet.unlockAccount(accountAddress, walletPassword)
-    aggregator = new MockAggregator(
+    aggregator = new RollupAggregator(
       blockDB,
       rollupStateMachine,
       'localhost',
@@ -83,7 +83,7 @@ describe('Mock Client/Aggregator Integration', () => {
 
     it('should return an error if the wallet tries to transfer money it doesnt have', async () => {
       try {
-        const response = await unipigWallet.rollup.sendTransaction(
+        await unipigWallet.rollup.sendTransaction(
           {
             tokenType: UNI_TOKEN_TYPE,
             recipient: 'testing123',
@@ -99,7 +99,7 @@ describe('Mock Client/Aggregator Integration', () => {
     it('should successfully transfer if alice sends money', async () => {
       // Set "sign" to instead sign for alice
       const recipient = 'testing123'
-      const response = await unipigWallet.rollup.sendTransaction(
+      const response: SignedTransactionReceipt = await unipigWallet.rollup.sendTransaction(
         {
           tokenType: UNI_TOKEN_TYPE,
           recipient,
@@ -107,7 +107,9 @@ describe('Mock Client/Aggregator Integration', () => {
         },
         accountAddress
       )
-      response[recipient].balances.uni.should.equal(10)
+      response.transactionReceipt.updatedState[
+        recipient
+      ].balances.uni.should.equal(10)
     }).timeout(timeout)
 
     it('should successfully transfer if first faucet is requested', async () => {
@@ -123,16 +125,18 @@ describe('Mock Client/Aggregator Integration', () => {
       }
 
       // First collect some funds from the faucet
-      const faucetRes = await unipigWallet.rollup.requestFaucetFunds(
+      const faucetRes: SignedTransactionReceipt = await unipigWallet.rollup.requestFaucetFunds(
         transaction,
         newAddress
       )
-      faucetRes.should.deep.equal({
+      faucetRes.transactionReceipt.updatedState[
+        newAddress
+      ].balances.should.deep.equal({
         uni: 10,
         pigi: 10,
       })
 
-      const transferRes = await unipigWallet.rollup.sendTransaction(
+      const transferRes: SignedTransactionReceipt = await unipigWallet.rollup.sendTransaction(
         {
           tokenType: UNI_TOKEN_TYPE,
           recipient,
@@ -140,7 +144,9 @@ describe('Mock Client/Aggregator Integration', () => {
         },
         newAddress
       )
-      transferRes[recipient].balances.uni.should.equal(10)
+      transferRes.transactionReceipt.updatedState[
+        recipient
+      ].balances.uni.should.equal(10)
     }).timeout(timeout)
   })
 })

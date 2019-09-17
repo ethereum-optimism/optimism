@@ -3,18 +3,18 @@ import {
   Balances,
   SignedTransaction,
   State,
+  StateSnapshot,
   StateUpdate,
 } from './types'
 
 export interface RollupStateMachine {
   /**
-   * Gets the balances for the provided address.
-   * This should never be undefined, instead returning zero balances when missing.
+   * Gets the state for the provided address, if one exists.
    *
    * @param account The account in question
-   * @returns The Balances object
+   * @returns The StateSnapshot object with the state and the inclusion proof
    */
-  getBalances(account: Address): Promise<Balances>
+  getState(account: Address): Promise<StateSnapshot>
 
   /**
    * Applies the provided signed transaction, adjusting balances accordingly.

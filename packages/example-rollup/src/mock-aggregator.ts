@@ -5,7 +5,7 @@ import {
   State,
   UNISWAP_ADDRESS,
   AGGREGATOR_ADDRESS,
-  MockAggregator,
+  RollupAggregator,
   RollupStateMachine,
   DefaultRollupStateMachine,
 } from '@pigi/wallet'
@@ -43,7 +43,7 @@ async function runAggregator() {
     stateDB
   )
 
-  const aggregator = new MockAggregator(
+  const aggregator = new RollupAggregator(
     blockDB,
     rollupStateMachine,
     host,

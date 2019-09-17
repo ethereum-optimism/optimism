@@ -1,4 +1,4 @@
-import { Address, TokenType, Transaction } from '../index'
+import { Address, TokenType, Transaction } from './index'
 import { SignatureProvider, SignatureVerifier } from '@pigi/core'
 
 /* Utilities */

@@ -8,7 +8,13 @@ import {
 } from '@pigi/core'
 
 /* Internal Imports */
-import { Address, Balances, TransactionReceipt, MockRollupClient } from '.'
+import {
+  Address,
+  Balances,
+  TransactionReceipt,
+  RollupClient,
+  SignedStateReceipt,
+} from '.'
 
 const KEYSTORE_BUCKET = 0
 const ROLLUP_BUCKET = 1
@@ -19,7 +25,7 @@ const ROLLUP_BUCKET = 1
  */
 export class UnipigWallet extends DefaultWallet {
   private db: DB
-  public rollup: MockRollupClient
+  public rollup: RollupClient
 
   constructor(db: DB, signatureProvider?: SignatureProvider) {
     // Set up the keystore db
@@ -29,7 +35,7 @@ export class UnipigWallet extends DefaultWallet {
 
     // Set up the rollup client db
     const rollupBucket = db.bucket(Buffer.from([ROLLUP_BUCKET]))
-    this.rollup = new MockRollupClient(rollupBucket, signatureProvider || this)
+    this.rollup = new RollupClient(rollupBucket, signatureProvider || this)
 
     // Save a reference to our db
     this.db = db
@@ -37,6 +43,12 @@ export class UnipigWallet extends DefaultWallet {
 
   public async getBalances(account: Address): Promise<Balances> {
     // For now we only have one client so just get the rollup balance
-    return this.rollup.getBalances(account)
+    const state = await this.rollup.getState(account)
+
+    // TODO: We'll want to persist this State & Signature
+
+    return !!state.stateReceipt.state
+      ? state.stateReceipt.state[account].balances
+      : undefined
   }
 }

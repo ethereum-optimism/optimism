@@ -12,20 +12,20 @@ import {
   Balances,
   State,
   Transaction,
-  TransactionReceipt,
   UNISWAP_ADDRESS,
   AGGREGATOR_API,
   SignedTransactionReceipt,
-} from '../index'
+  SignedStateReceipt,
+} from './index'
 
 /**
  * Simple Rollup Client enabling getting balances & sending transactions.
  */
-export class MockRollupClient {
+export class RollupClient {
   public rpcClient: RpcClient
 
   /**
-   * Initializes the MockRollupClient
+   * Initializes the RollupClient
    * @param db the KeyValueStore used by the Rollup Client. Note this is mocked
    *           and so we don't currently use the DB.
    * @param signatureProvider
@@ -49,52 +49,48 @@ export class MockRollupClient {
    * Connects to an aggregator using a provided rpcClient
    * @param rpcClient the rpcClient to use -- normally it's a SimpleClient
    */
-  public async getBalances(account: Address): Promise<Balances> {
-    const balances = await this.rpcClient.handle<Balances>(
-      AGGREGATOR_API.getBalances,
+  public async getState(account: Address): Promise<SignedStateReceipt> {
+    return this.rpcClient.handle<SignedStateReceipt>(
+      AGGREGATOR_API.getState,
       account
     )
-    return balances
   }
 
-  public async getUniswapBalances(): Promise<Balances> {
-    return this.getBalances(UNISWAP_ADDRESS)
+  public async getUniswapBalances(): Promise<SignedStateReceipt> {
+    return this.getState(UNISWAP_ADDRESS)
   }
 
   public async sendTransaction(
     transaction: Transaction,
     account: Address
-  ): Promise<State> {
+  ): Promise<SignedTransactionReceipt> {
     const signature = await this.signatureProvider.sign(
       account,
       serializeObject(transaction)
     )
-    const result: SignedTransactionReceipt = await this.rpcClient.handle<
-      SignedTransactionReceipt
-    >(AGGREGATOR_API.applyTransaction, {
-      signature,
-      transaction,
-    })
-    // TODO: Probably want too check aggregator sig and store some stuff
-    return result.transactionReceipt.updatedState
+    return this.rpcClient.handle<SignedTransactionReceipt>(
+      AGGREGATOR_API.applyTransaction,
+      {
+        signature,
+        transaction,
+      }
+    )
   }
 
   public async requestFaucetFunds(
     transaction: Transaction,
     account: Address
-  ): Promise<Balances> {
+  ): Promise<SignedTransactionReceipt> {
     const signature = await this.signatureProvider.sign(
       account,
       serializeObject(transaction)
     )
-    const result = await this.rpcClient.handle<SignedTransactionReceipt>(
+    return this.rpcClient.handle<SignedTransactionReceipt>(
       AGGREGATOR_API.requestFaucetFunds,
       {
         signature,
         transaction,
       }
     )
-    // TODO: Probably want too check aggregator sig and store some stuff
-    return result.transactionReceipt.updatedState[account].balances
   }
 }

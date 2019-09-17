@@ -1,5 +1,6 @@
 import MemDown from 'memdown'
 import './setup'
+import { DB, BaseDB } from '@pigi/core'
 
 import {
   assertThrowsAsync,
@@ -15,7 +16,6 @@ import {
   DefaultRollupStateMachine,
   SignedTransaction,
 } from '../src'
-import { DB, BaseDB } from '@pigi/core'
 
 /* External Imports */
 

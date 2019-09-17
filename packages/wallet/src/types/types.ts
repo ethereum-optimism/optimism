@@ -70,8 +70,10 @@ export interface State {
   [address: string]: Storage
 }
 
+export type InclusionProof = string[]
+
 export interface StateInclusionProof {
-  [address: string]: string[]
+  [address: string]: InclusionProof
 }
 
 export interface StateUpdate {
@@ -106,6 +108,23 @@ export interface TransactionReceipt {
 }
 
 export interface SignedTransactionReceipt {
-  aggregatorSignature: Signature
   transactionReceipt: TransactionReceipt
+  signature: Signature
+}
+
+export interface StateSnapshot {
+  address: string
+  state: State
+  stateRoot: string
+  inclusionProof: InclusionProof
+}
+
+export interface StateReceipt extends StateSnapshot {
+  blockNumber: number
+  transitionIndex: number
+}
+
+export interface SignedStateReceipt {
+  stateReceipt: StateReceipt
+  signature: Signature
 }
