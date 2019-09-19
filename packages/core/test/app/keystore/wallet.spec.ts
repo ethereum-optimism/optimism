@@ -5,7 +5,12 @@ import MemDown from 'memdown'
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { DefaultWallet, DefaultWalletDB, BaseDB } from '../../../src/app'
+import {
+  DefaultWallet,
+  DefaultWalletDB,
+  BaseDB,
+  NULL_ADDRESS,
+} from '../../../src/app'
 
 const timeout = 10_000
 
@@ -66,7 +71,7 @@ describe('DefaultWallet', () => {
     }).timeout(timeout)
 
     it('should throw if the account does not exist', async () => {
-      const account = '0x0000000000000000000000000000000000000000'
+      const account = NULL_ADDRESS
 
       await wallet
         .unlockAccount(account, 'password')

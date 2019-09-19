@@ -27,3 +27,15 @@ export class StateMachineCapacityError extends Error {
     super('State machine is at capacity. No more addresses may be added!')
   }
 }
+
+export class InvalidTokenTypeError extends Error {
+  constructor(type) {
+    super(`Invalid token type received [${type}]. Must be 0 or 1.`)
+  }
+}
+
+export class SignatureError extends Error {
+  constructor() {
+    super('Signature is invalid for the message in question.')
+  }
+}

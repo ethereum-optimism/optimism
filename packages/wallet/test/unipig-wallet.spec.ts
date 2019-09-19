@@ -10,6 +10,10 @@ import {
   Address,
   SignedTransaction,
   SignedStateReceipt,
+  UNI_TOKEN_TYPE,
+  PIGI_TOKEN_TYPE,
+  EMPTY_AGGREGATOR_SIGNATURE,
+  NON_EXISTENT_LEAF_ID,
 } from '../src'
 
 /***********
@@ -17,24 +21,23 @@ import {
  ***********/
 
 const balances = {
-  uni: 5,
-  pigi: 10,
+  [UNI_TOKEN_TYPE]: 5,
+  [PIGI_TOKEN_TYPE]: 10,
 }
 
 // A mocked getState api
-const getState = (address: Address): SignedStateReceipt => {
+const getState = (pubKey: Address): SignedStateReceipt => {
   return {
-    signature: 'mocked',
+    signature: EMPTY_AGGREGATOR_SIGNATURE,
     stateReceipt: {
-      address,
+      slotIndex: NON_EXISTENT_LEAF_ID,
       stateRoot: 'mocked',
       inclusionProof: [],
       blockNumber: 1,
       transitionIndex: 0,
       state: {
-        [address]: {
-          balances,
-        },
+        pubKey,
+        balances,
       },
     },
   }

@@ -26,13 +26,14 @@ export interface RollupStateMachine {
 
   /**
    * Atomically applies the provided signed transactions,
-   * adjusting balances accordingly and returning a single StateUpdate.
+   * adjusting balances accordingly and returning the resulting StateUpdates.
    * Transactions are guaranteed to be applied sequentially.
    *
    * @param signedTransactions The signed transactions to execute.
-   * @returns The StateUpdate updated state resulting from the transactions
+   * @returns The StateUpdates updated states resulting from the
+   * transactions in the order in which they were passed to this function.
    */
   applyTransactions(
     signedTransactions: SignedTransaction[]
-  ): Promise<StateUpdate>
+  ): Promise<StateUpdate[]>
 }

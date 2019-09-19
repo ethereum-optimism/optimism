@@ -5,6 +5,8 @@ import * as domain from 'domain'
 import { Transaction } from '../../types'
 import { BIG_ENDIAN, BigNumber } from '../../types/number'
 
+export const NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
+
 /**
  * JSON-stringifies a value if it's not already a string.
  * @param value Value to stringify.

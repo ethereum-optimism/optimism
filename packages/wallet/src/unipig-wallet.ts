@@ -5,16 +5,12 @@ import {
   WalletDB,
   SignatureProvider,
   DB,
+  SignatureVerifier,
+  DefaultSignatureVerifier,
 } from '@pigi/core'
 
 /* Internal Imports */
-import {
-  Address,
-  Balances,
-  TransactionReceipt,
-  RollupClient,
-  SignedStateReceipt,
-} from '.'
+import { Address, Balances, RollupClient, SignedStateReceipt } from '.'
 
 const KEYSTORE_BUCKET = 0
 const ROLLUP_BUCKET = 1
@@ -27,7 +23,11 @@ export class UnipigWallet extends DefaultWallet {
   private db: DB
   public rollup: RollupClient
 
-  constructor(db: DB, signatureProvider?: SignatureProvider) {
+  constructor(
+    db: DB,
+    signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
+    signatureProvider?: SignatureProvider
+  ) {
     // Set up the keystore db
     const keystoreBucket = db.bucket(Buffer.from([KEYSTORE_BUCKET]))
     const keystoreDB: WalletDB = new DefaultWalletDB(keystoreBucket)
@@ -35,7 +35,11 @@ export class UnipigWallet extends DefaultWallet {
 
     // Set up the rollup client db
     const rollupBucket = db.bucket(Buffer.from([ROLLUP_BUCKET]))
-    this.rollup = new RollupClient(rollupBucket, signatureProvider || this)
+    this.rollup = new RollupClient(
+      rollupBucket,
+      signatureProvider || this,
+      signatureVerifier
+    )
 
     // Save a reference to our db
     this.db = db
@@ -48,7 +52,7 @@ export class UnipigWallet extends DefaultWallet {
     // TODO: We'll want to persist this State & Signature
 
     return !!state.stateReceipt.state
-      ? state.stateReceipt.state[account].balances
+      ? state.stateReceipt.state.balances
       : undefined
   }
 }

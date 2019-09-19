@@ -10,6 +10,8 @@ export const abi = new ethers.utils.AbiCoder()
 export * from './buffer'
 export * from './crypto'
 export * from './equals'
+export * from './log'
+export * from '../../types/utils/log'
 export * from './misc'
 export * from '../../types/number'
 export * from './range'

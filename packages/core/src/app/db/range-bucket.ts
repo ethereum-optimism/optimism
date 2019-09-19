@@ -26,7 +26,7 @@ import {
 
 /* Logging */
 import debug from 'debug'
-const log = debug('info:range-db')
+const log = debug('debug:range-db')
 
 /**
  * Simple bucket implementation that forwards all
