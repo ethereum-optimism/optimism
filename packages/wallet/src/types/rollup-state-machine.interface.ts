@@ -1,11 +1,4 @@
-import {
-  Address,
-  Balances,
-  SignedTransaction,
-  State,
-  StateSnapshot,
-  StateUpdate,
-} from './types'
+import { Address, SignedTransaction, StateSnapshot, StateUpdate } from './types'
 
 export interface RollupStateMachine {
   /**

@@ -16,7 +16,6 @@ import {
 import {
   Address,
   SignedTransaction,
-  Balances,
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
   generateTransferTx,
@@ -35,7 +34,6 @@ import {
   StateReceipt,
   abiEncodeStateReceipt,
   isSwapTransaction,
-  isTransferTransaction,
   Transfer,
   abiEncodeTransition,
   TransferTransition,

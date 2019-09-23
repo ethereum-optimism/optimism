@@ -1,9 +1,10 @@
 export * from './rollup-aggregator'
 export * from './rollup-client'
+export * from './rollup-state-solver'
 export * from './rollup-state-machine'
 export * from './serialization/'
 export * from './types/'
-export * from './unipig-wallet'
+export * from './unipig-transitioner'
 export * from './utils'
 
 /* Aggregator API */

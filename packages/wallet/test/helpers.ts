@@ -1,15 +1,18 @@
-/***********
- * HELPERS *
- ***********/
+/* External Imports */
+import { ImplicationProofItem } from '@pigi/core'
+import * as assert from 'assert'
 
+/* Internal Imports */
 import {
   AGGREGATOR_ADDRESS,
   PIGI_TOKEN_TYPE,
+  RollupStateSolver,
+  SignedStateReceipt,
   State,
+  StateReceipt,
   UNI_TOKEN_TYPE,
   UNISWAP_ADDRESS,
 } from '../src'
-import * as assert from 'assert'
 
 export const ALICE_GENESIS_STATE_INDEX = 0
 export const UNISWAP_GENESIS_STATE_INDEX = 1
@@ -138,4 +141,44 @@ export const assertThrowsAsync = async (
     succeeded,
     "Function didn't throw as expected or threw the wrong error."
   )
+}
+
+export class DummyRollupStateSolver implements RollupStateSolver {
+  private validityResult: boolean = true
+  private fraudProof: ImplicationProofItem[]
+  private storeErrorToThrow: Error
+
+  public setFraudProof(fraudProof: ImplicationProofItem[]): void {
+    this.fraudProof = fraudProof
+  }
+
+  public setValidityResult(validityResult: boolean): void {
+    this.validityResult = validityResult
+  }
+
+  public setStoreErrorToThrow(storeErrorToThrow: Error): void {
+    this.storeErrorToThrow = storeErrorToThrow
+  }
+
+  public async getFraudProof(
+    stateReceipt: StateReceipt,
+    signer: string
+  ): Promise<ImplicationProofItem[]> {
+    return this.fraudProof
+  }
+
+  public async isStateReceiptProvablyValid(
+    stateReceipt: StateReceipt,
+    signer: string
+  ): Promise<boolean> {
+    return this.validityResult
+  }
+
+  public async storeSignedStateReceipt(
+    signedReceipt: SignedStateReceipt
+  ): Promise<void> {
+    if (!!this.storeErrorToThrow) {
+      throw this.storeErrorToThrow
+    }
+  }
 }

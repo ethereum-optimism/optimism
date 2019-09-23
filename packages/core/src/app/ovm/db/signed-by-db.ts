@@ -2,6 +2,8 @@ import { SignedByDBInterface } from '../../../types/ovm/db/signed-by-db.interfac
 import { Message, SignedMessage } from '../../../types/serialization'
 import { DB } from '../../../types/db'
 import { decryptWithPublicKey, Md5Hash } from '../../utils'
+import { SignatureVerifier } from '../../../types/keystore'
+import { DefaultSignatureVerifier } from '../../keystore'
 
 interface Record {
   signerPublicKey: Buffer
@@ -13,7 +15,10 @@ interface Record {
  * DB to store and access message signatures.
  */
 export class SignedByDB implements SignedByDBInterface {
-  public constructor(private readonly db: DB) {}
+  public constructor(
+    private readonly db: DB,
+    private readonly singatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
+  ) {}
 
   public async handleMessage(
     message: Message,
@@ -31,6 +36,7 @@ export class SignedByDB implements SignedByDBInterface {
     signature: Buffer,
     signerPublicKey: Buffer
   ): Promise<void> {
+    // TODO: USE SIGNATURE VERIFIER HERE
     const message: Buffer = decryptWithPublicKey(
       signerPublicKey,
       signature

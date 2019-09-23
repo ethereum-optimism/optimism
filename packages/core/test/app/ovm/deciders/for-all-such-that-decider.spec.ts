@@ -4,15 +4,16 @@ import {
   ForAllSuchThatDecider,
   ForAllSuchThatInput,
   CannotDecideError,
+  TrueDecider,
+  FalseDecider,
+  CannotDecideDecider,
 } from '../../../../src/app/ovm/deciders'
-import { CannotDecideDecider, FalseDecider, TrueDecider } from './utils'
 import {
   Decision,
   Property,
   PropertyFactory,
   Quantifier,
   QuantifierResult,
-  WitnessFactory,
 } from '../../../../src/types/ovm'
 import * as assert from 'assert'
 

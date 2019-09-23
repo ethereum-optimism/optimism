@@ -1,11 +1,13 @@
 import '../../../setup'
 
 import {
+  CannotDecideDecider,
   CannotDecideError,
+  FalseDecider,
   NotDecider,
   NotDeciderInput,
+  TrueDecider,
 } from '../../../../src/app/ovm/deciders'
-import { CannotDecideDecider, FalseDecider, TrueDecider } from './utils'
 import { Decision } from '../../../../src/types/ovm'
 import * as assert from 'assert'
 

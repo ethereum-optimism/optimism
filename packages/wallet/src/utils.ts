@@ -7,7 +7,7 @@ export const UNISWAP_ADDRESS = NULL_ADDRESS
 export const UNI_TOKEN_TYPE = 0
 export const PIGI_TOKEN_TYPE = 1
 
-export const NON_EXISTENT_LEAF_ID = -1
+export const NON_EXISTENT_SLOT_INDEX = -1
 export const EMPTY_AGGREGATOR_SIGNATURE = 'THIS IS EMPTY'
 
 /* Utilities */

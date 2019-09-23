@@ -21,7 +21,7 @@ import {
   SignatureError,
   abiEncodeStateReceipt,
   EMPTY_AGGREGATOR_SIGNATURE,
-  NON_EXISTENT_LEAF_ID,
+  NON_EXISTENT_SLOT_INDEX,
 } from './index'
 
 const log = getLogger('rollup-client')
@@ -36,13 +36,11 @@ export class RollupClient {
    * Initializes the RollupClient
    * @param db the KeyValueStore used by the Rollup Client. Note this is mocked
    *           and so we don't currently use the DB.
-   * @param signatureProvider The signer for this client
    * @param signatureVerifier The signature verifier for this client, able to verify
    * response signatures
    */
   constructor(
     private readonly db: KeyValueStore,
-    private readonly signatureProvider: SignatureProvider,
     private readonly signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
   ) {}
 
@@ -69,16 +67,12 @@ export class RollupClient {
     return receipt
   }
 
-  public async getUniswapBalances(): Promise<SignedStateReceipt> {
-    return this.getState(UNISWAP_ADDRESS)
-  }
-
   public async sendTransaction(
     transaction: RollupTransaction,
-    account: Address
+    signatureProvider: SignatureProvider
   ): Promise<SignedStateReceipt[]> {
-    const signature = await this.signatureProvider.sign(
-      account,
+    const signature = await signatureProvider.sign(
+      transaction.sender,
       abiEncodeTransaction(transaction)
     )
     const receipts: SignedStateReceipt[] = await this.rpcClient.handle<
@@ -88,15 +82,19 @@ export class RollupClient {
       transaction,
     })
 
+    for (const receipt of receipts) {
+      this.verifyTransactionReceipt(receipt)
+    }
+
     return receipts
   }
 
   public async requestFaucetFunds(
     transaction: RollupTransaction,
-    account: Address
+    signatureProvider: SignatureProvider
   ): Promise<SignedStateReceipt> {
-    const signature = await this.signatureProvider.sign(
-      account,
+    const signature = await signatureProvider.sign(
+      transaction.sender,
       serializeObject(transaction)
     )
     const receipt: SignedStateReceipt = await this.rpcClient.handle<
@@ -112,7 +110,7 @@ export class RollupClient {
   private verifyTransactionReceipt(receipt: SignedStateReceipt): void {
     if (
       receipt.signature === EMPTY_AGGREGATOR_SIGNATURE &&
-      receipt.stateReceipt.slotIndex === NON_EXISTENT_LEAF_ID
+      receipt.stateReceipt.slotIndex === NON_EXISTENT_SLOT_INDEX
     ) {
       return
     }

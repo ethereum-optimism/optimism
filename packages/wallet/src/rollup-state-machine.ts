@@ -40,7 +40,7 @@ import {
   abiEncodeTransaction,
   abiEncodeState,
   parseStateFromABI,
-  NON_EXISTENT_LEAF_ID,
+  NON_EXISTENT_SLOT_INDEX,
 } from './index'
 import {
   InsufficientBalanceError,
@@ -137,7 +137,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     if (!accountState) {
       state = undefined
       inclusionProof = undefined
-      slotIndex = NON_EXISTENT_LEAF_ID
+      slotIndex = NON_EXISTENT_SLOT_INDEX
     } else {
       state = this.deserializeState(accountState)
       inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))

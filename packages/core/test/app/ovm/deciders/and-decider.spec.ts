@@ -3,18 +3,18 @@ import '../../../setup'
 import {
   AndDecider,
   AndDeciderInput,
+  CannotDecideDecider,
   CannotDecideError,
-} from '../../../../src/app/ovm/deciders'
-import { CannotDecideDecider, FalseDecider, TrueDecider } from './utils'
+  FalseDecider,
+  TrueDecider,
+} from '../../../../src/app'
 import { Decision } from '../../../../src/types/ovm'
 import * as assert from 'assert'
 
 describe('AndDecider', () => {
   let decider: AndDecider
   const leftInput: string = 'test'
-  const leftWitness: string = 'witness'
   const rightInput: string = 'test 2'
-  const rightWitness: string = 'witness 2'
 
   const trueDecider: TrueDecider = new TrueDecider()
   const falseDecider: FalseDecider = new FalseDecider()

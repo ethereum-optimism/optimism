@@ -1,13 +1,19 @@
 /* Imports */
-import { BaseDB, SimpleClient } from '@pigi/core'
-import MemDown from 'memdown'
 import {
-  State,
+  DB,
+  newInMemoryDB,
+  SignedByDB,
+  SignedByDecider,
+  SimpleClient,
+} from '@pigi/core'
+import {
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
-  UnipigWallet,
-  FaucetRequest,
-  SignedStateReceipt,
+  UnipigTransitioner,
+  RollupClient,
+  Balances,
+  RollupStateSolver,
+  DefaultRollupStateSolver,
 } from '@pigi/wallet'
 import { ethers } from 'ethers'
 
@@ -50,34 +56,45 @@ setTimeout(() => {
 /*
  * Body
  */
-const db = new BaseDB(new MemDown('ovm') as any)
-const unipigWallet = new UnipigWallet(db)
-// Now create a wallet account
 
 const wallet: ethers.Wallet = ethers.Wallet.createRandom()
 
+const signatureDB: DB = newInMemoryDB()
+const signedByDB: SignedByDB = new SignedByDB(signatureDB)
+const signedByDecider: SignedByDecider = new SignedByDecider(
+  signedByDB,
+  Buffer.from(wallet.address)
+)
+const rollupStateSolver: RollupStateSolver = new DefaultRollupStateSolver(
+  signedByDB,
+  signedByDecider
+)
+const rollupClient: RollupClient = new RollupClient(newInMemoryDB())
+const unipigWallet = new UnipigTransitioner(
+  newInMemoryDB(),
+  rollupStateSolver,
+  rollupClient
+)
+// Now create a wallet account
+
 // Connect to the mock aggregator
-unipigWallet.rollup.connect(new SimpleClient('http://localhost:3000'))
+rollupClient.connect(new SimpleClient('http://localhost:3000'))
 
 updateAccountAddress(wallet.address)
 
 async function fetchBalanceUpdate() {
   const balances = await unipigWallet.getBalances(wallet.address)
-  const uniswapBalances = await unipigWallet.rollup.getUniswapBalances()
+  const uniswapBalances = await unipigWallet.getUniswapBalances()
   updateBalances(balances)
   updateUniswapBalances(uniswapBalances)
 }
 
 async function onRequestFundsClicked() {
-  const transaction: FaucetRequest = {
-    sender: wallet.address,
-    amount: 10,
-  }
-  const response = await unipigWallet.rollup.requestFaucetFunds(
-    transaction,
+  await unipigWallet.requestFaucetFunds(wallet.address, 10)
+  const updatedBalances: Balances = await unipigWallet.getBalances(
     wallet.address
   )
-  updateBalances(response)
+  updateBalances(updatedBalances)
 }
 
 async function onTransferFundsClicked() {
@@ -85,34 +102,32 @@ async function onTransferFundsClicked() {
   const tokenType = selectedIndex === 0 ? UNI_TOKEN_TYPE : PIGI_TOKEN_TYPE
   const amount = parseInt(document.getElementById('send-amount').value, 10)
   const recipient = document.getElementById('send-recipient').value
-  const response: SignedStateReceipt[] = await unipigWallet.rollup.sendTransaction(
-    {
-      sender: wallet.address,
-      recipient,
-      tokenType,
-      amount,
-    },
+
+  await unipigWallet.send(tokenType, wallet.address, recipient, amount)
+  const updatedBalances: Balances = await unipigWallet.getBalances(
     wallet.address
   )
-  updateBalances(response[0].stateReceipt.state.balances)
+
+  updateBalances(updatedBalances)
 }
 
 async function onSwapFundsClicked() {
   const selectedIndex = document.getElementById('swap-token-type').selectedIndex
   const tokenType = selectedIndex === 0 ? UNI_TOKEN_TYPE : PIGI_TOKEN_TYPE
   const inputAmount = parseInt(document.getElementById('swap-amount').value, 10)
-  const response: SignedStateReceipt[] = await unipigWallet.rollup.sendTransaction(
-    {
-      sender: wallet.address,
-      tokenType,
-      inputAmount,
-      minOutputAmount: 0,
-      timeout: +new Date() + 1000,
-    },
-    wallet.address
+  await unipigWallet.swap(
+    tokenType,
+    wallet.address,
+    inputAmount,
+    0,
+    +new Date() + 1000
   )
-  updateBalances(response[0].stateReceipt.state.balances)
-  updateUniswapBalances(response[1].stateReceipt.state.balances)
+  const [senderBalance, uniswapBalance] = await Promise.all([
+    unipigWallet.getBalances(wallet.address),
+    unipigWallet.getBalances(UNISWAP_ADDRESS),
+  ])
+  updateBalances(senderBalance)
+  updateUniswapBalances(uniswapBalance)
 }
 
 fetchBalanceUpdate()

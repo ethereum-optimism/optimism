@@ -7,11 +7,7 @@ import {
 } from '../../../../src/app/ovm/deciders'
 import { BaseDB } from '../../../../src/app/db'
 import { keccak256 } from '../../../../src/app/utils'
-import {
-  Decision,
-  HashPreimageDbInterface,
-  ImplicationProofItem,
-} from '../../../../src/types/ovm'
+import { Decision, ImplicationProofItem } from '../../../../src/types/ovm'
 import * as assert from 'assert'
 import { DB } from '../../../../src/types/db'
 import { HashPreimageDb } from '../../../../src/app/ovm/db/hash-preimage-db'

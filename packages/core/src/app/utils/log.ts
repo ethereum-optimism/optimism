@@ -12,3 +12,9 @@ export const getLogger = (
     error: debug(`${testString}error:${identifier}`),
   }
 }
+
+export const logError = (logger: Logger, message: string, e: Error): void => {
+  logger.error(`${message}. 
+    Error: ${e.message}. 
+    Stack: ${e.stack}`)
+}

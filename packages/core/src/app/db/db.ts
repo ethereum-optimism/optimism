@@ -10,6 +10,8 @@ import {
   AbstractChainedBatch,
 } from 'abstract-leveldown'
 
+import MemDown from 'memdown'
+
 /* Internal Imports */
 import {
   DB,
@@ -24,6 +26,9 @@ import {
   PutBatch,
   PUT_BATCH_TYPE,
   DEL_BATCH_TYPE,
+  BigNumber,
+  ZERO,
+  ONE,
 } from '../../types'
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
@@ -212,4 +217,13 @@ export class BaseDB implements DB {
       bufferUtils.padLeft(prefix, this.prefixLength)
     )
   }
+}
+
+let memId: BigNumber = ZERO
+export const newInMemoryDB = (prefixLength: number = 256): DB => {
+  memId = memId.add(ONE)
+  return new BaseDB(
+    new MemDown(`newInMemoryDB/${memId.toString()}`) as any,
+    prefixLength
+  )
 }
