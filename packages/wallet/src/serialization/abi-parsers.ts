@@ -213,7 +213,7 @@ const parseSwapTransitionFromABI = (abiEncoded: string): SwapTransition => {
     inputAmount,
     minOutputAmount,
     timeout: +timeout,
-    signature: ethers.utils.toUtf8String(signature),
+    signature,
   }
 }
 
@@ -241,7 +241,7 @@ const parseTransferTransitionFromABI = (
     recipientSlotIndex: recipientSlot,
     tokenType: getTokenType(tokenType),
     amount,
-    signature: ethers.utils.toUtf8String(signature),
+    signature,
   }
 }
 
@@ -272,6 +272,6 @@ const parseCreateAndTransferTransitionFromABI = (
     createdAccountPubkey,
     tokenType: getTokenType(tokenType),
     amount,
-    signature: ethers.utils.toUtf8String(signature),
+    signature,
   }
 }

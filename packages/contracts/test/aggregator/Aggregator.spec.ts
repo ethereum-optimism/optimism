@@ -1,3 +1,4 @@
+/* External Imports */
 import chai = require('chai')
 import {
   createMockProvider,
@@ -6,11 +7,14 @@ import {
   solidity,
 } from 'ethereum-waffle'
 
-import * as Aggregator from '../build/Aggregator.json'
+/* Contract Imports */
+import * as Aggregator from '../../build/Aggregator.json'
 
+/* Test setup */
 chai.use(solidity)
 const { expect } = chai
 
+/* Begin tests */
 describe('Aggregator', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
@@ -31,10 +35,6 @@ describe('Aggregator', () => {
 
   it('authenticationAddress()', async () => {
     expect(await aggregator.authenticationAddress()).to.eq(wallet.address)
-  })
-
-  it('commitmentContract()', async () => {
-    expect(await aggregator.commitmentContract()).to.exist
   })
 
   it('id()', async () => {

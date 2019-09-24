@@ -5,7 +5,7 @@ import {
   getWallets,
   solidity,
 } from 'ethereum-waffle'
-import * as BasicTokenMock from '../build/BasicTokenMock.json'
+import * as BasicTokenMock from '../../build/BasicTokenMock.json'
 
 chai.use(solidity)
 const { expect } = chai

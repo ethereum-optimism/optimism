@@ -173,7 +173,7 @@ const abiEncodeSwapTransition = (trans: SwapTransition): string => {
     trans.inputAmount,
     trans.minOutputAmount,
     trans.timeout,
-    ethers.utils.toUtf8Bytes(trans.signature),
+    add0x(trans.signature),
   ])
 }
 
@@ -190,7 +190,7 @@ const abiEncodeTransferTransition = (trans: TransferTransition): string => {
     trans.recipientSlotIndex,
     trans.tokenType,
     trans.amount,
-    ethers.utils.toUtf8Bytes(trans.signature),
+    add0x(trans.signature),
   ])
 }
 
@@ -212,6 +212,6 @@ const abiEncodeCreateAndTransferTransition = (
     trans.createdAccountPubkey,
     trans.tokenType,
     trans.amount,
-    ethers.utils.toUtf8Bytes(trans.signature),
+    add0x(trans.signature),
   ])
 }

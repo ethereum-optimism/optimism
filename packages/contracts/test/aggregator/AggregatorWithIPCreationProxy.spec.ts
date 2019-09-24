@@ -1,12 +1,15 @@
-import './setup'
+import '../setup'
 
-import chai = require('chai')
+/* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import * as AggregatorWithIPCreationProxy from '../build/AggregatorWithIPCreationProxy.json'
-import * as AggregatorRegistry from '../build/AggregatorRegistry.json'
-
+import chai = require('chai')
 const { expect } = chai
 
+/* Contract imports */
+import * as AggregatorWithIPCreationProxy from '../../build/AggregatorWithIPCreationProxy.json'
+import * as AggregatorRegistry from '../../build/AggregatorRegistry.json'
+
+/* Begin tests */
 describe('AggregatorWithIPCreationProxy', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)

@@ -157,6 +157,8 @@ describe('RollupEncoding', () => {
   })
 
   describe('Transitions', () => {
+    const sig = '0x1234'
+
     it('should encoded & decode Swap Transition without throwing', async () => {
       const transition: SwapTransition = {
         stateRoot,
@@ -166,7 +168,7 @@ describe('RollupEncoding', () => {
         inputAmount: 10,
         minOutputAmount: 100,
         timeout: 10,
-        signature: 'sig',
+        signature: sig,
       }
 
       const transitionString: string = abiEncodeTransition(transition)
@@ -182,7 +184,7 @@ describe('RollupEncoding', () => {
         recipientSlotIndex: 1,
         tokenType: 0,
         amount: 10,
-        signature: 'sig',
+        signature: sig,
       }
 
       const transitionString: string = abiEncodeTransition(transition)
@@ -198,7 +200,7 @@ describe('RollupEncoding', () => {
         recipientSlotIndex: 1,
         tokenType: 0,
         amount: 10,
-        signature: 'sig',
+        signature: sig,
         createdAccountPubkey: AGGREGATOR_ADDRESS,
       }
 

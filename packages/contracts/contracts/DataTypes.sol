@@ -6,43 +6,87 @@ pragma experimental ABIEncoderV2;
  * @notice TODO
  */
 contract DataTypes {
+    /*** Constants ***/
+    uint UNI_TOKEN_TYPE = 0;
+    uint PIGI_TOKEN_TYPE = 1;
 
-    /*** Structs ***/
-    struct Range {
-        uint256 start;
-        uint256 end;
+    /*** Blocks ***/
+    struct Block {
+        bytes32 rootHash;
+        uint blockSize;
     }
 
-    struct StateObject {
-        address predicateAddress;
-        bytes data;
+    /*** Txs ***/
+    struct SwapTx {
+        address sender;
+        uint tokenType;
+        uint32 inputAmount;
+        uint32 minOutputAmount;
+        uint timeout;
     }
 
-    struct StateUpdate {
-        StateObject stateObject;
-        Range range;
-        uint256 plasmaBlockNumber;
-        address depositAddress;
+    struct TransferTx {
+        address sender;
+        address recipient;
+        uint tokenType;
+        uint32 amount;
     }
 
-    struct Checkpoint {
-        StateUpdate stateUpdate;
-        Range subrange;
+    /*** Transitions ***/
+    struct CreateAndTransferTransition {
+        bytes32 stateRoot;
+        uint32 senderSlotIndex;
+        uint32 recipientSlotIndex;
+        address createdAccountPubkey;
+        uint tokenType;
+        uint32 amount;
+        bytes signature;
     }
 
-    struct Transaction {
-        address depositAddress;
-        bytes body;
-        Range range;
+    struct TransferTransition {
+        bytes32 stateRoot;
+        uint32 senderSlotIndex;
+        uint32 recipientSlotIndex;
+        uint tokenType;
+        uint32 amount;
+        bytes signature;
     }
 
-    struct AssetTreeNode {
-        bytes32 hashValue;
-        uint256 start;
+    struct SwapTransition {
+        bytes32 stateRoot;
+        uint32 senderSlotIndex;
+        uint32 uniswapSlotIndex;
+        uint tokenType;
+        uint32 inputAmount;
+        uint32 minOutputAmount;
+        uint timeout;
+        bytes signature;
     }
-    
-    struct StateSubtreeNode {
-        bytes32 hashValue;
-        uint128 start;
+
+    struct TransitionInclusionProof {
+        uint blockNumber;
+        uint transitionIndex;
+        bytes32[] siblings;
+    }
+
+    struct IncludedTransition {
+        bytes transition; // One of the 3 transition types
+        TransitionInclusionProof inclusionProof;
+    }
+
+    /*** Storage ***/
+    struct Storage {
+        address pubkey;
+        uint32[2] balances;
+    }
+
+    struct StorageSlot {
+        uint32 slotIndex;
+        Storage value;
+    }
+
+    struct IncludedStorageSlot {
+        StorageSlot storageSlot;
+        bytes32[] siblings;
     }
 }
