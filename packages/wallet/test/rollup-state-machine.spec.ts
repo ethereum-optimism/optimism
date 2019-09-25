@@ -1,6 +1,6 @@
 import MemDown from 'memdown'
 import './setup'
-import { DB, BaseDB } from '@pigi/core'
+import { DB, BaseDB, IdentityVerifier } from '@pigi/core'
 
 import {
   ALICE_ADDRESS,
@@ -16,7 +16,6 @@ import {
   UNI_TOKEN_TYPE,
   UNISWAP_ADDRESS,
   InsufficientBalanceError,
-  IdentityVerifier,
   DefaultRollupStateMachine,
   SignedTransaction,
   PIGI_TOKEN_TYPE,

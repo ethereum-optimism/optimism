@@ -3,6 +3,7 @@ import {
   Message,
   ParsedMessage,
   Property,
+  SignatureVerifier,
   SignedMessage,
 } from '../../../types'
 import {
@@ -16,10 +17,11 @@ import {
 } from '../../ovm/deciders/signed-by-decider'
 import { SignedByQuantifier } from '../../ovm/quantifiers/signed-by-quantifier'
 import {
-  deserializeBuffer,
   deserializeMessage,
+  deserializeMessageString,
   stateChannelMessageDeserializer,
 } from '../serializers'
+import { DefaultSignatureVerifier } from '../../keystore'
 
 /*
 INTERFACES FOR StateChannelExitClaim
@@ -71,20 +73,26 @@ export interface StateChannelMessage {
  * @param myAddress The address of the caller.
  * @returns the resulting ParsedMessage.
  */
-export const parseStateChannelSignedMessage = (
+export const parseStateChannelSignedMessage = async (
   signedMessage: SignedMessage,
-  myAddress: Buffer
-): ParsedMessage => {
+  myAddress: string,
+  signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
+): Promise<ParsedMessage> => {
   // TODO: Would usually decrypt message based on sender key, but that part omitted for simplicity
-  const message: Message = deserializeBuffer(
-    signedMessage.signedMessage,
+  const message: Message = deserializeMessageString(
+    signedMessage.serializedMessage,
     deserializeMessage,
     stateChannelMessageDeserializer
   )
+  const sender = await signatureVerifier.verifyMessage(
+    signedMessage.serializedMessage,
+    signedMessage.signature
+  )
+
   const signatures = {}
-  signatures[signedMessage.sender.toString()] = signedMessage.signedMessage
+  signatures[sender] = signedMessage.signature
   return {
-    sender: signedMessage.sender,
+    sender,
     recipient: myAddress,
     message,
     signatures,

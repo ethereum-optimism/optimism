@@ -7,7 +7,7 @@ export interface MessageDB {
    *
    * @returns The address of the current user.
    */
-  getMyAddress(): Buffer
+  getMyAddress(): string
 
   /**
    * Stores the provided message, updating it if one already exists.
@@ -25,7 +25,7 @@ export interface MessageDB {
    * @returns The message, if there is one
    */
   getConflictingCounterpartyMessage(
-    channelID: Buffer,
+    channelID: string,
     nonce: BigNumber
   ): Promise<ParsedMessage>
 
@@ -37,7 +37,7 @@ export interface MessageDB {
    * @returns The message, if there is one
    */
   getMessageByChannelIdAndNonce(
-    channelID: Buffer,
+    channelID: string,
     nonce: BigNumber
   ): Promise<ParsedMessage>
 
@@ -50,8 +50,8 @@ export interface MessageDB {
    * @returns the list of ParsedMessages that match the provided filters
    */
   getMessagesSignedBy(
-    signer: Buffer,
-    channelID?: Buffer,
+    signer: string,
+    channelID?: string,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]>
 
@@ -64,8 +64,8 @@ export interface MessageDB {
    * @returns the list of ParsedMessages that match the provided filters
    */
   getMessagesBySender(
-    sender: Buffer,
-    channelID?: Buffer,
+    sender: string,
+    channelID?: string,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]>
 
@@ -78,8 +78,8 @@ export interface MessageDB {
    * @returns the list of ParsedMessages that match the provided filters
    */
   getMessagesByRecipient(
-    recipient: Buffer,
-    channelID?: Buffer,
+    recipient: string,
+    channelID?: string,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]>
 }

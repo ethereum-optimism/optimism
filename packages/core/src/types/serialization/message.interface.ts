@@ -1,23 +1,23 @@
 import { BigNumber } from '../number'
 
 export interface SignedMessage {
-  sender: Buffer
-  signedMessage: Buffer
+  signature: string
+  serializedMessage: string
 }
 
 export interface Message {
-  channelID: Buffer
+  channelID: string
   nonce?: BigNumber
   data: {}
 }
 
 export interface ParsedMessage {
-  sender: Buffer
-  recipient: Buffer
+  sender: string
+  recipient: string
   message: Message
   signatures: Signatures
 }
 
 export interface Signatures {
-  [address: string]: Buffer
+  [address: string]: string
 }

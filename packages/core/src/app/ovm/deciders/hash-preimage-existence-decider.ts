@@ -1,9 +1,9 @@
-import { Decider, Decision, HashPreimageDbInterface } from '../../../types/ovm'
+import { Decider, Decision, HashPreimageDBInterface } from '../../../types/ovm'
 import { CannotDecideError } from './utils'
 import { HashAlgorithm } from '../../../types/utils'
 
 export interface HashInput {
-  hash: Buffer
+  hash: string
 }
 
 /**
@@ -11,12 +11,12 @@ export interface HashInput {
  */
 export class HashPreimageExistenceDecider implements Decider {
   constructor(
-    private readonly db: HashPreimageDbInterface,
+    private readonly db: HashPreimageDBInterface,
     private readonly hashAlgorithm: HashAlgorithm
   ) {}
 
   public async decide(input: HashInput, _noCache?: boolean): Promise<Decision> {
-    const preimage: Buffer = await this.db.getPreimage(
+    const preimage: string = await this.db.getPreimage(
       input.hash,
       this.hashAlgorithm
     )
@@ -41,8 +41,8 @@ export class HashPreimageExistenceDecider implements Decider {
    * @returns the Decision
    */
   private constructDecision(
-    preimage: Buffer,
-    hash: Buffer,
+    preimage: string,
+    hash: string,
     outcome: boolean
   ): Decision {
     return {

@@ -17,12 +17,11 @@ export class Utils {
     return (
       !!message &&
       !!other &&
-      message.message.channelID.equals(other.message.channelID) &&
+      message.message.channelID === other.message.channelID &&
       message.message.nonce.equals(other.message.nonce) &&
-      (message.sender.equals(other.sender) ||
-        message.sender.equals(other.recipient)) &&
-      (message.recipient.equals(other.recipient) ||
-        message.recipient.equals(other.sender)) &&
+      (message.sender === other.sender || message.sender === other.recipient) &&
+      (message.recipient === other.recipient ||
+        message.recipient === other.sender) &&
       !objectsEqual(message.message.data, other.message.data)
     )
   }

@@ -32,8 +32,7 @@ export class DefaultRollupStateSolver implements RollupStateSolver {
   constructor(
     private readonly signedByDB: SignedByDBInterface,
     private readonly signedByDecider: Decider,
-    private readonly merkleInclusionDecider: Decider = new MerkleInclusionProofDecider(),
-    private readonly signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
+    private readonly merkleInclusionDecider: Decider = new MerkleInclusionProofDecider()
   ) {}
 
   /**
@@ -43,13 +42,9 @@ export class DefaultRollupStateSolver implements RollupStateSolver {
   public async storeSignedStateReceipt(
     signedReceipt: SignedStateReceipt
   ): Promise<void> {
-    const signer = this.signatureVerifier.verifyMessage(
+    await this.signedByDB.storeSignedMessage(
       abiEncodeStateReceipt(signedReceipt.stateReceipt),
       signedReceipt.signature
-    )
-    await this.signedByDB.storeSignedMessage(
-      Buffer.from(signedReceipt.signature),
-      Buffer.from(signer)
     )
   }
 
@@ -63,10 +58,8 @@ export class DefaultRollupStateSolver implements RollupStateSolver {
     stateReceipt: StateReceipt,
     signer: Address
   ): Promise<boolean> {
-    // TODO: Reenable the state root validity check
-    // return (await this.decideIfStateReceiptIsValid(stateReceipt, signer))
-    //   .outcome
-    return true
+    return (await this.decideIfStateReceiptIsValid(stateReceipt, signer))
+      .outcome
   }
 
   /**

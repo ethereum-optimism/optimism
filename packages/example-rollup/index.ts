@@ -98,7 +98,7 @@ async function initialize() {
   const signedByDB: SignedByDB = new SignedByDB(signatureDB)
   const signedByDecider: SignedByDecider = new SignedByDecider(
     signedByDB,
-    Buffer.from(wallet.address)
+    wallet.address
   )
   const rollupStateSolver: RollupStateSolver = new DefaultRollupStateSolver(
     signedByDB,

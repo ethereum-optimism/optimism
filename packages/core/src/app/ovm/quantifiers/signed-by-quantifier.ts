@@ -1,11 +1,11 @@
 import { Quantifier, QuantifierResult } from '../../../types/ovm'
 import { SignedByDBInterface } from '../../../types/ovm/db/signed-by-db.interface'
-import { deserializeBuffer, deserializeMessage } from '../../serialization'
-import { Message } from '../../../types/serialization'
+import { deserializeMessage } from '../../serialization'
+import { Message, SignedMessage } from '../../../types/serialization'
 
 interface SignedByQuantifierParameters {
-  address: Buffer
-  channelID?: Buffer
+  address: string
+  channelID?: string
 }
 
 /*
@@ -14,7 +14,7 @@ interface SignedByQuantifierParameters {
 export class SignedByQuantifier implements Quantifier {
   constructor(
     private readonly db: SignedByDBInterface,
-    private readonly myAddress: Buffer
+    private readonly myAddress: string
   ) {}
 
   /**
@@ -25,13 +25,15 @@ export class SignedByQuantifier implements Quantifier {
   public async getAllQuantified(
     signerParams: SignedByQuantifierParameters
   ): Promise<QuantifierResult> {
-    let messages: Buffer[] = await this.db.getAllSignedBy(signerParams.address)
+    let signedMessages: SignedMessage[] = await this.db.getAllSignedBy(
+      signerParams.address
+    )
 
     if ('channelID' in signerParams && signerParams['channelID']) {
-      messages = messages.filter((m) => {
+      signedMessages = signedMessages.filter((m) => {
         try {
-          const message: Message = deserializeBuffer(m, deserializeMessage)
-          return signerParams.channelID.equals(message.channelID)
+          const message: Message = deserializeMessage(m.serializedMessage)
+          return signerParams.channelID === message.channelID
         } catch (e) {
           return false
         }
@@ -39,7 +41,7 @@ export class SignedByQuantifier implements Quantifier {
     }
 
     return {
-      results: messages,
+      results: signedMessages,
       allResultsQuantified: signerParams.address === this.myAddress,
     }
   }

@@ -1,15 +1,12 @@
 import { SignedByDBInterface } from '../../../types/ovm/db/signed-by-db.interface'
-import { Message, SignedMessage } from '../../../types/serialization'
 import { DB } from '../../../types/db'
-import { decryptWithPublicKey, Md5Hash } from '../../utils'
+import { getLogger, Logger, Md5Hash } from '../../utils'
 import { SignatureVerifier } from '../../../types/keystore'
 import { DefaultSignatureVerifier } from '../../keystore'
+import { deserializeObject, serializeObject } from '../../serialization'
+import { SignedMessage } from '../../../types/serialization'
 
-interface Record {
-  signerPublicKey: Buffer
-  signature: Buffer
-  message: Buffer
-}
+const log: Logger = getLogger('signed-by-db')
 
 /**
  * DB to store and access message signatures.
@@ -21,44 +18,46 @@ export class SignedByDB implements SignedByDBInterface {
   ) {}
 
   public async handleMessage(
-    message: Message,
-    signedMessage?: SignedMessage
+    serializedMessage: string,
+    signature?: string
   ): Promise<void> {
-    if (!!signedMessage) {
-      await this.storeSignedMessage(
-        signedMessage.signedMessage,
-        signedMessage.sender
-      )
+    if (!!signature) {
+      try {
+        await this.storeSignedMessage(serializedMessage, signature)
+      } catch (e) {
+        log.debug(
+          `Received a message that cannot be parsed. Ignoring. Message: ${serializedMessage}, error: ${e.message}, stack: ${e.stack}`
+        )
+      }
     }
   }
 
   public async storeSignedMessage(
-    signature: Buffer,
-    signerPublicKey: Buffer
+    serializedMessage: string,
+    signature: string
   ): Promise<void> {
-    // TODO: USE SIGNATURE VERIFIER HERE
-    const message: Buffer = decryptWithPublicKey(
-      signerPublicKey,
+    const signerPublicKey = await this.singatureVerifier.verifyMessage(
+      serializedMessage,
       signature
-    ) as Buffer
-    const serialized: Buffer = SignedByDB.serializeRecord({
-      signerPublicKey,
+    )
+
+    const serializedRecord: Buffer = SignedByDB.serializeRecord({
       signature,
-      message,
+      serializedMessage,
     })
 
     await this.db
-      .bucket(signerPublicKey)
-      .put(SignedByDB.getKey(message), serialized)
+      .bucket(Buffer.from(signerPublicKey))
+      .put(SignedByDB.getKey(serializedMessage), serializedRecord)
   }
 
   public async getMessageSignature(
-    message: Buffer,
-    signerPublicKey
-  ): Promise<Buffer | undefined> {
+    serializedMessage: string,
+    signerPublicKey: string
+  ): Promise<string | undefined> {
     const recordBuffer: Buffer = await this.db
-      .bucket(signerPublicKey)
-      .get(SignedByDB.getKey(message))
+      .bucket(Buffer.from(signerPublicKey))
+      .get(SignedByDB.getKey(serializedMessage))
 
     if (!recordBuffer) {
       return undefined
@@ -67,35 +66,30 @@ export class SignedByDB implements SignedByDBInterface {
     return SignedByDB.deserializeRecord(recordBuffer).signature
   }
 
-  public async getAllSignedBy(signerPublicKey: Buffer): Promise<Buffer[]> {
+  public async getAllSignedBy(
+    signerPublicKey: string
+  ): Promise<SignedMessage[]> {
     const signed: Buffer[] = await this.db
-      .bucket(signerPublicKey)
+      .bucket(Buffer.from(signerPublicKey))
       .iterator()
       .values()
 
-    return signed.map((m) => SignedByDB.deserializeRecord(m).message)
+    return signed.map((m) => SignedByDB.deserializeRecord(m))
   }
 
-  private static getKey(message: Buffer): Buffer {
-    return Md5Hash(message)
+  private static getKey(message: string): Buffer {
+    return Buffer.from(Md5Hash(message))
   }
 
-  private static serializeRecord(record: Record): Buffer {
-    return Buffer.from(
-      JSON.stringify({
-        signerPublicKey: record.signerPublicKey.toString(),
-        signature: record.signature.toString(),
-        message: record.message.toString(),
-      })
-    )
+  private static serializeRecord(signedMessage: SignedMessage): Buffer {
+    return Buffer.from(serializeObject(signedMessage))
   }
 
-  private static deserializeRecord(serialized: Buffer): Record {
-    const obj: {} = JSON.parse(serialized.toString())
+  private static deserializeRecord(serialized: Buffer): SignedMessage {
+    const obj: {} = deserializeObject(serialized.toString())
     return {
-      signerPublicKey: Buffer.from(obj['signerPublicKey']),
-      signature: Buffer.from(obj['signature']),
-      message: Buffer.from(obj['message']),
+      signature: obj['signature'],
+      serializedMessage: obj['serializedMessage'],
     }
   }
 }

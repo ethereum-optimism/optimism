@@ -9,12 +9,15 @@ import {
   ImplicationProofItem,
   Decision,
   BigNumber,
+  SignatureProvider,
 } from '../../../types'
 import {
   AddressBalance,
   deserializeBuffer,
   deserializeMessage,
+  deserializeMessageString,
   messageToBuffer,
+  messageToString,
   objectToBuffer,
   parseStateChannelSignedMessage,
   StateChannelExitClaim,
@@ -31,7 +34,6 @@ import {
 } from '../deciders'
 import { SignedByDecider } from '../deciders/signed-by-decider'
 import { SignedByQuantifier } from '../quantifiers/signed-by-quantifier'
-import { sign } from '../../utils'
 
 /**
  * Client responsible for State Channel communication
@@ -41,8 +43,8 @@ export class StateChannelClient {
     private readonly messageDB: StateChannelMessageDBInterface,
     private readonly signedByDecider: SignedByDecider,
     private readonly signedByQuantifier: SignedByQuantifier,
-    private readonly myPrivateKey: Buffer,
-    public readonly myAddress: Buffer
+    public readonly myAddress: string,
+    public readonly signatureProvider: SignatureProvider
   ) {}
 
   /**
@@ -56,9 +58,9 @@ export class StateChannelClient {
    */
   public async createNewMessage(
     addressBalance: AddressBalance,
-    recipient: Buffer
+    recipient: string
   ): Promise<SignedMessage> {
-    let channelID: Buffer = await this.messageDB.getChannelForCounterparty(
+    let channelID: string = await this.messageDB.getChannelForCounterparty(
       recipient
     )
     let nonce: BigNumber
@@ -89,7 +91,7 @@ export class StateChannelClient {
 
       nonce = lastValid.message.nonce.add(ONE)
     } else {
-      channelID = Buffer.from(uuid.v4())
+      channelID = uuid.v4()
       nonce = ONE
     }
 
@@ -112,9 +114,9 @@ export class StateChannelClient {
    * @returns The StateChannelClaim representing a valid exit claim for this channel.
    */
   public async exitChannel(
-    counterparty: Buffer
+    counterparty: string
   ): Promise<StateChannelExitClaim> {
-    const channelID: Buffer = await this.messageDB.getChannelForCounterparty(
+    const channelID: string = await this.messageDB.getChannelForCounterparty(
       counterparty
     )
 
@@ -135,7 +137,7 @@ export class StateChannelClient {
           {
             decider: this.signedByDecider,
             input: {
-              message: messageToBuffer(
+              serializedMessage: messageToString(
                 mostRecent.message,
                 stateChannelMessageToString
               ),
@@ -150,12 +152,12 @@ export class StateChannelClient {
             input: {
               quantifier: this.signedByQuantifier,
               quantifierParameters: { address: this.myAddress },
-              propertyFactory: (signedMessage: Buffer) => {
+              propertyFactory: (signedMessage: SignedMessage) => {
                 return {
                   decider: MessageNonceLessThanDecider.instance(),
                   input: {
-                    messageWithNonce: deserializeBuffer(
-                      signedMessage,
+                    messageWithNonce: deserializeMessageString(
+                      signedMessage.serializedMessage,
                       deserializeMessage,
                       stateChannelMessageDeserializer
                     ),
@@ -180,7 +182,7 @@ export class StateChannelClient {
    * @returns the counter-claim that the original claim is invalid
    */
   public async handleChannelExit(
-    channelID: Buffer,
+    channelID: string,
     exitClaim: StateChannelExitClaim
   ): Promise<ImplicationProofItem[]> {
     let decision: Decision
@@ -207,7 +209,7 @@ export class StateChannelClient {
    * @returns The response message, if one exists
    */
   public async handleMessage(message: SignedMessage): Promise<SignedMessage> {
-    const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+    const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
       message,
       this.myAddress
     )
@@ -322,21 +324,23 @@ export class StateChannelClient {
   private async signAndSaveMessage(
     message: ParsedMessage
   ): Promise<SignedMessage> {
-    message.signatures[this.myAddress.toString()] = sign(
-      this.myPrivateKey,
-      messageToBuffer(message.message, stateChannelMessageToString)
+    const serializedMessage: string = messageToString(
+      message.message,
+      stateChannelMessageToString
     )
+
+    const signature: string = await this.signatureProvider.sign(
+      this.myAddress,
+      serializedMessage
+    )
+
+    message.signatures[this.myAddress] = signature
 
     await this.messageDB.storeMessage(message)
 
     return {
-      sender: this.myAddress,
-      signedMessage: objectToBuffer({
-        channelID: message.message.channelID.toString(),
-        nonce: message.message.nonce,
-        data: stateChannelMessageToString(message.message
-          .data as StateChannelMessage),
-      }),
+      signature,
+      serializedMessage,
     }
   }
 

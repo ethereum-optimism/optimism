@@ -1,59 +1,70 @@
-import { HashPreimageDbInterface } from '../../../types/ovm/db'
-import { HashAlgorithm } from '../../../types/utils'
+import { HashPreimageDBInterface } from '../../../types/ovm/db'
+import { HashAlgorithm, Logger } from '../../../types/utils'
 import { DB } from '../../../types/db'
-import { hashFunctionFor } from '../../utils'
+import { getLogger, hashFunctionFor } from '../../utils'
 import { Message } from '../../../types/serialization'
+import { deserializeObject } from '../../serialization'
+
+const log: Logger = getLogger('hash-preimage-db')
 
 interface Record {
-  preimage: Buffer
+  preimage: string
   hashAlgorithm: HashAlgorithm
-  hash: Buffer
+  hash: string
 }
 
-/**
+/*
  * DB to store and access hashes and their associated preimages.
  */
-export class HashPreimageDb implements HashPreimageDbInterface {
+export class HashPreimageDB implements HashPreimageDBInterface {
   public constructor(private readonly db: DB) {}
 
-  public async handleMessage(message: Message): Promise<void> {
-    // TODO: handle each specific type of message when we formally define different messages.
-    if (message.data && 'preimage' in message.data) {
-      await this.storePreimage(
-        Buffer.from(message.data['preimage']),
-        HashAlgorithm.KECCAK256
+  public async handleMessage(serializedMessage: string): Promise<void> {
+    try {
+      const message: Message = deserializeObject(serializedMessage) as Message
+      if (message.data && 'preimage' in message.data) {
+        await this.storePreimage(
+          message.data['preimage'],
+          HashAlgorithm.KECCAK256
+        )
+      }
+    } catch (e) {
+      log.debug(
+        `Received a message that cannot be parsed. Ignoring. Message: ${serializedMessage}, error: ${e.message}, stack: ${e.stack}`
       )
     }
   }
 
   public async storePreimage(
-    preimage: Buffer,
+    preimage: string,
     hashAlgorithm: HashAlgorithm
   ): Promise<void> {
-    const hash: Buffer = hashFunctionFor(hashAlgorithm)(preimage)
+    const hash: string = hashFunctionFor(hashAlgorithm)(preimage)
 
-    const serialized: Buffer = HashPreimageDb.serializeRecord({
+    const serialized: Buffer = HashPreimageDB.serializeRecord({
       preimage,
       hashAlgorithm,
       hash,
     })
 
-    await this.db.bucket(Buffer.from(hashAlgorithm)).put(hash, serialized)
+    await this.db
+      .bucket(Buffer.from(hashAlgorithm))
+      .put(Buffer.from(hash), serialized)
   }
 
   public async getPreimage(
-    hash: Buffer,
+    hash: string,
     hashAlgorithm: HashAlgorithm
-  ): Promise<Buffer | undefined> {
+  ): Promise<string | undefined> {
     const recordBuffer: Buffer = await this.db
       .bucket(Buffer.from(hashAlgorithm))
-      .get(hash)
+      .get(Buffer.from(hash))
 
     if (!recordBuffer) {
       return undefined
     }
 
-    return HashPreimageDb.deserializeRecord(recordBuffer).preimage
+    return HashPreimageDB.deserializeRecord(recordBuffer).preimage
   }
 
   private static serializeRecord(record: Record): Buffer {
@@ -69,9 +80,9 @@ export class HashPreimageDb implements HashPreimageDbInterface {
   private static deserializeRecord(serialized: Buffer): Record {
     const obj: {} = JSON.parse(serialized.toString())
     return {
-      preimage: Buffer.from(obj['preimage']),
+      preimage: obj['preimage'],
       hashAlgorithm: obj['hashAlgorithm'],
-      hash: Buffer.from(obj['hash']),
+      hash: obj['hash'],
     }
   }
 }

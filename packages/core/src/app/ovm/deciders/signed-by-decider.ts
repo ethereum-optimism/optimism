@@ -1,10 +1,10 @@
 import { Decider, Decision } from '../../../types/ovm'
 import { CannotDecideError } from './utils'
-import { SignedByDBInterface } from '../../../types/ovm/db/signed-by-db.interface'
+import { SignedByDBInterface } from '../../../..'
 
 export interface SignedByInput {
-  publicKey: Buffer
-  message: Buffer
+  publicKey: string
+  serializedMessage: string
 }
 
 /**
@@ -14,36 +14,40 @@ export interface SignedByInput {
 export class SignedByDecider implements Decider {
   constructor(
     private readonly signedByDb: SignedByDBInterface,
-    private readonly myAddress: Buffer
+    private readonly myAddress: string
   ) {}
 
   public async decide(input: any, _noCache?: boolean): Promise<Decision> {
-    const signature: Buffer = await this.signedByDb.getMessageSignature(
-      input.message,
+    const signature: string = await this.signedByDb.getMessageSignature(
+      input.serializedMessage,
       input.publicKey
     )
 
-    if (!signature && !input.publicKey.equals(this.myAddress)) {
+    if (!signature && input.publicKey !== this.myAddress) {
       throw new CannotDecideError(
         'We do not have a signature for this public key and message, but we do not know for certain that the message was not signed by the private key associated with the provided public key.'
       )
     }
 
-    return this.constructDecision(signature, input.publicKey, input.message)
+    return this.constructDecision(
+      signature,
+      input.publicKey,
+      input.serializedMessage
+    )
   }
 
   /**
-   * Builds a Decision from the provided signature, public key, message, and outcome.
+   * Builds a Decision from the provided signature, public key, serializedMessage, and outcome.
    *
    * @param signature The signature
    * @param publicKey The public key used with the signature
-   * @param message The decrypted message
+   * @param serializedMessage The decrypted serializedMessage
    * @returns the Decision
    */
   private constructDecision(
-    signature: Buffer | undefined,
-    publicKey: Buffer,
-    message: Buffer
+    signature: string | undefined,
+    publicKey: string,
+    serializedMessage: string
   ): Decision {
     return {
       outcome: !!signature,
@@ -53,7 +57,7 @@ export class SignedByDecider implements Decider {
             decider: this,
             input: {
               publicKey,
-              message,
+              serializedMessage,
             },
           },
           implicationWitness: {

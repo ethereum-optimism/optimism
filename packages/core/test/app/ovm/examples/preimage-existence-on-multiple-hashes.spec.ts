@@ -1,26 +1,22 @@
 import '../../../setup'
 
-import MemDown from 'memdown'
-
 import {
   CannotDecideError,
   ForAllSuchThatDecider,
   ForAllSuchThatInput,
   HashPreimageExistenceDecider,
 } from '../../../../src/app/ovm/deciders'
-import { BaseDB } from '../../../../src/app/db'
-import { keccak256, Md5Hash } from '../../../../src/app/utils'
-import { DB } from '../../../../src/types/db'
+import { newInMemoryDB } from '../../../../src/app/db'
+import { keccak256 } from '../../../../src/app/utils'
 import { IntegerRangeQuantifier } from '../../../../src/app/ovm/quantifiers'
 import {
   Decision,
-  HashPreimageDbInterface,
+  HashPreimageDBInterface,
   PropertyFactory,
-  WitnessFactory,
 } from '../../../../src/types/ovm'
 import * as assert from 'assert'
 import { HashAlgorithm, HashFunction } from '../../../../src/types/utils'
-import { HashPreimageDb } from '../../../../src/app/ovm/db/hash-preimage-db'
+import { HashPreimageDB } from '../../../../src/app/ovm/db/hash-preimage-db'
 
 describe('PreimageExistenceOnRangeOfHashes', () => {
   const forAllDecider: ForAllSuchThatDecider = new ForAllSuchThatDecider()
@@ -29,25 +25,16 @@ describe('PreimageExistenceOnRangeOfHashes', () => {
   const hashFunction: HashFunction = keccak256
 
   let hashDecider: HashPreimageExistenceDecider
-  let preimageDB: HashPreimageDbInterface
-  let db: DB
-  let memdown: any
+  let preimageDB: HashPreimageDBInterface
 
   beforeEach(() => {
-    memdown = new MemDown('')
-    db = new BaseDB(memdown, 256)
-    preimageDB = new HashPreimageDb(db)
+    preimageDB = new HashPreimageDB(newInMemoryDB())
     hashDecider = new HashPreimageExistenceDecider(preimageDB, hashAlgorithm)
-  })
-
-  afterEach(async () => {
-    await db.close()
-    memdown = undefined
   })
 
   const savePreimages = async (numbers: number[]) => {
     for (const num of numbers) {
-      await preimageDB.storePreimage(Buffer.of(num), hashAlgorithm)
+      await preimageDB.storePreimage(num.toString(), hashAlgorithm)
     }
   }
 
@@ -59,7 +46,7 @@ describe('PreimageExistenceOnRangeOfHashes', () => {
         return {
           decider: hashDecider,
           input: {
-            hash: hashFunction(Buffer.of(num)),
+            hash: hashFunction(num.toString()),
           },
         }
       }
@@ -80,7 +67,7 @@ describe('PreimageExistenceOnRangeOfHashes', () => {
         return {
           decider: hashDecider,
           input: {
-            hash: hashFunction(Buffer.of(num)),
+            hash: hashFunction(num.toString()),
           },
         }
       }

@@ -57,10 +57,7 @@ export class UnipigTransitioner extends DefaultWallet {
 
   public static new(db: DB, myAddress: string): UnipigTransitioner {
     const signedByDB: SignedByDBInterface = new SignedByDB(db)
-    const decider: SignedByDecider = new SignedByDecider(
-      signedByDB,
-      Buffer.from(myAddress)
-    )
+    const decider: SignedByDecider = new SignedByDecider(signedByDB, myAddress)
     const stateSolver: RollupStateSolver = new DefaultRollupStateSolver(
       signedByDB,
       decider,

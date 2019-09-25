@@ -55,7 +55,7 @@ export class GenericMerkleIntervalTree implements MerkleIntervalTree {
   }
 
   public static hash(value: Buffer): Buffer {
-    return keccak256(value)
+    return Buffer.from(keccak256(value.toString('hex')), 'hex')
   }
   /**
    * Computes the parent of two GenericMerkleIntervalTreeNode siblings in a tree.

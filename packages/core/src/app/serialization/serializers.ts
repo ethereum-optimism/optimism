@@ -48,7 +48,7 @@ export const stateChannelMessageToString = (
  * Turns the provided Message into its canonical buffer representation.
  *
  * @param message The StateChannelMessage
- * @param messageSerializer: The serializer for turning the message's data object into a buffer
+ * @param messageSerializer: The serializer for turning the message's data object into a string
  * @returns The resulting Buffer
  */
 export const messageToBuffer = (
@@ -56,6 +56,24 @@ export const messageToBuffer = (
   messageSerializer: ({}) => string = (_) => '{}'
 ): Buffer => {
   return objectToBuffer({
+    channelID: message.channelID.toString(),
+    nonce: message.nonce,
+    data: messageSerializer(message.data),
+  })
+}
+
+/**
+ * Turns the provided Message into its canonical string representation.
+ *
+ * @param message The StateChannelMessage
+ * @param messageSerializer: The serializer for turning the message's data object into a string
+ * @returns The resulting string
+ */
+export const messageToString = (
+  message: Message,
+  messageSerializer: ({}) => string = (_) => '{}'
+): string => {
+  return serializeObject({
     channelID: message.channelID.toString(),
     nonce: message.nonce,
     data: messageSerializer(message.data),
@@ -79,6 +97,22 @@ export const deserializeBuffer = (
 }
 
 /**
+ * Deserializes the provided string into the object it represents.
+ *
+ * @param message The string to be deserialized
+ * @param messageDeserializer The deserializer for turning the string into the appropriate data object
+ * @param functionParams The parameters (in addition to the message string) that the deserializer requires
+ * @returns The resulting object
+ */
+export const deserializeMessageString = (
+  message: string,
+  messageDeserializer: (string, any?) => any = (s) => JSON.parse(s),
+  functionParams?: any
+): any => {
+  return messageDeserializer(message, functionParams)
+}
+
+/**
  * Deserializes the provided string into the Message it represents.
  *
  * @param message The string of the Message to be deserialized
@@ -91,7 +125,7 @@ export const deserializeMessage = (
 ): Message => {
   const parsedObject = deserializeObject(message)
   return {
-    channelID: Buffer.from(parsedObject['channelID']),
+    channelID: parsedObject['channelID'],
     nonce:
       'nonce' in parsedObject
         ? new BigNumber(parsedObject['nonce'])

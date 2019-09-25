@@ -1,10 +1,11 @@
 import { should } from '../../setup'
+import { ethers } from 'ethers'
 
 import {
   Aggregator,
-  BlockTransaction,
   BlockTransactionCommitment,
   HistoryProof,
+  SignatureProvider,
   StateManager,
   StateQuery,
   StateQueryResult,
@@ -14,12 +15,11 @@ import {
 } from '../../../src/types'
 import {
   BigNumber,
-  blockTransactionsEqual,
-  decryptWithPublicKey,
   DefaultAggregator,
+  DefaultSignatureProvider,
   ONE,
+  serializeObject,
   transactionsEqual,
-  ZERO,
 } from '../../../src/app/'
 import { TestUtils } from '../utils/test-utils'
 import * as assert from 'assert'
@@ -96,6 +96,27 @@ class DummyStateManager implements StateManager {
  *********/
 
 describe('DefaultAggregator', () => {
+  const wallet: ethers.Wallet = ethers.Wallet.createRandom()
+
+  let blockManager: DummyBlockManager
+  let stateManager: DummyStateManager
+  let aggregator: Aggregator
+  let aggregatorAddress: string
+  let signatureProvider: SignatureProvider
+
+  beforeEach(async () => {
+    blockManager = new DummyBlockManager()
+    stateManager = new DummyStateManager()
+    signatureProvider = new DefaultSignatureProvider(wallet)
+    aggregatorAddress = await wallet.getAddress()
+    aggregator = new DefaultAggregator(
+      stateManager,
+      blockManager,
+      aggregatorAddress,
+      signatureProvider
+    )
+  })
+
   describe('ingestTransaction', () => {
     it('Ingests transaction correctly', async () => {
       const numTransactions: number = 5
@@ -103,14 +124,7 @@ describe('DefaultAggregator', () => {
         numTransactions
       )
 
-      const blockManager: DummyBlockManager = new DummyBlockManager()
-      const stateManager: DummyStateManager = new DummyStateManager()
       stateManager.setExecuteTransactionResults([...transactionResults])
-
-      const aggregator: Aggregator = new DefaultAggregator(
-        stateManager,
-        blockManager
-      )
 
       const transactions: Transaction[] = []
       transactionResults.forEach((result: TransactionResult) => {
@@ -133,36 +147,30 @@ describe('DefaultAggregator', () => {
           'Resulting BlockTransactionCommitment does not match passed in Transaction.'
         )
 
-        const decryptedBlockTransaction: BlockTransaction = decryptWithPublicKey(
-          aggregator.getPublicKey(),
-          txCommitment.witness
+        const serializedCommitment: string = serializeObject(
+          txCommitment.blockTransaction
+        )
+        const signature: string = await signatureProvider.sign(
+          aggregatorAddress,
+          serializedCommitment
         )
         assert(
-          blockTransactionsEqual(
-            decryptedBlockTransaction,
-            txCommitment.blockTransaction
-          ),
-          'BlockTransactionCommitment signature is invalid'
+          txCommitment.witness === signature,
+          'commitment signature should match'
         )
       }
 
       const stateUpdates: StateUpdate[] = await blockManager.getPendingStateUpdates()
 
-      stateUpdates.length.should.equal(numTransactions)
+      assert(!!stateUpdates, 'State updates should not be undefined')
+      assert(stateUpdates.length === numTransactions)
       for (let i = 0; i < numTransactions; i++) {
         stateUpdates[i].should.equal(transactionResults[i].stateUpdate)
       }
     })
 
     it('Throws if executeTransaction throws', async () => {
-      const blockManager: DummyBlockManager = new DummyBlockManager()
-      const stateManager: DummyStateManager = new DummyStateManager()
       stateManager.throwOnExecuteTransaction()
-
-      const aggregator: Aggregator = new DefaultAggregator(
-        stateManager,
-        blockManager
-      )
 
       try {
         await aggregator.ingestTransaction(undefined)
@@ -177,14 +185,7 @@ describe('DefaultAggregator', () => {
         1
       )[0]
 
-      const blockManager: DummyBlockManager = new DummyBlockManager()
-      const stateManager: DummyStateManager = new DummyStateManager()
       stateManager.setExecuteTransactionResults([transactionResult])
-
-      const aggregator: Aggregator = new DefaultAggregator(
-        stateManager,
-        blockManager
-      )
 
       const transaction: Transaction = {
         depositAddress: '',

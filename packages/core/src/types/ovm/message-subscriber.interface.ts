@@ -7,8 +7,8 @@ export interface MessageSubscriber {
   /**
    * Handles the provided message however its logic specifies.
    *
-   * @param message The decrypted Message to handle
-   * @param signedMessage The SignedMessage in the event the signature is relevant
+   * @param serializedMessage The serialized message to handle.
+   * @param signature The signature if there is one
    */
-  handleMessage(message: Message, signedMessage?: SignedMessage): Promise<void>
+  handleMessage(serializedMessage: string, signature?: string): Promise<void>
 }

@@ -1,7 +1,5 @@
 import '../../../setup'
 
-import MemDown from 'memdown'
-
 import {
   AndDecider,
   ForAllSuchThatDecider,
@@ -9,14 +7,7 @@ import {
   MessageNonceLessThanInput,
   Utils,
 } from '../../../../src/app/ovm/deciders'
-import { BaseDB } from '../../../../src/app/db'
-import {
-  BigNumber,
-  decryptWithPublicKey,
-  objectsEqual,
-  ONE,
-} from '../../../../src/app/utils'
-import { DB } from '../../../../src/types/db'
+import { BigNumber, objectsEqual, ONE } from '../../../../src/app/utils'
 import {
   ImplicationProofItem,
   StateChannelMessageDBInterface,
@@ -37,26 +28,38 @@ import {
 } from '../../../../src/app/serialization/examples'
 import * as assert from 'assert'
 import {
-  deserializeBuffer,
   deserializeMessage,
-  messageToBuffer,
+  messageToString,
   stateChannelMessageDeserializer,
   stateChannelMessageToString,
 } from '../../../../src/app/serialization'
+import { SignatureVerifier } from '../../../../src/types/keystore'
+import {
+  DefaultSignatureProvider,
+  DefaultSignatureVerifier,
+} from '../../../../src/app/keystore'
 
 class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   private readonly exitedChannels: Set<string> = new Set()
   private readonly conflictingMessageStore: {} = {}
   private readonly messageStore: ParsedMessage[] = []
-  private readonly signedMessages: {} = {}
+  private readonly signedMessages: Map<string, SignedMessage[]> = new Map<
+    string,
+    SignedMessage[]
+  >()
 
-  public constructor(private readonly myAddress: Buffer) {}
+  public constructor(
+    private readonly myAddress: string,
+    private readonly signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
+  ) {}
 
   public async handleMessage(
-    message: Message,
-    signedMessage?: SignedMessage
+    serializedMessage: string,
+    signature?: string
   ): Promise<void> {
     try {
+      // TODO Look at how this is used. This is probably messed up.
+      const message: Message = deserializeMessage(serializedMessage)
       await this.storeMessage(message.data as ParsedMessage)
     } catch (e) {
       // Must not have been a ParsedMessage
@@ -64,22 +67,34 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async storeSignedMessage(
-    signerPublicKey: Buffer,
-    signature: Buffer
+    serializedMessage: string,
+    signature: string
   ): Promise<void> {
-    const keyString: string = signerPublicKey.toString()
-    if (!(keyString in this.signedMessages)) {
-      this.signedMessages[keyString] = []
+    const signerPubKey: string = this.signatureVerifier.verifyMessage(
+      serializedMessage,
+      signature
+    )
+
+    if (!this.signedMessages.has(signerPubKey)) {
+      this.signedMessages.set(signerPubKey, [])
     }
 
-    this.signedMessages[keyString].push(signature)
+    this.signedMessages.get(signerPubKey).push({
+      signature,
+      serializedMessage,
+    })
   }
 
   public async storeMessage(parsedMessage: ParsedMessage): Promise<void> {
+    const serializedMessage: string = messageToString(
+      parsedMessage.message,
+      stateChannelMessageToString
+    )
+
     // Save signed messages.
     await Promise.all(
       Object.keys(parsedMessage.signatures).map((k: string) =>
-        this.storeSignedMessage(Buffer.from(k), parsedMessage.signatures[k])
+        this.storeSignedMessage(serializedMessage, parsedMessage.signatures[k])
       )
     )
 
@@ -94,13 +109,13 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
       return
     }
 
-    const channelID: Buffer = await this.getChannelForCounterparty(
-      parsedMessage.sender.equals(this.myAddress)
+    const channelID: string = await this.getChannelForCounterparty(
+      parsedMessage.sender === this.myAddress
         ? parsedMessage.recipient
         : parsedMessage.sender
     )
 
-    if (channelID && !channelID.equals(parsedMessage.message.channelID)) {
+    if (channelID && channelID !== parsedMessage.message.channelID) {
       throw Error(
         'Cannot store message because at least one participant is not a part of the listed channel.'
       )
@@ -109,7 +124,7 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     for (let i = 0; i < this.messageStore.length; i++) {
       const parsedMsg: ParsedMessage = this.messageStore[i]
       if (
-        parsedMsg.message.channelID.equals(parsedMessage.message.channelID) &&
+        parsedMsg.message.channelID === parsedMessage.message.channelID &&
         objectsEqual(parsedMsg.message, parsedMessage.message) &&
         ((!parsedMsg.message.nonce && !parsedMessage.message.nonce) ||
           (parsedMsg.message.nonce &&
@@ -125,12 +140,12 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMessageByChannelIdAndNonce(
-    channelID: Buffer,
+    channelID: string,
     nonce: BigNumber
   ): Promise<ParsedMessage> {
     for (const parsedMsg of this.messageStore) {
       if (
-        parsedMsg.message.channelID.equals(channelID) &&
+        parsedMsg.message.channelID === channelID &&
         parsedMsg.message.nonce &&
         parsedMsg.message.nonce.eq(nonce)
       ) {
@@ -141,16 +156,16 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMessagesByRecipient(
-    recipient: Buffer,
-    channelID?: Buffer,
+    recipient: string,
+    channelID?: string,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]> {
     // passes back live references to messages, but that doesn't matter for these tests.
     const messages = []
     for (const parsedMsg of this.messageStore) {
       if (
-        parsedMsg.recipient.equals(recipient) &&
-        (!channelID || parsedMsg.message.channelID.equals(channelID)) &&
+        parsedMsg.recipient === recipient &&
+        (!channelID || parsedMsg.message.channelID === channelID) &&
         (!nonce ||
           (parsedMsg.message.nonce && parsedMsg.message.nonce.eq(nonce)))
       ) {
@@ -162,16 +177,16 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMessagesBySender(
-    sender: Buffer,
-    channelID?: Buffer,
+    sender: string,
+    channelID?: string,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]> {
     // passes back live references to messages, but that doesn't matter for these tests.
     const messages = []
     for (const msg of this.messageStore) {
       if (
-        msg.sender.equals(sender) &&
-        (!channelID || msg.message.channelID.equals(channelID)) &&
+        msg.sender === sender &&
+        (!channelID || msg.message.channelID === channelID) &&
         (!nonce || (msg.message.nonce && msg.message.nonce.eq(nonce)))
       ) {
         messages.push(msg)
@@ -182,16 +197,16 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMessagesSignedBy(
-    signer: Buffer,
-    channelID?: Buffer,
+    signer: string,
+    channelID?: string,
     nonce?: BigNumber
   ): Promise<ParsedMessage[]> {
     // passes back live references to messages, but that doesn't matter for these tests.
     const messages = []
     for (const parsedMsg of this.messageStore) {
       if (
-        TestStateChannelMessageDB.messageSignedBy(parsedMsg, signer) &&
-        (!channelID || parsedMsg.message.channelID.equals(channelID)) &&
+        (await this.messageSignedBy(parsedMsg, signer)) &&
+        (!channelID || parsedMsg.message.channelID === channelID) &&
         (!nonce ||
           (parsedMsg.message.nonce && parsedMsg.message.nonce.eq(nonce)))
       ) {
@@ -202,55 +217,60 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     return messages
   }
 
-  public async getAllSignedBy(publicKey: Buffer): Promise<Buffer[]> {
-    const keyString: string = publicKey.toString()
-    return keyString in this.signedMessages
-      ? this.signedMessages[keyString]
+  public async getAllSignedBy(publicKey: string): Promise<SignedMessage[]> {
+    return this.signedMessages.has(publicKey)
+      ? this.signedMessages.get(publicKey)
       : []
   }
 
   public async getMessageSignature(
-    message: Buffer,
-    signerPublicKey
-  ): Promise<Buffer | undefined> {
-    const keyString: string = signerPublicKey.toString()
-    if (!(keyString in this.signedMessages)) {
+    serializedMessage: string,
+    signerPublicKey: string
+  ): Promise<string | undefined> {
+    if (!this.signedMessages.has(signerPublicKey)) {
       return undefined
     }
 
-    for (const signed of this.signedMessages[keyString]) {
-      if (decryptWithPublicKey(signerPublicKey, signed).equals(message)) {
-        return signed
+    for (const signed of this.signedMessages.get(signerPublicKey)) {
+      if (signed.serializedMessage === serializedMessage) {
+        return signed.signature
       }
     }
 
     return undefined
   }
 
-  private static messageSignedBy(
+  private async messageSignedBy(
     message: ParsedMessage,
-    signer: Buffer
-  ): boolean {
-    const signerAddress: string = signer.toString()
+    pubKey: string
+  ): Promise<boolean> {
     for (const [address, signature] of Object.entries(message.signatures)) {
-      if (address === signerAddress) {
-        // TODO: would check signature, but not right now
-        return true
+      if (address === pubKey) {
+        const serializedMessage: string = messageToString(
+          message.message,
+          stateChannelMessageToString
+        )
+        const messageSigner: string = await this.signatureVerifier.verifyMessage(
+          serializedMessage,
+          signature
+        )
+
+        return messageSigner === pubKey
       }
     }
     return false
   }
 
   public async getConflictingCounterpartyMessage(
-    channelID: Buffer,
+    channelID: string,
     nonce: BigNumber
   ): Promise<ParsedMessage> {
     return this.getConflict(channelID, nonce)
   }
 
-  public async channelIDExists(channelID: Buffer): Promise<boolean> {
+  public async channelIDExists(channelID: string): Promise<boolean> {
     for (const message of this.messageStore) {
-      if (channelID.equals(message.message.channelID)) {
+      if (channelID === message.message.channelID) {
         return true
       }
     }
@@ -282,23 +302,23 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     }
   }
 
-  public async getChannelForCounterparty(address: Buffer): Promise<Buffer> {
+  public async getChannelForCounterparty(address: string): Promise<string> {
     for (const message of this.messageStore) {
-      if (message.recipient.equals(address) || message.sender.equals(address)) {
+      if (message.recipient === address || message.sender === address) {
         return message.message.channelID
       }
     }
   }
 
   public async getMostRecentMessageSignedBy(
-    channelID: Buffer,
-    address: Buffer
+    channelID: string,
+    address: string
   ): Promise<ParsedMessage> {
     const addressString: string = address.toString()
     let mostRecent: ParsedMessage
     for (const message of this.messageStore) {
       if (
-        message.message.channelID.equals(channelID) &&
+        message.message.channelID === channelID &&
         (!mostRecent || message.message.nonce.gt(mostRecent.message.nonce)) &&
         addressString in message.signatures
       ) {
@@ -309,12 +329,12 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
   }
 
   public async getMostRecentValidStateChannelMessage(
-    channelID: Buffer
+    channelID: string
   ): Promise<ParsedMessage> {
     let mostRecent: ParsedMessage
     for (const message of this.messageStore) {
       if (
-        message.message.channelID.equals(channelID) &&
+        message.message.channelID === channelID &&
         (!mostRecent || message.message.nonce.gt(mostRecent.message.nonce)) &&
         Object.keys(message.signatures).length === 2
       ) {
@@ -324,58 +344,65 @@ class TestStateChannelMessageDB implements StateChannelMessageDBInterface {
     return mostRecent
   }
 
-  public async isChannelExited(channelID: Buffer): Promise<boolean> {
-    return this.exitedChannels.has(channelID.toString())
+  public async isChannelExited(channelID: string): Promise<boolean> {
+    return this.exitedChannels.has(channelID)
   }
 
-  public async markChannelExited(channelID: Buffer): Promise<void> {
-    this.exitedChannels.add(channelID.toString())
+  public async markChannelExited(channelID: string): Promise<void> {
+    this.exitedChannels.add(channelID)
   }
 
-  public getMyAddress(): Buffer {
+  public getMyAddress(): string {
     return this.myAddress
   }
 
-  private getConflict(channelID: Buffer, nonce: BigNumber): ParsedMessage {
-    const channelString: string = channelID.toString()
+  private getConflict(channelID: string, nonce: BigNumber): ParsedMessage {
     const nonceString: string = nonce.toString()
     if (
-      channelString in this.conflictingMessageStore &&
-      nonceString in this.conflictingMessageStore[channelString]
+      channelID in this.conflictingMessageStore &&
+      nonceString in this.conflictingMessageStore[channelID]
     ) {
-      return this.conflictingMessageStore[channelString][nonce]
+      return this.conflictingMessageStore[channelID][nonce]
     }
     return undefined
   }
 
   private putConflict(message: ParsedMessage): void {
-    const channelString: string = message.message.channelID.toString()
     const nonceString: string = message.message.nonce.toString()
-    if (!(channelString in this.conflictingMessageStore)) {
-      this.conflictingMessageStore[channelString] = {}
+    if (!(message.message.channelID in this.conflictingMessageStore)) {
+      this.conflictingMessageStore[message.message.channelID] = {}
     }
-    this.conflictingMessageStore[channelString][nonceString] = message
+    this.conflictingMessageStore[message.message.channelID][
+      nonceString
+    ] = message
   }
 }
 
-const checkSignedMessage = (
+const checkSignedMessage = async (
   signedMessage: SignedMessage,
-  sender: Buffer,
+  sender: string,
   nonce?: BigNumber,
-  channelID?: Buffer,
-  signers?: Buffer[],
-  addressBalance?: AddressBalance
-) => {
+  channelID?: string,
+  signers?: string[],
+  addressBalance?: AddressBalance,
+  signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
+): Promise<void> => {
   assert(
     !!signedMessage,
     'Signed Message should not be undefined. Channel should be created'
   )
-  assert(
-    signedMessage.sender.equals(sender),
-    `Sender of message should be ${sender}`
+
+  const signer: string = signatureVerifier.verifyMessage(
+    signedMessage.serializedMessage,
+    signedMessage.signature
   )
 
-  const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+  assert(
+    signer === sender,
+    `Sender of message should be ${sender} but is ${signer}`
+  )
+
+  const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
     signedMessage,
     sender
   )
@@ -388,7 +415,7 @@ const checkSignedMessage = (
 
   if (!!channelID) {
     assert(
-      channelID.equals(parsedMessage.message.channelID),
+      channelID === parsedMessage.message.channelID,
       `Channel ID should equal ${channelID.toString()}`
     )
   } else {
@@ -404,9 +431,9 @@ const checkSignedMessage = (
       expectedLength === signers.length,
       `There should be ${expectedLength} signature(s) for new message`
     )
-    for (const signer of signers) {
+    for (const addr of signers) {
       assert(
-        signer.toString() in parsedMessage.signatures,
+        addr.toString() in parsedMessage.signatures,
         `The message should be signed by ${signers.toString()}`
       )
     }
@@ -425,38 +452,36 @@ const checkSignedMessage = (
   }
 }
 
-const getChannelId = (
+const getChannelId = async (
   signedMessage: SignedMessage,
-  myAddress: Buffer = undefined
-): Buffer => {
-  return parseStateChannelSignedMessage(signedMessage, myAddress).message
-    .channelID
+  myAddress: string = undefined
+): Promise<string> => {
+  const message: ParsedMessage = await parseStateChannelSignedMessage(
+    signedMessage,
+    myAddress
+  )
+  return message.message.channelID
 }
 
 describe('State Channel Tests', () => {
-  const aPrivateKey: Buffer = Buffer.from('A Private Key')
-  const aAddress: Buffer = Buffer.from('A Address')
+  let aAddress: string
+  const aSigner: DefaultSignatureProvider = new DefaultSignatureProvider()
 
-  const bPrivateKey: Buffer = Buffer.from('B Private Key')
-  const bAddress: Buffer = Buffer.from('B Address')
+  let bAddress: string
+  const bSigner: DefaultSignatureProvider = new DefaultSignatureProvider()
 
   let a: StateChannelClient
-  let aMemdown: any
-  let aDb: DB
   let aMessageDB: TestStateChannelMessageDB
   let aSignedByDecider: SignedByDecider
   let aSignedByQuantifier: SignedByQuantifier
 
   let b: StateChannelClient
-  let bMemdown: any
-  let bDb: DB
   let bMessageDB: TestStateChannelMessageDB
   let bSignedByDecider: SignedByDecider
   let bSignedByQuantifier: SignedByQuantifier
 
-  beforeEach(() => {
-    aMemdown = new MemDown('a')
-    aDb = new BaseDB(aMemdown, 256)
+  beforeEach(async () => {
+    aAddress = await aSigner.getAddress()
     aMessageDB = new TestStateChannelMessageDB(aAddress)
     aSignedByDecider = new SignedByDecider(aMessageDB, aAddress)
     aSignedByQuantifier = new SignedByQuantifier(aMessageDB, aAddress)
@@ -465,12 +490,11 @@ describe('State Channel Tests', () => {
       aMessageDB,
       aSignedByDecider,
       aSignedByQuantifier,
-      aPrivateKey,
-      aAddress
+      aAddress,
+      aSigner
     )
 
-    bMemdown = new MemDown('b')
-    bDb = new BaseDB(bMemdown, 256)
+    bAddress = await bSigner.getAddress()
     bMessageDB = new TestStateChannelMessageDB(bAddress)
     bSignedByDecider = new SignedByDecider(bMessageDB, bAddress)
     bSignedByQuantifier = new SignedByQuantifier(bMessageDB, bAddress)
@@ -479,15 +503,9 @@ describe('State Channel Tests', () => {
       bMessageDB,
       bSignedByDecider,
       bSignedByQuantifier,
-      bPrivateKey,
-      bAddress
+      bAddress,
+      bSigner
     )
-  })
-
-  afterEach(async () => {
-    await Promise.all([aDb.close(), bDb.close()])
-    aMemdown = undefined
-    bMemdown = undefined
   })
 
   const createChannel = async (): Promise<SignedMessage> => {
@@ -500,7 +518,7 @@ describe('State Channel Tests', () => {
       bAddress
     )
 
-    checkSignedMessage(
+    await checkSignedMessage(
       signedMessage,
       aAddress,
       ONE,
@@ -516,7 +534,7 @@ describe('State Channel Tests', () => {
     myClient: StateChannelClient,
     nonce: BigNumber = ONE
   ): Promise<void> => {
-    const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+    const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
       signedMessage,
       myClient.myAddress
     )
@@ -524,7 +542,7 @@ describe('State Channel Tests', () => {
     const counterSigned: SignedMessage = await myClient.handleMessage(
       signedMessage
     )
-    checkSignedMessage(
+    await checkSignedMessage(
       counterSigned,
       myClient.myAddress,
       nonce,
@@ -566,12 +584,12 @@ describe('State Channel Tests', () => {
         bAddress
       )
 
-      const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+      const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
         nextMessage,
         aAddress
       )
 
-      checkSignedMessage(
+      await checkSignedMessage(
         nextMessage,
         aAddress,
         new BigNumber(2),
@@ -594,12 +612,12 @@ describe('State Channel Tests', () => {
         aAddress
       )
 
-      const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+      const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
         nextMessage,
         bAddress
       )
 
-      checkSignedMessage(
+      await checkSignedMessage(
         nextMessage,
         bAddress,
         new BigNumber(2),
@@ -622,12 +640,12 @@ describe('State Channel Tests', () => {
         bAddress
       )
 
-      const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+      const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
         nextMessage,
         bAddress
       )
 
-      checkSignedMessage(
+      await checkSignedMessage(
         nextMessage,
         aAddress,
         new BigNumber(2),
@@ -652,12 +670,12 @@ describe('State Channel Tests', () => {
         aAddress
       )
 
-      const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+      const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
         nextMessage,
         bAddress
       )
 
-      checkSignedMessage(
+      await checkSignedMessage(
         nextMessage,
         bAddress,
         new BigNumber(2),
@@ -680,7 +698,7 @@ describe('State Channel Tests', () => {
         assert(!!claim, 'Exist claim should not be null/undefined!')
 
         const counterClaim: ImplicationProofItem[] = await b.handleChannelExit(
-          getChannelId(signedMessage),
+          await getChannelId(signedMessage),
           claim
         )
         assert(
@@ -697,7 +715,7 @@ describe('State Channel Tests', () => {
         assert(!!claim, 'Exist claim should not be null/undefined!')
 
         const counterClaim: ImplicationProofItem[] = await a.handleChannelExit(
-          getChannelId(signedMessage),
+          await getChannelId(signedMessage),
           claim
         )
         assert(
@@ -719,12 +737,12 @@ describe('State Channel Tests', () => {
           bAddress
         )
 
-        const parsedMessage: ParsedMessage = parseStateChannelSignedMessage(
+        const parsedMessage: ParsedMessage = await parseStateChannelSignedMessage(
           nextMessage,
           bAddress
         )
 
-        checkSignedMessage(
+        await checkSignedMessage(
           nextMessage,
           aAddress,
           new BigNumber(2),
@@ -739,7 +757,7 @@ describe('State Channel Tests', () => {
         assert(!!claim, 'Exist claim should not be null/undefined!')
 
         const counterClaim: ImplicationProofItem[] = await b.handleChannelExit(
-          getChannelId(signedMessage),
+          await getChannelId(signedMessage),
           claim
         )
         assert(
@@ -754,7 +772,7 @@ describe('State Channel Tests', () => {
         const signedMessage: SignedMessage = await createChannel()
         await acknowledgeMessage(signedMessage, b)
 
-        const mostRecentMessage: ParsedMessage = parseStateChannelSignedMessage(
+        const mostRecentMessage: ParsedMessage = await parseStateChannelSignedMessage(
           signedMessage,
           aAddress
         )
@@ -767,7 +785,7 @@ describe('State Channel Tests', () => {
               {
                 decider: bSignedByDecider,
                 input: {
-                  message: messageToBuffer(
+                  serializedMessage: messageToString(
                     mostRecentMessage.message,
                     stateChannelMessageToString
                   ),
@@ -786,13 +804,12 @@ describe('State Channel Tests', () => {
                     address: aAddress,
                     channelID: mostRecentMessage.message.channelID,
                   },
-                  propertyFactory: (message: Buffer) => {
+                  propertyFactory: (signed: SignedMessage) => {
                     return {
                       decider: MessageNonceLessThanDecider.instance(),
                       input: {
-                        messageWithNonce: deserializeBuffer(
-                          message,
-                          deserializeMessage,
+                        messageWithNonce: deserializeMessage(
+                          signed.serializedMessage,
                           stateChannelMessageDeserializer
                         ),
                         // This will be disputed because mostRecentMessage has been signed by A
@@ -807,7 +824,7 @@ describe('State Channel Tests', () => {
         }
 
         const counterClaimJustification: ImplicationProofItem[] = await b.handleChannelExit(
-          getChannelId(signedMessage),
+          await getChannelId(signedMessage),
           refutableClaim
         )
         assert(
@@ -857,7 +874,7 @@ describe('State Channel Tests', () => {
         const signedMessage: SignedMessage = await createChannel()
         await acknowledgeMessage(signedMessage, b)
 
-        const mostRecentMessage: ParsedMessage = parseStateChannelSignedMessage(
+        const mostRecentMessage: ParsedMessage = await parseStateChannelSignedMessage(
           signedMessage,
           bAddress
         )
@@ -870,7 +887,7 @@ describe('State Channel Tests', () => {
               {
                 decider: aSignedByDecider,
                 input: {
-                  message: messageToBuffer(
+                  serializedMessage: messageToString(
                     mostRecentMessage.message,
                     stateChannelMessageToString
                   ),
@@ -889,13 +906,12 @@ describe('State Channel Tests', () => {
                     address: bAddress,
                     channelID: mostRecentMessage.message.channelID,
                   },
-                  propertyFactory: (message: Buffer) => {
+                  propertyFactory: (signed: SignedMessage) => {
                     return {
                       decider: MessageNonceLessThanDecider.instance(),
                       input: {
-                        messageWithNonce: deserializeBuffer(
-                          message,
-                          deserializeMessage,
+                        messageWithNonce: deserializeMessage(
+                          signed.serializedMessage,
                           stateChannelMessageDeserializer
                         ),
                         // This will be disputed because mostRecentMessage has been signed by A
@@ -910,7 +926,7 @@ describe('State Channel Tests', () => {
         }
 
         const counterClaimJustification: ImplicationProofItem[] = await a.handleChannelExit(
-          getChannelId(signedMessage),
+          await getChannelId(signedMessage),
           refutableClaim
         )
         assert(

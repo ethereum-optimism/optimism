@@ -34,16 +34,22 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   private readonly treeLock: AsyncLock = new AsyncLock({
     domainReentrant: true,
   })
+  private readonly hashFunction: (Buffer) => Buffer
   private readonly hashBuffer: Buffer = Buffer.alloc(64)
 
   constructor(
     private readonly db: DB,
     rootHash?: Buffer,
     private readonly height: number = 160,
-    private readonly hashFunction: HashFunction = keccak256
+    hashFunction: HashFunction = keccak256
   ) {
     assert(!rootHash || rootHash.length === 32, 'Root hash must be 32 bytes')
     assert(height > 0, 'SMT height needs to be > 0')
+
+    // TODO: Hack for now -- change everything to string if/when it makes sense
+    this.hashFunction = (buff: Buffer) =>
+      Buffer.from(hashFunction(buff.toString('hex')), 'hex')
+
     this.populateZeroHashesAndRoot(rootHash)
   }
 

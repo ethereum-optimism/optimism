@@ -6,18 +6,17 @@ import {
   Transaction,
   TransactionResult,
 } from '../../types/serialization'
-import { BigNumber, doRangesSpanRange, sign } from '../utils'
+import { BigNumber, doRangesSpanRange } from '../utils'
 import { BlockManager } from '../../types/block-production'
+import { SignatureProvider } from '../../types/keystore'
+import { serializeObject } from '../serialization'
 
 export class DefaultAggregator implements Aggregator {
-  private readonly publicKey: string =
-    'TODO: figure out public key storage and access'
-  private readonly privateKey: string =
-    'TODO: figure out private key storage and access'
-
   public constructor(
     private readonly stateManager: StateManager,
-    private readonly blockManager: BlockManager
+    private readonly blockManager: BlockManager,
+    private readonly publicKey: string,
+    private readonly signatureProvider: SignatureProvider
   ) {}
 
   public async ingestTransaction(
@@ -49,9 +48,14 @@ export class DefaultAggregator implements Aggregator {
       transaction,
     }
 
+    const serializedTransaction: string = serializeObject(blockTransaction)
+
     return {
       blockTransaction,
-      witness: sign(this.privateKey, blockTransaction),
+      witness: await this.signatureProvider.sign(
+        this.publicKey,
+        serializedTransaction
+      ),
     }
   }
 

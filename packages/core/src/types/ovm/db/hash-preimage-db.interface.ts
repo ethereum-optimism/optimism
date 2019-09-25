@@ -1,7 +1,7 @@
 import { HashAlgorithm } from '../../utils'
 import { MessageSubscriber } from '../message-subscriber.interface'
 
-export interface HashPreimageDbInterface extends MessageSubscriber {
+export interface HashPreimageDBInterface extends MessageSubscriber {
   /**
    * Calculates and stores the hash and provided preimage using the provided
    * HashAlgorithm for future lookup.
@@ -9,7 +9,7 @@ export interface HashPreimageDbInterface extends MessageSubscriber {
    * @param preimage The preimage to store
    * @param hashAlgorithm The HashAlgorithm in question
    */
-  storePreimage(preimage: Buffer, hashAlgorithm: HashAlgorithm): Promise<void>
+  storePreimage(preimage: string, hashAlgorithm: HashAlgorithm): Promise<void>
 
   /**
    * Retrieves the preimage for the provided hash, using the provided HashAlgorithm,
@@ -20,7 +20,7 @@ export interface HashPreimageDbInterface extends MessageSubscriber {
    * @returns The preimage, if one is known, for the provided hash
    */
   getPreimage(
-    hash: Buffer,
+    hash: string,
     hashAlgorithm: HashAlgorithm
-  ): Promise<Buffer | undefined>
+  ): Promise<string | undefined>
 }

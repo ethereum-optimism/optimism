@@ -17,7 +17,7 @@ export interface StateChannelMessageDBInterface
    * @returns The ParsedMessage, if one exits
    */
   getMostRecentValidStateChannelMessage(
-    channelID: Buffer
+    channelID: string
   ): Promise<ParsedMessage>
 
   /**
@@ -29,8 +29,8 @@ export interface StateChannelMessageDBInterface
    * @returns The ParsedMessage, if one exits
    */
   getMostRecentMessageSignedBy(
-    channelID: Buffer,
-    address: Buffer
+    channelID: string,
+    address: string
   ): Promise<ParsedMessage>
 
   /**
@@ -50,14 +50,14 @@ export interface StateChannelMessageDBInterface
    * @param channelID The Channel ID in question
    * @returns True if exited, false otherwise.
    */
-  isChannelExited(channelID: Buffer): Promise<boolean>
+  isChannelExited(channelID: string): Promise<boolean>
 
   /**
    * Marks the provided Channel ID as exited.
    *
    * @param channelID The Channel ID in question
    */
-  markChannelExited(channelID: Buffer): Promise<void>
+  markChannelExited(channelID: string): Promise<void>
 
   /**
    * Gets the ChannelID associated with the provided counterparty address.
@@ -65,7 +65,7 @@ export interface StateChannelMessageDBInterface
    * @param address The address in question
    * @returns The resulting ChannelID, if one exists
    */
-  getChannelForCounterparty(address: Buffer): Promise<Buffer>
+  getChannelForCounterparty(address: string): Promise<string>
 
   /**
    * Determines whether or not the provided Channel ID represents a
@@ -74,5 +74,5 @@ export interface StateChannelMessageDBInterface
    * @param channelID The Channel ID in question
    * @returns True if so, false otherwise
    */
-  channelIDExists(channelID: Buffer): Promise<boolean>
+  channelIDExists(channelID: string): Promise<boolean>
 }
