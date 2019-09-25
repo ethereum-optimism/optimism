@@ -12,7 +12,7 @@ import {
   NULL_ADDRESS,
 } from '../../../src/app'
 
-const timeout = 10_000
+const timeout = 15_000
 
 describe('DefaultWallet', () => {
   let walletdb: DefaultWalletDB

@@ -4,6 +4,8 @@ import { BaseDB } from '@pigi/core'
 import {
   State,
   UNISWAP_ADDRESS,
+  UNI_TOKEN_TYPE,
+  PIGI_TOKEN_TYPE,
   AGGREGATOR_ADDRESS,
   RollupAggregator,
   RollupStateMachine,
@@ -19,26 +21,26 @@ export const genesisState: State[] = [
   {
     pubKey: UNISWAP_ADDRESS,
     balances: {
-      uni: 1000,
-      pigi: 1000,
+      [UNI_TOKEN_TYPE]: 1000,
+      [PIGI_TOKEN_TYPE]: 1000,
     },
   },
   {
     pubKey: AGGREGATOR_ADDRESS,
     balances: {
-      uni: 1000000,
-      pigi: 1000000,
+      [UNI_TOKEN_TYPE]: 1000000,
+      [PIGI_TOKEN_TYPE]: 1000000,
     },
   },
 ]
 
 // Create a new aggregator... and then...
-const host = 'localhost'
+const host = '0.0.0.0'
 const port = 3000
 
 async function runAggregator() {
   const stateDB = new BaseDB(new MemDown('state') as any)
-  const blockDB = new BaseDB(new MemDown('blocks') as any)
+  const blockDB = new BaseDB(new MemDown('blocks') as any, 4)
 
   const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
     genesisState,

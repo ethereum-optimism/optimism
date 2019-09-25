@@ -5,10 +5,12 @@ import {
   SignedByDB,
   SignedByDecider,
   SimpleClient,
+  getLogger,
 } from '@pigi/core'
 import {
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
+  UNISWAP_ADDRESS,
   UnipigTransitioner,
   RollupClient,
   Balances,
@@ -17,10 +19,10 @@ import {
 } from '@pigi/wallet'
 import { ethers } from 'ethers'
 
+const log = getLogger('simple-client')
+
 /* Global declarations */
 declare var document: any
-
-const UNISWAP_ADDRESS = '0x' + 'ff'.repeat(32)
 
 /* Functions which update UI */
 const updateAccountAddress = (address) => {
@@ -28,13 +30,20 @@ const updateAccountAddress = (address) => {
 }
 
 const updateBalances = (balances) => {
-  document.getElementById('uni-balance').textContent = balances.uni
-  document.getElementById('pigi-balance').textContent = balances.pigi
+  if (typeof balances === 'undefined') {
+    log.debug('Undefined balances!')
+    return
+  }
+  document.getElementById('uni-balance').textContent = balances[UNI_TOKEN_TYPE]
+  document.getElementById('pigi-balance').textContent =
+    balances[PIGI_TOKEN_TYPE]
 }
 
 const updateUniswapBalances = (balances) => {
-  document.getElementById('uniswap-uni-balance').textContent = balances.uni
-  document.getElementById('uniswap-pigi-balance').textContent = balances.pigi
+  document.getElementById('uniswap-uni-balance').textContent =
+    balances[UNI_TOKEN_TYPE]
+  document.getElementById('uniswap-pigi-balance').textContent =
+    balances[PIGI_TOKEN_TYPE]
 }
 
 /* Listeners */
@@ -56,31 +65,37 @@ setTimeout(() => {
 /*
  * Body
  */
+let unipigWallet
+let wallet: ethers.Wallet
 
-const wallet: ethers.Wallet = ethers.Wallet.createRandom()
+async function initialize() {
+  wallet = ethers.Wallet.createRandom()
 
-const signatureDB: DB = newInMemoryDB()
-const signedByDB: SignedByDB = new SignedByDB(signatureDB)
-const signedByDecider: SignedByDecider = new SignedByDecider(
-  signedByDB,
-  Buffer.from(wallet.address)
-)
-const rollupStateSolver: RollupStateSolver = new DefaultRollupStateSolver(
-  signedByDB,
-  signedByDecider
-)
-const rollupClient: RollupClient = new RollupClient(newInMemoryDB())
-const unipigWallet = new UnipigTransitioner(
-  newInMemoryDB(),
-  rollupStateSolver,
-  rollupClient
-)
-// Now create a wallet account
-
-// Connect to the mock aggregator
-rollupClient.connect(new SimpleClient('http://localhost:3000'))
-
-updateAccountAddress(wallet.address)
+  const signatureDB: DB = newInMemoryDB()
+  const signedByDB: SignedByDB = new SignedByDB(signatureDB)
+  const signedByDecider: SignedByDecider = new SignedByDecider(
+    signedByDB,
+    Buffer.from(wallet.address)
+  )
+  const rollupStateSolver: RollupStateSolver = new DefaultRollupStateSolver(
+    signedByDB,
+    signedByDecider
+  )
+  const rollupClient: RollupClient = new RollupClient(newInMemoryDB())
+  unipigWallet = new UnipigTransitioner(
+    newInMemoryDB(),
+    rollupStateSolver,
+    rollupClient,
+    undefined,
+    undefined,
+    wallet
+  )
+  // Update account address
+  updateAccountAddress(wallet.address)
+  // Connect to the mock aggregator
+  rollupClient.connect(new SimpleClient('http://localhost:3000'))
+  await fetchBalanceUpdate()
+}
 
 async function fetchBalanceUpdate() {
   const balances = await unipigWallet.getBalances(wallet.address)
@@ -130,4 +145,4 @@ async function onSwapFundsClicked() {
   updateUniswapBalances(uniswapBalance)
 }
 
-fetchBalanceUpdate()
+initialize()

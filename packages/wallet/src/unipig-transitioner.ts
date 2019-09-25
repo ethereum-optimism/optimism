@@ -15,6 +15,7 @@ import {
   SignedByDecider,
   MerkleInclusionProofDecider,
 } from '@pigi/core'
+import { ethers } from 'ethers'
 
 /* Internal Imports */
 import {
@@ -52,6 +53,7 @@ export class UnipigTransitioner extends DefaultWallet {
   private rollupClient: RollupClient
   private stateSolver: RollupStateSolver
   private knownState: KnownState
+  private wallet: ethers.Wallet
 
   public static new(db: DB, myAddress: string): UnipigTransitioner {
     const signedByDB: SignedByDBInterface = new SignedByDB(db)
@@ -75,7 +77,8 @@ export class UnipigTransitioner extends DefaultWallet {
     stateSolver: RollupStateSolver,
     rollupClient: RollupClient,
     signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
-    signatureProvider?: SignatureProvider
+    signatureProvider?: SignatureProvider,
+    wallet?: ethers.Wallet
   ) {
     // Set up the keystore db
     const keystoreDB: WalletDB = new DefaultWalletDB(db)
@@ -87,6 +90,26 @@ export class UnipigTransitioner extends DefaultWallet {
     this.db = db
     this.stateSolver = stateSolver
     this.knownState = {}
+    this.wallet = wallet
+  }
+
+  public async sign(signer: string, message: string): Promise<string> {
+    if (typeof this.wallet !== 'undefined') {
+      log.debug('Address:', signer, 'signing message:', message)
+      return this.wallet.signMessage(message)
+    } else {
+      return super.sign(signer, message)
+    }
+  }
+
+  public async listAccounts(): Promise<string[]> {
+    if (typeof this.wallet !== 'undefined') {
+      const address = await this.wallet.getAddress()
+      log.debug('Listing address:', address)
+      return [address]
+    } else {
+      return super.listAccounts()
+    }
   }
 
   public async getUniswapBalances(): Promise<Balances> {
@@ -99,7 +122,9 @@ export class UnipigTransitioner extends DefaultWallet {
 
   public async getBalances(account: Address): Promise<Balances> {
     const stateReceipt: StateReceipt = await this.getState(account)
-    return !!stateReceipt ? stateReceipt.state.balances : undefined
+    return !!stateReceipt && !!stateReceipt.state
+      ? stateReceipt.state.balances
+      : undefined
   }
 
   public async getState(account: Address): Promise<StateReceipt> {
@@ -107,6 +132,10 @@ export class UnipigTransitioner extends DefaultWallet {
     const signedState: SignedStateReceipt = await this.rollupClient.getState(
       account
     )
+
+    if (signedState.signature === EMPTY_AGGREGATOR_SIGNATURE) {
+      return signedState.stateReceipt
+    }
 
     await this.stateSolver.storeSignedStateReceipt(signedState)
 

@@ -10,6 +10,7 @@ import {
   DefaultSignatureProvider,
   DB,
   getLogger,
+  hexStrToBuf,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -55,13 +56,13 @@ const generateFaucetTxs = async (
   signatureProvider?: SignatureProvider
 ): Promise<SignedTransaction[]> => {
   const txOne: RollupTransaction = generateTransferTx(
-    UNISWAP_ADDRESS,
+    aggregatorAddress,
     recipient,
     UNI_TOKEN_TYPE,
     amount
   )
   const txTwo: RollupTransaction = generateTransferTx(
-    UNISWAP_ADDRESS,
+    aggregatorAddress,
     recipient,
     PIGI_TOKEN_TYPE,
     amount
@@ -380,12 +381,11 @@ export class RollupAggregator extends SimpleServer {
     }
 
     for (const trans of transitions) {
-      log.debug(`Adding Transition to pending block: ${serializeObject(trans)}`)
       await this.db
         .bucket(this.getDBKeyFromNumber(this.pendingBlock.number))
         .put(
           this.getDBKeyFromNumber(++this.transitionIndex),
-          Buffer.from(abiEncodeTransition(trans))
+          hexStrToBuf(abiEncodeTransition(trans))
         )
     }
 
@@ -433,7 +433,7 @@ export class RollupAggregator extends SimpleServer {
   }
 
   private getDBKeyFromNumber(num: number): Buffer {
-    const buff = Buffer.alloc(256)
+    const buff = Buffer.alloc(4)
     buff.writeUInt32BE(num, 0)
     return buff
   }
