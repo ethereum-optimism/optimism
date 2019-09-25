@@ -22,10 +22,6 @@ import {
   Iterator,
   Bucket,
   RangeBucket,
-  KeyValueStore,
-  PutBatch,
-  PUT_BATCH_TYPE,
-  DEL_BATCH_TYPE,
   BigNumber,
   ZERO,
   ONE,
@@ -33,8 +29,9 @@ import {
 import { BaseIterator } from './iterator'
 import { BaseBucket } from './bucket'
 import { BaseRangeBucket } from './range-bucket'
-import { bufferUtils } from '../../app'
+import { bufferUtils, getLogger } from '../utils'
 
+const log = getLogger('db')
 export const DEFAULT_PREFIX_LENGTH = 3
 
 /**
@@ -73,6 +70,7 @@ export class BaseDB implements DB {
         this.db.open(options, (err) => {
           if (err) {
             reject(err)
+            log.error(`Error opening DB: ${err.message}, ${err.stack}`)
             return
           }
           resolve()
@@ -92,6 +90,7 @@ export class BaseDB implements DB {
         this.db.close((err) => {
           if (err) {
             reject(err)
+            log.error(`Error closing DB: ${err.message}, ${err.stack}`)
             return
           }
           resolve()
@@ -112,12 +111,23 @@ export class BaseDB implements DB {
       this.db.get(key, (err, value) => {
         if (err) {
           if (isNotFound(err)) {
+            log.debug(`Key ${key.toString('hex')} not found.`)
             resolve(null)
             return
           }
           reject(err)
+          log.error(
+            `Error getting key ${key.toString('hex')}: ${err.message}, ${
+              err.stack
+            }`
+          )
           return
         }
+        log.debug(
+          `Key ${key.toString(
+            'hex'
+          )} fetched. Returning value [${value.toString('hex')}].`
+        )
         resolve(value)
       })
     })
@@ -133,8 +143,16 @@ export class BaseDB implements DB {
       this.db.put(key, value, (err) => {
         if (err) {
           reject(err)
+          log.error(
+            `Error putting key / value ${key.toString(
+              'hex'
+            )} / ${value.toString('hex')}: ${err.message}, ${err.stack}`
+          )
           return
         }
+        log.debug(
+          `Put key / value [${key.toString('hex')} / ${value.toString('hex')}]`
+        )
         resolve()
       })
     })
@@ -149,6 +167,11 @@ export class BaseDB implements DB {
       this.db.del(key, (err) => {
         if (err) {
           reject(err)
+          log.error(
+            `Error deleting key ${key.toString('hex')}: ${err.message}, ${
+              err.stack
+            }`
+          )
           return
         }
         resolve()
@@ -165,7 +188,12 @@ export class BaseDB implements DB {
     try {
       await this.get(key)
       return true
-    } catch {
+    } catch (err) {
+      log.error(
+        `Error checking key existence: key ${key.toString('hex')}: ${
+          err.message
+        }, ${err.stack}`
+      )
       return false
     }
   }
@@ -179,6 +207,9 @@ export class BaseDB implements DB {
       this.db.batch(operations, (err) => {
         if (err) {
           reject(err)
+          log.error(
+            `Error executing batch operation: ${err.message}, ${err.stack}`
+          )
           return
         }
         resolve()

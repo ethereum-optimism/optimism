@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p . && browserify index.ts -p [ tsify ] > public/bundle.js",
+    "build": "tsc -p . && browserify index.ts -p [ tsify ] > public/bundle.js && mkdir build/level",
     "serve": "http-server ./public",
     "aggregator": "node ./build/src/mock-aggregator.js",
     "clean": "rimraf build/"
@@ -30,7 +30,8 @@
     "@pigi/core": "^0.0.1-alpha.1",
     "@pigi/wallet": "^0.0.1-alpha.1",
     "cors": "^2.8.5",
-    "http-server": "^0.11.1"
+    "http-server": "^0.11.1",
+    "level": "^5.0.1"
   },
   "devDependencies": {
     "@pigi/core": "^0.0.1-alpha.1",
@@ -43,7 +44,6 @@
     "chai-as-promised": "^7.1.1",
     "debug": "^4.1.1",
     "ethers": "^4.0.30",
-    "memdown": "^5.0.0",
     "mocha": "^6.1.2",
     "prettier": "^1.16.4",
     "rimraf": "^2.6.3",

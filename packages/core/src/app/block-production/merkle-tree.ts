@@ -17,7 +17,9 @@ import {
   TWO,
   ZERO,
 } from '../../types'
-import { keccak256, runInDomain } from '../utils'
+import { getLogger, keccak256, runInDomain } from '../utils'
+
+const log = getLogger('merkle-tree')
 
 /**
  * SparseMerkleTree implementation assuming a 256-bit hash algorithm is used.
@@ -56,18 +58,40 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   }
 
   public async getLeaf(leafKey: BigNumber, rootHash?: Buffer): Promise<Buffer> {
+    log.debug(`Trying to get leaf [${leafKey.toString(10)}]`)
     return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
       if (!!rootHash && !rootHash.equals(this.root.hash)) {
+        log.debug(
+          `Cannot get Leaf [${leafKey.toString(
+            10
+          )}] because root hash does not match.`
+        )
         return undefined
       }
 
       const nodesInPath: MerkleTreeNode[] = await this.getNodesInPath(leafKey)
-      if (!nodesInPath || !nodesInPath.length) {
+      if (!nodesInPath || nodesInPath.length !== this.height) {
+        log.debug(
+          `Cannot get Leaf [${leafKey.toString(
+            10
+          )}] because nodes in path does not equal tree height.`
+        )
         return undefined
       }
       const leaf: MerkleTreeNode = nodesInPath[nodesInPath.length - 1]
+
       // Will only match if we were able to traverse all the way to the leaf
-      return leaf.key.equals(leafKey) ? leaf.value : undefined
+      if (!leaf.key.equals(leafKey)) {
+        log.debug(
+          `Cannot get Leaf because leaf key does not match. Path: [${leafKey.toString(
+            10
+          )}], leaf key: ${leaf.key.toString(10)}.`
+        )
+        return undefined
+      }
+
+      log.debug(`Returning leaf value: [${leaf.value.toString()}].`)
+      return leaf.value
     })
   }
 
@@ -557,7 +581,13 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
    * @param node The node in question
    */
   private getNodeID(node: MerkleTreeNode): Buffer {
-    return this.getNodeIDFromHashAndKey(node.hash, node.key)
+    const id: Buffer = this.getNodeIDFromHashAndKey(node.hash, node.key)
+    log.debug(
+      `Node ID for key [${node.key}] is ${id.toString(
+        'hex'
+      )}. (node hash: ${node.hash.toString('hex')}`
+    )
+    return id
   }
 
   private getNodeIDFromHashAndKey(

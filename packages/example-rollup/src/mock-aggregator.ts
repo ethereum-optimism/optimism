@@ -1,5 +1,6 @@
 /* External Imports */
-import MemDown from 'memdown'
+import * as Level from 'level'
+
 import { BaseDB } from '@pigi/core'
 import {
   State,
@@ -39,8 +40,18 @@ const host = '0.0.0.0'
 const port = 3000
 
 async function runAggregator() {
-  const stateDB = new BaseDB(new MemDown('state') as any)
-  const blockDB = new BaseDB(new MemDown('blocks') as any, 4)
+  const levelOptions = {
+    keyEncoding: 'binary',
+    valueEncoding: 'binary',
+  }
+  const stateDB = new BaseDB((await Level(
+    'build/level/state',
+    levelOptions
+  )) as any)
+  const blockDB = new BaseDB(
+    (await Level('build/level/blocks', levelOptions)) as any,
+    4
+  )
 
   const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
     genesisState,

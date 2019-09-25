@@ -8,6 +8,7 @@ node_modules/
 /.idea
 /.awcache
 /.vscode
+*.iml
 
 # misc
 *.swp
@@ -17,3 +18,6 @@ npm-debug.log
 /**/npm-debug.log
 /packages/**/LICENSE.txt
 *.test.tmp
+/**/package-lock.json
+
+/**/*.log

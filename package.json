@@ -52,6 +52,7 @@
   "dependencies": {
     "bignumber.js": "^9.0.0",
     "chai-bignumber": "^3.0.0",
-    "ganache-core": "2.5.7"
+    "ganache-core": "2.5.7",
+    "level": "^5.0.1"
   }
 }
