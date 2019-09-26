@@ -407,9 +407,7 @@ describe('RollupChain', () => {
         )
         // Here we're storing the siblings in the format we need them!
         siblings.push(
-          inclusionProof.siblings
-            .map((sibBuf) => bufToHexString(sibBuf))
-            .reverse()
+          inclusionProof.siblings.map((sibBuf) => bufToHexString(sibBuf))
         )
       }
 

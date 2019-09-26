@@ -83,9 +83,9 @@ export class RollupBlock {
       hexStrToBuf(this.encodedTransitions[transitionIndex])
     )
     const path = bufToHexString(blockInclusion.key.toBuffer('B', 32))
-    const siblings = blockInclusion.siblings
-      .map((sibBuf) => bufToHexString(sibBuf))
-      .reverse()
+    const siblings = blockInclusion.siblings.map((sibBuf) =>
+      bufToHexString(sibBuf)
+    )
     return {
       blockNumber: this.blockNumber,
       transitionIndex,

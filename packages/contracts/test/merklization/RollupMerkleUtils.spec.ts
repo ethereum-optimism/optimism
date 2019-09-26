@@ -155,11 +155,9 @@ describe('RollupMerkleUtils', () => {
           )
           // Extract the values we need for the proof in the form we need them
           const path = bufToHexString(inclusionProof.key.toBuffer('B', 32))
-          // Extract the siblings but reverse the order (reversed order is what is expected by the contract
-          // which verifies bottom to top as opposed to top to bottom.
-          const siblings = inclusionProof.siblings
-            .map((sibBuf) => bufToHexString(sibBuf))
-            .reverse()
+          const siblings = inclusionProof.siblings.map((sibBuf) =>
+            bufToHexString(sibBuf)
+          )
           const isValid = await rollupMerkleUtils.verify(
             bufToHexString(inclusionProof.rootHash),
             bufToHexString(inclusionProof.value),
@@ -200,11 +198,9 @@ describe('RollupMerkleUtils', () => {
           )
           // Extract the values we need for the proof in the form we need them
           const path = bufToHexString(inclusionProof.key.toBuffer('B', 32))
-          // Extract the siblings but reverse the order (reversed order is what is expected by the contract
-          // which verifies bottom to top as opposed to top to bottom.
-          const siblings = inclusionProof.siblings
-            .map((sibBuf) => bufToHexString(sibBuf))
-            .reverse()
+          const siblings = inclusionProof.siblings.map((sibBuf) =>
+            bufToHexString(sibBuf)
+          )
           await rollupMerkleUtils.store(
             bufToHexString(inclusionProof.value),
             path,

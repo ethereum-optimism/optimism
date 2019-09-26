@@ -47,7 +47,7 @@ const verifyEmptyTreeWithDepth = async (
     rootHash: await tree.getRootHash(),
     key,
     value: SparseMerkleTreeImpl.emptyBuffer,
-    siblings: siblings.reverse(),
+    siblings,
   }
 
   assert(
@@ -794,9 +794,9 @@ describe('SparseMerkleTreeImpl', () => {
       assert(proof.siblings.length === 2)
 
       let hash: Buffer = zeroHash
-      assert(proof.siblings[1].equals(hash))
-      hash = bufferHashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
       assert(proof.siblings[0].equals(hash))
+      hash = bufferHashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
+      assert(proof.siblings[1].equals(hash))
 
       assert(proof.rootHash.equals(await tree.getRootHash()))
     })
@@ -821,9 +821,9 @@ describe('SparseMerkleTreeImpl', () => {
       assert(proof.siblings.length === 2)
 
       let hash: Buffer = zeroHash
-      assert(proof.siblings[1].equals(hash))
-      hash = bufferHashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
       assert(proof.siblings[0].equals(hash))
+      hash = bufferHashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
+      assert(proof.siblings[1].equals(hash))
 
       assert(proof.rootHash.equals(await tree.getRootHash()))
     })
@@ -858,11 +858,11 @@ describe('SparseMerkleTreeImpl', () => {
 
       assert(proof.siblings.length === 2)
       let hash: Buffer = bufferHashFunction(oneData)
-      assert(proof.siblings[1].equals(hash))
+      assert(proof.siblings[0].equals(hash))
       hash = bufferHashFunction(
         hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32)
       )
-      assert(proof.siblings[0].equals(hash))
+      assert(proof.siblings[1].equals(hash))
 
       assert(proof.rootHash.equals(await tree.getRootHash()))
 
@@ -874,12 +874,11 @@ describe('SparseMerkleTreeImpl', () => {
 
       assert(proof.siblings.length === 2)
       hash = bufferHashFunction(zeroData)
-      assert(proof.siblings[1].equals(hash))
+      assert(proof.siblings[0].equals(hash))
       hash = bufferHashFunction(
         hashBuffer.fill(zeroHash, 0, 32).fill(zeroHash, 32)
       )
-      assert(proof.siblings[0].equals(hash))
-
+      assert(proof.siblings[1].equals(hash))
       assert(proof.rootHash.equals(await tree.getRootHash()))
     })
 
@@ -918,11 +917,11 @@ describe('SparseMerkleTreeImpl', () => {
       assert(proof.siblings.length === 2)
 
       let hash: Buffer = zeroHash
-      assert(proof.siblings[1].equals(hash))
+      assert(proof.siblings[0].equals(hash))
       hash = bufferHashFunction(
         hashBuffer.fill(bufferHashFunction(twoData), 0, 32).fill(zeroHash, 32)
       )
-      assert(proof.siblings[0].equals(hash))
+      assert(proof.siblings[1].equals(hash))
       assert(proof.rootHash.equals(await tree.getRootHash()))
 
       // Check Proof for TWO
@@ -934,11 +933,11 @@ describe('SparseMerkleTreeImpl', () => {
       assert(proof.siblings.length === 2)
 
       hash = zeroHash
-      assert(proof.siblings[1].equals(hash))
+      assert(proof.siblings[0].equals(hash))
       hash = bufferHashFunction(
         hashBuffer.fill(bufferHashFunction(zeroData), 0, 32).fill(zeroHash, 32)
       )
-      assert(proof.siblings[0].equals(hash))
+      assert(proof.siblings[1].equals(hash))
 
       assert(proof.rootHash.equals(await tree.getRootHash()))
     })
