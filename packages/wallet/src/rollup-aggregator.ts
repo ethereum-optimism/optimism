@@ -11,6 +11,7 @@ import {
   DB,
   getLogger,
   hexStrToBuf,
+  SignatureProvider,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -22,7 +23,6 @@ import {
   generateTransferTx,
   AGGREGATOR_API,
   RollupTransaction,
-  SignatureProvider,
   UNISWAP_ADDRESS,
   AGGREGATOR_ADDRESS,
   RollupTransition,
@@ -70,17 +70,11 @@ const generateFaucetTxs = async (
 
   return [
     {
-      signature: await signatureProvider.sign(
-        aggregatorAddress,
-        abiEncodeTransaction(txOne)
-      ),
+      signature: await signatureProvider.sign(abiEncodeTransaction(txOne)),
       transaction: txOne,
     },
     {
-      signature: await signatureProvider.sign(
-        aggregatorAddress,
-        abiEncodeTransaction(txTwo)
-      ),
+      signature: await signatureProvider.sign(abiEncodeTransaction(txTwo)),
       transaction: txTwo,
     },
   ]
@@ -173,7 +167,6 @@ export class RollupAggregator extends SimpleServer {
       let signature: Signature
       if (!!stateReceipt.state) {
         signature = await this.signatureProvider.sign(
-          AGGREGATOR_ADDRESS,
           abiEncodeStateReceipt(stateReceipt)
         )
       } else {
@@ -316,7 +309,6 @@ export class RollupAggregator extends SimpleServer {
       transitionIndex,
     }
     const senderSignature: string = await this.signatureProvider.sign(
-      AGGREGATOR_ADDRESS,
       abiEncodeStateReceipt(senderReceipt)
     )
     receipts.push({
@@ -334,7 +326,6 @@ export class RollupAggregator extends SimpleServer {
         transitionIndex,
       }
       const recipientSignature: string = await this.signatureProvider.sign(
-        AGGREGATOR_ADDRESS,
         abiEncodeStateReceipt(recipientReceipt)
       )
       receipts.push({

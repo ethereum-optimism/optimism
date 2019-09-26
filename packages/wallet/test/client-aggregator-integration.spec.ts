@@ -1,7 +1,12 @@
 import './setup'
 
 /* External Imports */
-import { SimpleClient, getLogger, newInMemoryDB } from '@pigi/core'
+import {
+  SimpleClient,
+  getLogger,
+  newInMemoryDB,
+  DefaultSignatureProvider,
+} from '@pigi/core'
 
 /* Internal Imports */
 import {
@@ -14,10 +19,8 @@ import {
   UnipigTransitioner,
   RollupAggregator,
   RollupStateMachine,
-  FaucetRequest,
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
-  SignedStateReceipt,
   RollupClient,
   Balances,
 } from '../src'
@@ -36,17 +39,21 @@ describe('Mock Client/Aggregator Integration', () => {
   let aggregator: RollupAggregator
   let ovm: DummyRollupStateSolver
   let rollupClient: RollupClient
-  let unipigWallet: UnipigTransitioner
-  const walletPassword = 'Really great password'
+  let unipigTransitioner: UnipigTransitioner
 
   beforeEach(async function() {
     this.timeout(timeout)
     ovm = new DummyRollupStateSolver()
     rollupClient = new RollupClient(newInMemoryDB())
-    unipigWallet = new UnipigTransitioner(newInMemoryDB(), ovm, rollupClient)
+    unipigTransitioner = new UnipigTransitioner(
+      newInMemoryDB(),
+      ovm,
+      rollupClient,
+      new DefaultSignatureProvider()
+    )
 
     // Now create a wallet account
-    accountAddress = await unipigWallet.createAccount(walletPassword)
+    accountAddress = await unipigTransitioner.getAddress()
 
     const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
       getGenesisState(accountAddress),
@@ -54,7 +61,6 @@ describe('Mock Client/Aggregator Integration', () => {
     )
 
     // Initialize a mock aggregator
-    await unipigWallet.unlockAccount(accountAddress, walletPassword)
     aggregator = new RollupAggregator(
       newInMemoryDB(),
       rollupStateMachine,
@@ -77,7 +83,7 @@ describe('Mock Client/Aggregator Integration', () => {
 
   describe('UnipigTransitioner', () => {
     it('should be able to query the aggregators balances', async () => {
-      const response = await unipigWallet.getBalances(accountAddress)
+      const response = await unipigTransitioner.getBalances(accountAddress)
       response.should.deep.equal({
         [UNI_TOKEN_TYPE]: 50,
         [PIGI_TOKEN_TYPE]: 50,
@@ -86,51 +92,42 @@ describe('Mock Client/Aggregator Integration', () => {
 
     it('should return an error if the wallet tries to transfer money it doesnt have', async () => {
       try {
-        await unipigWallet.send(
-          UNI_TOKEN_TYPE,
-          accountAddress,
-          testRecipientAddress,
-          10
-        )
+        await unipigTransitioner.send(UNI_TOKEN_TYPE, testRecipientAddress, 10)
       } catch (err) {
         // Success!
       }
     }).timeout(timeout)
 
     it('should successfully transfer if alice sends money', async () => {
-      await unipigWallet.send(
-        UNI_TOKEN_TYPE,
-        accountAddress,
-        testRecipientAddress,
-        10
-      )
-      const recipientBalances: Balances = await unipigWallet.getBalances(
+      await unipigTransitioner.send(UNI_TOKEN_TYPE, testRecipientAddress, 10)
+      const recipientBalances: Balances = await unipigTransitioner.getBalances(
         testRecipientAddress
       )
       recipientBalances[UNI_TOKEN_TYPE].should.equal(10)
     }).timeout(timeout)
 
     it('should successfully transfer if first faucet is requested', async () => {
-      const newPassword = 'new address password'
-      const newAddress = await unipigWallet.createAccount(newPassword)
-      await unipigWallet.unlockAccount(newAddress, newPassword)
+      const secondTransitioner = new UnipigTransitioner(
+        newInMemoryDB(),
+        ovm,
+        rollupClient,
+        new DefaultSignatureProvider()
+      )
+      const newAddress = await secondTransitioner.getAddress()
 
       // First collect some funds from the faucet
-      await unipigWallet.requestFaucetFunds(newAddress, 10)
-      const balances: Balances = await unipigWallet.getBalances(newAddress)
+      await secondTransitioner.requestFaucetFunds(10)
+      const balances: Balances = await secondTransitioner.getBalances(
+        newAddress
+      )
       balances.should.deep.equal({
         [UNI_TOKEN_TYPE]: 10,
         [PIGI_TOKEN_TYPE]: 10,
       })
 
-      await unipigWallet.send(
-        UNI_TOKEN_TYPE,
-        newAddress,
-        testRecipientAddress,
-        10
-      )
+      await secondTransitioner.send(UNI_TOKEN_TYPE, testRecipientAddress, 10)
 
-      const recipientBalances: Balances = await unipigWallet.getBalances(
+      const recipientBalances: Balances = await secondTransitioner.getBalances(
         testRecipientAddress
       )
       recipientBalances[UNI_TOKEN_TYPE].should.equal(10)

@@ -96,8 +96,6 @@ class DummyStateManager implements StateManager {
  *********/
 
 describe('DefaultAggregator', () => {
-  const wallet: ethers.Wallet = ethers.Wallet.createRandom()
-
   let blockManager: DummyBlockManager
   let stateManager: DummyStateManager
   let aggregator: Aggregator
@@ -107,8 +105,8 @@ describe('DefaultAggregator', () => {
   beforeEach(async () => {
     blockManager = new DummyBlockManager()
     stateManager = new DummyStateManager()
-    signatureProvider = new DefaultSignatureProvider(wallet)
-    aggregatorAddress = await wallet.getAddress()
+    signatureProvider = new DefaultSignatureProvider()
+    aggregatorAddress = await signatureProvider.getAddress()
     aggregator = new DefaultAggregator(
       stateManager,
       blockManager,
@@ -151,7 +149,6 @@ describe('DefaultAggregator', () => {
           txCommitment.blockTransaction
         )
         const signature: string = await signatureProvider.sign(
-          aggregatorAddress,
           serializedCommitment
         )
         assert(

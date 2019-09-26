@@ -49,10 +49,6 @@ export interface State {
   balances: Balances
 }
 
-export interface SignatureProvider {
-  sign(address: string, message: string): Promise<string>
-}
-
 export interface StateUpdate {
   transaction: SignedTransaction
   stateRoot: string

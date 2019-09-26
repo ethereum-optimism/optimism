@@ -7,6 +7,7 @@ import {
   SignedByDecider,
   SimpleClient,
   getLogger,
+  DefaultSignatureProvider,
   BaseDB,
 } from '@pigi/core'
 import {
@@ -119,9 +120,7 @@ async function initialize() {
     transitionerDB,
     rollupStateSolver,
     rollupClient,
-    undefined,
-    undefined,
-    wallet
+    new DefaultSignatureProvider(wallet)
   )
   // Update account address
   updateAccountAddress(wallet.address)
@@ -138,7 +137,7 @@ async function fetchBalanceUpdate() {
 }
 
 async function onRequestFundsClicked() {
-  await unipigWallet.requestFaucetFunds(wallet.address, 10)
+  await unipigWallet.requestFaucetFunds(10)
   const updatedBalances: Balances = await unipigWallet.getBalances(
     wallet.address
   )
@@ -151,7 +150,7 @@ async function onTransferFundsClicked() {
   const amount = parseInt(document.getElementById('send-amount').value, 10)
   const recipient = document.getElementById('send-recipient').value
 
-  await unipigWallet.send(tokenType, wallet.address, recipient, amount)
+  await unipigWallet.send(tokenType, recipient, amount)
   const updatedBalances: Balances = await unipigWallet.getBalances(
     wallet.address
   )
@@ -163,13 +162,7 @@ async function onSwapFundsClicked() {
   const selectedIndex = document.getElementById('swap-token-type').selectedIndex
   const tokenType = selectedIndex === 0 ? UNI_TOKEN_TYPE : PIGI_TOKEN_TYPE
   const inputAmount = parseInt(document.getElementById('swap-amount').value, 10)
-  await unipigWallet.swap(
-    tokenType,
-    wallet.address,
-    inputAmount,
-    0,
-    +new Date() + 1000
-  )
+  await unipigWallet.swap(tokenType, inputAmount, 0, +new Date() + 1000)
   const [senderBalance, uniswapBalance] = await Promise.all([
     unipigWallet.getBalances(wallet.address),
     unipigWallet.getBalances(UNISWAP_ADDRESS),

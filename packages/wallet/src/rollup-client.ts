@@ -72,7 +72,6 @@ export class RollupClient {
     signatureProvider: SignatureProvider
   ): Promise<SignedStateReceipt[]> {
     const signature = await signatureProvider.sign(
-      transaction.sender,
       abiEncodeTransaction(transaction)
     )
     const receipts: SignedStateReceipt[] = await this.rpcClient.handle<
@@ -93,10 +92,7 @@ export class RollupClient {
     transaction: RollupTransaction,
     signatureProvider: SignatureProvider
   ): Promise<SignedStateReceipt> {
-    const signature = await signatureProvider.sign(
-      transaction.sender,
-      serializeObject(transaction)
-    )
+    const signature = await signatureProvider.sign(serializeObject(transaction))
     const receipt: SignedStateReceipt = await this.rpcClient.handle<
       SignedStateReceipt
     >(AGGREGATOR_API.requestFaucetFunds, {

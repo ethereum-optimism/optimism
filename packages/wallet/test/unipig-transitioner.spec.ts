@@ -1,7 +1,13 @@
 import './setup'
 
 /* External Imports */
-import { SimpleServer, SimpleClient, DB, newInMemoryDB } from '@pigi/core'
+import {
+  SimpleServer,
+  SimpleClient,
+  DB,
+  newInMemoryDB,
+  DefaultSignatureProvider,
+} from '@pigi/core'
 
 /* Internal Imports */
 import {
@@ -57,7 +63,7 @@ const applyTransaction = (transaction: SignedTransaction) => {
  *********/
 
 describe('UnipigTransitioner', async () => {
-  let unipigWallet: UnipigTransitioner
+  let unipigTransitioner: UnipigTransitioner
   let accountAddress: Address
   let aggregator: SimpleServer
   let ovm: DummyRollupStateSolver
@@ -68,9 +74,14 @@ describe('UnipigTransitioner', async () => {
     // Typings for MemDown are wrong so we need to cast to `any`.
     ovm = new DummyRollupStateSolver()
     rollupClient = new RollupClient(newInMemoryDB())
-    unipigWallet = new UnipigTransitioner(newInMemoryDB(), ovm, rollupClient)
+    unipigTransitioner = new UnipigTransitioner(
+      newInMemoryDB(),
+      ovm,
+      rollupClient,
+      new DefaultSignatureProvider()
+    )
     // Now create a wallet account
-    accountAddress = await unipigWallet.createAccount('')
+    accountAddress = await unipigTransitioner.getAddress()
     // Initialize a mock aggregator
     aggregator = new SimpleServer(
       {
@@ -91,7 +102,9 @@ describe('UnipigTransitioner', async () => {
 
   describe('getState()', () => {
     it('should return an empty balance after initialized', async () => {
-      const result: StateReceipt = await unipigWallet.getState(accountAddress)
+      const result: StateReceipt = await unipigTransitioner.getState(
+        accountAddress
+      )
       result.should.deep.equal(getStateReceipt(accountAddress))
     }).timeout(timeout)
   })

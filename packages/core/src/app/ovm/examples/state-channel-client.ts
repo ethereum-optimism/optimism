@@ -330,7 +330,6 @@ export class StateChannelClient {
     )
 
     const signature: string = await this.signatureProvider.sign(
-      this.myAddress,
       serializedMessage
     )
 

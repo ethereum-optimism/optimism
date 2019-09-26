@@ -52,10 +52,7 @@ export class DefaultAggregator implements Aggregator {
 
     return {
       blockTransaction,
-      witness: await this.signatureProvider.sign(
-        this.publicKey,
-        serializedTransaction
-      ),
+      witness: await this.signatureProvider.sign(serializedTransaction),
     }
   }
 

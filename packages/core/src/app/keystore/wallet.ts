@@ -2,7 +2,8 @@
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { Wallet, WalletDB } from '../../types'
+import { SignatureProvider, Wallet, WalletDB } from '../../types'
+import { DefaultSignatureProvider } from './signatures'
 
 /**
  * Simple Wallet implementation.
@@ -69,6 +70,20 @@ export class DefaultWallet implements Wallet {
    */
   public async lockAccount(address: string): Promise<void> {
     delete this.unlocked[address]
+  }
+
+  public async getSignatureProvider(
+    address: string
+  ): Promise<SignatureProvider> {
+    if (!(await this.walletdb.hasKeystore(address))) {
+      throw new Error('Account does not exist.')
+    }
+
+    if (!(address in this.unlocked)) {
+      throw new Error('Account is not unlocked.')
+    }
+
+    return new DefaultSignatureProvider(this.unlocked[address])
   }
 
   /**

@@ -1,12 +1,7 @@
 /* External Imports */
 import {
-  DefaultWallet,
-  DefaultWalletDB,
-  WalletDB,
   SignatureProvider,
   DB,
-  SignatureVerifier,
-  DefaultSignatureVerifier,
   getLogger,
   serializeObject,
   logError,
@@ -14,6 +9,8 @@ import {
   SignedByDB,
   SignedByDecider,
   MerkleInclusionProofDecider,
+  DefaultSignatureProvider,
+  SimpleClient,
 } from '@pigi/core'
 import { ethers } from 'ethers'
 
@@ -48,65 +45,54 @@ interface KnownState {
  * The UnipigTransitioner class can be used to interact with the OVM and
  * all the L2s under it.
  */
-export class UnipigTransitioner extends DefaultWallet {
-  private db: DB
-  private rollupClient: RollupClient
-  private stateSolver: RollupStateSolver
+export class UnipigTransitioner {
   private knownState: KnownState
-  private wallet: ethers.Wallet
 
-  public static new(db: DB, myAddress: string): UnipigTransitioner {
+  public static async new(
+    db: DB,
+    signatureProvider?: SignatureProvider,
+    aggregatorURL: string = 'http://127.0.0.1:3000'
+  ): Promise<UnipigTransitioner> {
+    if (!signatureProvider) {
+      signatureProvider = new DefaultSignatureProvider()
+    }
     const signedByDB: SignedByDBInterface = new SignedByDB(db)
-    const decider: SignedByDecider = new SignedByDecider(signedByDB, myAddress)
+    const decider: SignedByDecider = new SignedByDecider(
+      signedByDB,
+      await signatureProvider.getAddress()
+    )
     const stateSolver: RollupStateSolver = new DefaultRollupStateSolver(
       signedByDB,
       decider,
       new MerkleInclusionProofDecider()
     )
-
     const rollupclient: RollupClient = new RollupClient(db)
+    rollupclient.connect(new SimpleClient(aggregatorURL))
 
-    return new UnipigTransitioner(db, stateSolver, rollupclient)
+    return new UnipigTransitioner(
+      db,
+      stateSolver,
+      rollupclient,
+      signatureProvider
+    )
   }
 
   constructor(
-    db: DB,
-    stateSolver: RollupStateSolver,
-    rollupClient: RollupClient,
-    signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
-    signatureProvider?: SignatureProvider,
-    wallet?: ethers.Wallet
+    private readonly db: DB,
+    private readonly stateSolver: RollupStateSolver,
+    private readonly rollupClient: RollupClient,
+    private readonly signatureProvider: SignatureProvider
   ) {
-    // Set up the keystore db
-    const keystoreDB: WalletDB = new DefaultWalletDB(db)
-    super(keystoreDB)
-
-    this.rollupClient = rollupClient
-
-    // Save a reference to our db
-    this.db = db
-    this.stateSolver = stateSolver
     this.knownState = {}
-    this.wallet = wallet
   }
 
-  public async sign(signer: string, message: string): Promise<string> {
-    if (typeof this.wallet !== 'undefined') {
-      log.debug('Address:', signer, 'signing message:', message)
-      return this.wallet.signMessage(message)
-    } else {
-      return super.sign(signer, message)
-    }
+  public async sign(message: string): Promise<string> {
+    log.debug('Address:', await this.getAddress(), 'signing message:', message)
+    return this.signatureProvider.sign(message)
   }
 
-  public async listAccounts(): Promise<string[]> {
-    if (typeof this.wallet !== 'undefined') {
-      const address = await this.wallet.getAddress()
-      log.debug('Listing address:', address)
-      return [address]
-    } else {
-      return super.listAccounts()
-    }
+  public async getAddress(): Promise<string> {
+    return this.signatureProvider.getAddress()
   }
 
   public async getUniswapBalances(): Promise<Balances> {
@@ -153,12 +139,11 @@ export class UnipigTransitioner extends DefaultWallet {
 
   public async send(
     tokenType: TokenType,
-    from: Address,
     to: Address,
     amount: number
   ): Promise<void> {
     const transaction: Transfer = {
-      sender: from,
+      sender: await this.getAddress(),
       recipient: to,
       tokenType,
       amount,
@@ -168,13 +153,12 @@ export class UnipigTransitioner extends DefaultWallet {
 
   public async swap(
     tokenType: TokenType,
-    from: Address,
     inputAmount: number,
     minOutputAmount: number,
     timeoutMillis: number
   ): Promise<void> {
     const transaction: Swap = {
-      sender: from,
+      sender: await this.getAddress(),
       tokenType,
       inputAmount,
       minOutputAmount,
@@ -183,12 +167,9 @@ export class UnipigTransitioner extends DefaultWallet {
     await this.submitTransaction(transaction)
   }
 
-  public async requestFaucetFunds(
-    forAddress: Address,
-    amount: number = 10
-  ): Promise<void> {
+  public async requestFaucetFunds(amount: number = 10): Promise<void> {
     const faucetRequest: FaucetRequest = {
-      sender: forAddress,
+      sender: await this.getAddress(),
       amount,
     }
     await this.submitTransaction(faucetRequest)
@@ -201,10 +182,16 @@ export class UnipigTransitioner extends DefaultWallet {
     try {
       if (isFaucetTransaction(transaction)) {
         receipts = [
-          await this.rollupClient.requestFaucetFunds(transaction, this),
+          await this.rollupClient.requestFaucetFunds(
+            transaction,
+            this.signatureProvider
+          ),
         ]
       } else {
-        receipts = await this.rollupClient.sendTransaction(transaction, this)
+        receipts = await this.rollupClient.sendTransaction(
+          transaction,
+          this.signatureProvider
+        )
       }
     } catch (e) {
       if (e instanceof SignatureError) {

@@ -21,7 +21,7 @@ export class DefaultSignatureProvider implements SignatureProvider {
     private readonly wallet: ethers.Wallet = ethers.Wallet.createRandom()
   ) {}
 
-  public async sign(_address: string, message: string): Promise<string> {
+  public async sign(message: string): Promise<string> {
     return this.wallet.signMessage(message)
   }
 
@@ -31,16 +31,14 @@ export class DefaultSignatureProvider implements SignatureProvider {
 }
 
 export class IdentitySigner implements SignatureProvider {
-  private static _instance: SignatureProvider
-  public static instance(): SignatureProvider {
-    if (!IdentitySigner._instance) {
-      IdentitySigner._instance = new IdentitySigner()
-    }
-    return IdentitySigner._instance
+  public constructor(private address: string) {}
+
+  public async getAddress(): Promise<string> {
+    return this.address
   }
 
-  public async sign(address: string, message: string): Promise<string> {
-    return address
+  public async sign(message: string): Promise<string> {
+    return this.address
   }
 }
 
