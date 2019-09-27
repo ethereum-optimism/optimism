@@ -66,6 +66,11 @@ export interface RollupBlock {
   transitions: RollupTransition[]
 }
 
+export interface RollupTransitionPosition {
+  blockNumber: number
+  transitionIndex: number
+}
+
 export interface StateSnapshot {
   slotIndex: number
   state: State
@@ -106,6 +111,16 @@ export interface TransferTransition {
 export interface CreateAndTransferTransition extends TransferTransition {
   createdAccountPubkey: string
 }
+
+/*** Guarding Types ***/
+
+export interface FraudProof {
+  fraudPosition: RollupTransitionPosition
+  fraudInputs: StateSnapshot[]
+  fraudTransaction: SignedTransaction
+}
+
+export type FraudCheckResult = FraudProof | 'NO_FRAUD'
 
 /*** Type Determination Functions ***/
 
