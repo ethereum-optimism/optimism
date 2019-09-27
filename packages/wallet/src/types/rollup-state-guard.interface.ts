@@ -1,7 +1,9 @@
-import { Address, SignedTransaction, StateSnapshot, StateUpdate, RollupBlock } from './types'
-import { RollupTransitionPosition, FraudCheckResult } from './types'
-
-
+import {
+  SignedTransaction,
+  RollupBlock,
+  RollupTransitionPosition,
+  FraudCheckResult,
+} from './types'
 
 export interface RollupStateGuard {
   /**
@@ -18,7 +20,10 @@ export interface RollupStateGuard {
    * @param nextRolledupRoot The next root which was rolled up, which should be compared.
    * @returns The FraudCheckResult resulting from the check
    */
-  checkNextTransition(nextSignedTransaction: SignedTransaction, nextRolledUpRoot: string): Promise<FraudCheckResult>
+  checkNextTransition(
+    nextSignedTransaction: SignedTransaction,
+    nextRolledUpRoot: string
+  ): Promise<FraudCheckResult>
 
   /**
    * Gets the state for the provided address, if one exists.
