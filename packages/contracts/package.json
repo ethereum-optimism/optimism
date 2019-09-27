@@ -40,8 +40,7 @@
     "memdown": "^5.0.0",
     "mocha": "^6.0.2",
     "rimraf": "^2.6.3",
-    "typescript": "^3.3.3333",
-    "web3": "^1.0.0-beta.48"
+    "typescript": "^3.3.3333"
   },
   "dependencies": {
     "@pigi/core": "^0.0.1-alpha.1",
@@ -50,7 +49,7 @@
     "chai": "^4.2.0",
     "debug": "^4.1.1",
     "ethereum-waffle": "^2.0.12",
-    "ethers": "^4.0.30",
+    "ethers": "^4.0.37",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0"
   }

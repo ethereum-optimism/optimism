@@ -10,7 +10,7 @@ import { ethers } from 'ethers'
  * @returns the hash as a Buffer
  */
 export const Md5Hash = (preimage: string): string => {
-  return Md5.hashStr(preimage) as string
+  return Md5.hashStr(preimage).toString()
 }
 
 /**
