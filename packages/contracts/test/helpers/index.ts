@@ -2,9 +2,6 @@
 import { keccak256, abi, hexStrToBuf, bufToHexString } from '@pigi/core'
 import { RollupTransition, TransferTransition } from '@pigi/wallet'
 
-/* Export files */
-export * from './RollupBlock'
-
 /**********************************
  * Byte String Generation Helpers *
  *********************************/

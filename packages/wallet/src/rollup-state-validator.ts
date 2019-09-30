@@ -2,7 +2,7 @@
 import * as AsyncLock from 'async-lock'
 
 import {
-  IdentityVerifier,
+  ChecksumAgnosticIdentityVerifier,
   serializeObject,
   SignatureVerifier,
   DB,
@@ -17,8 +17,6 @@ import {
   bufToHexString,
   hexStrToBuf,
 } from '@pigi/core'
-
-// import * as ContractImports from '@pigi/contracts'
 
 /* Internal Imports */
 import {
@@ -90,7 +88,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     const theRollupMachine = (await DefaultRollupStateMachine.create(
       genesisState,
       stateMachineDb,
-      IdentityVerifier.instance()
+      ChecksumAgnosticIdentityVerifier.instance()
     )) as DefaultRollupStateMachine
     return new DefaultRollupStateValidator(theRollupMachine)
   }
@@ -227,7 +225,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   ): Promise<FraudCheckResult> {
     const currentPosition: RollupTransitionPosition = await this.getCurrentVerifiedPosition()
 
-    if (nextBlock.number !== currentPosition.blockNumber + 1) {
+    if (nextBlock.blockNumber !== currentPosition.blockNumber + 1) {
       throw new ValidationOutOfOrderError()
     }
 

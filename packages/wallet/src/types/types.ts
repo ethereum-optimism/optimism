@@ -62,7 +62,7 @@ export interface StateUpdate {
 }
 
 export interface RollupBlock {
-  number: number
+  blockNumber: number
   transitions: RollupTransition[]
 }
 

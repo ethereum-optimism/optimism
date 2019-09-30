@@ -7,6 +7,7 @@ export * from './serialization/'
 export * from './types/'
 export * from './unipig-transitioner'
 export * from './utils'
+export * from './helpers'
 
 /* Aggregator API */
 export const AGGREGATOR_API = {

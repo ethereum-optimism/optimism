@@ -135,7 +135,7 @@ export class RollupAggregator extends SimpleServer {
     this.transitionIndex = 0
     this.blockNumber = 1
     this.pendingBlock = {
-      number: this.blockNumber,
+      blockNumber: this.blockNumber,
       transitions: [],
     }
     this.lock = new AsyncLock()
@@ -373,7 +373,7 @@ export class RollupAggregator extends SimpleServer {
 
     for (const trans of transitions) {
       await this.db
-        .bucket(this.getDBKeyFromNumber(this.pendingBlock.number))
+        .bucket(this.getDBKeyFromNumber(this.pendingBlock.blockNumber))
         .put(
           this.getDBKeyFromNumber(++this.transitionIndex),
           hexStrToBuf(abiEncodeTransition(trans))
@@ -416,7 +416,7 @@ export class RollupAggregator extends SimpleServer {
       // TODO: submit block here
 
       this.pendingBlock = {
-        number: ++this.blockNumber,
+        blockNumber: ++this.blockNumber,
         transitions: [],
       }
       this.transitionIndex = 0

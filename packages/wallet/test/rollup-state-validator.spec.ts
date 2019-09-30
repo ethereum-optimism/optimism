@@ -262,7 +262,7 @@ describe.only('RollupStateValidator', () => {
   describe('checkNextBlock', () => {
     it('should throw if it recieves blocks out of order', async () => {
       const wrongOrderBlock: RollupBlock = {
-        number: 5,
+        blockNumber: 5,
         transitions: undefined,
       }
       try {
@@ -297,7 +297,7 @@ describe.only('RollupStateValidator', () => {
       }
 
       const sendThenSwapBlock: RollupBlock = {
-        number: 1,
+        blockNumber: 1,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
 
@@ -332,7 +332,7 @@ describe.only('RollupStateValidator', () => {
       }
 
       const sendThenSwapBlock: RollupBlock = {
-        number: 1,
+        blockNumber: 1,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
 
