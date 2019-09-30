@@ -240,6 +240,47 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     })
   }
 
+  public async getStateRoot(): Promise<Buffer> {
+    return this.tree.getRootHash()
+  }
+
+  public getNextNewAccountSlot(): number {
+    return this.lastOpenKey.toNumber()
+  }
+
+  public async getSnapshotFromSlot(key: number): Promise<StateSnapshot> {
+    const [accountState, proof, stateRoot]: [
+      Buffer,
+      MerkleTreeInclusionProof,
+      string
+    ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+      let leaf: Buffer = await this.tree.getLeaf(new BigNumber(key))
+      if (!leaf) {leaf = Buffer.alloc(32).fill('\x00')}
+      // console.log('leaf is: ')
+      // console.log(leaf)
+
+      const merkleProof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
+        new BigNumber(key),
+        leaf
+      )
+      // console.log('merkleproof is: ')
+      // console.log(merkleProof)
+      return [leaf, merkleProof, merkleProof.rootHash.toString('hex')]
+    })
+
+    let state: State
+    let inclusionProof: InclusionProof
+    state = accountState ? this.deserializeState(accountState) : undefined
+    inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))
+
+    return {
+      slotIndex: key,
+      state,
+      stateRoot,
+      inclusionProof,
+    }
+  }
+
   private async getBalances(address: string): Promise<Balances> {
     const key: BigNumber = this.getAddressKey(address)
 

@@ -2,6 +2,8 @@ import {
   SignedTransaction,
   RollupBlock,
   RollupTransitionPosition,
+  RollupTransition,
+  RollupTransaction,
   FraudCheckResult,
 } from './types'
 
@@ -14,22 +16,37 @@ export interface RollupStateGuard {
   getCurrentVerifiedPosition(): Promise<RollupTransitionPosition>
 
   /**
-   * Gets the state for the provided address, if one exists.
+   * Converts a transition into a transaction to be parsed by the transitioner.
    *
-   * @param nextSignedTransaction The next transaction which was rolled up.
+   * @returns The RollupTransitionPosition up to which the guard has currently verified.
+   */
+  getTransactionFromTransition(transition: RollupTransition): Promise<SignedTransaction> 
+
+  /**
+   * Applies the next transition as a transaction to the rollup state machine.
+   *
+   * @param nextTransition The next transition which was rolled up.
    * @param nextRolledupRoot The next root which was rolled up, which should be compared.
    * @returns The FraudCheckResult resulting from the check
    */
-  checkNextTransition(
-    nextSignedTransaction: SignedTransaction,
-    nextRolledUpRoot: string
+  checkNextEncodedTransition(
+    encodedNextTransition: string,
+    nextRolledUpRoot: Buffer
   ): Promise<FraudCheckResult>
 
   /**
-   * Gets the state for the provided address, if one exists.
+   * Checks a block of transitions once downloaded from ethereum
    *
    * @param nextBlock The block to be checked for fraud
    * @returns The FraudCheckResult resulting from the check
    */
   checkNextBlock(nextBlock: RollupBlock): Promise<FraudCheckResult>
+}
+
+export class LocalMachineError extends Error {
+  constructor() {
+    super(
+      'Transaction application failed for a reason other than the tx being invalid!'
+    )
+  }
 }

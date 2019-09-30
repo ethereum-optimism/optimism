@@ -117,7 +117,7 @@ export interface CreateAndTransferTransition extends TransferTransition {
 export interface FraudProof {
   fraudPosition: RollupTransitionPosition
   fraudInputs: StateSnapshot[]
-  fraudTransaction: SignedTransaction
+  fraudTransition: RollupTransition
 }
 
 export type FraudCheckResult = FraudProof | 'NO_FRAUD'
