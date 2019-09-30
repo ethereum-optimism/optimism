@@ -112,15 +112,15 @@ export interface CreateAndTransferTransition extends TransferTransition {
   createdAccountPubkey: string
 }
 
-/*** Guarding Types ***/
+/*** Validation Types ***/
 
-export interface FraudProof {
+export interface LocalFraudProof {
   fraudPosition: RollupTransitionPosition
   fraudInputs: StateSnapshot[]
   fraudTransition: RollupTransition
 }
 
-export type FraudCheckResult = FraudProof | 'NO_FRAUD'
+export type FraudCheckResult = LocalFraudProof | 'NO_FRAUD'
 
 /*** Type Determination Functions ***/
 

@@ -18,6 +18,8 @@ import {
   hexStrToBuf,
 } from '@pigi/core'
 
+// import * as ContractImports from '@pigi/contracts'
+
 /* Internal Imports */
 import {
   Address,
@@ -62,10 +64,11 @@ import {
   RollupTransition,
   SlippageError,
   LocalMachineError,
-  FraudProof,
+  LocalFraudProof,
   UniTokenType,
   PigiTokenType,
 } from './types'
+
 import { Transaction } from 'ethers/utils'
 import {
   parseTransitionFromABI,
@@ -240,5 +243,37 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     // otherwise
     this.currentPosition.blockNumber++
     return 'NO_FRAUD'
+  }
+
+  public async generateContractFraudProof(localProof: LocalFraudProof, block: RollupBlock) {
+    const fraudInputs: StateSnapshot[] = localProof.fraudInputs as StateSnapshot[]
+    const fraudulentTransition: RollupTransition = localProof.fraudTransition as RollupTransition
+    const includedStorageSlots = [
+      {
+        storageSlot: {
+          value: {
+            pubkey: fraudInputs[0].state.pubKey,
+            balances: [fraudInputs[0].state.balances[UNI_TOKEN_TYPE], fraudInputs[0].state.balances[PIGI_TOKEN_TYPE]]
+          },
+          slotIndex: fraudInputs[0].slotIndex
+        },
+        siblings: fraudInputs[0].inclusionProof
+      },
+      {
+        storageSlot: {
+          value: {
+            pubkey: fraudInputs[1].state.pubKey,
+            balances: [fraudInputs[1].state.balances[UNI_TOKEN_TYPE], fraudInputs[1].state.balances[PIGI_TOKEN_TYPE]]
+          },
+          slotIndex: fraudInputs[1].slotIndex
+        },
+        siblings: fraudInputs[1].inclusionProof
+      },
+    ]
+
+    // await block.generateTree()
+
+    const curPosition = await this.getCurrentVerifiedPosition()
+    const fraudulentTransitionIndex = curPosition.transitionIndex
   }
 }
