@@ -41,6 +41,7 @@ import {
   SwapTransition,
   RollupBlock,
   ValidationOutOfOrderError,
+  AggregatorUnsupportedError,
 } from '../src'
 import { resolve } from 'dns'
 import { Transaction } from 'ethers/utils'
@@ -138,7 +139,7 @@ describe.only('RollupStateMachine', () => {
         inputAmount: 100,
         minOutputAmount: 20,
         timeout: 10,
-        signature: ALICE_ADDRESS
+        signature: ALICE_ADDRESS,
       }
       const snaps: StateSnapshot[] = await rollupGuard.getInputStateSnapshots(
         swapTransition
@@ -161,7 +162,7 @@ describe.only('RollupStateMachine', () => {
         recipientSlotIndex: 3, // Bob hardcoded in our genesis state helper
         tokenType: UNI_TOKEN_TYPE,
         amount: 10,
-        signature: ALICE_ADDRESS
+        signature: ALICE_ADDRESS,
       }
       const snaps: StateSnapshot[] = await rollupGuard.getInputStateSnapshots(
         transferTransition
@@ -175,16 +176,7 @@ describe.only('RollupStateMachine', () => {
     })
   })
 
-  describe.skip('getTransactionFromTransition', async () => {
-    it('should get a transfer from the transition', async () => {
-      // let resTx: SignedTransaction = await rollupGuard.getTransactionFromTransition(transitionAliceToBob)
-      // console.log('converted transition to tx: ')
-      // console.log(resTx)
-    })
-  })
-
   describe('checkNextTransition', () => {
-
     it('should return no fraud if correct root for transfer', async () => {
       const postRoot: string =
         '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
@@ -226,23 +218,44 @@ describe.only('RollupStateMachine', () => {
     })
     it('should return positive for fraud if transition has invalid root', async () => {
       const wrongPostRoot: string =
-      '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde'
+        '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde'
 
-    const transitionAliceSwap: SwapTransition = {
-      stateRoot: wrongPostRoot,
-      senderSlotIndex: 0,
-      uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
-      tokenType: UNI_TOKEN_TYPE,
-      inputAmount: 100,
-      minOutputAmount: 20,
-      timeout: 10,
-      signature: ALICE_ADDRESS,
-    }
+      const transitionAliceSwap: SwapTransition = {
+        stateRoot: wrongPostRoot,
+        senderSlotIndex: 0,
+        uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
+        tokenType: UNI_TOKEN_TYPE,
+        inputAmount: 100,
+        minOutputAmount: 20,
+        timeout: 10,
+        signature: ALICE_ADDRESS,
+      }
 
-    const res: FraudCheckResult = await rollupGuard.checkNextTransition(
-      transitionAliceSwap
-    )
-    res.should.not.equal('NO_FRAUD')
+      const res: FraudCheckResult = await rollupGuard.checkNextTransition(
+        transitionAliceSwap
+      )
+      res.should.not.equal('NO_FRAUD')
+    })
+    it('should throw if accounts are not created sequentially', async () => {
+      const postRoot = '0xdeadbeef1e5'
+
+      const outOfOrderCreation: CreateAndTransferTransition = {
+        stateRoot: postRoot,
+        senderSlotIndex: 0,
+        recipientSlotIndex: 300, // not 300th yet!
+        tokenType: 0,
+        amount: 100,
+        signature: ALICE_ADDRESS,
+        createdAccountPubkey: BOB_ADDRESS,
+      }
+
+      try {
+        await rollupGuard.checkNextTransition(outOfOrderCreation)
+      } catch (error) {
+        error.should.be.instanceOf(AggregatorUnsupportedError)
+        return
+      }
+      false.should.equal(true) // we should never get here!
     })
   })
 
@@ -250,11 +263,11 @@ describe.only('RollupStateMachine', () => {
     it('should throw if it recieves blocks out of order', async () => {
       const wrongOrderBlock: RollupBlock = {
         number: 5,
-        transitions: undefined
+        transitions: undefined,
       }
       try {
         await rollupGuard.checkNextBlock(wrongOrderBlock)
-      } catch(e) {
+      } catch (e) {
         e.should.be.an.instanceOf(ValidationOutOfOrderError)
       }
     })
@@ -269,7 +282,7 @@ describe.only('RollupStateMachine', () => {
         amount: 100,
         signature: ALICE_ADDRESS,
       }
-      
+
       const postSwapRoot: string =
         '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
       const transitionAliceSwap: SwapTransition = {
@@ -285,11 +298,48 @@ describe.only('RollupStateMachine', () => {
 
       const sendThenSwapBlock: RollupBlock = {
         number: 1,
-        transitions: [transitionAliceToBob, transitionAliceSwap]
+        transitions: [transitionAliceToBob, transitionAliceSwap],
       }
 
-      const res: FraudCheckResult = await rollupGuard.checkNextBlock(sendThenSwapBlock)
+      const res: FraudCheckResult = await rollupGuard.checkNextBlock(
+        sendThenSwapBlock
+      )
       res.should.equal('NO_FRAUD')
+    })
+    it('should successfully validate a send followed by a swap', async () => {
+      const postTransferRoot: string =
+        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+      const transitionAliceToBob: TransferTransition = {
+        stateRoot: postTransferRoot,
+        senderSlotIndex: 0,
+        recipientSlotIndex: 3,
+        tokenType: 0,
+        amount: 100,
+        signature: ALICE_ADDRESS,
+      }
+
+      const postSwapRoot: string =
+        '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
+      const transitionAliceSwap: SwapTransition = {
+        stateRoot: postSwapRoot,
+        senderSlotIndex: 0,
+        uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
+        tokenType: UNI_TOKEN_TYPE,
+        inputAmount: 100,
+        minOutputAmount: 20,
+        timeout: 10,
+        signature: ALICE_ADDRESS,
+      }
+
+      const sendThenSwapBlock: RollupBlock = {
+        number: 1,
+        transitions: [transitionAliceToBob, transitionAliceSwap],
+      }
+
+      const res: FraudCheckResult = await rollupGuard.checkNextBlock(
+        sendThenSwapBlock
+      )
+      res.should.not.equal('NO_FRAUD')
     })
   })
 })

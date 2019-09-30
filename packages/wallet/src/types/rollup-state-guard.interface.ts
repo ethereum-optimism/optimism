@@ -54,8 +54,14 @@ export class LocalMachineError extends Error {
 
 export class ValidationOutOfOrderError extends Error {
   constructor() {
+    super('Blocks were fed to the validator out of sync.')
+  }
+}
+
+export class AggregatorUnsupportedError extends Error {
+  constructor() {
     super(
-      'Blocks were fed to the validator out of sync.'
+      'We are currently unable to guard addresses which are created non-sequentially.'
     )
   }
 }

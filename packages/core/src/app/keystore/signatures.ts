@@ -1,6 +1,5 @@
 import { SignatureProvider, SignatureVerifier } from '../../types/keystore'
 import { ethers } from 'ethers'
-import { keccak256 } from '@pigi/core'
 
 export class DefaultSignatureVerifier implements SignatureVerifier {
   private static _instance: SignatureVerifier
