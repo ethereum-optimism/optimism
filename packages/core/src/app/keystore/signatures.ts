@@ -1,5 +1,6 @@
 import { SignatureProvider, SignatureVerifier } from '../../types/keystore'
 import { ethers } from 'ethers'
+import { keccak256 } from '@pigi/core'
 
 export class DefaultSignatureVerifier implements SignatureVerifier {
   private static _instance: SignatureVerifier
@@ -51,6 +52,6 @@ export class IdentityVerifier implements SignatureVerifier {
     return IdentityVerifier._instance
   }
   public verifyMessage(message: string, signature: string): string {
-    return signature
+    return ethers.utils.getAddress(signature)
   }
 }
