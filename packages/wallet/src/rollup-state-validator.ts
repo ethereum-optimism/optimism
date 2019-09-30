@@ -177,7 +177,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     if (isCreateAndTransferTransition(nextTransition)) {
       const slotIfSequential: number = await this.rollupMachine.getNextNewAccountSlot()
       // if the created slot is not sequential, for now it will break
-      if (slotIfSequential !== nextTransition.recipientSlotIndex) {
+      if (slotIfSequential < nextTransition.recipientSlotIndex) {
         throw new AggregatorUnsupportedError()
       }
     }
