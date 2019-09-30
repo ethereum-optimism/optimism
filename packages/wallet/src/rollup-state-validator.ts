@@ -51,6 +51,7 @@ import {
   isStateTransitionError,
   ValidationOutOfOrderError,
   AggregatorUnsupportedError,
+  DefaultRollupBlock,
 } from './index'
 
 import {
@@ -222,7 +223,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
   public async checkNextBlock(
     nextBlock: RollupBlock
-  ): Promise<FraudCheckResult> {
+  ): Promise<any> {
     const currentPosition: RollupTransitionPosition = await this.getCurrentVerifiedPosition()
 
     if (nextBlock.blockNumber !== currentPosition.blockNumber + 1) {
@@ -234,8 +235,9 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         transition
       )
       if (fraudCheck !== 'NO_FRAUD') {
-        // then there was fraud, return the fraud check
-        return fraudCheck
+        // then there was fraud, return the fraud proof to give to contract
+        const generatedProof = await this.generateContractFraudProof(fraudCheck as LocalFraudProof, nextBlock)
+        return generatedProof
       }
     }
     // otherwise
@@ -243,9 +245,8 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     return 'NO_FRAUD'
   }
 
-  public async generateContractFraudProof(localProof: LocalFraudProof, block: RollupBlock) {
+  public async generateContractFraudProof(localProof: LocalFraudProof, block: RollupBlock): Promise<any> {
     const fraudInputs: StateSnapshot[] = localProof.fraudInputs as StateSnapshot[]
-    const fraudulentTransition: RollupTransition = localProof.fraudTransition as RollupTransition
     const includedStorageSlots = [
       {
         storageSlot: {
@@ -269,9 +270,16 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       },
     ]
 
-    // await block.generateTree()
-
+    const merklizedBlock: DefaultRollupBlock = new DefaultRollupBlock(block.transitions, block.blockNumber)
+    await merklizedBlock.generateTree()
+    
     const curPosition = await this.getCurrentVerifiedPosition()
     const fraudulentTransitionIndex = curPosition.transitionIndex
+    const validTransitionIndex = fraudulentTransitionIndex - 1
+
+    const validIncludedTransition = await merklizedBlock.getIncludedTransition(validTransitionIndex)
+    const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(fraudulentTransitionIndex)
+
+    return [validIncludedTransition, fraudulentIncludedTransition, includedStorageSlots]
   }
 }

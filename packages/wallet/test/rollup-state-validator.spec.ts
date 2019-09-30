@@ -42,6 +42,8 @@ import {
   RollupBlock,
   ValidationOutOfOrderError,
   AggregatorUnsupportedError,
+  parseTransactionFromABI,
+  parseTransitionFromABI,
 } from '../src'
 import { resolve } from 'dns'
 import { Transaction } from 'ethers/utils'
@@ -340,6 +342,44 @@ describe.only('RollupStateValidator', () => {
         sendThenSwapBlock
       )
       res.should.not.equal('NO_FRAUD')
+    })
+    it('should return a fraud proof for a second transition with invalid root', async () => {
+      const postTransferRoot: string =
+        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+      const transitionAliceToBob: TransferTransition = {
+        stateRoot: postTransferRoot,
+        senderSlotIndex: 0,
+        recipientSlotIndex: 3,
+        tokenType: 0,
+        amount: 100,
+        signature: ALICE_ADDRESS,
+      }
+
+      const postSwapRoot: string =
+        '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813' // invalid post root
+      const transitionInvalidSwap: SwapTransition = {
+        stateRoot: postSwapRoot,
+        senderSlotIndex: 0,
+        uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
+        tokenType: UNI_TOKEN_TYPE,
+        inputAmount: 100,
+        minOutputAmount: 20,
+        timeout: 10,
+        signature: ALICE_ADDRESS,
+      }
+
+      const sendThenInvalidSwapBlock: RollupBlock = {
+        blockNumber: 1,
+        transitions: [transitionAliceToBob, transitionInvalidSwap],
+      }
+
+      const res: FraudCheckResult = await rollupGuard.checkNextBlock(
+        sendThenInvalidSwapBlock
+      )
+
+      // should give first and second transitions
+      res[0].inclusionProof.transitionIndex.should.equal(0)
+      res[1].inclusionProof.transitionIndex.should.equal(1)
     })
   })
 })
