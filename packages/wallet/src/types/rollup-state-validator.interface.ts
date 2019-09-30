@@ -8,7 +8,7 @@ import {
   StateSnapshot,
 } from './types'
 
-export interface RollupStateGuard {
+export interface RollupStateValidator {
   /**
    * Gets the most recent transition and block number wich the guard has verified so far.
    *

@@ -27,10 +27,10 @@ import {
   AGGREGATOR_ADDRESS,
   InsufficientBalanceError,
   DefaultRollupStateMachine,
-  DefaultRollupStateGuard,
+  DefaultRollupStateValidator,
   SignedTransaction,
   PIGI_TOKEN_TYPE,
-  RollupStateGuard,
+  RollupStateValidator,
   FraudCheckResult,
   CreateAndTransferTransition,
   StateSnapshot,
@@ -103,13 +103,13 @@ class MockSignatureVerifier implements SignatureVerifier {
  * TESTS *
  *********/
 
-describe.only('RollupStateMachine', () => {
-  let rollupGuard: DefaultRollupStateGuard
+describe.only('RollupStateValidator', () => {
+  let rollupGuard: DefaultRollupStateValidator
   let stateDb: DB
 
   beforeEach(async () => {
     stateDb = new BaseDB(new MemDown('') as any, 256)
-    rollupGuard = await DefaultRollupStateGuard.create(
+    rollupGuard = await DefaultRollupStateValidator.create(
       getMultiBalanceGenesis(),
       stateDb
     )

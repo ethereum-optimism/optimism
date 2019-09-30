@@ -55,7 +55,7 @@ import {
 
 import {
   RollupBlock,
-  RollupStateGuard,
+  RollupStateValidator,
   RollupTransitionPosition,
   FraudCheckResult,
   RollupStateMachine,
@@ -73,7 +73,7 @@ import {
 } from './serialization'
 
 const log = getLogger('rollup-guard')
-export class DefaultRollupStateGuard implements RollupStateGuard {
+export class DefaultRollupStateValidator implements RollupStateValidator {
   public rollupMachine: DefaultRollupStateMachine
   public currentPosition: RollupTransitionPosition = {
     blockNumber: 0,
@@ -83,13 +83,13 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
   public static async create(
     genesisState: State[],
     stateMachineDb: DB
-  ): Promise<DefaultRollupStateGuard> {
+  ): Promise<DefaultRollupStateValidator> {
     const theRollupMachine = (await DefaultRollupStateMachine.create(
       genesisState,
       stateMachineDb,
       IdentityVerifier.instance()
     )) as DefaultRollupStateMachine
-    return new DefaultRollupStateGuard(theRollupMachine)
+    return new DefaultRollupStateValidator(theRollupMachine)
   }
 
   constructor(theRollupMachine: DefaultRollupStateMachine) {
