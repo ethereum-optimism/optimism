@@ -5,6 +5,7 @@ import {
   RollupTransition,
   RollupTransaction,
   FraudCheckResult,
+  StateSnapshot,
 } from './types'
 
 export interface RollupStateGuard {
@@ -20,18 +21,18 @@ export interface RollupStateGuard {
    *
    * @returns The RollupTransitionPosition up to which the guard has currently verified.
    */
-  getTransactionFromTransition(transition: RollupTransition): Promise<SignedTransaction> 
-
+  getTransactionFromTransitionAndSnapshots(
+    transition: RollupTransition,
+    snapshots: StateSnapshot[]
+  ): Promise<SignedTransaction>
   /**
    * Applies the next transition as a transaction to the rollup state machine.
    *
    * @param nextTransition The next transition which was rolled up.
-   * @param nextRolledupRoot The next root which was rolled up, which should be compared.
    * @returns The FraudCheckResult resulting from the check
    */
   checkNextEncodedTransition(
-    encodedNextTransition: string,
-    nextRolledUpRoot: Buffer
+    encodedNextTransition: string
   ): Promise<FraudCheckResult>
 
   /**

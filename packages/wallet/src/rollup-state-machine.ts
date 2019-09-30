@@ -255,7 +255,9 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       string
     ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
       let leaf: Buffer = await this.tree.getLeaf(new BigNumber(key))
-      if (!leaf) {leaf = Buffer.alloc(32).fill('\x00')}
+      if (!leaf) {
+        leaf = Buffer.alloc(32).fill('\x00')
+      }
       // console.log('leaf is: ')
       // console.log(leaf)
 

@@ -15,6 +15,7 @@ import {
   ZERO,
   getLogger,
   bufToHexString,
+  hexStrToBuf,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -47,7 +48,7 @@ import {
   NegativeAmountError,
   InvalidTransactionTypeError,
   InvalidTokenTypeError,
-  
+  isStateTransitionError,
 } from './index'
 
 import {
@@ -60,9 +61,14 @@ import {
   SlippageError,
   LocalMachineError,
   FraudProof,
+  UniTokenType,
+  PigiTokenType,
 } from './types'
 import { Transaction } from 'ethers/utils'
-import { parseTransitionFromABI, parseTransactionFromABI } from './serialization';
+import {
+  parseTransitionFromABI,
+  parseTransactionFromABI,
+} from './serialization'
 
 const log = getLogger('rollup-guard')
 export class DefaultRollupStateGuard implements RollupStateGuard {
@@ -104,7 +110,7 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
       )
       return [swapperSnapshot, uniSnapshot]
     } else if (isCreateAndTransferTransition(transition)) {
-        console.log('went here!')
+      console.log('went here!')
       const nextAccountKey: number = this.rollupMachine.getNextNewAccountSlot()
       const senderSnapshot: StateSnapshot = await this.rollupMachine.getSnapshotFromSlot(
         transition.senderSlotIndex
@@ -115,9 +121,11 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
       )
       return [senderSnapshot, recipientSnapshot]
     } else if (isTransferTransition(transition)) {
+      console.log('getting input snapshots for a non creation transfer')
       const senderSnapshot: StateSnapshot = await this.rollupMachine.getSnapshotFromSlot(
         transition.senderSlotIndex
       )
+      console.log('got sender snaphsot')
       const recipientSnapshot: StateSnapshot = await this.rollupMachine.getSnapshotFromSlot(
         transition.recipientSlotIndex
       )
@@ -125,33 +133,81 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
     }
   }
 
-  public async getTransactionFromTransition(transition: RollupTransition): Promise<SignedTransaction> {
-      return undefined
+  public async getTransactionFromTransitionAndSnapshots(
+    transition: RollupTransition,
+    snapshots: StateSnapshot[]
+  ): Promise<SignedTransaction> {
+    if (isTransferTransition(transition)) {
+      const sender: Address = snapshots[0].state.pubKey
+      const recipient: Address = snapshots[1].state.pubKey
+      console.log(
+        'parsed transition sender and recipient as: ',
+        sender,
+        recipient
+      )
+      console.log('parsed transition signature as: ', transition.signature)
+      const convertedTx: Transfer = {
+        sender,
+        recipient,
+        tokenType: transition.tokenType as UniTokenType | PigiTokenType,
+        amount: transition.amount,
+      }
+      return {
+        signature: transition.signature,
+        transaction: convertedTx,
+      }
+    } else if (isSwapTransition(transition)) {
+      const swapper: Address = snapshots[0].state.pubKey
+      console.log('parsed transition swapper as: ', swapper)
+      console.log('parsed transition signature as: ', transition.signature)
+      const convertedTx: Swap = {
+        sender: swapper,
+        tokenType: transition.tokenType as UniTokenType | PigiTokenType,
+        inputAmount: transition.inputAmount,
+        minOutputAmount: transition.minOutputAmount,
+        timeout: transition.timeout,
+      }
+      return {
+        signature: transition.signature,
+        transaction: convertedTx,
+      }
+    }
+
+    return undefined
   }
 
   public async checkNextEncodedTransition(
-    encodedNextTransition: string,
-    nextRolledUpRoot: Buffer
+    encodedNextTransition: string
   ): Promise<FraudCheckResult> {
-    let postRoot: Buffer
-    let preppedFraudInputs: StateSnapshot[] = undefined
-    
-    let nextTransition: RollupTransition = parseTransitionFromABI(encodedNextTransition)
+    let preppedFraudInputs: StateSnapshot[]
+    let generatedPostRoot: Buffer
+
+    const nextTransition: RollupTransition = parseTransitionFromABI(
+      encodedNextTransition
+    )
+    const transitionPostRoot: Buffer = hexStrToBuf(
+      '0x' + nextTransition.stateRoot
+    )
 
     console.log('parsed transition is: ')
     console.log(nextTransition)
 
     // In case there was fraud in this transaction, get state snapshots for each input so we can prove the fraud later.
     preppedFraudInputs = await this.getInputStateSnapshots(nextTransition)
-
+    console.log('prepped inputs successfully')
     // let inputAsTransaction: SignedTransaction = await this.getTransactionFromTransition(nextTransition)
-    let inputAsTransaction: SignedTransaction = await this.getTransactionFromTransition(nextTransition)
-
+    const inputAsTransaction: SignedTransaction = await this.getTransactionFromTransitionAndSnapshots(
+      nextTransition,
+      preppedFraudInputs
+    )
+    console.log('parsed transition to tx:')
+    console.log(inputAsTransaction)
     try {
       await this.rollupMachine.applyTransaction(inputAsTransaction)
-      postRoot = await this.rollupMachine.getStateRoot()
+      generatedPostRoot = await this.rollupMachine.getStateRoot()
     } catch (error) {
       if (isStateTransitionError(error)) {
+        console.log(error)
         // return the fraud proof, invalid transaction
         return {
           fraudPosition: this.currentPosition,
@@ -162,11 +218,11 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
         throw new LocalMachineError()
       }
     }
-    console.log('got post root:')
-    console.log(bufToHexString(postRoot))
-    console.log('compared to next root: ')
-    console.log(bufToHexString(nextRolledUpRoot))
-    if (postRoot.equals(nextRolledUpRoot)) {
+    console.log('got local post root:')
+    console.log(bufToHexString(generatedPostRoot))
+    console.log('compared to transition postroot: ')
+    console.log(bufToHexString(transitionPostRoot))
+    if (generatedPostRoot.equals(transitionPostRoot)) {
       this.currentPosition.blockNumber++
       this.currentPosition.transitionIndex++
       return 'NO_FRAUD'
@@ -186,16 +242,4 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
     // TODO: compare nextBlock.number to currentPosition to ensure that this is indeed the sequential block.
     return 'NO_FRAUD'
   }
-}
-
-function isStateTransitionError(error: Error) {
-  return (
-    error instanceof SlippageError ||
-    error instanceof InsufficientBalanceError ||
-    error instanceof NegativeAmountError ||
-    error instanceof InvalidTransactionTypeError ||
-    error instanceof StateMachineCapacityError ||
-    error instanceof InvalidTokenTypeError ||
-    error instanceof SignatureError
-  )
 }

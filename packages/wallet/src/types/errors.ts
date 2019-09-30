@@ -39,3 +39,15 @@ export class SignatureError extends Error {
     super('Signature is invalid for the message in question.')
   }
 }
+
+export const isStateTransitionError = (error: Error): boolean => {
+  return (
+    error instanceof SlippageError ||
+    error instanceof InsufficientBalanceError ||
+    error instanceof NegativeAmountError ||
+    error instanceof InvalidTransactionTypeError ||
+    error instanceof StateMachineCapacityError ||
+    error instanceof InvalidTokenTypeError ||
+    error instanceof SignatureError
+  )
+}
