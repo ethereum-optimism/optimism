@@ -185,7 +185,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       log.info(
         `Received transaction with invalid signature: ${serializeObject(
           signedTransaction
-        )}`
+        )}, which recovered a signer of ${signer}`
       )
       throw new SignatureError()
     }
