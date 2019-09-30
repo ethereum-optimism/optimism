@@ -49,6 +49,7 @@ import {
   InvalidTransactionTypeError,
   InvalidTokenTypeError,
   isStateTransitionError,
+  ValidationOutOfOrderError,
 } from './index'
 
 import {
@@ -69,6 +70,7 @@ import {
   parseTransitionFromABI,
   parseTransactionFromABI,
 } from './serialization'
+import { assertThrows } from 'test/helpers'
 
 const log = getLogger('rollup-guard')
 export class DefaultRollupStateGuard implements RollupStateGuard {
@@ -176,17 +178,14 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
     return undefined
   }
 
-  public async checkNextEncodedTransition(
-    encodedNextTransition: string
+  public async checkNextTransition(
+    nextTransition: RollupTransition
   ): Promise<FraudCheckResult> {
     let preppedFraudInputs: StateSnapshot[]
     let generatedPostRoot: Buffer
 
-    const nextTransition: RollupTransition = parseTransitionFromABI(
-      encodedNextTransition
-    )
     const transitionPostRoot: Buffer = hexStrToBuf(
-      '0x' + nextTransition.stateRoot
+      nextTransition.stateRoot
     )
 
     console.log('parsed transition is: ')
@@ -240,6 +239,21 @@ export class DefaultRollupStateGuard implements RollupStateGuard {
     nextBlock: RollupBlock
   ): Promise<FraudCheckResult> {
     // TODO: compare nextBlock.number to currentPosition to ensure that this is indeed the sequential block.
+    const currentPosition: RollupTransitionPosition = await this.getCurrentVerifiedPosition()
+    console.log('checking not equals of',nextBlock.number, currentPosition.blockNumber + 1 )
+    if (nextBlock.number != currentPosition.blockNumber + 1) {
+      throw new ValidationOutOfOrderError()
+    }
+
+    for (let transition of nextBlock.transitions) {
+      const fraudCheck: FraudCheckResult = await this.checkNextTransition(transition)
+      if (fraudCheck !='NO_FRAUD') {
+        // then there was fraud, return the fraud check
+        return fraudCheck
+      }
+    }
+    // otherwise
+    this.currentPosition.blockNumber++
     return 'NO_FRAUD'
   }
 }

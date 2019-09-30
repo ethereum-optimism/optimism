@@ -241,7 +241,10 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
   }
 
   public async getStateRoot(): Promise<Buffer> {
-    return this.tree.getRootHash()
+    const lockedRoot = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+      return this.tree.getRootHash()
+    })
+    return lockedRoot
   }
 
   public getNextNewAccountSlot(): number {

@@ -31,8 +31,8 @@ export interface RollupStateGuard {
    * @param nextTransition The next transition which was rolled up.
    * @returns The FraudCheckResult resulting from the check
    */
-  checkNextEncodedTransition(
-    encodedNextTransition: string
+  checkNextTransition(
+    nextTransition: RollupTransition
   ): Promise<FraudCheckResult>
 
   /**
@@ -48,6 +48,14 @@ export class LocalMachineError extends Error {
   constructor() {
     super(
       'Transaction application failed for a reason other than the tx being invalid!'
+    )
+  }
+}
+
+export class ValidationOutOfOrderError extends Error {
+  constructor() {
+    super(
+      'Blocks were fed to the validator out of sync.'
     )
   }
 }
