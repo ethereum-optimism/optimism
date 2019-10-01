@@ -176,6 +176,30 @@ describe.only('RollupStateValidator', () => {
       snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
       snaps[1].state.pubKey.should.equal(BOB_ADDRESS)
     })
+    it.skip('should get right inclusion proof for a createAndTransfer', async () => {
+      // pull initial root to compare later
+      const genesisStateRootBuf: Buffer = await rollupGuard.rollupMachine.getStateRoot()
+      const genesisStateRoot: string = bufToHexString(genesisStateRootBuf)
+      // construct a transfer transition
+      const creationTransition: CreateAndTransferTransition = {
+        stateRoot: 'DOESNT_MATTER',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
+        recipientSlotIndex: 4, // Bob hardcoded in our genesis state helper as index 3
+        tokenType: UNI_TOKEN_TYPE,
+        amount: 10,
+        signature: ALICE_ADDRESS,
+        createdAccountPubkey: BOB_ADDRESS
+      }
+      const snaps: StateSnapshot[] = await rollupGuard.getInputStateSnapshots(
+        creationTransition
+      )
+      // make sure the right root was pulled
+      snaps[0].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
+      snaps[1].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
+      // make sure the right pubkeys were pulled
+      snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
+      snaps[1].state.pubKey.should.equal(BOB_ADDRESS)
+    })
   })
 
   describe('checkNextTransition', () => {
