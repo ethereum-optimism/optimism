@@ -59,7 +59,7 @@ describe('Block Subscription', () => {
   it('processes old blocks', async () => {
     await blockProcessor.subscribe(provider, blockListener)
 
-    const blocks: Block[] = await blockListener.waitForReceive(2)
+    const blocks: Block[] = await blockListener.waitForSyncToComplete()
 
     blocks.length.should.equal(2)
     blocks[0].number.should.equal(0)
@@ -70,7 +70,7 @@ describe('Block Subscription', () => {
     blockProcessor = new EthereumBlockProcessor(db, 1)
     await blockProcessor.subscribe(provider, blockListener)
 
-    const blocks: Block[] = await blockListener.waitForReceive(1)
+    const blocks: Block[] = await blockListener.waitForSyncToComplete()
 
     blocks.length.should.equal(1)
     blocks[0].number.should.equal(1)

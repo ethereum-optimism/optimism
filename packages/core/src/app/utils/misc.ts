@@ -178,7 +178,16 @@ export const hexStringify = (value: BigNumber | Buffer): string => {
  * @returns the hexString as a buffer.
  */
 export const hexStrToBuf = (hexString: string): Buffer => {
-  return Buffer.from(hexString.slice(2), 'hex')
+  return Buffer.from(remove0x(hexString), 'hex')
+}
+
+/**
+ * Converts the provided buffer into a hex string.
+ * @param buff The hex buffer
+ * @returns the hex string.
+ */
+export const hexBufToStr = (buff: Buffer): string => {
+  return add0x(buff.toString('hex'))
 }
 
 /**

@@ -78,7 +78,7 @@ describe('Event Subscription', () => {
 
     await eventProcessor.subscribe(tokenContract, 'Transfer', eventListener)
 
-    const events = await eventListener.waitForReceive()
+    const events = await eventListener.waitForSyncToComplete()
     events.length.should.equal(1)
     const event: Event = events[0]
     event.values['from'].should.equal(ownerWallet.address)

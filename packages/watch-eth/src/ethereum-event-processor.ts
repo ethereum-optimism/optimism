@@ -9,6 +9,11 @@ import { Event, EthereumListener } from './interfaces'
 
 const log = getLogger('ethereum- event-processor')
 
+interface SyncStatus {
+  syncCompleted: boolean
+  syncInProgress: boolean
+}
+
 /**
  * Ethereum Event Processor
  * The single class to process and disseminate all Ethereum Event subscriptions.
@@ -17,29 +22,33 @@ export class EthereumEventProcessor {
   private readonly subscriptions: Map<string, Set<EthereumListener<Event>>>
   private currentBlockNumber: number
 
+  private syncStatuses: Map<string, SyncStatus>
+
   constructor(
     private readonly db: DB,
     private readonly earliestBlock: number = 0
   ) {
     this.subscriptions = new Map<string, Set<EthereumListener<Event>>>()
     this.currentBlockNumber = 0
+
+    this.syncStatuses = new Map<string, SyncStatus>()
   }
 
   /**
    * Subscribes to the event with the provided name for the  provided contract.
    * This will also fetch and send the provided event handler all historical events not in
-   * the database unless backfill is set to false.
+   * the database unless syncPastEvents is set to false.
    *
    * @param contract The contract of the event
    * @param eventName The event name
    * @param handler The event handler subscribing
-   * @param backfill Whether or not to fetch previous events
+   * @param syncPastEvents Whether or not to fetch previous events
    */
   public async subscribe(
     contract: Contract,
     eventName: string,
     handler: EthereumListener<Event>,
-    backfill: boolean = true
+    syncPastEvents: boolean = true
   ): Promise<void> {
     const eventId: string = this.getEventID(contract.address, eventName)
     log.debug(`Received subscriber for event ${eventName}, ID: ${eventId}`)
@@ -72,8 +81,22 @@ export class EthereumEventProcessor {
       }
     })
 
-    if (backfill) {
-      await this.backfillEvents(contract, eventName, eventId)
+    if (syncPastEvents) {
+      // If not in progress, create a status, mark it in progress
+      if (!this.syncStatuses.has(eventId)) {
+        this.syncStatuses.set(eventId, {
+          syncInProgress: true,
+          syncCompleted: false,
+        })
+        await this.syncPastEvents(contract, eventName, eventId)
+        return
+      }
+
+      const syncStatus: SyncStatus = this.syncStatuses.get(eventId)
+      // If completed, call callback
+      if (syncStatus.syncCompleted) {
+        await handler.onSyncCompleted(eventName)
+      }
     }
   }
 
@@ -84,12 +107,12 @@ export class EthereumEventProcessor {
    * @param eventName The event name.
    * @param eventId The local event ID to identify the event in this class.
    */
-  private async backfillEvents(
+  private async syncPastEvents(
     contract: Contract,
     eventName: string,
     eventId: string
   ): Promise<void> {
-    log.debug(`Backfilling events for event ${eventName}`)
+    log.debug(`Syncing events for event ${eventName}`)
     const blockNumber = await this.getBlockNumber(contract.provider)
 
     const lastSyncedBlockBuffer: Buffer = await this.db.get(
@@ -100,6 +123,8 @@ export class EthereumEventProcessor {
       : this.earliestBlock
 
     if (blockNumber === lastSyncedNumber) {
+      log.debug(`Up to date, not syncing.`)
+      this.finishSync(eventId, eventName, 0)
       return
     }
 
@@ -114,11 +139,30 @@ export class EthereumEventProcessor {
     })
 
     for (const event of events) {
-      this.handleEvent(event)
+      await this.handleEvent(event)
     }
+
+    this.finishSync(eventId, eventName, events.length)
+  }
+
+  private finishSync(
+    eventId: string,
+    eventName: string,
+    numEvents: number
+  ): void {
+    const status: SyncStatus = this.syncStatuses.get(eventId)
+    status.syncCompleted = true
+    status.syncInProgress = false
+
     log.debug(
-      `Backfilling events for event ${eventName}, ${eventId}. Found ${events.length} events`
+      `Synced events for event ${eventName}, ${eventId}. Found ${numEvents} events`
     )
+
+    for (const subscription of this.subscriptions.get(eventId)) {
+      subscription.onSyncCompleted(eventId).catch((e) => {
+        logError(log, 'Error calling Event sync callback', e)
+      })
+    }
   }
 
   /**

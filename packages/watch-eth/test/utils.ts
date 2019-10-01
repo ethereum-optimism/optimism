@@ -7,9 +7,15 @@ const log = getLogger('watch-eth-test-utils', true)
 
 export class TestListener<T> implements EthereumListener<T> {
   private received: T[]
+  private syncCompleted: boolean
 
   public constructor(private readonly sleepMillis = 50) {
+    this.syncCompleted = false
     this.received = []
+  }
+
+  public async onSyncCompleted(): Promise<void> {
+    this.syncCompleted = true
   }
 
   public async handle(t: T): Promise<void> {
@@ -23,6 +29,13 @@ export class TestListener<T> implements EthereumListener<T> {
 
   public async waitForReceive(num: number = 1): Promise<T[]> {
     while (this.received.length < num) {
+      await sleep(this.sleepMillis)
+    }
+    return this.getReceived()
+  }
+
+  public async waitForSyncToComplete(): Promise<T[]> {
+    while (!this.syncCompleted) {
       await sleep(this.sleepMillis)
     }
     return this.getReceived()

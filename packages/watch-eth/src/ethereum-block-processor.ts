@@ -16,27 +16,33 @@ export class EthereumBlockProcessor {
   private readonly subscriptions: Set<EthereumListener<Block>>
   private currentBlockNumber: number
 
+  private syncInProgress: boolean
+  private syncCompleted: boolean
+
   constructor(
     private readonly db: DB,
     private readonly earliestBlock: number = 0
   ) {
     this.subscriptions = new Set<EthereumListener<Block>>()
     this.currentBlockNumber = 0
+
+    this.syncInProgress = false
+    this.syncCompleted = false
   }
 
   /**
    * Subscribes to new blocks.
    * This will also fetch and send the provided event handler all historical blocks not in
-   * the database unless backfill is set to false.
+   * the database unless syncPastBlocks is set to false.
    *
    * @param provider The provider with the connection to the blockchain
    * @param handler The event handler subscribing
-   * @param backfill Whether or not to fetch previous events
+   * @param syncPastBlocks Whether or not to fetch previous events
    */
   public async subscribe(
     provider: Provider,
     handler: EthereumListener<Block>,
-    backfill: boolean = true
+    syncPastBlocks: boolean = true
   ): Promise<void> {
     this.subscriptions.add(handler)
 
@@ -58,8 +64,16 @@ export class EthereumBlockProcessor {
       }
     })
 
-    if (backfill) {
-      await this.backfillBlocks(provider)
+    if (syncPastBlocks) {
+      if (this.syncCompleted) {
+        await handler.onSyncCompleted()
+        return
+      }
+
+      if (!this.syncInProgress) {
+        this.syncInProgress = true
+        await this.syncBlocks(provider)
+      }
     }
   }
 
@@ -92,8 +106,8 @@ export class EthereumBlockProcessor {
    *
    * @param provider The provider with the connection to the blockchain.
    */
-  private async backfillBlocks(provider: Provider): Promise<void> {
-    log.debug(`Backfilling blocks`)
+  private async syncBlocks(provider: Provider): Promise<void> {
+    log.debug(`Syncing blocks`)
     const blockNumber = await this.getBlockNumber(provider)
 
     const lastSyncedBlockBuffer: Buffer = await this.db.get(blockKey)
@@ -102,7 +116,8 @@ export class EthereumBlockProcessor {
       : this.earliestBlock - 1
 
     if (blockNumber === lastSyncedNumber) {
-      log.debug(`Up to date, not backfilling.`)
+      log.debug(`Up to date, not syncing.`)
+      this.finishSync(blockNumber, blockNumber)
       return
     }
 
@@ -110,9 +125,20 @@ export class EthereumBlockProcessor {
       await this.fetchAndDisseminateBlock(provider, i)
     }
 
-    log.debug(
-      `backfilled from block [${lastSyncedNumber + 1}] to [${blockNumber}]!`
-    )
+    this.finishSync(lastSyncedNumber + 1, blockNumber)
+  }
+
+  private finishSync(syncStart: number, currentBlock: number): void {
+    this.syncCompleted = true
+    this.syncInProgress = false
+
+    log.debug(`Synced from block [${syncStart}] to [${currentBlock}]!`)
+
+    for (const callback of this.subscriptions) {
+      callback.onSyncCompleted().catch((e) => {
+        logError(log, 'Error calling Block sync callback', e)
+      })
+    }
   }
 
   /**
