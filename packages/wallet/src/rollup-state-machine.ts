@@ -359,12 +359,11 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
         return this.tree.getRootHash()
       }
     )
-    console.log('got root hash:', lockedRoot)
     return lockedRoot
   }
 
   public getNextNewAccountSlot(): number {
-    return this.lastOpenKey.toNumber()
+    return this.lastOpenKey.toNumber() + 1
   }
 
   public async getSnapshotFromSlot(key: number): Promise<StateSnapshot> {
@@ -373,7 +372,6 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       MerkleTreeInclusionProof,
       string
     ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
-      console.log('getting snapshot for slot ', key)
       const bigKey: BigNumber = new BigNumber(key)
       let leaf: Buffer = await this.tree.getLeaf(bigKey)
       

@@ -170,7 +170,7 @@ describe.only('RollupStateValidator', () => {
       snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
       snaps[1].state.pubKey.should.equal(BOB_ADDRESS)
     })
-    it.only('should get right inclusion proof for a createAndTransfer', async () => {
+    it('should get right inclusion proof for a createAndTransfer', async () => {
       // pull initial root to compare later
       const genesisStateRootBuf: Buffer = await rollupGuard.rollupMachine.getStateRoot()
       const genesisStateRoot: string = bufToHexString(genesisStateRootBuf)
@@ -236,6 +236,27 @@ describe.only('RollupStateValidator', () => {
       )
       res.should.equal('NO_FRAUD')
     })
+
+    it('should return no fraud if correct root for creation transition', async () => {
+      const postRoot: string =
+        '0xf65a687f44d534512a1878e84de3d29489f9c8c12a7de37c46bfc2b0d898d3ee'
+
+      const transitionAliceToCreatedBob: CreateAndTransferTransition = {
+        stateRoot: postRoot,
+        senderSlotIndex: 0,
+        recipientSlotIndex: 4, // genesis fills first few
+        tokenType: 0,
+        amount: 100,
+        signature: ALICE_ADDRESS,
+        createdAccountPubkey: '0x0100000000000000000000000000000000000000'
+      }
+
+      const res: FraudCheckResult = await rollupGuard.checkNextTransition(
+        transitionAliceToCreatedBob
+      )
+      res.should.equal('NO_FRAUD')
+    })
+
     it('should return positive for fraud if transition has invalid root', async () => {
       const wrongPostRoot: string =
         '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde'

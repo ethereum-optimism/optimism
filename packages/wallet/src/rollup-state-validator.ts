@@ -139,35 +139,44 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     transition: RollupTransition,
     snapshots: StateSnapshot[]
   ): Promise<SignedTransaction> {
-    if (isTransferTransition(transition)) {
+    let convertedTx: RollupTransaction
+    if (isCreateAndTransferTransition(transition)) {
       const sender: Address = snapshots[0].state.pubKey
-      const recipient: Address = snapshots[1].state.pubKey
-      const convertedTx: Transfer = {
+      const recipient: Address = transition.createdAccountPubkey
+      convertedTx = {
         sender,
         recipient,
         tokenType: transition.tokenType as UniTokenType | PigiTokenType,
         amount: transition.amount,
-      }
+      } as Transfer
+    } else if (isTransferTransition(transition)) {
+      const sender: Address = snapshots[0].state.pubKey
+      const recipient: Address = snapshots[1].state.pubKey
+      convertedTx = {
+        sender,
+        recipient,
+        tokenType: transition.tokenType as UniTokenType | PigiTokenType,
+        amount: transition.amount,
+      } as Transfer
       return {
         signature: transition.signature,
         transaction: convertedTx,
       }
     } else if (isSwapTransition(transition)) {
       const swapper: Address = snapshots[0].state.pubKey
-      const convertedTx: Swap = {
+        convertedTx = {
         sender: swapper,
         tokenType: transition.tokenType as UniTokenType | PigiTokenType,
         inputAmount: transition.inputAmount,
         minOutputAmount: transition.minOutputAmount,
         timeout: transition.timeout,
-      }
-      return {
-        signature: transition.signature,
-        transaction: convertedTx,
-      }
+      } as Swap
     }
 
-    return undefined
+    return {
+      signature: transition.signature,
+      transaction: convertedTx,
+    }  
   }
 
   public async checkNextTransition(
@@ -180,8 +189,9 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
     if (isCreateAndTransferTransition(nextTransition)) {
       const slotIfSequential: number = await this.rollupMachine.getNextNewAccountSlot()
+
       // if the created slot is not sequential, for now it will break
-      if (slotIfSequential < nextTransition.recipientSlotIndex) {
+      if (slotIfSequential !== nextTransition.recipientSlotIndex) {
         throw new AggregatorUnsupportedError()
       }
     }
@@ -205,6 +215,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
           fraudTransition: nextTransition,
         }
       } else {
+        throw error
         throw new LocalMachineError()
       }
     }
