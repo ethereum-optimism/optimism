@@ -193,7 +193,9 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       abiEncodeTransition(x)
     )
     return Buffer.from(
-      `${rollupBlock.blockNumber.toString(10)}|${JSON.stringify(encodedTransitions)}`
+      `${rollupBlock.blockNumber.toString(10)}|${JSON.stringify(
+        encodedTransitions
+      )}`
     )
   }
 

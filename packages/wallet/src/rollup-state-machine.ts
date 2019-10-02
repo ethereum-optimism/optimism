@@ -373,8 +373,9 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
       const bigKey: BigNumber = new BigNumber(key)
       let leaf: Buffer = await this.tree.getLeaf(bigKey)
-      
-      if (!leaf) { // if we didn't get the leaf it must be empty
+
+      if (!leaf) {
+        // if we didn't get the leaf it must be empty
         leaf = SparseMerkleTreeImpl.emptyBuffer
       }
 
@@ -387,7 +388,10 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
 
     let state: State
     let inclusionProof: InclusionProof
-    state = (accountState && accountState !== SparseMerkleTreeImpl.emptyBuffer) ? DefaultRollupStateMachine.deserializeState(accountState) : undefined
+    state =
+      accountState && accountState !== SparseMerkleTreeImpl.emptyBuffer
+        ? DefaultRollupStateMachine.deserializeState(accountState)
+        : undefined
     inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))
 
     return {

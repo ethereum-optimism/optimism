@@ -182,7 +182,7 @@ describe.only('RollupStateValidator', () => {
         tokenType: UNI_TOKEN_TYPE,
         amount: 10,
         signature: ALICE_ADDRESS,
-        createdAccountPubkey: BOB_ADDRESS
+        createdAccountPubkey: BOB_ADDRESS,
       }
       const snaps: StateSnapshot[] = await rollupGuard.getInputStateSnapshots(
         creationTransition
@@ -192,7 +192,10 @@ describe.only('RollupStateValidator', () => {
       snaps[1].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       // make sure the right pubkeys were pulled
       snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
-      assert(snaps[1].state === undefined, 'Empty slot should give an undefined state.')
+      assert(
+        snaps[1].state === undefined,
+        'Empty slot should give an undefined state.'
+      )
     })
   })
 
@@ -248,7 +251,7 @@ describe.only('RollupStateValidator', () => {
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
-        createdAccountPubkey: '0x0100000000000000000000000000000000000000'
+        createdAccountPubkey: '0x0100000000000000000000000000000000000000',
       }
 
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
@@ -384,49 +387,54 @@ describe.only('RollupStateValidator', () => {
     })
     it('should return a fraud proof for a block with an invalid initial tx', async () => {
       const postTransferRoot: string =
-      '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
-    const transitionAliceToBob: TransferTransition = {
-      stateRoot: postTransferRoot,
-      senderSlotIndex: 0,
-      recipientSlotIndex: 3,
-      tokenType: 0,
-      amount: 100,
-      signature: ALICE_ADDRESS,
-    }
+        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+      const transitionAliceToBob: TransferTransition = {
+        stateRoot: postTransferRoot,
+        senderSlotIndex: 0,
+        recipientSlotIndex: 3,
+        tokenType: 0,
+        amount: 100,
+        signature: ALICE_ADDRESS,
+      }
 
-    const postSwapRoot: string =
-      '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
-    const transitionAliceSwap: SwapTransition = {
-      stateRoot: postSwapRoot,
-      senderSlotIndex: 0,
-      uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
-      tokenType: UNI_TOKEN_TYPE,
-      inputAmount: 100,
-      minOutputAmount: 20,
-      timeout: 10,
-      signature: ALICE_ADDRESS,
-    }
+      const postSwapRoot: string =
+        '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
+      const transitionAliceSwap: SwapTransition = {
+        stateRoot: postSwapRoot,
+        senderSlotIndex: 0,
+        uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
+        tokenType: UNI_TOKEN_TYPE,
+        inputAmount: 100,
+        minOutputAmount: 20,
+        timeout: 10,
+        signature: ALICE_ADDRESS,
+      }
 
-    const sendThenSwapBlock: RollupBlock = {
-      blockNumber: 0,
-      transitions: [transitionAliceToBob, transitionAliceSwap],
-    }
+      const sendThenSwapBlock: RollupBlock = {
+        blockNumber: 0,
+        transitions: [transitionAliceToBob, transitionAliceSwap],
+      }
 
-    await rollupGuard.checkNextBlock(sendThenSwapBlock)
+      await rollupGuard.checkNextBlock(sendThenSwapBlock)
 
-    const invalidSendTransition: TransferTransition = {
-      stateRoot: '0xdeadbeef000000efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
-      senderSlotIndex: 0,
-      recipientSlotIndex: 3,
-      tokenType: 0,
-      amount: 100,
-      signature: ALICE_ADDRESS,
-    }
+      const invalidSendTransition: TransferTransition = {
+        stateRoot:
+          '0xdeadbeef000000efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
+        senderSlotIndex: 0,
+        recipientSlotIndex: 3,
+        tokenType: 0,
+        amount: 100,
+        signature: ALICE_ADDRESS,
+      }
 
-    const invalidFirstTransitionBlock: RollupBlock = {
-      blockNumber: 1,
-      transitions: [invalidSendTransition, invalidSendTransition, invalidSendTransition],
-    }
+      const invalidFirstTransitionBlock: RollupBlock = {
+        blockNumber: 1,
+        transitions: [
+          invalidSendTransition,
+          invalidSendTransition,
+          invalidSendTransition,
+        ],
+      }
 
       const res: FraudCheckResult = await rollupGuard.checkNextBlock(
         invalidFirstTransitionBlock

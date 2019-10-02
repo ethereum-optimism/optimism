@@ -136,13 +136,13 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     let convertedTx: RollupTransaction
     if (isCreateAndTransferTransition(transition)) {
       const sender: Address = snapshots[0].state.pubKey
-      const recipient: Address = transition.createdAccountPubkey
+      const recipient: Address = transition.createdAccountPubkey as Address
       convertedTx = {
         sender,
         recipient,
         tokenType: transition.tokenType as UniTokenType | PigiTokenType,
         amount: transition.amount,
-      } as Transfer
+      }
     } else if (isTransferTransition(transition)) {
       const sender: Address = snapshots[0].state.pubKey
       const recipient: Address = snapshots[1].state.pubKey
@@ -151,26 +151,26 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         recipient,
         tokenType: transition.tokenType as UniTokenType | PigiTokenType,
         amount: transition.amount,
-      } as Transfer
+      }
       return {
         signature: transition.signature,
         transaction: convertedTx,
       }
     } else if (isSwapTransition(transition)) {
       const swapper: Address = snapshots[0].state.pubKey
-        convertedTx = {
+      convertedTx = {
         sender: swapper,
         tokenType: transition.tokenType as UniTokenType | PigiTokenType,
         inputAmount: transition.inputAmount,
         minOutputAmount: transition.minOutputAmount,
         timeout: transition.timeout,
-      } as Swap
+      }
     }
 
     return {
       signature: transition.signature,
       transaction: convertedTx,
-    }  
+    }
   }
 
   public async checkNextTransition(
@@ -227,17 +227,14 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     }
   }
 
-  public async checkNextBlock(
-    nextBlock: RollupBlock
-  ): Promise<any> {
+  public async checkNextBlock(nextBlock: RollupBlock): Promise<any> {
     // reset transition index, we are starting at 0 again!
     this.currentPosition.transitionIndex = 0
 
     this.ingestedBlocks[nextBlock.blockNumber] = nextBlock
 
-    const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition()).blockNumber
-    console.log('nextBlockNumberToValidate: ', nextBlockNumberToValidate)
-    console.log('nextBlock.blockNumber: ', nextBlock.blockNumber)
+    const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition())
+      .blockNumber
     if (nextBlock.blockNumber !== nextBlockNumberToValidate) {
       throw new ValidationOutOfOrderError()
     }
@@ -248,7 +245,10 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       )
       if (fraudCheck !== 'NO_FRAUD') {
         // then there was fraud, return the fraud proof to give to contract
-        const generatedProof = await this.generateContractFraudProof(fraudCheck as LocalFraudProof, nextBlock)
+        const generatedProof = await this.generateContractFraudProof(
+          fraudCheck as LocalFraudProof,
+          nextBlock
+        )
         return generatedProof
       }
     }
@@ -257,42 +257,54 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     return 'NO_FRAUD'
   }
 
-  public async generateContractFraudProof(localProof: LocalFraudProof, block: RollupBlock): Promise<any> {
+  public async generateContractFraudProof(
+    localProof: LocalFraudProof,
+    block: RollupBlock
+  ): Promise<any> {
     const fraudInputs: StateSnapshot[] = localProof.fraudInputs as StateSnapshot[]
     const includedStorageSlots = [
       {
         storageSlot: {
           value: {
             pubkey: fraudInputs[0].state.pubKey,
-            balances: [fraudInputs[0].state.balances[UNI_TOKEN_TYPE], fraudInputs[0].state.balances[PIGI_TOKEN_TYPE]]
+            balances: [
+              fraudInputs[0].state.balances[UNI_TOKEN_TYPE],
+              fraudInputs[0].state.balances[PIGI_TOKEN_TYPE],
+            ],
           },
-          slotIndex: fraudInputs[0].slotIndex
+          slotIndex: fraudInputs[0].slotIndex,
         },
-        siblings: fraudInputs[0].inclusionProof
+        siblings: fraudInputs[0].inclusionProof,
       },
       {
         storageSlot: {
           value: {
             pubkey: fraudInputs[1].state.pubKey,
-            balances: [fraudInputs[1].state.balances[UNI_TOKEN_TYPE], fraudInputs[1].state.balances[PIGI_TOKEN_TYPE]]
+            balances: [
+              fraudInputs[1].state.balances[UNI_TOKEN_TYPE],
+              fraudInputs[1].state.balances[PIGI_TOKEN_TYPE],
+            ],
           },
-          slotIndex: fraudInputs[1].slotIndex
+          slotIndex: fraudInputs[1].slotIndex,
         },
-        siblings: fraudInputs[1].inclusionProof
+        siblings: fraudInputs[1].inclusionProof,
       },
     ]
 
-    const merklizedBlock: DefaultRollupBlock = new DefaultRollupBlock(block.transitions, block.blockNumber)
+    const merklizedBlock: DefaultRollupBlock = new DefaultRollupBlock(
+      block.transitions,
+      block.blockNumber
+    )
     await merklizedBlock.generateTree()
-    
+
     const curPosition = await this.getCurrentVerifiedPosition()
     const fraudulentTransitionIndex = curPosition.transitionIndex
     let validIncludedTransition
-    console.log('found fraud at: ', curPosition)
     if (fraudulentTransitionIndex > 0) {
-       validIncludedTransition = await merklizedBlock.getIncludedTransition(fraudulentTransitionIndex - 1)
+      validIncludedTransition = await merklizedBlock.getIncludedTransition(
+        fraudulentTransitionIndex - 1
+      )
     } else {
-      console.log('got here with ingestedBlocks of', this.ingestedBlocks)
       // then we need to pull from the last block to get preRoot
       const prevRollupBlockNumber: number = curPosition.blockNumber - 1
       const prevRollupBlock: DefaultRollupBlock = new DefaultRollupBlock(
@@ -301,11 +313,20 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       )
       await prevRollupBlock.generateTree()
 
-      const lastTransitionInLastBlockIndex: number = prevRollupBlock.transitions.length - 1
-      validIncludedTransition = await prevRollupBlock.getIncludedTransition(lastTransitionInLastBlockIndex)
+      const lastTransitionInLastBlockIndex: number =
+        prevRollupBlock.transitions.length - 1
+      validIncludedTransition = await prevRollupBlock.getIncludedTransition(
+        lastTransitionInLastBlockIndex
+      )
     }
-    const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(fraudulentTransitionIndex)
+    const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(
+      fraudulentTransitionIndex
+    )
 
-    return [validIncludedTransition, fraudulentIncludedTransition, includedStorageSlots]
+    return [
+      validIncludedTransition,
+      fraudulentIncludedTransition,
+      includedStorageSlots,
+    ]
   }
 }
