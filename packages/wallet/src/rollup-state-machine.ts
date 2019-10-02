@@ -396,7 +396,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
 
     let state: State
     let inclusionProof: InclusionProof
-    state = accountState ? this.deserializeState(accountState) : undefined
+    state = accountState ? DefaultRollupStateMachine.deserializeState(accountState) : undefined
     inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))
 
     return {

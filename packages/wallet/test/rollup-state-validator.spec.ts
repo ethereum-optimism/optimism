@@ -105,7 +105,7 @@ class MockSignatureVerifier implements SignatureVerifier {
  * TESTS *
  *********/
 
-describe.only('RollupStateValidator', () => {
+describe('RollupStateValidator', () => {
   let rollupGuard: DefaultRollupStateValidator
   let stateDb: DB
 
