@@ -266,6 +266,40 @@ describe('SparseMerkleTreeImpl', () => {
     })
   })
 
+  describe('verifyAndStorePartiallyEmptyPath', () => {
+    it('verifies and stores partially empty path sharing 0 populated ancestor other than root', async () => {
+      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+        db,
+        ZERO,
+        3
+      )
+
+      const value: Buffer = Buffer.from('zero leaf value')
+      assert(await tree.update(ZERO, value), 'update should have succeeded!')
+
+      assert(
+        await tree.verifyAndStorePartiallyEmptyPath(TWO),
+        'Verify and store should have worked for partially empty path 2'
+      )
+    })
+
+    it('verifies and stores partially empty path sharing 1 populated ancestor other than root', async () => {
+      const tree: SparseMerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
+        db,
+        ZERO,
+        4
+      )
+
+      const value: Buffer = Buffer.from('zero leaf value')
+      assert(await tree.update(ZERO, value), 'update should have succeeded!')
+
+      assert(
+        await tree.verifyAndStorePartiallyEmptyPath(TWO),
+        'Verify and store should have worked for partially empty path 2'
+      )
+    })
+  })
+
   describe('update', () => {
     it('updates empty tree', async () => {
       const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
@@ -778,7 +812,7 @@ describe('SparseMerkleTreeImpl', () => {
   })
 
   describe('getMerkleProof', () => {
-    it('gets empty merkle proof', async () => {
+    it('gets empty merkle proof for existing empty leaf', async () => {
       const tree: MerkleTree = await createAndVerifyEmptyTreeDepthWithDepth(
         db,
         ZERO,
@@ -789,6 +823,32 @@ describe('SparseMerkleTreeImpl', () => {
         SparseMerkleTreeImpl.emptyBuffer
       )
 
+      assert(proof.value.equals(SparseMerkleTreeImpl.emptyBuffer))
+      assert(proof.key.equals(ZERO))
+      assert(proof.siblings.length === 2)
+
+      let hash: Buffer = zeroHash
+      assert(proof.siblings[0].equals(hash))
+      hash = bufferHashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
+      assert(proof.siblings[1].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+    })
+
+    it('gets empty merkle proof for disconnected empty leaf', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+
+      const proof: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        ZERO,
+        SparseMerkleTreeImpl.emptyBuffer
+      )
+
+      assert(!!proof, 'Proof should not be undefined!')
       assert(proof.value.equals(SparseMerkleTreeImpl.emptyBuffer))
       assert(proof.key.equals(ZERO))
       assert(proof.siblings.length === 2)
@@ -824,6 +884,37 @@ describe('SparseMerkleTreeImpl', () => {
       assert(proof.siblings[0].equals(hash))
       hash = bufferHashFunction(hashBuffer.fill(hash, 0, 32).fill(hash, 32))
       assert(proof.siblings[1].equals(hash))
+
+      assert(proof.rootHash.equals(await tree.getRootHash()))
+    })
+
+    it('gets merkle proof for disconnected empty leaf in non-empty tree', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const zeroKeyData: Buffer = Buffer.from('really great leaf data')
+      await tree.update(ZERO, zeroKeyData)
+
+      const proof: MerkleTreeInclusionProof = await tree.getMerkleProof(
+        TWO,
+        SparseMerkleTreeImpl.emptyBuffer
+      )
+
+      assert(!!proof, 'Proof should not be undefined!')
+      assert(proof.value.equals(SparseMerkleTreeImpl.emptyBuffer))
+      assert(proof.key.equals(TWO))
+      assert(proof.siblings.length === 2)
+
+      assert(proof.siblings[0].equals(zeroHash))
+
+      const hashData: Buffer = bufferHashFunction(zeroKeyData)
+      const zeroAndOneParent = bufferHashFunction(
+        hashBuffer.fill(hashData, 0, 32).fill(zeroHash, 32)
+      )
+      assert(proof.siblings[1].equals(zeroAndOneParent))
 
       assert(proof.rootHash.equals(await tree.getRootHash()))
     })

@@ -270,48 +270,65 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     leafKey: BigNumber,
     leafValue: Buffer
   ): Promise<MerkleTreeInclusionProof> {
-    return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
-      if (!this.root || !this.root.hash || !this.root.value) {
-        return undefined
-      }
+    const result: MerkleTreeInclusionProof = await this.treeLock.acquire(
+      SparseMerkleTreeImpl.lockKey,
+      async () => {
+        if (!this.root || !this.root.hash) {
+          return undefined
+        }
 
-      let node: MerkleTreeNode = this.root
-      const siblings: Buffer[] = []
-      for (
-        let depth = 0;
-        depth < this.height && node && node.value.length === 64;
-        depth++
-      ) {
-        siblings.push(this.getChildSiblingHash(node, depth, leafKey))
-        node = await this.getChild(node, depth, leafKey)
-      }
+        let node: MerkleTreeNode = this.root
+        const siblings: Buffer[] = []
+        for (
+          let depth = 0;
+          depth < this.height &&
+          !!node &&
+          !!node.value &&
+          node.value.length === 64;
+          depth++
+        ) {
+          siblings.push(this.getChildSiblingHash(node, depth, leafKey))
+          node = await this.getChild(node, depth, leafKey)
+        }
 
-      if (siblings.length !== this.height - 1) {
-        return undefined
-      }
+        if (siblings.length !== this.height - 1) {
+          // TODO: A much better way of indicating this
+          return {
+            rootHash: undefined,
+            key: undefined,
+            value: undefined,
+            siblings: undefined,
+          }
+        }
 
-      if (!node.hash.equals(this.hashFunction(leafValue))) {
-        // Provided leaf doesn't match stored leaf
-        return undefined
-      }
+        if (!node.hash.equals(this.hashFunction(leafValue))) {
+          // Provided leaf doesn't match stored leaf
+          return undefined
+        }
 
-      return {
-        rootHash: this.root.hash,
-        key: leafKey,
-        value: leafValue,
-        siblings: siblings.reverse(),
+        return {
+          rootHash: this.root.hash,
+          key: leafKey,
+          value: leafValue,
+          siblings: siblings.reverse(),
+        }
       }
-    })
+    )
+
+    if (!result || !!result.rootHash) {
+      return result
+    }
+
+    // If this is for an empty leaf, we can store it and create a MerkleProof
+    if (leafValue.equals(SparseMerkleTreeImpl.emptyBuffer)) {
+      if (await this.verifyAndStorePartiallyEmptyPath(leafKey)) {
+        return this.getMerkleProof(leafKey, leafValue)
+      }
+    }
+    return undefined
   }
 
-  /**
-   * Verifies and stores an empty leaf from a partially non-existent path.
-   *
-   * @param leafKey The leaf to store
-   * @param numExistingNodes The number of existing nodes, if known
-   * @returns True if verified, false otherwise
-   */
-  private async verifyAndStorePartiallyEmptyPath(
+  public async verifyAndStorePartiallyEmptyPath(
     leafKey: BigNumber,
     numExistingNodes?: number
   ): Promise<boolean> {
