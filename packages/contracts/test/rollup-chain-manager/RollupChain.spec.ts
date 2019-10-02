@@ -384,7 +384,7 @@ describe('RollupChain', () => {
       const encodedPreStates = preStateObjects.map((obj) => abiEncodeState(obj))
       // Create the state tree
       const treeHeight = 32 // Default tree height
-      const stateTree = new SparseMerkleTreeImpl(
+      const stateTree = await SparseMerkleTreeImpl.create(
         new BaseDB(new MemDown('') as any, 256),
         undefined,
         treeHeight + 1
