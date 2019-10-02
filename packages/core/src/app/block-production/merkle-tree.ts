@@ -37,20 +37,34 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   private readonly hashFunction: (Buffer) => Buffer
   private readonly hashBuffer: Buffer = Buffer.alloc(64)
 
-  constructor(
-    private readonly db: DB,
+  public static async create(
+    db: DB,
     rootHash?: Buffer,
-    private readonly height: number = 160,
+    height: number = 160,
+    hashFunction = keccak256
+  ): Promise<SparseMerkleTreeImpl> {
+    assert(!rootHash || rootHash.length === 32, 'Root hash must be 32 bytes')
+
+    const tree = new SparseMerkleTreeImpl(db, height, hashFunction)
+
+    await tree.init(rootHash)
+    return tree
+  }
+
+  private constructor(
+    private db: DB,
+    private height: number = 160,
     hashFunction: HashFunction = keccak256
   ) {
-    assert(!rootHash || rootHash.length === 32, 'Root hash must be 32 bytes')
     assert(height > 0, 'SMT height needs to be > 0')
 
     // TODO: Hack for now -- change everything to string if/when it makes sense
     this.hashFunction = (buff: Buffer) =>
       Buffer.from(hashFunction(buff.toString('hex')), 'hex')
+  }
 
-    this.populateZeroHashesAndRoot(rootHash)
+  private async init(rootHash?: Buffer): Promise<void> {
+    await this.populateZeroHashesAndRoot(rootHash)
   }
 
   public getHeight(): number {
@@ -256,48 +270,65 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     leafKey: BigNumber,
     leafValue: Buffer
   ): Promise<MerkleTreeInclusionProof> {
-    return this.treeLock.acquire(SparseMerkleTreeImpl.lockKey, async () => {
-      if (!this.root || !this.root.hash || !this.root.value) {
-        return undefined
-      }
+    const result: MerkleTreeInclusionProof = await this.treeLock.acquire(
+      SparseMerkleTreeImpl.lockKey,
+      async () => {
+        if (!this.root || !this.root.hash) {
+          return undefined
+        }
 
-      let node: MerkleTreeNode = this.root
-      const siblings: Buffer[] = []
-      for (
-        let depth = 0;
-        depth < this.height && node && node.value.length === 64;
-        depth++
-      ) {
-        siblings.push(this.getChildSiblingHash(node, depth, leafKey))
-        node = await this.getChild(node, depth, leafKey)
-      }
+        let node: MerkleTreeNode = this.root
+        const siblings: Buffer[] = []
+        for (
+          let depth = 0;
+          depth < this.height &&
+          !!node &&
+          !!node.value &&
+          node.value.length === 64;
+          depth++
+        ) {
+          siblings.push(this.getChildSiblingHash(node, depth, leafKey))
+          node = await this.getChild(node, depth, leafKey)
+        }
 
-      if (siblings.length !== this.height - 1) {
-        return undefined
-      }
+        if (siblings.length !== this.height - 1) {
+          // TODO: A much better way of indicating this
+          return {
+            rootHash: undefined,
+            key: undefined,
+            value: undefined,
+            siblings: undefined,
+          }
+        }
 
-      if (!node.hash.equals(this.hashFunction(leafValue))) {
-        // Provided leaf doesn't match stored leaf
-        return undefined
-      }
+        if (!node.hash.equals(this.hashFunction(leafValue))) {
+          // Provided leaf doesn't match stored leaf
+          return undefined
+        }
 
-      return {
-        rootHash: this.root.hash,
-        key: leafKey,
-        value: leafValue,
-        siblings: siblings.reverse(),
+        return {
+          rootHash: this.root.hash,
+          key: leafKey,
+          value: leafValue,
+          siblings: siblings.reverse(),
+        }
       }
-    })
+    )
+
+    if (!result || !!result.rootHash) {
+      return result
+    }
+
+    // If this is for an empty leaf, we can store it and create a MerkleProof
+    if (leafValue.equals(SparseMerkleTreeImpl.emptyBuffer)) {
+      if (await this.verifyAndStorePartiallyEmptyPath(leafKey)) {
+        return this.getMerkleProof(leafKey, leafValue)
+      }
+    }
+    return undefined
   }
 
-  /**
-   * Verifies and stores an empty leaf from a partially non-existent path.
-   *
-   * @param leafKey The leaf to store
-   * @param numExistingNodes The number of existing nodes, if known
-   * @returns True if verified, false otherwise
-   */
-  private async verifyAndStorePartiallyEmptyPath(
+  public async verifyAndStorePartiallyEmptyPath(
     leafKey: BigNumber,
     numExistingNodes?: number
   ): Promise<boolean> {
@@ -533,7 +564,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
    *
    * @param rootHash The optional root hash to assign the tree
    */
-  private populateZeroHashesAndRoot(rootHash?: Buffer): void {
+  private async populateZeroHashesAndRoot(rootHash?: Buffer): Promise<void> {
     const hashes: Buffer[] = [
       this.hashFunction(SparseMerkleTreeImpl.emptyBuffer),
     ]
@@ -545,7 +576,34 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     }
 
     this.zeroHashes = hashes.reverse()
-    this.root = this.createNode(rootHash || this.zeroHashes[0], undefined, ZERO)
+
+    if (!!rootHash) {
+      log.info(
+        `Attempting to initialize SMT with root hash ${rootHash.toString(
+          'hex'
+        )}`
+      )
+      this.root = await this.getNode(rootHash, ZERO)
+    }
+
+    if (!this.root) {
+      this.root = this.createNode(
+        rootHash || this.zeroHashes[0],
+        undefined,
+        ZERO
+      )
+      log.info(
+        `Initialized Sparse Merkle Tree with root ${(
+          rootHash || this.zeroHashes[0]
+        ).toString('hex')}`
+      )
+    } else {
+      log.info(
+        `Initialized Sparse Merkle Tree with root ${this.root.hash.toString(
+          'hex'
+        )}`
+      )
+    }
   }
 
   /**

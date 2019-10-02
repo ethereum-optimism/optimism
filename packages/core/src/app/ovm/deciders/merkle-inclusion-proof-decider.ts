@@ -15,7 +15,7 @@ export class MerkleInclusionProofDecider implements Decider {
     input: MerkleInclusionProofDeciderInput,
     _noCache?: boolean
   ): Promise<Decision> {
-    const tree = new SparseMerkleTreeImpl(
+    const tree = await SparseMerkleTreeImpl.create(
       newInMemoryDB(256),
       input.merkleProof.rootHash,
       input.merkleProof.siblings.length + 1

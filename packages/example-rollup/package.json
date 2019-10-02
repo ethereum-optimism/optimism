@@ -43,7 +43,7 @@
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "debug": "^4.1.1",
-    "ethers": "^4.0.30",
+    "ethers": "^4.0.37",
     "mocha": "^6.1.2",
     "prettier": "^1.16.4",
     "rimraf": "^2.6.3",

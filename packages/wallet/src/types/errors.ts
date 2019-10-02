@@ -51,3 +51,11 @@ export const isStateTransitionError = (error: Error): boolean => {
     error instanceof SignatureError
   )
 }
+
+export class NotSyncedError extends Error {
+  constructor() {
+    super(
+      'The requested operation cannot be completed because this application is not synced.'
+    )
+  }
+}

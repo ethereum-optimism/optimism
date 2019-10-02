@@ -1,7 +1,11 @@
+/* External Imports */
 import chai = require('chai')
-import chaiAsPromised = require('chai-as-promised')
+import bignum = require('chai-bignumber')
+import { solidity } from 'ethereum-waffle'
 
+chai.use(bignum())
+chai.use(solidity)
 const should = chai.should()
-chai.use(chaiAsPromised)
+const expect = chai.expect
 
-export { should }
+export { should, expect }
