@@ -176,7 +176,7 @@ describe.only('RollupStateValidator', () => {
       snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
       snaps[1].state.pubKey.should.equal(BOB_ADDRESS)
     })
-    it.skip('should get right inclusion proof for a createAndTransfer', async () => {
+    it('should get right inclusion proof for a createAndTransfer', async () => {
       // pull initial root to compare later
       const genesisStateRootBuf: Buffer = await rollupGuard.rollupMachine.getStateRoot()
       const genesisStateRoot: string = bufToHexString(genesisStateRootBuf)

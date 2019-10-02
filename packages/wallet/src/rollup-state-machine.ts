@@ -244,9 +244,11 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     const lockedRoot = await this.lock.acquire(
       DefaultRollupStateMachine.lockKey,
       async () => {
+        console.log('lock acquired')
         return this.tree.getRootHash()
       }
     )
+    console.log('got root hash:', lockedRoot)
     return lockedRoot
   }
 
@@ -260,12 +262,17 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       MerkleTreeInclusionProof,
       string
     ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
-      let leaf: Buffer = await this.tree.getLeaf(new BigNumber(key))
+      const bigKey: BigNumber = new BigNumber(key)
+      let leaf: Buffer = await this.tree.getLeaf(bigKey)
+      
+      const preRoot: Buffer = await this.tree.getRootHash()
+      console.log('pre update root is: ', preRoot)
       if (!leaf) {
-        leaf = Buffer.alloc(32).fill('\x00')
+        leaf = Buffer.alloc(32)
+        await this.tree.update(bigKey, leaf)
       }
-      // console.log('leaf is: ')
-      // console.log(leaf)
+      const postRoot: Buffer = await this.tree.getRootHash()
+      console.log('post update root is: ', postRoot)
 
       const merkleProof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
         new BigNumber(key),
