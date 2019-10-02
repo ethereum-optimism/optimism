@@ -82,6 +82,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     transitionIndex: 0,
   }
   private blockQueue: RollupBlock[]
+  private lastValidatedBlock: number = 0
 
   public static async create(
     genesisState: State[],
