@@ -1,4 +1,5 @@
-export * from './rollup-aggregator'
+export * from './aggregator'
+export * from './default-rollup-block-submitter'
 export * from './rollup-client'
 export * from './rollup-state-solver'
 export * from './rollup-state-machine'

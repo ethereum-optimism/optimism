@@ -17,6 +17,7 @@ import {
   BigNumber,
   BaseDB,
   SparseMerkleTreeImpl,
+  newInMemoryDB,
 } from '@pigi/core'
 import MemDown from 'memdown'
 
@@ -32,19 +33,15 @@ async function createSMTfromDataBlocks(
 ): Promise<SparseMerkleTreeImpl> {
   const treeHeight = Math.ceil(Math.log2(dataBlocks.length)) + 1 // The height should actually not be plus 1
   log('Creating tree of height:', treeHeight - 1)
-  const tree = getNewSMT(treeHeight)
+  const tree = await getNewSMT(treeHeight)
   for (let i = 0; i < dataBlocks.length; i++) {
     await tree.update(new BigNumber(i, 10), dataBlocks[i])
   }
   return tree
 }
 
-function getNewSMT(treeHeight: number): SparseMerkleTreeImpl {
-  return new SparseMerkleTreeImpl(
-    new BaseDB(new MemDown('') as any, 256),
-    undefined,
-    treeHeight
-  )
+async function getNewSMT(treeHeight: number): Promise<SparseMerkleTreeImpl> {
+  return SparseMerkleTreeImpl.create(newInMemoryDB(), undefined, treeHeight)
 }
 
 function makeRandomBlockOfSize(blockSize: number): string[] {

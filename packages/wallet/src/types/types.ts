@@ -15,7 +15,7 @@ export type RollupTransition =
   | CreateAndTransferTransition
 
 export interface Balances {
-  [tokenType: string]: number
+  [tokenType: number]: number
 }
 
 export interface Swap {

@@ -1,11 +1,13 @@
 /* External Imports */
-import { ImplicationProofItem } from '@pigi/core'
+import { getLogger, ImplicationProofItem, logError } from '@pigi/core'
 import * as assert from 'assert'
 
 /* Internal Imports */
 import {
   AGGREGATOR_ADDRESS,
   PIGI_TOKEN_TYPE,
+  RollupBlock,
+  RollupBlockSubmitter,
   RollupStateSolver,
   SignedStateReceipt,
   State,
@@ -13,6 +15,8 @@ import {
   UNI_TOKEN_TYPE,
   UNISWAP_ADDRESS,
 } from '../src'
+
+const log = getLogger('helpers', true)
 
 export const ALICE_GENESIS_STATE_INDEX = 0
 export const UNISWAP_GENESIS_STATE_INDEX = 1
@@ -106,7 +110,7 @@ export const calculateSwapWithFees = (
   )
 }
 
-export const assertThrows = (func: () => any, errorType: any): void => {
+export const assertThrows = (func: () => any, errorType?: any): void => {
   let succeeded = true
   try {
     func()
@@ -114,6 +118,7 @@ export const assertThrows = (func: () => any, errorType: any): void => {
   } catch (e) {
     if (!!errorType && !(e instanceof errorType)) {
       succeeded = false
+      logError(log, `Threw wrong error. Expected ${typeof errorType}`, e)
     }
   }
 
@@ -125,7 +130,7 @@ export const assertThrows = (func: () => any, errorType: any): void => {
 
 export const assertThrowsAsync = async (
   func: () => Promise<any>,
-  errorType: any
+  errorType?: any
 ): Promise<void> => {
   let succeeded = true
   try {
@@ -180,5 +185,29 @@ export class DummyRollupStateSolver implements RollupStateSolver {
     if (!!this.storeErrorToThrow) {
       throw this.storeErrorToThrow
     }
+  }
+}
+
+export class DummyBlockSubmitter implements RollupBlockSubmitter {
+  public submitedBlocks: RollupBlock[] = []
+
+  public async handleNewRollupBlock(rollupBlockNumber: number): Promise<void> {
+    // no-op
+  }
+
+  public async submitBlock(block: RollupBlock): Promise<void> {
+    this.submitedBlocks.push(block)
+  }
+
+  public getLastConfirmed(): number {
+    return 0
+  }
+
+  public getLastQueued(): number {
+    return 0
+  }
+
+  public getLastSubmitted(): number {
+    return 0
   }
 }

@@ -8,9 +8,10 @@
   ],
   "scripts": {
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' 'src/**/*.ts'",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "build": "tsc -p .",
-    "clean": "rimraf build/"
+    "clean": "rimraf build/",
+    "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/*.spec.ts' --timeout 5000 --exit"
   },
   "husky": {
     "hooks": {
@@ -31,24 +32,29 @@
   "license": "MIT",
   "dependencies": {
     "@types/node": "^11.10.0",
-    "web3": "^1.0.0-beta.47"
+    "@pigi/core": "^0.0.2-alpha.1",
+    "ethers": "^4.0.37"
   },
   "devDependencies": {
     "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
-    "@types/web3": "^1.0.18",
+    "@types/node": "^11.10.0",
+    "@types/web3": "^1.0.20",
+    "bn.js": "^5.0.0",
     "chai": "^4.2.0",
-    "ganache-cli": "^6.4.1",
+    "ethereum-waffle": "^2.0.12",
+    "ganache-cli": "^6.7.0",
     "husky": "^1.3.1",
     "lint-staged": "^8.1.5",
-    "mocha": "^6.0.2",
+    "mocha": "^6.2.0",
     "prettier": "^1.16.4",
     "tslint": "^5.13.1",
     "tslint-config-prettier": "^1.18.0",
     "tslint-plugin-prettier": "^2.0.1",
     "typescript": "^3.3.3333",
     "rimraf": "^2.6.3",
-    "chai-as-promised": "^7.1.1"
+    "chai-as-promised": "^7.1.1",
+    "chai-bignumber": "^3.0.0"
   }
 }

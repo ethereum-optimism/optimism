@@ -7,7 +7,7 @@
     "build/**/.js"
   ],
   "scripts": {
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "build": "tsc -p .",
@@ -27,10 +27,10 @@
   },
   "dependencies": {
     "async-lock": "^1.2.2",
-    "@pigi/core": "^0.0.1-alpha.1"
+    "@pigi/core": "^0.0.2-alpha.1",
+    "@pigi/watch-eth": "^0.0.2-alpha.1"
   },
   "devDependencies": {
-    "@pigi/core": "^0.0.1-alpha.1",
     "@pigi/prettier-config": "^0.0.2-alpha.2",
     "@types/chai": "^4.1.7",
     "@types/debug": "^4.1.2",
@@ -38,7 +38,7 @@
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "debug": "^4.1.1",
-    "ethers": "^4.0.30",
+    "ethers": "^4.0.37",
     "memdown": "^5.0.0",
     "mocha": "^6.1.2",
     "prettier": "^1.16.4",

@@ -11,6 +11,7 @@ import {
 /* Internal Imports */
 import {
   AGGREGATOR_MNEMONIC,
+  DummyBlockSubmitter,
   DummyRollupStateSolver,
   getGenesisState,
 } from './helpers'
@@ -24,6 +25,9 @@ import {
   RollupClient,
   Balances,
 } from '../src'
+import { AggregatorServer } from '../src/aggregator/aggregator-server'
+import { DefaultRollupBlockSubmitter } from '../src/default-rollup-block-submitter'
+import { Wallet } from 'ethers'
 
 const log = getLogger('client-aggregator-integration', true)
 
@@ -36,6 +40,7 @@ const testRecipientAddress = '0x7777b66b3C70137264BE7303812090EC42D85B4d'
 
 describe('Mock Client/Aggregator Integration', () => {
   let accountAddress: string
+  let aggregatorServer: AggregatorServer
   let aggregator: RollupAggregator
   let ovm: DummyRollupStateSolver
   let rollupClient: RollupClient
@@ -61,15 +66,19 @@ describe('Mock Client/Aggregator Integration', () => {
     )
 
     // Initialize a mock aggregator
-    aggregator = new RollupAggregator(
+    aggregator = await RollupAggregator.create(
       newInMemoryDB(),
       rollupStateMachine,
-      'localhost',
-      3000,
-      AGGREGATOR_MNEMONIC
+      new DummyBlockSubmitter(),
+      new DefaultSignatureProvider(Wallet.fromMnemonic(AGGREGATOR_MNEMONIC))
     )
 
-    await aggregator.listen()
+    // Assume we're in sync & initialized
+    await aggregator.onSyncCompleted()
+
+    aggregatorServer = new AggregatorServer(aggregator, 'localhost', 3000)
+
+    await aggregatorServer.listen()
     // Connect to the mock aggregator
     rollupClient.connect(new SimpleClient('http://127.0.0.1:3000'))
   })
@@ -77,7 +86,7 @@ describe('Mock Client/Aggregator Integration', () => {
   afterEach(async () => {
     if (!!aggregator) {
       // Close the server
-      await aggregator.close()
+      await aggregatorServer.close()
     }
   })
 

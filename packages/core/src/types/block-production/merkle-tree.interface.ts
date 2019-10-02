@@ -89,4 +89,16 @@ export interface SparseMerkleTree extends MerkleTree {
    * @return true if the proof was valid (and thus stored), false otherwise
    */
   verifyAndStore(inclusionProof: MerkleTreeInclusionProof): Promise<boolean>
+
+  /**
+   * Verifies and stores an empty leaf from a partially non-existent path.
+   *
+   * @param leafKey The leaf to store
+   * @param numExistingNodes The number of existing nodes, if known
+   * @returns True if verified, false otherwise
+   */
+  verifyAndStorePartiallyEmptyPath(
+    leafKey: BigNumber,
+    numExistingNodes?: number
+  ): Promise<boolean>
 }

@@ -52,7 +52,7 @@ export class RollupBlock {
   public async generateTree(): Promise<void> {
     // Create a tree!
     const treeHeight = Math.ceil(Math.log2(this.transitions.length)) + 1 // The height should actually not be plus 1
-    this.tree = new SparseMerkleTreeImpl(
+    this.tree = await SparseMerkleTreeImpl.create(
       new BaseDB(new MemDown('') as any, 256),
       undefined,
       treeHeight

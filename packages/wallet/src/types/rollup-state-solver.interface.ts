@@ -1,5 +1,5 @@
 import { Address, SignedStateReceipt, StateReceipt } from './types'
-import { ImplicationProofItem } from '@pigi/core/build/src/types'
+import { ImplicationProofItem } from '@pigi/core'
 
 export interface RollupStateSolver {
   /**
