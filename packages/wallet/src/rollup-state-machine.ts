@@ -373,6 +373,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       MerkleTreeInclusionProof,
       string
     ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+      console.log('getting snapshot for slot ', key)
       const bigKey: BigNumber = new BigNumber(key)
       let leaf: Buffer = await this.tree.getLeaf(bigKey)
       
