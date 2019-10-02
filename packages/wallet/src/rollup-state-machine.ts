@@ -355,7 +355,6 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     const lockedRoot = await this.lock.acquire(
       DefaultRollupStateMachine.lockKey,
       async () => {
-        console.log('lock acquired')
         return this.tree.getRootHash()
       }
     )

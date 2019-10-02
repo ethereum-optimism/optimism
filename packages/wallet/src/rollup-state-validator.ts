@@ -67,12 +67,7 @@ import {
   UniTokenType,
   PigiTokenType,
 } from './types'
-
-import { Transaction } from 'ethers/utils'
-import {
-  parseTransitionFromABI,
-  parseTransactionFromABI,
-} from './serialization'
+import { RollupAggregator } from './aggregator'
 
 const log = getLogger('rollup-guard')
 export class DefaultRollupStateValidator implements RollupStateValidator {
@@ -81,8 +76,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     blockNumber: 0,
     transitionIndex: 0,
   }
-  private blockQueue: RollupBlock[]
-  private lastValidatedBlock: number = 0
+  private ingestedBlocks: RollupBlock[] = []
 
   public static async create(
     genesisState: State[],
@@ -221,7 +215,6 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     }
 
     if (generatedPostRoot.equals(transitionPostRoot)) {
-      this.currentPosition.blockNumber++
       this.currentPosition.transitionIndex++
       return 'NO_FRAUD'
     } else {
@@ -237,9 +230,15 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   public async checkNextBlock(
     nextBlock: RollupBlock
   ): Promise<any> {
-    const currentPosition: RollupTransitionPosition = await this.getCurrentVerifiedPosition()
+    // reset transition index, we are starting at 0 again!
+    this.currentPosition.transitionIndex = 0
 
-    if (nextBlock.blockNumber !== currentPosition.blockNumber + 1) {
+    this.ingestedBlocks[nextBlock.blockNumber] = nextBlock
+
+    const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition()).blockNumber
+    console.log('nextBlockNumberToValidate: ', nextBlockNumberToValidate)
+    console.log('nextBlock.blockNumber: ', nextBlock.blockNumber)
+    if (nextBlock.blockNumber !== nextBlockNumberToValidate) {
       throw new ValidationOutOfOrderError()
     }
 
@@ -288,9 +287,23 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     
     const curPosition = await this.getCurrentVerifiedPosition()
     const fraudulentTransitionIndex = curPosition.transitionIndex
-    const validTransitionIndex = fraudulentTransitionIndex - 1
+    let validIncludedTransition
+    console.log('found fraud at: ', curPosition)
+    if (fraudulentTransitionIndex > 0) {
+       validIncludedTransition = await merklizedBlock.getIncludedTransition(fraudulentTransitionIndex - 1)
+    } else {
+      console.log('got here with ingestedBlocks of', this.ingestedBlocks)
+      // then we need to pull from the last block to get preRoot
+      const prevRollupBlockNumber: number = curPosition.blockNumber - 1
+      const prevRollupBlock: DefaultRollupBlock = new DefaultRollupBlock(
+        this.ingestedBlocks[prevRollupBlockNumber].transitions,
+        prevRollupBlockNumber
+      )
+      await prevRollupBlock.generateTree()
 
-    const validIncludedTransition = await merklizedBlock.getIncludedTransition(validTransitionIndex)
+      const lastTransitionInLastBlockIndex: number = prevRollupBlock.transitions.length - 1
+      validIncludedTransition = await prevRollupBlock.getIncludedTransition(lastTransitionInLastBlockIndex)
+    }
     const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(fraudulentTransitionIndex)
 
     return [validIncludedTransition, fraudulentIncludedTransition, includedStorageSlots]

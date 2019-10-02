@@ -338,7 +338,7 @@ describe.only('RollupStateValidator', () => {
       }
 
       const sendThenSwapBlock: RollupBlock = {
-        blockNumber: 1,
+        blockNumber: 0,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
 
@@ -347,7 +347,7 @@ describe.only('RollupStateValidator', () => {
       )
       res.should.equal('NO_FRAUD')
     })
-    it('should successfully validate a send followed by a swap', async () => {
+    it('should successfully get a fraud proof for a send followed by a swap with invalid root', async () => {
       const postTransferRoot: string =
         '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
       const transitionAliceToBob: TransferTransition = {
@@ -373,7 +373,7 @@ describe.only('RollupStateValidator', () => {
       }
 
       const sendThenSwapBlock: RollupBlock = {
-        blockNumber: 1,
+        blockNumber: 0,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
 
@@ -382,43 +382,61 @@ describe.only('RollupStateValidator', () => {
       )
       res.should.not.equal('NO_FRAUD')
     })
-    it('should return a fraud proof for a second transition with invalid root', async () => {
+    it('should return a fraud proof for a block with an invalid initial tx', async () => {
       const postTransferRoot: string =
-        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
-      const transitionAliceToBob: TransferTransition = {
-        stateRoot: postTransferRoot,
-        senderSlotIndex: 0,
-        recipientSlotIndex: 3,
-        tokenType: 0,
-        amount: 100,
-        signature: ALICE_ADDRESS,
-      }
+      '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+    const transitionAliceToBob: TransferTransition = {
+      stateRoot: postTransferRoot,
+      senderSlotIndex: 0,
+      recipientSlotIndex: 3,
+      tokenType: 0,
+      amount: 100,
+      signature: ALICE_ADDRESS,
+    }
 
-      const postSwapRoot: string =
-        '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813' // invalid post root
-      const transitionInvalidSwap: SwapTransition = {
-        stateRoot: postSwapRoot,
-        senderSlotIndex: 0,
-        uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
-        tokenType: UNI_TOKEN_TYPE,
-        inputAmount: 100,
-        minOutputAmount: 20,
-        timeout: 10,
-        signature: ALICE_ADDRESS,
-      }
+    const postSwapRoot: string =
+      '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
+    const transitionAliceSwap: SwapTransition = {
+      stateRoot: postSwapRoot,
+      senderSlotIndex: 0,
+      uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
+      tokenType: UNI_TOKEN_TYPE,
+      inputAmount: 100,
+      minOutputAmount: 20,
+      timeout: 10,
+      signature: ALICE_ADDRESS,
+    }
 
-      const sendThenInvalidSwapBlock: RollupBlock = {
-        blockNumber: 1,
-        transitions: [transitionAliceToBob, transitionInvalidSwap],
-      }
+    const sendThenSwapBlock: RollupBlock = {
+      blockNumber: 0,
+      transitions: [transitionAliceToBob, transitionAliceSwap],
+    }
+
+    await rollupGuard.checkNextBlock(sendThenSwapBlock)
+
+    const invalidSendTransition: TransferTransition = {
+      stateRoot: '0xdeadbeef000000efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
+      senderSlotIndex: 0,
+      recipientSlotIndex: 3,
+      tokenType: 0,
+      amount: 100,
+      signature: ALICE_ADDRESS,
+    }
+
+    const invalidFirstTransitionBlock: RollupBlock = {
+      blockNumber: 1,
+      transitions: [invalidSendTransition, invalidSendTransition, invalidSendTransition],
+    }
 
       const res: FraudCheckResult = await rollupGuard.checkNextBlock(
-        sendThenInvalidSwapBlock
+        invalidFirstTransitionBlock
       )
 
-      // should give first and second transitions
-      res[0].inclusionProof.transitionIndex.should.equal(0)
-      res[1].inclusionProof.transitionIndex.should.equal(1)
+      // should give last and first transitions
+      res[0].inclusionProof.transitionIndex.should.equal(1)
+      res[0].inclusionProof.blockNumber.should.equal(0)
+      res[1].inclusionProof.transitionIndex.should.equal(0)
+      res[1].inclusionProof.blockNumber.should.equal(1)
     })
   })
 })
