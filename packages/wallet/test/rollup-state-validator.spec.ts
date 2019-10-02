@@ -51,7 +51,7 @@ import { DH_CHECK_P_NOT_SAFE_PRIME } from 'constants'
 
 /* External Imports */
 
-// import { generateNTransitions, RollupBlock } from '../../contracts/build/test/helpers'
+import * as assert from 'assert'
 
 /* Internal Imports */
 
@@ -192,7 +192,7 @@ describe.only('RollupStateValidator', () => {
       snaps[1].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       // make sure the right pubkeys were pulled
       snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
-      snaps[1].state.pubKey.should.equal(BOB_ADDRESS)
+      assert(snaps[1].state === undefined, 'Empty slot should give an undefined state.')
     })
   })
 
