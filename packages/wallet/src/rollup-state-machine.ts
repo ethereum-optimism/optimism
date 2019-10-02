@@ -377,27 +377,20 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       const bigKey: BigNumber = new BigNumber(key)
       let leaf: Buffer = await this.tree.getLeaf(bigKey)
       
-      const preRoot: Buffer = await this.tree.getRootHash()
-      console.log('pre update root is: ', preRoot)
-      if (!leaf) {
-        leaf = Buffer.alloc(32)
-        await this.tree.update(bigKey, leaf)
+      if (!leaf) { // if we didn't get the leaf it must be empty
+        leaf = SparseMerkleTreeImpl.emptyBuffer
       }
-      const postRoot: Buffer = await this.tree.getRootHash()
-      console.log('post update root is: ', postRoot)
 
       const merkleProof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
         new BigNumber(key),
         leaf
       )
-      // console.log('merkleproof is: ')
-      // console.log(merkleProof)
       return [leaf, merkleProof, merkleProof.rootHash.toString('hex')]
     })
 
     let state: State
     let inclusionProof: InclusionProof
-    state = accountState ? DefaultRollupStateMachine.deserializeState(accountState) : undefined
+    state = (accountState && accountState !== SparseMerkleTreeImpl.emptyBuffer) ? DefaultRollupStateMachine.deserializeState(accountState) : undefined
     inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))
 
     return {
