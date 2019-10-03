@@ -246,7 +246,7 @@ describe('RollupAggregator', () => {
         // It should have submitted a block
         transIndex.should.equal(0)
         dummyBlockSubmitter.submitedBlocks.length.should.equal(1)
-        dummyBlockSubmitter.submitedBlocks[0].number.should.equal(1)
+        dummyBlockSubmitter.submitedBlocks[0].blockNumber.should.equal(1)
         dummyBlockSubmitter.submitedBlocks[0].transitions.length.should.equal(2)
 
         aggregator.getPendingBlockNumber().should.equal(2)
@@ -425,7 +425,7 @@ describe('RollupAggregator', () => {
       await sleep(1_900)
 
       dummyBlockSubmitter.submitedBlocks.length.should.equal(1)
-      dummyBlockSubmitter.submitedBlocks[0].number.should.equal(1)
+      dummyBlockSubmitter.submitedBlocks[0].blockNumber.should.equal(1)
       dummyBlockSubmitter.submitedBlocks[0].transitions.length.should.equal(1)
     }).timeout(10_000)
   })

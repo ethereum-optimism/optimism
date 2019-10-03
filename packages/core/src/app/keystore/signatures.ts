@@ -54,3 +54,16 @@ export class IdentityVerifier implements SignatureVerifier {
     return signature
   }
 }
+
+export class ChecksumAgnosticIdentityVerifier implements SignatureVerifier {
+  private static _instance: SignatureVerifier
+  public static instance(): SignatureVerifier {
+    if (!ChecksumAgnosticIdentityVerifier._instance) {
+      ChecksumAgnosticIdentityVerifier._instance = new IdentityVerifier()
+    }
+    return ChecksumAgnosticIdentityVerifier._instance
+  }
+  public verifyMessage(message: string, signature: string): string {
+    return ethers.utils.getAddress(signature)
+  }
+}

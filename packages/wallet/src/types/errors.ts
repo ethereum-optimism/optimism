@@ -40,6 +40,18 @@ export class SignatureError extends Error {
   }
 }
 
+export const isStateTransitionError = (error: Error): boolean => {
+  return (
+    error instanceof SlippageError ||
+    error instanceof InsufficientBalanceError ||
+    error instanceof NegativeAmountError ||
+    error instanceof InvalidTransactionTypeError ||
+    error instanceof StateMachineCapacityError ||
+    error instanceof InvalidTokenTypeError ||
+    error instanceof SignatureError
+  )
+}
+
 export class NotSyncedError extends Error {
   constructor() {
     super(

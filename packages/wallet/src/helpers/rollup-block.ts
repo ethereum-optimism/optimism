@@ -1,13 +1,14 @@
 /* Internal Imports */
-
-/* External Imports */
 import {
   RollupTransition,
   SwapTransition,
   TransferTransition,
   CreateAndTransferTransition,
   abiEncodeTransition,
-} from '@pigi/wallet'
+  RollupBlock,
+} from '../../'
+
+/* External Imports */
 import {
   keccak256,
   hexStrToBuf,
@@ -35,7 +36,7 @@ interface IncludedTransition {
  * Rollup block. This includes all of the tranisitions in readable form
  * as well as the merkle tree which it generates.
  */
-export class RollupBlock {
+export class DefaultRollupBlock implements RollupBlock {
   public transitions: RollupTransition[]
   public encodedTransitions: string[]
   public blockNumber: number

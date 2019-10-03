@@ -4,7 +4,6 @@ import '../setup'
 import {
   Transition,
   generateNTransitions,
-  RollupBlock,
   makeRepeatedBytes,
   makePaddedBytes,
   makePaddedUint,
@@ -45,6 +44,7 @@ import {
   abiEncodeTransition,
   State,
   abiEncodeState,
+  DefaultRollupBlock,
 } from '@pigi/wallet'
 
 /* Logging */
@@ -166,8 +166,8 @@ describe('RollupChain', () => {
     beforeEach(async () => {
       // Create two blocks from some default transitions
       blocks = [
-        new RollupBlock(generateNTransitions(10), 0),
-        new RollupBlock(generateNTransitions(10), 1),
+        new DefaultRollupBlock(generateNTransitions(10), 0),
+        new DefaultRollupBlock(generateNTransitions(10), 1),
       ]
       for (const block of blocks) {
         await block.generateTree()
@@ -248,7 +248,7 @@ describe('RollupChain', () => {
   describe('checkTransitionIncluded()', async () => {
     it('should verify n included transitions for the first block', async () => {
       // Create a block from some default transitions
-      const block = new RollupBlock(generateNTransitions(10), 0)
+      const block = new DefaultRollupBlock(generateNTransitions(10), 0)
       await block.generateTree()
       // Actually submit the block
       await rollupChain.submitBlock(block.encodedTransitions)
@@ -266,8 +266,8 @@ describe('RollupChain', () => {
 
     it('should verify n included transitions for the second block', async () => {
       // Create two blocks from some default transitions
-      const block0 = new RollupBlock(generateNTransitions(5), 0)
-      const block1 = new RollupBlock(generateNTransitions(5), 1)
+      const block0 = new DefaultRollupBlock(generateNTransitions(5), 0)
+      const block1 = new DefaultRollupBlock(generateNTransitions(5), 1)
       await block0.generateTree()
       await block1.generateTree()
       // Submit the blocks
@@ -287,7 +287,7 @@ describe('RollupChain', () => {
 
     it('should fail to verify inclusion for a transition which is not included', async () => {
       // Create a block from some default transitions
-      const block0 = new RollupBlock(generateNTransitions(5), 0)
+      const block0 = new DefaultRollupBlock(generateNTransitions(5), 0)
       await block0.generateTree()
       // Submit the blocks
       await rollupChain.submitBlock(block0.encodedTransitions)
@@ -336,7 +336,7 @@ describe('RollupChain', () => {
       )
 
       // Create a rollup block
-      const block = new RollupBlock(transferTransitions, 0)
+      const block = new DefaultRollupBlock(transferTransitions, 0)
       await block.generateTree()
       // Get two included transitions
       const includedTransitions = [
@@ -453,7 +453,7 @@ describe('RollupChain', () => {
 
       // 4) Create a rollup block with our two transitions
       //
-      const block = new RollupBlock(transferTransitions, 0)
+      const block = new DefaultRollupBlock(transferTransitions, 0)
       await block.generateTree()
       // Submit the rollup block
       await rollupChain.submitBlock(block.encodedTransitions)

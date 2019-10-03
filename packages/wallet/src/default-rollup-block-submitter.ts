@@ -86,7 +86,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
   }
 
   public async submitBlock(rollupBlock: RollupBlock): Promise<void> {
-    if (rollupBlock.number <= this.lastQueued) {
+    if (rollupBlock.blockNumber <= this.lastQueued) {
       log.error(
         `submitBlock(...) called on old block. Last Queued: ${
           this.lastQueued
@@ -97,11 +97,11 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
 
     this.blockQueue.push(rollupBlock)
     await this.db.put(
-      DefaultRollupBlockSubmitter.getBlockKey(rollupBlock.number),
+      DefaultRollupBlockSubmitter.getBlockKey(rollupBlock.blockNumber),
       DefaultRollupBlockSubmitter.serializeRollupBlockForStorage(rollupBlock)
     )
 
-    this.lastQueued = rollupBlock.number
+    this.lastQueued = rollupBlock.blockNumber
     await this.db.put(
       DefaultRollupBlockSubmitter.LAST_QUEUED_KEY,
       this.numberToBuffer(this.lastQueued)
@@ -120,7 +120,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       return
     }
 
-    if (rollupBlockNumber === this.blockQueue[0].number) {
+    if (rollupBlockNumber === this.blockQueue[0].blockNumber) {
       this.blockQueue.shift()
       this.lastConfirmed = rollupBlockNumber
       await this.db.put(
@@ -156,7 +156,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
     const block: RollupBlock = this.blockQueue.shift()
 
     log.debug(
-      `Submitting block number ${block.number}: ${JSON.stringify(block)}.`
+      `Submitting block number ${block.blockNumber}: ${JSON.stringify(block)}.`
     )
 
     try {
@@ -173,7 +173,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       throw e
     }
 
-    this.lastSubmitted = block.number
+    this.lastSubmitted = block.blockNumber
     await this.db.put(
       DefaultRollupBlockSubmitter.LAST_SUBMITTED_KEY,
       this.numberToBuffer(this.lastSubmitted)
@@ -193,16 +193,18 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       abiEncodeTransition(x)
     )
     return Buffer.from(
-      `${rollupBlock.number.toString(10)}|${JSON.stringify(encodedTransitions)}`
+      `${rollupBlock.blockNumber.toString(10)}|${JSON.stringify(
+        encodedTransitions
+      )}`
     )
   }
 
   public static deserializeRollupBlockFromStorage(
     rollupBlockBuffer: Buffer
   ): RollupBlock {
-    const [number, json] = rollupBlockBuffer.toString().split('|')
+    const [blockNumber, json] = rollupBlockBuffer.toString().split('|')
     return {
-      number: parseInt(number, 10),
+      blockNumber: parseInt(blockNumber, 10),
       transitions: JSON.parse(json).map((x) => parseTransitionFromABI(x)),
     }
   }

@@ -289,7 +289,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       log.info(
         `Received transaction with invalid signature: ${serializeObject(
           signedTransaction
-        )}`
+        )}, which recovered a signer of ${signer}`
       )
       throw new SignatureError()
     }
@@ -349,6 +349,57 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       stateUpdate['stateRoot'] = (await this.tree.getRootHash()).toString('hex')
       return stateUpdate
     })
+  }
+
+  public async getStateRoot(): Promise<Buffer> {
+    const lockedRoot = await this.lock.acquire(
+      DefaultRollupStateMachine.lockKey,
+      async () => {
+        return this.tree.getRootHash()
+      }
+    )
+    return lockedRoot
+  }
+
+  public getNextNewAccountSlot(): number {
+    return this.lastOpenKey.toNumber() + 1
+  }
+
+  public async getSnapshotFromSlot(key: number): Promise<StateSnapshot> {
+    const [accountState, proof, stateRoot]: [
+      Buffer,
+      MerkleTreeInclusionProof,
+      string
+    ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
+      const bigKey: BigNumber = new BigNumber(key)
+      let leaf: Buffer = await this.tree.getLeaf(bigKey)
+
+      if (!leaf) {
+        // if we didn't get the leaf it must be empty
+        leaf = SparseMerkleTreeImpl.emptyBuffer
+      }
+
+      const merkleProof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
+        new BigNumber(key),
+        leaf
+      )
+      return [leaf, merkleProof, merkleProof.rootHash.toString('hex')]
+    })
+
+    let state: State
+    let inclusionProof: InclusionProof
+    state =
+      accountState && accountState !== SparseMerkleTreeImpl.emptyBuffer
+        ? DefaultRollupStateMachine.deserializeState(accountState)
+        : undefined
+    inclusionProof = proof.siblings.map((x: Buffer) => x.toString('hex'))
+
+    return {
+      slotIndex: key,
+      state,
+      stateRoot,
+      inclusionProof,
+    }
   }
 
   /**
