@@ -9,9 +9,6 @@ import {
 /* Internal Imports */
 import {
   Address,
-  Balances,
-  Swap,
-  Transfer,
   isSwapTransition,
   isCreateAndTransferTransition,
   isTransferTransition,
@@ -41,6 +38,7 @@ import {
   PigiTokenType,
 } from './types'
 import { UNISWAP_GENESIS_STATE_INDEX } from '../test/helpers'
+import { type } from 'os'
 
 const log = getLogger('rollup-validator')
 export class DefaultRollupStateValidator implements RollupStateValidator {
@@ -49,17 +47,19 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     blockNumber: 0,
     transitionIndex: 0,
   }
-  private ingestedBlocks: RollupBlock[] = []
+  private storedBlocks: RollupBlock[] = []
 
   public static async create(
     genesisState: State[],
     stateMachineDb: DB
   ): Promise<DefaultRollupStateValidator> {
+    // The validator spins up a local statte machine 
     const theRollupMachine = (await DefaultRollupStateMachine.create(
       genesisState,
       stateMachineDb,
       ChecksumAgnosticIdentityVerifier.instance()
     )) as DefaultRollupStateMachine
+    log.info('Successfully spun up a fresh rollupMachine for the validator.')
     return new DefaultRollupStateValidator(theRollupMachine)
   }
 
@@ -68,16 +68,18 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   }
 
   public async getCurrentVerifiedPosition(): Promise<RollupTransitionPosition> {
-    return {...this.currentPosition}
+    return { ...this.currentPosition }
   }
 
   public async getInputStateSnapshots(
     transition: RollupTransition
   ): Promise<StateSnapshot[]> {
-    let firstSlot, secondSlot: number
+    let firstSlot: number
+    let secondSlot: number
     if (isSwapTransition(transition)) {
-        firstSlot = transition.senderSlotIndex
-        secondSlot = UNISWAP_GENESIS_STATE_INDEX
+      firstSlot = transition.senderSlotIndex
+      secondSlot = UNISWAP_GENESIS_STATE_INDEX
+      log.info(`Returning snapshots prepper for fraud`)
     } else if (isCreateAndTransferTransition(transition)) {
       firstSlot = transition.senderSlotIndex
       secondSlot = transition.recipientSlotIndex
@@ -85,6 +87,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       firstSlot = transition.senderSlotIndex
       secondSlot = transition.recipientSlotIndex
     }
+    log.info(`Returning snapshots for slots ${firstSlot} and ${secondSlot}.`)
     return [
       await this.rollupMachine.getSnapshotFromSlot(firstSlot),
       await this.rollupMachine.getSnapshotFromSlot(secondSlot),
@@ -153,35 +156,46 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     }
 
     // In case there was fraud in this transaction, get state snapshots for each input so we can prove the fraud later.
+    log.info(`Getting the pre-state inclusion proofs for a ${typeof nextTransition}: ${JSON.stringify(nextTransition)}`)
     preppedFraudInputs = await this.getInputStateSnapshots(nextTransition)
-    // let inputAsTransaction: SignedTransaction = await this.getTransactionFromTransition(nextTransition)
+    // convert to transaction so we can apply to validator rollup machine
+    log.info(`Converting the transition into a transaction...`)
     const inputAsTransaction: SignedTransaction = await this.getTransactionFromTransitionAndSnapshots(
       nextTransition,
       preppedFraudInputs
     )
+    log.info(`Got back transaction: ${JSON.stringify(inputAsTransaction)}.  Attempting to apply it to local state machine.`)
     try {
       await this.rollupMachine.applyTransaction(inputAsTransaction)
       generatedPostRoot = await this.rollupMachine.getStateRoot()
     } catch (error) {
       if (isStateTransitionError(error)) {
-        log.info('Ingested a transaction which does not pass the state machine, must be badly formed!  Returning fraud proof.')
+        log.info(
+          'The transaction did not pass the state machine, must be badly formed!  Returning fraud proof.'
+        )
         return {
           fraudPosition: this.currentPosition,
           fraudInputs: preppedFraudInputs,
           fraudTransition: nextTransition,
         }
       } else {
-        log.info('Transaction ingestion threw an error--but for a reason unrelated to the transition itself not passing the state machine.  Uh oh!')
+        log.info(
+          'The transaction threw an error--but for a reason unrelated to the transition itself not passing the state machine.  Uh oh!'
+        )
         throw new LocalMachineError()
       }
     }
 
     if (generatedPostRoot.equals(transitionPostRoot)) {
-      log.info('Ingested valid transition and postRoot matched the aggregator claim.')
+      log.info(
+        'Ingested valid transition and postRoot matched the aggregator claim.'
+      )
       this.currentPosition.transitionIndex++
       return undefined
     } else {
-      log.info('Ingested valid transition and postRoot disagreed with the aggregator claim--returning fraud')
+      log.info(
+        'Ingested valid transition and postRoot disagreed with the aggregator claim--returning fraud'
+      )
       return {
         fraudPosition: this.currentPosition,
         fraudInputs: preppedFraudInputs,
@@ -190,33 +204,45 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     }
   }
 
-  public async checkNextBlock(nextBlock: RollupBlock): Promise<any> {
-    // reset transition index, we are starting at 0 again!
-    this.currentPosition.transitionIndex = 0
+  public async storeBlock(newBlock: RollupBlock): Promise<void> {
+    this.storedBlocks[newBlock.blockNumber] = newBlock
+    return
+  }
 
-    this.ingestedBlocks[nextBlock.blockNumber] = nextBlock
-
-    const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition())
-      .blockNumber
-    if (nextBlock.blockNumber !== nextBlockNumberToValidate) {
+  public async validateStoredBlock(blockNumber: number): Promise<any> {
+    // grab the block itself from our stored blocks
+    const blockToValidate: RollupBlock = this.storedBlocks[blockNumber]
+    if (!blockToValidate) {
+      log.error('Tried to check next block, but it has not yet been stored yet.')
       throw new ValidationOutOfOrderError()
     }
 
-    for (const transition of nextBlock.transitions) {
+    log.info('Starting validation for block ' + blockToValidate.blockNumber + '...')
+    const nextBlockNumberToValidate: number = (
+        await this.getCurrentVerifiedPosition()
+    ).blockNumber
+    if (blockToValidate.blockNumber !== nextBlockNumberToValidate) {
+      throw new ValidationOutOfOrderError()
+    }
+
+    // Now loop through and apply the transitions one by one
+    for (const transition of blockToValidate.transitions) {
       const fraudCheck: FraudCheckResult = await this.checkNextTransition(
         transition
       )
       if (!!fraudCheck) {
-        // then there was fraud, return the fraud proof to give to contract
+        log.info(`Found evidence of fraud at transition ${JSON.stringify(transition)}.  The current index is ${(await this.getCurrentVerifiedPosition()).transitionIndex}.  Submitting fraud proof.`)
         const generatedProof = await this.generateContractFraudProof(
           fraudCheck as LocalFraudProof,
-          nextBlock
+          blockToValidate
         )
         return generatedProof
       }
     }
-    // otherwise
+    log.info(`Found no fraud in block ${nextBlockNumberToValidate}, incrementing block number and reseting transition index`)
+    // otherwise 
     this.currentPosition.blockNumber++
+    this.currentPosition.transitionIndex = 0
     return undefined
   }
 
@@ -225,6 +251,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     block: RollupBlock
   ): Promise<any> {
     const fraudInputs: StateSnapshot[] = localProof.fraudInputs as StateSnapshot[]
+    log.info(`Converting the LocalFraudProof's snapshots into contract-friendly includedStorageSlots...`)
     const includedStorageSlots = [
       {
         storageSlot: {
@@ -253,7 +280,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         siblings: fraudInputs[1].inclusionProof,
       },
     ]
-
+    log.info(`Generating a Merklized block to build inclusions for the fraudulent transition...`)
     const merklizedBlock: DefaultRollupBlock = new DefaultRollupBlock(
       block.transitions,
       block.blockNumber
@@ -262,30 +289,34 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
     const curPosition = await this.getCurrentVerifiedPosition()
     const fraudulentTransitionIndex = curPosition.transitionIndex
+    log.info(`Fraudlent transition index is ${fraudulentTransitionIndex}.  Getting inclusion proof in rollup block...`)
+    const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(
+      fraudulentTransitionIndex
+    )
     let validIncludedTransition
     if (fraudulentTransitionIndex > 0) {
+      log.info(`Since the fraud transition index is > 0, we serve the valid pre-transition from the same block at the previous position.`)
       validIncludedTransition = await merklizedBlock.getIncludedTransition(
         fraudulentTransitionIndex - 1
       )
     } else {
-      // then we need to pull from the last block to get preRoot
+      log.info(`Since the fraud transition index is  0, we need to grab the valid pre-transition as the last one in the previous block.`)
       const prevRollupBlockNumber: number = curPosition.blockNumber - 1
       const prevRollupBlock: DefaultRollupBlock = new DefaultRollupBlock(
-        this.ingestedBlocks[prevRollupBlockNumber].transitions,
+        this.storedBlocks[prevRollupBlockNumber].transitions,
         prevRollupBlockNumber
       )
+      log.info(`Generating a Merklized block to build transition inclusion from the previous block...`)
       await prevRollupBlock.generateTree()
 
       const lastTransitionInLastBlockIndex: number =
         prevRollupBlock.transitions.length - 1
+        log.info(`Grabbing the last transition from the previous block, it has index ${lastTransitionInLastBlockIndex}`)
       validIncludedTransition = await prevRollupBlock.getIncludedTransition(
         lastTransitionInLastBlockIndex
       )
     }
-    const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(
-      fraudulentTransitionIndex
-    )
-
+    // TODO: submit to L1, these would be the arguments fed directly into the contract
     return [
       validIncludedTransition,
       fraudulentIncludedTransition,

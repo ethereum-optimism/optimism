@@ -36,12 +36,21 @@ export interface RollupStateValidator {
   ): Promise<FraudCheckResult>
 
   /**
-   * Checks a block of transitions once downloaded from ethereum
+   * Checks the next block of stored transitions
    *
-   * @param nextBlock The block to be checked for fraud
+   * @param blockNumber The block nunmber of the stored block to be ingested
    * @returns The FraudCheckResult resulting from the check
    */
-  checkNextBlock(nextBlock: RollupBlock): Promise<FraudCheckResult>
+  validateStoredBlock(blockNumber: number): Promise<void> 
+
+  /**
+   * Stores a block of transitions for provessing
+   *
+   * @param newBlock The block to be stored for later ingestion
+   * @returns The FraudCheckResult resulting from the check
+   */
+  storeBlock(newBlock: RollupBlock): Promise<void> 
+
 }
 
 export class LocalMachineError extends Error {

@@ -201,30 +201,29 @@ describe('RollupStateValidator', () => {
 
   describe('checkNextTransition', () => {
     it('should return no fraud if correct root for transfer', async () => {
-      const postRoot: string =
-        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
-
+      // create a valid transfer from genesis
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: postRoot,
+        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
       }
-
+      // test checking this individual transition
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceToBob
       )
-      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
+      assert(
+        res === undefined,
+        'Fraud should not be detected for this valid transition.'
+      )
     })
 
     it('should return no fraud if correct root for swap', async () => {
-      const postRoot: string =
-        '0x773015e9b833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde'
-
+      // create a valid swap from genesis
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: postRoot,
+        stateRoot: '0x773015e9b833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -233,19 +232,20 @@ describe('RollupStateValidator', () => {
         timeout: 10,
         signature: ALICE_ADDRESS,
       }
-
+      // test checking this individual transition
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceSwap
       )
-      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
+      assert(
+        res === undefined,
+        'Fraud should not be detected for this valid transition.'
+      )
     })
 
     it('should return no fraud if correct root for creation transition', async () => {
-      const postRoot: string =
-        '0xf65a687f44d534512a1878e84de3d29489f9c8c12a7de37c46bfc2b0d898d3ee'
-
+      // create a valid create-and-transfer transition from genesis
       const transitionAliceToCreatedBob: CreateAndTransferTransition = {
-        stateRoot: postRoot,
+        stateRoot: '0xf65a687f44d534512a1878e84de3d29489f9c8c12a7de37c46bfc2b0d898d3ee',
         senderSlotIndex: 0,
         recipientSlotIndex: 4, // genesis fills first few
         tokenType: 0,
@@ -253,19 +253,20 @@ describe('RollupStateValidator', () => {
         signature: ALICE_ADDRESS,
         createdAccountPubkey: '0x0100000000000000000000000000000000000000',
       }
-
+      // test checking this individual transition
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceToCreatedBob
       )
-      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
+      assert(
+        res === undefined,
+        'Fraud should not be detected for this valid transition.'
+      )
     })
 
     it('should return positive for fraud if transition has invalid root', async () => {
-      const wrongPostRoot: string =
-        '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde'
-
+      // create an invalid deadbeef post root transition
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: wrongPostRoot,
+        stateRoot: '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -274,28 +275,28 @@ describe('RollupStateValidator', () => {
         timeout: 10,
         signature: ALICE_ADDRESS,
       }
-
+      // test checking this individual transition
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceSwap
       )
       res.should.not.equal(undefined)
     })
-    it('should throw if accounts are not created sequentially', async () => {
-      const postRoot = '0xdeadbeef1e5'
-
+    it('should let us know we can\'t currently validate if accounts are not created sequentially', async () => {
+      // create a transition which we can't generate a fraud proof yet
       const outOfOrderCreation: CreateAndTransferTransition = {
-        stateRoot: postRoot,
+        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
-        recipientSlotIndex: 300, // not 300th yet!
+        recipientSlotIndex: 300, // not suported yet, only sequential
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
-        createdAccountPubkey: BOB_ADDRESS,
+        createdAccountPubkey: '0x0100000000000000000000000000000000000000'
       }
 
       try {
         await rollupGuard.checkNextTransition(outOfOrderCreation)
       } catch (error) {
+        // Make sure we recognized the right error
         error.should.be.instanceOf(AggregatorUnsupportedError)
         return
       }
@@ -305,32 +306,34 @@ describe('RollupStateValidator', () => {
 
   describe('checkNextBlock', () => {
     it('should throw if it recieves blocks out of order', async () => {
+      // create a block with num =/= 0 which cannot be processed before 0-4
+      const blockNumber: number = 5
       const wrongOrderBlock: RollupBlock = {
-        blockNumber: 5,
+        blockNumber,
         transitions: undefined,
       }
+      // store the block
+      await rollupGuard.storeBlock(wrongOrderBlock)
+      // try to validate it
       try {
-        await rollupGuard.checkNextBlock(wrongOrderBlock)
+        await rollupGuard.validateStoredBlock(blockNumber)
       } catch (e) {
         e.should.be.an.instanceOf(ValidationOutOfOrderError)
       }
     })
     it('should successfully validate a send followed by a swap', async () => {
-      const postTransferRoot: string =
-        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+      // create a svalid end
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: postTransferRoot,
+        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
       }
-
-      const postSwapRoot: string =
-        '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
+      // create a valid swap
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: postSwapRoot,
+        stateRoot: '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -339,33 +342,34 @@ describe('RollupStateValidator', () => {
         timeout: 10,
         signature: ALICE_ADDRESS,
       }
-
+      // create the block
+      const blockNumber: number = 0
       const sendThenSwapBlock: RollupBlock = {
-        blockNumber: 0,
+        blockNumber,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
-
-      const res: FraudCheckResult = await rollupGuard.checkNextBlock(
-        sendThenSwapBlock
+      // store the block
+      await rollupGuard.storeBlock(sendThenSwapBlock)
+      // validate it
+      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(blockNumber)
+      assert(
+        res === undefined,
+        'Fraud should not be detected for this valid transition.'
       )
-      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
     })
-    it('should successfully get a fraud proof for a send followed by a swap with invalid root', async () => {
-      const postTransferRoot: string =
-        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+    it('should successfully get a fraud proof for a valid transition followed by another with invalid root', async () => {
+      // create valid transition from genesis
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: postTransferRoot,
+        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
       }
-
-      const postSwapRoot: string =
-        '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
+      // create transition with deadbeef post root
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: postSwapRoot,
+        stateRoot: '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -374,33 +378,33 @@ describe('RollupStateValidator', () => {
         timeout: 10,
         signature: ALICE_ADDRESS,
       }
-
+      // create block
+      const blockNumber: number = 0
       const sendThenSwapBlock: RollupBlock = {
-        blockNumber: 0,
+        blockNumber,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
-
-      const res: FraudCheckResult = await rollupGuard.checkNextBlock(
-        sendThenSwapBlock
+      // store it
+      await rollupGuard.storeBlock(sendThenSwapBlock)
+      // check it, expecting fraud
+      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(
+        blockNumber
       )
       res.should.not.equal(undefined)
     })
     it('should return a fraud proof for a block with an invalid initial tx', async () => {
-      const postTransferRoot: string =
-        '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6'
+      // create a valid transaction for block 0
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: postTransferRoot,
+        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
       }
-
-      const postSwapRoot: string =
-        '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813'
+      // create another valid transaction for block 0
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: postSwapRoot,
+        stateRoot: '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -409,14 +413,12 @@ describe('RollupStateValidator', () => {
         timeout: 10,
         signature: ALICE_ADDRESS,
       }
-
-      const sendThenSwapBlock: RollupBlock = {
+      // create valid block 0
+      const validFirstBlock: RollupBlock = {
         blockNumber: 0,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
-
-      await rollupGuard.checkNextBlock(sendThenSwapBlock)
-
+      // create an invalid state transition for block 1
       const invalidSendTransition: TransferTransition = {
         stateRoot:
           '0xdeadbeef000000efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
@@ -426,21 +428,22 @@ describe('RollupStateValidator', () => {
         amount: 100,
         signature: ALICE_ADDRESS,
       }
-
+      // create invalid block 1
       const invalidFirstTransitionBlock: RollupBlock = {
         blockNumber: 1,
         transitions: [
-          invalidSendTransition,
-          invalidSendTransition,
+          invalidSendTransition, 
+          invalidSendTransition, // there could be multiple invalid transitions, but we need to confirm we get the first.
           invalidSendTransition,
         ],
       }
-
-      const res: FraudCheckResult = await rollupGuard.checkNextBlock(
-        invalidFirstTransitionBlock
-      )
-
-      // should give last and first transitions
+      // store and validate the first valid block 0
+      await rollupGuard.storeBlock(validFirstBlock)
+      await rollupGuard.validateStoredBlock(0)
+      // store and validate the invalid block 1
+      await rollupGuard.storeBlock(invalidFirstTransitionBlock)
+      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(1)
+      // Fraud roof should give last transition of block 0 and the first transition of block 1
       res[0].inclusionProof.transitionIndex.should.equal(1)
       res[0].inclusionProof.blockNumber.should.equal(0)
       res[1].inclusionProof.transitionIndex.should.equal(0)
