@@ -31,7 +31,7 @@ import {
   SignedTransaction,
   PIGI_TOKEN_TYPE,
   RollupStateValidator,
-  FraudCheckResult,
+  LocalFraudProof,
   CreateAndTransferTransition,
   StateSnapshot,
   RollupTransition,
@@ -212,7 +212,7 @@ describe('RollupStateValidator', () => {
         signature: ALICE_ADDRESS,
       }
       // test checking this individual transition
-      const res: FraudCheckResult = await rollupGuard.checkNextTransition(
+      const res: LocalFraudProof = await rollupGuard.checkNextTransition(
         transitionAliceToBob
       )
       assert(
@@ -235,7 +235,7 @@ describe('RollupStateValidator', () => {
         signature: ALICE_ADDRESS,
       }
       // test checking this individual transition
-      const res: FraudCheckResult = await rollupGuard.checkNextTransition(
+      const res: LocalFraudProof = await rollupGuard.checkNextTransition(
         transitionAliceSwap
       )
       assert(
@@ -257,7 +257,7 @@ describe('RollupStateValidator', () => {
         createdAccountPubkey: '0x0100000000000000000000000000000000000000',
       }
       // test checking this individual transition
-      const res: FraudCheckResult = await rollupGuard.checkNextTransition(
+      const res: LocalFraudProof = await rollupGuard.checkNextTransition(
         transitionAliceToCreatedBob
       )
       assert(
@@ -280,7 +280,7 @@ describe('RollupStateValidator', () => {
         signature: ALICE_ADDRESS,
       }
       // test checking this individual transition
-      const res: FraudCheckResult = await rollupGuard.checkNextTransition(
+      const res: LocalFraudProof = await rollupGuard.checkNextTransition(
         transitionAliceSwap
       )
       res.should.not.equal(undefined)
@@ -358,7 +358,7 @@ describe('RollupStateValidator', () => {
       // store the block
       await rollupGuard.storeBlock(sendThenSwapBlock)
       // validate it
-      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(
+      const res: LocalFraudProof = await rollupGuard.validateStoredBlock(
         blockNumber
       )
       assert(
@@ -398,7 +398,7 @@ describe('RollupStateValidator', () => {
       // store it
       await rollupGuard.storeBlock(sendThenSwapBlock)
       // check it, expecting fraud
-      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(
+      const res: LocalFraudProof = await rollupGuard.validateStoredBlock(
         blockNumber
       )
       res.should.not.equal(undefined)
@@ -455,7 +455,7 @@ describe('RollupStateValidator', () => {
       await rollupGuard.validateStoredBlock(0)
       // store and validate the invalid block 1
       await rollupGuard.storeBlock(invalidFirstTransitionBlock)
-      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(1)
+      const res: LocalFraudProof = await rollupGuard.validateStoredBlock(1)
       // Fraud roof should give last transition of block 0 and the first transition of block 1
       res[0].inclusionProof.transitionIndex.should.equal(1)
       res[0].inclusionProof.blockNumber.should.equal(0)

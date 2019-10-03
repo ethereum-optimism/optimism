@@ -30,7 +30,6 @@ import {
   RollupBlock,
   RollupStateValidator,
   RollupTransitionPosition,
-  FraudCheckResult,
   RollupTransition,
   LocalMachineError,
   LocalFraudProof,
@@ -140,7 +139,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
   public async checkNextTransition(
     nextTransition: RollupTransition
-  ): Promise<FraudCheckResult> {
+  ): Promise<LocalFraudProof> {
     let preppedFraudInputs: StateSnapshot[]
     let generatedPostRoot: Buffer
 
@@ -236,7 +235,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
     // Now loop through and apply the transitions one by one
     for (const transition of blockToValidate.transitions) {
-      const fraudCheck: FraudCheckResult = await this.checkNextTransition(
+      const fraudCheck: LocalFraudProof = await this.checkNextTransition(
         transition
       )
       if (!!fraudCheck) {

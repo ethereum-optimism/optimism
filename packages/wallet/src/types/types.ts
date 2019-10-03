@@ -120,8 +120,6 @@ export interface LocalFraudProof {
   fraudTransition: RollupTransition
 }
 
-export type FraudCheckResult = LocalFraudProof | undefined
-
 /*** Type Determination Functions ***/
 
 export const isSwapTransaction = (

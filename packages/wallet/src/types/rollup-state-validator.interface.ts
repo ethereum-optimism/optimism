@@ -4,7 +4,7 @@ import {
   RollupTransitionPosition,
   RollupTransition,
   RollupTransaction,
-  FraudCheckResult,
+  LocalFraudProof,
   StateSnapshot,
 } from './types'
 
@@ -29,17 +29,17 @@ export interface RollupStateValidator {
    * Applies the next transition as a transaction to the rollup state machine.
    *
    * @param nextTransition The next transition which was rolled up.
-   * @returns The FraudCheckResult resulting from the check
+   * @returns The LocalFraudProof resulting from the check
    */
   checkNextTransition(
     nextTransition: RollupTransition
-  ): Promise<FraudCheckResult>
+  ): Promise<LocalFraudProof>
 
   /**
    * Checks the next block of stored transitions
    *
    * @param blockNumber The block nunmber of the stored block to be ingested
-   * @returns The FraudCheckResult resulting from the check
+   * @returns The LocalFraudProof resulting from the check
    */
   validateStoredBlock(blockNumber: number): Promise<void>
 
@@ -47,7 +47,7 @@ export interface RollupStateValidator {
    * Stores a block of transitions for provessing
    *
    * @param newBlock The block to be stored for later ingestion
-   * @returns The FraudCheckResult resulting from the check
+   * @returns The LocalFraudProof resulting from the check
    */
   storeBlock(newBlock: RollupBlock): Promise<void>
 }
