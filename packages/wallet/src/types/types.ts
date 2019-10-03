@@ -120,7 +120,7 @@ export interface LocalFraudProof {
   fraudTransition: RollupTransition
 }
 
-export type FraudCheckResult = LocalFraudProof | 'NO_FRAUD'
+export type FraudCheckResult = LocalFraudProof | undefined
 
 /*** Type Determination Functions ***/
 

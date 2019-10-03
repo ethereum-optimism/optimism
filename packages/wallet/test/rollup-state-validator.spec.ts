@@ -99,7 +99,7 @@ function getMultiBalanceGenesis(
  * TESTS *
  *********/
 
-describe.only('RollupStateValidator', () => {
+describe('RollupStateValidator', () => {
   let rollupGuard: DefaultRollupStateValidator
   let stateDb: DB
 
@@ -216,7 +216,7 @@ describe.only('RollupStateValidator', () => {
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceToBob
       )
-      res.should.equal('NO_FRAUD')
+      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
     })
 
     it('should return no fraud if correct root for swap', async () => {
@@ -237,7 +237,7 @@ describe.only('RollupStateValidator', () => {
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceSwap
       )
-      res.should.equal('NO_FRAUD')
+      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
     })
 
     it('should return no fraud if correct root for creation transition', async () => {
@@ -257,7 +257,7 @@ describe.only('RollupStateValidator', () => {
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceToCreatedBob
       )
-      res.should.equal('NO_FRAUD')
+      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
     })
 
     it('should return positive for fraud if transition has invalid root', async () => {
@@ -278,7 +278,7 @@ describe.only('RollupStateValidator', () => {
       const res: FraudCheckResult = await rollupGuard.checkNextTransition(
         transitionAliceSwap
       )
-      res.should.not.equal('NO_FRAUD')
+      res.should.not.equal(undefined)
     })
     it('should throw if accounts are not created sequentially', async () => {
       const postRoot = '0xdeadbeef1e5'
@@ -348,7 +348,7 @@ describe.only('RollupStateValidator', () => {
       const res: FraudCheckResult = await rollupGuard.checkNextBlock(
         sendThenSwapBlock
       )
-      res.should.equal('NO_FRAUD')
+      assert(res === undefined, 'Fraud should not be detected for this valid transition.')
     })
     it('should successfully get a fraud proof for a send followed by a swap with invalid root', async () => {
       const postTransferRoot: string =
@@ -383,7 +383,7 @@ describe.only('RollupStateValidator', () => {
       const res: FraudCheckResult = await rollupGuard.checkNextBlock(
         sendThenSwapBlock
       )
-      res.should.not.equal('NO_FRAUD')
+      res.should.not.equal(undefined)
     })
     it('should return a fraud proof for a block with an invalid initial tx', async () => {
       const postTransferRoot: string =
