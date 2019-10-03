@@ -29,7 +29,8 @@ contract RollupChain {
         bytes returnData
     );
     event NewRollupBlock(
-        bytes[] block
+        bytes[] block,
+        uint256 blockNumber
     );
 
     /***************
@@ -55,10 +56,10 @@ contract RollupChain {
         dt.Block memory rollupBlock = dt.Block({
             rootHash: root,
             blockSize: _block.length
-        });
+            });
         blocks.push(rollupBlock);
         // NOTE: Toggle the event if you'd like easier historical block queries
-        // emit NewRollupBlock(_block);
+        emit NewRollupBlock(_block, blocks.length);
         return root;
     }
 
@@ -93,9 +94,9 @@ contract RollupChain {
         uint32[2] memory storageSlots;
         // First decode the prestate root
         (success, returnData) =
-            address(transitionEvaluator).call(
-                abi.encodeWithSelector(transitionEvaluator.getTransitionStateRootAndAccessList.selector, _preStateTransition)
-            );
+        address(transitionEvaluator).call(
+            abi.encodeWithSelector(transitionEvaluator.getTransitionStateRootAndAccessList.selector, _preStateTransition)
+        );
         // Emit the output as an event
         emit DecodedTransition(success, returnData);
         // Make sure the call was successful
@@ -103,9 +104,9 @@ contract RollupChain {
         (preStateRoot, preStateStorageSlots) = abi.decode((returnData), (bytes32, uint32[2]));
         // Now that we have the prestateRoot, let's decode the postState
         (success, returnData) =
-            address(transitionEvaluator).call(
-                abi.encodeWithSelector(transitionEvaluator.getTransitionStateRootAndAccessList.selector, _invalidTransition)
-            );
+        address(transitionEvaluator).call(
+            abi.encodeWithSelector(transitionEvaluator.getTransitionStateRootAndAccessList.selector, _invalidTransition)
+        );
         // Emit the output as an event
         emit DecodedTransition(success, returnData);
         // If the call was successful let's decode!
@@ -135,10 +136,10 @@ contract RollupChain {
         /********* #2: DECODE_TRANSITIONS *********/
         // Decode our transitions and determine which storage slots we'll need in order to validate the transition
         (
-            bool success,
-            bytes32 preStateRoot,
-            bytes32 postStateRoot,
-            uint32[2] memory storageSlotIndexes
+        bool success,
+        bytes32 preStateRoot,
+        bytes32 postStateRoot,
+        uint32[2] memory storageSlotIndexes
         ) = getStateRootsAndStorageSlots(preStateTransition, invalidTransition);
         // If not success something went wrong with the decoding...
         if (!success) {
@@ -168,9 +169,9 @@ contract RollupChain {
         bytes memory returnData;
         // Make the external call
         (success, returnData) =
-            address(transitionEvaluator).call(
-                abi.encodeWithSelector(transitionEvaluator.evaluateTransition.selector, invalidTransition, storageSlots)
-            );
+        address(transitionEvaluator).call(
+            abi.encodeWithSelector(transitionEvaluator.evaluateTransition.selector, invalidTransition, storageSlots)
+        );
         // Check if it was successful. If not, we've got to prune.
         if (!success) {
             pruneBlocksAfter(_invalidIncludedTransition.inclusionProof.blockNumber);
@@ -259,8 +260,8 @@ contract RollupChain {
     function getStorageBytes(dt.Storage memory _storage) public view returns(bytes memory) {
         // If it's an empty storage slot, return 32 bytes of zeros (empty value)
         if (_storage.pubkey == 0x0000000000000000000000000000000000000000 &&
-            _storage.balances[0] == 0 &&
-            _storage.balances[1] == 0
+        _storage.balances[0] == 0 &&
+        _storage.balances[1] == 0
         ) {
             return abi.encodePacked(uint(0));
         }

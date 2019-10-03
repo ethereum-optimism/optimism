@@ -9,9 +9,10 @@
   "scripts": {
     "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000",
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{deploy,test}/**/*.ts'",
     "build": "waffle waffle-config.json && tsc -p .",
-    "clean": "rimraf build/"
+    "clean": "rimraf build/",
+    "deploy:rollup-chain": "rimraf build/ && waffle waffle-config.json && tsc -p . && node ./build/deploy/deploy-rollup-chain.js"
   },
   "keywords": [
     "plasma",
@@ -51,6 +52,7 @@
     "ethereum-waffle": "^2.0.12",
     "ethers": "^4.0.37",
     "merkletreejs": "^0.1.7",
-    "openzeppelin-solidity": "^2.2.0"
+    "openzeppelin-solidity": "^2.2.0",
+    "dotenv": "^8.1.0"
   }
 }
