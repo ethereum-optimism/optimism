@@ -187,9 +187,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
           fraudTransition: nextTransition,
         }
       } else {
-        log.info(
-          'The transaction threw an error--but for a reason unrelated to the transition itself not passing the state machine.  Uh oh!'
-        )
+        log.error(log, 'Transaction ingestion threw an error--but for a reason unrelated to the transition itself not passing the state machine. Uh oh!', error)
         throw new LocalMachineError()
       }
     }
