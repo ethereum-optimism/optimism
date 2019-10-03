@@ -25,8 +25,7 @@ import {
   RollupClient,
   Balances,
 } from '../src'
-import { AggregatorServer } from '../src/aggregator/aggregator-server'
-import { DefaultRollupBlockSubmitter } from '../src/default-rollup-block-submitter'
+import { AggregatorServer } from '../src/aggregator'
 import { Wallet } from 'ethers'
 
 const log = getLogger('client-aggregator-integration', true)

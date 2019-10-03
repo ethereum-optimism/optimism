@@ -9,10 +9,10 @@
   "scripts": {
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p . && browserify index.ts -p [ tsify ] > public/bundle.js && mkdir build/level",
+    "build": "tsc -p . && browserify index.ts -p [ tsify ] > public/bundle.js && mkdir -p build/level",
     "serve": "http-server ./public",
     "aggregator": "node ./build/src/mock-aggregator.js",
-    "clean": "rimraf build/"
+    "clean": "rimraf build/ && rimraf log/"
   },
   "keywords": [
     "plasma",
@@ -29,9 +29,11 @@
   "dependencies": {
     "@pigi/core": "^0.0.1-alpha.1",
     "@pigi/wallet": "^0.0.1-alpha.1",
+    "@pigi/watch-eth": "^0.0.2-alpha.1",
     "cors": "^2.8.5",
     "http-server": "^0.11.1",
-    "level": "^5.0.1"
+    "level": "^5.0.1",
+    "dotenv": "^8.1.0"
   },
   "devDependencies": {
     "@pigi/core": "^0.0.1-alpha.1",

@@ -1,3 +1,4 @@
 #!/bin/bash
 
-yarn run aggregator 2>&1 | tee output.log
+mkdir -p log
+yarn run aggregator 2>&1 | tee log/aggregator.$(uuidgen).log

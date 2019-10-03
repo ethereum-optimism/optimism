@@ -1,5 +1,4 @@
 import { DB, getLogger, logError } from '@pigi/core'
-import { Block } from 'ethers/providers'
 import { Contract } from 'ethers'
 
 import { RollupBlock, RollupBlockSubmitter } from './types'
@@ -24,7 +23,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
   public static async create(
     db: DB,
     rollupContract: Contract
-  ): Promise<DefaultRollupBlockSubmitter> {
+  ): Promise<RollupBlockSubmitter> {
     const submitter = new DefaultRollupBlockSubmitter(db, rollupContract)
 
     await submitter.init()
@@ -95,6 +94,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       return
     }
 
+    log.debug(`Queueing rollup block: ${JSON.stringify(rollupBlock)}}`)
     this.blockQueue.push(rollupBlock)
     await this.db.put(
       DefaultRollupBlockSubmitter.getBlockKey(rollupBlock.blockNumber),
@@ -121,6 +121,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
     }
 
     if (rollupBlockNumber === this.blockQueue[0].blockNumber) {
+      log.debug(`Received confirmation for block ${rollupBlockNumber}!`)
       this.blockQueue.shift()
       this.lastConfirmed = rollupBlockNumber
       await this.db.put(
@@ -137,6 +138,10 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
         )
       }
       await this.trySubmitNextBlock()
+    } else {
+      log.error(
+        `Received confirmation for future block ${rollupBlockNumber}! First in queue is ${this.blockQueue[0].blockNumber}.`
+      )
     }
   }
 
@@ -147,13 +152,18 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       this.lastSubmitted >= this.lastQueued ||
       !this.blockQueue.length
     ) {
-      log.debug(
-        `Next block queued but not submitted because block ${this.lastSubmitted} was submitted but not yet confirmed.`
-      )
+      if (!this.blockQueue.length) {
+        log.debug(`No blocks queued for submission.`)
+      } else {
+        log.debug(
+          `Next block queued but not submitted because block ${this.lastSubmitted} was submitted but not yet confirmed.`
+        )
+      }
+
       return
     }
 
-    const block: RollupBlock = this.blockQueue.shift()
+    const block: RollupBlock = this.blockQueue[0]
 
     log.debug(
       `Submitting block number ${block.blockNumber}: ${JSON.stringify(block)}.`

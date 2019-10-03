@@ -65,7 +65,6 @@ export class RollupAggregator
   private readonly lock: AsyncLock
 
   private synced: boolean
-  private initialized: boolean
   private pendingBlock: RollupBlock
   private lastBlockSubmission: Date
 
@@ -108,7 +107,6 @@ export class RollupAggregator
     }
     this.lock = new AsyncLock()
     this.synced = false
-    this.initialized = false
   }
 
   /**
@@ -128,7 +126,6 @@ export class RollupAggregator
       // Fresh start -- nothing in the DB
       if (!lastTransitionBuffer) {
         log.info(`Init returning -- no stored last transition.`)
-        this.initialized = true
         this.lastBlockSubmission = new Date()
         return
       }
@@ -156,7 +153,6 @@ export class RollupAggregator
         transitions,
       }
 
-      this.initialized = true
       log.info(
         `Initialized aggregator with pending block: ${JSON.stringify(
           this.pendingBlock
@@ -179,13 +175,13 @@ export class RollupAggregator
     log.debug(`Aggregator received event: ${JSON.stringify(event)}`)
     if (!!event && !!event.values && 'blockNumber' in event.values) {
       await this.rollupBlockSubmitter.handleNewRollupBlock(
-        event.values['blockNumber']
+        (event.values['blockNumber'] as any).toNumber()
       )
     }
   }
 
   public async getState(address: string): Promise<SignedStateReceipt> {
-    if (!this.isReadyForRequests()) {
+    if (!this.synced) {
       throw new NotSyncedError()
     }
 
@@ -227,7 +223,7 @@ export class RollupAggregator
   public async applyTransaction(
     signedTransaction: SignedTransaction
   ): Promise<SignedStateReceipt[]> {
-    if (!this.isReadyForRequests()) {
+    if (!this.synced) {
       throw new NotSyncedError()
     }
 
@@ -269,7 +265,7 @@ export class RollupAggregator
   public async requestFaucetFunds(
     signedTransaction: SignedTransaction
   ): Promise<SignedStateReceipt> {
-    if (!this.isReadyForRequests) {
+    if (!this.synced) {
       throw new NotSyncedError()
     }
 
@@ -554,13 +550,6 @@ export class RollupAggregator
         transaction: txTwo,
       },
     ]
-  }
-
-  /**
-   * Returns whether or not this Aggregator is ready to handle requests.
-   */
-  private isReadyForRequests() {
-    return this.initialized && this.synced
   }
 
   /***********

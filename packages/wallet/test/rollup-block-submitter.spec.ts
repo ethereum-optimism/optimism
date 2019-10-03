@@ -35,7 +35,7 @@ const initQueuedSubmittedConfirmed = async (
   submitted: number,
   confirmed: number,
   blocks: RollupBlock[] = []
-): Promise<DefaultRollupBlockSubmitter> => {
+): Promise<RollupBlockSubmitter> => {
   if (queued > 0) {
     await db.put(
       DefaultRollupBlockSubmitter.LAST_QUEUED_KEY,
@@ -178,7 +178,7 @@ describe('DefaultRollupBlockSubmitter', () => {
   describe('submitBlock()', () => {
     it('should submit new block with no previous blocks', async () => {
       // @ts-ignore
-      const blockSubmitter: DefaultRollupBlockSubmitter = await DefaultRollupBlockSubmitter.create(
+      const blockSubmitter: RollupBlockSubmitter = await DefaultRollupBlockSubmitter.create(
         db,
         // @ts-ignore
         dummyContract
@@ -277,7 +277,7 @@ describe('DefaultRollupBlockSubmitter', () => {
   describe('handleNewRollupBlock()', () => {
     it('should do nothing when there are no pending blocks', async () => {
       // @ts-ignore
-      const blockSubmitter: DefaultRollupBlockSubmitter = await DefaultRollupBlockSubmitter.create(
+      const blockSubmitter: RollupBlockSubmitter = await DefaultRollupBlockSubmitter.create(
         db,
         // @ts-ignore
         dummyContract

@@ -60,6 +60,7 @@ export class EthereumEventProcessor {
       )
     } else {
       this.subscriptions.get(eventId).add(handler)
+      return
     }
 
     contract.on(contract.filters[eventName](), async (...data) => {

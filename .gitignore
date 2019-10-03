@@ -21,3 +21,6 @@ npm-debug.log
 /**/package-lock.json
 
 /**/*.log
+
+/**/*.env
+/**/.env

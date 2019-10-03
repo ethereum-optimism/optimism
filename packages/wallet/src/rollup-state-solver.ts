@@ -82,15 +82,15 @@ export class DefaultRollupStateSolver implements RollupStateSolver {
 
   private async decideIfStateReceiptIsValid(
     stateReceipt: StateReceipt,
-    aggregator: Address
+    aggregatorAddress: Address
   ): Promise<Decision> {
-    return AndDecider.instance().decide({
+    const input = {
       properties: [
         {
           decider: this.signedByDecider,
           input: {
-            publicKey: Buffer.from(aggregator),
-            message: Buffer.from(abiEncodeStateReceipt(stateReceipt)),
+            publicKey: aggregatorAddress,
+            serializedMessage: abiEncodeStateReceipt(stateReceipt),
           },
         },
         {
@@ -99,7 +99,7 @@ export class DefaultRollupStateSolver implements RollupStateSolver {
             merkleProof: {
               rootHash: hexStrToBuf(stateReceipt.stateRoot),
               key: new BigNumber(stateReceipt.slotIndex),
-              value: abiEncodeState(stateReceipt.state),
+              value: Buffer.from(abiEncodeState(stateReceipt.state)),
               siblings: stateReceipt.inclusionProof.map((x) =>
                 Buffer.from(x, 'hex')
               ),
@@ -107,6 +107,22 @@ export class DefaultRollupStateSolver implements RollupStateSolver {
           },
         },
       ],
-    })
+    }
+
+    log.debug(
+      `Deciding if state is valid ${JSON.stringify(
+        stateReceipt
+      )}, input: ${JSON.stringify(input)}`
+    )
+
+    const decision: Decision = await AndDecider.instance().decide(input)
+
+    log.debug(
+      `State is ${decision.outcome ? 'valid' : 'invalid'}: ${JSON.stringify(
+        stateReceipt
+      )}`
+    )
+
+    return decision
   }
 }
