@@ -41,7 +41,7 @@ export interface RollupStateValidator {
    * @param blockNumber The block nunmber of the stored block to be ingested
    * @returns The FraudCheckResult resulting from the check
    */
-  validateStoredBlock(blockNumber: number): Promise<void> 
+  validateStoredBlock(blockNumber: number): Promise<void>
 
   /**
    * Stores a block of transitions for provessing
@@ -49,8 +49,7 @@ export interface RollupStateValidator {
    * @param newBlock The block to be stored for later ingestion
    * @returns The FraudCheckResult resulting from the check
    */
-  storeBlock(newBlock: RollupBlock): Promise<void> 
-
+  storeBlock(newBlock: RollupBlock): Promise<void>
 }
 
 export class LocalMachineError extends Error {

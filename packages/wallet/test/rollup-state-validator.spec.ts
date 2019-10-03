@@ -203,7 +203,8 @@ describe('RollupStateValidator', () => {
     it('should return no fraud if correct root for transfer', async () => {
       // create a valid transfer from genesis
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
+        stateRoot:
+          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
@@ -223,7 +224,8 @@ describe('RollupStateValidator', () => {
     it('should return no fraud if correct root for swap', async () => {
       // create a valid swap from genesis
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: '0x773015e9b833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
+        stateRoot:
+          '0x773015e9b833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -245,7 +247,8 @@ describe('RollupStateValidator', () => {
     it('should return no fraud if correct root for creation transition', async () => {
       // create a valid create-and-transfer transition from genesis
       const transitionAliceToCreatedBob: CreateAndTransferTransition = {
-        stateRoot: '0xf65a687f44d534512a1878e84de3d29489f9c8c12a7de37c46bfc2b0d898d3ee',
+        stateRoot:
+          '0xf65a687f44d534512a1878e84de3d29489f9c8c12a7de37c46bfc2b0d898d3ee',
         senderSlotIndex: 0,
         recipientSlotIndex: 4, // genesis fills first few
         tokenType: 0,
@@ -266,7 +269,8 @@ describe('RollupStateValidator', () => {
     it('should return positive for fraud if transition has invalid root', async () => {
       // create an invalid deadbeef post root transition
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
+        stateRoot:
+          '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -281,16 +285,17 @@ describe('RollupStateValidator', () => {
       )
       res.should.not.equal(undefined)
     })
-    it('should let us know we can\'t currently validate if accounts are not created sequentially', async () => {
+    it("should let us know we can't currently validate if accounts are not created sequentially", async () => {
       // create a transition which we can't generate a fraud proof yet
       const outOfOrderCreation: CreateAndTransferTransition = {
-        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
+        stateRoot:
+          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 300, // not suported yet, only sequential
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
-        createdAccountPubkey: '0x0100000000000000000000000000000000000000'
+        createdAccountPubkey: '0x0100000000000000000000000000000000000000',
       }
 
       try {
@@ -324,7 +329,8 @@ describe('RollupStateValidator', () => {
     it('should successfully validate a send followed by a swap', async () => {
       // create a svalid end
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
+        stateRoot:
+          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
@@ -333,7 +339,8 @@ describe('RollupStateValidator', () => {
       }
       // create a valid swap
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
+        stateRoot:
+          '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -351,7 +358,9 @@ describe('RollupStateValidator', () => {
       // store the block
       await rollupGuard.storeBlock(sendThenSwapBlock)
       // validate it
-      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(blockNumber)
+      const res: FraudCheckResult = await rollupGuard.validateStoredBlock(
+        blockNumber
+      )
       assert(
         res === undefined,
         'Fraud should not be detected for this valid transition.'
@@ -360,7 +369,8 @@ describe('RollupStateValidator', () => {
     it('should successfully get a fraud proof for a valid transition followed by another with invalid root', async () => {
       // create valid transition from genesis
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
+        stateRoot:
+          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
@@ -369,7 +379,8 @@ describe('RollupStateValidator', () => {
       }
       // create transition with deadbeef post root
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
+        stateRoot:
+          '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -395,7 +406,8 @@ describe('RollupStateValidator', () => {
     it('should return a fraud proof for a block with an invalid initial tx', async () => {
       // create a valid transaction for block 0
       const transitionAliceToBob: TransferTransition = {
-        stateRoot: '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
+        stateRoot:
+          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
         senderSlotIndex: 0,
         recipientSlotIndex: 3,
         tokenType: 0,
@@ -404,7 +416,8 @@ describe('RollupStateValidator', () => {
       }
       // create another valid transaction for block 0
       const transitionAliceSwap: SwapTransition = {
-        stateRoot: '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
+        stateRoot:
+          '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
         senderSlotIndex: 0,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
@@ -432,7 +445,7 @@ describe('RollupStateValidator', () => {
       const invalidFirstTransitionBlock: RollupBlock = {
         blockNumber: 1,
         transitions: [
-          invalidSendTransition, 
+          invalidSendTransition,
           invalidSendTransition, // there could be multiple invalid transitions, but we need to confirm we get the first.
           invalidSendTransition,
         ],

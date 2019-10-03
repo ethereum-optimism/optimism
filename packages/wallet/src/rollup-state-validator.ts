@@ -53,7 +53,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     genesisState: State[],
     stateMachineDb: DB
   ): Promise<DefaultRollupStateValidator> {
-    // The validator spins up a local statte machine 
+    // The validator spins up a local statte machine
     const theRollupMachine = (await DefaultRollupStateMachine.create(
       genesisState,
       stateMachineDb,
@@ -156,7 +156,11 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     }
 
     // In case there was fraud in this transaction, get state snapshots for each input so we can prove the fraud later.
-    log.info(`Getting the pre-state inclusion proofs for a ${typeof nextTransition}: ${JSON.stringify(nextTransition)}`)
+    log.info(
+      `Getting the pre-state inclusion proofs for a ${typeof nextTransition}: ${JSON.stringify(
+        nextTransition
+      )}`
+    )
     preppedFraudInputs = await this.getInputStateSnapshots(nextTransition)
     // convert to transaction so we can apply to validator rollup machine
     log.info(`Converting the transition into a transaction...`)
@@ -164,7 +168,11 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       nextTransition,
       preppedFraudInputs
     )
-    log.info(`Got back transaction: ${JSON.stringify(inputAsTransaction)}.  Attempting to apply it to local state machine.`)
+    log.info(
+      `Got back transaction: ${JSON.stringify(
+        inputAsTransaction
+      )}.  Attempting to apply it to local state machine.`
+    )
     try {
       await this.rollupMachine.applyTransaction(inputAsTransaction)
       generatedPostRoot = await this.rollupMachine.getStateRoot()
@@ -213,14 +221,17 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     // grab the block itself from our stored blocks
     const blockToValidate: RollupBlock = this.storedBlocks[blockNumber]
     if (!blockToValidate) {
-      log.error('Tried to check next block, but it has not yet been stored yet.')
+      log.error(
+        'Tried to check next block, but it has not yet been stored yet.'
+      )
       throw new ValidationOutOfOrderError()
     }
 
-    log.info('Starting validation for block ' + blockToValidate.blockNumber + '...')
-    const nextBlockNumberToValidate: number = (
-        await this.getCurrentVerifiedPosition()
-    ).blockNumber
+    log.info(
+      'Starting validation for block ' + blockToValidate.blockNumber + '...'
+    )
+    const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition())
+      .blockNumber
     if (blockToValidate.blockNumber !== nextBlockNumberToValidate) {
       throw new ValidationOutOfOrderError()
     }
@@ -231,7 +242,13 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         transition
       )
       if (!!fraudCheck) {
-        log.info(`Found evidence of fraud at transition ${JSON.stringify(transition)}.  The current index is ${(await this.getCurrentVerifiedPosition()).transitionIndex}.  Submitting fraud proof.`)
+        log.info(
+          `Found evidence of fraud at transition ${JSON.stringify(
+            transition
+          )}.  The current index is ${
+            (await this.getCurrentVerifiedPosition()).transitionIndex
+          }.  Submitting fraud proof.`
+        )
         const generatedProof = await this.generateContractFraudProof(
           fraudCheck as LocalFraudProof,
           blockToValidate
@@ -239,8 +256,10 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         return generatedProof
       }
     }
-    log.info(`Found no fraud in block ${nextBlockNumberToValidate}, incrementing block number and reseting transition index`)
-    // otherwise 
+    log.info(
+      `Found no fraud in block ${nextBlockNumberToValidate}, incrementing block number and reseting transition index`
+    )
+    // otherwise
     this.currentPosition.blockNumber++
     this.currentPosition.transitionIndex = 0
     return undefined
@@ -251,7 +270,9 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     block: RollupBlock
   ): Promise<any> {
     const fraudInputs: StateSnapshot[] = localProof.fraudInputs as StateSnapshot[]
-    log.info(`Converting the LocalFraudProof's snapshots into contract-friendly includedStorageSlots...`)
+    log.info(
+      `Converting the LocalFraudProof's snapshots into contract-friendly includedStorageSlots...`
+    )
     const includedStorageSlots = [
       {
         storageSlot: {
@@ -280,7 +301,9 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         siblings: fraudInputs[1].inclusionProof,
       },
     ]
-    log.info(`Generating a Merklized block to build inclusions for the fraudulent transition...`)
+    log.info(
+      `Generating a Merklized block to build inclusions for the fraudulent transition...`
+    )
     const merklizedBlock: DefaultRollupBlock = new DefaultRollupBlock(
       block.transitions,
       block.blockNumber
@@ -289,29 +312,39 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
     const curPosition = await this.getCurrentVerifiedPosition()
     const fraudulentTransitionIndex = curPosition.transitionIndex
-    log.info(`Fraudlent transition index is ${fraudulentTransitionIndex}.  Getting inclusion proof in rollup block...`)
+    log.info(
+      `Fraudlent transition index is ${fraudulentTransitionIndex}.  Getting inclusion proof in rollup block...`
+    )
     const fraudulentIncludedTransition = await merklizedBlock.getIncludedTransition(
       fraudulentTransitionIndex
     )
     let validIncludedTransition
     if (fraudulentTransitionIndex > 0) {
-      log.info(`Since the fraud transition index is > 0, we serve the valid pre-transition from the same block at the previous position.`)
+      log.info(
+        `Since the fraud transition index is > 0, we serve the valid pre-transition from the same block at the previous position.`
+      )
       validIncludedTransition = await merklizedBlock.getIncludedTransition(
         fraudulentTransitionIndex - 1
       )
     } else {
-      log.info(`Since the fraud transition index is  0, we need to grab the valid pre-transition as the last one in the previous block.`)
+      log.info(
+        `Since the fraud transition index is  0, we need to grab the valid pre-transition as the last one in the previous block.`
+      )
       const prevRollupBlockNumber: number = curPosition.blockNumber - 1
       const prevRollupBlock: DefaultRollupBlock = new DefaultRollupBlock(
         this.storedBlocks[prevRollupBlockNumber].transitions,
         prevRollupBlockNumber
       )
-      log.info(`Generating a Merklized block to build transition inclusion from the previous block...`)
+      log.info(
+        `Generating a Merklized block to build transition inclusion from the previous block...`
+      )
       await prevRollupBlock.generateTree()
 
       const lastTransitionInLastBlockIndex: number =
         prevRollupBlock.transitions.length - 1
-        log.info(`Grabbing the last transition from the previous block, it has index ${lastTransitionInLastBlockIndex}`)
+      log.info(
+        `Grabbing the last transition from the previous block, it has index ${lastTransitionInLastBlockIndex}`
+      )
       validIncludedTransition = await prevRollupBlock.getIncludedTransition(
         lastTransitionInLastBlockIndex
       )
