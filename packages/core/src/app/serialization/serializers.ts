@@ -1,5 +1,6 @@
 import { AddressBalance, StateChannelMessage } from './examples'
 import { BigNumber, Message } from '../../types'
+import { hexStrToBuf } from '../utils'
 
 /**
  * Serializes the provided object to its canonical string representation.
@@ -20,6 +21,31 @@ export const serializeObject = (obj: {}): string => {
  */
 export const deserializeObject = (obj: string): {} => {
   return JSON.parse(obj)
+}
+
+
+/**
+ * Serializes the provided object to its canonical hex string representation.
+ *
+ * @param obj The object to serialize.
+ * @returns The serialized object as a string.
+ */
+export const serializeObjectAsHexString = (obj: {}): string => {
+  const stringified: string = JSON.stringify(obj)
+  const asHexString = '0x' + Buffer.from(stringified, 'utf-8').toString('hex')
+  return asHexString
+}
+
+/**
+ * Deserializes the provided hex string into its object representation.
+ * This assumes the string was serialized using the associated serializer.
+ *
+ * @param obj The string to deserialize.
+ * @returns The deserialized object.
+ */
+export const deserializeObjectAsHexString = (obj: string): {} => {
+  const asBuffer = hexStrToBuf(obj).slice(2)
+  return JSON.parse(asBuffer.toString('utf-8'))
 }
 
 /**
