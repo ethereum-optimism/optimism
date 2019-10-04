@@ -21,6 +21,7 @@ import {
 } from '../helpers'
 
 /* External Imports */
+import { ethers } from 'ethers'
 import {
   createMockProvider,
   deployContract,
@@ -33,12 +34,20 @@ import {
   hexStrToBuf,
   bufToHexString,
   BigNumber,
+  DefaultSignatureProvider,
+  SignatureProvider,
+  SignatureVerifier,
+  DefaultSignatureVerifier,
 } from '@pigi/core'
 import {
   SwapTransition,
   TransferTransition,
   CreateAndTransferTransition,
   abiEncodeTransition,
+  Transfer,
+  Swap,
+  abiEncodeTransaction,
+  Address,
 } from '@pigi/wallet'
 
 /* Logging */
@@ -49,10 +58,18 @@ const log = debug('test:info:unipig-transition-evaluator')
 import * as UnipigTransitionEvaluator from '../../build/UnipigTransitionEvaluator.json'
 
 /* Begin tests */
-describe('UnipigTransitionEvaluator', () => {
+describe.only('UnipigTransitionEvaluator', () => {
   const provider = createMockProvider()
   const [wallet1] = getWallets(provider)
   let unipigEvaluator
+  let signatureProvider: SignatureProvider
+  let signatureVerifier: SignatureVerifier
+
+  /* Prep a signature provider and verifier for validating sends */
+  before(async () => {
+    signatureProvider = new DefaultSignatureProvider()
+    signatureVerifier = DefaultSignatureVerifier.instance()
+  })
 
   /* Deploy a new RollupChain before each test */
   beforeEach(async () => {
@@ -65,7 +82,17 @@ describe('UnipigTransitionEvaluator', () => {
       }
     )
   })
-
+  /*
+   * Test Signature Utils
+   */
+  describe('recoverSigner()', async () => {
+    it('should recover the correct signer', async () => {
+      const messageToSign: string = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      const signature: string = await signatureProvider.sign(messageToSign)
+      const contractRecoveredSigner = await unipigEvaluator.recoverSigner(messageToSign, signature)
+      contractRecoveredSigner.should.equal(await signatureProvider.getAddress())
+    })
+  })
   /*
    * Test inferTransitionType()
    */
@@ -235,14 +262,16 @@ describe('UnipigTransitionEvaluator', () => {
    * Test applyTransferTransition()
    */
   describe('applyTransferTransition() ', async () => {
+    // TODO complete here next
     it('should return the correct storage slots after a successful send', async () => {
       // Set initialization variables
       const sentAmount = 5
       const initialBalances = [1000, 1000]
       const senderSlotIndex = 50
-      const senderAddress = getAddress('48')
+      const senderAddress = await signatureProvider.getAddress() as Address
       const recipientAddress = getAddress('38')
       const recipientSlotIndex = 100
+      const tokenType = 0
       // Create the storage slots
       const senderStorageSlot = {
         slotIndex: senderSlotIndex,
@@ -259,14 +288,24 @@ describe('UnipigTransitionEvaluator', () => {
         },
       }
 
-      // Create a transaction
+      // Create and sign the transaction
+      const transaction: Transfer = {
+        sender: senderAddress,
+        recipient: recipientAddress,
+        tokenType,
+        amount: sentAmount
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transaction)
+      )
+      // Create the transition  
       const transition: TransferTransition = {
         stateRoot: getStateRoot('ab'),
         senderSlotIndex,
         recipientSlotIndex,
-        tokenType: 0,
+        tokenType,
         amount: sentAmount,
-        signature: getSignature('9'),
+        signature,
       }
       // Attempt to apply the transaction
       const res = await unipigEvaluator.applyTransferTransition(transition, [
@@ -327,18 +366,9 @@ describe('UnipigTransitionEvaluator', () => {
     })
 
     // TODO: Enable this test once we add real signature verification to the contract
-    it.skip('should throw if the signature for the transfer is invalid', async () => {
-      // TODO
-    })
-  })
-
-  /*
-   * Test applyCreateAndTransferTransition()
-   */
-  describe('applyCreateAndTransferTransition() ', async () => {
-    it('should succeed if the recipient storage is empty and it is a successful send', async () => {
+    it('should throw if the signature for the transfer is invalid', async () => {
       // Set initialization variables
-      const sentAmount = 5
+      const sentAmount = 900
       const initialBalances = [1000, 1000]
       const senderSlotIndex = 50
       const senderAddress = getAddress('48')
@@ -355,22 +385,83 @@ describe('UnipigTransitionEvaluator', () => {
       const recipientStorageSlot = {
         slotIndex: recipientSlotIndex,
         value: {
+          pubkey: recipientAddress,
+          balances: initialBalances,
+        },
+      }
+
+      // Create the transition
+      const transition: TransferTransition = {
+        stateRoot: getStateRoot('ab'),
+        senderSlotIndex,
+        recipientSlotIndex,
+        tokenType: 0,
+        amount: sentAmount,
+        signature: getSignature('9'),
+      }
+      try {
+        // Attempt to apply the transaction
+        const res = await unipigEvaluator.applyTransferTransition(transition, [
+          senderStorageSlot,
+          recipientStorageSlot,
+        ])
+      } catch (err) {
+        // Success!
+        return
+      }
+      throw new Error('Expected to fail due to infalid signature!')
+    })
+  })
+
+  /*
+   * Test applyCreateAndTransferTransition()
+   */
+  describe('applyCreateAndTransferTransition() ', async () => {
+    it('should succeed if the recipient storage is empty and it is a successful send', async () => {
+      // Set initialization variables
+      const sentAmount = 5
+      const initialBalances = [1000, 1000]
+      const senderSlotIndex = 50
+      const senderAddress = await signatureProvider.getAddress()
+      const recipientAddress = getAddress('38')
+      const recipientSlotIndex = 100
+      const tokenType = 0
+      // Create the storage slots
+      const senderStorageSlot = {
+        slotIndex: senderSlotIndex,
+        value: {
+          pubkey: senderAddress,
+          balances: initialBalances,
+        },
+      }
+      const recipientStorageSlot = {
+        slotIndex: recipientSlotIndex,
+        value: {
           pubkey: getAddress('00'),
           balances: [0, 0],
         },
       }
-
-      // Create a transaction
+      // Create and sign the transaction
+      const transaction: Transfer = {
+        sender: senderAddress,
+        recipient: recipientAddress,
+        tokenType,
+        amount: sentAmount
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transaction)
+      )
+      // Create a transition
       const transition: CreateAndTransferTransition = {
         stateRoot: getStateRoot('ab'),
         senderSlotIndex,
         recipientSlotIndex,
         createdAccountPubkey: recipientAddress,
-        tokenType: 0,
+        tokenType,
         amount: sentAmount,
-        signature: getSignature('9'),
+        signature,
       }
-      // Attempt to apply the transaction
+      // Attempt to apply the transition
       const res = await unipigEvaluator.applyCreateAndTransferTransition(
         transition,
         [senderStorageSlot, recipientStorageSlot]
@@ -436,13 +527,13 @@ describe('UnipigTransitionEvaluator', () => {
    * Test applySwapTransition()
    */
   describe('applySwapTransition() ', async () => {
-    const senderAddress = getAddress('48')
     const senderSlotIndex = 3428942
     const timeout = +new Date()
     const tokenType = 1
 
     it('should return the correct storage slots after a successful swap', async () => {
       // Set initialization variables
+      const senderAddress = await signatureProvider.getAddress()
       const inputAmount = 5
       const minOutputAmount = 4
       const initialBalances = [1000, 1000]
@@ -460,6 +551,17 @@ describe('UnipigTransitionEvaluator', () => {
           balances: initialBalances,
         },
       }
+      // Create and sign the transaction
+      const transaction: Swap = {
+        sender: senderAddress,
+        tokenType,
+        inputAmount,
+        minOutputAmount,
+        timeout,
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transaction)
+      )
       // Create a swap transition
       const swap: SwapTransition = {
         stateRoot: getStateRoot('cd'),
@@ -469,7 +571,7 @@ describe('UnipigTransitionEvaluator', () => {
         inputAmount,
         minOutputAmount,
         timeout,
-        signature: getSignature('aa'),
+        signature: signature,
       }
       // Attempt to apply the transaction
       const res = await unipigEvaluator.applySwapTransition(swap, [
@@ -490,6 +592,7 @@ describe('UnipigTransitionEvaluator', () => {
 
     it('should throw if the min output amount is too high', async () => {
       // Set initialization variables
+      const senderAddress = await signatureProvider.getAddress()
       const inputAmount = 5
       const minOutputAmount = 5
       // We're setting the output amount to 5 -- this won't be what is returned because we have a fee!
@@ -538,6 +641,7 @@ describe('UnipigTransitionEvaluator', () => {
 
     it('should throw if the sender cannot aford the swap', async () => {
       // Set initialization variables
+      const senderAddress = await signatureProvider.getAddress()
       const inputAmount = 5000
       const minOutputAmount = 4
       const initialBalances = [1000, 1000]
@@ -584,6 +688,7 @@ describe('UnipigTransitionEvaluator', () => {
 
     it('should throw if the 2nd storage slot doesnt match the Uniswap address', async () => {
       // These are NOT the uniswap storage slot & address
+      const senderAddress = await signatureProvider.getAddress()
       const NOT_UNISWAP_STORAGE_SLOT = 10
       const NOT_UNISWAP_ADDRESS = getAddress('99')
       // Set initialization variables
@@ -631,110 +736,9 @@ describe('UnipigTransitionEvaluator', () => {
       )
     })
 
-    it.skip('should throw if the signature for the swap does not match the sender', async () => {
-      // TODO
-    })
-  })
-
-  /*
-   * Test evaluateTransition()
-   */
-  describe('evaluateTransition() ', async () => {
-    it('should evaluate a transfer transition without failing', async () => {
+    it('should throw if the signature for the swap does not match the sender', async () => {
       // Set initialization variables
-      const sentAmount = 5
-      const initialBalances = [1000, 1000]
-      const senderSlotIndex = 50
-      const senderAddress = getAddress('48')
-      const recipientAddress = getAddress('38')
-      const recipientSlotIndex = 100
-      // Create the storage slots
-      const senderStorageSlot = {
-        slotIndex: senderSlotIndex,
-        value: {
-          pubkey: senderAddress,
-          balances: initialBalances,
-        },
-      }
-      const recipientStorageSlot = {
-        slotIndex: recipientSlotIndex,
-        value: {
-          pubkey: recipientAddress,
-          balances: initialBalances,
-        },
-      }
-
-      // Create a transaction which we will infer the type of
-      const transfer: TransferTransition = {
-        stateRoot: getStateRoot('ab'),
-        senderSlotIndex,
-        recipientSlotIndex,
-        tokenType: 0,
-        amount: sentAmount,
-        signature: getSignature('9'),
-      }
-      // Encode!
-      const encoded = abiEncodeTransition(transfer)
-      // Attempt to apply the transaction
-      const res = await unipigEvaluator.evaluateTransition(encoded, [
-        senderStorageSlot,
-        recipientStorageSlot,
-      ])
-      log('Transfer Transition successfully returned:', res)
-      // Success!
-    })
-
-    it('should evaluate a CreateAndTransferTransition without throwing', async () => {
-      // Set initialization variables
-      const sentAmount = 5
-      const initialBalances = [1000, 1000]
-      const senderSlotIndex = 50
-      const senderAddress = getAddress('48')
-      const recipientAddress = getAddress('38')
-      const recipientSlotIndex = 100
-      // Create the storage slots
-      const senderStorageSlot = {
-        slotIndex: senderSlotIndex,
-        value: {
-          pubkey: senderAddress,
-          balances: initialBalances,
-        },
-      }
-      const recipientStorageSlot = {
-        slotIndex: recipientSlotIndex,
-        value: {
-          pubkey: getAddress('00'),
-          balances: [0, 0],
-        },
-      }
-
-      // Create a transition
-      const createAndTransfer: CreateAndTransferTransition = {
-        stateRoot: getStateRoot('ab'),
-        senderSlotIndex,
-        recipientSlotIndex,
-        createdAccountPubkey: recipientAddress,
-        tokenType: 0,
-        amount: sentAmount,
-        signature: getSignature('9'),
-      }
-      // Encode!
-      const encoded = abiEncodeTransition(createAndTransfer)
-      // Attempt to apply the transaction
-      const res = await unipigEvaluator.evaluateTransition(encoded, [
-        senderStorageSlot,
-        recipientStorageSlot,
-      ])
-      log('Create and Transfer Transition successfully returned:', res)
-      // Success!
-    })
-
-    it('should evaluate a swap transition without failing', async () => {
-      // Set initialization variables
-      const senderAddress = getAddress('48')
-      const senderSlotIndex = 3428942
-      const timeout = +new Date()
-      const tokenType = 1
+      const senderAddress = await signatureProvider.getAddress()
       const inputAmount = 5
       const minOutputAmount = 4
       const initialBalances = [1000, 1000]
@@ -762,6 +766,179 @@ describe('UnipigTransitionEvaluator', () => {
         minOutputAmount,
         timeout,
         signature: getSignature('aa'),
+      }
+      try {
+        // Attempt to apply the transaction
+        const res = await unipigEvaluator.applySwapTransition(swap, [
+          senderStorageSlot,
+          uniswapStorageSlot,
+        ])
+      } catch (err) {
+        // Success!
+        return
+      }
+      throw new Error('Expected to fail due to infalid signature!')
+    })
+  })
+
+  /*
+   * Test evaluateTransition()
+   */
+  describe('evaluateTransition() ', async () => {
+    it('should evaluate a transfer transition without failing', async () => {
+      // Set initialization variables
+      const sentAmount = 5
+      const initialBalances = [1000, 1000]
+      const senderSlotIndex = 50
+      const senderAddress = await signatureProvider.getAddress()
+      const recipientAddress = getAddress('38')
+      const recipientSlotIndex = 100
+      const tokenType = 0
+      // Create the storage slots
+      const senderStorageSlot = {
+        slotIndex: senderSlotIndex,
+        value: {
+          pubkey: senderAddress,
+          balances: initialBalances,
+        },
+      }
+      const recipientStorageSlot = {
+        slotIndex: recipientSlotIndex,
+        value: {
+          pubkey: recipientAddress,
+          balances: initialBalances,
+        },
+      }
+      // Create and sign the transaction
+      const transaction: Transfer = {
+        sender: senderAddress,
+        recipient: recipientAddress,
+        tokenType,
+        amount: sentAmount
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transaction)
+      )
+
+      // Create a transaction which we will infer the type of
+      const transfer: TransferTransition = {
+        stateRoot: getStateRoot('ab'),
+        senderSlotIndex,
+        recipientSlotIndex,
+        tokenType,
+        amount: sentAmount,
+        signature,
+      }
+      // Encode!
+      const encoded = abiEncodeTransition(transfer)
+      // Attempt to apply the transaction
+      const res = await unipigEvaluator.evaluateTransition(encoded, [
+        senderStorageSlot,
+        recipientStorageSlot,
+      ])
+      log('Transfer Transition successfully returned:', res)
+      // Success!
+    })
+
+    it('should evaluate a CreateAndTransferTransition without throwing', async () => {
+      // Set initialization variables
+      const sentAmount = 5
+      const initialBalances = [1000, 1000]
+      const senderSlotIndex = 50
+      const senderAddress = await signatureProvider.getAddress()
+      const recipientAddress = getAddress('38')
+      const recipientSlotIndex = 100
+      const tokenType = 0
+      // Create the storage slots
+      const senderStorageSlot = {
+        slotIndex: senderSlotIndex,
+        value: {
+          pubkey: senderAddress,
+          balances: initialBalances,
+        },
+      }
+      const recipientStorageSlot = {
+        slotIndex: recipientSlotIndex,
+        value: {
+          pubkey: getAddress('00'),
+          balances: [0, 0],
+        },
+      }
+      // Create and sign the transaction
+      const transaction: Transfer = {
+        sender: senderAddress,
+        recipient: recipientAddress,
+        tokenType,
+        amount: sentAmount
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transaction)
+      )
+      // Create a transition
+      const createAndTransfer: CreateAndTransferTransition = {
+        stateRoot: getStateRoot('ab'),
+        senderSlotIndex,
+        recipientSlotIndex,
+        createdAccountPubkey: recipientAddress,
+        tokenType,
+        amount: sentAmount,
+        signature,
+      }
+      // Encode!
+      const encoded = abiEncodeTransition(createAndTransfer)
+      // Attempt to apply the transaction
+      const res = await unipigEvaluator.evaluateTransition(encoded, [
+        senderStorageSlot,
+        recipientStorageSlot,
+      ])
+      log('Create and Transfer Transition successfully returned:', res)
+      // Success!
+    })
+
+    it('should evaluate a swap transition without failing', async () => {
+      // Set initialization variables
+      const senderAddress = await signatureProvider.getAddress()
+      const senderSlotIndex = 3428942
+      const timeout = +new Date()
+      const tokenType = 1
+      const inputAmount = 5
+      const minOutputAmount = 4
+      const initialBalances = [1000, 1000]
+      const senderStorageSlot = {
+        slotIndex: senderSlotIndex,
+        value: {
+          pubkey: senderAddress,
+          balances: initialBalances,
+        },
+      }
+      const uniswapStorageSlot = {
+        slotIndex: UNISWAP_STORAGE_SLOT,
+        value: {
+          pubkey: UNISWAP_ADDRESS,
+          balances: initialBalances,
+        },
+      }
+      // Create and sign the transaction
+      const transaction: Swap = {
+        sender: senderAddress,
+        tokenType,
+        inputAmount,
+        minOutputAmount,
+        timeout,
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transaction)
+      )
+      // Create a swap transition
+      const swap: SwapTransition = {
+        stateRoot: getStateRoot('cd'),
+        senderSlotIndex,
+        uniswapSlotIndex: UNISWAP_STORAGE_SLOT,
+        tokenType,
+        inputAmount,
+        minOutputAmount,
+        timeout,
+        signature,
       }
       const encoded = abiEncodeTransition(swap)
       // Attempt to apply the transaction
