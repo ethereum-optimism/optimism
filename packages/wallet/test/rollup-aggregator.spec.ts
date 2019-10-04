@@ -166,7 +166,9 @@ describe('RollupAggregator', () => {
       }
       const signature = await newWallet.signMessage(
         // right now, we are actually signing the hash of our messages to make the contract work.  (See DefaultSignatureProvider)
-        hexStrToBuf(ethers.utils.keccak256(serializeObjectAsHexString(transaction)))
+        hexStrToBuf(
+          ethers.utils.keccak256(serializeObjectAsHexString(transaction))
+        )
       )
       const signedRequest: SignedTransaction = {
         signature,

@@ -23,7 +23,6 @@ export const deserializeObject = (obj: string): {} => {
   return JSON.parse(obj)
 }
 
-
 /**
  * Serializes the provided object to its canonical hex string representation.
  *

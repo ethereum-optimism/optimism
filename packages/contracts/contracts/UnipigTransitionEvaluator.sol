@@ -46,13 +46,6 @@ contract UnipigTransitionEvaluator is TransitionEvaluator {
         return outputs;
     }
 
-    function verifyEcdsaSignatureOnHash(bytes memory _signature, bytes32 _hash, address _pubkey) private pure returns(bool) {
-        bytes memory prefixedMessage = abi.encodePacked("\x19Ethereum Signed Message:\n32", _hash);
-        bytes32 digest = keccak256(prefixedMessage);
-        (uint8 v, bytes32 r, bytes32 s) = splitSignature(_signature);
-        return ecrecover(digest, v, r, s) == _pubkey;
-    }
-
     /**
      * Return the tx type inferred by the length of bytes
      */
@@ -348,14 +341,11 @@ contract UnipigTransitionEvaluator is TransitionEvaluator {
 
         return (v, r, s);
     }
-    // recovers a signer for a message (technically, an ethereum-compliant signature on the HASH of the message, which our DefaultSignatureProvider performs.)
-    function recoverSigner(bytes memory message, bytes memory sig) public pure returns (address)
-    {
-        bytes32 messageHash = keccak256(message);
-        bytes memory prefixedMessage = abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash);
+    // verifies a signature on a 32 byte value--note this means we must be signing/verifying the hash of our transactions, not the encodings themselves--luckily, DefaultSignatureProvider now does this.
+    function verifyEcdsaSignatureOnHash(bytes memory _signature, bytes32 _hash, address _pubkey) private pure returns(bool) {
+        bytes memory prefixedMessage = abi.encodePacked("\x19Ethereum Signed Message:\n32", _hash);
         bytes32 digest = keccak256(prefixedMessage);
-        (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
-
-        return ecrecover(digest, v, r, s);
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(_signature);
+        return ecrecover(digest, v, r, s) == _pubkey;
     }
 }

@@ -93,7 +93,9 @@ export class RollupClient {
     transaction: RollupTransaction,
     signatureProvider: SignatureProvider
   ): Promise<SignedStateReceipt> {
-    const signature = await signatureProvider.sign(serializeObjectAsHexString(transaction))
+    const signature = await signatureProvider.sign(
+      serializeObjectAsHexString(transaction)
+    )
     const receipt: SignedStateReceipt = await this.rpcClient.handle<
       SignedStateReceipt
     >(AGGREGATOR_API.requestFaucetFunds, {

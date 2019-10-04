@@ -58,7 +58,7 @@ const log = debug('test:info:unipig-transition-evaluator')
 import * as UnipigTransitionEvaluator from '../../build/UnipigTransitionEvaluator.json'
 
 /* Begin tests */
-describe.only('UnipigTransitionEvaluator', () => {
+describe('UnipigTransitionEvaluator', () => {
   const provider = createMockProvider()
   const [wallet1] = getWallets(provider)
   let unipigEvaluator
@@ -81,17 +81,6 @@ describe.only('UnipigTransitionEvaluator', () => {
         gasLimit: 6700000,
       }
     )
-  })
-  /*
-   * Test Signature Utils
-   */
-  describe('recoverSigner()', async () => {
-    it('should recover the correct signer', async () => {
-      const messageToSign: string = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-      const signature: string = await signatureProvider.sign(messageToSign)
-      const contractRecoveredSigner = await unipigEvaluator.recoverSigner(messageToSign, signature)
-      contractRecoveredSigner.should.equal(await signatureProvider.getAddress())
-    })
   })
   /*
    * Test inferTransitionType()
@@ -268,7 +257,7 @@ describe.only('UnipigTransitionEvaluator', () => {
       const sentAmount = 5
       const initialBalances = [1000, 1000]
       const senderSlotIndex = 50
-      const senderAddress = await signatureProvider.getAddress() as Address
+      const senderAddress = (await signatureProvider.getAddress()) as Address
       const recipientAddress = getAddress('38')
       const recipientSlotIndex = 100
       const tokenType = 0
@@ -293,12 +282,12 @@ describe.only('UnipigTransitionEvaluator', () => {
         sender: senderAddress,
         recipient: recipientAddress,
         tokenType,
-        amount: sentAmount
+        amount: sentAmount,
       }
       const signature = await signatureProvider.sign(
         abiEncodeTransaction(transaction)
       )
-      // Create the transition  
+      // Create the transition
       const transition: TransferTransition = {
         stateRoot: getStateRoot('ab'),
         senderSlotIndex,
@@ -446,7 +435,7 @@ describe.only('UnipigTransitionEvaluator', () => {
         sender: senderAddress,
         recipient: recipientAddress,
         tokenType,
-        amount: sentAmount
+        amount: sentAmount,
       }
       const signature = await signatureProvider.sign(
         abiEncodeTransaction(transaction)
@@ -571,7 +560,7 @@ describe.only('UnipigTransitionEvaluator', () => {
         inputAmount,
         minOutputAmount,
         timeout,
-        signature: signature,
+        signature,
       }
       // Attempt to apply the transaction
       const res = await unipigEvaluator.applySwapTransition(swap, [
@@ -814,7 +803,7 @@ describe.only('UnipigTransitionEvaluator', () => {
         sender: senderAddress,
         recipient: recipientAddress,
         tokenType,
-        amount: sentAmount
+        amount: sentAmount,
       }
       const signature = await signatureProvider.sign(
         abiEncodeTransaction(transaction)
@@ -869,7 +858,7 @@ describe.only('UnipigTransitionEvaluator', () => {
         sender: senderAddress,
         recipient: recipientAddress,
         tokenType,
-        amount: sentAmount
+        amount: sentAmount,
       }
       const signature = await signatureProvider.sign(
         abiEncodeTransaction(transaction)
