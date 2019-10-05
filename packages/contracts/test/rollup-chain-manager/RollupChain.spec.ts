@@ -36,7 +36,7 @@ import {
   BigNumber,
   BaseDB,
   SparseMerkleTreeImpl,
-  DefaultSignatureProvider
+  DefaultSignatureProvider,
 } from '@pigi/core'
 import {
   SwapTransition,
