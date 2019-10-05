@@ -10,6 +10,7 @@ import {
 
 /* Internal Imports */
 import {
+  AGGREGATOR_ADDRESS,
   AGGREGATOR_MNEMONIC,
   DummyBlockSubmitter,
   DummyRollupStateSolver,
@@ -48,12 +49,13 @@ describe('Mock Client/Aggregator Integration', () => {
   beforeEach(async function() {
     this.timeout(timeout)
     ovm = new DummyRollupStateSolver()
-    rollupClient = new RollupClient(newInMemoryDB())
+    rollupClient = new RollupClient(newInMemoryDB(), AGGREGATOR_ADDRESS)
     unipigTransitioner = new UnipigTransitioner(
       newInMemoryDB(),
       ovm,
       rollupClient,
-      new DefaultSignatureProvider()
+      new DefaultSignatureProvider(),
+      AGGREGATOR_ADDRESS
     )
 
     // Now create a wallet account
@@ -61,7 +63,8 @@ describe('Mock Client/Aggregator Integration', () => {
 
     const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
       getGenesisState(accountAddress),
-      newInMemoryDB()
+      newInMemoryDB(),
+      AGGREGATOR_ADDRESS
     )
 
     // Initialize a mock aggregator
@@ -119,7 +122,8 @@ describe('Mock Client/Aggregator Integration', () => {
         newInMemoryDB(),
         ovm,
         rollupClient,
-        new DefaultSignatureProvider()
+        new DefaultSignatureProvider(),
+        AGGREGATOR_ADDRESS
       )
       const newAddress = await secondTransitioner.getAddress()
 

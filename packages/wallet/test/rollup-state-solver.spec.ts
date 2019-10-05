@@ -19,9 +19,8 @@ import {
   SignedStateReceipt,
 } from '../src/types'
 
-import { BOB_ADDRESS } from './helpers'
+import { AGGREGATOR_ADDRESS, BOB_ADDRESS } from './helpers'
 import {
-  AGGREGATOR_ADDRESS,
   DefaultRollupStateSolver,
   PIGI_TOKEN_TYPE,
   UNI_TOKEN_TYPE,

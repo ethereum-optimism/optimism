@@ -19,10 +19,14 @@ import {
   Balances,
   RollupStateSolver,
   DefaultRollupStateSolver,
+  Address,
 } from '@pigi/wallet'
 import { ethers } from 'ethers'
 
 const log = getLogger('simple-client')
+
+// TODO: NEED TO HARDCODE AGGREGATOR ADDRESS HERE!
+const aggregatorAddress: Address = '0x17FC6B6c35f4C4A1e92D9d878aC001EBbF1d8e2D'
 
 /* Global declarations */
 declare var document: any
@@ -115,12 +119,16 @@ async function initialize() {
     256
   )
 
-  const rollupClient: RollupClient = new RollupClient(clientDB)
+  const rollupClient: RollupClient = new RollupClient(
+    clientDB,
+    aggregatorAddress
+  )
   unipigWallet = new UnipigTransitioner(
     transitionerDB,
     rollupStateSolver,
     rollupClient,
-    new DefaultSignatureProvider(wallet)
+    new DefaultSignatureProvider(wallet),
+    aggregatorAddress
   )
   // Update account address
   updateAccountAddress(wallet.address)

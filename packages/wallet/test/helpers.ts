@@ -4,7 +4,6 @@ import * as assert from 'assert'
 
 /* Internal Imports */
 import {
-  AGGREGATOR_ADDRESS,
   PIGI_TOKEN_TYPE,
   RollupBlock,
   RollupBlockSubmitter,
@@ -19,6 +18,7 @@ import {
 
 const log = getLogger('helpers', true)
 
+export const AGGREGATOR_ADDRESS = '0xAc001762c6424F4959852A516368DBf970C835a7'
 export const UNISWAP_GENESIS_STATE_INDEX = UNISWAP_STORAGE_SLOT
 export const ALICE_GENESIS_STATE_INDEX = 1
 export const ALICE_ADDRESS = '0xaaaf2795C3013711c240244aFF600aD9e8D9727D'

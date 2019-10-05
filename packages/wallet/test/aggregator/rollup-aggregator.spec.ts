@@ -20,6 +20,7 @@ import {
 /* Internal Imports */
 import { ethers, Wallet } from 'ethers'
 import {
+  AGGREGATOR_ADDRESS,
   AGGREGATOR_MNEMONIC,
   assertThrowsAsync,
   BOB_ADDRESS,
@@ -31,7 +32,6 @@ import {
   DefaultRollupStateMachine,
   FaucetRequest,
   SignedTransaction,
-  AGGREGATOR_ADDRESS,
   AGGREGATOR_API,
   SignedStateReceipt,
   RollupAggregator,
@@ -65,7 +65,8 @@ describe('RollupAggregator', () => {
 
     rollupStateMachine = await DefaultRollupStateMachine.create(
       getGenesisState(aliceWallet.address),
-      newInMemoryDB()
+      newInMemoryDB(),
+      AGGREGATOR_ADDRESS
     )
 
     aggregatorDB = newInMemoryDB()

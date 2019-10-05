@@ -15,19 +15,20 @@ config({ path: resolve(__dirname, `../../../.env`) })
 
 /* Internal Imports */
 import * as RollupChain from './contracts/RollupChain.json'
-import { RollupStateValidator } from '../types'
+import { Address, RollupStateValidator } from '../types'
 import {
   DefaultRollupStateMachine,
   DefaultRollupStateValidator,
-  genesisState,
+  getGenesisState,
   RollupFraudGuard,
 } from '../index'
 
 const log = getLogger('monitor-and-validate')
 
-const rollupContractAddress = process.env.ROLLUP_CONTRACT_ADDRESS
-const mnemonic = process.env.WALLET_MNEMONIC
-const jsonRpcUrl = process.env.JSON_RPC_URL
+const aggregatorAddress: Address = process.env.AGGREGATOR_ADDRESS
+const rollupContractAddress: Address = process.env.ROLLUP_CONTRACT_ADDRESS
+const mnemonic: string = process.env.WALLET_MNEMONIC
+const jsonRpcUrl: string = process.env.JSON_RPC_URL
 
 const waitForever = (): Promise<void> => {
   return new Promise(() => {
@@ -56,8 +57,9 @@ async function runValidator() {
   log.debug(`Connected`)
 
   const rollupStateMachine: DefaultRollupStateMachine = (await DefaultRollupStateMachine.create(
-    genesisState,
-    validatorDB
+    getGenesisState(aggregatorAddress),
+    validatorDB,
+    aggregatorAddress
   )) as DefaultRollupStateMachine
 
   const validator: RollupStateValidator = new DefaultRollupStateValidator(

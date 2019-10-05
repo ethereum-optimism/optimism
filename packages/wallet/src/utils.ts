@@ -2,7 +2,6 @@ import { Address, TokenType, RollupTransaction } from './index'
 import { NULL_ADDRESS, SignatureProvider, SignatureVerifier } from '@pigi/core'
 
 /* Constants */
-export const AGGREGATOR_ADDRESS = '0xAc001762c6424F4959852A516368DBf970C835a7'
 export const UNISWAP_ADDRESS = NULL_ADDRESS
 export const UNISWAP_STORAGE_SLOT = 0
 export const UNI_TOKEN_TYPE = 0

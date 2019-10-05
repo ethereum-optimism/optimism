@@ -22,7 +22,7 @@ import {
   StateReceipt,
   RollupClient,
 } from '../src'
-import { DummyRollupStateSolver } from './helpers'
+import { AGGREGATOR_ADDRESS, DummyRollupStateSolver } from './helpers'
 
 /***********
  * HELPERS *
@@ -73,12 +73,13 @@ describe('UnipigTransitioner', async () => {
   beforeEach(async () => {
     // Typings for MemDown are wrong so we need to cast to `any`.
     ovm = new DummyRollupStateSolver()
-    rollupClient = new RollupClient(newInMemoryDB())
+    rollupClient = new RollupClient(newInMemoryDB(), AGGREGATOR_ADDRESS)
     unipigTransitioner = new UnipigTransitioner(
       newInMemoryDB(),
       ovm,
       rollupClient,
-      new DefaultSignatureProvider()
+      new DefaultSignatureProvider(),
+      AGGREGATOR_ADDRESS
     )
     // Now create a wallet account
     accountAddress = await unipigTransitioner.getAddress()

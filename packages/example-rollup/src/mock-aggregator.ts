@@ -16,8 +16,8 @@ import {
   RollupBlockSubmitter,
   RollupBlock,
   DefaultRollupBlockSubmitter,
-  genesisState,
   Address,
+  getGenesisState,
 } from '@pigi/wallet'
 import { EthereumEventProcessor } from '@pigi/watch-eth'
 
@@ -61,7 +61,7 @@ class DummyBlockSubmitter implements RollupBlockSubmitter {
 }
 
 const rollupContractAddress = process.env.ROLLUP_CONTRACT_ADDRESS
-const mnemonic = process.env.WALLET_MNEMONIC
+const aggregatorMnemonic = process.env.AGGREGATOR_MNEMONIC
 const jsonRpcUrl = process.env.JSON_RPC_URL
 const transitionsPerBlock: number = parseInt(
   process.env.TRANSITIONS_PER_BLOCK || '10',
@@ -73,7 +73,9 @@ const blockSubmissionIntervalMillis: number = parseInt(
 )
 const authorizedFaucetAddress: Address = process.env.AUTHORIZED_FAUCET_ADDRESS
 
-const mockMode = !rollupContractAddress || !mnemonic || !jsonRpcUrl
+if (!rollupContractAddress || !aggregatorMnemonic || !jsonRpcUrl) {
+  throw Error('Missing environment variables. Set them and try again.')
+}
 
 // Create a new aggregator... and then...
 const host = '0.0.0.0'
@@ -93,59 +95,52 @@ async function runAggregator() {
     4
   )
 
+  const aggregatorWallet: Wallet = Wallet.fromMnemonic(
+    aggregatorMnemonic
+  ).connect(new JsonRpcProvider(jsonRpcUrl))
   const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
-    genesisState,
-    stateDB
+    getGenesisState(aggregatorWallet.address),
+    stateDB,
+    aggregatorWallet.address
   )
 
-  let blockSubmitter: RollupBlockSubmitter
-  let contract: Contract
-  if (mockMode) {
-    log.debug(`Using dummy block submitter`)
-    blockSubmitter = new DummyBlockSubmitter()
-  } else {
-    log.debug(
-      `Connecting to contract [${rollupContractAddress}] at [${jsonRpcUrl}]`
-    )
-    contract = new Contract(
-      rollupContractAddress,
-      RollupChain.interface,
-      Wallet.fromMnemonic(mnemonic).connect(new JsonRpcProvider(jsonRpcUrl))
-    )
-    const blockSubmitterDB: DB = new BaseDB(
-      (await Level('build/level/blockSubmitter', levelOptions)) as any,
-      256
-    )
-    blockSubmitter = await DefaultRollupBlockSubmitter.create(
-      blockSubmitterDB,
-      contract
-    )
-    log.debug(`Connected`)
-  }
+  log.debug(
+    `Connecting to contract [${rollupContractAddress}] at [${jsonRpcUrl}]`
+  )
+  const contract: Contract = new Contract(
+    rollupContractAddress,
+    RollupChain.interface,
+    aggregatorWallet
+  )
+  const blockSubmitterDB: DB = new BaseDB(
+    (await Level('build/level/blockSubmitter', levelOptions)) as any,
+    256
+  )
+  const blockSubmitter = await DefaultRollupBlockSubmitter.create(
+    blockSubmitterDB,
+    contract
+  )
+  log.debug(`Connected`)
 
   const aggregator = await RollupAggregator.create(
     blockDB,
     rollupStateMachine,
     blockSubmitter,
-    new DefaultSignatureProvider(Wallet.fromMnemonic(AGGREGATOR_MNEMONIC)),
+    new DefaultSignatureProvider(aggregatorWallet),
     DefaultSignatureVerifier.instance(),
     transitionsPerBlock,
     blockSubmissionIntervalMillis,
     authorizedFaucetAddress
   )
 
-  if (mockMode) {
-    await aggregator.onSyncCompleted()
-  } else {
-    const blockProcessorDB: DB = new BaseDB(
-      (await Level('build/level/blockProcessor', levelOptions)) as any,
-      256
-    )
-    const processor: EthereumEventProcessor = new EthereumEventProcessor(
-      blockProcessorDB
-    )
-    await processor.subscribe(contract, 'NewRollupBlock', aggregator, true)
-  }
+  const blockProcessorDB: DB = new BaseDB(
+    (await Level('build/level/blockProcessor', levelOptions)) as any,
+    256
+  )
+  const processor: EthereumEventProcessor = new EthereumEventProcessor(
+    blockProcessorDB
+  )
+  await processor.subscribe(contract, 'NewRollupBlock', aggregator, true)
 
   const aggregatorServer = new AggregatorServer(aggregator, host, port, [cors])
 

@@ -17,7 +17,6 @@ import { ethers } from 'ethers'
 /* Internal Imports */
 import {
   Address,
-  AGGREGATOR_ADDRESS,
   Balances,
   DefaultRollupStateSolver,
   EMPTY_AGGREGATOR_SIGNATURE,
@@ -50,6 +49,7 @@ export class UnipigTransitioner {
 
   public static async new(
     db: DB,
+    aggregatorAddress: Address,
     signatureProvider?: SignatureProvider,
     aggregatorURL: string = 'http://127.0.0.1:3000'
   ): Promise<UnipigTransitioner> {
@@ -66,14 +66,15 @@ export class UnipigTransitioner {
       decider,
       new MerkleInclusionProofDecider()
     )
-    const rollupclient: RollupClient = new RollupClient(db)
+    const rollupclient: RollupClient = new RollupClient(db, aggregatorAddress)
     rollupclient.connect(new SimpleClient(aggregatorURL))
 
     return new UnipigTransitioner(
       db,
       stateSolver,
       rollupclient,
-      signatureProvider
+      signatureProvider,
+      aggregatorAddress
     )
   }
 
@@ -81,7 +82,8 @@ export class UnipigTransitioner {
     private readonly db: DB,
     private readonly stateSolver: RollupStateSolver,
     private readonly rollupClient: RollupClient,
-    private readonly signatureProvider: SignatureProvider
+    private readonly signatureProvider: SignatureProvider,
+    private readonly aggregatorAddress: Address
   ) {
     this.knownState = {}
   }
@@ -140,7 +142,7 @@ export class UnipigTransitioner {
     //     signedState.signature === EMPTY_AGGREGATOR_SIGNATURE) ||
     //   (await this.stateSolver.isStateReceiptProvablyValid(
     //     signedState.stateReceipt,
-    //     AGGREGATOR_ADDRESS
+    //     aggregatorAddress
     //   ))
     // ) {
     this.knownState[account] = signedState.stateReceipt

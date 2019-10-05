@@ -12,6 +12,7 @@ import {
 
 /* Internal Imports */
 import {
+  AGGREGATOR_ADDRESS,
   ALICE_ADDRESS,
   ALICE_GENESIS_STATE_INDEX,
   BOB_ADDRESS,
@@ -21,7 +22,6 @@ import {
 import {
   UNI_TOKEN_TYPE,
   UNISWAP_ADDRESS,
-  AGGREGATOR_ADDRESS,
   DefaultRollupStateValidator,
   PIGI_TOKEN_TYPE,
   RollupStateValidator,
@@ -35,7 +35,6 @@ import {
   ValidationOutOfOrderError,
   AggregatorUnsupportedError,
   ContractFraudProof,
-  RollupStateMachine,
   DefaultRollupStateMachine,
 } from '../../src'
 
@@ -94,6 +93,7 @@ describe('RollupStateValidator', () => {
     const rollupStateMachine: DefaultRollupStateMachine = (await DefaultRollupStateMachine.create(
       getMultiBalanceGenesis(),
       stateDb,
+      AGGREGATOR_ADDRESS,
       ChecksumAgnosticIdentityVerifier.instance()
     )) as DefaultRollupStateMachine
 

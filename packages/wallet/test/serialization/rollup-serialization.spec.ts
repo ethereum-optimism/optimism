@@ -22,11 +22,10 @@ import {
   parseStateReceiptFromABI,
   parseTransactionFromABI,
   parseTransitionFromABI,
-  AGGREGATOR_ADDRESS,
   PIGI_TOKEN_TYPE,
   UNI_TOKEN_TYPE,
 } from '../../src/'
-import { BOB_ADDRESS } from '../helpers'
+import { AGGREGATOR_ADDRESS, BOB_ADDRESS } from '../helpers'
 
 /* Internal Imports */
 

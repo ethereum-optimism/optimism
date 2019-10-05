@@ -1,10 +1,5 @@
-import { State } from './types'
-import {
-  AGGREGATOR_ADDRESS,
-  PIGI_TOKEN_TYPE,
-  UNI_TOKEN_TYPE,
-  UNISWAP_ADDRESS,
-} from './utils'
+import { Address, State } from './types'
+import { PIGI_TOKEN_TYPE, UNI_TOKEN_TYPE, UNISWAP_ADDRESS } from './utils'
 
 export * from './aggregator'
 export * from './rollup-block-submitter'
@@ -27,19 +22,21 @@ export const AGGREGATOR_API = {
 }
 
 /* Set the initial balances/state */
-export const genesisState: State[] = [
-  {
-    pubkey: UNISWAP_ADDRESS,
-    balances: {
-      [UNI_TOKEN_TYPE]: 1_000_000_000,
-      [PIGI_TOKEN_TYPE]: 1_000_000_000,
+export const getGenesisState = (aggregatorAddress: Address): State[] => {
+  return [
+    {
+      pubkey: UNISWAP_ADDRESS,
+      balances: {
+        [UNI_TOKEN_TYPE]: 1_000_000_000,
+        [PIGI_TOKEN_TYPE]: 1_000_000_000,
+      },
     },
-  },
-  {
-    pubkey: AGGREGATOR_ADDRESS,
-    balances: {
-      [UNI_TOKEN_TYPE]: 500_000,
-      [PIGI_TOKEN_TYPE]: 500_000,
+    {
+      pubkey: aggregatorAddress,
+      balances: {
+        [UNI_TOKEN_TYPE]: 500_000,
+        [PIGI_TOKEN_TYPE]: 500_000,
+      },
     },
-  },
-]
+  ]
+}

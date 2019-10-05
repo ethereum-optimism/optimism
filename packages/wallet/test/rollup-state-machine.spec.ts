@@ -12,6 +12,7 @@ import * as assert from 'assert'
 
 /* Internal Imports */
 import {
+  AGGREGATOR_ADDRESS,
   ALICE_ADDRESS,
   ALICE_GENESIS_STATE_INDEX,
   assertThrowsAsync,
@@ -28,7 +29,6 @@ import {
   DefaultRollupStateMachine,
   SignedTransaction,
   PIGI_TOKEN_TYPE,
-  AGGREGATOR_ADDRESS,
   NON_EXISTENT_SLOT_INDEX,
   StateSnapshot,
 } from '../src'
@@ -46,6 +46,7 @@ describe('RollupStateMachine', () => {
     rollupState = (await DefaultRollupStateMachine.create(
       getGenesisState(),
       db,
+      AGGREGATOR_ADDRESS,
       IdentityVerifier.instance()
     )) as DefaultRollupStateMachine
   })
@@ -184,6 +185,7 @@ describe('RollupStateMachine', () => {
       rollupState = (await DefaultRollupStateMachine.create(
         getGenesisStateLargeEnoughForFees(),
         db,
+        AGGREGATOR_ADDRESS,
         IdentityVerifier.instance()
       )) as DefaultRollupStateMachine
 
@@ -246,6 +248,7 @@ describe('RollupStateMachine', () => {
       rollupState = (await DefaultRollupStateMachine.create(
         getGenesisState(),
         db,
+        AGGREGATOR_ADDRESS,
         IdentityVerifier.instance()
       )) as DefaultRollupStateMachine
     })
@@ -284,6 +287,7 @@ describe('RollupStateMachine', () => {
       rollupState = (await DefaultRollupStateMachine.create(
         getGenesisState(),
         db,
+        AGGREGATOR_ADDRESS,
         IdentityVerifier.instance()
       )) as DefaultRollupStateMachine
 

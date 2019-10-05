@@ -37,7 +37,6 @@ import {
   InclusionProof,
   StateMachineCapacityError,
   SignatureError,
-  AGGREGATOR_ADDRESS,
   abiEncodeTransaction,
   abiEncodeState,
   parseStateFromABI,
@@ -78,6 +77,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
    *
    * @param genesisState The genesis state to set
    * @param db The DB to use
+   * @param aggregatorAddress The address of the aggregator
    * @param signatureVerifier The signature verifier to use
    * @param swapFeeBasisPoints The fee for swapping, in basis points
    * @param treeHeight The height of the tree to use for underlying storage
@@ -86,12 +86,14 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
   public static async create(
     genesisState: State[],
     db: DB,
+    aggregatorAddress: Address,
     signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
     swapFeeBasisPoints: number = 30,
     treeHeight: number = 32
   ): Promise<RollupStateMachine> {
     const stateMachine = new DefaultRollupStateMachine(
       db,
+      aggregatorAddress,
       signatureVerifier,
       swapFeeBasisPoints,
       treeHeight
@@ -114,6 +116,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
 
   private constructor(
     private readonly db: DB,
+    private readonly aggregatorAddress: Address,
     private readonly signatureVerifier: SignatureVerifier,
     private readonly swapFeeBasisPoints: number,
     private readonly treeHeight: number = 32
@@ -286,7 +289,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     )
     if (
       signer !== signedTransaction.transaction.sender &&
-      signer !== AGGREGATOR_ADDRESS
+      signer !== this.aggregatorAddress
     ) {
       log.info(
         `Received transaction with invalid signature: ${serializeObject(

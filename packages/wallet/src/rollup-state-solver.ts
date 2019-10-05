@@ -4,11 +4,9 @@ import {
   BigNumber,
   Decider,
   Decision,
-  DefaultSignatureVerifier,
   getLogger,
   ImplicationProofItem,
   MerkleInclusionProofDecider,
-  SignatureVerifier,
   SignedByDBInterface,
   hexStrToBuf,
 } from '@pigi/core'
