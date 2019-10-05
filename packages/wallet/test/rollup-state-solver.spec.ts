@@ -44,7 +44,7 @@ const signedStateReceipt: SignedStateReceipt = {
     blockNumber: 1,
     transitionIndex: 2,
     state: {
-      pubKey: BOB_ADDRESS,
+      pubkey: BOB_ADDRESS,
       balances: {
         [UNI_TOKEN_TYPE]: 10,
         [PIGI_TOKEN_TYPE]: 30,

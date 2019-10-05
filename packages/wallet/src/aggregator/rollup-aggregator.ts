@@ -361,7 +361,7 @@ export class RollupAggregator
       stateReceipt: senderReceipt,
     })
 
-    if (stateUpdate.receiverState.pubKey !== UNISWAP_ADDRESS) {
+    if (stateUpdate.receiverState.pubkey !== UNISWAP_ADDRESS) {
       const recipientReceipt: StateReceipt = {
         slotIndex: stateUpdate.receiverSlotIndex,
         stateRoot: stateUpdate.stateRoot,
@@ -456,7 +456,7 @@ export class RollupAggregator
       signature: update.transaction.signature,
     }
     if (update.receiverCreated) {
-      transition['createdAccountPubkey'] = update.receiverState.pubKey
+      transition['createdAccountPubkey'] = update.receiverState.pubkey
     }
     return transition
   }

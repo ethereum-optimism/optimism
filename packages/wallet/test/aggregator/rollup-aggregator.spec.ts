@@ -1,10 +1,7 @@
-import './setup'
-import MemDown from 'memdown'
+import '../setup'
 
 /* External Imports */
 import {
-  BaseDB,
-  BigNumber,
   DB,
   DefaultSignatureProvider,
   DefaultSignatureVerifier,
@@ -16,8 +13,6 @@ import {
   serializeObjectAsHexString,
   SimpleClient,
   sleep,
-  SparseMerkleTree,
-  SparseMerkleTreeImpl,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -28,7 +23,7 @@ import {
   BOB_ADDRESS,
   DummyBlockSubmitter,
   getGenesisState,
-} from './helpers'
+} from '../helpers'
 import {
   UNI_TOKEN_TYPE,
   DefaultRollupStateMachine,
@@ -44,10 +39,9 @@ import {
   abiEncodeStateReceipt,
   abiEncodeTransaction,
   TransferTransition,
-  SwapTransition,
+  AggregatorServer,
   abiEncodeTransition,
-} from '../src'
-import { AggregatorServer } from '../src/aggregator/aggregator-server'
+} from '../../src'
 
 const log = getLogger('rollup-aggregator', true)
 /*********

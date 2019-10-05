@@ -11,16 +11,12 @@ import {
 import {
   AggregatorServer,
   DefaultRollupStateMachine,
-  AGGREGATOR_ADDRESS,
-  PIGI_TOKEN_TYPE,
-  UNI_TOKEN_TYPE,
-  UNISWAP_ADDRESS,
   RollupAggregator,
   RollupStateMachine,
-  State,
   RollupBlockSubmitter,
   RollupBlock,
   DefaultRollupBlockSubmitter,
+  genesisState,
 } from '@pigi/wallet'
 import { EthereumEventProcessor } from '@pigi/watch-eth'
 
@@ -30,33 +26,16 @@ import { JsonRpcProvider } from 'ethers/providers'
 
 import { config } from 'dotenv'
 import { resolve } from 'path'
+// Starting from build/src/
 config({ path: resolve(__dirname, `../../.env`) })
 
-// Starting from build/src/mock-aggregator
+/* Internal Imports */
 import * as RollupChain from '../contracts/RollupChain.json'
 
 const log = getLogger('mock-aggregator')
 
 export const AGGREGATOR_MNEMONIC: string =
   'rebel talent argue catalog maple duty file taxi dust hire funny steak'
-
-/* Set the initial balances/state */
-export const genesisState: State[] = [
-  {
-    pubKey: UNISWAP_ADDRESS,
-    balances: {
-      [UNI_TOKEN_TYPE]: 1000,
-      [PIGI_TOKEN_TYPE]: 1000,
-    },
-  },
-  {
-    pubKey: AGGREGATOR_ADDRESS,
-    balances: {
-      [UNI_TOKEN_TYPE]: 1000000,
-      [PIGI_TOKEN_TYPE]: 1000000,
-    },
-  },
-]
 
 class DummyBlockSubmitter implements RollupBlockSubmitter {
   public async handleNewRollupBlock(rollupBlockNumber: number): Promise<void> {

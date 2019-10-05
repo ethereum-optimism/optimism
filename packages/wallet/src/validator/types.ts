@@ -1,23 +1,17 @@
-/* Internal Imports */
-import {
-  RollupTransition,
-  SwapTransition,
-  TransferTransition,
-  CreateAndTransferTransition,
-  abiEncodeTransition,
-  RollupBlock,
-} from '../../'
-
 /* External Imports */
 import {
-  keccak256,
   hexStrToBuf,
   bufToHexString,
   BigNumber,
-  BaseDB,
   SparseMerkleTreeImpl,
+  newInMemoryDB,
 } from '@pigi/core'
-import MemDown from 'memdown'
+
+/* Internal Imports */
+import { RollupTransition, abiEncodeTransition, RollupBlock } from '../../'
+
+// TODO: Make a local representation and do all contract formatting in abiEncode utility function
+export type ContractFraudProof = any[]
 
 interface TransitionInclusionProof {
   blockNumber: number
@@ -54,7 +48,7 @@ export class DefaultRollupBlock implements RollupBlock {
     // Create a tree!
     const treeHeight = Math.ceil(Math.log2(this.transitions.length)) + 1 // The height should actually not be plus 1
     this.tree = await SparseMerkleTreeImpl.create(
-      new BaseDB(new MemDown('') as any, 256),
+      newInMemoryDB(),
       undefined,
       treeHeight
     )

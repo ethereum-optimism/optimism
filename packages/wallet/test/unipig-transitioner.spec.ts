@@ -36,7 +36,7 @@ const getStateReceipt = (pubKey: Address): StateReceipt => {
     blockNumber: 1,
     transitionIndex: 0,
     state: {
-      pubKey,
+      pubkey: pubKey,
       balances: {
         [UNI_TOKEN_TYPE]: 5,
         [PIGI_TOKEN_TYPE]: 10,

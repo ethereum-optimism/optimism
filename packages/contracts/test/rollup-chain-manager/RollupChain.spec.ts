@@ -378,11 +378,11 @@ describe('RollupChain', () => {
       // Create the two state objects
       const preStateObjects: State[] = [
         {
-          pubKey: pubkeys[0],
+          pubkey: pubkeys[0],
           balances: balances[0],
         },
         {
-          pubKey: pubkeys[1],
+          pubkey: pubkeys[1],
           balances: balances[1],
         },
       ]
@@ -419,7 +419,7 @@ describe('RollupChain', () => {
       // 2) Update our state objects (send some money) and get our postStateRoot
       //
       const postStateObjects = preStateObjects.map((obj, index) => {
-        return { pubKey: obj.pubKey, balances: postBalances[index] }
+        return { pubkey: obj.pubkey, balances: postBalances[index] }
       })
       // Update the tree
       for (let i = 0; i < preStateObjects.length; i++) {

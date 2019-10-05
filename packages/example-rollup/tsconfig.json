@@ -4,7 +4,6 @@
     "outDir": "./build",
     "baseUrl": "./",
     "resolveJsonModule": true
-
   },
   "include": ["*.ts", "**/*.ts"]
 }

@@ -1,4 +1,4 @@
-import './setup'
+import '../setup'
 
 /* External Imports */
 import {
@@ -12,8 +12,6 @@ import {
   InclusionProof,
   TransferTransition,
   CreateAndTransferTransition,
-} from '../src/types'
-import {
   abiEncodeSignedTransaction,
   abiEncodeState,
   abiEncodeStateReceipt,
@@ -24,10 +22,11 @@ import {
   parseStateReceiptFromABI,
   parseTransactionFromABI,
   parseTransitionFromABI,
-} from '../src/serialization'
-import { BOB_ADDRESS } from './helpers'
-import { AGGREGATOR_ADDRESS, PIGI_TOKEN_TYPE, UNI_TOKEN_TYPE } from '../src'
-import { ethers } from 'ethers'
+  AGGREGATOR_ADDRESS,
+  PIGI_TOKEN_TYPE,
+  UNI_TOKEN_TYPE,
+} from '../../src/'
+import { BOB_ADDRESS } from '../helpers'
 
 /* Internal Imports */
 
@@ -115,7 +114,7 @@ describe('RollupEncoding', () => {
   describe('State', () => {
     it('should encoded & decode State without throwing', async () => {
       const state: State = {
-        pubKey: BOB_ADDRESS,
+        pubkey: BOB_ADDRESS,
         balances: {
           [UNI_TOKEN_TYPE]: 50,
           [PIGI_TOKEN_TYPE]: 100,
@@ -132,7 +131,7 @@ describe('RollupEncoding', () => {
   describe('State Receipt', () => {
     it('should encoded & decode StateReceipt without throwing', async () => {
       const state: State = {
-        pubKey: BOB_ADDRESS,
+        pubkey: BOB_ADDRESS,
         balances: {
           [UNI_TOKEN_TYPE]: 50,
           [PIGI_TOKEN_TYPE]: 100,

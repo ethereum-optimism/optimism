@@ -7,6 +7,7 @@ import {
   LocalFraudProof,
   StateSnapshot,
 } from './types'
+import { ContractFraudProof } from '../validator'
 
 export interface RollupStateValidator {
   /**
@@ -39,9 +40,9 @@ export interface RollupStateValidator {
    * Checks the next block of stored transitions
    *
    * @param blockNumber The block nunmber of the stored block to be ingested
-   * @returns The LocalFraudProof resulting from the check
+   * @returns The ContractFraudProof resulting from the check
    */
-  validateStoredBlock(blockNumber: number): Promise<void>
+  validateStoredBlock(blockNumber: number): Promise<ContractFraudProof>
 
   /**
    * Stores a block of transitions for provessing

@@ -94,7 +94,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       return
     }
 
-    log.debug(`Queueing rollup block: ${JSON.stringify(rollupBlock)}}`)
+    log.info(`Queueing rollup block: ${JSON.stringify(rollupBlock)}}`)
     this.blockQueue.push(rollupBlock)
     await this.db.put(
       DefaultRollupBlockSubmitter.getBlockKey(rollupBlock.blockNumber),
@@ -121,7 +121,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
     }
 
     if (rollupBlockNumber === this.blockQueue[0].blockNumber) {
-      log.debug(`Received confirmation for block ${rollupBlockNumber}!`)
+      log.info(`Received confirmation for block ${rollupBlockNumber}!`)
       this.blockQueue.shift()
       this.lastConfirmed = rollupBlockNumber
       await this.db.put(
@@ -153,7 +153,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       !this.blockQueue.length
     ) {
       if (!this.blockQueue.length) {
-        log.debug(`No blocks queued for submission.`)
+        log.info(`No blocks queued for submission.`)
       } else {
         log.debug(
           `Next block queued but not submitted because block ${this.lastSubmitted} was submitted but not yet confirmed.`
@@ -165,7 +165,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
 
     const block: RollupBlock = this.blockQueue[0]
 
-    log.debug(
+    log.info(
       `Submitting block number ${block.blockNumber}: ${JSON.stringify(block)}.`
     )
 

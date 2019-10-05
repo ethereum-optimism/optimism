@@ -1,63 +1,49 @@
-import MemDown from 'memdown'
-import './setup'
+import '../setup'
+import * as assert from 'assert'
+
+/* External Imports */
 import {
   DB,
-  BaseDB,
-  IdentityVerifier,
-  hexStrToBuf,
   bufToHexString,
-  SignatureVerifier,
-  ForAllSuchThatDecider,
+  newInMemoryDB,
+  ChecksumAgnosticIdentityVerifier,
+  NULL_ADDRESS,
 } from '@pigi/core'
 
+/* Internal Imports */
 import {
   ALICE_ADDRESS,
   ALICE_GENESIS_STATE_INDEX,
-  assertThrowsAsync,
   BOB_ADDRESS,
-  calculateSwapWithFees,
-  getGenesisState,
-  getGenesisStateLargeEnoughForFees,
   UNISWAP_GENESIS_STATE_INDEX,
-} from './helpers'
+} from '../helpers'
 
 import {
   UNI_TOKEN_TYPE,
   UNISWAP_ADDRESS,
   AGGREGATOR_ADDRESS,
-  InsufficientBalanceError,
-  DefaultRollupStateMachine,
   DefaultRollupStateValidator,
-  SignedTransaction,
   PIGI_TOKEN_TYPE,
   RollupStateValidator,
   LocalFraudProof,
   CreateAndTransferTransition,
   StateSnapshot,
-  RollupTransition,
   TransferTransition,
-  abiEncodeTransition,
   State,
   SwapTransition,
   RollupBlock,
   ValidationOutOfOrderError,
   AggregatorUnsupportedError,
-  parseTransactionFromABI,
-  parseTransitionFromABI,
-} from '../src'
-import { resolve } from 'dns'
-import { Transaction } from 'ethers/utils'
-import { DH_CHECK_P_NOT_SAFE_PRIME } from 'constants'
+  ContractFraudProof,
+  RollupStateMachine,
+  DefaultRollupStateMachine,
+} from '../../src'
 
-/* External Imports */
-
-import * as assert from 'assert'
-
-/* Internal Imports */
-
-/*********
+/***********
  * HELPERS *
- *********/
+ ***********/
+
+const BOB_GENESIS_STATE_INDEX = 3
 
 function getMultiBalanceGenesis(
   aliceAddress: string = ALICE_ADDRESS,
@@ -65,28 +51,28 @@ function getMultiBalanceGenesis(
 ): State[] {
   return [
     {
-      pubKey: aliceAddress,
-      balances: {
-        [UNI_TOKEN_TYPE]: 5_000,
-        [PIGI_TOKEN_TYPE]: 5_000,
-      },
-    },
-    {
-      pubKey: UNISWAP_ADDRESS,
+      pubkey: UNISWAP_ADDRESS,
       balances: {
         [UNI_TOKEN_TYPE]: 650_000,
         [PIGI_TOKEN_TYPE]: 650_000,
       },
     },
     {
-      pubKey: AGGREGATOR_ADDRESS,
+      pubkey: aliceAddress,
+      balances: {
+        [UNI_TOKEN_TYPE]: 5_000,
+        [PIGI_TOKEN_TYPE]: 5_000,
+      },
+    },
+    {
+      pubkey: AGGREGATOR_ADDRESS,
       balances: {
         [UNI_TOKEN_TYPE]: 1_000_000,
         [PIGI_TOKEN_TYPE]: 1_000_000,
       },
     },
     {
-      pubKey: bobAddress,
+      pubkey: bobAddress,
       balances: {
         [UNI_TOKEN_TYPE]: 5_000,
         [PIGI_TOKEN_TYPE]: 5_000,
@@ -104,11 +90,14 @@ describe('RollupStateValidator', () => {
   let stateDb: DB
 
   beforeEach(async () => {
-    stateDb = new BaseDB(new MemDown('') as any, 256)
-    rollupGuard = await DefaultRollupStateValidator.create(
+    stateDb = newInMemoryDB()
+    const rollupStateMachine: DefaultRollupStateMachine = (await DefaultRollupStateMachine.create(
       getMultiBalanceGenesis(),
-      stateDb
-    )
+      stateDb,
+      ChecksumAgnosticIdentityVerifier.instance()
+    )) as DefaultRollupStateMachine
+
+    rollupGuard = new DefaultRollupStateValidator(rollupStateMachine)
   })
 
   afterEach(async () => {
@@ -144,8 +133,8 @@ describe('RollupStateValidator', () => {
       snaps[0].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       snaps[1].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       // make sure the right pubkeys were pulled
-      snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
-      snaps[1].state.pubKey.should.equal(UNISWAP_ADDRESS)
+      snaps[0].state.pubkey.should.equal(ALICE_ADDRESS)
+      snaps[1].state.pubkey.should.equal(UNISWAP_ADDRESS)
     })
     it('should get right inclusion proof for a non creation transfer', async () => {
       // pull initial root to compare later
@@ -155,7 +144,7 @@ describe('RollupStateValidator', () => {
       const transferTransition: TransferTransition = {
         stateRoot: 'DOESNT_MATTER',
         senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
-        recipientSlotIndex: 3, // Bob hardcoded in our genesis state helper
+        recipientSlotIndex: BOB_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
         amount: 10,
         signature: ALICE_ADDRESS,
@@ -167,8 +156,8 @@ describe('RollupStateValidator', () => {
       snaps[0].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       snaps[1].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       // make sure the right pubkeys were pulled
-      snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
-      snaps[1].state.pubKey.should.equal(BOB_ADDRESS)
+      snaps[0].state.pubkey.should.equal(ALICE_ADDRESS)
+      snaps[1].state.pubkey.should.equal(BOB_ADDRESS)
     })
     it('should get right inclusion proof for a createAndTransfer', async () => {
       // pull initial root to compare later
@@ -178,7 +167,7 @@ describe('RollupStateValidator', () => {
       const creationTransition: CreateAndTransferTransition = {
         stateRoot: 'DOESNT_MATTER',
         senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
-        recipientSlotIndex: 40, // Bob hardcoded in our genesis state helper as index 3
+        recipientSlotIndex: 40,
         tokenType: UNI_TOKEN_TYPE,
         amount: 10,
         signature: ALICE_ADDRESS,
@@ -191,10 +180,13 @@ describe('RollupStateValidator', () => {
       snaps[0].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       snaps[1].stateRoot.should.equal(genesisStateRoot.replace('0x', ''))
       // make sure the right pubkeys were pulled
-      snaps[0].state.pubKey.should.equal(ALICE_ADDRESS)
+      snaps[0].state.pubkey.should.equal(ALICE_ADDRESS)
       assert(
-        snaps[1].state === undefined,
-        'Empty slot should give an undefined state.'
+        snaps[1].state.should.deep.equal({
+          pubkey: NULL_ADDRESS,
+          balances: { [UNI_TOKEN_TYPE]: 0, [PIGI_TOKEN_TYPE]: 0 },
+        }),
+        'Empty slot should give a default state.'
       )
     })
   })
@@ -204,9 +196,9 @@ describe('RollupStateValidator', () => {
       // create a valid transfer from genesis
       const transitionAliceToBob: TransferTransition = {
         stateRoot:
-          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
-        senderSlotIndex: 0,
-        recipientSlotIndex: 3,
+          '0x68cb03c6cace1db3a6f7e58db36e8e480ade32e1cba9451a0a63a750b8c48e1a',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
+        recipientSlotIndex: BOB_GENESIS_STATE_INDEX,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
@@ -225,8 +217,8 @@ describe('RollupStateValidator', () => {
       // create a valid swap from genesis
       const transitionAliceSwap: SwapTransition = {
         stateRoot:
-          '0x773015e9b833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
-        senderSlotIndex: 0,
+          '0x351f9762c0826a3c53eb990d3b69f6f27d6a8793b29f2edf825658065f7a991e',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
         inputAmount: 100,
@@ -248,8 +240,8 @@ describe('RollupStateValidator', () => {
       // create a valid create-and-transfer transition from genesis
       const transitionAliceToCreatedBob: CreateAndTransferTransition = {
         stateRoot:
-          '0xf65a687f44d534512a1878e84de3d29489f9c8c12a7de37c46bfc2b0d898d3ee',
-        senderSlotIndex: 0,
+          '0x24a9c3fdd45a8fadb92d89ab74bb249edbe9a415f1d82a488c2efc5372979710',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         recipientSlotIndex: 4, // genesis fills first few
         tokenType: 0,
         amount: 100,
@@ -271,7 +263,7 @@ describe('RollupStateValidator', () => {
       const transitionAliceSwap: SwapTransition = {
         stateRoot:
           '0xdeadbeefb833c9e1086ded944c9fbe011248203e586d81f9fe0922434632dcde',
-        senderSlotIndex: 0,
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
         inputAmount: 100,
@@ -290,7 +282,7 @@ describe('RollupStateValidator', () => {
       const outOfOrderCreation: CreateAndTransferTransition = {
         stateRoot:
           '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
-        senderSlotIndex: 0,
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         recipientSlotIndex: 300, // not suported yet, only sequential
         tokenType: 0,
         amount: 100,
@@ -330,9 +322,9 @@ describe('RollupStateValidator', () => {
       // create a svalid end
       const transitionAliceToBob: TransferTransition = {
         stateRoot:
-          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
-        senderSlotIndex: 0,
-        recipientSlotIndex: 3,
+          '0x68cb03c6cace1db3a6f7e58db36e8e480ade32e1cba9451a0a63a750b8c48e1a',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
+        recipientSlotIndex: BOB_GENESIS_STATE_INDEX,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
@@ -340,8 +332,8 @@ describe('RollupStateValidator', () => {
       // create a valid swap
       const transitionAliceSwap: SwapTransition = {
         stateRoot:
-          '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
-        senderSlotIndex: 0,
+          '0x0ae582fd70c6fa55ced00cc5a7f5a0f0e0d68447ee7ece74d841548142ba9d32',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
         inputAmount: 100,
@@ -350,7 +342,7 @@ describe('RollupStateValidator', () => {
         signature: ALICE_ADDRESS,
       }
       // create the block
-      const blockNumber: number = 0
+      const blockNumber: number = 1
       const sendThenSwapBlock: RollupBlock = {
         blockNumber,
         transitions: [transitionAliceToBob, transitionAliceSwap],
@@ -358,7 +350,7 @@ describe('RollupStateValidator', () => {
       // store the block
       await rollupGuard.storeBlock(sendThenSwapBlock)
       // validate it
-      const res: LocalFraudProof = await rollupGuard.validateStoredBlock(
+      const res: ContractFraudProof = await rollupGuard.validateStoredBlock(
         blockNumber
       )
       assert(
@@ -370,9 +362,9 @@ describe('RollupStateValidator', () => {
       // create valid transition from genesis
       const transitionAliceToBob: TransferTransition = {
         stateRoot:
-          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
-        senderSlotIndex: 0,
-        recipientSlotIndex: 3,
+          '0x68cb03c6cace1db3a6f7e58db36e8e480ade32e1cba9451a0a63a750b8c48e1a',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
+        recipientSlotIndex: BOB_GENESIS_STATE_INDEX,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
@@ -381,7 +373,7 @@ describe('RollupStateValidator', () => {
       const transitionAliceSwap: SwapTransition = {
         stateRoot:
           '0xdeadbeef3b1531efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
-        senderSlotIndex: 0,
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
         inputAmount: 100,
@@ -390,7 +382,7 @@ describe('RollupStateValidator', () => {
         signature: ALICE_ADDRESS,
       }
       // create block
-      const blockNumber: number = 0
+      const blockNumber: number = 1
       const sendThenSwapBlock: RollupBlock = {
         blockNumber,
         transitions: [transitionAliceToBob, transitionAliceSwap],
@@ -398,7 +390,7 @@ describe('RollupStateValidator', () => {
       // store it
       await rollupGuard.storeBlock(sendThenSwapBlock)
       // check it, expecting fraud
-      const res: LocalFraudProof = await rollupGuard.validateStoredBlock(
+      const res: ContractFraudProof = await rollupGuard.validateStoredBlock(
         blockNumber
       )
       res.should.not.equal(undefined)
@@ -407,9 +399,9 @@ describe('RollupStateValidator', () => {
       // create a valid transaction for block 0
       const transitionAliceToBob: TransferTransition = {
         stateRoot:
-          '0x8bb6f1bd59e26928f8f1531af52224d59d76d6951db31c403bf1e215c99372e6',
-        senderSlotIndex: 0,
-        recipientSlotIndex: 3,
+          '0x68cb03c6cace1db3a6f7e58db36e8e480ade32e1cba9451a0a63a750b8c48e1a',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
+        recipientSlotIndex: BOB_GENESIS_STATE_INDEX,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
@@ -417,8 +409,8 @@ describe('RollupStateValidator', () => {
       // create another valid transaction for block 0
       const transitionAliceSwap: SwapTransition = {
         stateRoot:
-          '0x3b1537dac24e21efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
-        senderSlotIndex: 0,
+          '0x0ae582fd70c6fa55ced00cc5a7f5a0f0e0d68447ee7ece74d841548142ba9d32',
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
         uniswapSlotIndex: UNISWAP_GENESIS_STATE_INDEX,
         tokenType: UNI_TOKEN_TYPE,
         inputAmount: 100,
@@ -428,22 +420,22 @@ describe('RollupStateValidator', () => {
       }
       // create valid block 0
       const validFirstBlock: RollupBlock = {
-        blockNumber: 0,
+        blockNumber: 1,
         transitions: [transitionAliceToBob, transitionAliceSwap],
       }
       // create an invalid state transition for block 1
       const invalidSendTransition: TransferTransition = {
         stateRoot:
           '0xdeadbeef000000efd3fa80ce5698f5838e45c62efca5ecde0152f9b165ce6813',
-        senderSlotIndex: 0,
-        recipientSlotIndex: 3,
+        senderSlotIndex: ALICE_GENESIS_STATE_INDEX,
+        recipientSlotIndex: BOB_GENESIS_STATE_INDEX,
         tokenType: 0,
         amount: 100,
         signature: ALICE_ADDRESS,
       }
       // create invalid block 1
       const invalidFirstTransitionBlock: RollupBlock = {
-        blockNumber: 1,
+        blockNumber: 2,
         transitions: [
           invalidSendTransition,
           invalidSendTransition, // there could be multiple invalid transitions, but we need to confirm we get the first.
@@ -452,15 +444,15 @@ describe('RollupStateValidator', () => {
       }
       // store and validate the first valid block 0
       await rollupGuard.storeBlock(validFirstBlock)
-      await rollupGuard.validateStoredBlock(0)
+      await rollupGuard.validateStoredBlock(1)
       // store and validate the invalid block 1
       await rollupGuard.storeBlock(invalidFirstTransitionBlock)
-      const res: LocalFraudProof = await rollupGuard.validateStoredBlock(1)
+      const res: ContractFraudProof = await rollupGuard.validateStoredBlock(2)
       // Fraud roof should give last transition of block 0 and the first transition of block 1
       res[0].inclusionProof.transitionIndex.should.equal(1)
-      res[0].inclusionProof.blockNumber.should.equal(0)
+      res[0].inclusionProof.blockNumber.should.equal(1)
       res[1].inclusionProof.transitionIndex.should.equal(0)
-      res[1].inclusionProof.blockNumber.should.equal(1)
+      res[1].inclusionProof.blockNumber.should.equal(2)
     })
   })
 })

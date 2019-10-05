@@ -1,9 +1,10 @@
 /* External Imports */
 import {
-  ChecksumAgnosticIdentityVerifier,
-  DB,
+  add0x,
   getLogger,
+  hexBufToStr,
   hexStrToBuf,
+  logError,
 } from '@pigi/core'
 
 /* Internal Imports */
@@ -14,7 +15,6 @@ import {
   isTransferTransition,
   RollupTransaction,
   SignedTransaction,
-  UNISWAP_ADDRESS,
   UNI_TOKEN_TYPE,
   PIGI_TOKEN_TYPE,
   State,
@@ -24,7 +24,11 @@ import {
   ValidationOutOfOrderError,
   AggregatorUnsupportedError,
   DefaultRollupBlock,
-} from './index'
+  UNISWAP_STORAGE_SLOT,
+  ContractFraudProof,
+  TokenType,
+  SignatureError,
+} from '../index'
 
 import {
   RollupBlock,
@@ -33,36 +37,18 @@ import {
   RollupTransition,
   LocalMachineError,
   LocalFraudProof,
-  UniTokenType,
-  PigiTokenType,
-} from './types'
-import { UNISWAP_GENESIS_STATE_INDEX } from '../test/helpers'
-import { type } from 'os'
+} from '../types'
 
-const log = getLogger('rollup-validator')
+const log = getLogger('rollup-state-validator')
 export class DefaultRollupStateValidator implements RollupStateValidator {
   public rollupMachine: DefaultRollupStateMachine
   private currentPosition: RollupTransitionPosition = {
-    blockNumber: 0,
+    blockNumber: 1,
     transitionIndex: 0,
   }
   private storedBlocks: RollupBlock[] = []
 
-  public static async create(
-    genesisState: State[],
-    stateMachineDb: DB
-  ): Promise<DefaultRollupStateValidator> {
-    // The validator spins up a local statte machine
-    const theRollupMachine = (await DefaultRollupStateMachine.create(
-      genesisState,
-      stateMachineDb,
-      ChecksumAgnosticIdentityVerifier.instance()
-    )) as DefaultRollupStateMachine
-    log.info('Successfully spun up a fresh rollupMachine for the validator.')
-    return new DefaultRollupStateValidator(theRollupMachine)
-  }
-
-  constructor(theRollupMachine: DefaultRollupStateMachine) {
+  public constructor(theRollupMachine: DefaultRollupStateMachine) {
     this.rollupMachine = theRollupMachine
   }
 
@@ -77,7 +63,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     let secondSlot: number
     if (isSwapTransition(transition)) {
       firstSlot = transition.senderSlotIndex
-      secondSlot = UNISWAP_GENESIS_STATE_INDEX
+      secondSlot = UNISWAP_STORAGE_SLOT
       log.info(`Returning snapshots prepper for fraud`)
     } else if (isCreateAndTransferTransition(transition)) {
       firstSlot = transition.senderSlotIndex
@@ -99,21 +85,21 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   ): Promise<SignedTransaction> {
     let convertedTx: RollupTransaction
     if (isCreateAndTransferTransition(transition)) {
-      const sender: Address = snapshots[0].state.pubKey
-      const recipient: Address = transition.createdAccountPubkey as Address
+      const sender: Address = snapshots[0].state.pubkey
+      const recipient: Address = transition.createdAccountPubkey
       convertedTx = {
         sender,
         recipient,
-        tokenType: transition.tokenType as UniTokenType | PigiTokenType,
+        tokenType: transition.tokenType as TokenType,
         amount: transition.amount,
       }
     } else if (isTransferTransition(transition)) {
-      const sender: Address = snapshots[0].state.pubKey
-      const recipient: Address = snapshots[1].state.pubKey
+      const sender: Address = snapshots[0].state.pubkey
+      const recipient: Address = snapshots[1].state.pubkey
       convertedTx = {
         sender,
         recipient,
-        tokenType: transition.tokenType as UniTokenType | PigiTokenType,
+        tokenType: transition.tokenType as TokenType,
         amount: transition.amount,
       }
       return {
@@ -121,10 +107,10 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         transaction: convertedTx,
       }
     } else if (isSwapTransition(transition)) {
-      const swapper: Address = snapshots[0].state.pubKey
+      const swapper: Address = snapshots[0].state.pubkey
       convertedTx = {
         sender: swapper,
-        tokenType: transition.tokenType as UniTokenType | PigiTokenType,
+        tokenType: transition.tokenType as TokenType,
         inputAmount: transition.inputAmount,
         minOutputAmount: transition.minOutputAmount,
         timeout: transition.timeout,
@@ -177,8 +163,10 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       generatedPostRoot = await this.rollupMachine.getStateRoot()
     } catch (error) {
       if (isStateTransitionError(error)) {
-        log.info(
-          'The transaction did not pass the state machine, must be badly formed!  Returning fraud proof.'
+        log.error(
+          `The transaction did not pass the state machine, must be badly formed!  Returning fraud proof. Transition: ${JSON.stringify(
+            nextTransition
+          )}`
         )
         return {
           fraudPosition: this.currentPosition,
@@ -186,9 +174,11 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
           fraudTransition: nextTransition,
         }
       } else {
-        log.error(
+        logError(
           log,
-          'Transaction ingestion threw an error--but for a reason unrelated to the transition itself not passing the state machine. Uh oh!',
+          `Transaction ingestion threw an error--but for a reason unrelated to the transition itself not passing the state machine. Uh oh! Transition: ${JSON.stringify(
+            nextTransition
+          )}`,
           error
         )
         throw new LocalMachineError()
@@ -196,14 +186,16 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
     }
 
     if (generatedPostRoot.equals(transitionPostRoot)) {
-      log.info(
-        'Ingested valid transition and postRoot matched the aggregator claim.'
+      log.debug(
+        `Ingested valid transition and postRoot matched the aggregator claim.`
       )
       this.currentPosition.transitionIndex++
       return undefined
     } else {
-      log.info(
-        'Ingested valid transition and postRoot disagreed with the aggregator claim--returning fraud'
+      log.error(
+        `Ingested valid transition and postRoot disagreed with the aggregator claim--returning fraud. Transition: ${JSON.stringify(
+          nextTransition
+        )}. Expected State Root: ${hexBufToStr(generatedPostRoot)}`
       )
       return {
         fraudPosition: this.currentPosition,
@@ -214,26 +206,28 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   }
 
   public async storeBlock(newBlock: RollupBlock): Promise<void> {
-    this.storedBlocks[newBlock.blockNumber] = newBlock
-    return
+    this.storedBlocks[newBlock.blockNumber - 1] = newBlock
   }
 
-  public async validateStoredBlock(blockNumber: number): Promise<any> {
+  public async validateStoredBlock(
+    blockNumber: number
+  ): Promise<ContractFraudProof> {
     // grab the block itself from our stored blocks
-    const blockToValidate: RollupBlock = this.storedBlocks[blockNumber]
+    const blockToValidate: RollupBlock = this.storedBlocks[blockNumber - 1]
     if (!blockToValidate) {
       log.error(
-        'Tried to check next block, but it has not yet been stored yet.'
+        `Tried to check next block, but it has not yet been stored yet. Block Number: ${blockNumber}`
       )
       throw new ValidationOutOfOrderError()
     }
 
-    log.info(
-      'Starting validation for block ' + blockToValidate.blockNumber + '...'
-    )
+    log.info(`Starting validation for block ${blockToValidate.blockNumber}...`)
     const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition())
       .blockNumber
     if (blockToValidate.blockNumber !== nextBlockNumberToValidate) {
+      log.error(
+        `Next block to validate is ${nextBlockNumberToValidate} but trying to validate block ${blockToValidate.blockNumber}!`
+      )
       throw new ValidationOutOfOrderError()
     }
 
@@ -251,15 +245,17 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
           }.  Submitting fraud proof.`
         )
         const generatedProof = await this.generateContractFraudProof(
-          fraudCheck as LocalFraudProof,
+          fraudCheck,
           blockToValidate
         )
         return generatedProof
       }
     }
+
     log.info(
       `Found no fraud in block ${nextBlockNumberToValidate}, incrementing block number and reseting transition index`
     )
+
     // otherwise
     this.currentPosition.blockNumber++
     this.currentPosition.transitionIndex = 0
@@ -269,16 +265,18 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   public async generateContractFraudProof(
     localProof: LocalFraudProof,
     block: RollupBlock
-  ): Promise<any> {
+  ): Promise<ContractFraudProof> {
     const fraudInputs: StateSnapshot[] = localProof.fraudInputs as StateSnapshot[]
     log.info(
-      `Converting the LocalFraudProof's snapshots into contract-friendly includedStorageSlots...`
+      `Converting the LocalFraudProof's snapshots into contract-friendly includedStorageSlots... ${JSON.stringify(
+        fraudInputs
+      )}`
     )
     const includedStorageSlots = [
       {
         storageSlot: {
           value: {
-            pubkey: fraudInputs[0].state.pubKey,
+            pubkey: fraudInputs[0].state.pubkey,
             balances: [
               fraudInputs[0].state.balances[UNI_TOKEN_TYPE],
               fraudInputs[0].state.balances[PIGI_TOKEN_TYPE],
@@ -286,12 +284,12 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
           },
           slotIndex: fraudInputs[0].slotIndex,
         },
-        siblings: fraudInputs[0].inclusionProof,
+        siblings: fraudInputs[1].inclusionProof.map((x) => add0x(x)),
       },
       {
         storageSlot: {
           value: {
-            pubkey: fraudInputs[1].state.pubKey,
+            pubkey: fraudInputs[1].state.pubkey,
             balances: [
               fraudInputs[1].state.balances[UNI_TOKEN_TYPE],
               fraudInputs[1].state.balances[PIGI_TOKEN_TYPE],
@@ -299,7 +297,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
           },
           slotIndex: fraudInputs[1].slotIndex,
         },
-        siblings: fraudInputs[1].inclusionProof,
+        siblings: fraudInputs[1].inclusionProof.map((x) => add0x(x)),
       },
     ]
     log.info(
@@ -333,7 +331,7 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       )
       const prevRollupBlockNumber: number = curPosition.blockNumber - 1
       const prevRollupBlock: DefaultRollupBlock = new DefaultRollupBlock(
-        this.storedBlocks[prevRollupBlockNumber].transitions,
+        this.storedBlocks[prevRollupBlockNumber - 1].transitions,
         prevRollupBlockNumber
       )
       log.info(
@@ -350,7 +348,6 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         lastTransitionInLastBlockIndex
       )
     }
-    // TODO: submit to L1, these would be the arguments fed directly into the contract
     return [
       validIncludedTransition,
       fraudulentIncludedTransition,

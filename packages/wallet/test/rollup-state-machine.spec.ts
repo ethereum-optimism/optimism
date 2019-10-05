@@ -30,7 +30,6 @@ import {
   PIGI_TOKEN_TYPE,
   AGGREGATOR_ADDRESS,
   NON_EXISTENT_SLOT_INDEX,
-  Balances,
   StateSnapshot,
 } from '../src'
 

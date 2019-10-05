@@ -10,8 +10,9 @@
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
-    "build": "tsc -p .",
-    "clean": "rimraf build/"
+    "build": "tsc -p . && mkdir -p build/level",
+    "clean": "rimraf build/ && rimraf log/",
+    "validator": "node ./build/src/validator/monitor-and-validate.js"
   },
   "keywords": [
     "plasma",
@@ -28,7 +29,9 @@
   "dependencies": {
     "async-lock": "^1.2.2",
     "@pigi/core": "^0.0.2-alpha.1",
-    "@pigi/watch-eth": "^0.0.2-alpha.1"
+    "@pigi/watch-eth": "^0.0.2-alpha.1",
+    "dotenv": "^8.1.0",
+    "level": "^5.0.1"
   },
   "devDependencies": {
     "@pigi/prettier-config": "^0.0.2-alpha.2",
