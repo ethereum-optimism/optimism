@@ -17,6 +17,7 @@ import {
   RollupBlock,
   DefaultRollupBlockSubmitter,
   genesisState,
+  Address,
 } from '@pigi/wallet'
 import { EthereumEventProcessor } from '@pigi/watch-eth'
 
@@ -66,6 +67,11 @@ const transitionsPerBlock: number = parseInt(
   process.env.TRANSITIONS_PER_BLOCK || '10',
   10
 )
+const blockSubmissionIntervalMillis: number = parseInt(
+  process.env.BLOCK_SUBMISSION_INTERVAL_MILLIS || '300',
+  10
+)
+const authorizedFaucetAddress: Address = process.env.AUTHORIZED_FAUCET_ADDRESS
 
 const mockMode = !rollupContractAddress || !mnemonic || !jsonRpcUrl
 
@@ -123,7 +129,9 @@ async function runAggregator() {
     blockSubmitter,
     new DefaultSignatureProvider(Wallet.fromMnemonic(AGGREGATOR_MNEMONIC)),
     DefaultSignatureVerifier.instance(),
-    transitionsPerBlock
+    transitionsPerBlock,
+    blockSubmissionIntervalMillis,
+    authorizedFaucetAddress
   )
 
   if (mockMode) {

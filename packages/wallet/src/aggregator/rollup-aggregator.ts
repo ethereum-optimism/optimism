@@ -81,7 +81,8 @@ export class RollupAggregator
     signatureProvider: SignatureProvider,
     signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
     blockSubmissionTransitionCount: number = 100,
-    blockSubmissionIntervalMillis: number = 300_000
+    blockSubmissionIntervalMillis: number = 300_000,
+    authorizedFaucetAddress?: Address
   ): Promise<RollupAggregator> {
     const aggregator = new RollupAggregator(
       db,
@@ -90,7 +91,8 @@ export class RollupAggregator
       signatureProvider,
       signatureVerifier,
       blockSubmissionTransitionCount,
-      blockSubmissionIntervalMillis
+      blockSubmissionIntervalMillis,
+      authorizedFaucetAddress
     )
 
     await aggregator.init()
@@ -105,7 +107,8 @@ export class RollupAggregator
     private readonly signatureProvider: SignatureProvider,
     private readonly signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance(),
     private readonly blockSubmissionTransitionCount: number = 100,
-    private readonly blockSubmissionIntervalMillis: number = 300_000
+    private readonly blockSubmissionIntervalMillis: number = 300_000,
+    private readonly authorizedFaucetAddress?: Address
   ) {
     this.pendingBlock = {
       blockNumber: 1,
@@ -297,9 +300,12 @@ export class RollupAggregator
         serializeObjectAsHexString(signedTransaction.transaction),
         signedTransaction.signature
       )
-      if (messageSigner !== signedTransaction.transaction.sender) {
+      const requiredSigner = !!this.authorizedFaucetAddress
+        ? this.authorizedFaucetAddress
+        : signedTransaction.transaction.sender
+      if (messageSigner !== requiredSigner) {
         throw Error(
-          `Faucet requests must be signed by the request address. Signer address: ${messageSigner}, sender: ${signedTransaction.transaction.sender}`
+          `Faucet requests must be signed by the authorized faucet requester address. Signer address: ${messageSigner}, required address: ${requiredSigner}`
         )
       }
 
