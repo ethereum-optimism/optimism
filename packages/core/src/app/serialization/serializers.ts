@@ -31,7 +31,7 @@ export const deserializeObject = (obj: string): {} => {
  */
 export const serializeObjectAsHexString = (obj: {}): string => {
   const stringified: string = JSON.stringify(obj)
-  const asHexString = '0x' + Buffer.from(stringified, 'utf-8').toString('hex')
+  const asHexString = '0x' + Buffer.from(stringified).toString('hex')
   return asHexString
 }
 
@@ -44,7 +44,7 @@ export const serializeObjectAsHexString = (obj: {}): string => {
  */
 export const deserializeObjectAsHexString = (obj: string): {} => {
   const asBuffer = hexStrToBuf(remove0x(obj))
-  return JSON.parse(asBuffer.toString('utf-8'))
+  return JSON.parse(asBuffer.toString())
 }
 
 /**
