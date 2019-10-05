@@ -33,6 +33,9 @@ export class AggregatorServer extends SimpleServer {
         signedTransaction: SignedTransaction
       ): Promise<SignedStateReceipt> =>
         aggregator.requestFaucetFunds(signedTransaction),
+
+      [AGGREGATOR_API.getTransactionCount]: async (): Promise<number> =>
+        aggregator.getTransactionCount(),
     }
     super(methods, hostname, port, middleware)
   }

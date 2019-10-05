@@ -123,11 +123,6 @@ export class BaseDB implements DB {
           )
           return
         }
-        log.debug(
-          `Key ${key.toString(
-            'hex'
-          )} fetched. Returning value [${value.toString('hex')}].`
-        )
         resolve(value)
       })
     })
@@ -150,9 +145,6 @@ export class BaseDB implements DB {
           )
           return
         }
-        log.debug(
-          `Put key / value [${key.toString('hex')} / ${value.toString('hex')}]`
-        )
         resolve()
       })
     })

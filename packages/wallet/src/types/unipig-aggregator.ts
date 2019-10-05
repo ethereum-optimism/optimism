@@ -36,4 +36,11 @@ export interface UnipigAggregator {
   requestFaucetFunds(
     signedTransaction: SignedTransaction
   ): Promise<SignedStateReceipt>
+
+  /**
+   * Gets the total number of transactions processed by this aggregator.
+   *
+   * @returns The transaction count.
+   */
+  getTransactionCount(): Promise<number>
 }

@@ -1,6 +1,8 @@
 import '../setup'
 
 /* External Imports */
+import * as assert from 'assert'
+
 import {
   DB,
   DefaultSignatureProvider,
@@ -210,6 +212,8 @@ describe('RollupAggregator', () => {
       it('should update bobs balance using applyTransaction to send 5 tokens', async () => {
         await aggregator.onSyncCompleted()
 
+        const txCountBefore = await aggregator.getTransactionCount()
+
         await sendFromAliceToBob(5)
 
         const transIndex = parseInt(
@@ -219,6 +223,7 @@ describe('RollupAggregator', () => {
           10
         )
         transIndex.should.equal(1)
+        txCountBefore.should.equal((await aggregator.getTransactionCount()) - 1)
 
         aggregator.getPendingBlockNumber().should.equal(1)
       })
@@ -233,6 +238,9 @@ describe('RollupAggregator', () => {
     describe('requestFaucetFunds', () => {
       it('should send money to the account who requested', async () => {
         await aggregator.onSyncCompleted()
+
+        const txCountBefore = await aggregator.getTransactionCount()
+
         await requestFaucetFundsForNewWallet(10)
 
         const transIndex = parseInt(
@@ -242,6 +250,7 @@ describe('RollupAggregator', () => {
           10
         )
 
+        txCountBefore.should.equal((await aggregator.getTransactionCount()) - 1)
         // It should have submitted a block
         transIndex.should.equal(0)
         dummyBlockSubmitter.submitedBlocks.length.should.equal(1)
@@ -301,6 +310,25 @@ describe('RollupAggregator', () => {
         indexOne1.should.equal(indexTwo1 - 1)
       })
     })
+
+    describe('persisting tx count', () => {
+      it('should persist tx count after threshold reached', async () => {
+        await aggregator.onSyncCompleted()
+
+        for (let i = 0; i < RollupAggregator.TX_COUNT_STORAGE_THRESHOLD; i++) {
+          await sendFromAliceToBob(1)
+        }
+
+        const txCount: number = await aggregator.getTransactionCount()
+        txCount.should.equal(RollupAggregator.TX_COUNT_STORAGE_THRESHOLD)
+
+        const storedTxCountBuffer = await aggregatorDB.get(
+          RollupAggregator.TRANSACTION_COUNT_KEY
+        )
+        assert(!!storedTxCountBuffer, 'Transaction count should be stored!')
+        parseInt(storedTxCountBuffer.toString(), 10).should.equal(txCount)
+      })
+    })
   })
 
   describe('aggregator init tests', () => {
@@ -328,6 +356,8 @@ describe('RollupAggregator', () => {
 
       aggregator.getPendingBlockNumber().should.equal(1)
       aggregator.getNextTransitionIndex().should.equal(0)
+      const txCount: number = await aggregator.getTransactionCount()
+      txCount.should.equal(0)
 
       dummyBlockSubmitter.submitedBlocks.length.should.equal(0)
     })
@@ -341,6 +371,10 @@ describe('RollupAggregator', () => {
         RollupAggregator.getTransitionKey(1),
         hexStrToBuf(abiEncodeTransition(trans1))
       )
+      await aggregatorDB.put(
+        RollupAggregator.TRANSACTION_COUNT_KEY,
+        Buffer.from('1')
+      )
 
       aggregator = await RollupAggregator.create(
         aggregatorDB,
@@ -350,6 +384,9 @@ describe('RollupAggregator', () => {
         DefaultSignatureVerifier.instance(),
         2
       )
+
+      const txCount: number = await aggregator.getTransactionCount()
+      txCount.should.equal(1)
 
       aggregator.getPendingBlockNumber().should.equal(1)
       aggregator.getNextTransitionIndex().should.equal(1)

@@ -61,11 +61,16 @@ export class RollupAggregator
   public static readonly LAST_TRANSITION_KEY: Buffer = Buffer.from(
     'last_transition'
   )
+  public static readonly TRANSACTION_COUNT_KEY: Buffer = Buffer.from('tx_count')
+  public static readonly TX_COUNT_STORAGE_THRESHOLD: number = 7
+
   private static readonly lockKey: string = 'lock'
 
   private readonly lock: AsyncLock
 
   private synced: boolean
+
+  private transactionCount: number
   private pendingBlock: RollupBlock
   private lastBlockSubmission: Date
 
@@ -119,21 +124,29 @@ export class RollupAggregator
       const [
         pendingBlockNumberBuffer,
         lastTransitionBuffer,
+        txCountBuffer,
       ] = await Promise.all([
         this.db.get(RollupAggregator.PENDING_BLOCK_KEY),
         this.db.get(RollupAggregator.LAST_TRANSITION_KEY),
+        this.db.get(RollupAggregator.TRANSACTION_COUNT_KEY),
       ])
 
       // Fresh start -- nothing in the DB
       if (!lastTransitionBuffer) {
         log.info(`Init returning -- no stored last transition.`)
+        this.transactionCount = 0
         this.lastBlockSubmission = new Date()
         return
       }
 
+      this.transactionCount = txCountBuffer
+        ? parseInt(txCountBuffer.toString(), 10)
+        : 0
+
       const pendingBlock: number = pendingBlockNumberBuffer
         ? parseInt(pendingBlockNumberBuffer.toString(), 10)
         : 1
+
       const lastTransition: number = parseInt(
         lastTransitionBuffer.toString(),
         10
@@ -179,6 +192,10 @@ export class RollupAggregator
         (event.values['blockNumber'] as any).toNumber()
       )
     }
+  }
+
+  public async getTransactionCount(): Promise<number> {
+    return this.transactionCount
   }
 
   public async getState(address: string): Promise<SignedStateReceipt> {
@@ -252,6 +269,8 @@ export class RollupAggregator
         this.submitBlock()
       }
 
+      await this.incrementTxCount()
+
       return this.respond(stateUpdate, blockNumber, transitionIndex)
     } catch (e) {
       log.error(
@@ -317,6 +336,8 @@ export class RollupAggregator
       ) {
         this.submitBlock()
       }
+
+      await this.incrementTxCount()
 
       return (await this.respond(stateUpdate, blockNumber, transitionIndex))[1]
     } catch (e) {
@@ -551,6 +572,26 @@ export class RollupAggregator
         transaction: txTwo,
       },
     ]
+  }
+
+  /**
+   * Increments the total transaction count that this aggregator has processed,
+   * saving periodically
+   */
+  private async incrementTxCount(): Promise<void> {
+    if (
+      ++this.transactionCount % RollupAggregator.TX_COUNT_STORAGE_THRESHOLD ===
+      0
+    ) {
+      try {
+        await this.db.put(
+          RollupAggregator.TRANSACTION_COUNT_KEY,
+          Buffer.from(this.transactionCount.toString(10))
+        )
+      } catch (e) {
+        logError(log, 'Error saving transaction count!', e)
+      }
+    }
   }
 
   /***********
