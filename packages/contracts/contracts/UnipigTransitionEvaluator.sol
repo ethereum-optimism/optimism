@@ -46,10 +46,6 @@ contract UnipigTransitionEvaluator is TransitionEvaluator {
         return outputs;
     }
 
-    function verifyEcdsaSignature(bytes memory _signature, bytes32 _hash, address _pubkey) private pure returns(bool) {
-        return true;
-    }
-
     /**
      * Return the tx type inferred by the length of bytes
      */
@@ -157,7 +153,7 @@ contract UnipigTransitionEvaluator is TransitionEvaluator {
         dt.TransferTx memory transferTx = dt.TransferTx(sender, recipient, _transition.tokenType, _transition.amount);
 
         // Next check to see if the signature is valid
-        require(verifyEcdsaSignature(_transition.signature, getTransferTxHash(transferTx), sender), "Transfer signature is invalid!");
+        require(verifyEcdsaSignatureOnHash(_transition.signature, getTransferTxHash(transferTx), sender), "Transfer signature is invalid!");
         // Also make sure we're not sending to Unipig
         require(_storageSlots[1].slotIndex != UNISWAP_SLOT_INDEX, "Transfer cannot be made to Unipig!");
 
@@ -198,7 +194,7 @@ contract UnipigTransitionEvaluator is TransitionEvaluator {
         );
 
         // Make sure that the provided storage slots are corrent
-        require(verifyEcdsaSignature(_transition.signature, getSwapTxHash(swapTx), sender), "Swap signature is invalid!");
+        require(verifyEcdsaSignatureOnHash(_transition.signature, getSwapTxHash(swapTx), sender), "Swap signature is invalid!");
         require(_storageSlots[1].slotIndex == UNISWAP_SLOT_INDEX && recipient == UNISWAP_ADDRESS, "Swap tx must be swapping with Unipig!");
 
         // Create an array to store our output storage slots
@@ -328,4 +324,28 @@ contract UnipigTransitionEvaluator is TransitionEvaluator {
          );
          return transition;
      }
+
+    // splits a signature string into v, r, s
+    function splitSignature(bytes memory sig) internal pure returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        require(sig.length == 65, 'invalid signature length.');
+
+        assembly {
+            // first 32 bytes, after the length prefix.
+            r := mload(add(sig, 32))
+            // second 32 bytes.
+            s := mload(add(sig, 64))
+            // final byte (first byte of the next 32 bytes).
+            v := byte(0, mload(add(sig, 96)))
+        }
+
+        return (v, r, s);
+    }
+    // verifies a signature on a 32 byte value--note this means we must be signing/verifying the hash of our transactions, not the encodings themselves--luckily, DefaultSignatureProvider now does this.
+    function verifyEcdsaSignatureOnHash(bytes memory _signature, bytes32 _hash, address _pubkey) private pure returns(bool) {
+        bytes memory prefixedMessage = abi.encodePacked("\x19Ethereum Signed Message:\n32", _hash);
+        bytes32 digest = keccak256(prefixedMessage);
+        (uint8 v, bytes32 r, bytes32 s) = splitSignature(_signature);
+        return ecrecover(digest, v, r, s) == _pubkey;
+    }
 }

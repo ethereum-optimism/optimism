@@ -5,6 +5,7 @@ import {
   KeyValueStore,
   RpcClient,
   serializeObject,
+  serializeObjectAsHexString,
   SignatureProvider,
   SignatureVerifier,
 } from '@pigi/core'
@@ -92,7 +93,9 @@ export class RollupClient {
     transaction: RollupTransaction,
     signatureProvider: SignatureProvider
   ): Promise<SignedStateReceipt> {
-    const signature = await signatureProvider.sign(serializeObject(transaction))
+    const signature = await signatureProvider.sign(
+      serializeObjectAsHexString(transaction)
+    )
     const receipt: SignedStateReceipt = await this.rpcClient.handle<
       SignedStateReceipt
     >(AGGREGATOR_API.requestFaucetFunds, {

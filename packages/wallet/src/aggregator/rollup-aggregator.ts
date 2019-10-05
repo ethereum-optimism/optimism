@@ -5,6 +5,7 @@ import {
   SignatureVerifier,
   DefaultSignatureVerifier,
   serializeObject,
+  serializeObjectAsHexString,
   DB,
   getLogger,
   hexStrToBuf,
@@ -274,7 +275,7 @@ export class RollupAggregator
         throw Error('Cannot handle non-Faucet Request in faucet endpoint')
       }
       const messageSigner: Address = this.signatureVerifier.verifyMessage(
-        serializeObject(signedTransaction.transaction),
+        serializeObjectAsHexString(signedTransaction.transaction),
         signedTransaction.signature
       )
       if (messageSigner !== signedTransaction.transaction.sender) {

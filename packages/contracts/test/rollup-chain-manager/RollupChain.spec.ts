@@ -36,12 +36,15 @@ import {
   BigNumber,
   BaseDB,
   SparseMerkleTreeImpl,
+  DefaultSignatureProvider,
 } from '@pigi/core'
 import {
   SwapTransition,
   TransferTransition,
   CreateAndTransferTransition,
+  Transfer,
   abiEncodeTransition,
+  abiEncodeTransaction,
   State,
   abiEncodeState,
   DefaultRollupBlock,
@@ -357,9 +360,11 @@ describe('RollupChain', () => {
    */
   describe('proveTransitionInvalid() ', async () => {
     it('should throw if attempting to prove invalid a valid transition', async () => {
+      const signatureProvider = new DefaultSignatureProvider()
       const sentAmount = 5
+      const tokenType = 0
       const storageSlots = [5, 10]
-      const pubkeys = [getAddress('11'), getAddress('22')]
+      const pubkeys = [await signatureProvider.getAddress(), getAddress('22')]
       const balances = [{ '0': 10, '1': 20 }, { '0': 100, '1': 200 }]
       // Post balances after a send of 5 uni
       const postBalances = [
@@ -426,6 +431,16 @@ describe('RollupChain', () => {
       // Store the post state root
       const postStateRoot = bufToHexString(await stateTree.getRootHash())
 
+      // create a valid transfer transaction and signature (this will be the second transfer transition--the one being checked) to pass the unipig transition verifier.
+      const transactionForSecondTransfer: Transfer = {
+        sender: pubkeys[0],
+        recipient: pubkeys[1],
+        tokenType,
+        amount: sentAmount,
+      }
+      const signature = await signatureProvider.sign(
+        abiEncodeTransaction(transactionForSecondTransfer)
+      )
       // 3) Create transfer transitions
       //
       const transferTransitions: TransferTransition[] = [
@@ -433,7 +448,7 @@ describe('RollupChain', () => {
           stateRoot: preStateRoot,
           senderSlotIndex: storageSlots[0],
           recipientSlotIndex: storageSlots[1],
-          tokenType: 0,
+          tokenType,
           amount: 1,
           signature: getSignature('42'),
         },
@@ -441,9 +456,9 @@ describe('RollupChain', () => {
           stateRoot: postStateRoot,
           senderSlotIndex: storageSlots[0],
           recipientSlotIndex: storageSlots[1],
-          tokenType: 0,
+          tokenType,
           amount: sentAmount,
-          signature: getSignature('42'),
+          signature,
         },
       ]
       // Encode them!

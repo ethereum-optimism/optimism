@@ -1,5 +1,6 @@
 import { SignatureProvider, SignatureVerifier } from '../../types/keystore'
 import { ethers } from 'ethers'
+import { hexStrToBuf } from '../../../'
 
 export class DefaultSignatureVerifier implements SignatureVerifier {
   private static _instance: SignatureVerifier
@@ -12,7 +13,10 @@ export class DefaultSignatureVerifier implements SignatureVerifier {
   }
 
   public verifyMessage(message: string, signature: string): string {
-    return ethers.utils.verifyMessage(message, signature)
+    // NOTE: we are hashing the message to sign to make the contracts easier (fixed prefix instead of legth prefix).   This should be changed once we support the alternative.
+    const messageAsBuf: Buffer = hexStrToBuf(message)
+    const messageHash: string = ethers.utils.keccak256(messageAsBuf)
+    return ethers.utils.verifyMessage(hexStrToBuf(messageHash), signature)
   }
 }
 
@@ -22,7 +26,10 @@ export class DefaultSignatureProvider implements SignatureProvider {
   ) {}
 
   public async sign(message: string): Promise<string> {
-    return this.wallet.signMessage(message)
+    // NOTE: we are hashing the message to sign to make the contracts easier (fixed prefix instead of legth prefix).   This should be changed once we support the alternative.
+    const messageAsBuf: Buffer = hexStrToBuf(message)
+    const messageHash: string = ethers.utils.keccak256(messageAsBuf)
+    return this.wallet.signMessage(hexStrToBuf(messageHash))
   }
 
   public async getAddress(): Promise<string> {
