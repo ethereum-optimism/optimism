@@ -18,6 +18,7 @@ import {
   DefaultRollupBlockSubmitter,
   Address,
   getGenesisState,
+  State,
 } from '@pigi/wallet'
 import { EthereumEventProcessor } from '@pigi/watch-eth'
 
@@ -28,10 +29,11 @@ import { JsonRpcProvider } from 'ethers/providers'
 import { config } from 'dotenv'
 import { resolve } from 'path'
 // Starting from build/src/
-config({ path: resolve(__dirname, `../../.env`) })
+config({ path: resolve(__dirname, `../../config/.env`) })
 
 /* Internal Imports */
 import * as RollupChain from '../contracts/RollupChain.json'
+import * as fs from 'fs'
 
 const log = getLogger('mock-aggregator')
 
@@ -72,6 +74,19 @@ const blockSubmissionIntervalMillis: number = parseInt(
   10
 )
 const authorizedFaucetAddress: Address = process.env.AUTHORIZED_FAUCET_ADDRESS
+const genesisStateFilePath: string =
+  process.env.GENESIS_STATE_RELATIVE_FILE_PATH
+let genesisState: State[]
+if (!!genesisStateFilePath) {
+  genesisState = JSON.parse(
+    fs.readFileSync(resolve(__dirname, genesisStateFilePath)).toString('utf-8')
+  )
+  log.info(
+    `Loaded genesis state from ${genesisStateFilePath}. ${genesisState.length} balances loaded.`
+  )
+} else {
+  log.info('No genesis state provided!')
+}
 
 if (!rollupContractAddress || !aggregatorMnemonic || !jsonRpcUrl) {
   throw Error('Missing environment variables. Set them and try again.')
@@ -99,7 +114,7 @@ async function runAggregator() {
     aggregatorMnemonic
   ).connect(new JsonRpcProvider(jsonRpcUrl))
   const rollupStateMachine: RollupStateMachine = await DefaultRollupStateMachine.create(
-    getGenesisState(aggregatorWallet.address),
+    getGenesisState(aggregatorWallet.address, genesisState),
     stateDB,
     aggregatorWallet.address
   )
