@@ -2,35 +2,17 @@ import '../setup'
 
 /* Internal Imports */
 import {
-  Transition,
   generateNTransitions,
-  makeRepeatedBytes,
-  makePaddedBytes,
-  makePaddedUint,
   ZERO_BYTES32,
-  ZERO_ADDRESS,
-  ZERO_UINT32,
-  ZERO_SIGNATURE,
-  getSlot,
-  getAmount,
   getAddress,
   getSignature,
   getStateRoot,
-  UNISWAP_ADDRESS,
-  UNISWAP_STORAGE_SLOT,
 } from '../helpers'
 
 /* External Imports */
-import {
-  createMockProvider,
-  deployContract,
-  link,
-  getWallets,
-} from 'ethereum-waffle'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import MemDown from 'memdown'
 import {
-  keccak256,
-  abi,
   hexStrToBuf,
   bufToHexString,
   BigNumber,
@@ -58,11 +40,13 @@ const log = debug('test:info:rollup-chain-manager')
 import * as RollupChain from '../../build/RollupChain.json'
 import * as UnipigTransitionEvaluator from '../../build/UnipigTransitionEvaluator.json'
 import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
+import { Contract, ContractFactory, Wallet } from 'ethers'
+import { assertThrowsAsync } from '@pigi/wallet/build/test/helpers'
 
 /* Begin tests */
 describe('RollupChain', () => {
   const provider = createMockProvider()
-  const [wallet1] = getWallets(provider)
+  const [wallet1, wallet2] = getWallets(provider)
   let rollupChain
   let rollupMerkleUtils
   let unipigEvaluator
@@ -88,7 +72,7 @@ describe('RollupChain', () => {
     rollupChain = await deployContract(
       wallet1,
       RollupChain,
-      [unipigEvaluator.address, rollupMerkleUtils.address],
+      [unipigEvaluator.address, rollupMerkleUtils.address, wallet1.address],
       {
         gasLimit: 6700000,
       }
@@ -106,6 +90,17 @@ describe('RollupChain', () => {
   describe('submitBlock() ', async () => {
     it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
       await rollupChain.submitBlock(['0x1234', '0x1234']) // Did not throw... success!
+    })
+
+    it('should prevent non-aggregator from submitting block', async () => {
+      const rollupChainWallet2: Contract = new Contract(
+        rollupChain.address,
+        rollupChain.interface,
+        wallet2 as any
+      )
+      await assertThrowsAsync(async () => {
+        await rollupChainWallet2.submitBlock(['0x1234', '0x1234'])
+      })
     })
 
     it('should process blocks many transitions', async () => {

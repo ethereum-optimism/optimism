@@ -23,6 +23,9 @@ contract RollupChain {
     // State tree height
     uint STATE_TREE_HEIGHT = 32;
 
+    // TODO: eventually support multiple?
+    address aggregatorAddress;
+
     /* Events */
     event DecodedTransition(
         bool success,
@@ -36,9 +39,10 @@ contract RollupChain {
     /***************
      * Constructor *
      **************/
-    constructor(address _transitionEvaluatorAddress, address _rollupMerkleUtilsAddress) public {
+    constructor(address _transitionEvaluatorAddress, address _rollupMerkleUtilsAddress, address _aggregatorAddress) public {
         transitionEvaluator = TransitionEvaluator(_transitionEvaluatorAddress);
         merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
+        aggregatorAddress = _aggregatorAddress;
     }
 
     /* Methods */
@@ -52,6 +56,11 @@ contract RollupChain {
      * Submits a new block which is then rolled up.
      */
     function submitBlock(bytes[] calldata _block) external returns(bytes32) {
+        require(
+            msg.sender == aggregatorAddress,
+            "Only the aggregator may submit blocks"
+        );
+
         bytes32 root = merkleUtils.getMerkleRoot(_block);
         dt.Block memory rollupBlock = dt.Block({
             rootHash: root,
