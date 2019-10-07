@@ -505,6 +505,9 @@ export class RollupAggregator
             this.blockSubmissionIntervalMillis - millisSinceLastSubmission
           )
           return
+        } else if (this.pendingBlock.transitions.length === 0) {
+          this.setBlockSubmissionTimeout(this.blockSubmissionIntervalMillis)
+          return
         }
       }
 

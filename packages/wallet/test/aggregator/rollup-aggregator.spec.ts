@@ -438,7 +438,7 @@ describe('RollupAggregator', () => {
       }
     })
 
-    it('should init without any DB state', async () => {
+    it('should submit a block after delay with queued transactions', async () => {
       await aggregatorDB.put(
         RollupAggregator.LAST_TRANSITION_KEY,
         Buffer.from('1')
@@ -464,6 +464,23 @@ describe('RollupAggregator', () => {
       dummyBlockSubmitter.submitedBlocks.length.should.equal(1)
       dummyBlockSubmitter.submitedBlocks[0].blockNumber.should.equal(1)
       dummyBlockSubmitter.submitedBlocks[0].transitions.length.should.equal(1)
+    }).timeout(10_000)
+
+    it('should not submit a block after delay without queued transactions', async () => {
+      aggregator = await RollupAggregator.create(
+        aggregatorDB,
+        rollupStateMachine,
+        dummyBlockSubmitter,
+        new DefaultSignatureProvider(Wallet.fromMnemonic(AGGREGATOR_MNEMONIC)),
+        DefaultSignatureVerifier.instance(),
+        2,
+        1_000
+      )
+
+      // Block submission delay is set to 1s, so sleep and assert it was submitted.
+      await sleep(1_900)
+
+      dummyBlockSubmitter.submitedBlocks.length.should.equal(0)
     }).timeout(10_000)
   })
 
