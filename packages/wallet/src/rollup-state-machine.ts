@@ -705,7 +705,7 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
 
   public static deserializeAddressToKeyFromDB(buf: Buffer): any[] {
     const parsed: any[] = JSON.parse(buf.toString())
-    return [parsed[0], new BigNumber(parsed[1])]
+    return [parsed[0], new BigNumber(parsed[1], 'hex')]
   }
 
   /***********
