@@ -1,0 +1,57 @@
+version: '3.3'
+
+services:
+  gencerts:
+    image: alpine:3.10
+    volumes:
+      - "./ca:/home/root/ca:rw"
+      - "./config:/home/root/:rw"
+    entrypoint: >
+      /bin/sh -c "
+        apk add bash openssl
+        chown -R nobody:nobody /home/root/ca && chmod -R 777 /home/root/ca
+        # only gen if they aren't there
+        if [ -f /home/root/ca/certs/my-service.crt ];then
+          exit 0
+        else
+          /home/root/gencerts.sh
+        fi
+      "
+  vault_server:
+    image: omisego/immutability-vault-ethereum:latest
+    networks:
+      - testnet
+    ports:
+      - "127.0.0.1:8200:8200/tcp"
+    depends_on:
+      - "gencerts"
+    links:
+      - "ganache"
+    volumes:
+      - "./ca:/home/vault/ca:rw"
+      - "./config:/home/vault/config:ro"
+      - "../scripts:/home/vault/scripts:ro"
+    entrypoint: >
+      /bin/sh -c "
+        while [ ! -f /home/vault/ca/certs/my-service.crt ];do
+          echo Waiting on gencerts...
+          sleep 1
+        done
+        /home/vault/config/entrypoint.sh
+      "
+  ganache:
+    networks:
+      - testnet
+    image: trufflesuite/ganache-cli:latest
+    ports:
+      - "8545:8545"
+    entrypoint: >
+      /bin/sh -c "
+        node /app/ganache-core.docker.cli.js --deterministic \
+          --mnemonic 'explain foam nice clown method avocado hill basket echo blur elevator marble' \
+          --networkId '5777' \
+          --hostname '0.0.0.0'
+      "
+networks:
+  testnet:
+    driver: bridge
