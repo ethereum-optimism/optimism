@@ -30,6 +30,7 @@ services:
     volumes:
       - "./ca:/home/vault/ca:rw"
       - "./config:/home/vault/config:ro"
+      - "../contracts:/home/vault/contracts:ro"
       - "../scripts:/home/vault/scripts:ro"
     entrypoint: >
       /bin/sh -c "

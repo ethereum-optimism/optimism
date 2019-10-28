@@ -2,7 +2,6 @@
 # ******** Create a dev environment to build alpine vault plugins and build them *********
 # ****************************************************************************************
 FROM vault:latest as build
-
 # Setup the alpine build environment for golang
 RUN apk add --update alpine-sdk
 RUN apk update && apk add go git openssh gcc musl-dev linux-headers
@@ -24,6 +23,9 @@ RUN mkdir -p /app/bin \
 # ********** This is our actual released container **********
 # ***********************************************************
 FROM vault:latest
+# we pass epoch time so it always upgrades
+ARG always_upgrade
+RUN echo ${always_upgrade} > /dev/null && apk update && apk upgrade
 USER vault
 WORKDIR /app
 RUN mkdir -p /home/vault/ca \
@@ -33,3 +35,4 @@ RUN mkdir -p /home/vault/ca \
 # Install the plugin.
 COPY --from=build /app/bin/immutability-eth-plugin /home/vault/plugins/immutability-eth-plugin
 COPY --from=build /app/bin/SHA256SUMS /home/vault/plugins/SHA256SUMS
+HEALTHCHECK CMD nc -zv 127.0.0.1 8900 || exit 1
