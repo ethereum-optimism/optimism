@@ -1,0 +1,44 @@
+issues:
+  max-per-linter: 999999
+  max-same: 999999
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  nakedret:
+    max-func-lines: 0
+  misspell:
+    locale: US
+  dupl:
+    threshold: 50
+  goconst:
+    min-occurrences: 2
+  gocyclo:
+    min-complexity: 8
+  lll:
+    line-length: 250
+
+linters:
+  enable:
+    - gofmt
+    - golint
+    - goimports
+    - unconvert
+    - ineffassign
+    - staticcheck
+    - structcheck
+    - unused
+    - unparam
+    - varcheck
+    - deadcode
+    - gosimple
+    - dupl
+    - gocyclo
+    - nakedret
+    - lll
+    - goconst
+    - govet
+    - megacheck
+    - errcheck
+    - prealloc
