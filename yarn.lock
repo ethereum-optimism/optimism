@@ -841,15 +841,10 @@
     universal-user-agent "^2.0.0"
     url-template "^2.0.8"
 
-"@pigi/core@^0.0.1-alpha.1":
-  version "0.0.1-alpha.1"
-  resolved "https://registry.yarnpkg.com/@pigi/core/-/core-0.0.1-alpha.1.tgz#09afa39eedd6d988a8a24173c4f01a060c8d1e3b"
-  integrity sha512-OggIZxHB5ZApeT3s14GIiqzZolzA+8UVk2Y1J0sRDyPW55G+Bc+OzcmXGhQeKLHslT54K1Y5DhW+YyrE9z/utg==
-
-"@pigi/prettier-config@latest":
-  version "0.0.14"
-  resolved "https://registry.yarnpkg.com/@pigi/prettier-config/-/prettier-config-0.0.14.tgz#51352cd61c0e47ac8badf7a209d144d67577bcfd"
-  integrity sha512-RKBTWhW7LLLQBlMc6tF3gm3sWCdIP82USblmPefk+Xpk2lu4lPg9tp3vMK4wQwtSKdJLYqKwWZRuuNjy22ApRw==
+"@pigi/types@latest":
+  version "0.0.7-alpha.0"
+  resolved "https://registry.yarnpkg.com/@pigi/types/-/types-0.0.7-alpha.0.tgz#ffef6d2cda60f31d8edfcb939b2304f76016aaf3"
+  integrity sha512-8N132jb3dm+rAwyxlAnGbS9r3qWy/EhS+7ZImK8ngOPLXFgDCyV5I1p+XkB3lts0C76lfzcgW3NlTeiNbNw61Q==
 
 "@resolver-engine/core@^0.3.0":
   version "0.3.0"

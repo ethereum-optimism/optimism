@@ -1,10 +1,10 @@
 {
   "name": "@pigi/core",
-  "version": "0.0.2-alpha.1",
+  "version": "0.0.10-alpha.0",
   "description": "Plasma Group client",
   "main": "build/index.js",
   "files": [
-    "build/**/.js"
+    "build/**/*.js"
   ],
   "scripts": {
     "build": "tsc -p .",

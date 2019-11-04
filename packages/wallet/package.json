@@ -1,10 +1,10 @@
 {
   "name": "@pigi/wallet",
-  "version": "0.0.1-alpha.1",
+  "version": "0.0.10-alpha.0",
   "description": "Pigi client-side smart wallet",
   "main": "build/index.js",
   "files": [
-    "build/**/.js"
+    "build/**/*.js"
   ],
   "scripts": {
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
@@ -27,14 +27,14 @@
     "url": "https://github.com/plasma-group/pigi.git"
   },
   "dependencies": {
+    "@pigi/core": "0.0.10-alpha.0",
+    "@pigi/watch-eth": "0.0.10-alpha.0",
     "async-lock": "^1.2.2",
-    "@pigi/core": "^0.0.2-alpha.1",
-    "@pigi/watch-eth": "^0.0.2-alpha.1",
     "dotenv": "^8.1.0",
     "level": "^5.0.1"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "^0.0.2-alpha.2",
+    "@pigi/prettier-config": "0.0.10-alpha.0",
     "@types/chai": "^4.1.7",
     "@types/debug": "^4.1.2",
     "@types/mocha": "^5.2.6",
