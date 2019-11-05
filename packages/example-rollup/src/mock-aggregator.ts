@@ -37,9 +37,6 @@ import * as fs from 'fs'
 
 const log = getLogger('mock-aggregator')
 
-export const AGGREGATOR_MNEMONIC: string =
-  'rebel talent argue catalog maple duty file taxi dust hire funny steak'
-
 class DummyBlockSubmitter implements RollupBlockSubmitter {
   public async handleNewRollupBlock(rollupBlockNumber: number): Promise<void> {
     // no-op

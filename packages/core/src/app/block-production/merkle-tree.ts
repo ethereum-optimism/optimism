@@ -26,7 +26,7 @@ const log = getLogger('merkle-tree')
  */
 export class SparseMerkleTreeImpl implements SparseMerkleTree {
   public static readonly emptyBuffer: Buffer = Buffer.alloc(32).fill('\x00')
-  private static readonly siblingBuffer: Buffer = Buffer.alloc(1).fill('\x00')
+  public static readonly siblingBuffer: Buffer = Buffer.alloc(1).fill('\x00')
 
   private root: MerkleTreeNode
   private zeroHashes: Buffer[]
@@ -293,6 +293,9 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
 
         if (siblings.length !== this.height - 1) {
           // TODO: A much better way of indicating this
+          log.info(
+            `Getting merkle proof for leaf that has not been stored. Storing siblings and leaf and creating proof.`
+          )
           return {
             rootHash: undefined,
             key: undefined,
@@ -301,7 +304,13 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
           }
         }
 
-        if (!node.hash.equals(this.hashFunction(leafValue))) {
+        const leafHash: Buffer = this.hashFunction(leafValue)
+        if (!node.hash.equals(leafHash)) {
+          log.info(
+            `Node hash does not match leaf value hash for key [${leafKey.toNumber()}]. Passed leaf value: [${leafValue.toString()}], Passed leaf hash: ${leafHash.toString(
+              'hex'
+            )}, Node hash: ${node.hash.toString('hex')}`
+          )
           // Provided leaf doesn't match stored leaf
           return undefined
         }

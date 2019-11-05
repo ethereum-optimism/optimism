@@ -59,19 +59,11 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
   public async getInputStateSnapshots(
     transition: RollupTransition
   ): Promise<StateSnapshot[]> {
-    let firstSlot: number
-    let secondSlot: number
-    if (isSwapTransition(transition)) {
-      firstSlot = transition.senderSlotIndex
-      secondSlot = UNISWAP_STORAGE_SLOT
-      log.info(`Returning snapshots prepper for fraud`)
-    } else if (isCreateAndTransferTransition(transition)) {
-      firstSlot = transition.senderSlotIndex
-      secondSlot = transition.recipientSlotIndex
-    } else if (isTransferTransition(transition)) {
-      firstSlot = transition.senderSlotIndex
-      secondSlot = transition.recipientSlotIndex
-    }
+    const firstSlot: number = transition.senderSlotIndex
+    const secondSlot: number = isSwapTransition(transition)
+      ? UNISWAP_STORAGE_SLOT
+      : transition.recipientSlotIndex
+
     log.info(`Returning snapshots for slots ${firstSlot} and ${secondSlot}.`)
     return [
       await this.rollupMachine.getSnapshotFromSlot(firstSlot),
@@ -136,6 +128,9 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
 
       // if the created slot is not sequential, for now it will break
       if (slotIfSequential !== nextTransition.recipientSlotIndex) {
+        log.error(
+          `Next slot in Rollup State Machine is ${slotIfSequential} but next transition recipient slot is ${nextTransition.recipientSlotIndex}`
+        )
         throw new AggregatorUnsupportedError()
       }
     }
@@ -221,7 +216,6 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       throw new ValidationOutOfOrderError()
     }
 
-    log.info(`Starting validation for block ${blockToValidate.blockNumber}...`)
     const nextBlockNumberToValidate: number = (await this.getCurrentVerifiedPosition())
       .blockNumber
     if (blockToValidate.blockNumber !== nextBlockNumberToValidate) {
@@ -231,6 +225,15 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
       throw new ValidationOutOfOrderError()
     }
 
+    const transitionCount: number =
+      !blockToValidate || !blockToValidate.transitions
+        ? 0
+        : blockToValidate.transitions.length
+    log.info(
+      `Starting validation for block ${blockToValidate.blockNumber}. Number of transitions: ${transitionCount}`
+    )
+
+    let transitionNumber = 0
     // Now loop through and apply the transitions one by one
     for (const transition of blockToValidate.transitions) {
       const fraudCheck: LocalFraudProof = await this.checkNextTransition(
@@ -250,6 +253,11 @@ export class DefaultRollupStateValidator implements RollupStateValidator {
         )
         return generatedProof
       }
+      log.info(
+        `Successfully validated transition ${++transitionNumber} of ${
+          blockToValidate.transitions.length
+        } of block ${blockToValidate.blockNumber}`
+      )
     }
 
     log.info(

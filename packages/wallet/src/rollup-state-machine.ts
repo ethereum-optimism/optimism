@@ -102,13 +102,9 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
     const previousStateExists = await stateMachine.init()
 
     if (!previousStateExists && !!genesisState.length) {
-      const promises: Array<Promise<boolean>> = []
       for (const state of genesisState) {
-        promises.push(
-          stateMachine.setAddressState(state.pubkey, state.balances)
-        )
+        await stateMachine.setAddressState(state.pubkey, state.balances)
       }
-      await Promise.all(promises)
     }
 
     return stateMachine
@@ -376,18 +372,27 @@ export class DefaultRollupStateMachine implements RollupStateMachine {
       MerkleTreeInclusionProof,
       string
     ] = await this.lock.acquire(DefaultRollupStateMachine.lockKey, async () => {
-      const bigKey: BigNumber = new BigNumber(key)
+      const bigKey: BigNumber = new BigNumber(key, 10)
       let leaf: Buffer = await this.tree.getLeaf(bigKey)
 
-      if (!leaf) {
+      if (!leaf || leaf.equals(SparseMerkleTreeImpl.siblingBuffer)) {
         // if we didn't get the leaf it must be empty
         leaf = SparseMerkleTreeImpl.emptyBuffer
       }
 
       const merkleProof: MerkleTreeInclusionProof = await this.tree.getMerkleProof(
-        new BigNumber(key),
+        bigKey,
         leaf
       )
+
+      if (!merkleProof) {
+        const msg: string = `Unable to get merkle proof for key ${bigKey.toNumber()}. Leaf data: [${
+          !leaf ? 'undefined' : leaf.toString()
+        }]`
+        log.error(msg)
+        throw Error(msg)
+      }
+
       return [leaf, merkleProof, merkleProof.rootHash.toString('hex')]
     })
 

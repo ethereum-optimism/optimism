@@ -133,6 +133,7 @@ export class RollupFraudGuard implements EthereumListener<Event> {
     if (!!proof) {
       await this.submitFraudProof(proof)
     } else {
+      log.debug(`Validated that block ${block.blockNumber} is not fraudulent.`)
       this.lastBlockValidated = block.blockNumber
       await this.db.put(
         RollupFraudGuard.LAST_BLOCK_VALIDATED_KEY,
