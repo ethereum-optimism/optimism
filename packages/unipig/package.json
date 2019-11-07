@@ -1,0 +1,65 @@
+{
+  "name": "@pigi/unipig",
+  "version": "0.0.1",
+  "description": "Unipig example application",
+  "main": "build/index.js",
+  "files": [
+    "build/**/*.js"
+  ],
+  "scripts": {
+    "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{deploy,test,src}/**/*.ts'",
+    "build": "yarn clean && mkdir build && waffle waffle-config.json && tsc -p . && browserify src/web/index.ts -p [ tsify ] > public/bundle.js && mkdir -p build/level",
+    "clean": "rimraf build/",
+    "deploy:rollup-chain": "yarn build && node ./build/src/contracts/deploy/deploy-rollup-chain.js",
+    "serve": "http-server ./public",
+    "aggregator": "node ./build/src/aggregator/exec/unipig-aggregator.js",
+    "validator": "node ./build/src/validator/exec/unipig-validator.js"
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum",
+    "smart",
+    "contract"
+  ],
+  "author": "Plasma Group",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pigi/core-utils": "^0.0.10-alpha.0",
+    "@pigi/core-db": "^0.0.10-alpha.0",
+    "@pigi/ovm": "^0.0.10-alpha.0",
+    "@types/sinon-chai": "^3.2.2",
+    "async-lock": "^1.2.2",
+    "browserify": "^16.5.0",
+    "chai": "^4.2.0",
+    "cors": "^2.8.5",
+    "debug": "^4.1.1",
+    "dotenv": "^8.1.0",
+    "ethereum-waffle": "^2.0.12",
+    "ethers": "^4.0.37",
+    "level": "^6.0.0",
+    "openzeppelin-solidity": "^2.2.0",
+    "tsify": "^4.0.1"
+  },
+
+  "devDependencies": {
+    "@pigi/prettier-config": "0.0.10-alpha.0",
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "^11.11.3",
+    "chai": "^4.2.0",
+    "chai-bignumber": "^3.0.0",
+    "mocha": "^6.0.2",
+    "rimraf": "^2.6.3",
+    "typescript": "^3.3.3333"
+  }
+}

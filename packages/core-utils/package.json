@@ -1,0 +1,61 @@
+{
+  "name": "@pigi/core-utils",
+  "version": "0.0.10-alpha.0",
+  "description": "Plasma Group Core Utils",
+  "main": "build/index.js",
+  "files": [
+    "build/**/.js"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum",
+    "client"
+  ],
+  "homepage": "https://github.com/plasma-group/pigi/tree/master/packages/core-utils#readme",
+  "bugs": "https://github.com/plasma-group/pigi/labels/%40pigi%2Fcore-utils",
+  "license": "MIT",
+  "author": "Plasma Group",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/pigi.git"
+  },
+  "dependencies": {
+    "abstract-leveldown": "^6.2.2",
+    "async-lock": "^1.2.2",
+    "axios": "^0.19.0",
+    "bn.js": "^4.11.8",
+    "body-parser": "^1.19.0",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "debug": "^4.1.1",
+    "ethers": "^4.0.37",
+    "express": "^4.17.1",
+    "memdown": "^4.0.0",
+    "ts-md5": "^1.2.4",
+    "uuid": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/abstract-leveldown": "^5.0.1",
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^12.0.7",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "ethereum-waffle": "^2.1.0",
+    "mocha": "^6.1.4",
+    "rimraf": "^2.6.3",
+    "ts-node": "^8.2.0",
+    "typescript": "^3.5.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
