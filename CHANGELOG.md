@@ -1,4 +1,4 @@
-## 0.0.3 (November 4, 2019)
+## 0.0.3 (November 10, 2019)
 
 NEW FEATURES:
 
