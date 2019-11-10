@@ -14,4 +14,4 @@ cd docs
 sphinx-build -d _build/doctrees . _build/html
 ```
 
-Docs will be in `build/html`.  To view the documentation open `build/html/index.html` with a browser.
+Docs will be in `docs/build/html`.  To view the documentation open `docs/build/html/index.html` with a browser.
