@@ -8,6 +8,14 @@ RPC_URL="http://ganache:$PORT"
 PASSPHRASE="passion bauble hypnotic hanky kiwi effective overcast roman staleness"
 FUNDING_AMOUNT=100000000000000000
 TEST_AMOUNT=10000000000000000
+
+CONTRACTS_PATH="/home/vault/contracts/erc20/build/"
+CONTRACT_SAFE_MATH="SafeMath"
+CONTRACT_OWNED="Owned"
+CONTRACT_FIXED_SUPPLY_TOKEN="FixedSupplyToken"
+BIN_FILE=".bin"
+ABI_FILE=".abi"
+
 echo ""
 echo "------------------------------------------------------------------"
 echo "CONFIGURE MOUNT"
@@ -226,4 +234,50 @@ echo "------------------------------------------------------------------"
 echo "ATTEMPT TO SEND TO $ACCOUNT_BIG_BAD - SHOULD SUCCEED - GLOBALLY WHITELISTED" 
 echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/debit to=$ACCOUNT_BIG_BAD amount=$TEST_AMOUNT"
 vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/debit to=$ACCOUNT_BIG_BAD amount=$TEST_AMOUNT
+echo ""
+
+echo "------------------------------------------------------------------"
+echo "DEPLOY CONTRACT $CONTRACT_FIXED_SUPPLY_TOKEN"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/deploy abi=@$CONTRACTS_PATH$CONTRACT_FIXED_SUPPLY_TOKEN$ABI_FILE bin=@$CONTRACTS_PATH$CONTRACT_FIXED_SUPPLY_TOKEN$BIN_FILE"
+CONTRACT=$(vault write -field=contract immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/deploy abi=@$CONTRACTS_PATH$CONTRACT_FIXED_SUPPLY_TOKEN$ABI_FILE bin=@$CONTRACTS_PATH$CONTRACT_FIXED_SUPPLY_TOKEN$BIN_FILE)
+echo ""
+echo "------------------------------------------------------------------"
+echo "DEPLOY CONTRACT $CONTRACT_OWNED"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/deploy abi=@$CONTRACTS_PATH$CONTRACT_OWNED$ABI_FILE bin=@$CONTRACTS_PATH$CONTRACT_OWNED$BIN_FILE"
+vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/deploy abi=@$CONTRACTS_PATH$CONTRACT_OWNED$ABI_FILE bin=@$CONTRACTS_PATH$CONTRACT_OWNED$BIN_FILE
+echo ""
+echo "------------------------------------------------------------------"
+echo "DEPLOY CONTRACT $CONTRACT_SAFE_MATH"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/deploy abi=@$CONTRACTS_PATH$CONTRACT_SAFE_MATH$ABI_FILE bin=@$CONTRACTS_PATH$CONTRACT_SAFE_MATH$BIN_FILE"
+vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/deploy abi=@$CONTRACTS_PATH$CONTRACT_SAFE_MATH$ABI_FILE bin=@$CONTRACTS_PATH$CONTRACT_SAFE_MATH$BIN_FILE
+echo ""
+echo "------------------------------------------------------------------"
+echo "SIGN RAW TX FROM ACCOUNT"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to='$ACCOUNT1' data='hello' amount=1000000000000000"
+vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="hello" amount=1000000000000000
+echo ""
+echo "------------------------------------------------------------------"
+echo "SIGN RAW TX FROM ACCOUNT WITH HEX ENCODING OF DATA"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to='$ACCOUNT1' data='fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19' encoding='hex'  amount=1000000000000000"
+vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19" encoding="hex"  amount=1000000000000000
+echo ""
+echo "------------------------------------------------------------------"
+echo "READ TOKEN TOTAL SUPPLY"
+echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/totalSupply contract='$CONTRACT'"
+vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/totalSupply contract="$CONTRACT"
+echo ""
+echo "------------------------------------------------------------------"``
+echo "READ TOKEN BALANCE AT ACCOUNT"
+echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/balanceOf contract='$CONTRACT'"
+vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/balanceOf contract="$CONTRACT"
+echo ""
+echo "------------------------------------------------------------------"
+echo "TRANSFER TOKEN FROM ACCOUNT"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/transfer contract='$CONTRACT'  to='$ACCOUNT2' tokens=23"
+vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/transfer contract="$CONTRACT" to="$ACCOUNT2" tokens=23
+echo ""
+echo "------------------------------------------------------------------"
+echo "APPROVE TOKEN TRANSFER FROM ACCOUNT TO ANOTHER"
+echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/approve contract='$CONTRACT' spender='$ACCOUNT2' tokens=230"
+vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/erc-20/approve contract="$CONTRACT" spender="$ACCOUNT2" tokens=230
 echo ""

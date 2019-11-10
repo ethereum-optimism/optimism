@@ -1,3 +1,98 @@
+## 0.0.3 (November 4, 2019)
+
+NEW FEATURES:
+
+* Implement Plamsa Contract integration
+  - [x] Submit Block
+  - [x] Set Authority
+  - [x] Submit Deposit Block
+  - [x] Activate Child Chain
+* Added Smoke Test for Plasma
+  - [x] Truffle docker container
+  - [x] Pull latest from OmiseGO plasma-contracts
+  - [x] Builds and Deploys 
+  - [x] Integrates with Ganache and Vault in `make run` for full integration test
+
+IMPROVEMENTS:
+
+* Separated Smoke Tests
+* Wallet Smoke Test 
+  - [x] Configure Mount
+  - [x] Create Wallet (BIP44) Without Mnemonic
+  - [x] Create Wallet (BIP44) With Mnemonic
+  - [x] List Wallets
+  - [x] Create New Account
+  - [x] Check Account Balance
+  - [x] Transfer ETH
+  - [x] Sign Raw TX
+  - [x] Sign Raw TX (Encoded)
+  - [x] Export JSON Keystore from Account
+* Smoke Test for Whitelisting
+  - [x] Whitelist Address at an Account
+  - [x] Whitelist Address at a Wallet
+  - [x] Whitelist Address Globally
+* Smoke Test for Blacklisting
+  - [x] Blacklist Address at an Account
+  - [x] Blacklist Address at a Wallet
+  - [x] Blacklist Address Globally
+* Smoke Test for ERC20
+  - [x] Deploy Contract (FixedSupplyToken)
+  - [x] Total Token Supply
+  - [x] Token Balance
+  - [x] Transfer Token
+* Smoke Test for Plasma
+  - [x] Submit Block
+  - [x] Set Authority
+  - [x] Submit Deposit Block
+  - [x] Activate Child Chain
+
+BUG FIXES:
+
+* N/A
+
+## 0.0.2 (October 26, 2019)
+
+NEW FEATURES:
+
+* Demonstrate Smart Contract integration model
+  - [x] Compile to ABI
+  - [x] Generate bindings
+* Added support for ERC20
+  - [x] Deployed ERC20 implementation - FixedSupplyToken
+  - [x] Implemented all methods in ERC20Interface
+
+IMPROVEMENTS:
+
+* Verified CIS Docker Hardening 1.20 for images where applicable to Dockerfile
+  - [x] 4.1 Ensure that a user for the container has been created
+  - [x] 4.2 Ensure that containers use only trusted base images 
+        (HashiCorp Vault/Alpine)
+  - [x] 4.3 Ensure that unnecessary packages are not installed in the container
+  - [x] 4.4 Ensure images are scanned and rebuilt to include security patches 
+        (apk update && apk upgrade added to Dockerfile)
+  - [x] 4.5 - N/A  - Ensure Content trust for Docker is Enabled
+  - [x] 4.6 Ensure that HEALTHCHECK instructions have been added to
+        container images
+  - [x] 4.7 Ensure update instructions are not use alone in the Dockerfile 
+        - used epoch date for this in dockerfile/makefile
+  - [x] 4.8 Ensure setuid and setgid permissions are removed 
+        (vault user prevents this)
+  - [x] 4.9 Ensure that COPY is used instead of ADD in Dockerfiles 
+  - [x] 4.10 Ensure secrets are not stored in Dockerfiles
+  - [x] 4.11 Ensure only verified packages are are installed 
+        (using Alpine package manager)
+* Smoke Test for transaction signing
+* Smoke Test for ERC20
+  - [x] Deploy Contract
+  - [x] Read Token Supply
+  - [x] Read Token Balance
+  - [x] Transfer Token
+  - [x] Approve Transfer
+
+BUG FIXES:
+
+* N/A
+
 ## 0.0.1 (October 20, 2019)
 
 NEW FEATURES:

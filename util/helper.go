@@ -318,3 +318,16 @@ func WriteKeyFile(file string, content []byte) error {
 	f.Close()
 	return os.Rename(f.Name(), file)
 }
+
+// TokenAmount does the requisite math on tokens
+func TokenAmount(amount int64, decimals uint8) *big.Int {
+	var bigDecimal big.Int
+	bigDecimal.SetString(fmt.Sprintf("%d", decimals), 10)
+	power := Pow(10, bigDecimal.Int64())
+
+	var bigPower, _ = new(big.Int).SetString(fmt.Sprintf("%d", power), 10)
+	var bigAmount, _ = new(big.Int).SetString(fmt.Sprintf("%d", amount), 10)
+
+	var bigProduct = new(big.Int)
+	return bigProduct.Mul(bigPower, bigAmount)
+}

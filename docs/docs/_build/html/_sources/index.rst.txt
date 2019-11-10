@@ -1,0 +1,18 @@
+=============================================================
+Omisego/Immutability Documentation
+=============================================================
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   introduction
+   designquestions
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+

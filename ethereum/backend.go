@@ -53,6 +53,8 @@ func Backend(conf *logical.BackendConfig) (*PluginBackend, error) {
 		Paths: framework.PathAppend(
 			ConfigPaths(&b),
 			WalletPaths(&b),
+			ERC20Paths(&b),
+			PlasmaPaths(&b),
 			AccountPaths(&b),
 			ExportPaths(&b),
 		),

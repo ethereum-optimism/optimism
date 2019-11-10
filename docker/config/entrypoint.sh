@@ -44,9 +44,31 @@ function configure_plugin {
 
 configure_plugin
 
+function test_banner {
+    echo "************************************************************************************************************************************"
+}
+
 function test_plugin {
-	echo "testing"
-	/home/vault/scripts/smoketest.sh
+	test_banner
+	echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
+	test_banner
+	/home/vault/scripts/smoke.wallet.sh
+	test_banner
+	echo "SMOKE TEST WHITELIST FUNCTIONALITY"
+	test_banner
+	/home/vault/scripts/smoke.whitelist.sh
+	test_banner
+	echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
+	test_banner
+	/home/vault/scripts/smoke.blacklist.sh
+	test_banner
+	echo "SMOKE TEST ERC20 FUNCTIONALITY"
+	test_banner
+	/home/vault/scripts/smoke.erc20.sh
+	test_banner
+	echo "SMOKE TEST PLASMA FUNCTIONALITY"
+	test_banner
+	/home/vault/scripts/smoke.plasma.sh
 }
 
 test_plugin
