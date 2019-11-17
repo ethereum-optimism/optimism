@@ -80,3 +80,4 @@ The newly upgraded cluster takes traffic.
   :width: 1200
   :alt: Upgrade Complete
 
+

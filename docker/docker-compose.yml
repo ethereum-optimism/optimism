@@ -62,7 +62,7 @@ services:
     networks:
       - testnet
     ports:
-      - "127.0.0.1:8200:8200/tcp"
+      - "8200:8200"
     depends_on:
       - "gencerts"
       - "ganache"
