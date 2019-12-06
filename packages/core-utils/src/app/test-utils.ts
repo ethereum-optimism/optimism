@@ -2,7 +2,7 @@
 import * as assert from 'assert'
 
 export class TestUtils {
-  public static assertThrows(func: () => any, errorType: any): void {
+  public static assertThrows(func: () => any, errorType?: any): void {
     let succeeded = true
     try {
       func()
@@ -21,7 +21,7 @@ export class TestUtils {
 
   public static async assertThrowsAsync(
     func: () => Promise<any>,
-    errorType: any
+    errorType?: any
   ): Promise<void> {
     let succeeded = true
     try {

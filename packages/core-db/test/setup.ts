@@ -9,6 +9,7 @@ import { rootPath } from '../index'
 
 chai.use(chaiAsPromised)
 const should = chai.should()
+const assert = chai.assert
 
 const testArtifactsDir = path.join(rootPath, 'test', 'artifacts.test.tmp')
 const testRootPath = path.join(testArtifactsDir, (+new Date()).toString())
@@ -19,5 +20,5 @@ fs.mkdirSync(testArtifactsDir, { recursive: true })
 fs.mkdirSync(testRootPath, { recursive: true })
 fs.mkdirSync(dbRootPath, { recursive: true })
 
-export { should, dbRootPath }
+export { should, assert, dbRootPath }
 export { testRootPath as rootPath }

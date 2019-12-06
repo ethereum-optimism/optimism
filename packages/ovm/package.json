@@ -7,6 +7,7 @@
     "build/**/.js"
   ],
   "scripts": {
+    "all": "yarn clean && yarn build && yarn fix && yarn lint && yarn test",
     "build": "tsc -p .",
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",

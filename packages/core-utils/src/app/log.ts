@@ -9,6 +9,7 @@ export const getLogger = (
   return {
     debug: debug(`${testString}debug:${identifier}`),
     info: debug(`${testString}info:${identifier}`),
+    warn: debug(`${testString}warn:${identifier}`),
     error: debug(`${testString}error:${identifier}`),
   }
 }

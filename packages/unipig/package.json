@@ -7,6 +7,7 @@
     "build/**/*.js"
   ],
   "scripts": {
+    "all": "yarn clean && yarn build && yarn fix && yarn lint && yarn test",
     "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{deploy,test,src}/**/*.ts'",

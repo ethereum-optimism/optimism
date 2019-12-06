@@ -1,4 +1,4 @@
-import '@pigi/core-utils/build/test/setup'
+import '../../setup'
 
 /* External Imports */
 import { getLogger } from '@pigi/core-utils'
