@@ -1,0 +1,49 @@
+{
+  "name": "@pigi/rollup-dev-tools",
+  "version": "0.0.10-alpha.0",
+  "description": "[Optimism] Optimistic Rollup Dev Tools Library",
+  "main": "build/index.js",
+  "files": [
+    "build/**/.js"
+  ],
+  "scripts": {
+    "all": "yarn clean && yarn build && yarn fix && yarn lint && yarn test",
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
+    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+  },
+  "keywords": [
+    "optimism",
+    "optimistic",
+    "rollup",
+    "ethereum",
+    "client"
+  ],
+  "homepage": "https://github.com/plasma-group/optimistic-rollup/tree/master/packages/rollup-dev-tools#readme",
+  "bugs": "https://github.com/plasma-group/optimistic-rollup/labels/%40pigi%2Frollup-dev-tools",
+  "license": "MIT",
+  "author": "Optimism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plasma-group/optimistic-rollup.git"
+  },
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@types/abstract-leveldown": "^5.0.1",
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^12.0.7",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "mocha": "^6.1.4",
+    "rimraf": "^2.6.3",
+    "ts-node": "^8.2.0",
+    "typescript": "^3.5.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
