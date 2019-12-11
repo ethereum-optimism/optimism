@@ -101,4 +101,14 @@ export interface SparseMerkleTree extends MerkleTree {
     leafKey: BigNumber,
     numExistingNodes?: number
   ): Promise<boolean>
+
+  /**
+   * Purges old nodes that have been queued for deletion.
+   *
+   * Background: Since we may want recoverability across multiple tree operations,
+   * we queue nodes for deletion instead of deleting them eagerly. Once the change
+   * fully completes from the caller's perspective, they may call this to delete the
+   * nodes that would make the tree recoverable from a previous state root.
+   */
+  purgeOldNodes(): Promise<void>
 }

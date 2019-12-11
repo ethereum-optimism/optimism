@@ -10,6 +10,7 @@ import {
   TWO,
   THREE,
   TestUtils,
+  getLogger,
 } from '@pigi/core-utils'
 import * as assert from 'assert'
 
@@ -23,6 +24,8 @@ import {
   DB,
   newInMemoryDB,
 } from '../../../src'
+
+const log = getLogger('merkle-tree', true)
 
 const hashBuffer: Buffer = Buffer.alloc(64)
 const hashFunction: HashFunction = keccak256
@@ -429,7 +432,7 @@ describe('SparseMerkleTreeImpl', () => {
 
       assert(
         parentHash.equals(await tree.getRootHash()),
-        'Root hashes do not match after update'
+        'Root hashes do not match after update 2'
       )
     })
 
@@ -483,6 +486,195 @@ describe('SparseMerkleTreeImpl', () => {
         parentHash.equals(await tree.getRootHash()),
         'Root hashes do not match after update'
       )
+    })
+  })
+
+  describe('purgeOldNodes', () => {
+    it('should recover previous state before purge', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const originalValue: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, originalValue))
+
+      const recoverableRoot: Buffer = await tree.getRootHash()
+      log.info(`Recoverable root: ${recoverableRoot.toString('hex')}`)
+
+      const newValue: Buffer = Buffer.from('much better value')
+      assert(await tree.update(ZERO, newValue))
+
+      const newRoot: Buffer = await tree.getRootHash()
+      log.info(`New root: ${newRoot.toString('hex')}`)
+
+      const newTree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        recoverableRoot,
+        3,
+        hashFunction
+      )
+
+      const recoveredValue: Buffer = await newTree.getLeaf(ZERO)
+      assert(
+        recoveredValue.equals(originalValue),
+        `Value [${originalValue.toString()}] should have been recoverable but received: [${recoveredValue.toString()}]!`
+      )
+    })
+
+    it('should not recover previous state after purge', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const originalValue: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, originalValue))
+
+      const recoverableRoot: Buffer = await tree.getRootHash()
+
+      const newValue: Buffer = Buffer.from('much better value')
+      assert(await tree.update(ZERO, newValue))
+
+      await tree.purgeOldNodes()
+
+      const newTree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        recoverableRoot,
+        3,
+        hashFunction
+      )
+
+      const recoveredValue: Buffer = await newTree.getLeaf(ZERO)
+      assert(!recoveredValue, 'Value should not have been recoverable but was!')
+    })
+
+    it('should still have access to leaf after purge - 0', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const value: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, value))
+
+      await tree.purgeOldNodes()
+
+      let leaf: Buffer = Buffer.from('')
+      try {
+        leaf = await tree.getLeaf(ZERO)
+      } catch (e) {
+        assert.fail()
+      }
+      value.should.eql(leaf, 'Leaf not the expected value')
+    })
+
+    it('should still have access to leaf after purge - 0', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const value: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, value))
+
+      await tree.purgeOldNodes()
+
+      let leaf: Buffer
+      try {
+        leaf = await tree.getLeaf(ZERO)
+      } catch (e) {
+        assert.fail()
+      }
+      value.should.eql(leaf, 'Leaf not the expected value')
+    })
+
+    it('should still have access to leaf after purge - 0, 1, 2', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const value: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, value))
+      assert(await tree.update(ONE, value))
+      assert(await tree.update(TWO, value))
+
+      await tree.purgeOldNodes()
+
+      let leaf0: Buffer
+      let leaf1: Buffer
+      let leaf2: Buffer
+      try {
+        leaf0 = await tree.getLeaf(ZERO)
+        leaf1 = await tree.getLeaf(ONE)
+        leaf2 = await tree.getLeaf(TWO)
+      } catch (e) {
+        assert.fail()
+      }
+      value.should.eql(leaf0, 'Leaf not the expected value')
+      value.should.eql(leaf1, 'Leaf not the expected value')
+      value.should.eql(leaf2, 'Leaf not the expected value')
+    })
+
+    it('should still have access to leaf after purge - 0 set with same value', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const value: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, value))
+      assert(await tree.update(ZERO, value))
+
+      await tree.purgeOldNodes()
+
+      let leaf: Buffer = Buffer.from('')
+      try {
+        leaf = await tree.getLeaf(ZERO)
+      } catch (e) {
+        assert.fail()
+      }
+      value.should.eql(leaf, 'Leaf not the expected value')
+    })
+
+    it('should still have access to leaf after purge - 0, 1, 2 set with same value', async () => {
+      const tree: SparseMerkleTree = await SparseMerkleTreeImpl.create(
+        db,
+        undefined,
+        3,
+        hashFunction
+      )
+      const value: Buffer = Buffer.from('value')
+      assert(await tree.update(ZERO, value))
+      assert(await tree.update(ONE, value))
+      assert(await tree.update(TWO, value))
+
+      assert(await tree.update(ZERO, value))
+      assert(await tree.update(ONE, value))
+      assert(await tree.update(TWO, value))
+
+      await tree.purgeOldNodes()
+
+      let leaf0: Buffer
+      let leaf1: Buffer
+      let leaf2: Buffer
+      try {
+        leaf0 = await tree.getLeaf(ZERO)
+        leaf1 = await tree.getLeaf(ONE)
+        leaf2 = await tree.getLeaf(TWO)
+      } catch (e) {
+        assert.fail()
+      }
+      value.should.eql(leaf0, 'Leaf not the expected value')
+      value.should.eql(leaf1, 'Leaf not the expected value')
+      value.should.eql(leaf2, 'Leaf not the expected value')
     })
   })
 
