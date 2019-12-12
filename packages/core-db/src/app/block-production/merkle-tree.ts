@@ -227,6 +227,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   public async update(
     leafKey: BigNumber,
     leafValue: Buffer,
+    purgeOldNodes: boolean = true,
     d?: domain.Domain
   ): Promise<boolean> {
     return runInDomain(d, async () => {
@@ -301,6 +302,9 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
         await this.db.batch(this.getNodePutBatch(nodesToSave))
 
         this.nodeIDsToDelete.push(...idsToDelete)
+        if (purgeOldNodes) {
+          await this.purgeOldNodes()
+        }
 
         this.root = updatedChild
 
@@ -335,11 +339,12 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
           }
         }
 
+        const oldRoot: MerkleTreeNode = this.root
+
         for (const update of updates) {
-          if (!(await this.update(update.key, update.newValue, d))) {
-            throw Error(
-              "Verify and Store worked but update didn't! This should never happen!"
-            )
+          if (!(await this.update(update.key, update.newValue, false, d))) {
+            this.root = oldRoot
+            return false
           }
         }
 

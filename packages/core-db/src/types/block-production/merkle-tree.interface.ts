@@ -34,9 +34,14 @@ export interface MerkleTree {
    *
    * @param leafKey The leaf key to update
    * @param leafValue The new value
+   * @param purgeOldNodes Whether or not to delete nodes deprecated by this update
    * @return true if the update succeeded, false if we're missing the intermediate nodes / siblings required for this
    */
-  update(leafKey: BigNumber, leafValue: Buffer): Promise<boolean>
+  update(
+    leafKey: BigNumber,
+    leafValue: Buffer,
+    purgeOldNodes: boolean
+  ): Promise<boolean>
 
   /**
    * Updates the provided keys in the Merkle Tree in an atomic fashion
@@ -78,6 +83,16 @@ export interface MerkleTree {
    * @returns the height
    */
   getHeight(): number
+
+  /**
+   * Purges old nodes that have been queued for deletion.
+   *
+   * Background: Since we may want recoverability across multiple tree operations,
+   * we queue nodes for deletion instead of deleting them eagerly. Once the change
+   * fully completes from the caller's perspective, they may call this to delete the
+   * nodes that would make the tree recoverable from a previous state root.
+   */
+  purgeOldNodes(): Promise<void>
 }
 
 export interface SparseMerkleTree extends MerkleTree {
@@ -101,14 +116,4 @@ export interface SparseMerkleTree extends MerkleTree {
     leafKey: BigNumber,
     numExistingNodes?: number
   ): Promise<boolean>
-
-  /**
-   * Purges old nodes that have been queued for deletion.
-   *
-   * Background: Since we may want recoverability across multiple tree operations,
-   * we queue nodes for deletion instead of deleting them eagerly. Once the change
-   * fully completes from the caller's perspective, they may call this to delete the
-   * nodes that would make the tree recoverable from a previous state root.
-   */
-  purgeOldNodes(): Promise<void>
 }

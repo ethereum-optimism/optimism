@@ -37,7 +37,11 @@ class MockedMerkleTree implements MerkleTree {
     return this.rootHash
   }
 
-  public async update(key: BigNumber, value: Buffer): Promise<boolean> {
+  public async update(
+    key: BigNumber,
+    value: Buffer,
+    purgeOldNodes: boolean = true
+  ): Promise<boolean> {
     return undefined
   }
 
@@ -54,6 +58,10 @@ class MockedMerkleTree implements MerkleTree {
 
   public getHeight(): number {
     return undefined
+  }
+
+  public purgeOldNodes(): Promise<void> {
+    return
   }
 }
 

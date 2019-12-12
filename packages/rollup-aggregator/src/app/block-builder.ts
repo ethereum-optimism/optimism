@@ -58,8 +58,8 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
 
   private readonly lock: AsyncLock
 
-  private tree: SparseMerkleTree
-  private subtrees: SparseMerkleTree[]
+  private tree: SparseMerkleTreeImpl
+  private subtrees: SparseMerkleTreeImpl[]
   private lastBlockSubmission: Date
   private pendingBlock: PendingBlock
 
