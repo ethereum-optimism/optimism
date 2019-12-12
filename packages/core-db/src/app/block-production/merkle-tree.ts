@@ -21,7 +21,14 @@ import {
   MerkleUpdate,
   SparseMerkleTree,
 } from '../../types/block-production'
-import { DB } from '../../types/db/db.interface'
+import {
+  Batch,
+  DB,
+  DEL_BATCH_TYPE,
+  DelBatch,
+  PUT_BATCH_TYPE,
+  PutBatch,
+} from '../../types/db/db.interface'
 
 const log = getLogger('merkle-tree')
 
@@ -40,6 +47,8 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   })
   private readonly hashFunction: (Buffer) => Buffer
   private readonly hashBuffer: Buffer = Buffer.alloc(64)
+
+  private readonly nodeIDsToDelete: Buffer[]
 
   public static async create(
     db: DB,
@@ -65,6 +74,8 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     // TODO: Hack for now -- change everything to string if/when it makes sense
     this.hashFunction = (buff: Buffer) =>
       Buffer.from(hashFunction(buff.toString('hex')), 'hex')
+
+    this.nodeIDsToDelete = []
   }
 
   private async init(rootHash?: Buffer): Promise<void> {
@@ -77,8 +88,24 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
 
   public async getRootHash(): Promise<Buffer> {
     const copy: Buffer = Buffer.alloc(this.root.hash.length)
+    log.debug(
+      `Root Hash: [${this.root.hash.toString('hex')}], value: [${
+        !!this.root.value ? this.root.value.toString('hex') : 'undefined'
+      }]`
+    )
     this.root.hash.copy(copy)
     return copy
+  }
+
+  public async purgeOldNodes(): Promise<void> {
+    const batch: DelBatch[] = this.nodeIDsToDelete.map((id) => {
+      return {
+        type: DEL_BATCH_TYPE,
+        key: id,
+      }
+    })
+    await this.db.batch(batch)
+    this.nodeIDsToDelete.length = 0
   }
 
   public async getLeaf(leafKey: BigNumber, rootHash?: Buffer): Promise<Buffer> {
@@ -98,7 +125,9 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
         log.debug(
           `Cannot get Leaf [${leafKey.toString(
             10
-          )}] because nodes in path does not equal tree height.`
+          )}] because nodes in path does not equal tree height. Expected [${
+            this.height
+          }], found [${nodesInPath.length}]`
         )
         return undefined
       }
@@ -124,6 +153,11 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   ): Promise<boolean> {
     // There should be one sibling for every node except the root.
     if (inclusionProof.siblings.length !== this.height - 1) {
+      log.info(
+        `verifyAndStore: inclusion proof siblings length [${
+          inclusionProof.siblings.length
+        }] != tree height -1 [${this.height - 1}]`
+      )
       return false
     }
 
@@ -168,20 +202,24 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
       }
 
       if (!parent.hash.equals(this.root.hash)) {
+        log.info(
+          `verifyAndStore: Parent hash [${parent.hash.toString(
+            'hex'
+          )}] does not equal root hash [${this.root.hash.toString('hex')}].`
+        )
         return false
       }
-      await Promise.all(
-        (await this.getNodesInPath(inclusionProof.key)).map((n) =>
-          this.db.del(this.getNodeID(n))
-        )
+
+      const toDelete: MerkleTreeNode[] = await this.getNodesInPath(
+        inclusionProof.key
       )
+
+      await this.db.batch(this.getNodePutBatch(nodesToStore))
 
       // Root hash will not change, but it might have gone from a shortcut to regular node.
       this.root = parent
 
-      await Promise.all(
-        nodesToStore.map((n) => this.db.put(this.getNodeID(n), n.value))
-      )
+      this.nodeIDsToDelete.push(...toDelete.map((n) => this.getNodeID(n)))
       return true
     })
   }
@@ -189,6 +227,7 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
   public async update(
     leafKey: BigNumber,
     leafValue: Buffer,
+    purgeOldNodes: boolean = true,
     d?: domain.Domain
   ): Promise<boolean> {
     return runInDomain(d, async () => {
@@ -196,44 +235,87 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
         let nodesToUpdate: MerkleTreeNode[] = await this.getNodesInPath(leafKey)
 
         if (!nodesToUpdate) {
+          log.info(
+            `Unable to update tree leaf ${leafKey.toString(
+              'hex'
+            )} to ${leafValue.toString(
+              'hex'
+            )} because there are no nodes in the leaf path.`
+          )
           return false
         } else if (nodesToUpdate.length !== this.height) {
+          log.debug(`nodes to update length != height`)
           if (
             !(await this.verifyAndStorePartiallyEmptyPath(
               leafKey,
               nodesToUpdate.length
             ))
           ) {
+            log.info(
+              `Unable to update tree leaf ${leafKey.toString(
+                'hex'
+              )} to ${leafValue.toString(
+                'hex'
+              )} because unable to verify and store partially empty path.`
+            )
             return false
           }
           nodesToUpdate = await this.getNodesInPath(leafKey)
         }
 
-        const leaf: MerkleTreeNode = nodesToUpdate[nodesToUpdate.length - 1]
-        const idsToDelete: Buffer[] = [this.getNodeID(leaf)]
-        leaf.hash = this.hashFunction(leafValue)
-        leaf.value = leafValue
-
-        let updatedChild: MerkleTreeNode = leaf
-        let depth: number = nodesToUpdate.length - 2 // -2 because this array also contains the leaf
-
-        // Iteratively update all nodes from the leaf-pointer node up to the root
-        for (; depth >= 0; depth--) {
-          idsToDelete.push(this.getNodeID(nodesToUpdate[depth]))
-          updatedChild = this.updateNode(
-            nodesToUpdate[depth],
-            updatedChild,
-            leafKey,
-            depth
+        const oldLeaf: MerkleTreeNode = nodesToUpdate[nodesToUpdate.length - 1]
+        // This means the update is to the existing value -- just return
+        if (!!oldLeaf && !!oldLeaf.value && leafValue.equals(oldLeaf.value)) {
+          log.info(
+            `Trying to update tree leaf ${leafKey.toString(
+              'hex'
+            )} to the same value it currently has ${leafValue.toString(
+              'hex'
+            )}. Returning.`
           )
+          return true
         }
 
-        await Promise.all([
-          ...nodesToUpdate.map((n) => this.db.put(this.getNodeID(n), n.value)),
-          ...idsToDelete.map((id) => this.db.del(id)),
-        ])
+        const idsToDelete: Buffer[] = [this.getNodeID(oldLeaf)]
 
-        this.root = nodesToUpdate[0]
+        let updatedChild: MerkleTreeNode = {
+          key: leafKey,
+          value: leafValue,
+          hash: this.hashFunction(leafValue),
+        }
+
+        const nodesToSave: MerkleTreeNode[] = [updatedChild]
+        let parentDepth: number = nodesToUpdate.length - 2 // -2 because this array also contains the leaf
+
+        // Iteratively update all nodes from the leaf-pointer node up to the root
+        for (; parentDepth >= 0; parentDepth--) {
+          idsToDelete.push(this.getNodeID(nodesToUpdate[parentDepth]))
+          updatedChild = this.updateNode(
+            nodesToUpdate[parentDepth],
+            updatedChild,
+            leafKey,
+            parentDepth
+          )
+          nodesToSave.push(updatedChild)
+        }
+
+        await this.db.batch(this.getNodePutBatch(nodesToSave))
+
+        this.nodeIDsToDelete.push(...idsToDelete)
+        if (purgeOldNodes) {
+          await this.purgeOldNodes()
+        }
+
+        this.root = updatedChild
+
+        log.debug(
+          `Tree leaf 
+          ${leafKey.toString('hex')} updated to value
+          ${leafValue.toString('hex')} resulting in new root hash: 
+          ${this.root.hash.toString('hex')}, value: 
+          ${this.root.value.toString('hex')}.`
+        )
+
         return true
       })
     })
@@ -257,11 +339,12 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
           }
         }
 
+        const oldRoot: MerkleTreeNode = this.root
+
         for (const update of updates) {
-          if (!(await this.update(update.key, update.newValue, d))) {
-            throw Error(
-              "Verify and Store worked but update didn't! This should never happen!"
-            )
+          if (!(await this.update(update.key, update.newValue, false, d))) {
+            this.root = oldRoot
+            return false
           }
         }
 
@@ -466,8 +549,8 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
    * @param node The node to update
    * @param updatedChild The child of the node to update that has changed
    * @param key The key for the updated leaf
-   * @param depth the depth of the
-   * @returns A reference to the provided node to update
+   * @param depth the depth of the node
+   * @returns The updated node
    */
   private updateNode(
     node: MerkleTreeNode,
@@ -475,14 +558,19 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
     key: BigNumber,
     depth: number
   ): MerkleTreeNode {
+    const value = Buffer.alloc(64, node.value)
     const isLeft: boolean = this.isLeft(key, depth)
     if (isLeft) {
-      node.value.fill(updatedChild.hash, 0, 32)
+      value.fill(updatedChild.hash, 0, 32)
     } else {
-      node.value.fill(updatedChild.hash, 32)
+      value.fill(updatedChild.hash, 32)
     }
-    node.hash = this.hashFunction(node.value)
-    return node
+
+    return {
+      key: node.key,
+      value,
+      hash: this.hashFunction(value),
+    }
   }
 
   /**
@@ -594,8 +682,11 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
       log.info(
         `Attempting to initialize SMT with root hash ${rootHash.toString(
           'hex'
+        )} and DB ID: ${this.getNodeIDFromHashAndKey(rootHash, ZERO).toString(
+          'hex'
         )}`
       )
+
       this.root = await this.getNode(rootHash, ZERO)
     }
 
@@ -612,9 +703,11 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
       )
     } else {
       log.info(
-        `Initialized Sparse Merkle Tree with root ${this.root.hash.toString(
+        `Initialized Sparse Merkle Tree with root hash [${this.root.hash.toString(
           'hex'
-        )}`
+        )}] and root value: [${
+          !!this.root.value ? this.root.value.toString('hex') : 'undefined'
+        }]`
       )
     }
   }
@@ -660,15 +753,16 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
    * @param node The node in question
    */
   private getNodeID(node: MerkleTreeNode): Buffer {
-    const id: Buffer = this.getNodeIDFromHashAndKey(node.hash, node.key)
-    log.debug(
-      `Node ID for key [${node.key}] is ${id.toString(
-        'hex'
-      )}. (node hash: ${node.hash.toString('hex')}`
-    )
-    return id
+    return this.getNodeIDFromHashAndKey(node.hash, node.key)
   }
 
+  /**
+   * Convenience function for consistency -- calculates the node ID from the provided info.
+   *
+   * @param nodeHash The hash of the node for which the ID will be calculated.
+   * @param nodeKey The key of the node for which the ID will be calculated.
+   * @returns the node's ID
+   */
   private getNodeIDFromHashAndKey(
     nodeHash: Buffer,
     nodeKey: BigNumber
@@ -678,5 +772,27 @@ export class SparseMerkleTreeImpl implements SparseMerkleTree {
         .fill(nodeHash, 0, 32)
         .fill(this.hashFunction(nodeKey.toBuffer(BIG_ENDIAN)), 32)
     )
+  }
+
+  /**
+   * Gets the batch update for a collection of MerkleTreeNodes.
+   *
+   * @param nodes The nodes to be batched
+   * @returns The PutBatch
+   */
+  private getNodePutBatch(nodes: MerkleTreeNode[]): PutBatch[] {
+    return nodes.map((n) => {
+      const nodeId: Buffer = this.getNodeID(n)
+      log.debug(
+        `Setting nodeID: ${nodeId.toString('hex')} to value: ${n.value.toString(
+          'hex'
+        )} (hash: ${this.hashFunction(n.value).toString('hex')}`
+      )
+      return {
+        type: PUT_BATCH_TYPE,
+        key: this.getNodeID(n),
+        value: n.value,
+      }
+    })
   }
 }

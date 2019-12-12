@@ -58,8 +58,8 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
 
   private readonly lock: AsyncLock
 
-  private tree: SparseMerkleTree
-  private subtrees: SparseMerkleTree[]
+  private tree: SparseMerkleTreeImpl
+  private subtrees: SparseMerkleTreeImpl[]
   private lastBlockSubmission: Date
   private pendingBlock: PendingBlock
 
@@ -227,8 +227,8 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
   }
 
   /**
-   * Submits a block to the main chain, creating a new pending block for future
-   * transitions.
+   * Submits a block to the main chain through the BlockSubmitter, creating a new
+   * pending block for future transactions.
    */
   private async submitBlock(): Promise<void> {
     log.debug(
@@ -298,6 +298,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
     // Let next block get appended to while we're building this block.
     const block: PendingBlock = this.pendingBlock
     // TODO: due to asynchrony, the block to build might be too big. Move txs into new block here if necessary.
+    //  See: https://github.com/plasma-group/optimistic-rollup/issues/39
     this.pendingBlock = {
       blockNumber: block.blockNumber + 1,
       transactionResults: [],
