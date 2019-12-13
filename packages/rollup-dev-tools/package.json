@@ -12,7 +12,8 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "transpile": "node ./build/src/transpiler/exec/transpiler.js"
   },
   "keywords": [
     "optimism",
@@ -30,6 +31,9 @@
     "url": "https://github.com/plasma-group/optimistic-rollup.git"
   },
   "dependencies": {
+    "@pigi/core-utils": "0.0.10-alpha.0",
+    "@pigi/rollup-core": "0.0.10-alpha.0",
+    "dotenv": "^8.2.0"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",
