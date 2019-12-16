@@ -12,7 +12,8 @@
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{deploy,test}/**/*.ts'",
     "build": "waffle waffle-config.json && tsc -p .",
-    "clean": "rimraf build/"
+    "clean": "rimraf build/",
+    "deploy:purity-checker": "yarn build && node ./build/deploy/purity-checker.js"
   },
   "keywords": [
     "optimistic",
@@ -47,9 +48,9 @@
   "dependencies": {
     "@pigi/core-utils": "^0.0.10-alpha.0",
     "@pigi/core-db": "^0.0.10-alpha.0",
+    "@pigi/rollup-core": "^0.0.10-alpha.0",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",
-    "debug": "^4.1.1",
     "ethereum-waffle": "^2.0.12",
     "ethers": "^4.0.37",
     "merkletreejs": "^0.1.7",
