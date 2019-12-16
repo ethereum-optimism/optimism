@@ -63,11 +63,11 @@ function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
 }
 
 /**
- * Creates an OpcodeReplacements from configuration.
+ * Gets the specified state manager address from configuration.
  *
- * @returns The constructed OpcodeReplacements if successful, undefined if not.
+ * @returns The hex string of the state manager address if successful, undefined if not.
  */
-function getStateManagerAddressBuf(defaultConfig: {}): Buffer | undefined {
+function getStateManagerAddress(defaultConfig: {}): string | undefined {
   const stateManagerAddress: string =
     process.env.STATE_MANAGER_ADDRESS || defaultConfig['STATE_MANAGER_ADDRESS']
   if (!stateManagerAddress) {
@@ -77,7 +77,7 @@ function getStateManagerAddressBuf(defaultConfig: {}): Buffer | undefined {
     return undefined
   }
 
-  log.info(`Using the following state manager address from config: [${stateManagerAddress}].`)
+  log.info(`Got the following state manager address from config: [${stateManagerAddress}].`)
 
   if (!(stateManagerAddress.length == 42 && stateManagerAddress.slice(0, 2) == '0x')) {
     log.error(
@@ -86,12 +86,7 @@ function getStateManagerAddressBuf(defaultConfig: {}): Buffer | undefined {
     return undefined
   }
 
-
-
-  const addressBuffer: Buffer = hexStrToBuf(stateManagerAddress)
-  log.info(`Returning state manager address as buffer: ${JSON.stringify(addressBuffer)}`)
-
-  return addressBuffer
+  return stateManagerAddress
 }
 
 /**
@@ -149,9 +144,9 @@ async function transpile() {
     return
   }
 
-  const stateManagerAddress: Buffer = getStateManagerAddressBuf(defaultConfig)
-  log.info(`SM address is : ${stateManagerAddress}`)
-
+  const stateManagerAddress: string = getStateManagerAddress(defaultConfig)
+  log.info(`SM address is : ${stateManagerAddress.toString()}`)
+  const opcodeReplacements = new OpcodeReplacementsImpl(stateManagerAddress)
   // TODO: Instantiate all of the things and call transpiler.transpile()
 }
 
