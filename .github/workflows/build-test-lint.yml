@@ -25,7 +25,80 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install
+      # START DEPENDENCY CACHING
+      - name: Cache root deps
+        uses: actions/cache@v1
+        id: cache_base
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('package.json') }}
+
+      - name: Cache core-db deps
+        uses: actions/cache@v1
+        id: cache_core-db
+        with:
+          path: packages/core-db/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/core-db/package.json') }}
+
+      - name: Cache core-utils deps
+        uses: actions/cache@v1
+        id: cache_core-utils
+        with:
+          path: packages/core-utils/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/core-utils/package.json') }}
+
+      - name: Cache ovm deps
+        uses: actions/cache@v1
+        id: cache_ovm
+        with:
+          path: packages/ovm/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/ovm/package.json') }}
+
+      - name: Cache plasma deps
+        uses: actions/cache@v1
+        id: cache_plasma
+        with:
+          path: packages/plasma/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/plasma/package.json') }}
+
+      - name: Cache rollup-aggregator deps
+        uses: actions/cache@v1
+        id: cache_rollup-aggregator
+        with:
+          path: packages/rollup-aggregator/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-aggregator/package.json') }}
+
+      - name: Cache rollup-contracts deps
+        uses: actions/cache@v1
+        id: cache_rollup-contracts
+        with:
+          path: packages/rollup-contracts/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-contracts/package.json') }}
+
+      - name: Cache rollup-core deps
+        uses: actions/cache@v1
+        id: cache_rollup-core
+        with:
+          path: packages/rollup-core/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-core/package.json') }}
+
+      - name: Cache rollup-dev-tools deps
+        uses: actions/cache@v1
+        id: cache_rollup-dev-tools
+        with:
+          path: packages/rollup-dev-tools/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-dev-tools/package.json') }}
+
+      - name: Cache types deps
+        uses: actions/cache@v1
+        id: cache_types
+        with:
+          path: packages/types/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/types/package.json') }}
+
+      # END DEPENDENCY CACHING
+
+      - name: Install Dependencies
         run: yarn install
 
       - name: Lint
