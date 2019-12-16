@@ -77,9 +77,16 @@ function getStateManagerAddress(defaultConfig: {}): string | undefined {
     return undefined
   }
 
-  log.info(`Got the following state manager address from config: [${stateManagerAddress}].`)
+  log.info(
+    `Got the following state manager address from config: [${stateManagerAddress}].`
+  )
 
-  if (!(stateManagerAddress.length == 42 && stateManagerAddress.slice(0, 2) == '0x')) {
+  if (
+    !(
+      stateManagerAddress.length === 42 &&
+      stateManagerAddress.slice(0, 2) === '0x'
+    )
+  ) {
     log.error(
       `[${stateManagerAddress}] does not appear to be a valid hex string address.`
     )
