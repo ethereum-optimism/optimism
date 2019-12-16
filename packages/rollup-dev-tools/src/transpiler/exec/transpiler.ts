@@ -1,6 +1,6 @@
 /* External Imports */
-import { EVMOpcode, Opcode } from '@pigi/rollup-core'
-import { getLogger, logError } from '@pigi/core-utils'
+import { EVMOpcode, Opcode, Address } from '@pigi/rollup-core'
+import { getLogger, logError, hexStrToBuf, remove0x } from '@pigi/core-utils'
 
 import * as fs from 'fs'
 import { config, parse } from 'dotenv'
@@ -8,7 +8,7 @@ import { resolve } from 'path'
 
 /* Internal Imports */
 import { OpcodeWhitelist } from '../../types/transpiler'
-import { OpcodeWhitelistImpl } from '../opcode-whitelist'
+import { OpcodeWhitelistImpl, OpcodeReplacementsImpl } from '../'
 
 const log = getLogger('transpiler')
 
@@ -60,6 +60,38 @@ function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
   }
 
   return new OpcodeWhitelistImpl(whiteListedOpCodes)
+}
+
+/**
+ * Creates an OpcodeReplacements from configuration.
+ *
+ * @returns The constructed OpcodeReplacements if successful, undefined if not.
+ */
+function getStateManagerAddressBuf(defaultConfig: {}): Buffer | undefined {
+  const stateManagerAddress: string =
+    process.env.STATE_MANAGER_ADDRESS || defaultConfig['STATE_MANAGER_ADDRESS']
+  if (!stateManagerAddress) {
+    log.error(
+      `No state manager address specified. Please configure STATE_MANAGER_ADDRESS in either 'config/.env.default' or as an environment variable.`
+    )
+    return undefined
+  }
+
+  log.info(`Using the following state manager address from config: [${stateManagerAddress}].`)
+
+  if (!(stateManagerAddress.length == 42 && stateManagerAddress.slice(0, 2) == '0x')) {
+    log.error(
+      `[${stateManagerAddress}] does not appear to be a valid hex string address.`
+    )
+    return undefined
+  }
+
+
+
+  const addressBuffer: Buffer = hexStrToBuf(stateManagerAddress)
+  log.info(`Returning state manager address as buffer: ${JSON.stringify(addressBuffer)}`)
+
+  return addressBuffer
 }
 
 /**
@@ -116,6 +148,9 @@ async function transpile() {
   if (!opcodeWhitelist) {
     return
   }
+
+  const stateManagerAddress: Buffer = getStateManagerAddressBuf(defaultConfig)
+  log.info(`SM address is : ${stateManagerAddress}`)
 
   // TODO: Instantiate all of the things and call transpiler.transpile()
 }
