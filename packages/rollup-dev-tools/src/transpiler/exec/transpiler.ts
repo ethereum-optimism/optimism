@@ -67,14 +67,14 @@ function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
  *
  * @returns The hex string of the state manager address if successful, undefined if not.
  */
-function getStateManagerAddress(defaultConfig: {}): string | undefined {
-  const stateManagerAddress: string =
+function getStateManagerAddress(defaultConfig: {}): Address {
+  const stateManagerAddress: Address =
     process.env.STATE_MANAGER_ADDRESS || defaultConfig['STATE_MANAGER_ADDRESS']
   if (!stateManagerAddress) {
     log.error(
       `No state manager address specified. Please configure STATE_MANAGER_ADDRESS in either 'config/.env.default' or as an environment variable.`
     )
-    return undefined
+    process.exit(1)
   }
 
   log.info(
@@ -90,7 +90,7 @@ function getStateManagerAddress(defaultConfig: {}): string | undefined {
     log.error(
       `[${stateManagerAddress}] does not appear to be a valid hex string address.`
     )
-    return undefined
+    process.exit(1)
   }
 
   return stateManagerAddress
@@ -151,7 +151,7 @@ async function transpile() {
     return
   }
 
-  const stateManagerAddress: string = getStateManagerAddress(defaultConfig)
+  const stateManagerAddress: Address = getStateManagerAddress(defaultConfig)
   log.info(`SM address is : ${stateManagerAddress.toString()}`)
   const opcodeReplacements = new OpcodeReplacementsImpl(stateManagerAddress)
   // TODO: Instantiate all of the things and call transpiler.transpile()
