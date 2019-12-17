@@ -19,21 +19,21 @@ const OpcodeReplacementsJSON = {
  * Interface defining the set of transpiled opcodes, and what bytecode to replace with.
  */
 export class OpcodeReplacementsImpl implements OpcodeReplacements {
-  private replacedOpcodes: EVMOpcode[] = []
-  private opcodeReplacementBytecodes: Map<EVMOpcode, EVMBytecode> = new Map<
+  private readonly replacedOpcodes: EVMOpcode[] = []
+  private readonly opcodeReplacementBytecodes: Map<
     EVMOpcode,
     EVMBytecode
-  >()
+  > = new Map<EVMOpcode, EVMBytecode>()
 
   constructor(stateManagerAddress: Address) {
-    log.info(
+    log.debug(
       `Parsing the following opcode replacement JSON string config: ${JSON.stringify(
         OpcodeReplacementsJSON
       )}`
     )
     for (const opcodeToReplaceStr in OpcodeReplacementsJSON) { // tslint:disable-line
       const opcodeToReplace: EVMOpcode = Opcode.parseByName(opcodeToReplaceStr)
-      log.info(
+      log.debug(
         `Parsing bytecode replacement for opcode [${opcodeToReplace.name}].`
       )
 
@@ -52,7 +52,7 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
         PUSH_STATE_MGR_ADDR
       )
       if (indexToReplaceAddressPush >= 0) {
-        log.info(
+        log.debug(
           `Found a PUSH_STATE_MGR_ADDR at index ${indexToReplaceAddressPush}.  Splicing in ['PUSH20', '${stateManagerAddress.toString()}'].`
         )
         // replace free var with PUSH20, 20-byte State Mgr Address
@@ -68,7 +68,13 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
       const replacementAsBytecode: EVMBytecode = []
       for (let i = 0; i < replacementArray.length; i++) {
         const op: EVMOpcode = Opcode.parseByName(replacementArray[i])
-        log.info(
+        if (op === undefined) {
+          log.error(
+            `Opcode replacement config JSON specified: [${replacementArray[i]}], which could not be parsed into an EVM Opcode.`
+          )
+          process.exit(1)
+        }
+        log.debug(
           `Parsing the ${i}th opcode in the replacement for ${opcodeToReplaceStr}, this opcode is: ${op.name}`
         )
         replacementAsBytecode[i] = op
@@ -76,12 +82,19 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
         // sanitize/typecheck PUSHes
         const bytesToConsume: number = op.programBytesConsumed
         if (bytesToConsume > 0) {
-          log.info(
+          log.debug(
             `Parsed the ${i}th bytcode replacement element for ${opcodeToReplaceStr} to be ${op.name}-- which is expected to consume ${bytesToConsume}.`
           )
           const consumedValueBuffer: Buffer = hexStrToBuf(
             replacementArray[i + 1]
           )
+          if (consumedValueBuffer === undefined) {
+            log.error(
+              `Final opcode in replacement array for ${opcodeToReplaceStr} was ${op.name}, but was not proceeded by any bytes to consume.`
+            )
+            process.exit(1)
+          }
+
           if (consumedValueBuffer.length !== bytesToConsume) {
             log.error(
               `The hex sring following the PUSH operation was 0x[${consumedValueBuffer.toString(
@@ -89,7 +102,7 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
               )}], which is the wrong length (${consumedValueBuffer.length}).`
             )
           }
-          log.info(
+          log.debug(
             `The proceeding hex string was found to be the right length for this PUSH.  Continuing...`
           )
           replacementAsBytecode[i + 1] = consumedValueBuffer
