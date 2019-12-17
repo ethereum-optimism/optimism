@@ -6,6 +6,7 @@ import {
 } from './transport.interface'
 import { Range } from './range'
 import { ZERO } from '../app'
+import { Address } from 'cluster'
 
 /**
  * Checks if a JSON-RPC response is an error response.
@@ -44,5 +45,12 @@ export const isValidRange = (range: any): range is Range => {
     !!range.end &&
     range.start.gte(ZERO) &&
     range.end.gt(range.start)
+  )
+}
+
+export const isHexStringAddress = (address: any): address is Address => {
+  return (
+    address.length === 42 &&
+    address.slice(0, 2) === '0x'
   )
 }
