@@ -5,7 +5,7 @@ import {
   JsonRpcResponse,
 } from './transport.interface'
 import { Range } from './range'
-import { ZERO } from '../app'
+import { ZERO, remove0x } from '../app'
 import { Address } from 'cluster'
 
 /**
@@ -50,7 +50,6 @@ export const isValidRange = (range: any): range is Range => {
 
 export const isHexStringAddress = (address: any): address is Address => {
   return (
-    address.length === 42 &&
-    address.slice(0, 2) === '0x'
+    remove0x(address).length === 40
   )
 }

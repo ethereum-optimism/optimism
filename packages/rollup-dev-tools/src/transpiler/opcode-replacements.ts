@@ -1,5 +1,5 @@
 /* External Imports */
-import { EVMOpcode, Opcode, EVMBytecode } from '@pigi/rollup-core'
+import { EVMOpcode, Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
 
 /* Internal Imports */
 import { OpcodeReplacements } from '../types/transpiler'
@@ -25,7 +25,7 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
     EVMBytecode
   >()
 
-  constructor(stateManagerAddress: string) {
+  constructor(stateManagerAddress: Address) {
     log.info(
       `Parsing the following opcode replacement JSON string config: ${JSON.stringify(
         OpcodeReplacementsJSON
