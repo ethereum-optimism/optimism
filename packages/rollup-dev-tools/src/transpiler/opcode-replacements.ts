@@ -99,11 +99,11 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
             log.error(
               `The hex sring following the PUSH operation was 0x[${consumedValueBuffer.toString(
                 'hex'
-              )}], which is the wrong length (${consumedValueBuffer.length}).`
+              )}], but was expecting ${bytesToConsume} bytes to consume.`
             )
           }
           log.debug(
-            `The proceeding hex string was found to be the right length for this PUSH.  Continuing...`
+            `The proceeding hex string was found to be the right length for this [${op.name}].  Continuing...`
           )
           replacementAsBytecode[i + 1] = consumedValueBuffer
           i++
@@ -129,6 +129,10 @@ export class OpcodeReplacementsImpl implements OpcodeReplacements {
   }
 
   public getOpcodeReplacement(opcode: EVMOpcode): EVMBytecode {
-    return this.opcodeReplacementBytecodes.get(opcode)
+    if (this.isOpcodeToReplace(opcode)) {
+        return this.opcodeReplacementBytecodes.get(opcode)
+    } else {
+        return [opcode]
+    }
   }
 }
