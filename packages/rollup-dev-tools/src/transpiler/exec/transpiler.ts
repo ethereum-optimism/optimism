@@ -13,7 +13,7 @@ import { resolve } from 'path'
 
 /* Internal Imports */
 import { OpcodeWhitelist } from '../../types/transpiler'
-import { OpcodeWhitelistImpl, OpcodeReplacementsImpl } from '../'
+import { OpcodeWhitelistImpl, OpcodeReplacerImpl } from '../'
 
 const log = getLogger('transpiler')
 
@@ -153,7 +153,7 @@ async function transpile() {
 
   const stateManagerAddress: Address = getStateManagerAddress(defaultConfig)
   log.info(`SM address is : ${stateManagerAddress.toString()}`)
-  const opcodeReplacements = new OpcodeReplacementsImpl(stateManagerAddress)
+  const opcodeReplacements = new OpcodeReplacerImpl(stateManagerAddress)
   // TODO: Instantiate all of the things and call transpiler.transpile()
 }
 

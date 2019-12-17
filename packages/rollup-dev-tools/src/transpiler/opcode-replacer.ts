@@ -2,7 +2,7 @@
 import { EVMOpcode, Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
 
 /* Internal Imports */
-import { OpcodeReplacements } from '../types/transpiler'
+import { OpcodeReplacer } from '../types/transpiler'
 import { hexStrToBuf, getLogger } from '@pigi/core-utils'
 
 const log = getLogger('transpiler:opcode-replacement')
@@ -18,7 +18,7 @@ const OpcodeReplacementsJSON = {
 /**
  * Interface defining the set of transpiled opcodes, and what bytecode to replace with.
  */
-export class OpcodeReplacementsImpl implements OpcodeReplacements {
+export class OpcodeReplacerImpl implements OpcodeReplacer {
   private readonly replacedOpcodes: EVMOpcode[] = []
   private readonly opcodeReplacementBytecodes: Map<
     EVMOpcode,

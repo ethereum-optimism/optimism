@@ -1,2 +1,2 @@
 export * from './opcode-whitelist'
-export * from './opcode-replacements'
+export * from './opcode-replacer'
