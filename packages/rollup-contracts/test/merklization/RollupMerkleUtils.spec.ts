@@ -4,36 +4,27 @@ import '../setup'
 import { makeRepeatedBytes } from '../helpers'
 
 /* External Imports */
+import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
 import {
-  createMockProvider,
-  deployContract,
-  link,
-  getWallets,
-} from 'ethereum-waffle'
-
-import {
-  keccak256,
   hexStrToBuf,
   bufToHexString,
   BigNumber,
+  getLogger,
 } from '@pigi/core-utils'
 
-import { newInMemoryDB, BaseDB, SparseMerkleTreeImpl } from '@pigi/core-db'
-
-import MemDown from 'memdown'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
 import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
 
 /* Logging */
-import debug from 'debug'
-const log = debug('test:info:merkle-utils')
+const log = getLogger('merkle-utils', true)
 
 async function createSMTfromDataBlocks(
   dataBlocks: Buffer[]
 ): Promise<SparseMerkleTreeImpl> {
   const treeHeight = Math.ceil(Math.log2(dataBlocks.length)) + 1 // The height should actually not be plus 1
-  log('Creating tree of height:', treeHeight - 1)
+  log.debug('Creating tree of height:', treeHeight - 1)
   const tree = await getNewSMT(treeHeight)
   for (let i = 0; i < dataBlocks.length; i++) {
     await tree.update(new BigNumber(i, 10), dataBlocks[i])
