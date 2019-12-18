@@ -4,7 +4,12 @@ export interface EVMOpcode {
   programBytesConsumed: number
 }
 
-export type EVMBytecode = Array<EVMOpcode | Buffer>
+export interface EVMOpcodeAndBytes {
+  opcode: EVMOpcode
+  consumedBytes: Buffer
+}
+
+export type EVMBytecode = EVMOpcodeAndBytes[]
 
 export class Opcode {
   public static readonly STOP: EVMOpcode = {

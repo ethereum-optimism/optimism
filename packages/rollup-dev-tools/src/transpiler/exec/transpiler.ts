@@ -1,9 +1,14 @@
 /* External Imports */
-import { EVMOpcode, Opcode, Address } from '@pigi/rollup-core'
+import {
+  EVMOpcode,
+  Opcode,
+  Address,
+  isValidOpcodeAndBytes,
+} from '@pigi/rollup-core'
 import {
   getLogger,
   logError,
-  isHexStringAddress,
+  isValidHexAddress,
   remove0x,
 } from '@pigi/core-utils'
 
@@ -86,7 +91,7 @@ function getStateManagerAddress(defaultConfig: {}): Address {
     `Got the following state manager address from config: [${stateManagerAddress}].`
   )
 
-  if (!isHexStringAddress(stateManagerAddress)) {
+  if (!isValidHexAddress(stateManagerAddress)) {
     log.error(
       `[${stateManagerAddress}] does not appear to be a valid hex string address.`
     )

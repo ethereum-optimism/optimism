@@ -48,8 +48,12 @@ export const isValidRange = (range: any): range is Range => {
   )
 }
 
-export const isHexStringAddress = (address: any): address is Address => {
-  return (
-    remove0x(address).length === 40
-  )
+/**
+ * Validates that the provided address hex string is the right length.
+ *
+ * @param address the string which is supposed to be a 20-byte address.
+ * @returns true if valid address hex string, false otherwise
+ */
+export const isValidHexAddress = (address: any): address is Address => {
+  return remove0x(address).length === 40
 }
