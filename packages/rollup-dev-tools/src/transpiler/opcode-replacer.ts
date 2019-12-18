@@ -11,6 +11,11 @@ import {
 /* Internal Imports */
 import { OpcodeReplacer } from '../types/transpiler'
 import {
+  InvalidAddressError,
+  OpcodeParseError,
+  InvalidBytesConsumedError,
+} from '../'
+import {
   hexStrToBuf,
   bufToHexString,
   getLogger,
@@ -36,11 +41,13 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
 
   constructor(
     private readonly stateManagerAddress: Address,
-    private replacementConfig = DefaultOpcodeReplacements as any) {
+    private replacementConfig = DefaultOpcodeReplacements as any
+  ) {
     if (!isValidHexAddress(stateManagerAddress)) {
       log.error(
         `Opcode replacer recieved ${stateManagerAddress} for the state manager address.  Not a valid hex string address!`
       )
+      throw new InvalidAddressError()
     }
   }
 
@@ -48,7 +55,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     log.debug(
       `Recieved a replacement request for ${JSON.stringify(opcodeAndBytes)}.`
     )
-    if (opcodeAndBytes.consumedBytes != undefined ) {
+    if (opcodeAndBytes.consumedBytes !== undefined) {
       if (opcodeAndBytes.consumedBytes.length > 0) {
         log.debug(
           `Transpilation currently does not support opcodes which consume bytes.  Transpiler requested a replacement for ${JSON.stringify(
@@ -59,8 +66,9 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
       }
     }
     const opcodeToReplace: EVMOpcode = opcodeAndBytes.opcode
-    const cfgReplacmentArray: string[] =
-      this.replacementConfig[opcodeToReplace.name]
+    const cfgReplacmentArray: string[] = this.replacementConfig[
+      opcodeToReplace.name
+    ]
     log.debug(
       `The replacement string for opcode [${
         opcodeToReplace.name
@@ -90,7 +98,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         log.error(
           `Opcode replacement config JSON specified: [${cfgReplacmentArray[i]}] at index ${i}, which could not be parsed into an EVM Opcode to return.`
         )
-        process.exit(1)
+        throw new OpcodeParseError()
       }
       log.debug(
         `Parsing the ${i}th opcode in the replacement for ${opcodeToReplace.name}, its name is: ${opInReplacement.name}.  Adding to replacement bytecode.`
@@ -121,6 +129,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
             consumedValueBuffer
           )}--invalid length!`
         )
+        throw new InvalidBytesConsumedError()
       } else {
         log.debug(
           `The proceeding hex string was found to be the right length for this [${opInReplacement.name}].  Continuing...`
