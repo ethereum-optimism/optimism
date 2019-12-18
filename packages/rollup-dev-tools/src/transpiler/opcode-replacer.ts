@@ -22,10 +22,6 @@ const log = getLogger('transpiler:opcode-replacement')
 // placeholder command for pushing state manager address onto stack
 const PUSH_STATE_MGR_ADDR = 'PUSH_STATE_MGR_ADDR'
 // the desired replacments themselves -- strings for opcodes, hex strings for pushable bytes
-const OpcodeReplacementsJSON = {
-  PUSH1: ['PUSH1', '0x00', PUSH_STATE_MGR_ADDR],
-  PUSH2: ['ADD', 'PUSH2', '0x0000'],
-}
 
 const DefaultOpcodeReplacements = {
   PUSH1: ['PUSH1', '0x00', PUSH_STATE_MGR_ADDR],
@@ -41,7 +37,9 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     EVMBytecode
   > = new Map<EVMOpcode, EVMBytecode>()
 
-  constructor(private readonly stateManagerAddress: Address) {
+  constructor(
+    private readonly stateManagerAddress: Address,
+    private replacementConfig = DefaultOpcodeReplacements as any) {
     if (!isValidHexAddress(stateManagerAddress)) {
       log.error(
         `Opcode replacer recieved ${stateManagerAddress} for the state manager address.  Not a valid hex string address!`
@@ -150,21 +148,23 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     log.debug(
       `Recieved a replacement request for ${JSON.stringify(opcodeAndBytes)}.`
     )
-    if (opcodeAndBytes.consumedBytes.length > 0) {
-      log.debug(
-        `Transpilation currently does not support opcodes which consume bytes.  Transpiler requested a replacement for ${JSON.stringify(
-          opcodeAndBytes
-        )}.  Not replacing, just returning...`
-      )
-      return [opcodeAndBytes]
+    if (opcodeAndBytes.consumedBytes != undefined ) {
+      if (opcodeAndBytes.consumedBytes.length > 0) {
+        log.debug(
+          `Transpilation currently does not support opcodes which consume bytes.  Transpiler requested a replacement for ${JSON.stringify(
+            opcodeAndBytes
+          )}.  Thus, not replacing, just returning...`
+        )
+        return [opcodeAndBytes]
+      }
     }
     const opcodeToReplace: EVMOpcode = opcodeAndBytes.opcode
-    const replacementConfig: string[] =
-      DefaultOpcodeReplacements[opcodeToReplace.name]
+    const cfgReplacmentArray: string[] =
+      this.replacementConfig[opcodeToReplace.name]
     log.debug(
       `The replacement string for opcode [${
         opcodeToReplace.name
-      }] is: ${JSON.stringify(replacementConfig)}.  Parsing...`
+      }] is: ${JSON.stringify(cfgReplacmentArray)}.  Parsing...`
     )
 
     // init replacement bytecode
@@ -172,7 +172,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
 
     // We want to replace all PUSH_STATE_MGR_ADDR with PUSH20 + the configured address.  Currently only works with max P_S_M_A per replacement.
     // Find where it is, if anywhere
-    // const indexToReplaceAddressPush = replacementConfig.indexOf(
+    // const indexToReplaceAddressPush = cfgReplacmentArray.indexOf(
     //   PUSH_STATE_MGR_ADDR
     // )
     // if (indexToReplaceAddressPush >= 0) {
@@ -187,8 +187,8 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     //   continue
     // }
 
-    for (let i = 0; i < replacementConfig.length; i++) {
-      if (replacementConfig[i] === PUSH_STATE_MGR_ADDR) {
+    for (let i = 0; i < cfgReplacmentArray.length; i++) {
+      if (cfgReplacmentArray[i] === PUSH_STATE_MGR_ADDR) {
         const stateManagerPush: EVMOpcodeAndBytes = {
           opcode: Ops.PUSH20,
           consumedBytes: hexStrToBuf(this.stateManagerAddress),
@@ -202,10 +202,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         continue
       }
 
-      const opInReplacement: EVMOpcode = Ops.parseByName(replacementConfig[i])
+      const opInReplacement: EVMOpcode = Ops.parseByName(cfgReplacmentArray[i])
       if (opInReplacement === undefined) {
         log.error(
-          `Opcode replacement config JSON specified: [${replacementConfig[i]}] at index ${i}, which could not be parsed into an EVM Opcode to return.`
+          `Opcode replacement config JSON specified: [${cfgReplacmentArray[i]}] at index ${i}, which could not be parsed into an EVM Opcode to return.`
         )
         process.exit(1)
       }
@@ -220,7 +220,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         log.debug(
           `Parsed the ${i}th bytecode replacement element for ${opcodeToReplace.name} to be ${opInReplacement.name}-- which is expected to consume ${bytesToConsume} bytes.`
         )
-        consumedValueBuffer = hexStrToBuf(replacementConfig[i + 1])
+        consumedValueBuffer = hexStrToBuf(cfgReplacmentArray[i + 1])
         // skip over the consumed bytees for next iteration of parsing
         i++
       }

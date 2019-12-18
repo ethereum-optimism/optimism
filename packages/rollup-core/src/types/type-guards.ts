@@ -10,8 +10,12 @@ import { EVMOpcodeAndBytes } from '../'
 export const isValidOpcodeAndBytes = (
   codeAndBytes: EVMOpcodeAndBytes
 ): boolean => {
-  return (
-    codeAndBytes.opcode.programBytesConsumed ===
-    codeAndBytes.consumedBytes.length
-  )
+    if (codeAndBytes.consumedBytes != undefined) {
+        return (
+            codeAndBytes.opcode.programBytesConsumed ===
+            codeAndBytes.consumedBytes.length
+            )
+    } else {
+        return codeAndBytes.opcode.programBytesConsumed === 0
+    }
 }
