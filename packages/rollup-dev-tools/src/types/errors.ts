@@ -6,18 +6,16 @@ export class InvalidAddressError extends Error {
   }
 }
 
-export class OpcodeParseError extends Error {
+export class InvalidBytesConsumedError extends Error {
   constructor() {
     super(
-      'Attempted to parse an opcode representation, but was unable to match to the EVM spec.'
+      "The specified bytes consumed does not match the opcode's actual consumed bytes."
     )
   }
 }
 
-export class InvalidBytesConsumedError extends Error {
+export class UnsupportedOpcodeError extends Error {
   constructor() {
-    super(
-      'Attempted to parse an opcode representation, but was unable to match to the EVM.'
-    )
+    super('Transpiler currently does not support the specified opcode.')
   }
 }

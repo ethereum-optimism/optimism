@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import {
-  Opcode,
+  Opcode as Ops,
   EVMOpcode,
   Address,
   EVMBytecode,
@@ -10,22 +10,13 @@ import {
 } from '@pigi/rollup-core'
 
 /* Internal imports */
-import { OpcodeReplacer } from '../../src/types/transpiler'
+import { OpcodeReplacer, InvalidBytesConsumedError } from '../../src/types'
 import { OpcodeReplacerImpl } from '../../src/transpiler'
 import { openSync } from 'fs'
 import { hexStrToBuf } from '@pigi/core-utils'
 
 const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000'
 describe('OpcodeReplacer', () => {
-  const testConfig = {
-    ADD: ['MUL'],
-    SUB: ['MUL', 'MUL'],
-    MUL: ['PUSH1', '0x00'],
-    CALL: ['PUSH2', '0x00'],
-    STATICCALL: ['PUSH2', '0x00'],
-    CALLCODE: ['PUSH_STATE_MGR_ADDR'],
-  }
-
   describe('Initialization', () => {
     it('Should throw if given invalid state manager address', () => {
       try {
@@ -39,82 +30,102 @@ describe('OpcodeReplacer', () => {
   })
 
   describe('Replacement Parsing', () => {
-    it('should throw if invalid opcode', () => {
-      const cfg = { ADD: ['PUSHTWO', '0x00'] }
+    it('returns the EVMOpcode as EVMBytecode if no replacement specified', () => {
+      const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
+        EVMOpcode,
+        EVMBytecode
+      >().set(Ops.ADD, [{ opcode: Ops.MUL, consumedBytes: undefined }])
+
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      try {
-        const replacedBytecode: EVMBytecode = replacer.getOpcodeReplacement({
-          opcode: Opcode.ADD,
-          consumedBytes: undefined,
-        })
-      } catch (err) {
-        // Success we threw an error!
-        return
-      }
-      throw new Error('Did not throw when expected!')
-    })
-    it('correctly parses and replaces a single opcode with another', () => {
-      const cfg = { ADD: ['MUL'] }
-      const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
-
-      const replacedBytecode: EVMBytecode = replacer.getOpcodeReplacement({
-        opcode: Opcode.ADD,
+      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+        opcode: Ops.MUL, // different opcode
         consumedBytes: undefined,
       })
       const expected: EVMBytecode = [
         {
-          opcode: Opcode.MUL,
+          opcode: Ops.MUL,
+          consumedBytes: undefined,
+        },
+      ]
+      replacedBytecode.should.deep.equal(expected)
+    })
+    it('correctly parses and replaces a single opcode with another', () => {
+      const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
+        EVMOpcode,
+        EVMBytecode
+      >().set(Ops.ADD, [{ opcode: Ops.MUL, consumedBytes: undefined }])
+
+      const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
+
+      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+        opcode: Ops.ADD,
+        consumedBytes: undefined,
+      })
+      const expected: EVMBytecode = [
+        {
+          opcode: Ops.MUL,
           consumedBytes: undefined,
         },
       ]
       replacedBytecode.should.deep.equal(expected)
     })
     it('correctly parses and replaces a single opcode with two others', () => {
-      const cfg = { ADD: ['MUL', 'MUL'] }
+      const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
+        EVMOpcode,
+        EVMBytecode
+      >().set(Ops.ADD, [
+        { opcode: Ops.MUL, consumedBytes: undefined },
+        { opcode: Ops.MUL, consumedBytes: undefined },
+      ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.getOpcodeReplacement({
-        opcode: Opcode.ADD,
+      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+        opcode: Ops.ADD,
         consumedBytes: undefined,
       })
       const expected: EVMBytecode = [
         {
-          opcode: Opcode.MUL,
+          opcode: Ops.MUL,
           consumedBytes: undefined,
         },
         {
-          opcode: Opcode.MUL,
+          opcode: Ops.MUL,
           consumedBytes: undefined,
         },
       ]
       replacedBytecode.should.deep.equal(expected)
     })
     it('correctly parses and replaces a single PUSH1', () => {
-      const cfg = { ADD: ['PUSH1', '0x00'] }
+      const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
+        EVMOpcode,
+        EVMBytecode
+      >().set(Ops.ADD, [
+        { opcode: Ops.PUSH1, consumedBytes: hexStrToBuf('0x00') },
+      ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.getOpcodeReplacement({
-        opcode: Opcode.ADD,
+      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+        opcode: Ops.ADD,
         consumedBytes: undefined,
       })
       const expected: EVMBytecode = [
         {
-          opcode: Opcode.PUSH1,
-          consumedBytes: Buffer.from('00', 'hex'),
+          opcode: Ops.PUSH1,
+          consumedBytes: hexStrToBuf('0x00'),
         },
       ]
       replacedBytecode.should.deep.equal(expected)
     })
-    it('correctly identifies when a PUSH is followed by wrong num bytes and throws', () => {
-      const cfg = { ADD: ['PUSH2', '0x00'] }
-      const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
-
+    it('correctly identifies when a PUSH2 is followed by wrong num bytes and throws', () => {
+      const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
+        EVMOpcode,
+        EVMBytecode
+      >().set(Ops.ADD, [
+        { opcode: Ops.PUSH2, consumedBytes: hexStrToBuf('0x00') },
+      ])
       try {
-        const replacedBytecode: EVMBytecode = replacer.getOpcodeReplacement({
-          opcode: Opcode.ADD,
-          consumedBytes: undefined,
-        })
+        new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
       } catch (err) {
         // Success we threw an error!
         return
@@ -122,16 +133,24 @@ describe('OpcodeReplacer', () => {
       throw new Error('Did not throw when expected!')
     })
     it('correctly parses and replaces a push for the state manager', () => {
-      const cfg = { ADD: ['PUSH_STATE_MGR_ADDR'] }
+      const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
+        EVMOpcode,
+        EVMBytecode
+      >().set(Ops.ADD, [
+        {
+          opcode: Ops.PUSH20,
+          consumedBytes: OpcodeReplacerImpl.EX_MGR_PLACEHOLDER,
+        },
+      ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.getOpcodeReplacement({
-        opcode: Opcode.ADD,
+      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+        opcode: Ops.ADD,
         consumedBytes: undefined,
       })
       const expected: EVMBytecode = [
         {
-          opcode: Opcode.PUSH20,
+          opcode: Ops.PUSH20,
           consumedBytes: hexStrToBuf(ZERO_ADDRESS),
         },
       ]
