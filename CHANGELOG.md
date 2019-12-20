@@ -1,3 +1,55 @@
+## 0.0.3 (November 10, 2019)
+
+NEW FEATURES:
+
+* Implement Plamsa Contract integration
+  - [x] Submit Block
+  - [x] Set Authority
+  - [x] Submit Deposit Block
+  - [x] Activate Child Chain
+* Added Smoke Test for Plasma
+  - [x] Truffle docker container
+  - [x] Pull latest from OmiseGO plasma-contracts
+  - [x] Builds and Deploys 
+  - [x] Integrates with Ganache and Vault in `make run` for full integration test
+
+IMPROVEMENTS:
+
+* Separated Smoke Tests
+* Wallet Smoke Test 
+  - [x] Configure Mount
+  - [x] Create Wallet (BIP44) Without Mnemonic
+  - [x] Create Wallet (BIP44) With Mnemonic
+  - [x] List Wallets
+  - [x] Create New Account
+  - [x] Check Account Balance
+  - [x] Transfer ETH
+  - [x] Sign Raw TX
+  - [x] Sign Raw TX (Encoded)
+  - [x] Export JSON Keystore from Account
+* Smoke Test for Whitelisting
+  - [x] Whitelist Address at an Account
+  - [x] Whitelist Address at a Wallet
+  - [x] Whitelist Address Globally
+* Smoke Test for Blacklisting
+  - [x] Blacklist Address at an Account
+  - [x] Blacklist Address at a Wallet
+  - [x] Blacklist Address Globally
+* Smoke Test for ERC20
+  - [x] Deploy Contract (FixedSupplyToken)
+  - [x] Total Token Supply
+  - [x] Token Balance
+  - [x] Transfer Token
+* Smoke Test for Plasma
+  - [x] Submit Block
+  - [x] Set Authority
+  - [x] Submit Deposit Block
+  - [x] Activate Child Chain
+
+BUG FIXES:
+
+* N/A
+
 ## 0.0.2 (October 26, 2019)
 
 NEW FEATURES:
