@@ -4,6 +4,13 @@ export interface EVMOpcode {
   programBytesConsumed: number
 }
 
+export interface EVMOpcodeAndBytes {
+  opcode: EVMOpcode
+  consumedBytes: Buffer
+}
+
+export type EVMBytecode = EVMOpcodeAndBytes[]
+
 export class Opcode {
   public static readonly STOP: EVMOpcode = {
     code: Buffer.from('00', 'hex'),

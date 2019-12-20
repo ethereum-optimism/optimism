@@ -1,6 +1,16 @@
 /* External Imports */
-import { EVMOpcode, Opcode } from '@pigi/rollup-core'
-import { getLogger, logError } from '@pigi/core-utils'
+import {
+  EVMOpcode,
+  Opcode,
+  Address,
+  isValidOpcodeAndBytes,
+} from '@pigi/rollup-core'
+import {
+  getLogger,
+  logError,
+  isValidHexAddress,
+  remove0x,
+} from '@pigi/core-utils'
 
 import * as fs from 'fs'
 import { config, parse } from 'dotenv'
@@ -8,7 +18,7 @@ import { resolve } from 'path'
 
 /* Internal Imports */
 import { OpcodeWhitelist } from '../../types/transpiler'
-import { OpcodeWhitelistImpl } from '../opcode-whitelist'
+import { OpcodeWhitelistImpl, OpcodeReplacerImpl } from '../'
 
 const log = getLogger('transpiler')
 
@@ -60,6 +70,35 @@ function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
   }
 
   return new OpcodeWhitelistImpl(whiteListedOpCodes)
+}
+
+/**
+ * Gets the specified state manager address from configuration.
+ *
+ * @returns The hex string of the state manager address if successful, undefined if not.
+ */
+function getStateManagerAddress(defaultConfig: {}): Address {
+  const stateManagerAddress: Address =
+    process.env.STATE_MANAGER_ADDRESS || defaultConfig['STATE_MANAGER_ADDRESS']
+  if (!stateManagerAddress) {
+    log.error(
+      `No state manager address specified. Please configure STATE_MANAGER_ADDRESS in either 'config/.env.default' or as an environment variable.`
+    )
+    process.exit(1)
+  }
+
+  log.info(
+    `Got the following state manager address from config: [${stateManagerAddress}].`
+  )
+
+  if (!isValidHexAddress(stateManagerAddress)) {
+    log.error(
+      `[${stateManagerAddress}] does not appear to be a valid hex string address.`
+    )
+    process.exit(1)
+  }
+
+  return stateManagerAddress
 }
 
 /**
@@ -117,6 +156,9 @@ async function transpile() {
     return
   }
 
+  const stateManagerAddress: Address = getStateManagerAddress(defaultConfig)
+  log.info(`SM address is : ${stateManagerAddress.toString()}`)
+  const opcodeReplacements = new OpcodeReplacerImpl(stateManagerAddress)
   // TODO: Instantiate all of the things and call transpiler.transpile()
 }
 

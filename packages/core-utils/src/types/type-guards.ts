@@ -5,7 +5,11 @@ import {
   JsonRpcResponse,
 } from './transport.interface'
 import { Range } from './range'
-import { ZERO } from '../app'
+import { ZERO, add0x } from '../app'
+import { Address } from 'cluster'
+
+/* External Imports */
+import { ethers } from 'ethers'
 
 /**
  * Checks if a JSON-RPC response is an error response.
@@ -45,4 +49,19 @@ export const isValidRange = (range: any): range is Range => {
     range.start.gte(ZERO) &&
     range.end.gt(range.start)
   )
+}
+
+/**
+ * Validates that the provided address hex string is the right length.
+ *
+ * @param address the string which is supposed to be a 20-byte address.
+ * @returns true if valid address hex string, false otherwise
+ */
+export const isValidHexAddress = (address: any): address is Address => {
+  try {
+    ethers.utils.getAddress(add0x(address))
+    return true
+  } catch {
+    return false
+  }
 }
