@@ -76,9 +76,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         'hex'
       )
     }
-    for (const entry of opcodeReplacementBytecodes.entries()) {
-      const toReplace: EVMOpcode = entry[0]
-      const bytecodeToRelpaceWith: EVMBytecode = entry[1]
+    for (const [toReplace, bytecodeToRelpaceWith] of opcodeReplacementBytecodes.entries()) {
       // Make sure we're not attempting to overwrite PUSHN, not yet supported
       if (toReplace.programBytesConsumed > 0) {
         log.error(
