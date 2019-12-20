@@ -13,7 +13,7 @@ import {
 import { OpcodeReplacer, InvalidBytesConsumedError } from '../../src/types'
 import { OpcodeReplacerImpl } from '../../src/transpiler'
 import { openSync } from 'fs'
-import { hexStrToBuf } from '@pigi/core-utils'
+import { hexStrToBuf, TestUtils } from '@pigi/core-utils'
 
 const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000'
 describe('OpcodeReplacer', () => {
@@ -50,6 +50,7 @@ describe('OpcodeReplacer', () => {
       ]
       replacedBytecode.should.deep.equal(expected)
     })
+
     it('correctly parses and replaces a single opcode with another', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
@@ -62,14 +63,10 @@ describe('OpcodeReplacer', () => {
         opcode: Ops.ADD,
         consumedBytes: undefined,
       })
-      const expected: EVMBytecode = [
-        {
-          opcode: Ops.MUL,
-          consumedBytes: undefined,
-        },
-      ]
-      replacedBytecode.should.deep.equal(expected)
+
+      replacedBytecode.should.deep.equal(cfg.get(Ops.ADD))
     })
+
     it('correctly parses and replaces a single opcode with two others', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
@@ -84,18 +81,10 @@ describe('OpcodeReplacer', () => {
         opcode: Ops.ADD,
         consumedBytes: undefined,
       })
-      const expected: EVMBytecode = [
-        {
-          opcode: Ops.MUL,
-          consumedBytes: undefined,
-        },
-        {
-          opcode: Ops.MUL,
-          consumedBytes: undefined,
-        },
-      ]
-      replacedBytecode.should.deep.equal(expected)
+
+      replacedBytecode.should.deep.equal(cfg.get(Ops.ADD))
     })
+
     it('correctly parses and replaces a single PUSH1', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
@@ -109,14 +98,10 @@ describe('OpcodeReplacer', () => {
         opcode: Ops.ADD,
         consumedBytes: undefined,
       })
-      const expected: EVMBytecode = [
-        {
-          opcode: Ops.PUSH1,
-          consumedBytes: hexStrToBuf('0x00'),
-        },
-      ]
-      replacedBytecode.should.deep.equal(expected)
+
+      replacedBytecode.should.deep.equal(cfg.get(Ops.ADD))
     })
+
     it('correctly identifies when a PUSH2 is followed by wrong num bytes and throws', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
@@ -124,14 +109,11 @@ describe('OpcodeReplacer', () => {
       >().set(Ops.ADD, [
         { opcode: Ops.PUSH2, consumedBytes: hexStrToBuf('0x00') },
       ])
-      try {
+      TestUtils.assertThrows(() => {
         new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
-      } catch (err) {
-        // Success we threw an error!
-        return
-      }
-      throw new Error('Did not throw when expected!')
+      }, InvalidBytesConsumedError)
     })
+
     it('correctly parses and replaces a push for the state manager', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
@@ -142,7 +124,8 @@ describe('OpcodeReplacer', () => {
           consumedBytes: OpcodeReplacerImpl.EX_MGR_PLACEHOLDER,
         },
       ])
-      const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
+      const executionManagerAddress = ZERO_ADDRESS
+      const replacer = new OpcodeReplacerImpl(executionManagerAddress, cfg)
 
       const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
         opcode: Ops.ADD,
@@ -151,7 +134,7 @@ describe('OpcodeReplacer', () => {
       const expected: EVMBytecode = [
         {
           opcode: Ops.PUSH20,
-          consumedBytes: hexStrToBuf(ZERO_ADDRESS),
+          consumedBytes: hexStrToBuf(executionManagerAddress),
         },
       ]
       replacedBytecode.should.deep.equal(expected)
