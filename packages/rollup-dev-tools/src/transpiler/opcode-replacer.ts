@@ -26,8 +26,6 @@ import {
 
 const log = getLogger('transpiler:opcode-replacement')
 
-// placeholder command for pushing state manager address onto stack
-const PUSH_STATE_MGR_ADDR = 'PUSH_STATE_MGR_ADDR'
 // the desired replacments themselves -- strings for opcodes, hex strings for pushable bytes
 
 const DefaultOpcodeReplacementsMap: Map<EVMOpcode, EVMBytecode> = new Map<
@@ -47,23 +45,23 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   public static EX_MGR_PLACEHOLDER: Buffer = Buffer.from(
     `{execution manager address placeholder}`
   )
-  private readonly stateManagerAddressBuffer: Buffer
+  private readonly excutionManagerAddressBuffer: Buffer
   constructor(
-    stateManagerAddress: Address,
+    executionManagerAddress: Address,
     private readonly opcodeReplacementBytecodes: Map<
       EVMOpcode,
       EVMBytecode
     > = DefaultOpcodeReplacementsMap
   ) {
     // check and store address
-    if (!isValidHexAddress(stateManagerAddress)) {
+    if (!isValidHexAddress(executionManagerAddress)) {
       log.error(
-        `Opcode replacer recieved ${stateManagerAddress} for the state manager address.  Not a valid hex string address!`
+        `Opcode replacer recieved ${executionManagerAddress} for the execution manager address.  Not a valid hex string address!`
       )
       throw new InvalidAddressError()
     } else {
-      this.stateManagerAddressBuffer = Buffer.from(
-        remove0x(stateManagerAddress),
+      this.excutionManagerAddressBuffer = Buffer.from(
+        remove0x(executionManagerAddress),
         'hex'
       )
     }
@@ -87,7 +85,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
           opcodeAndBytesInReplacement.consumedBytes ===
           OpcodeReplacerImpl.EX_MGR_PLACEHOLDER
         ) {
-          opcodeAndBytesInReplacement.consumedBytes = this.stateManagerAddressBuffer
+          opcodeAndBytesInReplacement.consumedBytes = this.excutionManagerAddressBuffer
         }
         // ...type check consumed bytes are the right length
         if (!isValidOpcodeAndBytes(opcodeAndBytesInReplacement)) {

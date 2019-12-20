@@ -18,7 +18,7 @@ import { hexStrToBuf, TestUtils } from '@pigi/core-utils'
 const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000'
 describe('OpcodeReplacer', () => {
   describe('Initialization', () => {
-    it('Should throw if given invalid state manager address', () => {
+    it('Should throw if given invalid execution manager address', () => {
       try {
         new OpcodeReplacerImpl('0xnotAnAddr')
       } catch (err) {
@@ -114,7 +114,7 @@ describe('OpcodeReplacer', () => {
       }, InvalidBytesConsumedError)
     })
 
-    it('correctly parses and replaces a push for the state manager', () => {
+    it('correctly parses and replaces a push for the execution manager', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
         EVMBytecode
