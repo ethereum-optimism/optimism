@@ -10,6 +10,6 @@ require (
 	github.com/hashicorp/vault/sdk v0.1.13
 	github.com/immutability-io/go-ethereum-hdwallet v0.0.0-20190728144135-ecdde4803440
 	github.com/pborman/uuid v1.2.0
-	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	github.com/tyler-smith/go-bip39 v1.0.2
+	golang.org/x/crypto v0.0.0-20191219195013-becbf705a915
 )

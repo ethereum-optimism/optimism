@@ -119,8 +119,8 @@ func EntropyFromMnemonic(mnemonic string) ([]byte, error) {
 	// Decode the words into a big.Int.
 	b := big.NewInt(0)
 	for _, v := range mnemonicSlice {
-		index, found := wordMap[v]
-		if found == false {
+		index, ok := wordMap[v]
+		if !ok {
 			return nil, fmt.Errorf("word `%v` not found in reverse map", v)
 		}
 		var wordBytes [2]byte
@@ -143,7 +143,11 @@ func EntropyFromMnemonic(mnemonic string) ([]byte, error) {
 	entropy = padByteSlice(entropy, len(mnemonicSlice)/3*4)
 
 	// Generate the checksum and compare with the one we got from the mneomnic.
-	entropyChecksumBytes := computeChecksum(entropy)
+	entropyChecksumBytes, err := computeChecksum(entropy)
+	if err != nil {
+		return nil, err
+	}
+
 	entropyChecksum := big.NewInt(int64(entropyChecksumBytes[0]))
 	if l := len(mnemonicSlice); l != 24 {
 		checksumShift := wordLengthChecksumShiftMapping[l]
@@ -173,7 +177,10 @@ func NewMnemonic(entropy []byte) (string, error) {
 	}
 
 	// Add checksum to entropy.
-	entropy = addChecksum(entropy)
+	entropy, err = addChecksum(entropy)
+	if err != nil {
+		return "", err
+	}
 
 	// Break entropy up into sentenceLength chunks of 11 bits.
 	// For each word AND mask the rightmost 11 bits and find the word at that index.
@@ -241,7 +248,12 @@ func MnemonicToByteArray(mnemonic string, raw ...bool) ([]byte, error) {
 	checksummedEntropyBytes := padByteSlice(checksummedEntropy.Bytes(), fullByteSize)
 
 	// Validate that the checksum is correct.
-	newChecksummedEntropyBytes := padByteSlice(addChecksum(rawEntropyBytes), fullByteSize)
+	unpaddedChecksumedBytes, err := addChecksum(rawEntropyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	newChecksummedEntropyBytes := padByteSlice(unpaddedChecksumedBytes, fullByteSize)
 	if !compareByteSlices(checksummedEntropyBytes, newChecksummedEntropyBytes) {
 		return nil, ErrChecksumIncorrect
 	}
@@ -296,9 +308,13 @@ func IsMnemonicValid(mnemonic string) bool {
 
 // Appends to data the first (len(data) / 32)bits of the result of sha256(data)
 // Currently only supports data up to 32 bytes
-func addChecksum(data []byte) []byte {
+func addChecksum(data []byte) ([]byte, error) {
 	// Get first byte of sha256
-	hash := computeChecksum(data)
+	hash, err := computeChecksum(data)
+	if err != nil {
+		return nil, err
+	}
+
 	firstChecksumByte := hash[0]
 
 	// len() is in bytes so we divide by 4
@@ -313,18 +329,21 @@ func addChecksum(data []byte) []byte {
 		dataBigInt.Mul(dataBigInt, bigTwo)
 
 		// Set rightmost bit if leftmost checksum bit is set
-		if uint8(firstChecksumByte&(1<<(7-i))) > 0 {
+		if firstChecksumByte&(1<<(7-i)) > 0 {
 			dataBigInt.Or(dataBigInt, bigOne)
 		}
 	}
 
-	return dataBigInt.Bytes()
+	return dataBigInt.Bytes(), nil
 }
 
-func computeChecksum(data []byte) []byte {
+func computeChecksum(data []byte) ([]byte, error) {
 	hasher := sha256.New()
-	hasher.Write(data)
-	return hasher.Sum(nil)
+	_, err := hasher.Write(data)
+	if err != nil {
+		return nil, err
+	}
+	return hasher.Sum(nil), nil
 }
 
 // validateEntropyBitSize ensures that entropy is the correct size for being a
