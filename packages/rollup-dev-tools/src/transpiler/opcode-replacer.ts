@@ -48,13 +48,9 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     `{execution manager address placeholder}`
   )
   private readonly stateManagerAddressBuffer: Buffer
-  private readonly replacements: Map<
-    EVMOpcode,
-    EVMBytecode
-  > = DefaultOpcodeReplacementsMap
   constructor(
     stateManagerAddress: Address,
-    opcodeReplacementBytecodes: Map<
+    private readonly opcodeReplacementBytecodes: Map<
       EVMOpcode,
       EVMBytecode
     > = DefaultOpcodeReplacementsMap
@@ -85,7 +81,6 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         throw new UnsupportedOpcodeError()
       }
       // for each operation in the replacement bytecode for this toReplace...
-      // for (let i = 0; i < bytecodeToReplaceWith.length; i++) {
       for (const opcodeAndBytesInReplacement of bytecodeToReplaceWith) {
         // ... replace execution manager plpaceholder
         if (
@@ -103,21 +98,22 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
               toReplace.name
             }, but the consumed bytes specified was ${bufToHexString(
               opcodeAndBytesInReplacement.consumedBytes
-            )}--invalid length!`
+            )}--invalid length! (length ${
+              opcodeAndBytesInReplacement.consumedBytes.length
+            })`
           )
           throw new InvalidBytesConsumedError()
         }
       }
       // store the subbed and typechecked version in mapping
-      this.replacements.set(toReplace, bytecodeToReplaceWith)
     }
   }
 
   public replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
-    if (!this.replacements.has(opcodeAndBytes.opcode)) {
+    if (!this.opcodeReplacementBytecodes.has(opcodeAndBytes.opcode)) {
       return [opcodeAndBytes]
     } else {
-      return this.replacements.get(opcodeAndBytes.opcode)
+      return this.opcodeReplacementBytecodes.get(opcodeAndBytes.opcode)
     }
   }
 }
