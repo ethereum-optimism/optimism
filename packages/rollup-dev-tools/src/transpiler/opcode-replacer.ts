@@ -109,6 +109,12 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     }
   }
 
+  /**
+   * Gets the specified replacment bytecode for a given EVM opcode and bytes
+   * @param opcodeAndBytes EVM opcode and comsumed bytes which is supposed to be replacd.
+   *
+   * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
+   */
   public replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
     if (!this.opcodeReplacementBytecodes.has(opcodeAndBytes.opcode)) {
       return [opcodeAndBytes]
