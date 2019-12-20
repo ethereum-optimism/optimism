@@ -319,16 +319,29 @@ func (t *Table) ClearFooter() {
 	t.footers = [][]string{}
 }
 
+// Center based on position and border.
+func (t *Table) center(i int) string {
+	if i == -1 && !t.borders.Left {
+		return t.pRow
+	}
+
+	if i == len(t.cs)-1 && !t.borders.Right {
+		return t.pRow
+	}
+
+	return t.pCenter
+}
+
 // Print line based on row width
 func (t *Table) printLine(nl bool) {
-	fmt.Fprint(t.out, t.pCenter)
+	fmt.Fprint(t.out, t.center(-1))
 	for i := 0; i < len(t.cs); i++ {
 		v := t.cs[i]
 		fmt.Fprintf(t.out, "%s%s%s%s",
 			t.pRow,
 			strings.Repeat(string(t.pRow), v),
 			t.pRow,
-			t.pCenter)
+			t.center(i))
 	}
 	if nl {
 		fmt.Fprint(t.out, t.newLine)
@@ -517,6 +530,9 @@ func (t *Table) printFooter() {
 
 		// Print first junction
 		if i == 0 {
+			if length > 0 && !t.borders.Left {
+				center = t.pRow
+			}
 			fmt.Fprint(t.out, center)
 		}
 
@@ -524,16 +540,27 @@ func (t *Table) printFooter() {
 		if length == 0 {
 			pad = SPACE
 		}
-		// Ignore left space of it has printed before
+		// Ignore left space as it has printed before
 		if hasPrinted || t.borders.Left {
 			pad = t.pRow
 			center = t.pCenter
 		}
 
+		// Change Center end position
+		if center != SPACE {
+			if i == end && !t.borders.Right {
+				center = t.pRow
+			}
+		}
+
 		// Change Center start position
 		if center == SPACE {
 			if i < end && len(t.footers[i+1][0]) != 0 {
-				center = t.pCenter
+				if !t.borders.Left {
+					center = t.pRow
+				} else {
+					center = t.pCenter
+				}
 			}
 		}
 
@@ -706,6 +733,11 @@ func (t *Table) printRowMergeCells(writer io.Writer, columns [][]string, rowIdx 
 	// Pad Each Height
 	pads := []int{}
 
+	// Checking for ANSI escape sequences for columns
+	is_esc_seq := false
+	if len(t.columnsParams) > 0 {
+		is_esc_seq = true
+	}
 	for i, line := range columns {
 		length := len(line)
 		pad := max - length
@@ -726,6 +758,11 @@ func (t *Table) printRowMergeCells(writer io.Writer, columns [][]string, rowIdx 
 			fmt.Fprintf(writer, SPACE)
 
 			str := columns[y][x]
+
+			// Embedding escape sequence with column value
+			if is_esc_seq {
+				str = format(str, t.columnsParams[y])
+			}
 
 			if t.autoMergeCells {
 				//Store the full line to merge mutli-lines cells

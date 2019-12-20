@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/vault/sdk/logical"
-	"gitlab.com/shearline-gateway/omisego/util"
+	"github.com/omisego/immutability-eth-plugin/util"
 )
 
 func createWallet(t *testing.T, path string, b logical.Backend, storage logical.Storage) map[string]interface{} {

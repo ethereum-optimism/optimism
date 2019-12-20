@@ -54,10 +54,6 @@ func Map(f *os.File, prot, flags int) (MMap, error) {
 // If length < 0, the entire file will be mapped.
 // If ANON is set in flags, f is ignored.
 func MapRegion(f *os.File, length int, prot, flags int, offset int64) (MMap, error) {
-	if offset%int64(os.Getpagesize()) != 0 {
-		return nil, errors.New("offset parameter must be a multiple of the system's page size")
-	}
-
 	var fd uintptr
 	if flags&ANON == 0 {
 		fd = uintptr(f.Fd())
@@ -81,27 +77,25 @@ func (m *MMap) header() *reflect.SliceHeader {
 	return (*reflect.SliceHeader)(unsafe.Pointer(m))
 }
 
-func (m *MMap) addrLen() (uintptr, uintptr) {
-	header := m.header()
-	return header.Data, uintptr(header.Len)
-}
-
 // Lock keeps the mapped region in physical memory, ensuring that it will not be
 // swapped out.
 func (m MMap) Lock() error {
-	return m.lock()
+	dh := m.header()
+	return lock(dh.Data, uintptr(dh.Len))
 }
 
 // Unlock reverses the effect of Lock, allowing the mapped region to potentially
 // be swapped out.
 // If m is already unlocked, aan error will result.
 func (m MMap) Unlock() error {
-	return m.unlock()
+	dh := m.header()
+	return unlock(dh.Data, uintptr(dh.Len))
 }
 
 // Flush synchronizes the mapping's contents to the file's contents on disk.
 func (m MMap) Flush() error {
-	return m.flush()
+	dh := m.header()
+	return flush(dh.Data, uintptr(dh.Len))
 }
 
 // Unmap deletes the memory mapped region, flushes any remaining changes, and sets
@@ -111,7 +105,8 @@ func (m MMap) Flush() error {
 // Unmap should only be called on the slice value that was originally returned from
 // a call to Map. Calling Unmap on a derived slice may cause errors.
 func (m *MMap) Unmap() error {
-	err := m.unmap()
+	dh := m.header()
+	err := unmap(dh.Data, uintptr(dh.Len))
 	*m = nil
 	return err
 }

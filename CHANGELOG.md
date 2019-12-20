@@ -18,7 +18,7 @@ IMPROVEMENTS:
 
 BUG FIXES:
 
-* N/A
+* Removed imports of `gitlab.com/shearline-gateway`
 
 ## 0.0.3 (November 10, 2019)
 

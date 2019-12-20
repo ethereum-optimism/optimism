@@ -226,14 +226,8 @@ func (set *threadSafeSet) String() string {
 
 func (set *threadSafeSet) PowerSet() Set {
 	set.RLock()
-	unsafePowerSet := set.s.PowerSet().(*threadUnsafeSet)
+	ret := set.s.PowerSet()
 	set.RUnlock()
-
-	ret := &threadSafeSet{s: newThreadUnsafeSet()}
-	for subset := range unsafePowerSet.Iter() {
-		unsafeSubset := subset.(*threadUnsafeSet)
-		ret.Add(&threadSafeSet{s: *unsafeSubset})
-	}
 	return ret
 }
 

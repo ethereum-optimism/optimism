@@ -21,7 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"gitlab.com/shearline-gateway/omisego/util"
+	"github.com/omisego/immutability-eth-plugin/util"
 )
 
 // AccountJSON is what we store for an Ethereum address

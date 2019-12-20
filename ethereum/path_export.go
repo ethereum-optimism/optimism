@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/pborman/uuid"
 	"github.com/tyler-smith/go-bip39"
-	"gitlab.com/shearline-gateway/omisego/util"
+	"github.com/omisego/immutability-eth-plugin/util"
 )
 
 // ExportPaths are the path handlers for Ethereum wallets

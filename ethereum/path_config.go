@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"gitlab.com/shearline-gateway/omisego/util"
+	"github.com/omisego/immutability-eth-plugin/util"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/hashicorp/errwrap"
