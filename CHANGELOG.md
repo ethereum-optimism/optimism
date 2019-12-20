@@ -13,6 +13,8 @@ IMPROVEMENTS:
 * Wallet Smoke Test 
   - [x] Remove test for Export JSON Keystore from Account
 * Document Networking Recommendations
+* Refine Plamsa Contract integration
+  - [x] Remove Set Authority
 
 BUG FIXES:
 
