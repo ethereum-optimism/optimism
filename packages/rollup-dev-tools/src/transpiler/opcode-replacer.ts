@@ -30,11 +30,6 @@ const log = getLogger('transpiler:opcode-replacement')
 const PUSH_STATE_MGR_ADDR = 'PUSH_STATE_MGR_ADDR'
 // the desired replacments themselves -- strings for opcodes, hex strings for pushable bytes
 
-const DefaultOpcodeReplacements = {
-  PUSH1: ['PUSH1', '0x00', PUSH_STATE_MGR_ADDR],
-  PUSH2: ['ADD', 'PUSH2', '0x0000'],
-}
-
 const DefaultOpcodeReplacementsMap: Map<EVMOpcode, EVMBytecode> = new Map<
   EVMOpcode,
   EVMBytecode
@@ -53,10 +48,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     `{execution manager address placeholder}`
   )
   private readonly stateManagerAddressBuffer: Buffer
-  private readonly replacements: Map<EVMOpcode, EVMBytecode> = new Map<
+  private readonly replacements: Map<
     EVMOpcode,
     EVMBytecode
-  >()
+  > = DefaultOpcodeReplacementsMap
   constructor(
     stateManagerAddress: Address,
     opcodeReplacementBytecodes: Map<
@@ -76,7 +71,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         'hex'
       )
     }
-    for (const [toReplace, bytecodeToRelpaceWith] of opcodeReplacementBytecodes.entries()) {
+    for (const [
+      toReplace,
+      bytecodeToRelpaceWith,
+    ] of opcodeReplacementBytecodes.entries()) {
       // Make sure we're not attempting to overwrite PUSHN, not yet supported
       if (toReplace.programBytesConsumed > 0) {
         log.error(
