@@ -73,7 +73,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     }
     for (const [
       toReplace,
-      bytecodeToRelpaceWith,
+      bytecodeToReplaceWith,
     ] of opcodeReplacementBytecodes.entries()) {
       // Make sure we're not attempting to overwrite PUSHN, not yet supported
       if (toReplace.programBytesConsumed > 0) {
@@ -85,24 +85,21 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         throw new UnsupportedOpcodeError()
       }
       // for each operation in the replacement bytecode for this toReplace...
-      for (let i = 0; i < bytecodeToRelpaceWith.length; i++) {
-        const opcodeAndBytesInReplacement: EVMOpcodeAndBytes =
-          bytecodeToRelpaceWith[i]
+      // for (let i = 0; i < bytecodeToReplaceWith.length; i++) {
+      for (const opcodeAndBytesInReplacement of bytecodeToReplaceWith) {
         // ... replace execution manager plpaceholder
         if (
           opcodeAndBytesInReplacement.consumedBytes ===
           OpcodeReplacerImpl.EX_MGR_PLACEHOLDER
         ) {
-          bytecodeToRelpaceWith[
-            i
-          ].consumedBytes = this.stateManagerAddressBuffer
+          opcodeAndBytesInReplacement.consumedBytes = this.stateManagerAddressBuffer
         }
         // ...type check consumed bytes are the right length
         if (!isValidOpcodeAndBytes(opcodeAndBytesInReplacement)) {
           log.error(
             `Replacement config specified a ${
               opcodeAndBytesInReplacement.opcode.name
-            } as the ${i}th operation in the replacement bytecode for ${
+            } as an operation in the replacement bytecode for ${
               toReplace.name
             }, but the consumed bytes specified was ${bufToHexString(
               opcodeAndBytesInReplacement.consumedBytes
@@ -112,7 +109,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         }
       }
       // store the subbed and typechecked version in mapping
-      this.replacements.set(toReplace, bytecodeToRelpaceWith)
+      this.replacements.set(toReplace, bytecodeToReplaceWith)
     }
   }
 
