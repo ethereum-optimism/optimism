@@ -7,9 +7,9 @@
 
 ## Metadata
 ### Fixes
-- Fixes #
-- Fixes #
-- Fixes #
+- Fixes # [Link to Issue]
+- Fixes # [Link to Issue]
+- Fixes # [Link to Issue]
 
 ### Blockers
 - #
