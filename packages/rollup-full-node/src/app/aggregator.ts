@@ -4,12 +4,13 @@ import {
   BigNumber,
   DefaultSignatureVerifier,
   getLogger,
+  JsonRpcRequest,
+  JsonRpcResponse,
   ONE,
   SignatureVerifier,
 } from '@pigi/core-utils'
 import {
   abiEncodeTransaction,
-  isTransferTransaction,
   RollupStateMachine,
   SignatureError,
   SignedTransaction,
@@ -20,11 +21,11 @@ import AsyncLock from 'async-lock'
 import FastPriorityQueue from 'fastpriorityqueue'
 
 /* Internal Imports */
-import { RollupBlockBuilder } from '../types'
+import { Aggregator, RollupBlockBuilder } from '../types'
 
 const log = getLogger('aggregator')
 
-export class Aggregator {
+export class DefaultAggregator implements Aggregator {
   public static readonly NEXT_TX_NUMBER_KEY = Buffer.from('next_tx_num')
   private static readonly lock_key = 'lock'
 
@@ -38,8 +39,8 @@ export class Aggregator {
     stateMachine: RollupStateMachine,
     blockBuilder: RollupBlockBuilder,
     signatureVerifier: SignatureVerifier = DefaultSignatureVerifier.instance()
-  ): Promise<Aggregator> {
-    const aggregator: Aggregator = new Aggregator(
+  ): Promise<DefaultAggregator> {
+    const aggregator: DefaultAggregator = new DefaultAggregator(
       db,
       stateMachine,
       blockBuilder,
@@ -70,7 +71,9 @@ export class Aggregator {
    * to make sure all previous transactions are accounted for before handling new ones.
    */
   private async init(): Promise<void> {
-    const nextTx: Buffer = await this.db.get(Aggregator.NEXT_TX_NUMBER_KEY)
+    const nextTx: Buffer = await this.db.get(
+      DefaultAggregator.NEXT_TX_NUMBER_KEY
+    )
     if (!nextTx) {
       log.info(`No stored next transaction to process. Starting fresh.`)
       return
@@ -89,6 +92,13 @@ export class Aggregator {
     return this.processTransactionResultQueue()
   }
 
+  public async handleRequest(
+    request: JsonRpcRequest
+  ): Promise<JsonRpcResponse> {
+    // TODO: Forward to state machine, if tx, grab result and send it to block builder.
+    return undefined
+  }
+
   /**
    * Handles a SignedTransaction, processing it and returning a transaction receipt to the caller.
    *
@@ -98,8 +108,6 @@ export class Aggregator {
   public async handleTransaction(
     signedTransaction: SignedTransaction
   ): Promise<void> {
-    this.verifySignature(signedTransaction)
-
     const result: TransactionResult = await this.stateMachine.applyTransaction(
       signedTransaction
     )
@@ -115,7 +123,7 @@ export class Aggregator {
    * Processes the transaction results queue in order, sending them to the Block Builder.
    */
   private async processTransactionResultQueue(): Promise<void> {
-    return this.lock.acquire(Aggregator.lock_key, async () => {
+    return this.lock.acquire(DefaultAggregator.lock_key, async () => {
       while (
         this.transactionResultQueue.peek() &&
         this.transactionResultQueue
@@ -125,24 +133,11 @@ export class Aggregator {
         const res: TransactionResult = this.transactionResultQueue.poll()
         await this.blockBuilder.addTransactionResult(res)
         await this.db.put(
-          Aggregator.NEXT_TX_NUMBER_KEY,
+          DefaultAggregator.NEXT_TX_NUMBER_KEY,
           res.transactionNumber.toBuffer()
         )
         this.nextTransactionToProcess = res.transactionNumber.add(ONE)
       }
     })
-  }
-
-  private verifySignature(signedTransaction: SignedTransaction): void {
-    const signer: string = this.signatureVerifier.verifyMessage(
-      abiEncodeTransaction(signedTransaction.transaction),
-      signedTransaction.signature
-    )
-    if (signer !== signedTransaction.transaction.sender) {
-      log.debug(`Signer does not match transaction sender. 
-        Verified signer: [${signer}].
-        Signed Transaction: [${JSON.stringify(signedTransaction)}].`)
-      throw new SignatureError()
-    }
   }
 }

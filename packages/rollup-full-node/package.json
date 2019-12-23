@@ -1,7 +1,7 @@
 {
-  "name": "@pigi/rollup-aggregator",
+  "name": "@pigi/rollup-full-node",
   "version": "0.0.10-alpha.0",
-  "description": "[Optimism] Optimistic Rollup Aggregator Library",
+  "description": "[Optimism] Optimistic Rollup Full Node Library",
   "main": "build/index.js",
   "files": [
     "build/**/.js"
@@ -12,7 +12,8 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "server": "node ./build/src/exec/aggregator.js"
   },
   "keywords": [
     "plasma",
@@ -20,8 +21,8 @@
     "ethereum",
     "client"
   ],
-  "homepage": "https://github.com/plasma-group/optimistic-rollup/tree/master/packages/rollup-aggregator#readme",
-  "bugs": "https://github.com/plasma-group/optimistic-rollup/labels/%40pigi%2Frollup-aggregator",
+  "homepage": "https://github.com/plasma-group/optimistic-rollup/tree/master/packages/rollup-full-node#readme",
+  "bugs": "https://github.com/plasma-group/optimistic-rollup/labels/%40pigi%2Frollup-full-node",
   "license": "MIT",
   "author": "Optimism",
   "repository": {
@@ -33,6 +34,9 @@
     "@pigi/core-utils": "0.0.10-alpha.0",
     "@pigi/rollup-core": "0.0.10-alpha.0",
     "async-lock": "^1.2.2",
+    "axios": "^0.19.0",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
     "ethers": "^4.0.39",
     "fastpriorityqueue": "^0.6.3"
   },

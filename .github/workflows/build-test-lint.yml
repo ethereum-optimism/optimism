@@ -68,12 +68,12 @@ jobs:
           path: packages/plasma/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/plasma/package.json') }}
 
-      - name: Cache rollup-aggregator deps
+      - name: Cache rollup-full-node deps
         uses: actions/cache@v1
-        id: cache_rollup-aggregator
+        id: cache_rollup-full-node
         with:
-          path: packages/rollup-aggregator/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-aggregator/package.json') }}
+          path: packages/rollup-full-node/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-full-node/package.json') }}
 
       - name: Cache rollup-contracts deps
         uses: actions/cache@v1

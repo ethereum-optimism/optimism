@@ -69,7 +69,7 @@ export type JsonRpcAdapter<
 
 /*************** json-rpc-message ***************/
 export interface JsonRpcMessage {
-  jsonrpc: '2.0'
+  jsonrpc: string
   id: string | number | null
 }
 

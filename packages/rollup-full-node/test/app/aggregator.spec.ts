@@ -20,7 +20,7 @@ import {
 
 /* Internal Imports */
 import { RollupBlockBuilder } from '../../src/types'
-import { Aggregator } from '../../src/app/aggregator'
+import { DefaultAggregator } from '../../src/app/aggregator'
 
 const log = getLogger('block-builder', true)
 
@@ -120,7 +120,7 @@ describe('Aggregator', () => {
   let db: DB
   let stateMachine: DummyStateMachine
   let blockBuilder: DummyBlockBuilder
-  let aggregator: Aggregator
+  let aggregator: DefaultAggregator
 
   beforeEach(async () => {
     db = newInMemoryDB()
@@ -130,7 +130,7 @@ describe('Aggregator', () => {
 
   describe('init', () => {
     it('should start fresh properly', async () => {
-      aggregator = await Aggregator.create(
+      aggregator = await DefaultAggregator.create(
         db,
         stateMachine,
         blockBuilder,
@@ -144,9 +144,9 @@ describe('Aggregator', () => {
     })
 
     it('should start properly when up-to-date', async () => {
-      await db.put(Aggregator.NEXT_TX_NUMBER_KEY, TWO.toBuffer())
+      await db.put(DefaultAggregator.NEXT_TX_NUMBER_KEY, TWO.toBuffer())
 
-      aggregator = await Aggregator.create(
+      aggregator = await DefaultAggregator.create(
         db,
         stateMachine,
         blockBuilder,
@@ -160,10 +160,10 @@ describe('Aggregator', () => {
     })
 
     it('should query missing transactions and send them to BlockBuilder', async () => {
-      await db.put(Aggregator.NEXT_TX_NUMBER_KEY, TWO.toBuffer())
+      await db.put(DefaultAggregator.NEXT_TX_NUMBER_KEY, TWO.toBuffer())
       stateMachine.setTransactionsSince([transactionResultTwo])
 
-      aggregator = await Aggregator.create(
+      aggregator = await DefaultAggregator.create(
         db,
         stateMachine,
         blockBuilder,
@@ -183,21 +183,11 @@ describe('Aggregator', () => {
 
   describe('handleTransaction', () => {
     beforeEach(async () => {
-      aggregator = await Aggregator.create(
+      aggregator = await DefaultAggregator.create(
         db,
         stateMachine,
         blockBuilder,
         IdentityVerifier.instance()
-      )
-    })
-
-    it('should fail for invalid signature', async () => {
-      const signedTx: SignedTransaction = { ...signedTransaction }
-      signedTx.signature = 'does not match'
-
-      await TestUtils.assertThrowsAsync(
-        async () => aggregator.handleTransaction(signedTx),
-        SignatureError
       )
     })
 

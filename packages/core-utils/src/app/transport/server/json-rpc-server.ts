@@ -49,7 +49,7 @@ export class JsonRpcServer extends ExpressHttpServer implements RpcServer {
       }
 
       const response: JsonRpcSuccessResponse = {
-        jsonrpc: '2.0',
+        jsonrpc: request.jsonrpc,
         id: request.id,
         result,
       }
