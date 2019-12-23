@@ -20,12 +20,21 @@ describe('OpcodeReplacer', () => {
   describe('Initialization', () => {
     it('Should throw if given invalid execution manager address', () => {
       try {
-        new OpcodeReplacerImpl('0xnotAnAddr')
+        new OpcodeReplacerImpl('0xnotAnAddr', new Map<EVMOpcode, EVMBytecode>())
       } catch (err) {
         // Success we threw an error!
         return
       }
       throw new Error('Did not throw when expected!')
+    })
+    it('Should not throw if given a valid execution manager address and no Opcodes Replacements Map', () => {
+      try {
+        new OpcodeReplacerImpl(ZERO_ADDRESS, new Map<EVMOpcode, EVMBytecode>())
+      } catch (err) {
+        throw new Error(
+          'Should not throw with a valid execution manager address'
+        )
+      }
     })
   })
 

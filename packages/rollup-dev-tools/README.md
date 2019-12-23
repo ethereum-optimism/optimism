@@ -18,7 +18,7 @@ Run `yarn test` to run the unit tests.
 Enables transpilation of L1 contracts to L2 bytecode.
 
 ### Configuration
-The transpiler is configured via the `config/.env.default` file, which should not be changed.
+The transpiler is configured via the `config/default.json` file, which should not be changed.
  
 Sensitive config values and overrides can be configured in `config/.env` which will not be versioned.
 
@@ -27,6 +27,6 @@ See: `config/.env.example` for more info.
 ### Execution
 The transpiler is executed by running
 
-`yarn transpile`
-
-TODO: Add input / output files when we get there.
+`yarn transpile <input path> <output path>`
+or
+`yarn transpile <bytecode hex string>`

@@ -19,3 +19,9 @@ export class UnsupportedOpcodeError extends Error {
     super('Transpiler currently does not support the specified opcode.')
   }
 }
+
+export class TranspilationErrors {
+  public static readonly UNSUPPORTED_OPCODE: number = 0
+  public static readonly OPCODE_NOT_WHITELISTED: number = 1
+  public static readonly INVALID_BYTES_CONSUMED: number = 2
+}

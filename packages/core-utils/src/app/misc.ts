@@ -120,15 +120,6 @@ export const reverse = (str: string): string => {
 }
 
 /**
- * Converts a buffer to a hex string.
- * @param buf the buffer to be converted.
- * @returns the buffer as a string.
- */
-export const bufToHexString = (buf: Buffer): string => {
-  return '0x' + buf.toString('hex')
-}
-
-/**
  * Converts a big number to a hex string.
  * @param bn the big number to be converted.
  * @returns the big number as a string.
@@ -163,10 +154,10 @@ export const hexStrToBuf = (hexString: string): Buffer => {
 
 /**
  * Converts the provided buffer into a hex string.
- * @param buff The hex buffer
+ * @param buff The buffer
  * @returns the hex string.
  */
-export const hexBufToStr = (buff: Buffer): string => {
+export const bufToHexString = (buff: Buffer): string => {
   return add0x(buff.toString('hex'))
 }
 

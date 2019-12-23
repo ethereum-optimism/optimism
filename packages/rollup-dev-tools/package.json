@@ -7,13 +7,13 @@
     "build/**/.js"
   ],
   "scripts": {
-    "all": "yarn clean && yarn build && yarn fix && yarn lint && yarn test",
+    "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "build": "tsc -p .",
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
-    "transpile": "node ./build/src/transpiler/exec/transpiler.js"
+    "transpile": "node ./build/src/transpiler/exec/transpiler.js "
   },
   "keywords": [
     "optimism",

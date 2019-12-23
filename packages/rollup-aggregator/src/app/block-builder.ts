@@ -1,5 +1,5 @@
 /* External Import */
-import { BigNumber, getLogger, hexBufToStr, logError } from '@pigi/core-utils'
+import { BigNumber, getLogger, logError } from '@pigi/core-utils'
 import { DB, SparseMerkleTree, SparseMerkleTreeImpl } from '@pigi/core-db'
 import {
   RollupBlock,
@@ -144,7 +144,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
 
       const transactionBuffers: Buffer[] = await Promise.all(promises)
       const transactionResults: TransactionResult[] = transactionBuffers.map(
-        // x => parseTransactionResultFromABI(hexBufToStr(x))
+        // x => parseTransactionResultFromABI(bufToHexString(x))
         (x) => parseTransactionResultFromABI(x.toString())
       )
       this.pendingBlock = {

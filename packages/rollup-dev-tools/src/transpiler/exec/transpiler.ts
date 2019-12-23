@@ -1,15 +1,11 @@
 /* External Imports */
-import {
-  EVMOpcode,
-  Opcode,
-  Address,
-  isValidOpcodeAndBytes,
-} from '@pigi/rollup-core'
+import { EVMOpcode, Opcode, Address, EVMBytecode } from '@pigi/rollup-core'
 import {
   getLogger,
   logError,
   isValidHexAddress,
   remove0x,
+  bufToHexString,
 } from '@pigi/core-utils'
 
 import * as fs from 'fs'
@@ -17,8 +13,14 @@ import { config, parse } from 'dotenv'
 import { resolve } from 'path'
 
 /* Internal Imports */
-import { OpcodeWhitelist } from '../../types/transpiler'
-import { OpcodeWhitelistImpl, OpcodeReplacerImpl } from '../'
+import {
+  ErroredTranspilation,
+  OpcodeWhitelist,
+  SuccessfulTranspilation,
+  TranspilationResult,
+  Transpiler,
+} from '../../types/transpiler'
+import { OpcodeWhitelistImpl, OpcodeReplacerImpl, TranspilerImpl } from '../'
 
 const log = getLogger('transpiler')
 
@@ -28,20 +30,21 @@ const log = getLogger('transpiler')
  * @returns The constructed OpcodeWhitelist if successful, undefined if not.
  */
 function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
-  const configuredWhitelist: string =
-    process.env.OPCODE_WHITELIST || defaultConfig['OPCODE_WHITELIST']
+  const configuredWhitelist: string[] = process.env.OPCODE_WHITELIST
+    ? process.env.OPCODE_WHITELIST.split(',')
+    : defaultConfig['OPCODE_WHITELIST']
   if (!configuredWhitelist) {
-    log.error(
-      `No op codes whitelisted. Please configure OPCODE_WHITELIST in either 'config/.env.default' or as an environment variable.`
+    console.error(
+      `No op codes whitelisted. Please configure OPCODE_WHITELIST in either 'config/default.json' or as an environment variable.`
     )
     return undefined
   }
 
-  log.info(`Parsing whitelisted op codes: [${configuredWhitelist}].`)
+  log.debug(`Parsing whitelisted op codes: [${configuredWhitelist}].`)
 
-  const whitelistOpcodeStrings: string[] = configuredWhitelist
-    .split(',')
-    .map((x) => x.trim().toUpperCase())
+  const whitelistOpcodeStrings: string[] = configuredWhitelist.map((x) =>
+    x.trim().toUpperCase()
+  )
   const whiteListedOpCodes: EVMOpcode[] = []
   const invalidOpcodes: string[] = []
   for (const opString of whitelistOpcodeStrings) {
@@ -54,7 +57,7 @@ function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
   }
 
   if (!!invalidOpcodes.length) {
-    log.error(
+    console.error(
       `The following configured opcodes are not valid opcodes: ${invalidOpcodes.join(
         ','
       )}`
@@ -63,12 +66,11 @@ function getOpcodeWhitelist(defaultConfig: {}): OpcodeWhitelist | undefined {
   }
 
   if (!whiteListedOpCodes.length) {
-    log.error(
+    console.error(
       `There are no configured whitelisted opcodes. Transpilation cannot work without supporting some opcodes`
     )
     return undefined
   }
-
   return new OpcodeWhitelistImpl(whiteListedOpCodes)
 }
 
@@ -81,18 +83,18 @@ function getStateManagerAddress(defaultConfig: {}): Address {
   const stateManagerAddress: Address =
     process.env.STATE_MANAGER_ADDRESS || defaultConfig['STATE_MANAGER_ADDRESS']
   if (!stateManagerAddress) {
-    log.error(
-      `No state manager address specified. Please configure STATE_MANAGER_ADDRESS in either 'config/.env.default' or as an environment variable.`
+    console.error(
+      `No state manager address specified. Please configure STATE_MANAGER_ADDRESS in either 'config/default.json' or as an environment variable.`
     )
     process.exit(1)
   }
 
-  log.info(
+  log.debug(
     `Got the following state manager address from config: [${stateManagerAddress}].`
   )
 
   if (!isValidHexAddress(stateManagerAddress)) {
-    log.error(
+    console.error(
       `[${stateManagerAddress}] does not appear to be a valid hex string address.`
     )
     process.exit(1)
@@ -116,40 +118,104 @@ function getConfigFilePath(filename: string): string {
  *
  * @returns The default configuration key-value pairs
  */
-async function loadEnvironment(): Promise<{}> {
-  // Starting from build/src/
-  if (!(await fs.existsSync(getConfigFilePath('.env')))) {
+const getConfig = (): {} => {
+  // Starting from build/src/transpiler/exec/
+  if (!fs.existsSync(getConfigFilePath('.env'))) {
     log.debug(`No override config found at 'config/.env'.`)
   } else {
     config({ path: getConfigFilePath('.env') })
   }
 
-  let configuration: {} = {}
+  const defaultFilepath: string = getConfigFilePath('default.json')
+  if (!fs.existsSync(defaultFilepath)) {
+    log.error(`No 'default.json' config file found in /config dir`)
+    process.exit(1)
+  }
 
-  if (!(await fs.existsSync(getConfigFilePath('.env.default')))) {
-    log.info(
-      `No default config found at 'config/.env.default'. This is probably bad, but transpilation will be attempted anyway.`
+  let defaultConfig: {}
+  try {
+    defaultConfig = JSON.parse(
+      fs.readFileSync(defaultFilepath, { encoding: 'utf8' })
     )
-  } else {
+  } catch (e) {
+    log.error("Invalid JSON in 'config/default.json' config file.")
+    process.exit(1)
+  }
+
+  return defaultConfig
+}
+
+/**
+ * Gets the relative path of a file assuming base path is the `rollup-dev-tools` dir.
+ *
+ * @param filePath The relative filepath from `rollup-dev-tools`
+ * @returns The relative filepath from this built executable
+ */
+const getRelativePath = (filePath: string): string => {
+  return resolve(__dirname, `../../../../${filePath}`)
+}
+
+/**
+ * Prints the usage of this executable as an error and exits.
+ */
+const printUsageAndExit = (): void => {
+  console.error(
+    'Invalid argument(s). Usage: "yarn transpile <inputFilePath> <outputFilePath>" or "yarn transpile <hex string to transpile>"'
+  )
+  process.exit(1)
+}
+
+/**
+ * Makes sure the necessary parameters are passed and parse them.
+ * @returns an array of [inputFilePath, outputFilePath]
+ */
+const getParams = (): [Buffer, string | undefined] => {
+  if (process.argv.length === 4) {
+    // Get the environment and read the appropriate environment file
+    const [inputFilePath, outputFilePath] = process.argv
+      .slice(process.argv.length - 2)
+      .map((x) => getRelativePath(x))
+
+    if (!fs.existsSync(inputFilePath)) {
+      console.error(`Input file does not exist at path ${inputFilePath}`)
+      printUsageAndExit()
+    }
+
+    const inputBytecode: Buffer = fs.readFileSync(inputFilePath)
+
+    return [inputBytecode, outputFilePath]
+  }
+
+  if (process.argv.length === 3) {
     try {
-      configuration = parse(fs.readFileSync(getConfigFilePath('.env.default')))
+      const bytes = Buffer.from(remove0x(process.argv[2]), 'hex')
+      return [bytes, undefined]
     } catch (e) {
-      logError(log, `Config file at '.env.default' not formatted properly.`, e)
-      return undefined
+      console.error(`Argument not a valid hex string: "${process.argv[2]}"`)
+      printUsageAndExit()
     }
   }
 
-  return configuration
+  printUsageAndExit()
+}
+
+const getReplacements = (): Map<EVMOpcode, EVMBytecode> => {
+  // TODO: Read in overrides from config
+  return new Map<EVMOpcode, EVMBytecode>()
+    .set(Opcode.RETURN, [{ opcode: Opcode.AND, consumedBytes: undefined }])
+    .set(Opcode.BYTE, [
+      { opcode: Opcode.SUB, consumedBytes: undefined },
+      { opcode: Opcode.ADD, consumedBytes: undefined },
+    ])
 }
 
 /**
  * Entrypoint for transpilation
  */
 async function transpile() {
-  const defaultConfig = await loadEnvironment()
-  if (defaultConfig === undefined) {
-    return
-  }
+  const [inputBytecode, outputFilePath] = getParams()
+
+  const defaultConfig = getConfig()
 
   const opcodeWhitelist: OpcodeWhitelist = getOpcodeWhitelist(defaultConfig)
   if (!opcodeWhitelist) {
@@ -157,9 +223,48 @@ async function transpile() {
   }
 
   const stateManagerAddress: Address = getStateManagerAddress(defaultConfig)
-  log.info(`SM address is : ${stateManagerAddress.toString()}`)
-  const opcodeReplacements = new OpcodeReplacerImpl(stateManagerAddress)
-  // TODO: Instantiate all of the things and call transpiler.transpile()
+  log.debug(`SM address is : ${stateManagerAddress.toString()}`)
+  const opcodeReplacer = new OpcodeReplacerImpl(
+    stateManagerAddress,
+    getReplacements()
+  )
+
+  const transpiler: Transpiler = new TranspilerImpl(
+    opcodeWhitelist,
+    opcodeReplacer
+  )
+
+  log.debug(`Transpiling bytecode ${bufToHexString(inputBytecode)}`)
+
+  let result: TranspilationResult
+  try {
+    result = transpiler.transpile(inputBytecode)
+  } catch (e) {
+    logError(
+      log,
+      `Error during transpilation! Input (hex) ${bufToHexString(
+        inputBytecode
+      )}`,
+      e
+    )
+  }
+
+  if (!result.succeeded) {
+    const e: ErroredTranspilation = result as ErroredTranspilation
+    console.error(
+      `Transpilation Errors: \n\t${e.errors
+        .map((x) => `index ${x.index}: ${x.message}`)
+        .join('\n\t')}`
+    )
+  } else {
+    const output: SuccessfulTranspilation = result as SuccessfulTranspilation
+    if (!!outputFilePath) {
+      log.debug(`Transpilation result ${bufToHexString(output.bytecode)}`)
+      fs.writeFileSync(outputFilePath, output.bytecode)
+    } else {
+      console.log(bufToHexString(output.bytecode))
+    }
+  }
 }
 
 transpile()

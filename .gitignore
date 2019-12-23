@@ -24,3 +24,5 @@ npm-debug.log
 
 /**/*.env
 /**/.env
+
+*.bytecode

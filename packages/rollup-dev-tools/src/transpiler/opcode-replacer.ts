@@ -1,13 +1,18 @@
 /* External Imports */
 import {
-  Opcode as Ops,
+  Opcode,
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
   isValidOpcodeAndBytes,
   Address,
-  Opcode,
 } from '@pigi/rollup-core'
+import {
+  bufToHexString,
+  remove0x,
+  getLogger,
+  isValidHexAddress,
+} from '@pigi/core-utils'
 
 /* Internal Imports */
 import { OpcodeReplacer } from '../types/transpiler'
@@ -16,30 +21,8 @@ import {
   InvalidBytesConsumedError,
   UnsupportedOpcodeError,
 } from '../'
-import {
-  hexStrToBuf,
-  bufToHexString,
-  remove0x,
-  getLogger,
-  isValidHexAddress,
-} from '@pigi/core-utils'
 
 const log = getLogger('transpiler:opcode-replacement')
-
-// the desired replacments themselves -- strings for opcodes, hex strings for pushable bytes
-
-const DefaultOpcodeReplacementsMap: Map<EVMOpcode, EVMBytecode> = new Map<
-  EVMOpcode,
-  EVMBytecode
->()
-  .set(Ops.ADDMOD, [
-    { opcode: Ops.AND, consumedBytes: undefined },
-    { opcode: undefined, consumedBytes: undefined },
-  ])
-  .set(Ops.BYTE, [
-    { opcode: undefined, consumedBytes: undefined },
-    { opcode: undefined, consumedBytes: undefined },
-  ])
 
 export class OpcodeReplacerImpl implements OpcodeReplacer {
   public static EX_MGR_PLACEHOLDER: Buffer = Buffer.from(
@@ -48,15 +31,12 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   private readonly excutionManagerAddressBuffer: Buffer
   constructor(
     executionManagerAddress: Address,
-    private readonly opcodeReplacementBytecodes: Map<
-      EVMOpcode,
-      EVMBytecode
-    > = DefaultOpcodeReplacementsMap
+    private readonly opcodeReplacementBytecodes: Map<EVMOpcode, EVMBytecode>
   ) {
     // check and store address
     if (!isValidHexAddress(executionManagerAddress)) {
       log.error(
-        `Opcode replacer recieved ${executionManagerAddress} for the execution manager address.  Not a valid hex string address!`
+        `Opcode replacer received ${executionManagerAddress} for the execution manager address.  Not a valid hex string address!`
       )
       throw new InvalidAddressError()
     } else {
@@ -103,13 +83,12 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
           throw new InvalidBytesConsumedError()
         }
       }
-      // store the subbed and typechecked version in mapping
     }
   }
 
   /**
-   * Gets the specified replacment bytecode for a given EVM opcode and bytes
-   * @param opcodeAndBytes EVM opcode and comsumed bytes which is supposed to be replacd.
+   * Gets the specified replacement bytecode for a given EVM opcode and bytes
+   * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced.
    *
    * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
    */

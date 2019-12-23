@@ -299,9 +299,9 @@ export class Opcode {
     name: 'JUMP',
     programBytesConsumed: 0,
   }
-  public static readonly JUMP1: EVMOpcode = {
+  public static readonly JUMPI: EVMOpcode = {
     code: Buffer.from('57', 'hex'),
-    name: 'JUMP1',
+    name: 'JUMPI',
     programBytesConsumed: 0,
   }
   public static readonly PC: EVMOpcode = {
@@ -795,7 +795,7 @@ export class Opcode {
     Opcode.SLOAD,
     Opcode.SSTORE,
     Opcode.JUMP,
-    Opcode.JUMP1,
+    Opcode.JUMPI,
     Opcode.PC,
     Opcode.MSIZE,
     Opcode.GAS,
