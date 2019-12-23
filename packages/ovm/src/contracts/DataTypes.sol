@@ -7,7 +7,7 @@ pragma experimental ABIEncoderV2;
  */
 contract DataTypes {
     struct Transaction {
-        bytes ovmEntrypoint;
+        address ovmEntrypoint;
         bytes ovmCalldata;
     }
 
@@ -15,5 +15,12 @@ contract DataTypes {
         address ovmContractAddress;
         bytes32 ovmStorageSlot;
         bytes32 ovmStorageValue;
+    }
+
+    struct ExecutionContext {
+        uint timestamp;
+        uint queueOrigin;
+        address ovmActiveContract;
+        address ovmMsgSender;
     }
 }

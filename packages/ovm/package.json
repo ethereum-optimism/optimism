@@ -31,6 +31,7 @@
     "access": "public"
   },
   "devDependencies": {
+    "@openzeppelin/contracts": "^2.4.0",
     "@pigi/prettier-config": "latest",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
@@ -44,8 +45,8 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
-    "@pigi/core-utils": "^0.0.10-alpha.0",
     "@pigi/core-db": "^0.0.10-alpha.0",
+    "@pigi/core-utils": "^0.0.10-alpha.0",
     "@pigi/rollup-core": "^0.0.10-alpha.0",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",

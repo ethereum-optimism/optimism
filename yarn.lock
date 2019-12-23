@@ -761,6 +761,11 @@
   dependencies:
     "@types/node" ">= 8"
 
+"@openzeppelin/contracts@^2.4.0":
+  version "2.4.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-2.4.0.tgz#7270f79ed1463370fe6e664d36a779aa4d3ee896"
+  integrity sha512-xeKP59REgow5TPBJh3S9BRIm7DDG+Rz3Nt4ANWGUkjk4305DHpyUD5CyMJ6nd2JMmZuFyx4mjvvlCtSJLRnN6w==
+
 "@pigi/prettier-config@latest":
   version "0.0.10-alpha.0"
   resolved "https://registry.yarnpkg.com/@pigi/prettier-config/-/prettier-config-0.0.10-alpha.0.tgz#3b36e1942dfdea86bac7b2690e2accf84c88f3d5"
@@ -768,6 +773,7 @@
 "@pigi/types@latest":
   version "0.0.10-alpha.0"
   resolved "https://registry.yarnpkg.com/@pigi/types/-/types-0.0.10-alpha.0.tgz#758ad91496cc65b0a3b2dc1cf4210ceaa2f65e48"
+  integrity sha512-2SELKSaHWLNvtlyr5lcPILHysQoND+90RoreQ0/dGA1VZ612Uop5m9V5MgdRDSfiEnwzBT3qX6fK02no0dA/dQ==
 
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"
