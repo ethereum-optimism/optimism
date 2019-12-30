@@ -1,10 +1,11 @@
 /* External Import */
-import { BigNumber, getLogger, logError } from '@pigi/core-utils'
-import { DB, SparseMerkleTree, SparseMerkleTreeImpl } from '@pigi/core-db'
+import { BigNumber, getLogger, logError, remove0x } from '@pigi/core-utils'
+import { DB, SparseMerkleTreeImpl } from '@pigi/core-db'
 import {
   RollupBlock,
   TransactionResult,
-  TransactionStorage,
+  StorageElement,
+  Address,
 } from '@pigi/rollup-core'
 
 import AsyncLock from 'async-lock'
@@ -18,19 +19,27 @@ import {
 
 // TODO: Actually ABI encode / decode and move into common serialization file if
 //  this is the data type in use after merging with Karl's EVM stuff
-const parseTransactionResultFromABI = (txResult: string): TransactionResult => {
+export const parseTransactionResultFromABI = (
+  txResult: string
+): TransactionResult => {
   const json = JSON.parse(txResult)
   return {
     transactionNumber: new BigNumber(json['transactionNumber'], 'hex'),
-    signedTransaction: json['signedTransaction'],
-    modifiedStorage: json['modifiedStorage'],
+    abiEncodedTransaction: json['transaction'],
+    updatedStorage: json['updatedStorage'],
+    updatedContracts: json['updatedContracts'],
+    transactionReceipt: json['transactionReceipt'],
   }
 }
-const abiEncodeTransactionResult = (txResult: TransactionResult): string => {
+export const abiEncodeTransactionResult = (
+  txResult: TransactionResult
+): string => {
   return JSON.stringify({
     transactionNumber: txResult.transactionNumber.toString('hex'),
-    signedTransaction: txResult.signedTransaction,
-    modifiedStorage: txResult.modifiedStorage,
+    transaction: txResult.abiEncodedTransaction,
+    updatedStorage: txResult.updatedStorage,
+    updatedContracts: txResult.updatedContracts,
+    transactionReceipt: txResult.transactionReceipt,
   })
 }
 
@@ -59,7 +68,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
   private readonly lock: AsyncLock
 
   private tree: SparseMerkleTreeImpl
-  private subtrees: SparseMerkleTreeImpl[]
+  private subtrees: Map<string, SparseMerkleTreeImpl>
   private lastBlockSubmission: Date
   private pendingBlock: PendingBlock
 
@@ -115,7 +124,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
         this.lastBlockSubmission = new Date()
         this.setBlockSubmissionTimeout()
         this.tree = await SparseMerkleTreeImpl.create(this.db, undefined, 16)
-        this.subtrees = []
+        this.subtrees = new Map<string, SparseMerkleTreeImpl>()
         return
       }
 
@@ -133,7 +142,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
         : 1
 
       this.tree = await SparseMerkleTreeImpl.create(this.db, treeRoot, 16)
-      this.subtrees = []
+      this.subtrees = new Map<string, SparseMerkleTreeImpl>()
 
       const promises: Array<Promise<Buffer>> = []
       for (let i = 1; i <= transactionCount; i++) {
@@ -305,25 +314,25 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
     }
 
     // Build Contract Slot ID => Updated Storage Slot IDs map
-    const modifiedStorageMap: Map<string, TransactionStorage> = new Map<
+    const modifiedStorageMap: Map<string, StorageElement> = new Map<
       string,
-      TransactionStorage
+      StorageElement
     >()
     for (const res of block.transactionResults) {
-      for (const modifiedStorage of res.modifiedStorage) {
+      for (const modifiedStorage of res.updatedStorage) {
         modifiedStorageMap.set(
-          `${modifiedStorage.contractSlotIndex}_${modifiedStorage.storageSlotIndex}`,
+          `${modifiedStorage.contractAddress}_${modifiedStorage.storageSlot}`,
           modifiedStorage
         )
       }
     }
 
     // Update all contract storage slots
-    const modifiedContractSlotIndexes: Set<number> = new Set()
+    const modifiedContractAddresses: Set<Address> = new Set()
     const storagePromises: Array<Promise<void>> = []
     for (const modifiedStorage of modifiedStorageMap.values()) {
       storagePromises.push(this.updateStorageSlot(modifiedStorage))
-      modifiedContractSlotIndexes.add(modifiedStorage.contractSlotIndex)
+      modifiedContractAddresses.add(modifiedStorage.contractAddress)
     }
 
     log.debug(
@@ -335,8 +344,8 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
 
     // Update the base contract tree with the roots of all subtrees
     const blockPromises: Array<Promise<void>> = []
-    for (const idx of modifiedContractSlotIndexes.keys()) {
-      blockPromises.push(this.updateContractSlot(idx))
+    for (const address of modifiedContractAddresses.keys()) {
+      blockPromises.push(this.updateContractSlot(address))
     }
 
     log.debug(
@@ -351,8 +360,8 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
     return {
       blockNumber: block.blockNumber,
       stateRoot: stateRoot.toString('hex'),
-      signedTransactions: block.transactionResults.map(
-        (x) => x.signedTransaction
+      transactions: block.transactionResults.map(
+        (x) => x.abiEncodedTransaction
       ),
     }
   }
@@ -363,90 +372,94 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
    * @param transactionStorage The TransactionStorage object.
    */
   private async updateStorageSlot(
-    transactionStorage: TransactionStorage
+    transactionStorage: StorageElement
   ): Promise<void> {
+    const contractAddress = transactionStorage.contractAddress
+
     log.debug(
-      `Updating contract storage [${transactionStorage.contractSlotIndex}, ${transactionStorage.storageSlotIndex}] to [${transactionStorage.storage}].`
-    )
-    const contractSlotBN: BigNumber = new BigNumber(
-      transactionStorage.contractSlotIndex,
-      10
+      `Updating contract storage [${contractAddress}, ${transactionStorage.storageSlot}] to [${transactionStorage.storageValue}].`
     )
 
-    const subtreeRoot: Buffer = await this.tree.getLeaf(contractSlotBN)
-    if (!subtreeRoot) {
-      log.debug(
-        `Creating contract slot index [${transactionStorage.contractSlotIndex}].`
+    const subtreeRoot: Buffer = await this.tree.getLeaf(
+      DefaultRollupBlockBuilder.getSlotIndexFromHexString(
+        transactionStorage.contractAddress
       )
-      this.subtrees[
-        transactionStorage.contractSlotIndex
-      ] = await SparseMerkleTreeImpl.create(this.db, undefined, 32)
-    } else if (!this.subtrees[transactionStorage.contractSlotIndex]) {
+    )
+    if (!subtreeRoot) {
+      log.debug(`Creating contract slot index [${contractAddress}].`)
+      this.subtrees.set(
+        contractAddress,
+        await SparseMerkleTreeImpl.create(this.db, undefined, 32)
+      )
+    } else if (!this.subtrees.get(contractAddress)) {
       log.info(
-        `Subtree at index [${
-          transactionStorage.contractSlotIndex
-        }] exists with root [${subtreeRoot.toString(
+        `Subtree at index [${contractAddress}] exists with root [${subtreeRoot.toString(
           'hex'
         )}] but is not in the subtree array. Creating it.`
       )
-      this.subtrees[
-        transactionStorage.contractSlotIndex
-      ] = await SparseMerkleTreeImpl.create(this.db, subtreeRoot, 32)
+      this.subtrees.set(
+        contractAddress,
+        await SparseMerkleTreeImpl.create(this.db, subtreeRoot, 32)
+      )
     }
-
-    const storageSlotBN: BigNumber = new BigNumber(
-      transactionStorage.storageSlotIndex,
-      10
+    const storageSlotBN: BigNumber = DefaultRollupBlockBuilder.getSlotIndexFromHexString(
+      transactionStorage.storageSlot
     )
 
     let updated: boolean
     try {
-      updated = await this.subtrees[
-        transactionStorage.contractSlotIndex
-      ].update(storageSlotBN, Buffer.from(transactionStorage.storage))
+      updated = await this.subtrees
+        .get(contractAddress)
+        .update(
+          storageSlotBN,
+          Buffer.from(remove0x(transactionStorage.storageValue), 'hex')
+        )
     } catch (e) {
       logError(
         log,
-        `Error updating contract storage [${transactionStorage.contractSlotIndex}, ${transactionStorage.storageSlotIndex}] to [${transactionStorage.storage}].`,
+        `Error updating contract storage [${contractAddress}, ${transactionStorage.storageSlot}] to [${transactionStorage.storageValue}].`,
         e
       )
       throw e
     }
 
     if (!updated) {
-      const msg: string = `Error updating contract storage [${transactionStorage.contractSlotIndex}, ${transactionStorage.storageSlotIndex}] to [${transactionStorage.storage}].`
+      const msg: string = `Error updating contract storage [${contractAddress}, ${transactionStorage.storageSlot}] to [${transactionStorage.storageValue}].`
       log.error(msg)
       throw new TreeUpdateError(msg)
     }
     log.debug(
-      `Updated contract storage [${transactionStorage.contractSlotIndex}, ${transactionStorage.storageSlotIndex}] to [${transactionStorage.storage}].`
+      `Updated contract storage [${contractAddress}, ${transactionStorage.storageSlot}] to [${transactionStorage.storageSlot}].`
     )
   }
 
   /**
    * Updates the provided contract slot index from the state root of the associated subtree.
    *
-   * @param contractSlotIndex
+   * @param contractAddress The contract address slot to update
    */
-  private async updateContractSlot(contractSlotIndex: number): Promise<void> {
+  private async updateContractSlot(contractAddress: Address): Promise<void> {
     log.debug(
-      `Updating contract slot index [${contractSlotIndex}] with subtree hash.`
+      `Updating contract slot index [${contractAddress}] with subtree hash.`
     )
 
-    const subtreeHash: Buffer = await this.subtrees[
-      contractSlotIndex
-    ].getRootHash()
-    const slotBN: BigNumber = new BigNumber(contractSlotIndex, 10)
+    const contractSlot: BigNumber = DefaultRollupBlockBuilder.getSlotIndexFromHexString(
+      contractAddress
+    )
 
-    const updated: boolean = await this.tree.update(slotBN, subtreeHash)
+    const subtreeHash: Buffer = await this.subtrees
+      .get(contractAddress)
+      .getRootHash()
+
+    const updated: boolean = await this.tree.update(contractSlot, subtreeHash)
 
     if (!updated) {
-      const msg: string = `Error updating contract slot index [${contractSlotIndex}] with new tree root`
+      const msg: string = `Error updating contract slot index [${contractAddress}] with new tree root`
       log.error(msg)
       throw new TreeUpdateError(msg)
     }
     log.debug(
-      `Updated Contract Slot Index [${contractSlotIndex}] to [${subtreeHash.toString(
+      `Updated Contract Slot Index [${contractAddress}] to [${subtreeHash.toString(
         'hex'
       )}].`
     )
@@ -471,5 +484,9 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
    */
   private static getTransactionKey(txNumber: number): Buffer {
     return Buffer.from(`tx${txNumber.toString(10)}`)
+  }
+
+  private static getSlotIndexFromHexString(hexString: string): BigNumber {
+    return new BigNumber(remove0x(hexString), 'hex')
   }
 }

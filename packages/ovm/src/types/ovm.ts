@@ -1,14 +1,12 @@
 /* External Imports */
 import { BigNumber } from '@pigi/core-utils'
-
-/* Internal Imports */
 import {
-  Transaction,
   Address,
   StorageSlot,
   StorageValue,
+  Transaction,
   TransactionResult,
-} from './types'
+} from '@pigi/rollup-core'
 
 export interface RollupStateMachine {
   /**
@@ -26,10 +24,10 @@ export interface RollupStateMachine {
   /**
    * Applies the provided signed transaction, adjusting balances accordingly.
    *
-   * @param signedTransaction The signed transaction to execute.
+   * @param abiEncodedTransaction The ABI-encoded transaction to execute.
    * @returns The TransactionResult resulting from the transaction
    */
-  applyTransaction(transaction: Transaction): Promise<TransactionResult>
+  applyTransaction(abiEncodedTransaction: string): Promise<TransactionResult>
 
   /**
    * Gets all TransactionResults processed by this State Machine since (after) the provided

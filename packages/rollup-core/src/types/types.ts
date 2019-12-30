@@ -1,57 +1,73 @@
 /* External Imports */
 import { BigNumber } from '@pigi/core-utils'
 
+// TODO: Probably not necessary?
+//  Maybe just a map from token -> contract slot index (e.g. {ETH: 1, BAT: 2, REP: 3})?
 export type TokenType = number
+
+export interface State {}
+export interface RollupBlock {
+  blockNumber: number
+  stateRoot: string
+  transactions: string[]
+}
+
+/* Types */
 export type Address = string
-
+export type StorageSlot = string
 export type Signature = string
+export type StorageValue = string
 
-export interface Balances {
-  [tokenType: number]: number
+export interface Transaction {
+  ovmEntrypoint: Address
+  ovmCalldata: string
 }
-
-export interface Transfer {
-  sender: Address
-  recipient: Address
-  // TODO: TokenType will probably actually be a reference to an L2 ERC-20 contract
-  tokenType: TokenType
-  amount: number
-}
-
-export interface GenericTransaction {
-  sender: Address
-  body: {}
-}
-
-export type RollupTransaction = Transfer | GenericTransaction
 
 export interface SignedTransaction {
   signature: Signature
-  transaction: RollupTransaction
+  transaction: Transaction
 }
 
-export interface State {}
+export interface StorageElement {
+  contractAddress: Address
+  storageSlot: StorageSlot
+  storageValue: StorageValue
+}
 
-export interface TransactionStorage {
-  contractSlotIndex: number
-  storageSlotIndex: number
-  storage: string
+export interface ContractStorage {
+  contractAddress: Address
+  contractNonce: BigNumber
+  contractCode?: string
+  // TODO: Add others as necessary
+}
+
+export interface TransactionLog {
+  data: string
+  topics: string[]
+  logIndex: BigNumber
+  transactionIndex: BigNumber
+  transactionHash: string
+  blockHash: string
+  blockNumber: BigNumber
+  address: Address
+}
+
+export interface TransactionReceipt {
+  status: boolean
+  transactionHash: string
+  transactionIndex: BigNumber
+  blockHash: string
+  blockNumber: BigNumber
+  contractAddress: Address
+  cumulativeGasUsed: BigNumber
+  gasUsed: BigNumber
+  logs: TransactionLog[]
 }
 
 export interface TransactionResult {
   transactionNumber: BigNumber
-  signedTransaction: SignedTransaction
-  modifiedStorage: TransactionStorage[]
-}
-
-export interface RollupBlock {
-  blockNumber: number
-  stateRoot: string
-  signedTransactions: SignedTransaction[]
-}
-
-export const isTransferTransaction = (
-  transaction: RollupTransaction
-): transaction is Transfer => {
-  return !('body' in transaction)
+  transactionReceipt: TransactionReceipt
+  abiEncodedTransaction: string
+  updatedStorage: StorageElement[]
+  updatedContracts: ContractStorage[]
 }

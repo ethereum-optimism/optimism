@@ -10,9 +10,7 @@ import {
   SignatureVerifier,
 } from '@pigi/core-utils'
 import {
-  abiEncodeTransaction,
   RollupStateMachine,
-  SignatureError,
   SignedTransaction,
   TransactionResult,
 } from '@pigi/rollup-core'

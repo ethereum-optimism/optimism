@@ -1,8 +1,24 @@
 import '../setup'
 /* External Imports */
-import { getLogger, ONE, sleep, TWO } from '@pigi/core-utils'
+import {
+  add0x,
+  getLogger,
+  keccak256,
+  ONE,
+  sleep,
+  TWO,
+  ZERO,
+} from '@pigi/core-utils'
 import { DB, newInMemoryDB } from '@pigi/core-db/'
-import { RollupBlock, TransactionResult } from '@pigi/rollup-core'
+import {
+  abiEncodeTransaction,
+  Address,
+  RollupBlock,
+  StorageSlot,
+  StorageValue,
+  Transaction,
+  TransactionResult,
+} from '@pigi/rollup-core'
 
 /* Internal Imports */
 import { RollupBlockSubmitter } from '../../src/types'
@@ -22,41 +38,72 @@ class DummyBlockSubmitter implements RollupBlockSubmitter {
   }
 }
 
-const signer: string = '0xabcd'
+const ovmEntrypoint: Address = '0x423Ace7C343094Ed5EB34B0a1838c19adB2BAC92'
+const ovmCalldata: Address = '0xba3739e8B603cFBCe513C9A4f8b6fFD44312d75E'
+
+const contractAddress: Address = '0xC111937D5f4cF3a9096f38384E5Bd6DCbda1Af71'
+const contractAddress2: Address = '0x01F33feD7D584f4bd938B4f7585723Ce00D77fa6'
+const storageSlot: StorageSlot = add0x(
+  keccak256(Buffer.from('Storage slot').toString('hex'))
+)
+const storageValue: StorageValue = add0x(
+  keccak256(Buffer.from('Storage value').toString('hex'))
+)
+const storageValue2: StorageValue = add0x(
+  keccak256(Buffer.from('Storage value 2').toString('hex'))
+)
+
+const transaction: Transaction = {
+  ovmEntrypoint,
+  ovmCalldata,
+}
+
 const transactionResult: TransactionResult = {
   transactionNumber: ONE,
-  signedTransaction: {
-    signature: signer,
-    transaction: {
-      sender: signer,
-      body: {},
-    },
-  },
-  modifiedStorage: [
+  abiEncodedTransaction: abiEncodeTransaction(transaction),
+  updatedStorage: [
     {
-      contractSlotIndex: 0,
-      storageSlotIndex: 0,
-      storage: 'First TX Storage',
+      contractAddress,
+      storageSlot,
+      storageValue,
+    },
+    {
+      contractAddress,
+      storageSlot,
+      storageValue: storageValue2,
     },
   ],
+  updatedContracts: [
+    {
+      contractAddress,
+      contractNonce: TWO,
+    },
+  ],
+  transactionReceipt: undefined,
 }
 
 const transactionResult2: TransactionResult = {
   transactionNumber: TWO,
-  signedTransaction: {
-    signature: signer,
-    transaction: {
-      sender: signer,
-      body: {},
-    },
-  },
-  modifiedStorage: [
+  abiEncodedTransaction: abiEncodeTransaction(transaction),
+  updatedStorage: [
     {
-      contractSlotIndex: 1,
-      storageSlotIndex: 1,
-      storage: 'Second TX Storage',
+      contractAddress: contractAddress2,
+      storageSlot,
+      storageValue,
+    },
+    {
+      contractAddress: contractAddress2,
+      storageSlot,
+      storageValue: storageValue2,
     },
   ],
+  updatedContracts: [
+    {
+      contractAddress: contractAddress2,
+      contractNonce: TWO,
+    },
+  ],
+  transactionReceipt: undefined,
 }
 
 /*********

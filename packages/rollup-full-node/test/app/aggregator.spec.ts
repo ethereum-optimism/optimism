@@ -1,20 +1,24 @@
 import '../setup'
 /* External Imports */
 import {
+  add0x,
   BigNumber,
   getLogger,
   IdentityVerifier,
+  keccak256,
   ONE,
-  TestUtils,
   TWO,
+  ZERO,
 } from '@pigi/core-utils'
 import { DB, newInMemoryDB } from '@pigi/core-db/'
 import {
+  abiEncodeTransaction,
   Address,
   RollupStateMachine,
-  SignatureError,
   SignedTransaction,
   State,
+  StorageSlot,
+  StorageValue,
   TransactionResult,
 } from '@pigi/rollup-core'
 
@@ -66,50 +70,74 @@ class DummyBlockBuilder implements RollupBlockBuilder {
   }
 }
 
-const sender: Address = '423Ace7C343094Ed5EB34B0a1838c19adB2BAC92'
-const recipient: Address = 'ba3739e8B603cFBCe513C9A4f8b6fFD44312d75E'
+const ovmEntrypoint: Address = '0x423Ace7C343094Ed5EB34B0a1838c19adB2BAC92'
+const ovmCalldata: Address = '0xba3739e8B603cFBCe513C9A4f8b6fFD44312d75E'
+
+const contractAddress: Address = '0xC111937D5f4cF3a9096f38384E5Bd6DCbda1Af71'
+const contractAddress2: Address = '0x01F33feD7D584f4bd938B4f7585723Ce00D77fa6'
+const storageSlot: StorageSlot = add0x(
+  keccak256(Buffer.from('Storage slot').toString('hex'))
+)
+const storageValue: StorageValue = add0x(
+  keccak256(Buffer.from('Storage value').toString('hex'))
+)
+const storageValue2: StorageValue = add0x(
+  keccak256(Buffer.from('Storage value 2').toString('hex'))
+)
 const signedTransaction: SignedTransaction = {
-  signature: sender,
+  signature: ovmEntrypoint,
   transaction: {
-    sender,
-    recipient,
-    tokenType: 0,
-    amount: 10,
+    ovmEntrypoint,
+    ovmCalldata,
   },
 }
 
 const transactionResult: TransactionResult = {
   transactionNumber: ONE,
-  signedTransaction,
-  modifiedStorage: [
+  abiEncodedTransaction: abiEncodeTransaction(signedTransaction.transaction),
+  updatedStorage: [
     {
-      contractSlotIndex: 0,
-      storageSlotIndex: 0,
-      storage: 'First TX Storage 0',
+      contractAddress,
+      storageSlot,
+      storageValue,
     },
     {
-      contractSlotIndex: 0,
-      storageSlotIndex: 1,
-      storage: 'First TX Storage 1',
+      contractAddress,
+      storageSlot,
+      storageValue: storageValue2,
     },
   ],
+  updatedContracts: [
+    {
+      contractAddress,
+      contractNonce: TWO,
+    },
+  ],
+  transactionReceipt: undefined,
 }
 
-const transactionResultTwo: TransactionResult = {
+const transactionResult2: TransactionResult = {
   transactionNumber: TWO,
-  signedTransaction,
-  modifiedStorage: [
+  abiEncodedTransaction: abiEncodeTransaction(signedTransaction.transaction),
+  updatedStorage: [
     {
-      contractSlotIndex: 1,
-      storageSlotIndex: 0,
-      storage: 'SECOND TX Storage 0',
+      contractAddress: contractAddress2,
+      storageSlot,
+      storageValue,
     },
     {
-      contractSlotIndex: 1,
-      storageSlotIndex: 1,
-      storage: 'SECOND TX Storage 1',
+      contractAddress: contractAddress2,
+      storageSlot,
+      storageValue: storageValue2,
     },
   ],
+  updatedContracts: [
+    {
+      contractAddress: contractAddress2,
+      contractNonce: TWO,
+    },
+  ],
+  transactionReceipt: undefined,
 }
 
 /*********
@@ -161,7 +189,7 @@ describe('Aggregator', () => {
 
     it('should query missing transactions and send them to BlockBuilder', async () => {
       await db.put(DefaultAggregator.NEXT_TX_NUMBER_KEY, TWO.toBuffer())
-      stateMachine.setTransactionsSince([transactionResultTwo])
+      stateMachine.setTransactionsSince([transactionResult2])
 
       aggregator = await DefaultAggregator.create(
         db,
@@ -175,7 +203,7 @@ describe('Aggregator', () => {
         `BlockBuilder should have received TransactionResult, but didn't!`
       )
       blockBuilder.addedTransactionResults[0].should.eql(
-        transactionResultTwo,
+        transactionResult2,
         `BlockBuilder received incorrect TransactionResult!`
       )
     })
@@ -206,7 +234,7 @@ describe('Aggregator', () => {
     })
 
     it('should enforce transaction order', async () => {
-      stateMachine.setTransactionResult(transactionResultTwo)
+      stateMachine.setTransactionResult(transactionResult2)
       await aggregator.handleTransaction(signedTransaction)
 
       blockBuilder.addedTransactionResults.length.should.equal(
@@ -226,7 +254,7 @@ describe('Aggregator', () => {
         `BlockBuilder received incorrect TransactionResult!`
       )
       blockBuilder.addedTransactionResults[1].should.eql(
-        transactionResultTwo,
+        transactionResult2,
         `BlockBuilder received incorrect TransactionResult!`
       )
     })
