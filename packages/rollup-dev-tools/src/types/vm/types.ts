@@ -5,7 +5,7 @@ export interface StepContext {
   opcode: EVMOpcode
   stack: Buffer[]
   stackDepth: number
-  memory: Buffer[]
+  memory: Buffer
   memoryWordCount: number
 }
 

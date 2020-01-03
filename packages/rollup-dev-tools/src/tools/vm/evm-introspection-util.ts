@@ -89,25 +89,27 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   }
 
   private async onStep(data, continueFn: () => void): Promise<void> {
-    const stepContext: StepContext = {
-      pc: data['pc'],
-      opcode: Opcode.parseByName(data['opcode']['name']),
-      stack: data['stack'],
-      stackDepth: data['depth'],
-      memory: data['memory'],
-      memoryWordCount: data['memoryWordCount'],
+    try {
+      const stepContext: StepContext = {
+        pc: data['pc'],
+        opcode: Opcode.parseByName(data['opcode']['name']),
+        stack: data['stack'],
+        stackDepth: data['depth'],
+        memory: Buffer.of(data['memory']),
+        memoryWordCount: data['memoryWordCount'],
+      }
+
+      const address: string = EvmIntrospectionUtilImpl.getCodeHashTag(
+        data['address']
+      )
+      log.debug(
+        `Code hash [${address}] step data: ${EvmIntrospectionUtilImpl.getStepContextString(
+          stepContext
+        )}`
+      )
+    } finally {
+      continueFn()
     }
-
-    const address: string = EvmIntrospectionUtilImpl.getCodeHashTag(
-      data['address']
-    )
-    log.debug(
-      `Code hash [${address}] step data: ${EvmIntrospectionUtilImpl.getStepContextString(
-        stepContext
-      )}`
-    )
-
-    continueFn()
   }
 
   private getEvmErrorFromVmError(vmError: VmError): EvmError | undefined {
@@ -155,6 +157,6 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       .map((x) => bufToHexString(x))
       .join(',')}], memoryWordCount: ${
       stepContext.memoryWordCount
-    }, memory: [${stepContext.memory.map((x) => bufToHexString(x)).join(',')}]`
+    }, memory: [${bufToHexString(stepContext.memory)}]`
   }
 }
