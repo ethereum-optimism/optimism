@@ -1,5 +1,10 @@
 import { EVMOpcode } from '@pigi/rollup-core'
 
+export interface ExecutionResult {
+  result: Buffer
+  error?: EvmError
+}
+
 export interface StepContext {
   pc: number
   opcode: EVMOpcode
@@ -11,10 +16,14 @@ export interface StepContext {
 
 export interface ExecutionResultComparison {
   resultsDiffer: boolean
-  firstResult: Buffer
-  secondResult: Buffer
-  firstError?: EvmError
-  secondError?: EvmError
+  firstResult: ExecutionResult
+  secondResult: ExecutionResult
+}
+
+export interface ExecutionComparison {
+  executionDiffers: boolean
+  firstContext: StepContext
+  secondContext: StepContext
 }
 
 /* Right now duping ethereumjs-vm errors, but separated to isolate dependency */

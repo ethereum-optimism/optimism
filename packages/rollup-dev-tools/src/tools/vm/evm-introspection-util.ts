@@ -25,94 +25,165 @@ import {
   STACK_OVERFLOW_ERROR,
   STACK_UNDERFLOW_ERROR,
   StepContext,
+  ExecutionComparison,
+  ExecutionResult,
 } from '../../types/vm'
 
 const log: Logger = getLogger('evm-util')
 
+type StepCallback = (data, continueFn) => Promise<void>
+type StepContextCallback = (context: StepContext) => Promise<void>
+
 const BIG_ENOUGH_GAS_LIMIT: any = new BN('ffffffff', 'hex')
+const KEY = 'EvmIntrospectionUtilImpl_LOCK'
 
 export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   private readonly vm: VM
   private readonly lock: AsyncLock
-  private currentlyRunning: string = 'none'
 
   constructor() {
-    this.vm = new VM()
     this.lock = new AsyncLock()
-    this.vm.on('step', this.onStep)
+  }
+
+  public async getExecutionResult(bytecode: Buffer): Promise<ExecutionResult> {
+    const res: ExecResult = await this.runLocked(bytecode)
+    const error: EvmError = EvmIntrospectionUtilImpl.getEvmErrorFromVmError(
+      res.exceptionError
+    )
+
+    const toReturn: ExecutionResult = {
+      result: res.returnValue,
+    }
+    if (!!error) {
+      toReturn.error = error
+    }
+    return toReturn
+  }
+  public async getStepContextBeforeStep(
+    bytecode: Buffer,
+    stepIndex: number
+  ): Promise<StepContext> {
+    let context: StepContext
+    const callback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory(
+      async (stepContext: StepContext) => {
+        if (stepContext.pc === stepIndex && !context) {
+          context = stepContext
+        }
+      }
+    )
+
+    await this.runLocked(bytecode, callback)
+
+    return context
   }
 
   public async getExecutionResultComparison(
-    binaryOne: Buffer,
-    binaryTwo: Buffer
+    firstBytecode: Buffer,
+    secondBytecode: Buffer
   ): Promise<ExecutionResultComparison> {
-    const binaryOneHash: string = keccak256(binaryOne.toString('hex'))
-    const binaryOneHashBuffer: Buffer = Buffer.from(binaryOneHash, 'hex')
-    const res1: ExecResult = await this.vm.runCode({
-      code: binaryOne,
-      gasLimit: BIG_ENOUGH_GAS_LIMIT,
-      address: binaryOneHashBuffer,
-    })
-    log.debug(`\nFinished executing ${binaryOneHash}\n`)
+    const [firstResult, secondResult]: [
+      ExecutionResult,
+      ExecutionResult
+    ] = await Promise.all([
+      this.getExecutionResult(firstBytecode),
+      this.getExecutionResult(secondBytecode),
+    ])
 
-    const binaryTwoHash: string = keccak256(binaryTwo.toString('hex'))
-    const binaryTwoHashBuffer: Buffer = Buffer.from(binaryTwoHash, 'hex')
-    const res2: ExecResult = await this.vm.runCode({
-      code: binaryTwo,
-      gasLimit: BIG_ENOUGH_GAS_LIMIT,
-      address: binaryTwoHashBuffer,
-    })
-    log.debug(`\nFinished executing ${binaryTwoHash}\n`)
-
-    const firstError: EvmError = this.getEvmErrorFromVmError(
-      res1.exceptionError
+    const resultsDiffer: boolean = !EvmIntrospectionUtilImpl.areExecutionResultsEqual(
+      firstResult,
+      secondResult
     )
-    const secondError: EvmError = this.getEvmErrorFromVmError(
-      res2.exceptionError
-    )
+    return {
+      resultsDiffer,
+      firstResult,
+      secondResult,
+    }
+  }
 
-    const toReturn: ExecutionResultComparison = {
-      resultsDiffer: !(
-        res1.returnValue.equals(res2.returnValue) && firstError === secondError
+  public async getExecutionComparisonBeforeStep(
+    firstBytecode: Buffer,
+    firstStepIndex: number,
+    secondBytecode: Buffer,
+    secondStepIndex: number
+  ): Promise<ExecutionComparison> {
+    const [firstContext, secondContext]: [
+      StepContext,
+      StepContext
+    ] = await Promise.all([
+      this.getStepContextBeforeStep(firstBytecode, firstStepIndex),
+      this.getStepContextBeforeStep(secondBytecode, secondStepIndex),
+    ])
+
+    return {
+      executionDiffers: !EvmIntrospectionUtilImpl.areStepContextsEqual(
+        firstContext,
+        secondContext
       ),
-      firstResult: res1.returnValue,
-      secondResult: res2.returnValue,
+      firstContext,
+      secondContext,
     }
-    if (!!firstError) {
-      toReturn.firstError = firstError
-    }
-    if (!!secondError) {
-      toReturn.secondError = secondError
-    }
-
-    return toReturn
   }
 
-  private async onStep(data, continueFn: () => void): Promise<void> {
-    try {
-      const stepContext: StepContext = {
-        pc: data['pc'],
-        opcode: Opcode.parseByName(data['opcode']['name']),
-        stack: data['stack'],
-        stackDepth: data['depth'],
-        memory: Buffer.of(data['memory']),
-        memoryWordCount: data['memoryWordCount'],
+  private async runLocked(
+    bytecode: Buffer,
+    stepCallback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory()
+  ): Promise<ExecResult> {
+    const vm: VM = new VM()
+    vm.on('step', stepCallback)
+
+    const bytecodeHash: string = keccak256(bytecode.toString('hex'))
+    const hashBuffer: Buffer = Buffer.from(bytecodeHash, 'hex')
+
+    return this.lock.acquire(KEY, async () => {
+      const res: ExecResult = await vm.runCode({
+        code: bytecode,
+        gasLimit: BIG_ENOUGH_GAS_LIMIT,
+        address: hashBuffer,
+      })
+      log.debug(`\nFinished executing ${bytecodeHash}\n`)
+      return res
+    })
+  }
+
+  private static parseStepContext(data: any): StepContext {
+    return {
+      pc: data['pc'],
+      opcode: Opcode.parseByName(data['opcode']['name']),
+      stack: data['stack'],
+      stackDepth: data['depth'],
+      memory: Buffer.of(data['memory']),
+      memoryWordCount: data['memoryWordCount'],
+    }
+  }
+
+  private static stepCallbackFactory(fn?: StepContextCallback): StepCallback {
+    return async (data, continueFn) => {
+      try {
+        const stepContext: StepContext = EvmIntrospectionUtilImpl.parseStepContext(
+          data
+        )
+
+        if (!!fn) {
+          await fn(stepContext)
+        }
+
+        const address: string = EvmIntrospectionUtilImpl.getCodeHashTag(
+          data['address']
+        )
+        log.debug(
+          `Code hash [${address}] step data: ${EvmIntrospectionUtilImpl.getStepContextString(
+            stepContext
+          )}`
+        )
+      } finally {
+        continueFn()
       }
-
-      const address: string = EvmIntrospectionUtilImpl.getCodeHashTag(
-        data['address']
-      )
-      log.debug(
-        `Code hash [${address}] step data: ${EvmIntrospectionUtilImpl.getStepContextString(
-          stepContext
-        )}`
-      )
-    } finally {
-      continueFn()
     }
   }
 
-  private getEvmErrorFromVmError(vmError: VmError): EvmError | undefined {
+  private static getEvmErrorFromVmError(
+    vmError: VmError
+  ): EvmError | undefined {
     if (!vmError || !vmError.error) {
       return undefined
     }
@@ -158,5 +229,37 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       .join(',')}], memoryWordCount: ${
       stepContext.memoryWordCount
     }, memory: [${bufToHexString(stepContext.memory)}]`
+  }
+
+  private static areExecutionResultsEqual(
+    first: ExecutionResult,
+    second: ExecutionResult
+  ): boolean {
+    return (
+      (!first && !second) ||
+      (!!first &&
+        !!second &&
+        first.result.equals(second.result) &&
+        ((!first.error && !second.error) ||
+          (!!first.error && !!second.error && first.error === second.error)))
+    )
+  }
+
+  private static areStepContextsEqual(
+    first: StepContext,
+    second: StepContext
+  ): boolean {
+    return (
+      (!first && !second) ||
+      (!!first &&
+        !!second &&
+        first.pc === second.pc &&
+        first.opcode === second.opcode &&
+        first.stackDepth === second.stackDepth &&
+        first.memoryWordCount === second.memoryWordCount &&
+        first.memory.equals(second.memory) &&
+        first.stack.map((b) => b.toString()).join() ===
+          second.stack.map((b) => b.toString()).join())
+    )
   }
 }
