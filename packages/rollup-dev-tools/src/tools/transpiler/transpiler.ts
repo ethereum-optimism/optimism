@@ -6,8 +6,8 @@ import {
   bytecodeToBuffer,
   EVMOpcode,
   formatBytecode,
-} from '@pigi/rollup-core'
-import { getLogger } from '@pigi/core-utils'
+} from '@pigi/rollup-core/build/index'
+import { getLogger } from '@pigi/core-utils/build/index'
 
 /* Internal Imports */
 import {
@@ -17,7 +17,7 @@ import {
   TranspilationResult,
   TranspilationError,
   TranspilationErrors,
-} from '../types/transpiler'
+} from '../../types/transpiler'
 import {
   getExpectedFooterSwitchStatementJumpdestIndex,
   getJumpIndexSwitchStatementBytecode,

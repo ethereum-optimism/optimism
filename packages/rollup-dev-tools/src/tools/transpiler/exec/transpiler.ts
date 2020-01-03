@@ -1,12 +1,17 @@
 /* External Imports */
-import { EVMOpcode, Opcode, Address, EVMBytecode } from '@pigi/rollup-core'
+import {
+  EVMOpcode,
+  Opcode,
+  Address,
+  EVMBytecode,
+} from '@pigi/rollup-core/build/index'
 import {
   getLogger,
   logError,
   isValidHexAddress,
   remove0x,
   bufToHexString,
-} from '@pigi/core-utils'
+} from '@pigi/core-utils/build/index'
 
 import * as fs from 'fs'
 import { config, parse } from 'dotenv'
@@ -19,8 +24,12 @@ import {
   SuccessfulTranspilation,
   TranspilationResult,
   Transpiler,
-} from '../../types/transpiler'
-import { OpcodeWhitelistImpl, OpcodeReplacerImpl, TranspilerImpl } from '../'
+} from '../../../types/transpiler'
+import {
+  OpcodeWhitelistImpl,
+  OpcodeReplacerImpl,
+  TranspilerImpl,
+} from '../index'
 
 const log = getLogger('transpiler')
 

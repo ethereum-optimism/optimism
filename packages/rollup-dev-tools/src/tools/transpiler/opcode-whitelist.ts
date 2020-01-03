@@ -1,8 +1,8 @@
 /* External Imports */
-import { EVMOpcode, Opcode } from '@pigi/rollup-core'
+import { EVMOpcode, Opcode } from '@pigi/rollup-core/build/index'
 
 /* Internal Imports */
-import { OpcodeWhitelist } from '../types/transpiler'
+import { OpcodeWhitelist } from '../../types/transpiler'
 
 /**
  * Default and only intended implementation of OpcodeWhitelist.

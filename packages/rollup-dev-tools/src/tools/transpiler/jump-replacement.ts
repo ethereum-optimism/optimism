@@ -1,5 +1,9 @@
-import { bytecodeToBuffer, EVMBytecode, Opcode } from '@pigi/rollup-core'
-import { bufferUtils, getLogger } from '@pigi/core-utils'
+import {
+  bytecodeToBuffer,
+  EVMBytecode,
+  Opcode,
+} from '@pigi/rollup-core/build/index'
+import { bufferUtils, getLogger } from '@pigi/core-utils/build/index'
 
 const log = getLogger('jump-replacement')
 

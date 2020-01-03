@@ -6,21 +6,21 @@ import {
   EVMBytecode,
   isValidOpcodeAndBytes,
   Address,
-} from '@pigi/rollup-core'
+} from '@pigi/rollup-core/build/index'
 import {
   bufToHexString,
   remove0x,
   getLogger,
   isValidHexAddress,
-} from '@pigi/core-utils'
+} from '@pigi/core-utils/build/index'
 
 /* Internal Imports */
-import { OpcodeReplacer } from '../types/transpiler'
+import { OpcodeReplacer } from '../../types/transpiler'
 import {
   InvalidAddressError,
   InvalidBytesConsumedError,
   UnsupportedOpcodeError,
-} from '../'
+} from '../../index'
 
 const log = getLogger('transpiler:opcode-replacement')
 

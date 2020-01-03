@@ -33,7 +33,10 @@
   "dependencies": {
     "@pigi/core-utils": "0.0.10-alpha.0",
     "@pigi/rollup-core": "0.0.10-alpha.0",
-    "dotenv": "^8.2.0"
+    "async-lock": "^1.2.2",
+    "bn.js": "^5.1.1",
+    "dotenv": "^8.2.0",
+    "ethereumjs-vm": "^4.1.2"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",
