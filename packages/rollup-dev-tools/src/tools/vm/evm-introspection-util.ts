@@ -10,20 +10,9 @@ import { ExecResult } from 'ethereumjs-vm/dist/evm/evm'
 import { ERROR, VmError } from 'ethereumjs-vm/dist/exceptions'
 import {
   EvmError,
+  EvmErrors,
   EvmIntrospectionUtil,
   ExecutionResultComparison,
-  OUT_OF_GAS_ERROR,
-  STOP_ERROR,
-  REFUND_EXHAUSTED_ERROR,
-  CREATE_COLLISION_ERROR,
-  INTERNAL_ERROR,
-  STATIC_STATE_CHANGE_ERROR,
-  REVERT_ERROR,
-  OUT_OF_RANGE_ERROR,
-  INVALID_OPCODE_ERROR,
-  INVALID_JUMP_ERROR,
-  STACK_OVERFLOW_ERROR,
-  STACK_UNDERFLOW_ERROR,
   StepContext,
   ExecutionComparison,
   ExecutionResult,
@@ -189,29 +178,29 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     }
     switch (vmError.error) {
       case ERROR.OUT_OF_GAS:
-        return OUT_OF_GAS_ERROR
+        return EvmErrors.OUT_OF_GAS_ERROR
       case ERROR.STACK_UNDERFLOW:
-        return STACK_UNDERFLOW_ERROR
+        return EvmErrors.STACK_UNDERFLOW_ERROR
       case ERROR.STACK_OVERFLOW:
-        return STACK_OVERFLOW_ERROR
+        return EvmErrors.STACK_OVERFLOW_ERROR
       case ERROR.INVALID_JUMP:
-        return INVALID_JUMP_ERROR
+        return EvmErrors.INVALID_JUMP_ERROR
       case ERROR.INVALID_OPCODE:
-        return INVALID_OPCODE_ERROR
+        return EvmErrors.INVALID_OPCODE_ERROR
       case ERROR.OUT_OF_RANGE:
-        return OUT_OF_RANGE_ERROR
+        return EvmErrors.OUT_OF_RANGE_ERROR
       case ERROR.REVERT:
-        return REVERT_ERROR
+        return EvmErrors.REVERT_ERROR
       case ERROR.STATIC_STATE_CHANGE:
-        return STATIC_STATE_CHANGE_ERROR
+        return EvmErrors.STATIC_STATE_CHANGE_ERROR
       case ERROR.INTERNAL_ERROR:
-        return INTERNAL_ERROR
+        return EvmErrors.INTERNAL_ERROR
       case ERROR.CREATE_COLLISION:
-        return CREATE_COLLISION_ERROR
+        return EvmErrors.CREATE_COLLISION_ERROR
       case ERROR.STOP:
-        return STOP_ERROR
+        return EvmErrors.STOP_ERROR
       case ERROR.REFUND_EXHAUSTED:
-        return REFUND_EXHAUSTED_ERROR
+        return EvmErrors.REFUND_EXHAUSTED_ERROR
       default:
         throw Error(`Unrecognized VmError: ${vmError.error}`)
     }

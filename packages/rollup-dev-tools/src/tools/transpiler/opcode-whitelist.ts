@@ -1,5 +1,5 @@
 /* External Imports */
-import { EVMOpcode, Opcode } from '@pigi/rollup-core/build/index'
+import { EVMOpcode, Opcode } from '@pigi/rollup-core'
 
 /* Internal Imports */
 import { OpcodeWhitelist } from '../../types/transpiler'

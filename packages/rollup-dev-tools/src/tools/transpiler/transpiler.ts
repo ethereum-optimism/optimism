@@ -6,8 +6,8 @@ import {
   bytecodeToBuffer,
   EVMOpcode,
   formatBytecode,
-} from '@pigi/rollup-core/build/index'
-import { getLogger } from '@pigi/core-utils/build/index'
+} from '@pigi/rollup-core'
+import { getLogger } from '@pigi/core-utils'
 
 /* Internal Imports */
 import {

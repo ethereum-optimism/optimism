@@ -6,13 +6,13 @@ import {
   EVMBytecode,
   isValidOpcodeAndBytes,
   Address,
-} from '@pigi/rollup-core/build/index'
+} from '@pigi/rollup-core'
 import {
   bufToHexString,
   remove0x,
   getLogger,
   isValidHexAddress,
-} from '@pigi/core-utils/build/index'
+} from '@pigi/core-utils'
 
 /* Internal Imports */
 import { OpcodeReplacer } from '../../types/transpiler'
