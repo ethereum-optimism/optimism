@@ -7,17 +7,17 @@ pragma solidity ^0.5.0;
  */
 contract StateManager {
     // Storage
-    function getStorage(address contractAddress, bytes32 slot) internal view returns(bytes32);
-    function setStorage(address contractAddress, bytes32 slot, bytes32 value) internal;
+    function getStorage(address _ovmContractAddress, bytes32 _slot) internal view returns(bytes32);
+    function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) internal;
 
     // Nonces (this is used during contract creation to determine the contract address)
-    function getNonce(address contractAddress) internal returns(bytes32);
-    function setNonce(address contractAddress, bytes32 value) internal;
-    function incrementNonce(address contractAddress) internal;
+    function getOvmContractNonce(address _ovmContractAddress) internal returns(uint);
+    function setOvmContractNonce(address _ovmContractAddress, uint _value) internal;
+    function incrementOvmContractNonce(address _ovmContractAddress) internal;
 
     // Contract code storage / contract address retrieval
-    function getCode(address contractAddress) internal returns(bytes memory);
-    function getCodeHash(address contractAddress) internal returns(bytes32);
-    function getCodeAddress(address contractAddress) internal returns(address);
-    function setCode(address contractAddress, bytes memory code) internal;
+    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) internal;
+    function getCodeContractAddress(address _ovmContractAddress) internal returns(address);
+    function getCodeContractBytecode(address _codeContractAddress) internal view returns (bytes memory codeContractBytecode);
+    function getCodeContractHash(address _codeContractAddress) internal view returns (bytes32 _codeContractHash);
 }

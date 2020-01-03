@@ -3,7 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /**
  * @title DataTypes
- * @notice TODO
+ * @notice Main data structures which to be used in rollup smart contracts.
  */
 contract DataTypes {
     struct Transaction {

@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { getLogger } from '@pigi/core-utils'
+import { getLogger, add0x } from '@pigi/core-utils'
 import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
 
 /* Contract Imports */
@@ -35,6 +35,25 @@ describe('ExecutionManager', () => {
         gasLimit: 6700000,
       }
     )
+  })
+
+  /*
+   * Test CREATE opcode
+   */
+  describe('ovmCREATE', async () => {
+    it('does not throw when passed bytecode', async () => {
+      const deployTx = new ContractFactory(
+        SimpleStorage.abi,
+        SimpleStorage.bytecode
+      ).getDeployTransaction(executionManager.address)
+      // Call CREATE
+      const tx1 = await executionManager.ovmCREATE(deployTx.data)
+      // Get the reciept
+      const reciept1 = await provider.getTransactionReceipt(tx1.hash)
+      // Verify the log data exists
+      reciept1.logs[0].should.have.property('data')
+      // TODO: Check the actual output for the expected data
+    })
   })
 
   /*
