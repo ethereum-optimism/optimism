@@ -9,3 +9,5 @@ import { rootPath } from '../index'
 
 chai.use(chaiAsPromised)
 const should = chai.should()
+
+export { should }

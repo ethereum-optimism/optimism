@@ -1,11 +1,11 @@
 /* External Imports */
 import {
   Opcode,
-  Address,
   EVMOpcodeAndBytes,
   EVMBytecode,
   bytecodeToBuffer,
   EVMOpcode,
+  formatBytecode,
 } from '@pigi/rollup-core'
 import { getLogger } from '@pigi/core-utils'
 
@@ -18,6 +18,16 @@ import {
   TranspilationError,
   TranspilationErrors,
 } from '../types/transpiler'
+import {
+  getExpectedFooterSwitchStatementJumpdestIndex,
+  getJumpIndexSwitchStatementBytecode,
+  getJumpdestReplacementBytecode,
+  getJumpdestReplacementBytecodeLength,
+  getJumpiReplacementBytecode,
+  getJumpiReplacementBytecodeLength,
+  getJumpReplacementBytecode,
+  getJumpReplacementBytecodeLength,
+} from './jump-replacement'
 
 const log = getLogger('transpiler-impl')
 
@@ -35,23 +45,35 @@ export class TranspilerImpl implements Transpiler {
   }
 
   public transpile(inputBytecode: Buffer): TranspilationResult {
+    let transpiledBytecode: EVMBytecode = []
     const errors: TranspilationError[] = []
-    const transpiledBytecode: EVMBytecode = []
+    const jumpdestIndexesBefore: number[] = []
     let lastOpcode: EVMOpcode
     for (let pc = 0; pc < inputBytecode.length; pc++) {
       const opcode = Opcode.parseByNumber(inputBytecode[pc])
 
-      if (!this.validOpcode(opcode, pc, lastOpcode, errors)) {
+      if (!TranspilerImpl.validOpcode(opcode, pc, lastOpcode, errors)) {
         lastOpcode = undefined
         continue
       }
       lastOpcode = opcode
 
+      if (opcode === Opcode.JUMPDEST) {
+        jumpdestIndexesBefore.push(pc)
+      }
+
       if (!this.opcodeWhitelisted(opcode, pc, errors)) {
         pc += opcode.programBytesConsumed
         continue
       }
-      if (!this.enoughBytesLeft(opcode, inputBytecode.length, pc, errors)) {
+      if (
+        !TranspilerImpl.enoughBytesLeft(
+          opcode,
+          inputBytecode.length,
+          pc,
+          errors
+        )
+      ) {
         break
       }
 
@@ -60,7 +82,7 @@ export class TranspilerImpl implements Transpiler {
         opcode,
         consumedBytes: !opcode.programBytesConsumed
           ? undefined
-          : inputBytecode.slice(pc, pc + opcode.programBytesConsumed),
+          : inputBytecode.slice(pc + 1, pc + 1 + opcode.programBytesConsumed),
       }
 
       transpiledBytecode.push(
@@ -69,6 +91,18 @@ export class TranspilerImpl implements Transpiler {
 
       pc += opcode.programBytesConsumed
     }
+
+    log.debug(
+      `Bytecode after replacement before JUMP logic: \n${formatBytecode(
+        transpiledBytecode
+      )}`
+    )
+
+    transpiledBytecode = TranspilerImpl.accountForJumps(
+      transpiledBytecode,
+      jumpdestIndexesBefore,
+      errors
+    )
 
     if (!!errors.length) {
       return {
@@ -92,7 +126,7 @@ export class TranspilerImpl implements Transpiler {
    * @param errors The cumulative errors list.
    * @returns True if valid, False otherwise.
    */
-  private validOpcode(
+  private static validOpcode(
     opcode: EVMOpcode,
     pc: number,
     lastOpcode: EVMOpcode,
@@ -159,7 +193,7 @@ export class TranspilerImpl implements Transpiler {
    * @param errors The cumulative errors list.
    * @returns True if enough bytes are left for the Opcode to consume, False otherwise.
    */
-  private enoughBytesLeft(
+  private static enoughBytesLeft(
     opcode: EVMOpcode,
     bytecodeLength: number,
     pc: number,
@@ -183,6 +217,76 @@ export class TranspilerImpl implements Transpiler {
       return false
     }
     return true
+  }
+
+  /**
+   * Takes the provided transpiled bytecode and accounts for JUMPs that may not jump
+   * to the intended spots now that transpilation has modified the code.
+   *
+   * @param transpiledBytecode The transpiled bytecode to operate on.
+   * @param jumpdestIndexesBefore The ordered indexes of JUMPDESTs before.
+   * @param errors The list of errors to append to if there is an error.
+   * @returns The new bytecode with all JUMPs accounted for.
+   */
+  private static accountForJumps(
+    transpiledBytecode: EVMBytecode,
+    jumpdestIndexesBefore: number[],
+    errors: TranspilationError[]
+  ): EVMBytecode {
+    if (jumpdestIndexesBefore.length === 0) {
+      return transpiledBytecode
+    }
+
+    const footerSwitchJumpdestIndex: number = getExpectedFooterSwitchStatementJumpdestIndex(
+      transpiledBytecode
+    )
+    const jumpdestIndexesAfter: number[] = []
+    const replacedBytecode: EVMBytecode = []
+    let pc: number = 0
+    // Replace all JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
+    for (const opcodeAndBytes of transpiledBytecode) {
+      if (opcodeAndBytes.opcode === Opcode.JUMP) {
+        replacedBytecode.push(
+          ...getJumpReplacementBytecode(footerSwitchJumpdestIndex)
+        )
+        pc += getJumpReplacementBytecodeLength()
+      } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
+        replacedBytecode.push(
+          ...getJumpiReplacementBytecode(footerSwitchJumpdestIndex)
+        )
+        pc += getJumpiReplacementBytecodeLength()
+      } else if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
+        jumpdestIndexesAfter.push(pc)
+        replacedBytecode.push(...getJumpdestReplacementBytecode())
+        pc += getJumpdestReplacementBytecodeLength()
+      } else {
+        replacedBytecode.push(opcodeAndBytes)
+        pc += 1 + opcodeAndBytes.opcode.programBytesConsumed
+      }
+    }
+
+    if (jumpdestIndexesBefore.length !== jumpdestIndexesAfter.length) {
+      const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
+      log.debug(message)
+      errors.push(
+        TranspilerImpl.createError(
+          -1,
+          TranspilationErrors.INVALID_SUBSTITUTION,
+          message
+        )
+      )
+      return transpiledBytecode
+    }
+
+    // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
+    replacedBytecode.push(
+      ...getJumpIndexSwitchStatementBytecode(
+        jumpdestIndexesBefore,
+        jumpdestIndexesAfter
+      )
+    )
+
+    return replacedBytecode
   }
 
   /**

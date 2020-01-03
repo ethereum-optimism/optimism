@@ -89,6 +89,29 @@ const padRight = (buf: Buffer, totalWidth: number): Buffer => {
 }
 
 /**
+ * Converts the provided number to a Buffer and returns it.
+ * @param num The number to convert.
+ * @param numBytes The number of bytes in the number.
+ * @param bufferBytes The number of bytes in the output Buffer.
+ * @param bigEndian The endianness of the output buffer.
+ * @returns The buffer.
+ */
+const numberToBuffer = (
+  num: number,
+  numBytes: number = 4,
+  bufferBytes: number = 32,
+  bigEndian: boolean = true
+): Buffer => {
+  const buf: Buffer = Buffer.alloc(bufferBytes)
+  if (bigEndian) {
+    buf.writeIntBE(num, bufferBytes - numBytes, numBytes)
+  } else {
+    buf.writeIntLE(num, 0, numBytes)
+  }
+  return buf
+}
+
+/**
  * A collection of useful utilities for comparing buffers.
  */
 export const bufferUtils = {
@@ -100,4 +123,5 @@ export const bufferUtils = {
   min,
   padLeft,
   padRight,
+  numberToBuffer,
 }
