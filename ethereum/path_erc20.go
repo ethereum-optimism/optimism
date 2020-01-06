@@ -18,8 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"gitlab.com/shearline-gateway/omisego/contracts/erc20"
-	"gitlab.com/shearline-gateway/omisego/util"
+	"github.com/omisego/immutability-eth-plugin/contracts/erc20"
+	"github.com/omisego/immutability-eth-plugin/util"
 )
 
 const erc20Contract string = "erc-20"

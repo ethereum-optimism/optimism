@@ -9,6 +9,7 @@ Omisego/Immutability Documentation
    introduction
    designquestions
    cluster
+   deploymentarch
 
 Indices and tables
 ==================

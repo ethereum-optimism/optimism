@@ -1,3 +1,25 @@
+## 0.0.4 (November 17, 2019)
+
+NEW FEATURES:
+
+* Remove Export JSON Keystore
+* Add k8s Example in examples/k8s Showing Integration of k8s Clients and Vault
+  - [x] Uses minikube
+  - [x] Integrates with existing testbed (`make run`)
+  - [x] Shows steps needed to enable k8s auth in Vault
+
+IMPROVEMENTS:
+
+* Wallet Smoke Test 
+  - [x] Remove test for Export JSON Keystore from Account
+* Document Networking Recommendations
+* Refine Plamsa Contract integration
+  - [x] Remove Set Authority
+
+BUG FIXES:
+
+* Removed imports of `gitlab.com/shearline-gateway`
+
 ## 0.0.3 (November 10, 2019)
 
 NEW FEATURES:
@@ -12,6 +34,10 @@ NEW FEATURES:
   - [x] Pull latest from OmiseGO plasma-contracts
   - [x] Builds and Deploys 
   - [x] Integrates with Ganache and Vault in `make run` for full integration test
+* Added Docs
+  - [x] Uses Sphinx and sphinx rtd theme
+  - [x] Captured high level design Q & A
+  - [x] Described Vault cluster architecture
 
 IMPROVEMENTS:
 

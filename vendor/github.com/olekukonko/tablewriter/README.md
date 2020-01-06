@@ -78,14 +78,14 @@ table.Render()
 ```
 
     DATE   |       DESCRIPTION        |  CV2  | AMOUNT
-+----------+--------------------------+-------+---------+
+-----------+--------------------------+-------+----------
   1/1/2014 | Domain name              |  2233 | $10.98
   1/1/2014 | January Hosting          |  2233 | $54.95
   1/4/2014 | February Hosting         |  2233 | $51.00
   1/4/2014 | February Extra Bandwidth |  2233 | $30.00
-+----------+--------------------------+-------+---------+
+-----------+--------------------------+-------+----------
                                         TOTAL | $146 93
-                                      +-------+---------+
+                                      --------+----------
 
 ```
 
@@ -265,6 +265,34 @@ Note: Caption text will wrap with total width of rendered table.
 |  D   |      The Gopher       |    800 |
 +------+-----------------------+--------+
 Movie ratings.
+```
+
+#### Render table into a string
+
+Instead of rendering the table to `io.Stdout` you can also render it into a string. Go 1.10 introduced the `strings.Builder` type which implements the `io.Writer` interface and can therefore be used for this task. Example:
+
+```go
+package main
+
+import (
+    "strings"
+    "fmt"
+
+    "github.com/olekukonko/tablewriter"
+)
+
+func main() {
+    tableString := &strings.Builder{}
+	table := tablewriter.NewWriter(tableString)
+
+    /*
+     * Code to fill the table
+     */
+
+    table.Render()
+
+    fmt.Println(tableString.String())
+}
 ```
 
 #### TODO

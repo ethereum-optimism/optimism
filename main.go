@@ -6,7 +6,7 @@ import (
 
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/plugin"
-	"gitlab.com/shearline-gateway/omisego/ethereum"
+	"github.com/omisego/immutability-eth-plugin/ethereum"
 )
 
 func main() {

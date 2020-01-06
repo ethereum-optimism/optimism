@@ -41,6 +41,8 @@ subjectAltName       = @alt_names
 # DNS accordingly.
 [alt_names]
 IP.1  = 127.0.0.1
+IP.2  = 192.168.64.1
+IP.3  = 192.168.122.1
 DNS.1 = localhost
 EOF
 

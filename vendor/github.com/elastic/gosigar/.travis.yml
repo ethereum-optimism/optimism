@@ -5,8 +5,7 @@ os:
   - osx
 
 go:
-  - 1.8.x
-  - 1.10.x
+  - 1.8.3
 
 env:
   global:

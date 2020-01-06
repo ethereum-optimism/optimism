@@ -3,6 +3,7 @@ package natpmp
 import (
 	"fmt"
 	"net"
+	"time"
 )
 
 // Implement the NAT-PMP protocol, typically supported by Apple routers and open source
@@ -20,17 +21,25 @@ const RECOMMENDED_MAPPING_LIFETIME_SECONDS = 3600
 
 // Interface used to make remote procedure calls.
 type caller interface {
-	call(msg []byte) (result []byte, err error)
+	call(msg []byte, timeout time.Duration) (result []byte, err error)
 }
 
 // Client is a NAT-PMP protocol client.
 type Client struct {
-	caller caller
+	caller  caller
+	timeout time.Duration
 }
 
 // Create a NAT-PMP client for the NAT-PMP server at the gateway.
+// Uses default timeout which is around 128 seconds.
 func NewClient(gateway net.IP) (nat *Client) {
-	return &Client{&network{gateway}}
+	return &Client{&network{gateway}, 0}
+}
+
+// Create a NAT-PMP client for the NAT-PMP server at the gateway, with a timeout.
+// Timeout defines the total amount of time we will keep retrying before giving up.
+func NewClientWithTimeout(gateway net.IP, timeout time.Duration) (nat *Client) {
+	return &Client{&network{gateway}, timeout}
 }
 
 // Results of the NAT-PMP GetExternalAddress operation.
@@ -92,7 +101,7 @@ func (n *Client) AddPortMapping(protocol string, internalPort, requestedExternal
 }
 
 func (n *Client) rpc(msg []byte, resultSize int) (result []byte, err error) {
-	result, err = n.caller.call(msg)
+	result, err = n.caller.call(msg, n.timeout)
 	if err != nil {
 		return
 	}

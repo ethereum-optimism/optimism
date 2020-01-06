@@ -12,7 +12,7 @@ type wildcard struct {
 }
 
 func (w wildcard) match(s string) bool {
-	return len(s) >= len(w.prefix)+len(w.suffix) && strings.HasPrefix(s, w.prefix) && strings.HasSuffix(s, w.suffix)
+	return len(s) >= len(w.prefix+w.suffix) && strings.HasPrefix(s, w.prefix) && strings.HasSuffix(s, w.suffix)
 }
 
 // convert converts a list of string using the passed converter function
@@ -39,20 +39,19 @@ func parseHeaderList(headerList string) []string {
 	headers := make([]string, 0, t)
 	for i := 0; i < l; i++ {
 		b := headerList[i]
-		switch {
-		case b >= 'a' && b <= 'z':
+		if b >= 'a' && b <= 'z' {
 			if upper {
 				h = append(h, b-toLower)
 			} else {
 				h = append(h, b)
 			}
-		case b >= 'A' && b <= 'Z':
+		} else if b >= 'A' && b <= 'Z' {
 			if !upper {
 				h = append(h, b+toLower)
 			} else {
 				h = append(h, b)
 			}
-		case b == '-' || b == '_' || (b >= '0' && b <= '9'):
+		} else if b == '-' || b == '_' || (b >= '0' && b <= '9') {
 			h = append(h, b)
 		}
 

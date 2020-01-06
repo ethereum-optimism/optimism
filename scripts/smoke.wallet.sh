@@ -107,12 +107,3 @@ echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUN
 vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19" encoding="hex"  amount=1000000000000000
 banner
 vault write -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19" encoding="hex"  amount=1000000000000000
-
-banner
-echo "EXPORT KEYSTORE FROM $ACCOUNT0"
-echo "PASSPHRASE IS \"$PASSPHRASE\""
-echo "vault immutability-eth-plugin/export/test-wallet-2/accounts/$ACCOUNT0 path=$(pwd) passphrase='$PASSPHRASE'"
-vault write immutability-eth-plugin/export/test-wallet-2/accounts/$ACCOUNT0 path=$(pwd) passphrase="$PASSPHRASE"
-banner
-vault write -output-curl-string immutability-eth-plugin/export/test-wallet-2/accounts/$ACCOUNT0 path=$(pwd) passphrase="$PASSPHRASE"
-banner

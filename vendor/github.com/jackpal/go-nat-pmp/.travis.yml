@@ -11,10 +11,3 @@ install:
   - go get -d -v ./... && go install -race -v ./...
 
 script: go test -race -v ./...
-
-sudo: false
-
-addons:
-  apt:
-    packages:
-    - iproute2

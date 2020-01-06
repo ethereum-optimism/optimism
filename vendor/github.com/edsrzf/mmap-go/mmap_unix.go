@@ -7,45 +7,61 @@
 package mmap
 
 import (
-	"golang.org/x/sys/unix"
+	"syscall"
 )
 
 func mmap(len int, inprot, inflags, fd uintptr, off int64) ([]byte, error) {
-	flags := unix.MAP_SHARED
-	prot := unix.PROT_READ
+	flags := syscall.MAP_SHARED
+	prot := syscall.PROT_READ
 	switch {
 	case inprot&COPY != 0:
-		prot |= unix.PROT_WRITE
-		flags = unix.MAP_PRIVATE
+		prot |= syscall.PROT_WRITE
+		flags = syscall.MAP_PRIVATE
 	case inprot&RDWR != 0:
-		prot |= unix.PROT_WRITE
+		prot |= syscall.PROT_WRITE
 	}
 	if inprot&EXEC != 0 {
-		prot |= unix.PROT_EXEC
+		prot |= syscall.PROT_EXEC
 	}
 	if inflags&ANON != 0 {
-		flags |= unix.MAP_ANON
+		flags |= syscall.MAP_ANON
 	}
 
-	b, err := unix.Mmap(int(fd), off, len, prot, flags)
+	b, err := syscall.Mmap(int(fd), off, len, prot, flags)
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-func (m MMap) flush() error {
-	return unix.Msync([]byte(m), unix.MS_SYNC)
+func flush(addr, len uintptr) error {
+	_, _, errno := syscall.Syscall(_SYS_MSYNC, addr, len, _MS_SYNC)
+	if errno != 0 {
+		return syscall.Errno(errno)
+	}
+	return nil
 }
 
-func (m MMap) lock() error {
-	return unix.Mlock([]byte(m))
+func lock(addr, len uintptr) error {
+	_, _, errno := syscall.Syscall(syscall.SYS_MLOCK, addr, len, 0)
+	if errno != 0 {
+		return syscall.Errno(errno)
+	}
+	return nil
 }
 
-func (m MMap) unlock() error {
-	return unix.Munlock([]byte(m))
+func unlock(addr, len uintptr) error {
+	_, _, errno := syscall.Syscall(syscall.SYS_MUNLOCK, addr, len, 0)
+	if errno != 0 {
+		return syscall.Errno(errno)
+	}
+	return nil
 }
 
-func (m MMap) unmap() error {
-	return unix.Munmap([]byte(m))
+func unmap(addr, len uintptr) error {
+	_, _, errno := syscall.Syscall(syscall.SYS_MUNMAP, addr, len, 0)
+	if errno != 0 {
+		return syscall.Errno(errno)
+	}
+	return nil
 }

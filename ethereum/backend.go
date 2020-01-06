@@ -56,7 +56,6 @@ func Backend(conf *logical.BackendConfig) (*PluginBackend, error) {
 			ERC20Paths(&b),
 			PlasmaPaths(&b),
 			AccountPaths(&b),
-			ExportPaths(&b),
 		),
 		PathsSpecial: &logical.Paths{
 			SealWrapStorage: []string{
