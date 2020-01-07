@@ -3,7 +3,7 @@ import '../setup'
 /* Internal Imports */
 import { sleep, remove0x, add0x, getNullString, isObject } from '../../src/app'
 
-describe('Miscellanous Utils', () => {
+describe('Miscellaneous Utils', () => {
   describe('sleep', () => {
     it('should sleep for a certain number of ms', async () => {
       const start = Date.now()
