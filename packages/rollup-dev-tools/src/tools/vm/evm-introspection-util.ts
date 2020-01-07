@@ -140,13 +140,14 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       opcode: Opcode.parseByName(data['opcode']['name']),
       stack: data['stack'],
       stackDepth: data['depth'],
-      memory: Buffer.of(data['memory']),
+      memory: Buffer.from(data['memory']),
       memoryWordCount: data['memoryWordCount'],
     }
   }
 
   private static stepCallbackFactory(fn?: StepContextCallback): StepCallback {
     return async (data, continueFn) => {
+      // log.debug(`raw step data is: ${JSON.stringify(data)}`)
       try {
         const stepContext: StepContext = EvmIntrospectionUtilImpl.parseStepContext(
           data
