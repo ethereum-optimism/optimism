@@ -8,10 +8,12 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "build": "tsc -p .",
-    "clean": "rimraf build/",
+    "build": "yarn build-contracts && tsc -p .",
+    "clean": "rimraf build/ && yarn clean-contracts",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
+    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build",
+    "build-contracts": "yarn clean-contracts && waffle waffle-config.json",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "transpile": "node ./build/src/transpiler/exec/transpiler.js "
   },
@@ -33,7 +35,13 @@
   "dependencies": {
     "@pigi/core-utils": "0.0.10-alpha.0",
     "@pigi/rollup-core": "0.0.10-alpha.0",
-    "dotenv": "^8.2.0"
+    "async-lock": "^1.2.2",
+    "bn.js": "^5.1.1",
+    "dotenv": "^8.2.0",
+    "ethereumjs-abi": "^0.6.8",
+    "ethereumjs-tx": "^2.1.2",
+    "ethereumjs-vm": "^4.1.2",
+    "ethers": "^4.0.42"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",
@@ -45,7 +53,8 @@
     "mocha": "^6.1.4",
     "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1"
+    "typescript": "^3.5.1",
+    "ethereum-waffle": "^2.0.12"
   },
   "publishConfig": {
     "access": "public"

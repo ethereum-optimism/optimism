@@ -17,7 +17,7 @@ import {
   TranspilationResult,
   TranspilationError,
   TranspilationErrors,
-} from '../types/transpiler'
+} from '../../types/transpiler'
 import {
   getExpectedFooterSwitchStatementJumpdestIndex,
   getJumpIndexSwitchStatementBytecode,

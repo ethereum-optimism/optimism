@@ -19,8 +19,12 @@ import {
   SuccessfulTranspilation,
   TranspilationResult,
   Transpiler,
-} from '../../types/transpiler'
-import { OpcodeWhitelistImpl, OpcodeReplacerImpl, TranspilerImpl } from '../'
+} from '../../../types/transpiler'
+import {
+  OpcodeWhitelistImpl,
+  OpcodeReplacerImpl,
+  TranspilerImpl,
+} from '../index'
 
 const log = getLogger('transpiler')
 

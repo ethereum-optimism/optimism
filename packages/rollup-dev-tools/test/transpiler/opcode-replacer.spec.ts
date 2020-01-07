@@ -11,7 +11,7 @@ import {
 
 /* Internal imports */
 import { OpcodeReplacer, InvalidBytesConsumedError } from '../../src/types'
-import { OpcodeReplacerImpl } from '../../src/transpiler'
+import { OpcodeReplacerImpl } from '../../src/tools/transpiler'
 import { openSync } from 'fs'
 import { hexStrToBuf, TestUtils } from '@pigi/core-utils'
 

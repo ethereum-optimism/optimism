@@ -2,7 +2,7 @@
 import { EVMOpcode, Opcode } from '@pigi/rollup-core'
 
 /* Internal Imports */
-import { OpcodeWhitelist } from '../types/transpiler'
+import { OpcodeWhitelist } from '../../types/transpiler'
 
 /**
  * Default and only intended implementation of OpcodeWhitelist.

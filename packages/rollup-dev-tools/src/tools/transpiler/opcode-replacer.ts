@@ -15,12 +15,12 @@ import {
 } from '@pigi/core-utils'
 
 /* Internal Imports */
-import { OpcodeReplacer } from '../types/transpiler'
+import { OpcodeReplacer } from '../../types/transpiler'
 import {
   InvalidAddressError,
   InvalidBytesConsumedError,
   UnsupportedOpcodeError,
-} from '../'
+} from '../../index'
 
 const log = getLogger('transpiler:opcode-replacement')
 

@@ -5,7 +5,7 @@ import { Opcode, EVMOpcode } from '@pigi/rollup-core'
 
 /* Internal imports */
 import { OpcodeWhitelist } from '../../src/types/transpiler'
-import { OpcodeWhitelistImpl } from '../../src/transpiler'
+import { OpcodeWhitelistImpl } from '../../src/tools/transpiler'
 
 describe('OpcodeWhitelist', () => {
   let opcodeWhitelist: OpcodeWhitelist

@@ -158,7 +158,8 @@ export const hexStrToBuf = (hexString: string): Buffer => {
  * @returns the hex string.
  */
 export const bufToHexString = (buff: Buffer): string => {
-  return add0x(buff.toString('hex'))
+  const bufStr: string = buff.toString('hex')
+  return add0x(bufStr.length % 2 === 0 ? bufStr : `0${bufStr}`)
 }
 
 /**
