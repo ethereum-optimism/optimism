@@ -98,7 +98,7 @@ const overwriteNWordsInMemoryWithOffset = (
   return overwriteBytecode
 }
 
-describe.only('Memory Replacement Operations', () => {
+describe('Memory Replacement Operations', () => {
   let evmUtil: EvmIntrospectionUtil
   before(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()
@@ -164,7 +164,7 @@ describe.only('Memory Replacement Operations', () => {
     })
   })
 
-  it.only('Memory operations between a stash and unstash operation should not have any effect', async () => {
+  it('Memory operations between a stash and unstash operation should not have any effect', async () => {
     const numWordsToStore = 10
     const memoryModifyingBytecode: EVMBytecode = [
       ...storeNWordsInMemorySequential(numWordsToStore),
