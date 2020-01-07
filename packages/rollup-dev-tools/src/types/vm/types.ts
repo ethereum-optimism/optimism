@@ -1,4 +1,4 @@
-import { EVMOpcode } from '@pigi/rollup-core'
+import { Address, EVMOpcode } from '@pigi/rollup-core'
 
 export interface ExecutionResult {
   result: Buffer
@@ -6,6 +6,7 @@ export interface ExecutionResult {
 }
 
 export interface StepContext {
+  address: Address
   pc: number
   opcode: EVMOpcode
   stack: Buffer[]

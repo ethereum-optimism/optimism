@@ -1,3 +1,4 @@
+/* External Imports */
 import {
   Address,
   bufferToBytecode,
@@ -6,12 +7,15 @@ import {
   formatBytecode,
   Opcode,
 } from '@pigi/rollup-core'
+import { bufferUtils, bufToHexString, hexStrToBuf } from '@pigi/core-utils'
+import * as abi from 'ethereumjs-abi'
+
+/* Internal Imports */
+import { should } from './setup'
 import {
   EvmIntrospectionUtil,
   ExecutionResultComparison,
 } from '../src/types/vm'
-import { should } from './setup'
-import { bufferUtils } from '@pigi/core-utils'
 
 export const emptyBuffer: Buffer = Buffer.from('', 'hex')
 export const stateManagerAddress: Address =
@@ -265,3 +269,104 @@ export const stackDiffersBytecode: EVMBytecode = [
     consumedBytes: undefined,
   },
 ]
+
+export const getBytecodeCallingContractMethod = (
+  address: Address,
+  methodName: string,
+  returnLength: number
+): EVMBytecode => {
+  const methodData: Buffer = abi.methodID(methodName, [])
+
+  const mStoreArgsOffset: Buffer = hexStrToBuf('0x60')
+  // last 4 bytes since method is only 4 bytes
+  const actualArgsOffset: Buffer = hexStrToBuf('0x7C')
+  const retOffset: Buffer = hexStrToBuf('0x80')
+  const retLengthBuffer: Buffer = bufferUtils.numberToBuffer(returnLength)
+
+  return [
+    // Store free memory index pointer
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: hexStrToBuf('0xe0'),
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: hexStrToBuf('0x40'),
+    },
+    {
+      opcode: Opcode.MSTORE,
+      consumedBytes: undefined,
+    },
+    // Store method ID
+    {
+      opcode: Opcode.PUSH4,
+      consumedBytes: methodData,
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: mStoreArgsOffset,
+    },
+    {
+      opcode: Opcode.MSTORE,
+      consumedBytes: undefined,
+    },
+    // CALL
+    // ret length
+    {
+      opcode: Opcode.PUSH32,
+      consumedBytes: retLengthBuffer,
+    },
+    // ret offset
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: retOffset,
+    },
+    // args length
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: hexStrToBuf('0x04'),
+    },
+    // args offset
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: actualArgsOffset,
+    },
+    // value
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: hexStrToBuf('0x00'),
+    },
+    // address
+    {
+      opcode: Opcode.PUSH20,
+      consumedBytes: hexStrToBuf(address),
+    },
+    // Gas
+    {
+      opcode: Opcode.PUSH32,
+      consumedBytes: Buffer.from('00'.repeat(16) + 'ff'.repeat(16), 'hex'),
+    },
+    {
+      opcode: Opcode.CALL,
+      consumedBytes: undefined,
+    },
+    // POP success
+    {
+      opcode: Opcode.POP,
+      consumedBytes: undefined,
+    },
+    // RETURN
+    {
+      opcode: Opcode.PUSH32,
+      consumedBytes: retLengthBuffer,
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: retOffset,
+    },
+    {
+      opcode: Opcode.RETURN,
+      consumedBytes: undefined,
+    },
+  ]
+}

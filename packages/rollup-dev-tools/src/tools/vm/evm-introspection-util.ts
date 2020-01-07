@@ -94,7 +94,9 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
 
     tx.sign(Buffer.from(remove0x(this.wallet.privateKey), 'hex'))
 
-    const deployResult: EVMResult = await this.vm.runTx({ tx })
+    const deployResult: EVMResult = await this.lock.acquire(KEY, async () => {
+      return this.vm.runTx({ tx })
+    })
 
     if (!!deployResult.execResult.exceptionError) {
       const msg: string = `Error deploying contract [${bytecode.toString(
@@ -127,11 +129,13 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       abiEncodedParams,
     ])
 
-    const result: EVMResult = await this.vm.runCall({
-      to: hexStrToBuf(address),
-      caller: hexStrToBuf(this.wallet.address),
-      origin: hexStrToBuf(this.wallet.address),
-      data,
+    const result: EVMResult = await this.lock.acquire(KEY, async () => {
+      return this.vm.runCall({
+        to: hexStrToBuf(address),
+        caller: hexStrToBuf(this.wallet.address),
+        origin: hexStrToBuf(this.wallet.address),
+        data,
+      })
     })
 
     if (result.execResult.exceptionError) {
@@ -172,9 +176,18 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     bytecodeIndex: number
   ): Promise<StepContext> {
     let context: StepContext
+    let address: Address
     const callback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory(
       async (stepContext: StepContext) => {
-        if (stepContext.pc === bytecodeIndex && !context) {
+        if (!address) {
+          address = stepContext.address
+        }
+
+        if (
+          stepContext.address === address &&
+          stepContext.pc === bytecodeIndex &&
+          !context
+        ) {
           context = stepContext
         }
       }
@@ -266,8 +279,9 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   }
 
   private static parseStepContext(data: any): StepContext {
-    const stack: Buffer[] = data['stack'].map((x) => x.toBuffer())
+    const stack: Buffer[] = data['stack'].map((x) => x.toBuffer()).reverse()
     return {
+      address: bufToHexString(data['address']),
       pc: data['pc'],
       opcode: Opcode.parseByName(data['opcode']['name']),
       stack,
@@ -279,7 +293,6 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
 
   private static stepCallbackFactory(fn?: StepContextCallback): StepCallback {
     return async (data, continueFn) => {
-      // log.debug(`raw step data is: ${JSON.stringify(data)}`)
       try {
         const stepContext: StepContext = EvmIntrospectionUtilImpl.parseStepContext(
           data
@@ -289,11 +302,8 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
           await fn(stepContext)
         }
 
-        const address: string = EvmIntrospectionUtilImpl.getCodeHashTag(
-          data['address']
-        )
         log.debug(
-          `Code hash [${address}] step data: ${EvmIntrospectionUtilImpl.getStepContextString(
+          `Step data: ${EvmIntrospectionUtilImpl.getStepContextString(
             stepContext
           )}`
         )
@@ -339,10 +349,6 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     }
   }
 
-  private static getCodeHashTag(codeBuffer: Buffer): string {
-    return codeBuffer.toString('hex').substr(0, 10)
-  }
-
   private static getStepContextString(stepContext: StepContext): string {
     return `{pc: ${stepContext.pc}, opcode: ${
       stepContext.opcode.name
@@ -350,7 +356,9 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       .map((x) => bufToHexString(x))
       .join(',')}], memoryWordCount: ${
       stepContext.memoryWordCount
-    }, memory: [${bufToHexString(stepContext.memory)}]`
+    }, memory: [${bufToHexString(stepContext.memory)}], address: ${
+      stepContext.address
+    }`
   }
 
   private static areExecutionResultsEqual(

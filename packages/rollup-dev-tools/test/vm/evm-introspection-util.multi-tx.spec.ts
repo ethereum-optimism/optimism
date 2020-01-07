@@ -1,13 +1,7 @@
 /* External Imports */
 import { ethers } from 'ethers'
-export const abi = new ethers.utils.AbiCoder()
-import {
-  bufToHexString,
-  isValidHexAddress,
-  NULL_ADDRESS,
-  remove0x,
-} from '@pigi/core-utils'
-import { Address, bytecodeToBuffer } from '@pigi/rollup-core'
+import { bufToHexString, isValidHexAddress, remove0x } from '@pigi/core-utils'
+import { Address, bytecodeToBuffer, EVMBytecode } from '@pigi/rollup-core'
 
 /* Internal Imports */
 import { should } from '../setup'
@@ -17,7 +11,13 @@ import {
   ExecutionResult,
 } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
-import { emptyBuffer, invalidBytesConsumedBytecode } from '../helpers'
+import {
+  emptyBuffer,
+  getBytecodeCallingContractMethod,
+  invalidBytesConsumedBytecode,
+} from '../helpers'
+
+const abi = new ethers.utils.AbiCoder()
 
 /* Contracts */
 import * as SimpleCallable from '../contracts/build/SimpleCallable.json'
@@ -157,6 +157,30 @@ describe('EvmIntrospectionUtil', () => {
       result.result.should.eql(emptyBuffer, 'Result mismatch!')
       should.exist(result.error, 'Error mismatch!')
       result.error.should.eql(EvmErrors.REVERT_ERROR, 'Result mismatch!')
+    })
+  })
+
+  describe('Deploy + Execute bytecode calling deployed contract', () => {
+    let address: Address
+
+    beforeEach(async () => {
+      address = await deployContract(evmUtil)
+    })
+
+    it('should call deployed contract and return value', async () => {
+      const bytecode: EVMBytecode = getBytecodeCallingContractMethod(
+        address,
+        getterFunctionName,
+        contractDeployParams.length
+      )
+      const res: ExecutionResult = await evmUtil.getExecutionResult(
+        bytecodeToBuffer(bytecode)
+      )
+
+      should.exist(res, 'Result should always exist!')
+      should.not.exist(res.error, 'Error mismatch!')
+      should.exist(res.result, 'Result should exist!')
+      res.result.should.eql(contractDeployParams, 'Result mismatch!')
     })
   })
 })
