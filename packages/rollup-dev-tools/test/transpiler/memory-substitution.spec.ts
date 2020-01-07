@@ -186,7 +186,7 @@ describe('Memory Replacement Operations', () => {
         const expectedMemorySlice: Buffer = Buffer.from(
           finalStep.memory.slice(expectedWordStart, expectedWordStart + 32)
         )
-        const expectedStackIndex: number = i //wordsToStash - i // they're pushed onto stack in reverse order
+        const expectedStackIndex: number = wordsToStash - i - 1 // they're pushed onto stack in reverse order
         const wordOnStack: Buffer = finalStep.stack[expectedStackIndex]
         // check equality, etherjs-vm removes unneceessary zeroes so compare numerically
         new BigNumber(expectedMemorySlice).eq(new BigNumber(wordOnStack)).should
