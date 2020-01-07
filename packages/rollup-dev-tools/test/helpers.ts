@@ -5,13 +5,18 @@ import {
   EVMOpcode,
   formatBytecode,
   Opcode,
-} from '@pigi/rollup-core/build/index'
+} from '@pigi/rollup-core'
 import {
   EvmIntrospectionUtil,
   ExecutionResultComparison,
 } from '../src/types/vm'
 import { should } from './setup'
-import { bufferUtils } from '@pigi/core-utils/build'
+import { bufferUtils } from '@pigi/core-utils'
+
+export const emptyBuffer: Buffer = Buffer.from('', 'hex')
+export const stateManagerAddress: Address =
+  '0x0000000000000000000000000000000000000000'
+export const invalidOpcode: Buffer = Buffer.from('5d', 'hex')
 
 export const whitelistedOpcodes: EVMOpcode[] = [
   Opcode.PUSH1,
@@ -40,9 +45,6 @@ export const whitelistedOpcodes: EVMOpcode[] = [
   Opcode.SUB,
   Opcode.RETURN,
 ]
-
-export const stateManagerAddress: Address =
-  '0x0000000000000000000000000000000000000000'
 
 export const validBytecode: EVMBytecode = [
   { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('00', 'hex') },
@@ -110,8 +112,6 @@ export const multipleErrors: EVMBytecode = [
   { opcode: Opcode.SLOAD, consumedBytes: undefined },
   { opcode: Opcode.PUSH1, consumedBytes: undefined },
 ]
-
-export const invalidOpcode: Buffer = Buffer.from('5d', 'hex')
 
 export const assertExecutionEqual = async (
   evmUtil: EvmIntrospectionUtil,
@@ -186,6 +186,15 @@ export const voidBytecode: EVMBytecode = [
     opcode: Opcode.PUSH1,
     consumedBytes: Buffer.from('ff', 'hex'),
   },
+]
+
+export const voidBytecodeWithPushPop: EVMBytecode = [
+  ...voidBytecode,
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+  ...voidBytecode,
 ]
 
 export const memoryAndStackBytecode: EVMBytecode = [
