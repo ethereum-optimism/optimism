@@ -12,4 +12,8 @@ contract SimpleCallable {
     someStorage = _someParameter;
     return temp;
   }
+
+  function get() public view returns (bytes memory) {
+    return someStorage;
+  }
 }

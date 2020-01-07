@@ -21,6 +21,7 @@ import {
   returnNumberBytecode,
   stackDiffersBytecode,
   voidBytecode,
+  voidBytecodeWithPushPop,
 } from '../helpers'
 
 describe('EvmIntrospectionUtil', () => {
@@ -313,6 +314,49 @@ describe('EvmIntrospectionUtil', () => {
         'Memory word count mismatch!'
       )
       comparison.firstContext.memory.should.eql(emptyBuffer, 'Memory mismatch!')
+    })
+
+    it('shows same execution for different pc values', async () => {
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        bytecodeToBuffer(voidBytecode),
+        0,
+        bytecodeToBuffer(voidBytecodeWithPushPop),
+        3
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        false,
+        'Executions should not differ!'
+      )
+      should.exist(comparison.firstContext, 'First context mismatch!')
+      should.exist(comparison.secondContext, 'Second context mismatch!')
+
+      comparison.firstContext.pc.should.equal(0, 'PC mismatch!')
+      comparison.secondContext.pc.should.equal(3, 'PC mismatch!')
+      comparison.firstContext.opcode.should.equal(
+        comparison.secondContext.opcode,
+        'Opcode mismatch!'
+      )
+      comparison.firstContext.stackDepth.should.equal(
+        comparison.secondContext.stackDepth,
+        'Stack depth mismatch!'
+      )
+      comparison.firstContext.stack.should.eql(
+        comparison.secondContext.stack,
+        'Stack mismatch!'
+      )
+      comparison.firstContext.memoryWordCount.should.equal(
+        comparison.secondContext.memoryWordCount,
+        'Memory word count mismatch!'
+      )
+      comparison.firstContext.memory.should.eql(
+        comparison.secondContext.memory,
+        'Memory mismatch!'
+      )
     })
 
     it('works for populated memory & stack', async () => {

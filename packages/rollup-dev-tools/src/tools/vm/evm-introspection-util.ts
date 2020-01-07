@@ -373,7 +373,7 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       (!first && !second) ||
       (!!first &&
         !!second &&
-        first.pc === second.pc &&
+        // first.pc === second.pc &&  -- This will probably not line up for different executions
         first.opcode === second.opcode &&
         first.stackDepth === second.stackDepth &&
         first.memoryWordCount === second.memoryWordCount &&

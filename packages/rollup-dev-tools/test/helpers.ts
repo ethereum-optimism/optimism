@@ -188,6 +188,15 @@ export const voidBytecode: EVMBytecode = [
   },
 ]
 
+export const voidBytecodeWithPushPop: EVMBytecode = [
+  ...voidBytecode,
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+  ...voidBytecode,
+]
+
 export const memoryAndStackBytecode: EVMBytecode = [
   {
     opcode: Opcode.PUSH1,
