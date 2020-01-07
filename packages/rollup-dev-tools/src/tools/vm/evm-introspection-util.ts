@@ -381,8 +381,8 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
         first.stackDepth === second.stackDepth &&
         first.memoryWordCount === second.memoryWordCount &&
         first.memory.equals(second.memory) &&
-        first.stack.map((b) => b.toString()).join() ===
-          second.stack.map((b) => b.toString()).join())
+        first.stack.map((b) => b.toString('hex')).join() ===
+          second.stack.map((b) => b.toString('hex')).join())
     )
   }
 }

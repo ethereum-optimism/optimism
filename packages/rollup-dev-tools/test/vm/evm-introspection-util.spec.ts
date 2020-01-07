@@ -7,6 +7,7 @@ import { should } from '../setup'
 import {
   EvmErrors,
   EvmIntrospectionUtil,
+  ExecutionComparison,
   ExecutionResult,
   ExecutionResultComparison,
   StepContext,
@@ -15,11 +16,13 @@ import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 import {
   invalidBytesConsumedBytecode,
   memoryAndStackBytecode,
+  memoryDiffersBytecode,
   returnNumberBytecode,
+  stackDiffersBytecode,
   voidBytecode,
 } from '../helpers'
 
-const empty: Buffer = Buffer.from('', 'hex')
+const emptyBuffer: Buffer = Buffer.from('', 'hex')
 
 describe('EvmIntrospectionUtil', () => {
   let evmUtil: EvmIntrospectionUtil
@@ -29,14 +32,14 @@ describe('EvmIntrospectionUtil', () => {
   })
 
   describe('getExecutionResult', () => {
-    it('handles empty case', async () => {
-      const res: ExecutionResult = await evmUtil.getExecutionResult(empty)
+    it('handles emptyBuffer case', async () => {
+      const res: ExecutionResult = await evmUtil.getExecutionResult(emptyBuffer)
 
       should.not.exist(
         res.error,
         'Simple bytecode to return a number yielded error!'
       )
-      res.result.should.eql(empty, 'Got unexpected result!')
+      res.result.should.eql(emptyBuffer, 'Got unexpected result!')
     })
 
     it('gets execution result of simple bytecode to return a number', async () => {
@@ -64,7 +67,7 @@ describe('EvmIntrospectionUtil', () => {
         res.error,
         'Simple bytecode to return a number yielded error!'
       )
-      res.result.should.eql(empty, 'Got unexpected result!')
+      res.result.should.eql(emptyBuffer, 'Got unexpected result!')
     })
 
     it('handles errors', async () => {
@@ -75,15 +78,15 @@ describe('EvmIntrospectionUtil', () => {
       should.exist(res.error, 'Invalid bytecode should yield error!')
       res.error.should.equal(EvmErrors.STACK_UNDERFLOW_ERROR)
 
-      res.result.should.eql(empty, 'Got unexpected result!')
+      res.result.should.eql(emptyBuffer, 'Got unexpected result!')
     })
   })
 
   describe('getExecutionResultComparison', () => {
-    it('handles empty case', async () => {
+    it('handles emptyBuffer case', async () => {
       const res: ExecutionResultComparison = await evmUtil.getExecutionResultComparison(
-        empty,
-        empty
+        emptyBuffer,
+        emptyBuffer
       )
 
       res.resultsDiffer.should.equal(false, 'Results differ mismatch!')
@@ -95,7 +98,7 @@ describe('EvmIntrospectionUtil', () => {
 
     it('handles different bytecode with same output case', async () => {
       const res: ExecutionResultComparison = await evmUtil.getExecutionResultComparison(
-        empty,
+        emptyBuffer,
         bytecodeToBuffer(voidBytecode)
       )
 
@@ -117,7 +120,7 @@ describe('EvmIntrospectionUtil', () => {
         bufferUtils.numberToBuffer(1),
         'first result mismatch!'
       )
-      res.secondResult.result.should.eql(empty, 'Result mismatch!')
+      res.secondResult.result.should.eql(emptyBuffer, 'Result mismatch!')
     })
 
     it('ensures non-void results match', async () => {
@@ -142,12 +145,15 @@ describe('EvmIntrospectionUtil', () => {
   })
 
   describe('getStepContextBeforeStep', () => {
-    it('handles empty case', async () => {
-      const ctx: StepContext = await evmUtil.getStepContextBeforeStep(empty, 1)
+    it('handles emptyBuffer case', async () => {
+      const ctx: StepContext = await evmUtil.getStepContextBeforeStep(
+        emptyBuffer,
+        1
+      )
 
       should.not.exist(
         ctx,
-        'Context should not exist before empty bytecode execution!'
+        'Context should not exist before emptyBuffer bytecode execution!'
       )
     })
 
@@ -163,7 +169,7 @@ describe('EvmIntrospectionUtil', () => {
       )
     })
 
-    it('works for empty memory & stack', async () => {
+    it('works for emptyBuffer memory & stack', async () => {
       const ctx: StepContext = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(voidBytecode),
         0
@@ -176,7 +182,7 @@ describe('EvmIntrospectionUtil', () => {
       ctx.stackDepth.should.equal(0, 'Stack depth mismatch!')
       ctx.stack.should.eql([], 'Stack mismatch!')
       ctx.memoryWordCount.should.equal(0, 'Memory word count mismatch!')
-      ctx.memory.should.eql(empty, 'Memory mismatch!')
+      ctx.memory.should.eql(emptyBuffer, 'Memory mismatch!')
     })
 
     it('works for populated memory & stack', async () => {
@@ -223,7 +229,288 @@ describe('EvmIntrospectionUtil', () => {
         'Stack mismatch!'
       )
       ctx.memoryWordCount.should.equal(0, 'Memory word count mismatch!')
-      ctx.memory.should.eql(empty, 'Memory mismatch!')
+      ctx.memory.should.eql(emptyBuffer, 'Memory mismatch!')
+    })
+  })
+
+  describe('getExecutionComparisonBeforeStep', () => {
+    it('handles emptyBuffer case', async () => {
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        emptyBuffer,
+        1,
+        emptyBuffer,
+        1
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between emptyBuffer bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        false,
+        'Executions should not differ!'
+      )
+      should.not.exist(comparison.firstContext, 'First context mismatch!')
+      should.not.exist(comparison.secondContext, 'Second context mismatch!')
+    })
+
+    it('shows same execution if step is not hit', async () => {
+      const buff: Buffer = bytecodeToBuffer(memoryAndStackBytecode)
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        buff,
+        3,
+        buff,
+        3
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        false,
+        'Executions should not differ!'
+      )
+      should.not.exist(comparison.firstContext, 'First context mismatch!')
+      should.not.exist(comparison.secondContext, 'Second context mismatch!')
+    })
+
+    it('shows same execution for emptyBuffer memory & stack', async () => {
+      const buff: Buffer = bytecodeToBuffer(voidBytecode)
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        buff,
+        0,
+        buff,
+        0
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        false,
+        'Executions should not differ!'
+      )
+      should.exist(comparison.firstContext, 'First context mismatch!')
+      should.exist(comparison.secondContext, 'Second context mismatch!')
+      comparison.firstContext.should.eql(
+        comparison.secondContext,
+        'First and second do not match!'
+      )
+
+      comparison.firstContext.pc.should.equal(0, 'PC mismatch!')
+      comparison.firstContext.opcode.should.equal(
+        voidBytecode[0].opcode,
+        'Opcode mismatch!'
+      )
+      comparison.firstContext.stackDepth.should.equal(
+        0,
+        'Stack depth mismatch!'
+      )
+      comparison.firstContext.stack.should.eql([], 'Stack mismatch!')
+      comparison.firstContext.memoryWordCount.should.equal(
+        0,
+        'Memory word count mismatch!'
+      )
+      comparison.firstContext.memory.should.eql(emptyBuffer, 'Memory mismatch!')
+    })
+
+    it('works for populated memory & stack', async () => {
+      const buff: Buffer = bytecodeToBuffer(memoryAndStackBytecode)
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        buff,
+        38,
+        buff,
+        38
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        false,
+        'Executions should not differ!'
+      )
+      should.exist(comparison.firstContext, 'First context mismatch!')
+      should.exist(comparison.secondContext, 'Second context mismatch!')
+      comparison.firstContext.should.eql(
+        comparison.secondContext,
+        'First and second do not match!'
+      )
+
+      comparison.firstContext.pc.should.equal(38, 'PC mismatch!')
+      comparison.firstContext.opcode.should.equal(
+        memoryAndStackBytecode[4].opcode,
+        'Opcode mismatch!'
+      )
+      comparison.firstContext.stackDepth.should.equal(
+        1,
+        'Stack depth mismatch!'
+      )
+      comparison.firstContext.stack[0].should.eql(
+        memoryAndStackBytecode[0].consumedBytes,
+        'Stack mismatch!'
+      )
+      comparison.firstContext.memoryWordCount.should.equal(
+        4,
+        'Memory word count mismatch!'
+      )
+      comparison.firstContext.memory.should.eql(
+        Buffer.from('00'.repeat(127) + '01', 'hex'),
+        'Memory mismatch!'
+      )
+    })
+
+    it('differs for different memory', async () => {
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        bytecodeToBuffer(memoryAndStackBytecode),
+        38,
+        bytecodeToBuffer(memoryDiffersBytecode), // <--- Different
+        38
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        true,
+        'Executions should differ!'
+      )
+      should.exist(comparison.firstContext, 'First context mismatch!')
+      should.exist(comparison.secondContext, 'Second context mismatch!')
+      comparison.firstContext.should.not.eql(
+        comparison.secondContext,
+        'First and second match!'
+      )
+
+      comparison.firstContext.pc.should.equal(
+        comparison.secondContext.pc,
+        'PC mismatch!'
+      )
+      comparison.firstContext.opcode.should.equal(
+        comparison.secondContext.opcode,
+        'Opcode mismatch!'
+      )
+      comparison.firstContext.stackDepth.should.equal(
+        comparison.secondContext.stackDepth,
+        'Stack depth mismatch!'
+      )
+      comparison.firstContext.stack[0].should.eql(
+        comparison.secondContext.stack[0],
+        'Stack mismatch!'
+      )
+      comparison.firstContext.memoryWordCount.should.equal(
+        comparison.secondContext.memoryWordCount,
+        'Memory word count mismatch!'
+      )
+      comparison.firstContext.memory.should.eql(
+        Buffer.from('00'.repeat(127) + '01', 'hex'),
+        'Memory mismatch!'
+      )
+      comparison.secondContext.memory.should.eql(
+        Buffer.from('00'.repeat(127) + '02', 'hex'),
+        'Memory mismatch!'
+      )
+    })
+
+    it('differs for different stack', async () => {
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        bytecodeToBuffer(memoryAndStackBytecode),
+        38,
+        bytecodeToBuffer(stackDiffersBytecode), // <--- Different
+        38
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        true,
+        'Executions should differ!'
+      )
+      should.exist(comparison.firstContext, 'First context mismatch!')
+      should.exist(comparison.secondContext, 'Second context mismatch!')
+      comparison.firstContext.should.not.eql(
+        comparison.secondContext,
+        'First and second match!'
+      )
+
+      comparison.firstContext.pc.should.equal(
+        comparison.secondContext.pc,
+        'PC mismatch!'
+      )
+      comparison.firstContext.opcode.should.equal(
+        comparison.secondContext.opcode,
+        'Opcode mismatch!'
+      )
+      comparison.firstContext.stackDepth.should.equal(
+        comparison.secondContext.stackDepth,
+        'Stack depth mismatch!'
+      )
+      comparison.firstContext.stack[0].should.eql(
+        memoryAndStackBytecode[0].consumedBytes,
+        'Stack mismatch!'
+      )
+      comparison.secondContext.stack[0].should.eql(
+        stackDiffersBytecode[0].consumedBytes,
+        'Stack mismatch!'
+      )
+      comparison.firstContext.memoryWordCount.should.equal(
+        comparison.secondContext.memoryWordCount,
+        'Memory word count mismatch!'
+      )
+      comparison.firstContext.memory.should.eql(
+        comparison.secondContext.memory,
+        'Memory mismatch!'
+      )
+    })
+
+    it('handles case where code errors after step', async () => {
+      const buff: Buffer = bytecodeToBuffer(invalidBytesConsumedBytecode)
+      const comparison: ExecutionComparison = await evmUtil.getExecutionComparisonBeforeStep(
+        buff,
+        2,
+        buff,
+        2
+      )
+
+      should.exist(
+        comparison,
+        'Comparison should exist between bytecode executions!'
+      )
+      comparison.executionDiffers.should.equal(
+        false,
+        'Executions should not differ!'
+      )
+      should.exist(comparison.firstContext, 'First context mismatch!')
+      should.exist(comparison.secondContext, 'Second context mismatch!')
+      comparison.firstContext.should.eql(
+        comparison.secondContext,
+        'First and second do not match!'
+      )
+
+      comparison.firstContext.pc.should.equal(2, 'PC mismatch!')
+      comparison.firstContext.opcode.should.equal(
+        invalidBytesConsumedBytecode[1].opcode,
+        'Opcode mismatch!'
+      )
+      comparison.firstContext.stackDepth.should.equal(
+        1,
+        'Stack depth mismatch!'
+      )
+      comparison.firstContext.stack[0].should.eql(
+        invalidBytesConsumedBytecode[0].consumedBytes,
+        'Stack mismatch!'
+      )
+      comparison.firstContext.memoryWordCount.should.equal(
+        0,
+        'Memory word count mismatch!'
+      )
+      comparison.firstContext.memory.should.eql(emptyBuffer, 'Memory mismatch!')
     })
   })
 })

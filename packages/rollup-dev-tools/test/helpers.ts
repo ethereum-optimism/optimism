@@ -210,3 +210,49 @@ export const memoryAndStackBytecode: EVMBytecode = [
     consumedBytes: undefined,
   },
 ]
+
+export const memoryDiffersBytecode: EVMBytecode = [
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('ff', 'hex'),
+  },
+  {
+    opcode: Opcode.PUSH32,
+    consumedBytes: bufferUtils.numberToBuffer(2),
+  },
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('60', 'hex'),
+  },
+  {
+    opcode: Opcode.MSTORE,
+    consumedBytes: undefined,
+  },
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+]
+
+export const stackDiffersBytecode: EVMBytecode = [
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('fe', 'hex'),
+  },
+  {
+    opcode: Opcode.PUSH32,
+    consumedBytes: bufferUtils.numberToBuffer(1),
+  },
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('60', 'hex'),
+  },
+  {
+    opcode: Opcode.MSTORE,
+    consumedBytes: undefined,
+  },
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+]
