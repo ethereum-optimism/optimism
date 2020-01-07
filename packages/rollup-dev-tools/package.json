@@ -12,7 +12,9 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build",
+    "build-contracts": "yarn clean-contracts && waffle waffle-config.json",
+    "test": "yarn build-contracts && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "transpile": "node ./build/src/transpiler/exec/transpiler.js "
   },
   "keywords": [
@@ -51,7 +53,8 @@
     "mocha": "^6.1.4",
     "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1"
+    "typescript": "^3.5.1",
+    "ethereum-waffle": "^2.0.12"
   },
   "publishConfig": {
     "access": "public"

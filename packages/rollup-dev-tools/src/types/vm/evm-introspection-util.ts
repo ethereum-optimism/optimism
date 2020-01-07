@@ -32,12 +32,14 @@ export interface EvmIntrospectionUtil {
    *
    * @param address The address of the contract to call.
    * @param method The method to call as a string.
+   * @param paramTypes The ordered array of parameter types
    * @param abiEncodedParams The ABI-encoded parameters for the call.
    * @returns The ExecutionResult of the call
    */
   callContract(
     address: Address,
     method: string,
+    paramTypes?: string[],
     abiEncodedParams?: Buffer
   ): Promise<ExecutionResult>
 

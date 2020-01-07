@@ -7,6 +7,7 @@ import {
   add0x,
   remove0x,
   logError,
+  hexStrToBuf,
 } from '@pigi/core-utils'
 import { Address, Opcode } from '@pigi/rollup-core'
 
@@ -117,31 +118,27 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   public async callContract(
     address: Address,
     method: string,
-    abiEncodedParams?: Buffer
+    methodTypes: string[] = [],
+    abiEncodedParams: Buffer = Buffer.from('', 'hex')
   ): Promise<ExecutionResult> {
-    const params: string = !!abiEncodedParams
-      ? abiEncodedParams.toString('hex')
-      : ''
-    const data: string = add0x(
-      abi.methodID(method, ['string']).toString('hex') + params
-    )
+    const data: Buffer = Buffer.concat([
+      abi.methodID(method, methodTypes),
+      abiEncodedParams,
+    ])
 
-    const tx: Transaction = new Transaction({
-      to: Buffer.from(remove0x(address), 'hex'),
-      value: 0,
-      gasLimit: BIG_ENOUGH_GAS_LIMIT,
-      gasPrice: 1,
+    const result: EVMResult = await this.vm.runCall({
+      to: hexStrToBuf(address),
+      caller: hexStrToBuf(this.wallet.address),
+      origin: hexStrToBuf(this.wallet.address),
       data,
-      nonce: this.nonce++,
     })
 
-    tx.sign(Buffer.from(remove0x(this.wallet.privateKey), 'hex'))
-
-    const result: EVMResult = await this.vm.runTx({ tx })
-
     if (result.execResult.exceptionError) {
-      const msg: string = `Error calling contract [${address}] method [${method}] with params: [${params}]: ${result.execResult.exceptionError.errorType}`
-      log.debug(msg)
+      const params: string = bufToHexString(abiEncodedParams)
+      const msg: string = `Error calling contract [${address}] method [${method}] with params: [${params}]: ${JSON.stringify(
+        result.execResult.exceptionError
+      )}`
+      log.error(msg)
       return {
         error: EvmIntrospectionUtilImpl.getEvmErrorFromVmError(
           result.execResult.exceptionError

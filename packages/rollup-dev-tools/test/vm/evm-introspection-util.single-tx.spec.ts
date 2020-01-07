@@ -14,6 +14,7 @@ import {
 } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 import {
+  emptyBuffer,
   invalidBytesConsumedBytecode,
   memoryAndStackBytecode,
   memoryDiffersBytecode,
@@ -21,8 +22,6 @@ import {
   stackDiffersBytecode,
   voidBytecode,
 } from '../helpers'
-
-const emptyBuffer: Buffer = Buffer.from('', 'hex')
 
 describe('EvmIntrospectionUtil', () => {
   let evmUtil: EvmIntrospectionUtil
