@@ -1,3 +1,7 @@
+/* External Imports */
+import { Address } from '@pigi/rollup-core'
+
+/* Internal Imports */
 import {
   ExecutionComparison,
   ExecutionResult,
@@ -11,6 +15,33 @@ import {
  */
 export interface EvmIntrospectionUtil {
   /**
+   * Deploys a contract with the provided bytecode and returns its resulting address.
+   *
+   * @param bytecode The bytecode of the contract to deploy.
+   * @parameter abiEncodedParameters The ABI-encoded constructor args.
+   * @returns The ExecutionResult containing the deployed contract address or the deployment error.
+   */
+  deployContract(
+    bytecode: Buffer,
+    abiEncodedParameters?: Buffer
+  ): Promise<ExecutionResult>
+
+  /**
+   * Calls the provided method of the provided contract, passing in the
+   * provided parameters.
+   *
+   * @param address The address of the contract to call.
+   * @param method The method to call as a string.
+   * @param abiEncodedParams The ABI-encoded parameters for the call.
+   * @returns The ExecutionResult of the call
+   */
+  callContract(
+    address: Address,
+    method: string,
+    abiEncodedParams?: Buffer
+  ): Promise<ExecutionResult>
+
+  /**
    * Gets the result from executing the provided bytecode.
    *
    * @param bytecode The bytecode to execute.
@@ -23,12 +54,12 @@ export interface EvmIntrospectionUtil {
    * provided bytecode at the provided index.
    *
    * @param bytecode The bytecode to execute.
-   * @param stepIndex The index at which context will be captured.
+   * @param bytecodeIndex The index at which context will be captured.
    * @returns The StepContext at the step in question.
    */
   getStepContextBeforeStep(
     bytecode: Buffer,
-    stepIndex: number
+    bytecodeIndex: number
   ): Promise<StepContext>
 
   /**
@@ -48,15 +79,15 @@ export interface EvmIntrospectionUtil {
    * before the two provided indexes in the bytecode.
    *
    * @param firstBytecode The first EVM bytecode to run.
-   * @param firstStepIndex The index in the second EVM bytecode at which execution will be compared.
+   * @param firstBytecodeIndex The index in the second EVM bytecode at which execution will be compared.
    * @param secondBytecode The second EVM bytecode to run.
-   * @param secondStepIndex The index in the second EVM bytecode at which execution will be compared.
+   * @param secondBytecodeIndex The index in the second EVM bytecode at which execution will be compared.
    * @returns The ExecutionComparison.
    */
   getExecutionComparisonBeforeStep(
     firstBytecode: Buffer,
-    firstStepIndex: number,
+    firstBytecodeIndex: number,
     secondBytecode: Buffer,
-    secondStepIndex: number
+    secondBytecodeIndex: number
   ): Promise<ExecutionComparison>
 }
