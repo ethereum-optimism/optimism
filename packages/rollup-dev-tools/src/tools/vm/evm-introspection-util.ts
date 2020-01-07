@@ -36,6 +36,7 @@ const log: Logger = getLogger('evm-util')
 type StepCallback = (data, continueFn) => Promise<void>
 type StepContextCallback = (context: StepContext) => Promise<void>
 
+const EMPTY_BUFFER: Buffer = Buffer.from('', 'hex')
 const BIG_ENOUGH_GAS_LIMIT: any = new BN('ffffffff', 'hex')
 const KEY = 'EvmIntrospectionUtilImpl_LOCK'
 const DEFAULT_ACCOUNT_PK: string =
@@ -101,12 +102,12 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       )}] with params: [${params}]: ${
         deployResult.execResult.exceptionError.errorType
       }`
-      log.debug(msg)
+      log.info(msg)
       return {
         error: EvmIntrospectionUtilImpl.getEvmErrorFromVmError(
           deployResult.execResult.exceptionError
         ),
-        result: deployResult.createdAddress,
+        result: EMPTY_BUFFER,
       }
     }
 
@@ -119,7 +120,7 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     address: Address,
     method: string,
     methodTypes: string[] = [],
-    abiEncodedParams: Buffer = Buffer.from('', 'hex')
+    abiEncodedParams: Buffer = EMPTY_BUFFER
   ): Promise<ExecutionResult> {
     const data: Buffer = Buffer.concat([
       abi.methodID(method, methodTypes),
@@ -138,12 +139,12 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       const msg: string = `Error calling contract [${address}] method [${method}] with params: [${params}]: ${JSON.stringify(
         result.execResult.exceptionError
       )}`
-      log.error(msg)
+      log.info(msg)
       return {
         error: EvmIntrospectionUtilImpl.getEvmErrorFromVmError(
           result.execResult.exceptionError
         ),
-        result: result.execResult.returnValue,
+        result: EMPTY_BUFFER,
       }
     }
 
