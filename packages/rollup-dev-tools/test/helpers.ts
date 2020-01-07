@@ -5,12 +5,13 @@ import {
   EVMOpcode,
   formatBytecode,
   Opcode,
-} from '@pigi/rollup-core'
+} from '@pigi/rollup-core/build/index'
 import {
   EvmIntrospectionUtil,
   ExecutionResultComparison,
-} from '../../src/types/vm'
-import { should } from '../setup'
+} from '../src/types/vm'
+import { should } from './setup'
+import { bufferUtils } from '@pigi/core-utils/build'
 
 export const whitelistedOpcodes: EVMOpcode[] = [
   Opcode.PUSH1,
@@ -138,3 +139,120 @@ export const assertExecutionEqual = async (
     )}\n\nand\n\n${formatBytecode(secondEvmBytecode)}.\n${JSON.stringify(res)}`
   )
 }
+
+export const returnNumberBytecode = (num: number = 1): EVMBytecode => {
+  return [
+    {
+      opcode: Opcode.PUSH32,
+      consumedBytes: bufferUtils.numberToBuffer(32),
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: Buffer.from('60', 'hex'),
+    },
+    {
+      opcode: Opcode.PUSH32,
+      consumedBytes: bufferUtils.numberToBuffer(num),
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: Buffer.from('60', 'hex'),
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: Buffer.from('80', 'hex'),
+    },
+    {
+      opcode: Opcode.PUSH1,
+      consumedBytes: Buffer.from('40', 'hex'),
+    },
+    {
+      opcode: Opcode.MSTORE,
+      consumedBytes: undefined,
+    },
+    {
+      opcode: Opcode.MSTORE,
+      consumedBytes: undefined,
+    },
+    {
+      opcode: Opcode.RETURN,
+      consumedBytes: undefined,
+    },
+  ]
+}
+
+export const voidBytecode: EVMBytecode = [
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('ff', 'hex'),
+  },
+]
+
+export const memoryAndStackBytecode: EVMBytecode = [
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('ff', 'hex'),
+  },
+  {
+    opcode: Opcode.PUSH32,
+    consumedBytes: bufferUtils.numberToBuffer(1),
+  },
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('60', 'hex'),
+  },
+  {
+    opcode: Opcode.MSTORE,
+    consumedBytes: undefined,
+  },
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+]
+
+export const memoryDiffersBytecode: EVMBytecode = [
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('ff', 'hex'),
+  },
+  {
+    opcode: Opcode.PUSH32,
+    consumedBytes: bufferUtils.numberToBuffer(2),
+  },
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('60', 'hex'),
+  },
+  {
+    opcode: Opcode.MSTORE,
+    consumedBytes: undefined,
+  },
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+]
+
+export const stackDiffersBytecode: EVMBytecode = [
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('fe', 'hex'),
+  },
+  {
+    opcode: Opcode.PUSH32,
+    consumedBytes: bufferUtils.numberToBuffer(1),
+  },
+  {
+    opcode: Opcode.PUSH1,
+    consumedBytes: Buffer.from('60', 'hex'),
+  },
+  {
+    opcode: Opcode.MSTORE,
+    consumedBytes: undefined,
+  },
+  {
+    opcode: Opcode.POP,
+    consumedBytes: undefined,
+  },
+]

@@ -28,7 +28,7 @@ import {
   assertExecutionEqual,
   stateManagerAddress,
   whitelistedOpcodes,
-} from './helpers'
+} from '../helpers'
 import { EvmIntrospectionUtil } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 
@@ -134,14 +134,14 @@ describe('Transpile - JUMPs', () => {
   let replacer: OpcodeReplacer
   let evmUtil: EvmIntrospectionUtil
 
-  beforeEach(() => {
+  beforeEach(async () => {
     opcodeWhitelist = new OpcodeWhitelistImpl(whitelistedOpcodes)
     replacer = new OpcodeReplacerImpl(
       stateManagerAddress,
       new Map<EVMOpcode, EVMBytecode>()
     )
     transpiler = new TranspilerImpl(opcodeWhitelist, replacer)
-    evmUtil = new EvmIntrospectionUtilImpl()
+    evmUtil = await EvmIntrospectionUtilImpl.create()
   })
 
   it('handles simple JUMPs properly', async () => {

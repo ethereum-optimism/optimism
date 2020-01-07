@@ -1,12 +1,24 @@
 /* External Imports */
-import { bufToHexString, getLogger, keccak256, Logger } from '@pigi/core-utils'
-import { Opcode } from '@pigi/rollup-core'
+import {
+  bufToHexString,
+  getLogger,
+  keccak256,
+  Logger,
+  add0x,
+  remove0x,
+  logError,
+} from '@pigi/core-utils'
+import { Address, Opcode } from '@pigi/rollup-core'
 
 import * as AsyncLock from 'async-lock'
+import * as abi from 'ethereumjs-abi'
 
 import BN = require('bn.js')
 import VM from 'ethereumjs-vm'
-import { ExecResult } from 'ethereumjs-vm/dist/evm/evm'
+import { ethers } from 'ethers'
+import { promisify } from 'util'
+import { Transaction } from 'ethereumjs-tx'
+import { EVMResult, ExecResult } from 'ethereumjs-vm/dist/evm/evm'
 import { ERROR, VmError } from 'ethereumjs-vm/dist/exceptions'
 import {
   EvmError,
@@ -25,13 +37,122 @@ type StepContextCallback = (context: StepContext) => Promise<void>
 
 const BIG_ENOUGH_GAS_LIMIT: any = new BN('ffffffff', 'hex')
 const KEY = 'EvmIntrospectionUtilImpl_LOCK'
+const DEFAULT_ACCOUNT_PK: string =
+  '0xe331b6d69882b4cb4ea581d88e0b604039a3de5967688d3dcffdd2270c0fd109'
 
 export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
+  private nonce: number
+
   private readonly vm: VM
   private readonly lock: AsyncLock
+  private readonly wallet: ethers.Wallet
 
-  constructor() {
+  public static async create(
+    accountPK: string = DEFAULT_ACCOUNT_PK
+  ): Promise<EvmIntrospectionUtilImpl> {
+    const util: EvmIntrospectionUtilImpl = new EvmIntrospectionUtilImpl(
+      accountPK
+    )
+
+    await util.init()
+    return util
+  }
+
+  private constructor(private readonly accountPK: string) {
+    this.vm = new VM()
     this.lock = new AsyncLock()
+    this.wallet = new ethers.Wallet(add0x(accountPK))
+    this.nonce = 0
+  }
+
+  private async init(): Promise<void> {
+    // Give account 100 ETH
+    await promisify(this.vm.stateManager.putAccount.bind(this.vm.stateManager))(
+      Buffer.from(remove0x(this.wallet.address), 'hex'),
+      { balance: 100e18 }
+    )
+  }
+
+  public async deployContract(
+    bytecode: Buffer,
+    abiEncodedParameters?: Buffer
+  ): Promise<ExecutionResult> {
+    const params: string = !!abiEncodedParameters
+      ? abiEncodedParameters.toString('hex')
+      : ''
+    const data: string = add0x(bytecode.toString('hex') + params)
+
+    const tx: Transaction = new Transaction({
+      value: 0,
+      gasLimit: BIG_ENOUGH_GAS_LIMIT,
+      gasPrice: 1,
+      data,
+      nonce: this.nonce++,
+    })
+
+    tx.sign(Buffer.from(remove0x(this.wallet.privateKey), 'hex'))
+
+    const deployResult: EVMResult = await this.vm.runTx({ tx })
+
+    if (!!deployResult.execResult.exceptionError) {
+      const msg: string = `Error deploying contract [${bytecode.toString(
+        'hex'
+      )}] with params: [${params}]: ${
+        deployResult.execResult.exceptionError.errorType
+      }`
+      log.debug(msg)
+      return {
+        error: EvmIntrospectionUtilImpl.getEvmErrorFromVmError(
+          deployResult.execResult.exceptionError
+        ),
+        result: deployResult.createdAddress,
+      }
+    }
+
+    return {
+      result: deployResult.createdAddress,
+    }
+  }
+
+  public async callContract(
+    address: Address,
+    method: string,
+    abiEncodedParams?: Buffer
+  ): Promise<ExecutionResult> {
+    const params: string = !!abiEncodedParams
+      ? abiEncodedParams.toString('hex')
+      : ''
+    const data: string = add0x(
+      abi.methodID(method, ['string']).toString('hex') + params
+    )
+
+    const tx: Transaction = new Transaction({
+      to: Buffer.from(remove0x(address), 'hex'),
+      value: 0,
+      gasLimit: BIG_ENOUGH_GAS_LIMIT,
+      gasPrice: 1,
+      data,
+      nonce: this.nonce++,
+    })
+
+    tx.sign(Buffer.from(remove0x(this.wallet.privateKey), 'hex'))
+
+    const result: EVMResult = await this.vm.runTx({ tx })
+
+    if (result.execResult.exceptionError) {
+      const msg: string = `Error calling contract [${address}] method [${method}] with params: [${params}]: ${result.execResult.exceptionError.errorType}`
+      log.debug(msg)
+      return {
+        error: EvmIntrospectionUtilImpl.getEvmErrorFromVmError(
+          result.execResult.exceptionError
+        ),
+        result: result.execResult.returnValue,
+      }
+    }
+
+    return {
+      result: result.execResult.returnValue,
+    }
   }
 
   public async getExecutionResult(bytecode: Buffer): Promise<ExecutionResult> {
@@ -50,12 +171,12 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   }
   public async getStepContextBeforeStep(
     bytecode: Buffer,
-    stepIndex: number
+    bytecodeIndex: number
   ): Promise<StepContext> {
     let context: StepContext
     const callback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory(
       async (stepContext: StepContext) => {
-        if (stepContext.pc === stepIndex && !context) {
+        if (stepContext.pc === bytecodeIndex && !context) {
           context = stepContext
         }
       }
@@ -91,16 +212,16 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
 
   public async getExecutionComparisonBeforeStep(
     firstBytecode: Buffer,
-    firstStepIndex: number,
+    firstBytecodeIndex: number,
     secondBytecode: Buffer,
-    secondStepIndex: number
+    secondBytecodeIndex: number
   ): Promise<ExecutionComparison> {
     const [firstContext, secondContext]: [
       StepContext,
       StepContext
     ] = await Promise.all([
-      this.getStepContextBeforeStep(firstBytecode, firstStepIndex),
-      this.getStepContextBeforeStep(secondBytecode, secondStepIndex),
+      this.getStepContextBeforeStep(firstBytecode, firstBytecodeIndex),
+      this.getStepContextBeforeStep(secondBytecode, secondBytecodeIndex),
     ])
 
     return {
@@ -117,31 +238,44 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     bytecode: Buffer,
     stepCallback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory()
   ): Promise<ExecResult> {
-    const vm: VM = new VM()
-    vm.on('step', stepCallback)
-
     const bytecodeHash: string = keccak256(bytecode.toString('hex'))
     const hashBuffer: Buffer = Buffer.from(bytecodeHash, 'hex')
 
     return this.lock.acquire(KEY, async () => {
-      const res: ExecResult = await vm.runCode({
-        code: bytecode,
-        gasLimit: BIG_ENOUGH_GAS_LIMIT,
-        address: hashBuffer,
-      })
-      log.debug(`\nFinished executing ${bytecodeHash}\n`)
-      return res
+      this.vm.on('step', stepCallback)
+
+      try {
+        const res: ExecResult = await this.vm.runCode({
+          code: bytecode,
+          gasLimit: BIG_ENOUGH_GAS_LIMIT,
+          address: hashBuffer,
+        })
+        log.debug(`\nFinished executing ${bytecodeHash}\n`)
+
+        return res
+      } catch (e) {
+        logError(
+          log,
+          `Error running bytecode ${add0x(bytecode.toString('hex'))}`,
+          e
+        )
+        throw e
+      } finally {
+        // Always make sure to unsubscribe one-time step callback function
+        this.vm.removeListener('step', stepCallback)
+      }
     })
   }
 
   private static parseStepContext(data: any): StepContext {
+    const stack: Buffer[] = data['stack'].map((x) => x.toBuffer())
     return {
       pc: data['pc'],
       opcode: Opcode.parseByName(data['opcode']['name']),
-      stack: data['stack'],
-      stackDepth: data['depth'],
+      stack,
+      stackDepth: stack.length,
       memory: Buffer.from(data['memory']),
-      memoryWordCount: data['memoryWordCount'],
+      memoryWordCount: data['memoryWordCount'].toNumber(),
     }
   }
 
@@ -248,8 +382,8 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
         first.stackDepth === second.stackDepth &&
         first.memoryWordCount === second.memoryWordCount &&
         first.memory.equals(second.memory) &&
-        first.stack.map((b) => b.toString()).join() ===
-          second.stack.map((b) => b.toString()).join())
+        first.stack.map((b) => b.toString('hex')).join() ===
+          second.stack.map((b) => b.toString('hex')).join())
     )
   }
 }

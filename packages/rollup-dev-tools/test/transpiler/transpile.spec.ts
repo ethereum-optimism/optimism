@@ -32,7 +32,7 @@ import {
   stateManagerAddress,
   validBytecode,
   whitelistedOpcodes,
-} from './helpers'
+} from '../helpers'
 
 describe('Transpile', () => {
   let opcodeWhitelist: OpcodeWhitelist
