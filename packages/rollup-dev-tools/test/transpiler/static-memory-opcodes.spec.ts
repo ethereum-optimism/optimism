@@ -2,10 +2,8 @@
 import { ethers } from 'ethers'
 import {
   bufToHexString,
-  isValidHexAddress,
   remove0x,
   getLogger,
-  BigNumber,
   hexStrToBuf,
 } from '@pigi/core-utils'
 import {
@@ -14,23 +12,15 @@ import {
   EVMBytecode,
   formatBytecode,
   Opcode,
-  bufferToBytecode,
 } from '@pigi/rollup-core'
 
 /* Internal Imports */
-import { should } from '../setup'
 import {
-  EvmErrors,
   EvmIntrospectionUtil,
   ExecutionResult,
   StepContext,
 } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
-import {
-  emptyBuffer,
-  getBytecodeCallingContractMethod,
-  invalidBytesConsumedBytecode,
-} from '../helpers'
 import {
     duplicateStackAt,
   callContractWithStackElementsAndReturnWordToMemory,
@@ -86,7 +76,6 @@ describe('Static Memory Opcode Replacement', () => {
             ...duplicateStackAt(offsetToDuplicate, elementsToDuplicate),
             { opcode: Opcode.RETURN, consumedBytes: undefined}
         ]
-        log.debug(`op is ${formatBytecode(op)}`)
         const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
             bytecodeToBuffer(op),
             233
@@ -100,62 +89,40 @@ describe('Static Memory Opcode Replacement', () => {
 
   describe('storeStackElementsAsMemoryWords', () => {
     it('Should store three stack elements in the memory', async () => {
-      const memoryIndextoStoreAt: number = 0
       const stackElements: Buffer[] = [
-        Buffer.from(
-          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          'hex'
-        ),
-        Buffer.from(
-          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          'hex'
-        ),
-        Buffer.from(
-          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
-          'hex'
-        ),
+        Buffer.alloc(32).fill(hexStrToBuf('0xaa')),
+        Buffer.alloc(32).fill(hexStrToBuf('0xbb')),
+        Buffer.alloc(32).fill(hexStrToBuf('0xcc'))
       ]
+      // bytecode to push the `stackElements` array to the stack, done in reverse order so stack is [aa, bb, cc]
       const pushAndStore: EVMBytecode = [
-        getPUSHBuffer(stackElements[0]),
-        getPUSHBuffer(stackElements[1]),
         getPUSHBuffer(stackElements[2]),
-        ...storeStackElementsAsMemoryWords(memoryIndextoStoreAt, 3),
+        getPUSHBuffer(stackElements[1]),
+        getPUSHBuffer(stackElements[0]),
+        ...storeStackElementsAsMemoryWords(3),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
-
-      log.debug(
-        `Running stack-storing bytecode: \n${formatBytecode(pushAndStore)}`
-      )
       const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(pushAndStore),
         108
       )
-
+      // memory should be the concatenation of the 32 byte words we previously pushed to the stack
       finalContext.memory.should.deep.equal(Buffer.concat(stackElements))
     })
   })
 
   describe('callContractWithStackElementsAndReturnWordToMemory', () => {
     it('Should return the result of a simple contract getter with 0 stack params to memory successfully', async () => {
-      const getterAddress: Address = await deployAssemblyReturningContract(
+      // deploy the contract whose function `get` returns raw non ABI-encoded bytes
+        const getterAddress: Address = await deployAssemblyReturningContract(
         evmUtil
       )
-
-      const memoryIndexToUse: number = 0
-
-      let callGetterAndStore: EVMBytecode
-      let memoryBytesUsed: number // todo assert  this val correct
-      ;[
-        callGetterAndStore,
-        memoryBytesUsed,
-      ] = callContractWithStackElementsAndReturnWordToMemory(
+      // get bytecode which calls contract, passing stack elements, and returning the word to memory
+      let callGetterAndStore: EVMBytecode = callContractWithStackElementsAndReturnWordToMemory(
         getterAddress,
         getterFunctionName,
         0,
-        memoryIndexToUse
       )
-      // methodId + 0 stack elements passed to call + 1 words * 32 bytes returned
-      memoryBytesUsed.should.equal(4 + 32)
 
       callGetterAndStore = [
         ...callGetterAndStore,
@@ -173,6 +140,8 @@ describe('Static Memory Opcode Replacement', () => {
       )
 
       const methodBytes: Buffer = abiForMethod.methodID(getterFunctionName, [])
+      // the resulting memory should be: [0000s proceeding method Id, methodId], [deadbeef, 0000...]
+      // where [] above indicates a 32 byte word.
       const expectedMemorySlice: Buffer = Buffer.concat([
         Buffer.alloc(32 - 4),
         methodBytes,
@@ -187,23 +156,13 @@ describe('Static Memory Opcode Replacement', () => {
         evmUtil
       )
 
-      const memoryIndexToUse: number = 0
-
       const numStackElementsToPass: number = 3
 
-      let callGetterAndStoreWithStackParams: EVMBytecode
-      let memoryBytesUsed: number // todo assert this val correct
-      ;[
-        callGetterAndStoreWithStackParams,
-        memoryBytesUsed,
-      ] = callContractWithStackElementsAndReturnWordToMemory(
+      let callGetterAndStoreWithStackParams: EVMBytecode = callContractWithStackElementsAndReturnWordToMemory(
         getterAddress,
         getterFunctionName,
         numStackElementsToPass,
-        memoryIndexToUse
       )
-      // methodId + 0 stack elements passed to call + numStackElementsToPass * 32 bytes words + 1 words * 32 bytes returned
-      memoryBytesUsed.should.equal(4 + 32 * numStackElementsToPass + 32)
 
       callGetterAndStoreWithStackParams = [
         ...pushStackElements(numStackElementsToPass),
@@ -220,9 +179,10 @@ describe('Static Memory Opcode Replacement', () => {
         bytecodeToBuffer(callGetterAndStoreWithStackParams),
         181
       )
-
+      // the resulting memory should be: [0000s proceeding method Id, methodId], [stack param 1], [stack param 2], [stack param 3] [deadbeef, 0000...]
+      // where [] above indicates a 32 byte word.
       const expectedMemorySlice: Buffer = hexStrToBuf(
-        '0x000000000000000000000000000000000000000000000000000000006d4ce63c020202020202020202020202020202020202020202020202020202020202020201010101010101010101010101010101010101010101010101010101010101010000000000000000000000000000000000000000000000000000000000000000deadbeef00000000000000000000000000000000000000000000000000000000'
+        '0x000000000000000000000000000000000000000000000000000000006d4ce63c000000000000000000000000000000000000000000000000000000000000000001010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202deadbeef00000000000000000000000000000000000000000000000000000000'
       )
 
       finalContext.memory.should.deep.equal(expectedMemorySlice)
@@ -234,8 +194,6 @@ describe('Static Memory Opcode Replacement', () => {
         evmUtil
       )
 
-      const initialMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
-      const memoryIndexToUse: number = 0
       const numStackElementsToPass: number = 3
 
       let callGetterAndStoreWithStackParams: EVMBytecode
@@ -243,12 +201,16 @@ describe('Static Memory Opcode Replacement', () => {
         getterAddress,
         getterFunctionName,
         numStackElementsToPass,
-        memoryIndexToUse
       )
 
+      const initialMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
+
       callGetterAndStoreWithStackParams = [
+          // fill memory with some data so that we can confirm it was not modified
         ...setMemory(initialMemory),
+        // push the stack elements we're simulating passing in parameters
         ...pushStackElements(numStackElementsToPass),
+        // execute the call which should not modify memory but get the return val into the stack
         ...callGetterAndStoreWithStackParams,
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
@@ -262,11 +224,16 @@ describe('Static Memory Opcode Replacement', () => {
         bytecodeToBuffer(callGetterAndStoreWithStackParams),
         661
       )
+      // makesurethat memory was not modified
       finalContext.memory.should.deep.equal(initialMemory)
+      // make sure deadbeef was put on  the stack
+      finalContext.stackDepth.should.equal(1)
+      finalContext.stack[0].slice(0, 4).should.deep.equal(hexStrToBuf('0xdeadbeef'))
     })
   })
 })
 
+// Helper function, sets the memory to the given buffer
 const setMemory = (toSet: Buffer): EVMBytecode => {
   let op: EVMBytecode = []
   const numWords = Math.ceil(toSet.byteLength / 32)
@@ -283,6 +250,7 @@ const setMemory = (toSet: Buffer): EVMBytecode => {
   return op
 }
 
+// helper function, sets stack to [00 00 00 00 ...] [01 01 01 01 ...] ... [0N 0N 0N ...]
 const pushStackElements = (numElements: number): EVMBytecode => {
     let op: EVMBytecode = []
     for (let i = 0; i < numElements; i++) {

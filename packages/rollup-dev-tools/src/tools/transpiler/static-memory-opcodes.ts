@@ -1,23 +1,13 @@
 /* External Imports */
 import {
   Opcode,
-  EVMOpcode,
-  EVMOpcodeAndBytes,
   EVMBytecode,
-  isValidOpcodeAndBytes,
   Address,
 } from '@pigi/rollup-core'
 import {
-  bufToHexString,
-  remove0x,
   getLogger,
-  isValidHexAddress,
   hexStrToBuf,
-  bufferUtils,
-  BigNumber,
 } from '@pigi/core-utils'
-import { ADDRCONFIG } from 'dns'
-import { POINT_CONVERSION_HYBRID } from 'constants'
 import {
   getPUSHIntegerOp,
   getPUSHBuffer,
@@ -30,25 +20,25 @@ import {
 import * as abi from 'ethereumjs-abi'
 
 const log = getLogger(`static-memory-opcodes`)
-
-// for the cases where calldata is fixed and known
-//   export const callContractAndReturnWordToStack = (
-//       addressToCall: Address,
-//       methodName: string,
-//   ): EVMBytecode => {
-//       const totalMemory
-//   }
-
+/**
+ * Stores the first `numWords` elements on the stack to memory at the specified index.
+ * 
+ * Used to pass stack params into the Execution manager as calldata.
+ *
+ * @param numStackElementsToStore The number of stack elements to put in the memory
+ * @param memoryIndexToStoreAt The byte index in the memory to store the stack elements to.
+ * @returns Btyecode which results in the storage operation described above.
+ */
 export const storeStackElementsAsMemoryWords = (
-  memoryIndexToStoreAt: number,
-  numStackElementsToStore: number
+  numStackElementsToStore: number,
+  memoryIndexToStoreAt: number = 0
 ): EVMBytecode => {
   let op: EVMBytecode = []
   for (let i = 0; i < numStackElementsToStore; i++) {
     op = op.concat([
       // push storage index
       getPUSHIntegerOp(
-        (numStackElementsToStore - i - 1) * 32 + memoryIndexToStoreAt
+        (i) * 32 + memoryIndexToStoreAt
       ),
       // store the stack item
       { opcode: Opcode.MSTORE, consumedBytes: undefined },
@@ -57,13 +47,27 @@ export const storeStackElementsAsMemoryWords = (
   return op
 }
 
-// uses contiguous memory space starting at memoryIndexToUse
+/**
+ * Uses the contiguous memory space starting at the specified index to:
+ * 1. Store the methodId to pass as calldata
+ * 2. Store the stack elements to pass as calldata
+ * 3. Have a single word of return data be stored at the index proceeding the above.
+ * 
+ *
+ * @param address The address to call.
+ * @param methodName The human readable name of the ABI method to call
+ * @param numStackArgumentsToPass The number of stack elements to pass to the address as calldata
+ * @param memoryIndexToUse The memory index to use a contiguous range of
+ * @returns Btyecode which results in the store-and-call operation described above.
+ * @returns The total number of bytes of storage which will be used and need to be stashed beforehand if memory is to be unaffected.
+ */
+
 export const callContractWithStackElementsAndReturnWordToMemory = (
   address: Address,
   methodName: string,
   numStackArgumentsToPass: number,
-  memoryIndexToUse: number
-): [EVMBytecode, number] => {
+  memoryIndexToUse: number = 0
+): EVMBytecode => {
   const methodData: Buffer = abi.methodID(methodName, [])
 
   const callDataMemoryLength: number =
@@ -77,7 +81,7 @@ export const callContractWithStackElementsAndReturnWordToMemory = (
     memoryIndexToUse + callDataMemoryLength + callDataMemoryOffset
   const returnDataMemoryLength: number = 32
 
-  const operation: EVMBytecode = [
+  return [
     // Store method ID for callData
     getPUSHBuffer(methodData),
     getPUSHIntegerOp(memoryIndexToUse), // this is not callDataMemoryOffset; see comments above.
@@ -85,11 +89,11 @@ export const callContractWithStackElementsAndReturnWordToMemory = (
       opcode: Opcode.MSTORE,
       consumedBytes: undefined,
     },
-    // Store stack elements as 32-byte words for calldata
+    // Store the stack elements as 32-byte words for calldata.
     // index + 32 because first word is methodId
     ...storeStackElementsAsMemoryWords(
+      numStackArgumentsToPass,
       memoryIndexToUse + 32,
-      numStackArgumentsToPass
     ),
     // CALL
     // ret length
@@ -123,62 +127,72 @@ export const callContractWithStackElementsAndReturnWordToMemory = (
       consumedBytes: undefined,
     },
   ]
-
-  const totalBytesMemoryUsed: number =
-    callDataMemoryLength + returnDataMemoryLength
-  return [operation, totalBytesMemoryUsed]
 }
+
+/**
+ * Uses the contiguous memory space starting at the specified index to:
+ * 1. Stash the original memory space into the stack to be replaced after execution.
+ * 2. Store the methodId to pass as calldata
+ * 3. Store the stack elements to pass as calldata
+ * 4. Have a single word of return data be stored at the index proceeding the above.
+ * 5. Load the returned word from memory into the stack.
+ * 6. Replace the original memory by unstashing.
+ * 
+ *
+ * @param address The address to call.
+ * @param methodName The human readable name of the ABI method to call
+ * @param numStackArgumentsToPass The number of stack elements to pass to the address as calldata
+ * @param memoryIndexToUse The memory index to use a contiguous range of
+ * @returns Btyecode which results in the 32 byte word of return being pushed to the stack with original memory intact.
+ */
 
 export const callContractWithStackElementsAndReturnWordToStack = (
   address: Address,
   methodName: string,
   numStackArgumentsToPass: number,
-  memoryIndexToUse: number
+  memoryIndexToUse: number = 0
 ): EVMBytecode => {
-  let callAndReturnToMemory: EVMBytecode
-  let bytesMemoryUsed: number
-  ;[
-    callAndReturnToMemory,
-    bytesMemoryUsed,
-  ] = callContractWithStackElementsAndReturnWordToMemory(
-    address,
-    methodName,
-    numStackArgumentsToPass,
-    memoryIndexToUse
-  )
 
-  // todo change return so that the ceil thing doesn't have to be done
-  const returnedWordMemoryIndex: number =
-    memoryIndexToUse + Math.ceil(bytesMemoryUsed / 32) * 32 - 32
+    // 1 word for method Id, 1 word for each stack argument, 1 word for return
+  const numWordsToStash: number = 1 + numStackArgumentsToPass + 1 //Math.ceil(bytesMemoryUsed / 32)
 
-  const numWordsToStash: number = Math.ceil(bytesMemoryUsed / 32)
+  // ad 1 word for method Id, 1 word for each stack argument, and then the immediately following index will be the return val
+  const returnedWordMemoryIndex: number = 32 * (1 + numStackArgumentsToPass)
+  
   return [
+      // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
     ...staticStashMemoryInStack(memoryIndexToUse, numWordsToStash),
+    // Now that the stashed memory is first on the stack, recover the original stack elements we expected to consume/pass to execution manager
     ...duplicateStackAt(numWordsToStash, numStackArgumentsToPass),
+    // Do the call, with the returned word being put into memory.
     ...callContractWithStackElementsAndReturnWordToMemory(
       address,
       methodName,
       numStackArgumentsToPass,
       memoryIndexToUse
-    )[0],
+    ),
+    // MLOAD the returned word into the stack
     getPUSHIntegerOp(returnedWordMemoryIndex),
     {
       opcode: Opcode.MLOAD,
       consumedBytes: undefined,
     },
+    // Now that the returned value is first thing on stack, duplicate the stashed old memory so they're first on the stack.
     ...duplicateStackAt(1, numWordsToStash),
+    // Now that stack is prepared, unstash the memory to its original state
     ...staticUnstashMemoryFromStack(memoryIndexToUse, numWordsToStash),
+    // The above duplications need to be eliminated, but the returned word needs to be maintained.  SWAP it out of the way.
     getSWAPNOp(numWordsToStash + numStackArgumentsToPass),
+    // POP the extra elements that came from the above duplications
     ...POPNTimes(numWordsToStash + numStackArgumentsToPass),
-    { opcode: Opcode.RETURN, consumedBytes: undefined },
   ]
 }
 
-// todo add a proper test
 export const duplicateStackAt = (
   numStackElementsToIgnore: number,
   numStackElementsToDuplicate: number
 ): EVMBytecode => {
+    // TODO: error if N is too high to DUPN
   let op: EVMBytecode = []
   for (let i = 0; i < numStackElementsToDuplicate; i++) {
     op.push(getDUPNOp(numStackElementsToIgnore + numStackElementsToDuplicate))
