@@ -201,13 +201,19 @@ export const staticUnstashMemoryFromStack = (
 // constructs an operation which PUSHes the given integer to the stack.
 export const getPUSHIntegerOp = (theInt: number): EVMOpcodeAndBytes => {
   const intAsBuffer: Buffer = new BigNumber(theInt).toBuffer()
-  const numBytesToPush = intAsBuffer.length
+  return getPUSHBuffer(intAsBuffer)
+}
+
+// Returns a PUSH operation for the given bytes
+export const getPUSHBuffer = (toPush: Buffer): EVMOpcodeAndBytes => {
+  const numBytesToPush: number = toPush.byteLength
   // TODO: error if length exceeds 32
   return {
     opcode: Opcode.parseByNumber(96 + numBytesToPush - 1), // PUSH1 is 96 in decimal
-    consumedBytes: intAsBuffer,
+    consumedBytes: toPush,
   }
 }
+
 // returns DUPN operation for the specified N.
 export const getDUPNOp = (indexToDUP: number): EVMOpcodeAndBytes => {
   // TODO: error if index is too big
