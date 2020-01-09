@@ -154,7 +154,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
   const numWordsToStash: number = Math.ceil(bytesMemoryUsed / 32)
   return [
     ...staticStashMemoryInStack(memoryIndexToUse, numWordsToStash),
-    ...duplicateStackAbove(numWordsToStash, numStackArgumentsToPass),
+    ...duplicateStackAt(numWordsToStash, numStackArgumentsToPass),
     ...callContractWithStackElementsAndReturnWordToMemory(
       address,
       methodName,
@@ -166,7 +166,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
       opcode: Opcode.MLOAD,
       consumedBytes: undefined,
     },
-    ...duplicateStackAbove(1, numWordsToStash),
+    ...duplicateStackAt(1, numWordsToStash),
     ...staticUnstashMemoryFromStack(memoryIndexToUse, numWordsToStash),
     getSWAPNOp(numWordsToStash + numStackArgumentsToPass),
     ...POPNTimes(numWordsToStash + numStackArgumentsToPass),
@@ -175,7 +175,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
 }
 
 // todo add a proper test
-export const duplicateStackAbove = (
+export const duplicateStackAt = (
   numStackElementsToIgnore: number,
   numStackElementsToDuplicate: number
 ): EVMBytecode => {

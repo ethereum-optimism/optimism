@@ -14,6 +14,7 @@ import {
   EVMBytecode,
   formatBytecode,
   Opcode,
+  bufferToBytecode,
 } from '@pigi/rollup-core'
 
 /* Internal Imports */
@@ -31,6 +32,7 @@ import {
   invalidBytesConsumedBytecode,
 } from '../helpers'
 import {
+    duplicateStackAt,
   callContractWithStackElementsAndReturnWordToMemory,
   storeStackElementsAsMemoryWords,
   callContractWithStackElementsAndReturnWordToStack,
@@ -73,6 +75,28 @@ describe('Static Memory Opcode Replacement', () => {
     )
     return bufToHexString(result.result)
   }
+  describe('Some helpers', () => {
+    it('Should correctly duplicateStackAt', async () => {
+        const initialStackSize: number = 7
+        const offsetToDuplicate: number = 3
+        const elementsToDuplicate: number = 2
+        
+        const op: EVMBytecode = [
+            ...pushStackElements(initialStackSize),
+            ...duplicateStackAt(offsetToDuplicate, elementsToDuplicate),
+            { opcode: Opcode.RETURN, consumedBytes: undefined}
+        ]
+        log.debug(`op is ${formatBytecode(op)}`)
+        const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
+            bytecodeToBuffer(op),
+            233
+        )
+
+        finalContext.stackDepth.should.equal(initialStackSize + elementsToDuplicate)
+        const finalStack: Buffer[] = finalContext.stack
+        finalStack.slice(0, elementsToDuplicate).should.deep.equal(finalStack.slice(elementsToDuplicate + offsetToDuplicate, offsetToDuplicate + 2 * elementsToDuplicate))
+    })
+  })
 
   describe('storeStackElementsAsMemoryWords', () => {
     it('Should store three stack elements in the memory', async () => {
@@ -166,26 +190,6 @@ describe('Static Memory Opcode Replacement', () => {
       const memoryIndexToUse: number = 0
 
       const numStackElementsToPass: number = 3
-      const stackElementsToPass: Buffer[] = [
-        Buffer.from(
-          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          'hex'
-        ),
-        Buffer.from(
-          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          'hex'
-        ),
-        Buffer.from(
-          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
-          'hex'
-        ),
-      ]
-      const pushStackElements: EVMBytecode = [
-        // todo replace with .map()
-        getPUSHBuffer(stackElementsToPass[0]),
-        getPUSHBuffer(stackElementsToPass[1]),
-        getPUSHBuffer(stackElementsToPass[2]),
-      ]
 
       let callGetterAndStoreWithStackParams: EVMBytecode
       let memoryBytesUsed: number // todo assert this val correct
@@ -202,7 +206,7 @@ describe('Static Memory Opcode Replacement', () => {
       memoryBytesUsed.should.equal(4 + 32 * numStackElementsToPass + 32)
 
       callGetterAndStoreWithStackParams = [
-        ...pushStackElements,
+        ...pushStackElements(numStackElementsToPass),
         ...callGetterAndStoreWithStackParams,
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
@@ -218,43 +222,21 @@ describe('Static Memory Opcode Replacement', () => {
       )
 
       const expectedMemorySlice: Buffer = hexStrToBuf(
-        '0x000000000000000000000000000000000000000000000000000000006d4ce63caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccdeadbeef00000000000000000000000000000000000000000000000000000000'
+        '0x000000000000000000000000000000000000000000000000000000006d4ce63c020202020202020202020202020202020202020202020202020202020202020201010101010101010101010101010101010101010101010101010101010101010000000000000000000000000000000000000000000000000000000000000000deadbeef00000000000000000000000000000000000000000000000000000000'
       )
 
       finalContext.memory.should.deep.equal(expectedMemorySlice)
     })
   })
-  describe.only('callContractWithStackElementsAndReturnWordToStack', () => {
+  describe('callContractWithStackElementsAndReturnWordToStack', () => {
     it('Should return the result of a simple contract getter with 2 stack params to memory successfully', async () => {
       const getterAddress: Address = await deployAssemblyReturningContract(
         evmUtil
       )
 
       const initialMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
-
       const memoryIndexToUse: number = 0
-
       const numStackElementsToPass: number = 3
-      const stackElementsToPass: Buffer[] = [
-        Buffer.from(
-          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          'hex'
-        ),
-        Buffer.from(
-          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          'hex'
-        ),
-        Buffer.from(
-          'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
-          'hex'
-        ),
-      ]
-      const pushStackElements: EVMBytecode = [
-        // todo replace with .map()
-        getPUSHBuffer(stackElementsToPass[0]),
-        getPUSHBuffer(stackElementsToPass[1]),
-        getPUSHBuffer(stackElementsToPass[2]),
-      ]
 
       let callGetterAndStoreWithStackParams: EVMBytecode
       callGetterAndStoreWithStackParams = callContractWithStackElementsAndReturnWordToStack(
@@ -266,7 +248,7 @@ describe('Static Memory Opcode Replacement', () => {
 
       callGetterAndStoreWithStackParams = [
         ...setMemory(initialMemory),
-        ...pushStackElements,
+        ...pushStackElements(numStackElementsToPass),
         ...callGetterAndStoreWithStackParams,
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
@@ -299,4 +281,14 @@ const setMemory = (toSet: Buffer): EVMBytecode => {
     ])
   }
   return op
+}
+
+const pushStackElements = (numElements: number): EVMBytecode => {
+    let op: EVMBytecode = []
+    for (let i = 0; i < numElements; i++) {
+        op.push(
+            getPUSHBuffer(Buffer.alloc(32).fill(numElements - i - 1))
+        )
+    }
+    return op
 }
