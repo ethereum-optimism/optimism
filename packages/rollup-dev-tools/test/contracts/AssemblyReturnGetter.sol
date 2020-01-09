@@ -13,6 +13,8 @@ contract AssemblyReturnGetter {
     return temp;
   }
 
+  // this getter uses inline assembly to return a NON-ABI-encoded byte array,
+  // so it's easier to work with on the recieving end (assembly).
   function get() public view returns (bytes memory) {
     bytes32 valToReturn;
 

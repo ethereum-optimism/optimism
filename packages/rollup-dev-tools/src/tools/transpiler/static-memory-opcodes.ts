@@ -1,13 +1,6 @@
 /* External Imports */
-import {
-  Opcode,
-  EVMBytecode,
-  Address,
-} from '@pigi/rollup-core'
-import {
-  getLogger,
-  hexStrToBuf,
-} from '@pigi/core-utils'
+import { Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
+import { getLogger, hexStrToBuf } from '@pigi/core-utils'
 import {
   getPUSHIntegerOp,
   getPUSHBuffer,
@@ -22,7 +15,7 @@ import * as abi from 'ethereumjs-abi'
 const log = getLogger(`static-memory-opcodes`)
 /**
  * Stores the first `numWords` elements on the stack to memory at the specified index.
- * 
+ *
  * Used to pass stack params into the Execution manager as calldata.
  *
  * @param numStackElementsToStore The number of stack elements to put in the memory
@@ -37,9 +30,7 @@ export const storeStackElementsAsMemoryWords = (
   for (let i = 0; i < numStackElementsToStore; i++) {
     op = op.concat([
       // push storage index
-      getPUSHIntegerOp(
-        (i) * 32 + memoryIndexToStoreAt
-      ),
+      getPUSHIntegerOp(i * 32 + memoryIndexToStoreAt),
       // store the stack item
       { opcode: Opcode.MSTORE, consumedBytes: undefined },
     ])
@@ -52,7 +43,7 @@ export const storeStackElementsAsMemoryWords = (
  * 1. Store the methodId to pass as calldata
  * 2. Store the stack elements to pass as calldata
  * 3. Have a single word of return data be stored at the index proceeding the above.
- * 
+ *
  *
  * @param address The address to call.
  * @param methodName The human readable name of the ABI method to call
@@ -93,7 +84,7 @@ export const callContractWithStackElementsAndReturnWordToMemory = (
     // index + 32 because first word is methodId
     ...storeStackElementsAsMemoryWords(
       numStackArgumentsToPass,
-      memoryIndexToUse + 32,
+      memoryIndexToUse + 32
     ),
     // CALL
     // ret length
@@ -137,7 +128,7 @@ export const callContractWithStackElementsAndReturnWordToMemory = (
  * 4. Have a single word of return data be stored at the index proceeding the above.
  * 5. Load the returned word from memory into the stack.
  * 6. Replace the original memory by unstashing.
- * 
+ *
  *
  * @param address The address to call.
  * @param methodName The human readable name of the ABI method to call
@@ -152,15 +143,14 @@ export const callContractWithStackElementsAndReturnWordToStack = (
   numStackArgumentsToPass: number,
   memoryIndexToUse: number = 0
 ): EVMBytecode => {
-
-    // 1 word for method Id, 1 word for each stack argument, 1 word for return
+  // 1 word for method Id, 1 word for each stack argument, 1 word for return
   const numWordsToStash: number = 1 + numStackArgumentsToPass + 1 //Math.ceil(bytesMemoryUsed / 32)
 
   // ad 1 word for method Id, 1 word for each stack argument, and then the immediately following index will be the return val
   const returnedWordMemoryIndex: number = 32 * (1 + numStackArgumentsToPass)
-  
+
   return [
-      // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
+    // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
     ...staticStashMemoryInStack(memoryIndexToUse, numWordsToStash),
     // Now that the stashed memory is first on the stack, recover the original stack elements we expected to consume/pass to execution manager
     ...duplicateStackAt(numWordsToStash, numStackArgumentsToPass),
@@ -192,8 +182,8 @@ export const duplicateStackAt = (
   numStackElementsToIgnore: number,
   numStackElementsToDuplicate: number
 ): EVMBytecode => {
-    // TODO: error if N is too high to DUPN
-  let op: EVMBytecode = []
+  // TODO: error if N is too high to DUPN
+  const op: EVMBytecode = []
   for (let i = 0; i < numStackElementsToDuplicate; i++) {
     op.push(getDUPNOp(numStackElementsToIgnore + numStackElementsToDuplicate))
   }
@@ -201,7 +191,7 @@ export const duplicateStackAt = (
 }
 
 export const POPNTimes = (numStackElementsToPop: number): EVMBytecode => {
-  let op: EVMBytecode = new Array(numStackElementsToPop)
+  const op: EVMBytecode = new Array(numStackElementsToPop)
   op.fill({
     opcode: Opcode.POP,
     consumedBytes: undefined,
