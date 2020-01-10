@@ -85,34 +85,20 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
   // For each word to strore...
   for (let i = 0; i < wordsToStore; i++) {
     bytecodes.push([
-      // duplicate the memory index, expected as first thing on the stack.
+      // swap the next element to store to first in stack.
       {
-        opcode: Opcode.DUP1,
+        opcode: Opcode.SWAP1,
+        consumedBytes: undefined,
+      },
+      // duplicate the memory index which is not the second thing on the stack.
+      {
+        opcode: Opcode.DUP2,
         consumedBytes: undefined,
       },
       // ADD the max words to store, subtracting the current word we're going to store
       getPUSHIntegerOp((wordsToStore - i - 1) * 32),
       {
         opcode: Opcode.ADD,
-        consumedBytes: undefined,
-      },
-      // // SUBtract the current word we're going to store
-      // getPUSHIntegerOp(i * 32),
-      // {
-      //   opcode: Opcode.SWAP1,
-      //   consumedBytes: undefined,
-      // },
-      // {
-      //   opcode: Opcode.SUB,
-      //   consumedBytes: undefined,
-      // },
-      // DUP the word we're going to store from the stack.
-      // Stack looks like: [index + numWords - i, index, C, B, A, ...]
-      // So the index of C is 3, index of B is 4, etc...
-      getDUPNOp(3 + i),
-      // Swap so stack is now [index, wordsToStore]
-      {
-        opcode: Opcode.SWAP1,
         consumedBytes: undefined,
       },
       // Store
@@ -122,17 +108,7 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
       },
     ])
   }
-  // Now all that's left is to CLEANUP THE STACK
-  // For dynamic index, we don't want to delete the index, in case it's needed for other operations.
-  // Stack should look like it started, [index, C, B, A, ...]  so this SWAP makes it [A, C, B, index, ...]
-  bytecodes.push([getSWAPNOp(wordsToStore)])
-  // Now that the unstashed words are at the front of the stack, POP them all (numWords times)
-  bytecodes.push(
-    new Array<EVMOpcodeAndBytes>(wordsToStore).fill({
-      opcode: Opcode.POP,
-      consumedBytes: undefined,
-    })
-  )
+
   return [].concat(...bytecodes)
 }
 
