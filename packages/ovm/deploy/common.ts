@@ -13,7 +13,7 @@ const checkParamsAndLoadConfig = () => {
     process.argv[process.argv.length - 1].endsWith('.js')
   ) {
     console.log(
-      '\n\nError: Environment argument not provided. Usage: "yarn run deploy:purity-checker <env>"\n'
+      '\n\nError: Environment argument not provided. Usage: "yarn run deploy:<contract> <env>"\n'
     )
     process.exit(0)
   }
