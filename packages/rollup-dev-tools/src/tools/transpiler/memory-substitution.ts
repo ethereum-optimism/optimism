@@ -90,22 +90,22 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
         opcode: Opcode.DUP1,
         consumedBytes: undefined,
       },
-      // ADD the max words to store
-      getPUSHIntegerOp((wordsToStore - 1) * 32),
+      // ADD the max words to store, subtracting the current word we're going to store
+      getPUSHIntegerOp((wordsToStore - i - 1) * 32),
       {
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       },
-      // SUBtract the current word we're going to store
-      getPUSHIntegerOp(i * 32),
-      {
-        opcode: Opcode.SWAP1,
-        consumedBytes: undefined,
-      },
-      {
-        opcode: Opcode.SUB,
-        consumedBytes: undefined,
-      },
+      // // SUBtract the current word we're going to store
+      // getPUSHIntegerOp(i * 32),
+      // {
+      //   opcode: Opcode.SWAP1,
+      //   consumedBytes: undefined,
+      // },
+      // {
+      //   opcode: Opcode.SUB,
+      //   consumedBytes: undefined,
+      // },
       // DUP the word we're going to store from the stack.
       // Stack looks like: [index + numWords - i, index, C, B, A, ...]
       // So the index of C is 3, index of B is 4, etc...

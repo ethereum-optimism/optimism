@@ -211,7 +211,7 @@ describe('Memory Replacement Operations', () => {
       ]
       const finalStep: StepContext = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(pushWordsToStackAndRestore),
-        184 // hardcoded based on above vars -- changing them will require updating this
+        168 // hardcoded based on above vars -- changing them will require updating this
       )
       finalStep.stackDepth.should.equal(0)
       finalStep.memory.should.deep.equal(fourRandomWords)
@@ -272,7 +272,7 @@ describe('Memory Replacement Operations', () => {
         memoryModifyingBytecodeBuf,
         673,
         transpiledMemoryModifyingBytecodeBuf,
-        788
+        780
       )
 
       comparisonBeforeReturns.firstContext.memory.should.deep.equal(
