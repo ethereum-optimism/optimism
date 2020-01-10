@@ -87,12 +87,13 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
     bytecodes.push([
       // swap the next element to store to first in stack.
       {
-        opcode: Opcode.SWAP1, consumedBytes: undefined
+        opcode: Opcode.SWAP1,
+        consumedBytes: undefined,
       },
       // duplicate the memory index which is not the second thing on the stack.
       {
         opcode: Opcode.DUP2,
-        consumedBytes: undefined
+        consumedBytes: undefined,
       },
       // ADD the max words to store, subtracting the current word we're going to store
       getPUSHIntegerOp((wordsToStore - i - 1) * 32),
