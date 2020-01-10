@@ -31,10 +31,10 @@ import {
   TranspilerImpl,
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
-  dynamicStashMemoryInStack,
-  dynamicUnstashMemoryFromStack,
-  staticStashMemoryInStack,
-  staticUnstashMemoryFromStack,
+  pushMemoryOntoStack,
+  storeStackInMemory,
+  pushMemoryOntoStackAtIndex,
+  storeStackInMemoryAtIndex,
   getPUSHIntegerOp,
 } from '../../src/tools/transpiler'
 import { stateManagerAddress, whitelistedOpcodes } from '../helpers'
@@ -164,36 +164,36 @@ describe('Memory Replacement Operations', () => {
     })
   })
 
-  describe('Memory stashing and unstashing', () => {
-    it('Correctly stashes multiple words of memory into the stack', async () => {
-      const wordsToStash: number = 3
-      const byteIndexToStashFrom: number = 3
-      const storeAndStash: EVMBytecode = [
+  describe('Memory/stack swapping', () => {
+    it('Correctly pushes multiple words of memory into the stack', async () => {
+      const numWords: number = 3
+      const byteIndexToLoad : number = 3
+      const storeAndPushToStack: EVMBytecode = [
         ...storeNWordsInMemorySequential(9), // random exceeding numwords + index
-        ...staticStashMemoryInStack(byteIndexToStashFrom, wordsToStash),
+        ...pushMemoryOntoStackAtIndex(byteIndexToLoad, numWords),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const finalStep: StepContext = await evmUtil.getStepContextBeforeStep(
-        bytecodeToBuffer(storeAndStash),
+        bytecodeToBuffer(storeAndPushToStack),
         624 // hardcoded based on above vars -- changing them will require updating this
       )
       log.debug(`Final step context was: ${JSON.stringify(finalStep)}`)
-      // The stack should only contain the stashed words
-      finalStep.stackDepth.should.equal(wordsToStash)
-      // The stack should contain the stashed words in reverse order
-      for (let i = 0; i < wordsToStash; i++) {
-        const expectedWordStart: number = byteIndexToStashFrom + 32 * i
+      // The stack should only contain the loaded words
+      finalStep.stackDepth.should.equal(numWords)
+      // The stack should contain the loaded words in reverse order
+      for (let i = 0; i < numWords; i++) {
+        const expectedWordStart: number = byteIndexToLoad + 32 * i
         const expectedMemorySlice: Buffer = Buffer.from(
           finalStep.memory.slice(expectedWordStart, expectedWordStart + 32)
         )
-        const expectedStackIndex: number = wordsToStash - i - 1 // they're pushed onto stack in reverse order
+        const expectedStackIndex: number = numWords - i - 1 // they're pushed onto stack in reverse order
         const wordOnStack: Buffer = finalStep.stack[expectedStackIndex]
         // check equality, etherjs-vm removes unneceessary zeroes so compare numerically
         new BigNumber(expectedMemorySlice).eq(new BigNumber(wordOnStack)).should
           .be.true
       }
     })
-    it('Correctly unstashes multiple words from the stack into memory', async () => {
+    it('Correctly stores multiple words from the stack back into memory', async () => {
       const fourRandomWords: Buffer = hexStrToBuf(
         '0x0111030ffffa0a0a11103040a0a0a0a011103040a0a0a0a1110232323a0a0a0d011103040a0a0a0a11103040a555555011103040a0a0a0a11103040a0a0a0ab0111030ffffa0a0a11103040a0a0a0a011103040adddddd1110232323a0a0a07011103040a0a0a5858699040a555555011103040a0a0a0a11103040a0a0a0abbb'
       )
@@ -204,19 +204,19 @@ describe('Memory Replacement Operations', () => {
           consumedBytes: fourRandomWords.slice(i * 32, (i + 1) * 32),
         })
       }
-      const pushWordsAndUnstash: EVMBytecode = [
+      const pushWordsToStackAndRestore: EVMBytecode = [
         ...pushWordsToStack,
-        ...staticUnstashMemoryFromStack(0, 4),
+        ...storeStackInMemoryAtIndex(0, 4),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const finalStep: StepContext = await evmUtil.getStepContextBeforeStep(
-        bytecodeToBuffer(pushWordsAndUnstash),
+        bytecodeToBuffer(pushWordsToStackAndRestore),
         184 // hardcoded based on above vars -- changing them will require updating this
       )
       finalStep.stackDepth.should.equal(0)
       finalStep.memory.should.deep.equal(fourRandomWords)
     })
-    it('Memory operations between a stash and unstash operation should not have any effect', async () => {
+    it('Memory operations between a pushtoStack and storeInMemory operation should not have any effect', async () => {
       const numWordsToStore = 10
       const memoryModifyingBytecode: EVMBytecode = [
         ...storeNWordsInMemorySequential(numWordsToStore),
@@ -229,14 +229,14 @@ describe('Memory Replacement Operations', () => {
 
       const memoryIndexToModify: number = 2
       const numWordsToModify: number = 2
-      // stash memory to stack, overwrite memory, unstash memory
-      const stashModifyUnstash: EVMBytecode = [
-        ...staticStashMemoryInStack(memoryIndexToModify, numWordsToModify),
+      // push memory to stack, overwrite memory, store stack back to memory
+      const pusModifyLoad: EVMBytecode = [
+        ...pushMemoryOntoStackAtIndex(memoryIndexToModify, numWordsToModify),
         ...overwriteNWordsInMemoryWithOffset(
           numWordsToModify,
           memoryIndexToModify
         ),
-        ...staticUnstashMemoryFromStack(memoryIndexToModify, numWordsToModify),
+        ...storeStackInMemoryAtIndex(memoryIndexToModify, numWordsToModify),
       ]
 
       const replaceMap: Map<EVMOpcode, EVMBytecode> = new Map<
@@ -248,7 +248,7 @@ describe('Memory Replacement Operations', () => {
           opcode: Opcode.POP,
           consumedBytes: undefined,
         },
-        ...stashModifyUnstash,
+        ...pusModifyLoad,
       ])
 
       const opcodeWhitelist = new OpcodeWhitelistImpl(whitelistedOpcodes)

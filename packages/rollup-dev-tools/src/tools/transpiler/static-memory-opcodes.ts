@@ -4,9 +4,9 @@ import { getLogger, hexStrToBuf } from '@pigi/core-utils'
 import {
   getPUSHIntegerOp,
   getPUSHBuffer,
-  staticStashMemoryInStack,
+  pushMemoryOntoStackAtIndex,
   getDUPNOp,
-  staticUnstashMemoryFromStack,
+  storeStackInMemoryAtIndex,
   getSWAPNOp,
 } from './memory-substitution'
 
@@ -151,7 +151,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
 
   return [
     // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
-    ...staticStashMemoryInStack(memoryIndexToUse, numWordsToStash),
+    ...pushMemoryOntoStackAtIndex(memoryIndexToUse, numWordsToStash),
     // Now that the stashed memory is first on the stack, recover the original stack elements we expected to consume/pass to execution manager
     ...duplicateStackAt(numWordsToStash, numStackArgumentsToPass),
     // Do the call, with the returned word being put into memory.
@@ -170,7 +170,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
     // Now that the returned value is first thing on stack, duplicate the stashed old memory so they're first on the stack.
     ...duplicateStackAt(1, numWordsToStash),
     // Now that stack is prepared, unstash the memory to its original state
-    ...staticUnstashMemoryFromStack(memoryIndexToUse, numWordsToStash),
+    ...storeStackInMemoryAtIndex(memoryIndexToUse, numWordsToStash),
     // The above duplications need to be eliminated, but the returned word needs to be maintained.  SWAP it out of the way.
     getSWAPNOp(numWordsToStash + numStackArgumentsToPass),
     // POP the extra elements that came from the above duplications

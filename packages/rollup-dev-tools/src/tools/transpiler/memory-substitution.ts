@@ -21,25 +21,25 @@ import { POINT_CONVERSION_HYBRID } from 'constants'
 const log = getLogger(`memory-substitution-gen`)
 
 /**
- * Returns a piece of bytecode which dynamically stashes a specified number of words from memory onto the stack.
+ * Returns a piece of bytecode which dynamically pushes a specified number of 32-byte words from memory onto the stack.
  * Assumes that the first element of the stack is the memory index to load from.
  *
  * Stack before this operation: index, X, Y, Z
- * Stack after this operation: index, memory[(wordsToStash - 1)*32 + index], memory[(wordsToStash - 2)*32 + index], ..., memory[index] X, Y, Z
+ * Stack after this operation: index, memory[(wordsToPush - 1)*32 + index], memory[(wordsToPush - 2)*32 + index], ..., memory[index] X, Y, Z
  * (Note that each MLOAD pulls 32 byte words from memory, each stack element above is a word)
  *
  * Memory after this operation: unaffected
  *
- * @param wordsToStash The number of 32-byte words from the memory to stash
- * @returns Btyecode which results in the stash operation described above.
+ * @param wordsToPush The number of 32-byte words from the memory to push to the stack
+ * @returns Btyecode which results in the operation described above.
  */
-export const dynamicStashMemoryInStack = (
-  wordsToStash: number
+export const pushMemoryOntoStack = (
+  wordsToPush: number
 ): EVMBytecode => {
-  let stashOperation: EVMBytecode = []
-  // For each word to stash...
-  for (let i = 0; i < wordsToStash; i++) {
-    stashOperation = stashOperation.concat([
+  let bytecodes: EVMBytecode[] = []
+  // For each word to push...
+  for (let i = 0; i < wordsToPush; i++) {
+    bytecodes.push([
       // duplicate the mmory index which is expected as first element on stack
       {
         opcode: Opcode.DUP1,
@@ -63,44 +63,44 @@ export const dynamicStashMemoryInStack = (
       },
     ])
   }
-  return stashOperation
+  return [].concat(...bytecodes)
 }
 
 /**
- * Returns a piece of bytecode which dynamically unstashes a specified number of words from the stack back into memory.
+ * Returns a piece of bytecode which dynamically stores a specified number of words from the stack back into memory.
  * Assumes that the first element of the stack is the memory index to load from.
  *
- * Stack before this operation: [index, M_wordsToUnstash, M_(wordsToUnstash-1), ... M_1, X, Y, Z, ...]
+ * Stack before this operation: [index, M_wordsToStore, M_(wordsToStore-1), ... M_1, X, Y, Z, ...]
  * Stack after this operation: [index, X, Y, Z, ...]
  * (Note that each MSTORE puts 32 byte words from memory, each M_* stack element above is a word)
  *
- * Memory after this operation: memory[index + 32 * n] = M_n (for n = 0 through wordsToUnstash)
+ * Memory after this operation: memory[index + 32 * n] = M_n (for n = 0 through wordsToStore)
  *
- * @param wordsToStash The number of 32-byte words from the stack to unstash
- * @returns Btyecode which results in the unstash operation described above.
+ * @param wordsToStore The number of 32-byte words from the stack to store
+ * @returns Btyecode which results in the operation described above.
  */
-export const dynamicUnstashMemoryFromStack = (
-  wordsToUnstash: number
+export const storeStackInMemory = (
+  wordsToStore: number
 ): EVMBytecode => {
-  let unstashOperation: EVMBytecode = []
-  // The only trickiness here is that the stash operation for memory = A, B, C --> stack = C, B, A
-  // So we store in reeverse order, starting with index + wordsToUnstash and work back to index + 0.
+  let bytecodes: EVMBytecode[] = []
+  // The only trickiness here is that the storage operation for memory = A, B, C --> stack = C, B, A
+  // So we store in reeverse order, starting with index + wordsToStore and work back to index + 0.
 
-  // For each word to unstash...
-  for (let i = 0; i < wordsToUnstash; i++) {
-    unstashOperation = unstashOperation.concat([
+  // For each word to strore...
+  for (let i = 0; i < wordsToStore; i++) {
+    bytecodes.push([
       // duplicate the memory index, expected as first thing on the stack.
       {
         opcode: Opcode.DUP1,
         consumedBytes: undefined,
       },
-      // ADD the max words to unstash
-      getPUSHIntegerOp((wordsToUnstash - 1) * 32),
+      // ADD the max words to store
+      getPUSHIntegerOp((wordsToStore - 1) * 32),
       {
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       },
-      // SUBtract the current word we're going to unstash
+      // SUBtract the current word we're going to store
       getPUSHIntegerOp(i * 32),
       {
         opcode: Opcode.SWAP1,
@@ -110,11 +110,11 @@ export const dynamicUnstashMemoryFromStack = (
         opcode: Opcode.SUB,
         consumedBytes: undefined,
       },
-      // DUP the word we're going to unstash from the stack.
+      // DUP the word we're going to store from the stack.
       // Stack looks like: [index + numWords - i, index, C, B, A, ...]
       // So the index of C is 3, index of B is 4, etc...
       getDUPNOp(3 + i),
-      // Swap so stack is now [index, wordToUnstash]
+      // Swap so stack is now [index, wordsToStore]
       {
         opcode: Opcode.SWAP1,
         consumedBytes: undefined,
@@ -129,39 +129,39 @@ export const dynamicUnstashMemoryFromStack = (
   // Now all that's left is to CLEANUP THE STACK
   // For dynamic index, we don't want to delete the index, in case it's needed for other operations.
   // Stack should look like it started, [index, C, B, A, ...]  so this SWAP makes it [A, C, B, index, ...]
-  unstashOperation.push(getSWAPNOp(wordsToUnstash))
+  bytecodes.push([getSWAPNOp(wordsToStore)])
   // Now that the unstashed words are at the front of the stack, POP them all (numWords times)
-  unstashOperation = unstashOperation.concat(
-    new Array<EVMOpcodeAndBytes>(wordsToUnstash).fill({
+  bytecodes.push(
+    new Array<EVMOpcodeAndBytes>(wordsToStore).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
     })
   )
-  return unstashOperation
+  return [].concat(...bytecodes)
 }
 
 /**
- * Returns a piece of bytecode which stashes a specified number of words from memory, at the specified byte index, onto the stack.
+ * Returns a piece of bytecode which pushes a specified number of words from memory, at the specified byte index, onto the stack.
  *
  * Stack before this operation: X, Y, Z
- * Stack after this operation: memory[(wordsToStash - 1)*32 + memoryIndex], memory[(wordsToStash - 2)*32 + mmoryIndex], ..., memory[memoryIndex] X, Y, Z
+ * Stack after this operation: memory[(wordsToPush - 1)*32 + memoryIndex], memory[(wordsToPush - 2)*32 + mmoryIndex], ..., memory[memoryIndex] X, Y, Z
  * (Note that each MLOAD pulls 32 byte words from memory, each stack element above is a word)
  *
  * Memory after this operation: unaffected
  *
- * @param memoryIndex The byte index in the memory to stash
- * @param numWords The number of 32-byte words from the memory to stash
- * @returns Btyecode which results in the stash operation described above.
+ * @param memoryIndex The byte index in the memory to load from
+ * @param wordsToPush The number of 32-byte words from the memory to load
+ * @returns Btyecode which results in the operation described above.
  */
 
-export const staticStashMemoryInStack = (
+export const pushMemoryOntoStackAtIndex = (
   memoryIndex: number,
-  numWords: number
+  wordsToPush: number
 ): EVMBytecode => {
   // we just use the dynamic operation, PUSHing the memoryIndex to the stack beforehand, and POPing the memoryIndex once the operation is complete.
   return [
     getPUSHIntegerOp(memoryIndex),
-    ...dynamicStashMemoryInStack(numWords),
+    ...pushMemoryOntoStack(wordsToPush),
     {
       opcode: Opcode.POP,
       consumedBytes: undefined,
@@ -170,27 +170,27 @@ export const staticStashMemoryInStack = (
 }
 
 /**
- * Returns a piece of bytecode which unstashes a specified number of words from the stack back into memory at the specified byte index.
+ * Returns a piece of bytecode which sotres a specified number of words from the stack back into memory at the specified byte index.
  * Assumes that the first element of the stack is the memory index to load from.
  *
- * Stack before this operation: [M_wordsToUnstash, M_(wordsToUnstash-1), ... M_1, X, Y, Z, ...]
+ * Stack before this operation: [M_wordsToStore, M_(wordsToStore-1), ... M_1, X, Y, Z, ...]
  * Stack after this operation: [X, Y, Z, ...]
  * (Note that each MSTORE puts 32 byte words from memory, each M_* stack element above is a word)
  *
  * Memory after this operation: memory[memoryIndex + 32 * n] = M_n (for n = 0 through numWords)
  *
- * @param memoryIndex The byte index in the memory to unstash
- * @param numWords The number of 32-byte words from the stack to unstash to memory
- * @returns Btyecode which results in the unstash operation described above.
+ * @param memoryIndex The byte index in the memory to store
+ * @param wordsToStore The number of 32-byte words from the stack to store to memory
+ * @returns Btyecode which results in the operation described above.
  */
-export const staticUnstashMemoryFromStack = (
+export const storeStackInMemoryAtIndex = (
   memoryIndex: number,
   numWords: number
 ): EVMBytecode => {
   // we just use the dynamic operation, PUSHing the memoryIndex to the stack beforehand, and POPing the memoryIndex once operation is complete.
   return [
     getPUSHIntegerOp(memoryIndex),
-    ...dynamicUnstashMemoryFromStack(numWords),
+    ...storeStackInMemory(numWords),
     {
       opcode: Opcode.POP,
       consumedBytes: undefined,
@@ -209,9 +209,14 @@ export const getPUSHBuffer = (toPush: Buffer): EVMOpcodeAndBytes => {
   const numBytesToPush: number = toPush.byteLength
   // TODO: error if length exceeds 32
   return {
-    opcode: Opcode.parseByNumber(96 + numBytesToPush - 1), // PUSH1 is 96 in decimal
+    opcode: getPUSHOpcode(numBytesToPush), // PUSH1 is 96 in decimal
     consumedBytes: toPush,
   }
+}
+
+// gets the RAW PUSHN EVMOpcode based on N.
+export const getPUSHOpcode = (numBytes: number): EVMOpcode => {
+  return Opcode.parseByNumber(96 + numBytes - 1) // PUSH1 is 96 in decimal
 }
 
 // returns DUPN operation for the specified N.
