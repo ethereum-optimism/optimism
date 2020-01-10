@@ -16,7 +16,7 @@ const log = getLogger('execution-manager', true)
  * TESTS *
  *********/
 
-describe('ExecutionManager', () => {
+describe.skip('ExecutionManager', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
   let executionManager

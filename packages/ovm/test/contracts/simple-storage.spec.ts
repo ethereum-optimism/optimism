@@ -21,7 +21,7 @@ const log = getLogger('simple-storage', true)
  * TESTS *
  *********/
 
-describe('SimpleStorage', () => {
+describe.skip('SimpleStorage', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
   // Create pointers to our execution manager & simple storage contract

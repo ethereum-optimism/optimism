@@ -12,7 +12,7 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import { Contract, ContractFactory, Wallet, utils } from 'ethers'
 
 /* Begin tests */
-describe('ExecutionManager', () => {
+describe.skip('ExecutionManager', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
   let executionManager

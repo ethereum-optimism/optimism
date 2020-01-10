@@ -9,7 +9,7 @@ pragma experimental ABIEncoderV2;
  */
 contract RLPEncode { //TODO make library
     /*
-     * Internal functions
+     * Public functions
      */
 
     /**

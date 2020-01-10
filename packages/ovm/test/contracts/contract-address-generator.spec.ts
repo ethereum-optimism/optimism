@@ -55,7 +55,7 @@ describe('ContractAddressGenerator', () => {
       computedAddress.should.equal(expectedAddress)
     })
     it('returns expected address, nonce: 1, different origin address', async () => {
-      const nonce = 999999999
+      const nonce = 1
       const expectedAddress = utils.getContractAddress({
         from: wallet2.address,
         nonce,
