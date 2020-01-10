@@ -5,7 +5,7 @@ import { getLogger } from '@pigi/core-utils'
 import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-const log = getLogger('data-types', true)
+const log = getLogger('state-manager', true)
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
