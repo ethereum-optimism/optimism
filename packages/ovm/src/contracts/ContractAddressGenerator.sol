@@ -48,7 +48,10 @@ contract ContractAddressGenerator { // TODO: Make this a library
      * @param _ovmInitcode The initcode for the contract we are CREATE2ing.
      */
     function getAddressFromCREATE2(address _origin, bytes32 _salt, bytes memory _ovmInitcode) public pure returns(address) {
-        return address(bytes20(keccak256(abi.encodePacked(byte(0xff), _origin, _salt, keccak256(_ovmInitcode)))));
+        // Hash all of the parameters together
+        bytes32 hashedData = keccak256(abi.encodePacked(byte(0xff), _origin, _salt, keccak256(_ovmInitcode)));
+        // return an address from the last 20 bytes of the hash
+        return address(bytes20(uint160(uint256(hashedData))));
     }
 
 }
