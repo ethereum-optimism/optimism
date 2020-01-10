@@ -237,7 +237,7 @@ describe('Static Memory Opcode Replacement', () => {
 
       const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(callGetterAndStoreWithStackParams),
-        641
+        630
       )
       // makesurethat memory was not modified
       finalContext.memory.should.deep.equal(initialMemory)
