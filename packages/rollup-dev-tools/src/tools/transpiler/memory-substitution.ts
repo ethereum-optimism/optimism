@@ -4,41 +4,30 @@ import {
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
-  isValidOpcodeAndBytes,
-  Address,
 } from '@pigi/rollup-core'
-import {
-  bufToHexString,
-  remove0x,
-  getLogger,
-  isValidHexAddress,
-  hexStrToBuf,
-  BigNumber,
-} from '@pigi/core-utils'
-import { ADDRCONFIG } from 'dns'
-import { POINT_CONVERSION_HYBRID } from 'constants'
+import { getLogger, BigNumber } from '@pigi/core-utils'
 
-const log = getLogger(`memory-substitution-gen`)
+const log = getLogger(`memory-substitution`)
 
 /**
  * Returns a piece of bytecode which dynamically pushes a specified number of 32-byte words from memory onto the stack.
  * Assumes that the first element of the stack is the memory index to load from.
  *
  * Stack before this operation: index, X, Y, Z
- * Stack after this operation: index, memory[(wordsToPush - 1)*32 + index], memory[(wordsToPush - 2)*32 + index], ..., memory[index] X, Y, Z
+ * Stack after this operation: index, memory[index], memory[index + 32], ..., memory[index + (wordsToPush * 32)] X, Y, Z
  * (Note that each MLOAD pulls 32 byte words from memory, each stack element above is a word)
  *
  * Memory after this operation: unaffected
  *
  * @param wordsToPush The number of 32-byte words from the memory to push to the stack
- * @returns Btyecode which results in the operation described above.
+ * @returns Bytecode which results in the operation described above.
  */
 export const pushMemoryOntoStack = (wordsToPush: number): EVMBytecode => {
   const bytecodes: EVMBytecode[] = []
   // For each word to push...
-  for (let i = 0; i < wordsToPush; i++) {
+  for (let i = wordsToPush - 1; i >= 0; i--) {
     bytecodes.push([
-      // duplicate the mmory index which is expected as first element on stack
+      // duplicate the memory index which is expected as first element on stack
       {
         opcode: Opcode.DUP1,
         consumedBytes: undefined,
@@ -65,24 +54,20 @@ export const pushMemoryOntoStack = (wordsToPush: number): EVMBytecode => {
 }
 
 /**
- * Returns a piece of bytecode which dynamically stores a specified number of words from the stack back into memory.
- * Assumes that the first element of the stack is the memory index to load from.
+ * Returns a piece of bytecode which dynamically stores a specified number of words from the stack into memory.
+ * Assumes that the first element of the stack is the memory index to store to.
  *
- * Stack before this operation: [index, M_wordsToStore, M_(wordsToStore-1), ... M_1, X, Y, Z, ...]
+ * Stack before this operation: [index, wordsToStore_1, wordsToStore_2, ..., wordsToStore_n, X, Y, Z, ...]
  * Stack after this operation: [index, X, Y, Z, ...]
- * (Note that each MSTORE puts 32 byte words from memory, each M_* stack element above is a word)
  *
- * Memory after this operation: memory[index + 32 * n] = M_n (for n = 0 through wordsToStore)
+ * Memory after this operation: memory[index: index + (32 * n)] = M_n (for n = 0 through wordsToStore)
  *
- * @param wordsToStore The number of 32-byte words from the stack to store
- * @returns Btyecode which results in the operation described above.
+ * @param wordsToStore The number of 32-byte words from the stack to store.
+ * @returns Bytecode which results in the operation described above.
  */
 export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
   const bytecodes: EVMBytecode[] = []
-  // The only trickiness here is that the storage operation for memory = A, B, C --> stack = C, B, A
-  // So we store in reeverse order, starting with index + wordsToStore and work back to index + 0.
-
-  // For each word to strore...
+  // For each word to store...
   for (let i = 0; i < wordsToStore; i++) {
     bytecodes.push([
       // swap the next element to store to first in stack.
@@ -96,7 +81,7 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
         consumedBytes: undefined,
       },
       // ADD the max words to store, subtracting the current word we're going to store
-      getPUSHIntegerOp((wordsToStore - i - 1) * 32),
+      getPUSHIntegerOp(i * 32),
       {
         opcode: Opcode.ADD,
         consumedBytes: undefined,
@@ -123,10 +108,10 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
  *
  * @param memoryIndex The byte index in the memory to load from
  * @param wordsToPush The number of 32-byte words from the memory to load
- * @returns Btyecode which results in the operation described above.
+ * @returns Bytecode which results in the operation described above.
  */
 
-export const pushMemoryOntoStackAtIndex = (
+export const pushMemoryAtIndexOntoStack = (
   memoryIndex: number,
   wordsToPush: number
 ): EVMBytecode => {
@@ -152,8 +137,8 @@ export const pushMemoryOntoStackAtIndex = (
  * Memory after this operation: memory[memoryIndex + 32 * n] = M_n (for n = 0 through numWords)
  *
  * @param memoryIndex The byte index in the memory to store
- * @param wordsToStore The number of 32-byte words from the stack to store to memory
- * @returns Btyecode which results in the operation described above.
+ * @param numWords The number of 32-byte words from the stack to store to memory
+ * @returns Bytecode which results in the operation described above.
  */
 export const storeStackInMemoryAtIndex = (
   memoryIndex: number,
