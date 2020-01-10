@@ -33,10 +33,8 @@ const log = getLogger(`memory-substitution-gen`)
  * @param wordsToPush The number of 32-byte words from the memory to push to the stack
  * @returns Btyecode which results in the operation described above.
  */
-export const pushMemoryOntoStack = (
-  wordsToPush: number
-): EVMBytecode => {
-  let bytecodes: EVMBytecode[] = []
+export const pushMemoryOntoStack = (wordsToPush: number): EVMBytecode => {
+  const bytecodes: EVMBytecode[] = []
   // For each word to push...
   for (let i = 0; i < wordsToPush; i++) {
     bytecodes.push([
@@ -79,10 +77,8 @@ export const pushMemoryOntoStack = (
  * @param wordsToStore The number of 32-byte words from the stack to store
  * @returns Btyecode which results in the operation described above.
  */
-export const storeStackInMemory = (
-  wordsToStore: number
-): EVMBytecode => {
-  let bytecodes: EVMBytecode[] = []
+export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
+  const bytecodes: EVMBytecode[] = []
   // The only trickiness here is that the storage operation for memory = A, B, C --> stack = C, B, A
   // So we store in reeverse order, starting with index + wordsToStore and work back to index + 0.
 

@@ -112,7 +112,11 @@ describe('Static Memory Opcode Replacement', () => {
         ...storeStackElementsAsMemoryWords(3),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
-      log.debug(`running the following storeStackElementsAsMemoryWords bytecode: \n${formatBytecode(pushAndStore)}`)
+      log.debug(
+        `running the following storeStackElementsAsMemoryWords bytecode: \n${formatBytecode(
+          pushAndStore
+        )}`
+      )
       const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(pushAndStore),
         108

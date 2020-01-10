@@ -167,7 +167,7 @@ describe('Memory Replacement Operations', () => {
   describe('Memory/stack swapping', () => {
     it('Correctly pushes multiple words of memory into the stack', async () => {
       const numWords: number = 3
-      const byteIndexToLoad : number = 3
+      const byteIndexToLoad: number = 3
       const storeAndPushToStack: EVMBytecode = [
         ...storeNWordsInMemorySequential(9), // random exceeding numwords + index
         ...pushMemoryOntoStackAtIndex(byteIndexToLoad, numWords),
