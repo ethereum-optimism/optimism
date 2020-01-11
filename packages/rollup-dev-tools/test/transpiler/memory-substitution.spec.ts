@@ -177,7 +177,7 @@ describe('Memory Replacement Operations', () => {
         binary,
         indexOfReturnOp
       )
-      log.info(`Final step context was: ${JSON.stringify(finalContext)}`)
+      log.debug(`Final step context was: ${JSON.stringify(finalContext)}`)
 
       finalContext.stackDepth.should.equal(
         numWords,
