@@ -302,7 +302,7 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
           await fn(stepContext)
         }
 
-        log.info(
+        log.debug(
           `Step data: ${EvmIntrospectionUtilImpl.getStepContextString(
             stepContext
           )}`
