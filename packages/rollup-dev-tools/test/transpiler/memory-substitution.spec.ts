@@ -130,12 +130,15 @@ describe('Memory Replacement Operations', () => {
     })
 
     it('should correctly overwriteNWordsInMemoryWithOffset', async () => {
-      const wordsToStore: number = 10
-      const wordsToOverwrite: number = 3
+      const numWordsToStore: number = 10
+      const numWordsToOverwrite: number = 3
       const overwriteOffset: number = 15
       const operationBytecode: EVMBytecode = [
-        ...storeNWordsInMemorySequential(wordsToStore),
-        ...overwriteNWordsInMemoryWithOffset(wordsToOverwrite, overwriteOffset),
+        ...storeNWordsInMemorySequential(numWordsToStore),
+        ...overwriteNWordsInMemoryWithOffset(
+          numWordsToOverwrite,
+          overwriteOffset
+        ),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const operationBuffer: Buffer = bytecodeToBuffer(operationBytecode)
@@ -146,12 +149,12 @@ describe('Memory Replacement Operations', () => {
         indexOfReturnOp
       )
       memoryModifiedResult.stackDepth.should.equal(0)
-      memoryModifiedResult.memoryWordCount.should.equal(wordsToStore)
+      memoryModifiedResult.memoryWordCount.should.equal(numWordsToStore)
 
       const expectedMemory: Buffer = getExpectedMemoryAfterSequentialStore(
-        wordsToStore
+        numWordsToStore
       )
-      const bytesOverwritten = 32 * wordsToOverwrite
+      const bytesOverwritten = 32 * numWordsToOverwrite
       expectedMemory.fill(
         overwritingByte,
         overwriteOffset,
@@ -165,10 +168,10 @@ describe('Memory Replacement Operations', () => {
   describe('Memory/stack swapping', () => {
     it('Correctly pushes multiple words of memory onto the stack', async () => {
       const numWords: number = 3
-      const mstoreIndex: number = 3
+      const mloadIndex: number = 3
       const storeAndPushToStack: EVMBytecode = [
         ...storeNWordsInMemorySequential(9), // random exceeding numWords + index
-        ...pushMemoryAtIndexOntoStack(mstoreIndex, numWords),
+        ...pushMemoryAtIndexOntoStack(mloadIndex, numWords),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const binary: Buffer = bytecodeToBuffer(storeAndPushToStack)
@@ -185,17 +188,15 @@ describe('Memory Replacement Operations', () => {
       )
       // The stack should contain the loaded words in order
       for (let i = 0; i < numWords; i++) {
-        const wordIndex: number = mstoreIndex + 32 * i
+        const wordIndex: number = mloadIndex + 32 * i
         const wordFromMemory: Buffer = finalContext.memory.slice(
           wordIndex,
           wordIndex + 32
         )
 
         const wordOnStack: Buffer = finalContext.stack[i]
-        // check equality, ethereumjs-vm removes unnecessary zeroes so compare numerically
-        wordFromMemory.should.eql(
-          Buffer.alloc(32).fill(wordOnStack, 32 - wordOnStack.length, 32)
-        )
+        // check equality, ethereumjs-vm removes unnecessary zeroes.
+        wordFromMemory.should.eql(bufferUtils.padLeft(wordOnStack, 32))
       }
     })
 
