@@ -1,5 +1,8 @@
-import { ContractFactory } from 'ethers'
+/* External Imports */
+import { Address } from '@pigi/rollup-core/'
 import { getLogger, add0x, abi } from '@pigi/core-utils'
+
+import { ContractFactory } from 'ethers'
 
 const log = getLogger('helpers', true)
 
@@ -11,7 +14,7 @@ export const manuallyDeployOvmContract = async (
   executionManager,
   contractDefinition,
   constructorArguments
-) => {
+): Promise<Address> => {
   const initcode = new ContractFactory(
     contractDefinition.abi,
     contractDefinition.bytecode
@@ -25,11 +28,11 @@ export const manuallyDeployOvmContract = async (
     0
   )
   // Extract the resulting ovm contract address
-  const reciept = await provider.getTransactionReceipt(tx.hash)
+  const receipt = await provider.getTransactionReceipt(tx.hash)
   const createContractEventTypes = ['address', 'address', 'bytes32']
-  const ovmContractAddress = abi.decode(
+  const ovmContractAddress: Address = abi.decode(
     createContractEventTypes,
-    reciept.logs[0].data
+    receipt.logs[0].data
   )[0] // The OVM address is the first one in the list
   log.info('Deployed new contract at OVM address:', ovmContractAddress)
   return ovmContractAddress

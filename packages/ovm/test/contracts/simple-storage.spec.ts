@@ -37,19 +37,13 @@ describe('SimpleStorage', () => {
   beforeEach(async () => {
     // Before each test let's deploy a fresh ExecutionManager and SimpleStorage
 
-    // Set the ABI to consider `executeCall()` to be a "constant" function sothat we can use web3.call(executeCall(...))
-    // not just web3.applyTransaction(...) -- TODO: Figure out a less hacky way to do this
-    const executeCallAbiIndex = ExecutionManager.abi.reduce(
-      (accumulator, method, index) => {
-        if (method.name === 'executeCall') {
-          // Change the method to constant so it defaults to web3.call
-          return index
-        }
-        return accumulator
-      },
-      -1
-    )
-    ExecutionManager.abi[executeCallAbiIndex].constant = true
+    // Set the ABI to consider `executeCall()` to be a "constant" function so that we can use web3.call(executeCall(...))
+    // not just web3.applyTransaction(...)
+    const executeCallAbi = ExecutionManager.abi.filter(
+      (x) => x.name === 'executeCall'
+    )[0]
+    executeCallAbi.constant = true
+
     // Deploy ExecutionManager the normal way
     executionManager = await deployContract(
       wallet1,

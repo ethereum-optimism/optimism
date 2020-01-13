@@ -269,4 +269,39 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
         // Emit SetStorage event!
         emit SetStorage(executionContext.ovmActiveContract, _slot, _value);
     }
+
+    /***********************
+    * Code-related Opcodes *
+    ************************/
+
+    function ovmEXTCODESIZE(address _targetOvmContractAddress) public returns (uint) {
+        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+
+        assembly {
+            let returnDataMemoryIndex := mload(0x40)
+            mstore(0x40, add(returnDataMemoryIndex, 32))
+            mstore(returnDataMemoryIndex, extcodesize(codeContractAddress))
+            return(returnDataMemoryIndex, 32)
+        }
+    }
+
+    function ovmEXTCODEHASH(address _targetOvmContractAddress) public returns (bytes32) {
+        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+
+        return getCodeContractHash(codeContractAddress);
+    }
+
+    function ovmCODECOPY(address _targetOvmContractAddress, uint _index, uint _length) public returns(bytes memory codeContractBytecode) {
+        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+        assembly {
+        // allocate output byte array
+            codeContractBytecode := mload(0x40)
+        // new "memory end" including padding
+            mstore(0x40, add(codeContractBytecode, and(add(add(_length, 0x20), 0x1f), not(0x1f))))
+        // store length in memory
+            mstore(codeContractBytecode, _length)
+        // actually retrieve the code, this needs assembly
+            extcodecopy(codeContractAddress, add(codeContractBytecode, 0x20), _index, _length)
+        }
+    }
 }
