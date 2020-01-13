@@ -4,10 +4,9 @@ import { should } from '../setup'
 import {
   getLogger,
   Logger,
-  bufferUtils,
-  bufToHexString,
   hexStrToBuf,
   BigNumber,
+  bufferUtils,
 } from '@pigi/core-utils'
 import {
   Opcode,
@@ -15,25 +14,16 @@ import {
   EVMBytecode,
   bytecodeToBuffer,
   bufferToBytecode,
-  EVMOpcodeAndBytes,
   formatBytecode,
 } from '@pigi/rollup-core'
 
 /* Internal imports */
-import {
-  OpcodeReplacer,
-  OpcodeWhitelist,
-  SuccessfulTranspilation,
-  TranspilationResult,
-  Transpiler,
-} from '../../src/types/transpiler'
+import { SuccessfulTranspilation } from '../../src/types/transpiler'
 import {
   TranspilerImpl,
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
-  pushMemoryOntoStack,
-  storeStackInMemory,
-  pushMemoryOntoStackAtIndex,
+  pushMemoryAtIndexOntoStack,
   storeStackInMemoryAtIndex,
   getPUSHIntegerOp,
 } from '../../src/tools/transpiler'
@@ -42,6 +32,13 @@ import { EvmIntrospectionUtil, StepContext } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 
 const log: Logger = getLogger('test-memory-sub')
+
+const overwritingString: string = '69' // nice.
+const overwritingByte: Buffer = Buffer.from(overwritingString, 'hex')
+const overwritingBytes32: Buffer = Buffer.from(
+  overwritingString.repeat(32),
+  'hex'
+)
 
 const pointlessOperation: EVMBytecode = [
   {
@@ -55,16 +52,16 @@ const pointlessOperation: EVMBytecode = [
 ]
 
 const storeNWordsInMemorySequential = (numWords: number): EVMBytecode => {
-  let storageBytecode: EVMBytecode = []
+  const storageBytecode: EVMBytecode[] = []
   for (let i = 0; i < numWords; i++) {
-    storageBytecode = storageBytecode.concat([
+    storageBytecode.push([
       {
         opcode: Opcode.PUSH32,
-        consumedBytes: Buffer.alloc(32).fill(new BigNumber(i).toBuffer('B', 1)),
+        consumedBytes: Buffer.alloc(32).fill(i),
       },
       {
         opcode: Opcode.PUSH32,
-        consumedBytes: new BigNumber(i * 32).toBuffer('B', 32),
+        consumedBytes: bufferUtils.numberToBuffer(i * 32),
       },
       {
         opcode: Opcode.MSTORE,
@@ -72,21 +69,27 @@ const storeNWordsInMemorySequential = (numWords: number): EVMBytecode => {
       },
     ])
   }
-  return storageBytecode
+  return [].concat(...storageBytecode)
+}
+
+const getExpectedMemoryAfterSequentialStore = (numWords): Buffer => {
+  const expectedMemory: Buffer = Buffer.alloc(numWords * 32)
+  for (let i = 0; i < numWords; i++) {
+    expectedMemory.fill(i, i * 32, (i + 1) * 32)
+  }
+  return expectedMemory
 }
 
 const overwriteNWordsInMemoryWithOffset = (
   numWords: number,
   offset: number
 ): EVMBytecode => {
-  let overwriteBytecode: EVMBytecode = []
+  const overwriteBytecode: EVMBytecode[] = []
   for (let i = 0; i < numWords; i++) {
-    overwriteBytecode = overwriteBytecode.concat([
+    overwriteBytecode.push([
       {
         opcode: Opcode.PUSH32,
-        consumedBytes: hexStrToBuf(
-          '0x6969696969696969696969696969696969696969696969696969696969696969'
-        ), // nice
+        consumedBytes: overwritingBytes32,
       },
       getPUSHIntegerOp(offset + i * 32),
       {
@@ -95,11 +98,12 @@ const overwriteNWordsInMemoryWithOffset = (
       },
     ])
   }
-  return overwriteBytecode
+  return [].concat(...overwriteBytecode)
 }
 
 describe('Memory Replacement Operations', () => {
   let evmUtil: EvmIntrospectionUtil
+
   before(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()
   })
@@ -113,92 +117,95 @@ describe('Memory Replacement Operations', () => {
       ]
       const operationBuffer: Buffer = bytecodeToBuffer(operationBytecode)
 
-      const memoryStoredResult = await evmUtil.getStepContextBeforeStep(
+      const indexOfReturnOp: number = operationBuffer.length - 1
+      const memoryStoredResult: StepContext = await evmUtil.getStepContextBeforeStep(
         operationBuffer,
-        670 // hardcoded PC val, found via debug log
+        indexOfReturnOp
       )
       memoryStoredResult.stackDepth.should.equal(0)
       memoryStoredResult.memoryWordCount.should.equal(numSequentialWordsToStore)
-
-      let expectedMemory: number[] = []
-      for (let i = 0; i < numSequentialWordsToStore; i++) {
-        expectedMemory = expectedMemory.concat(new Array(32).fill(i, 0, 32))
-      }
-      memoryStoredResult.memory.should.deep.equal(Buffer.from(expectedMemory))
+      memoryStoredResult.memory.should.eql(
+        getExpectedMemoryAfterSequentialStore(numSequentialWordsToStore)
+      )
     })
+
     it('should correctly overwriteNWordsInMemoryWithOffset', async () => {
-      const numSequentialWordsToStore: number = 10
-      const numSequentialWordsToOverwrite: number = 3
-      const byteOffsetToOverwrite: number = 15
+      const numWordsToStore: number = 10
+      const numWordsToOverwrite: number = 3
+      const overwriteOffset: number = 15
       const operationBytecode: EVMBytecode = [
-        ...storeNWordsInMemorySequential(numSequentialWordsToStore),
+        ...storeNWordsInMemorySequential(numWordsToStore),
         ...overwriteNWordsInMemoryWithOffset(
-          numSequentialWordsToOverwrite,
-          byteOffsetToOverwrite
+          numWordsToOverwrite,
+          overwriteOffset
         ),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const operationBuffer: Buffer = bytecodeToBuffer(operationBytecode)
 
-      const memoryModifiedResult = await evmUtil.getStepContextBeforeStep(
+      const indexOfReturnOp: number = operationBuffer.length - 1
+      const memoryModifiedResult: StepContext = await evmUtil.getStepContextBeforeStep(
         operationBuffer,
-        778 // hardcoded  PC val, found via debug log
+        indexOfReturnOp
       )
       memoryModifiedResult.stackDepth.should.equal(0)
-      memoryModifiedResult.memoryWordCount.should.equal(
-        numSequentialWordsToStore
+      memoryModifiedResult.memoryWordCount.should.equal(numWordsToStore)
+
+      const expectedMemory: Buffer = getExpectedMemoryAfterSequentialStore(
+        numWordsToStore
+      )
+      const bytesOverwritten = 32 * numWordsToOverwrite
+      expectedMemory.fill(
+        overwritingByte,
+        overwriteOffset,
+        overwriteOffset + bytesOverwritten
       )
 
-      let expectedMemory: number[] = []
-      for (let i = 0; i < numSequentialWordsToStore; i++) {
-        expectedMemory = expectedMemory.concat(new Array(32).fill(i, 0, 32))
-      }
-      const numBytesOverWritten = 32 * numSequentialWordsToOverwrite
-      expectedMemory.splice(
-        byteOffsetToOverwrite,
-        numBytesOverWritten,
-        ...new Array(numBytesOverWritten).fill(105)
-      ) // 105 is 0x69 in decimal
-
-      memoryModifiedResult.memory.should.deep.equal(Buffer.from(expectedMemory))
+      memoryModifiedResult.memory.should.eql(expectedMemory)
     })
   })
 
   describe('Memory/stack swapping', () => {
-    it('Correctly pushes multiple words of memory into the stack', async () => {
+    it('Correctly pushes multiple words of memory onto the stack', async () => {
       const numWords: number = 3
-      const byteIndexToLoad: number = 3
+      const mloadIndex: number = 3
       const storeAndPushToStack: EVMBytecode = [
-        ...storeNWordsInMemorySequential(9), // random exceeding numwords + index
-        ...pushMemoryOntoStackAtIndex(byteIndexToLoad, numWords),
+        ...storeNWordsInMemorySequential(9), // random exceeding numWords + index
+        ...pushMemoryAtIndexOntoStack(mloadIndex, numWords),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
-      const finalStep: StepContext = await evmUtil.getStepContextBeforeStep(
-        bytecodeToBuffer(storeAndPushToStack),
-        624 // hardcoded based on above vars -- changing them will require updating this
+      const binary: Buffer = bytecodeToBuffer(storeAndPushToStack)
+      const indexOfReturnOp: number = binary.length - 1
+      const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
+        binary,
+        indexOfReturnOp
       )
-      log.debug(`Final step context was: ${JSON.stringify(finalStep)}`)
-      // The stack should only contain the loaded words
-      finalStep.stackDepth.should.equal(numWords)
-      // The stack should contain the loaded words in reverse order
+      log.debug(`Final step context was: ${JSON.stringify(finalContext)}`)
+
+      finalContext.stackDepth.should.equal(
+        numWords,
+        'The stack should only contain the loaded words'
+      )
+      // The stack should contain the loaded words in order
       for (let i = 0; i < numWords; i++) {
-        const expectedWordStart: number = byteIndexToLoad + 32 * i
-        const expectedMemorySlice: Buffer = Buffer.from(
-          finalStep.memory.slice(expectedWordStart, expectedWordStart + 32)
+        const wordIndex: number = mloadIndex + 32 * i
+        const wordFromMemory: Buffer = finalContext.memory.slice(
+          wordIndex,
+          wordIndex + 32
         )
-        const expectedStackIndex: number = numWords - i - 1 // they're pushed onto stack in reverse order
-        const wordOnStack: Buffer = finalStep.stack[expectedStackIndex]
-        // check equality, etherjs-vm removes unneceessary zeroes so compare numerically
-        new BigNumber(expectedMemorySlice).eq(new BigNumber(wordOnStack)).should
-          .be.true
+
+        const wordOnStack: Buffer = finalContext.stack[i]
+        // check equality, ethereumjs-vm removes unnecessary zeroes.
+        wordFromMemory.should.eql(bufferUtils.padLeft(wordOnStack, 32))
       }
     })
+
     it('Correctly stores multiple words from the stack back into memory', async () => {
       const fourRandomWords: Buffer = hexStrToBuf(
         '0x0111030ffffa0a0a11103040a0a0a0a011103040a0a0a0a1110232323a0a0a0d011103040a0a0a0a11103040a555555011103040a0a0a0a11103040a0a0a0ab0111030ffffa0a0a11103040a0a0a0a011103040adddddd1110232323a0a0a07011103040a0a0a5858699040a555555011103040a0a0a0a11103040a0a0a0abbb'
       )
       const pushWordsToStack: EVMBytecode = []
-      for (let i = 0; i < 4; i++) {
+      for (let i = 3; i >= 0; i--) {
         pushWordsToStack.push({
           opcode: Opcode.PUSH32,
           consumedBytes: fourRandomWords.slice(i * 32, (i + 1) * 32),
@@ -209,13 +216,16 @@ describe('Memory Replacement Operations', () => {
         ...storeStackInMemoryAtIndex(0, 4),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
-      const finalStep: StepContext = await evmUtil.getStepContextBeforeStep(
-        bytecodeToBuffer(pushWordsToStackAndRestore),
-        159 // hardcoded based on above vars -- changing them will require updating this
+      const binary: Buffer = bytecodeToBuffer(pushWordsToStackAndRestore)
+      const indexOfReturnOp: number = binary.length - 1
+      const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
+        binary,
+        indexOfReturnOp
       )
-      finalStep.stackDepth.should.equal(0)
-      finalStep.memory.should.deep.equal(fourRandomWords)
+      finalContext.stackDepth.should.equal(0)
+      finalContext.memory.should.deep.equal(fourRandomWords)
     })
+
     it('Memory operations between a pushtoStack and storeInMemory operation should not have any effect', async () => {
       const numWordsToStore = 10
       const memoryModifyingBytecode: EVMBytecode = [
@@ -230,8 +240,8 @@ describe('Memory Replacement Operations', () => {
       const memoryIndexToModify: number = 2
       const numWordsToModify: number = 2
       // push memory to stack, overwrite memory, store stack back to memory
-      const pusModifyLoad: EVMBytecode = [
-        ...pushMemoryOntoStackAtIndex(memoryIndexToModify, numWordsToModify),
+      const pushModifyLoad: EVMBytecode = [
+        ...pushMemoryAtIndexOntoStack(memoryIndexToModify, numWordsToModify),
         ...overwriteNWordsInMemoryWithOffset(
           numWordsToModify,
           memoryIndexToModify
@@ -248,7 +258,7 @@ describe('Memory Replacement Operations', () => {
           opcode: Opcode.POP,
           consumedBytes: undefined,
         },
-        ...pusModifyLoad,
+        ...pushModifyLoad,
       ])
 
       const opcodeWhitelist = new OpcodeWhitelistImpl(whitelistedOpcodes)

@@ -4,7 +4,7 @@ import { getLogger, hexStrToBuf } from '@pigi/core-utils'
 import {
   getPUSHIntegerOp,
   getPUSHBuffer,
-  pushMemoryOntoStackAtIndex,
+  pushMemoryAtIndexOntoStack,
   getDUPNOp,
   storeStackInMemoryAtIndex,
   getSWAPNOp,
@@ -151,7 +151,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
 
   return [
     // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
-    ...pushMemoryOntoStackAtIndex(memoryIndexToUse, numWordsToStash),
+    ...pushMemoryAtIndexOntoStack(memoryIndexToUse, numWordsToStash),
     // Now that the stashed memory is first on the stack, recover the original stack elements we expected to consume/pass to execution manager
     ...duplicateStackAt(numWordsToStash, numStackArgumentsToPass),
     // Do the call, with the returned word being put into memory.
