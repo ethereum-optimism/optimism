@@ -75,7 +75,7 @@ export const storeStackInMemory = (wordsToStore: number): EVMBytecode => {
         opcode: Opcode.SWAP1,
         consumedBytes: undefined,
       },
-      // duplicate the memory index which is not the second thing on the stack.
+      // duplicate the memory index which is now the second thing on the stack.
       {
         opcode: Opcode.DUP2,
         consumedBytes: undefined,
