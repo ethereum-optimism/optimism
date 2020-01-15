@@ -83,6 +83,67 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
         return _callResult;
     }
 
+
+    /**
+     * @notice Execute a call which will return the result of the call instead of the updated storage.
+     *         Note: This should only be used with a Web3 `call` operation, otherwise you may accidentally save changes to the state.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [timestamp (uint)]
+     *       [queueOrigin (uint)]
+     *       [ovmEntrypointAddress (address as bytes32)]
+     *       [callBytes (bytes (variable length))]
+     * returndata: [variable-length bytes returned from call]
+     */
+    function executeRawCall() external {
+        bytes memory calldataMemory;
+        uint _timestamp;
+        uint _queueOrigin;
+        bytes4 methodId = bytes4(keccak256("ovmRawCALL()") >> 224);
+
+        uint callSize;
+        bytes memory callBytes;
+
+        assembly {
+            // read calldata, ignoring methodID
+            let paramSize := sub(calldatasize, 4)
+            calldataMemory := mload(0x40)
+            calldatacopy(calldataMemory, 4, paramSize)
+
+            // populate timestamp and queue origin from calldata
+            _timestamp := mload(calldataMemory)
+            _queueOrigin := mload(add(calldataMemory, 0x20))
+
+            // leave first 4 bytes for methodID
+            callBytes := add(calldataMemory, 60)
+            mstore8(callBytes, shr(24, methodId))
+            mstore8(add(callBytes, 1), shr(16, methodId))
+            mstore8(add(callBytes, 2), shr(8, methodId))
+            mstore8(add(callBytes, 3), methodId)
+
+            // set callsize: total param size minus 2 uints plus 4 byte method ID
+            callSize := sub(paramSize, 60)
+            mstore(0x40, add(callBytes, callSize))
+        }
+
+        // Initialize our context
+        initializeContext(_timestamp, _queueOrigin);
+
+        address addr = address(this);
+        assembly {
+            let result := mload(0x40)
+            let success := call(gas, addr, callvalue, callBytes, callSize, result, 500000)
+
+            if eq(success, 0) {
+                revert(0, 0)
+            }
+
+            return(result, returndatasize)
+        }
+    }
+
     /**********************
     * OVM Context Opcodes *
     **********************/
@@ -232,16 +293,106 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
      * @param _ovmCalldata The calldata which will be used to call this OVM contract.
      * @return True/False if the contract succeeded or failed, and bytes being the return value.
      */
-    function ovmCALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public returns(bool, bytes memory) {
+    function ovmCALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public returns(bool, bytes memory result) {
         // Switch the context to the _targetOvmContractAddress
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
         // Call the contract
         (bool success, bytes memory returnValue) = getCodeContractAddress(_targetOvmContractAddress).call(_ovmCalldata);
+
         // Revert back to our old execution context
         restoreContractContext(oldMsgSender, oldActiveContract);
+
+        if (success) {
+            assembly {
+                switch mload(returnValue)
+                case 0x20 {
+                    // This means that the bytes array just wraps a single value
+                    result := returnValue
+                }
+                default {
+                    result := add(returnValue, 0x40)
+                }
+            }
+        } else {
+            result = returnValue;
+        }
+
+
         // Return success and the return value
-        return (success, returnValue);
+        return (success, result);
     }
+
+    /**
+     * @notice CALL opcode -- simply calls a particular code contract with the desired OVM contract context.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [targetOvmContractAddress (address as bytes32)]
+     *       [callBytes (bytes (variable length))]
+     * returndata: [variable-length bytes returned from call]
+     */
+    function ovmRawCALL() public {
+        bytes memory calldataMemory;
+        bytes32 _targetOvmContractAddressBytes;
+
+        uint callSize;
+        bytes memory _callBytes;
+        // parse calldata
+        assembly {
+            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
+            let paramSize := sub(calldatasize, 16)
+            calldataMemory := mload(0x40)
+
+            calldatacopy(calldataMemory, 16, paramSize)
+
+            // populate timestamp and queue origin from calldata
+            _targetOvmContractAddressBytes := mload(calldataMemory)
+
+            // set callsize: total param size minus an address
+            callSize := sub(paramSize, 20)
+
+            // set callBytes
+            _callBytes := add(calldataMemory, 20)
+            mstore(0x40, add(_callBytes, callSize))
+        }
+        address _targetOvmContractAddress = address(bytes20(_targetOvmContractAddressBytes));
+
+        // switch the context to the _targetOvmContractAddress
+        (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
+        address codeAddress = getCodeContractAddress(_targetOvmContractAddress);
+
+        bytes memory returnData;
+        uint returnSize;
+        // make the call
+        assembly {
+            returnData := mload(0x40)
+
+            let success := call(
+              gas,
+              codeAddress,
+              callvalue,
+              _callBytes,
+              callSize,
+              returnData,
+              500000
+            )
+            if eq(success, 0) {
+                revert(0, 0)
+            }
+
+            returnSize := returndatasize
+        }
+
+        // Revert back to our old execution context
+        restoreContractContext(oldMsgSender, oldActiveContract);
+
+        // Return the return value
+        assembly {
+            return(returnData, returnSize)
+        }
+    }
+
     function ovmSTATICCALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public { /* TODO */ }
     function ovmDELEGATECALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public { /* TODO */ }
 
@@ -274,34 +425,104 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
     * Code-related Opcodes *
     ************************/
 
-    function ovmEXTCODESIZE(address _targetOvmContractAddress) public returns (uint) {
+    /**
+     * @notice Executes the extcodesize operation for the contract address provided.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 36 bytes:
+     *      [methodID (bytes4)]
+     *      [targetOvmContractAddress (address as bytes32)]
+     * returndata: 32 bytes: the big-endian codesize int.
+     */
+    function ovmEXTCODESIZE() public {
+        bytes memory calldataMemory;
+        bytes32 _targetAddressBytes;
+        assembly {
+            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
+            calldataMemory := mload(0x40)
+            calldatacopy(calldataMemory, 16, 20)
+            _targetAddressBytes := mload(calldataMemory)
+        }
+
+        address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
         address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
 
         assembly {
-            let returnDataMemoryIndex := mload(0x40)
-            mstore(0x40, add(returnDataMemoryIndex, 32))
-            mstore(returnDataMemoryIndex, extcodesize(codeContractAddress))
-            return(returnDataMemoryIndex, 32)
+            let sizeBytes := mload(0x40)
+            mstore(sizeBytes, extcodesize(codeContractAddress))
+            return(sizeBytes, 32)
         }
     }
 
-    function ovmEXTCODEHASH(address _targetOvmContractAddress) public returns (bytes32) {
+    /**
+     * @notice Executes the extcodehash operation for the contract address provided.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 36 bytes:
+     *      [methodID (bytes4)]
+     *      [targetOvmContractAddress (address as bytes32)]
+     * returndata: 32 bytes: the hash.
+     */
+    function ovmEXTCODEHASH() public {
+        bytes memory calldataMemory;
+        bytes32 _targetAddressBytes;
+        assembly {
+            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
+            calldataMemory := mload(0x40)
+            calldatacopy(calldataMemory, 16, 20)
+            _targetAddressBytes := mload(calldataMemory)
+        }
+
+        address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
         address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
 
-        return getCodeContractHash(codeContractAddress);
+        bytes32 hash = getCodeContractHash(codeContractAddress);
+
+        assembly {
+            let hashBytes := mload(0x40)
+            mstore(hashBytes, hash)
+            return(hashBytes, 32)
+        }
     }
 
-    function ovmCODECOPY(address _targetOvmContractAddress, uint _index, uint _length) public returns(bytes memory codeContractBytecode) {
-        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+    /**
+     * @notice Executes the extcodecopy operation for the contract address, index, and length provided.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 100 bytes:
+     *       [methodID (bytes4)]
+     *       [targetOvmContractAddress (address as bytes32)]
+     *       [index (uint (32)]
+     *       [length (uint (32))]
+     * returndata: length (input param) bytes of contract at address, starting at index.
+     */
+    function ovmEXTCODECOPY() public {
+        bytes memory calldataMemory;
+        bytes32 _targetAddressBytes;
+        uint _index;
+        uint _length;
         assembly {
-        // allocate output byte array
-            codeContractBytecode := mload(0x40)
-        // new "memory end" including padding
-            mstore(0x40, add(codeContractBytecode, and(add(add(_length, 0x20), 0x1f), not(0x1f))))
-        // store length in memory
-            mstore(codeContractBytecode, _length)
-        // actually retrieve the code, this needs assembly
-            extcodecopy(codeContractAddress, add(codeContractBytecode, 0x20), _index, _length)
+            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
+            calldataMemory := mload(0x40)
+            calldatacopy(calldataMemory, 16, 84)
+
+            _targetAddressBytes := mload(calldataMemory)
+            _index := mload(add(calldataMemory, 20))
+            _length := mload(add(calldataMemory, 52))
+        }
+
+        address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
+        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+
+        assembly {
+            // allocate output byte array
+            let codeContractBytecode := mload(0x40)
+            // new "memory end"
+            mstore(0x40, add(codeContractBytecode, _length))
+            // store code in memory
+            extcodecopy(codeContractAddress, codeContractBytecode, _index, _length)
+            // write code to returndata
+            return(codeContractBytecode, _length)
         }
     }
 }
