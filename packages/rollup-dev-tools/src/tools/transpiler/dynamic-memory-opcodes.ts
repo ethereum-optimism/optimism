@@ -149,21 +149,88 @@ export const getEXTCODECOPYReplacement = (
   methodName: string
 ) => {
   const methodData: Buffer = abi.methodID(methodName, [])
-  // stack params to EXTCODECOPY are:
-  // [addr, destOffset, offset, length, …] (length = 4)
-  // Technically the execution manager doesn't need to access the destOffset,
-  // but it's just 32 bytes and would be more work to remove so we'll just pass it
-  const numStackWordsToPass: number = 4
-
-  // this is the number of memory words we'll be overwriting for the call.
-  const numMemoryWordsToPreserve: number = 1 + 4 // 1 extra for methodId!
-
   let op: EVMBytecode = []
+
+  // EXTCODECOPY params and execution do the following to the stack:
+  // [addr, destOffset, offset, length, …], -> […]
+
+  // We will need to pass addr, index, length
+  const numStackWordsToPass: number = 3
+  // this is the number of memory words we'll be overwriting for the call.
+  const numMemoryWordsToPreserve: number = 1 + numStackWordsToPass // 1 extra for methodId!
+
   // first, we push the memory we're gonna overwrite with calldata onto the stack, so that it may be parsed later.
   // to make sure there is not a collision between call and return data locations, we will store this AFTER (destOffset + length)
   op = [
     ...op,
     getDUPNOp(4), // DUP length
     getDUPNOp(3), // DUP destOffset
+    { opcode: Opcode.ADD, consumedBytes: undefined }, // add them to get where we expect to store
+    ...pushMemoryOntoStack(numMemoryWordsToPreserve),
   ]
+  // Now, the stack should be [(index of memory to replace), ...[pushed memory to swap back], ...[original stack]]
+
+  // We now store the stack params needed by the execution manager into memory to pass as calldata.
+  // ovmEXTCODSIZE expects the following raw bytes as parameters:
+  // *       [methodID (bytes4)]
+  // *       [targetOvmContractAddress (address as bytes32)]
+  // *       [index (uint (32)]
+  // *       [length (uint (32))]
+  // so we will push thse in reverse order.
+
+  const indexOfOriginalStack: number = 1 + numMemoryWordsToPreserve
+  op = [
+    ...op,
+    // the final params of addition here (+0, +1, +2) account for the increased stack caused by each DUP
+    getDUPNOp(indexOfOriginalStack + 4 + 0), // length
+    getDUPNOp(indexOfOriginalStack + 3 + 1), // offset
+    getDUPNOp(indexOfOriginalStack + 1 + 2), // addr
+    getPUSHBuffer(methodData), // methodId
+    getDUPNOp(1 + numStackWordsToPass + 1), // the mem index to store calldata -- it's right after all the words to store we just pushed
+    ...storeStackInMemory(1 + numStackWordsToPass), // +1 for methodId
+    {
+      // pop the storage index as it was DUPed above
+      opcode: Opcode.POP,
+      consumedBytes: undefined,
+    },
+  ]
+  // the stack should now be [(mem index to recover memory to), ...[memory words to recover], ...[original stack]]
+  // Now we need to set up the CALL!
+  const numBytesForCalldata: number = 4 + numStackWordsToPass * 32 // methodId + (Num params)* 32 bytes/word
+  // CALL expects:
+  // [gas, addr, value, argsOffset, argsLength, retOffset, retLength, …] -> [success, …]
+  op = [
+    ...op,
+    getDUPNOp(0 + 1 + numMemoryWordsToPreserve + 4), // retLength is same as original stack's `len` (4th element)
+    getDUPNOp(1 + 1 + numMemoryWordsToPreserve + 2), // retOffset is second stack item of original stack
+    getPUSHIntegerOp(numBytesForCalldata), // argsLen
+    // argsOffset is wherever we stored the params in memory, with added 32-4 = 28 bytes of 0s when methodId was MSTORE'd which we don't want to pass
+    getDUPNOp(3 + 1), // three elements were just pushed, next is th index we stored at
+    getPUSHIntegerOp(28),
+    { opcode: Opcode.ADD, consumedBytes: undefined },
+    getPUSHIntegerOp(0), // value is always 0!
+    getPUSHBuffer(hexStrToBuf(proxyAddress)), // X mgr address
+    getPUSHIntegerOp(10000000), // random sufficient amount of gas
+    // execute the call!
+    {
+      opcode: Opcode.CALL,
+      consumedBytes: undefined,
+    },
+    // POP success, x mgr should never fail here.
+    {
+      opcode: Opcode.POP,
+      consumedBytes: undefined,
+    },
+  ]
+  // Cleanup time is all that's left!
+  op = [
+    ...op,
+    ...storeStackInMemory(numMemoryWordsToPreserve), // recover the original memory we pushed the stack
+    // pop the original stack args which have now served their purpose.  RIP
+    ...new Array(4).fill({
+      opcode: Opcode.POP,
+      consumedBytes: undefined,
+    }),
+  ]
+  return op
 }

@@ -29,7 +29,7 @@ import {
   callContractWithStackElementsAndReturnWordToStack,
 } from '../../src/tools/transpiler/static-memory-opcodes'
 
-import { getCallTypeReplacement } from '../../src'
+import { getCallTypeReplacement, getEXTCODECOPYReplacement } from '../../src'
 
 const log = getLogger(`test-static-memory-opcodes`)
 
@@ -99,12 +99,35 @@ describe('Memory-dynamic Opcode Replacement', () => {
     )
     return bufToHexString(result.result)
   }
-  describe.only('Call-type opcode replacements', () => {
-    it.only('should parse a CALL replacement', async () => {
+  describe('Call-type opcode replacements', () => {
+    it('should parse a CALL replacement', async () => {
       const getterAddress: Address = await deployCallProxyContract(evmUtil)
       const callReplacement: EVMBytecode = [
         ...setupStackForCALL,
         ...getCallTypeReplacement(getterAddress, callProxyFunctionName, true),
+        { opcode: Opcode.RETURN, consumedBytes: undefined },
+      ]
+      const proxiedCall = await evmUtil.getStepContextBeforeStep(
+        bytecodeToBuffer(callReplacement),
+        566 // hardcoded  PC val, found via debug log
+      )
+    })
+  })
+  describe.only('EXTCODECOPY replacement', () => {
+    const setupStackForEXTCODECOPY: EVMBytecode = [
+      // fill memory with some random data so that we can confirm it was not modified
+      ...setMemory(Buffer.alloc(32 * 10).fill(25)),
+      getPUSHIntegerOp(4), // length
+      getPUSHIntegerOp(3), // offset
+      getPUSHIntegerOp(2), // destoffset
+      getPUSHIntegerOp(1), // address
+    ]
+
+    it('should correctly parse an EXTCODECOPY replacement', async () => {
+      const getterAddress: Address = await deployCallProxyContract(evmUtil)
+      const callReplacement: EVMBytecode = [
+        ...setupStackForEXTCODECOPY,
+        ...getEXTCODECOPYReplacement(getterAddress, callProxyFunctionName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const proxiedCall = await evmUtil.getStepContextBeforeStep(
