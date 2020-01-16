@@ -66,13 +66,6 @@ const contractDeployParams: Buffer = Buffer.from(
   'hex'
 )
 
-const coder = new ethers.utils.AbiCoder()
-const encoded = coder.encode(
-  ['bytes', 'address'],
-  [[1, 2, 3, 4], '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef']
-)
-log.debug(`encoded is: \n${encoded}`)
-
 describe('Memory-dynamic Opcode Replacement', () => {
   let evmUtil: EvmIntrospectionUtil
   const callProxyFunctionName: string = 'get'
