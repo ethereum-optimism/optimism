@@ -29,7 +29,7 @@ import {
   callContractWithStackElementsAndReturnWordToStack,
 } from '../../src/tools/transpiler/static-memory-opcodes'
 
-import { getCallTypeReplacement } from '../../src/'
+import { getCallTypeReplacement } from '../../src'
 
 const log = getLogger(`test-static-memory-opcodes`)
 
@@ -66,20 +66,27 @@ const contractDeployParams: Buffer = Buffer.from(
   'hex'
 )
 
-describe('Static Memory Opcode Replacement', () => {
+const coder = new ethers.utils.AbiCoder()
+const encoded = coder.encode(
+  ['bytes', 'address'],
+  [[1, 2, 3, 4], '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef']
+)
+log.debug(`encoded is: \n${encoded}`)
+
+describe('Memory-dynamic Opcode Replacement', () => {
   let evmUtil: EvmIntrospectionUtil
   const callProxyFunctionName: string = 'get'
 
-  const setupStackForCall: EVMBytecode = [
-    // fill memory with some data so that we can confirm it was not modified
-    ...setMemory(Buffer.alloc(32 * 10).fill(25)), // write some random memory so we're not passing around straight zeroes
+  const setupStackForCALL: EVMBytecode = [
+    // fill memory with some random data so that we can confirm it was not modified
+    ...setMemory(Buffer.alloc(32 * 10).fill(25)),
     getPUSHIntegerOp(5), // ret length
-    getPUSHIntegerOp(8 * 32), // ret offset; must exceed 4 * 32, TODO: need to write new memory in a loop to fix this edge case
+    getPUSHIntegerOp(8 * 32), // ret offset; must exceed 4 * 32, TODO: need to write new memory in a loop to fix this edge case?
     getPUSHIntegerOp(15), // args length
-    getPUSHIntegerOp(4 * 32 + 17), // args offset; must exceed 4 * 32, TODO: need to write new memory in a loop to fix this edge case
+    getPUSHIntegerOp(4 * 32 + 17), // args offset; must exceed 4 * 32, TODO: need to write new memory in a loop to fix this edge case?
     getPUSHIntegerOp(0), // value
     getPUSHBuffer(hexStrToBuf('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef')), // target address
-    getPUSHIntegerOp(1001), // gas
+    getPUSHIntegerOp(100100100), // gas
   ]
 
   beforeEach(async () => {
@@ -100,20 +107,16 @@ describe('Static Memory Opcode Replacement', () => {
     return bufToHexString(result.result)
   }
   describe.only('Call-type opcode replacements', () => {
-    it('should parse a CALL replacement', async () => {
+    it.only('should parse a CALL replacement', async () => {
       const getterAddress: Address = await deployCallProxyContract(evmUtil)
       const callReplacement: EVMBytecode = [
-        ...setupStackForCall,
-        ...getCallTypeReplacement(
-          getterAddress,
-          callProxyFunctionName,
-          3 // gas, addr, value
-        ),
+        ...setupStackForCALL,
+        ...getCallTypeReplacement(getterAddress, callProxyFunctionName, true),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const proxiedCall = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(callReplacement),
-        778 // hardcoded  PC val, found via debug log
+        566 // hardcoded  PC val, found via debug log
       )
     })
   })
