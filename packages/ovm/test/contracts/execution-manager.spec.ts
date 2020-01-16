@@ -8,6 +8,8 @@ import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
+import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
+import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 import { Contract, ContractFactory, Wallet, utils } from 'ethers'
 
 const log = getLogger('execution-manager', true)
@@ -16,13 +18,30 @@ const log = getLogger('execution-manager', true)
  * TESTS *
  *********/
 
-describe.skip('ExecutionManager', () => {
+describe('ExecutionManager', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
   let executionManager
+  let contractAddressGenerator
+  let rlpEncode
   // Useful constants
   const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
   const TWO_FILLED_BYTES_32 = '0x' + '22'.repeat(32)
+
+  /* Link libraries before tests */
+  before(async () => {
+    rlpEncode = await deployContract(wallet1, RLPEncode, [], {
+      gasLimit: 6700000,
+    })
+    contractAddressGenerator = await deployContract(
+      wallet1,
+      ContractAddressGenerator,
+      [rlpEncode.address],
+      {
+        gasLimit: 6700000,
+      }
+    )
+  })
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
@@ -30,7 +49,11 @@ describe.skip('ExecutionManager', () => {
     executionManager = await deployContract(
       wallet1,
       ExecutionManager,
-      new Array(2).fill('0x' + '00'.repeat(20)),
+      [
+        '0x' + '00'.repeat(20),
+        contractAddressGenerator.address,
+        '0x' + '00'.repeat(20),
+      ],
       {
         gasLimit: 6700000,
       }

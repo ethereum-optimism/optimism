@@ -31,7 +31,7 @@ describe('ContractAddressGenerator', () => {
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
-    // First deploy the execution manager
+    // First deploy the contract address
     contractAddressGenerator = await deployContract(
       wallet1,
       ContractAddressGenerator,
