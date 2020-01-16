@@ -134,7 +134,7 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
         address addr = address(this);
         assembly {
             let result := mload(0x40)
-            let success := call(gas, addr, callvalue, callBytes, callSize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, callSize, result, 500000)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -371,7 +371,7 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
             let success := call(
               gas,
               codeAddress,
-              callvalue,
+              0,
               _callBytes,
               callSize,
               returnData,
