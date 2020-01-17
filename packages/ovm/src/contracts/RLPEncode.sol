@@ -7,7 +7,7 @@ pragma experimental ABIEncoderV2;
  * @dev A simple RLP encoding library.
  * @author Bakaoh
  */
-contract RLPEncode { //TODO make library
+contract RLPEncode {
     /*
      * Public functions
      */

@@ -51,10 +51,8 @@ describe('RLP Encoder', () => {
       const encodedString = await rlpEncode.encodeString(input)
       return encodedString
     }
-    //TODO: handle booleans, bytes
   }
   describe('Official Ethereum RLP Tests', async () => {
-    //TODO: create tests for booleans, bytes
     for (const test of Object.keys(rlpTests)) {
       it(`should properly encode ${test}`, async () => {
         const input = rlpTests[test].in

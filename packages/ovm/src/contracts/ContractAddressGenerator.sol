@@ -9,7 +9,7 @@ import {RLPEncode} from "./RLPEncode.sol";
  * @notice Libary contract which generates CREATE & CREATE2 addresses.
  *         This is used in Rollup to make sure we have address parity with Ethereum mainchain.
  */
-contract ContractAddressGenerator { // TODO: Make this a library
+contract ContractAddressGenerator {
     // RLP encoding library
     RLPEncode rlp;
     /***************
@@ -23,7 +23,7 @@ contract ContractAddressGenerator { // TODO: Make this a library
      * @param _origin The address of the contract which is calling CREATE.
      * @param _nonce The contract nonce of the origin contract (incremented each time CREATE is called).
      */
-    function getAddressFromCREATE(address _origin, uint _nonce) public view returns(address) { //TODO add view/pure back in
+    function getAddressFromCREATE(address _origin, uint _nonce) public view returns(address) {
         // RLP encode the origin address
         bytes memory encodedOrigin = rlp.encodeAddress(_origin);
         // RLP encode the contract nonce
