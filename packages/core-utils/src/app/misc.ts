@@ -149,17 +149,43 @@ export const hexStringify = (value: BigNumber | Buffer): string => {
  * @returns the hexString as a buffer.
  */
 export const hexStrToBuf = (hexString: string): Buffer => {
+  if (!/^(0x)?[0-9a-fA-F]*$/.test(hexString)) {
+    throw new RangeError(`Invalid hex string [${hexString}]`)
+  }
+  if (hexString.length % 2 !== 0) {
+    throw new RangeError(
+      `Invalid hex string -- odd number of characters: [${hexString}]`
+    )
+  }
   return Buffer.from(remove0x(hexString), 'hex')
 }
 
 /**
  * Converts the provided buffer into a hex string.
- * @param buff The buffer
+ * @param buff The buffer.
  * @returns the hex string.
  */
 export const bufToHexString = (buff: Buffer): string => {
   const bufStr: string = buff.toString('hex')
   return add0x(bufStr.length % 2 === 0 ? bufStr : `0${bufStr}`)
+}
+
+/**
+ * Converts the provided (UTF-8) string into a hex string.
+ * @param str The UTF-8 string.
+ * @returns The hex string representation.
+ */
+export const strToHexStr = (str: string): string => {
+  return bufToHexString(Buffer.from(str))
+}
+
+/**
+ * Converts the provided hex string into the UTF-8 representation of it.
+ * @param str The hex string.
+ * @returns The UTF-8 representation of the string.
+ */
+export const hexStrToString = (str: string): string => {
+  return hexStrToBuf(str).toString()
 }
 
 /**

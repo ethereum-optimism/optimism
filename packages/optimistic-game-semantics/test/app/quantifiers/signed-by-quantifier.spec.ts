@@ -6,6 +6,7 @@ import {
   ONE,
   serializeObject,
   SignatureVerifier,
+  strToHexStr,
 } from '@pigi/core-utils'
 
 /* Internal Imports */
@@ -88,14 +89,18 @@ class MockedMessageDB implements SignedByDBInterface {
 
 describe('SignedByQuantifier', () => {
   let db: SignedByDBInterface
-  const serializedMessage1: string = serializeObject({
-    channelID: '10',
-    data: { msg: 'a' },
-  })
-  const serializedMessage2: string = serializeObject({
-    channelID: '10',
-    data: { msg: 'b' },
-  })
+  const serializedMessage1: string = strToHexStr(
+    serializeObject({
+      channelID: '10',
+      data: { msg: 'a' },
+    })
+  )
+  const serializedMessage2: string = strToHexStr(
+    serializeObject({
+      channelID: '10',
+      data: { msg: 'b' },
+    })
+  )
   const myAddress: string = '0xMY_ADDRESS =D'
   const notMyAddress: string = '0xNOT_MY_ADDRESS =|'
 
@@ -172,17 +177,21 @@ describe('SignedByQuantifier', () => {
   describe('getAllQuantified with channelID', () => {
     const channelID: string = '10'
     it('returns messages from the DB with my address', async () => {
-      const serializedMessage: string = serializeObject({
-        channelID,
-        nonce: ONE,
-        data: {},
-      })
+      const serializedMessage: string = strToHexStr(
+        serializeObject({
+          channelID,
+          nonce: ONE,
+          data: {},
+        })
+      )
 
-      const serializedMessageTwo: string = serializeObject({
-        channelID: 'not the channel',
-        nonce: ONE,
-        data: {},
-      })
+      const serializedMessageTwo: string = strToHexStr(
+        serializeObject({
+          channelID: 'not the channel',
+          nonce: ONE,
+          data: {},
+        })
+      )
 
       await db.storeSignedMessage(serializedMessage, myAddress)
       await db.storeSignedMessage(serializedMessageTwo, myAddress)

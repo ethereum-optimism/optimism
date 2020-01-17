@@ -1,5 +1,11 @@
 /* External Imports */
-import { BigNumber, ONE, SignatureProvider, ZERO } from '@pigi/core-utils'
+import {
+  BigNumber,
+  bufToHexString,
+  ONE,
+  SignatureProvider,
+  ZERO,
+} from '@pigi/core-utils'
 import uuid = require('uuid')
 
 /* Internal Imports */
