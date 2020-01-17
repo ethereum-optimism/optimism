@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { getLogger, keccak256, add0x, remove0x } from '@pigi/core-utils'
+import { getLogger } from '@pigi/core-utils'
 import { Address } from '@pigi/rollup-core'
 import { utils } from 'ethers'
 import { create2Tests } from './test-files/create2test.json'
@@ -10,6 +10,9 @@ import { create2Tests } from './test-files/create2test.json'
 /* Contract Imports */
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+
+/* Internal Imports */
+import { buildCreate2Address } from '../helpers'
 
 const log = getLogger('contract-address-generator', true)
 
@@ -99,23 +102,6 @@ describe('ContractAddressGenerator', () => {
     }
   })
 
-  /*
-   * Deterministically computes the smart contract address given
-   * the account that will deploy the contract (factory contract)
-   * the salt as uint256 and the contract bytecode
-   * Source: https://github.com/miguelmota/solidity-create2-example
-   * Note: Use this function to generate new tests
-   */
-  const buildCreate2Address = (creatorAddress, saltHex, byteCode): Address => {
-    const preimage: string = `ff${remove0x(creatorAddress)}${remove0x(
-      saltHex
-    )}${keccak256(byteCode)}`
-    return add0x(
-      keccak256(preimage)
-        .slice(-40)
-        .toLowerCase()
-    )
-  }
   /*
    * Test buildCreate2Address helper function
    */
