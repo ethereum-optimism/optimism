@@ -20,13 +20,17 @@ import {
 
 export const abi = new ethers.utils.AbiCoder()
 
-const log = getLogger('raw-calls', true)
+const log = getLogger('execution-manager-calls', true)
 
 /*********
  * TESTS *
  *********/
 
-describe('Execution Manager -- Raw Calls', () => {
+const methodId: string = ethereumjsAbi
+  .methodID('executeCall', [])
+  .toString('hex')
+
+describe('Execution Manager -- Calls', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
@@ -49,6 +53,7 @@ describe('Execution Manager -- Raw Calls', () => {
 
     // Deploy SimpleCopier with the ExecutionManager
     dummyContractAddress = await manuallyDeployOvmContract(
+      wallet,
       provider,
       executionManager,
       DummyContract,
@@ -64,7 +69,7 @@ describe('Execution Manager -- Raw Calls', () => {
     )
   })
 
-  describe('executeRawCall', async () => {
+  describe('executeCall', async () => {
     it('properly executes a raw call -- 0 param', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
@@ -76,10 +81,6 @@ describe('Execution Manager -- Raw Calls', () => {
           bytesParam,
         ])
       )
-
-      const methodId: string = ethereumjsAbi
-        .methodID('executeRawCall', [])
-        .toString('hex')
 
       const timestamp: string = '00'.repeat(32)
       const queueOrigin: string = timestamp
@@ -119,10 +120,6 @@ describe('Execution Manager -- Raw Calls', () => {
         ])
       )
 
-      const methodId: string = ethereumjsAbi
-        .methodID('executeRawCall', [])
-        .toString('hex')
-
       const timestamp: string = '00'.repeat(32)
       const queueOrigin: string = timestamp
       const contractAddress: string =
@@ -151,10 +148,6 @@ describe('Execution Manager -- Raw Calls', () => {
 
     it('returns failure when inner call fails', async () => {
       // Create the variables we will use for setStorage
-
-      const methodId: string = ethereumjsAbi
-        .methodID('executeRawCall', [])
-        .toString('hex')
 
       const timestamp: string = '00'.repeat(32)
       const queueOrigin: string = timestamp

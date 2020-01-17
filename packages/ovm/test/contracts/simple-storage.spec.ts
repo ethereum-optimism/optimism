@@ -2,12 +2,13 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { getLogger, add0x, abi } from '@pigi/core-utils'
+import { getLogger, add0x, abi, remove0x } from '@pigi/core-utils'
+import { ContractFactory } from 'ethers'
+import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
-import { Contract, ContractFactory, Wallet, utils } from 'ethers'
 
 /* Internal Imports */
 import {
@@ -23,30 +24,19 @@ const log = getLogger('simple-storage', true)
 
 describe('SimpleStorage', () => {
   const provider = createMockProvider()
-  const [wallet1, wallet2] = getWallets(provider)
+  const [wallet] = getWallets(provider)
+
   // Create pointers to our execution manager & simple storage contract
   let executionManager
   let simpleStorage
   let simpleStorageOvmAddress
-  // Generate some bytes32 values used in our tests
-  const ZERO_FILLED_BYTES32 = '0x' + '00'.repeat(32)
-  const ONE_FILLED_BYTES32 = '0x' + '11'.repeat(32)
-  const TWO_FILLED_BYTES32 = '0x' + '22'.repeat(32)
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
     // Before each test let's deploy a fresh ExecutionManager and SimpleStorage
-
-    // Set the ABI to consider `executeCall()` to be a "constant" function so that we can use web3.call(executeCall(...))
-    // not just web3.applyTransaction(...)
-    const executeCallAbi = ExecutionManager.abi.filter(
-      (x) => x.name === 'executeCall'
-    )[0]
-    executeCallAbi.constant = true
-
     // Deploy ExecutionManager the normal way
     executionManager = await deployContract(
-      wallet1,
+      wallet,
       ExecutionManager,
       new Array(2).fill('0x' + '00'.repeat(20)),
       {
@@ -56,11 +46,13 @@ describe('SimpleStorage', () => {
 
     // Deploy SimpleStorage with the ExecutionManager
     simpleStorageOvmAddress = await manuallyDeployOvmContract(
+      wallet,
       provider,
       executionManager,
       SimpleStorage,
       [executionManager.address]
     )
+
     // Also set our simple storage ethers contract so we can generate unsigned transactions
     simpleStorage = new ContractFactory(
       SimpleStorage.abi as any, // For some reason the ABI type definition is not accepted
@@ -68,85 +60,93 @@ describe('SimpleStorage', () => {
     )
   })
 
+  const setStorage = async (slot, value): Promise<void> => {
+    const executeTransactionMethodId: string = ethereumjsAbi
+      .methodID('executeTransaction', [])
+      .toString('hex')
+
+    const timestamp: string = '00'.repeat(32)
+    const origin: string = '00'.repeat(32)
+    const entrypoint: string =
+      '00'.repeat(12) + remove0x(simpleStorageOvmAddress)
+    const txBody: string = `${executeTransactionMethodId}${timestamp}${origin}${entrypoint}`
+
+    const setStorageMethodId: string = ethereumjsAbi
+      .methodID('setStorage', [])
+      .toString('hex')
+
+    const innerParams: string = `${setStorageMethodId}${slot}${value}`
+    // create calldata
+    const data = `0x${txBody}${innerParams}`
+
+    // Now actually apply it to our execution manager
+    const tx = await wallet.sendTransaction({
+      to: executionManager.address,
+      data,
+      gasLimit: 6_700_000,
+    })
+
+    const reciept = await provider.getTransactionReceipt(tx.hash)
+    // Now make sure the SetStorage event was emitted
+    const rawSetStorageEvent = reciept.logs[0].data
+    const decodedSetStorageEvent = abi.decode(
+      ['address', 'bytes32', 'bytes32'],
+      rawSetStorageEvent
+    )
+    // Make sure we got back what we expect
+    decodedSetStorageEvent.should.deep.equal([
+      simpleStorageOvmAddress,
+      add0x(slot),
+      add0x(value),
+    ])
+  }
+
   describe('setStorage', async () => {
     it('properly sets storage for the contract we expect', async () => {
-      // Create the variables we will use for setStorage
-      const slot = add0x('99'.repeat(32))
-      const value = add0x('01'.repeat(32))
-      // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        simpleStorage,
-        'setStorage',
-        [slot, value]
-      )
-      // Now actually apply it to our execution manager
-      const tx = await executionManager.executeTransaction(
-        {
-          ovmEntrypoint: simpleStorageOvmAddress,
-          ovmCalldata: calldata,
-        },
-        0,
-        0
-      )
-      const reciept = await provider.getTransactionReceipt(tx.hash)
-      // Now make sure the SetStorage event was emitted
-      const rawSetStorageEvent = reciept.logs[0].data
-      const decodedSetStorageEvent = abi.decode(
-        ['address', 'bytes32', 'bytes32'],
-        rawSetStorageEvent
-      )
-      // Make sure we got back what we expect
-      decodedSetStorageEvent.should.deep.equal([
-        simpleStorageOvmAddress,
-        slot,
-        value,
-      ])
+      // create calldata vars
+      const slot: string = '99'.repeat(32)
+      const value: string = '01'.repeat(32)
+
+      await setStorage(slot, value)
     })
   })
 
   describe('getStorage', async () => {
     it('correctly loads a value after we store it', async () => {
       // Create the variables we will use for set & get storage
-      const slot = add0x('99'.repeat(32))
-      const value = add0x('01'.repeat(32))
+      const slot = '99'.repeat(32)
+      const value = '01'.repeat(32)
 
-      //
-      // SET STORAGE
-      // Generate our tx calldata
-      const setStorageCalldata = getUnsignedTransactionCalldata(
-        simpleStorage,
-        'setStorage',
-        [slot, value]
-      )
-      // Apply it to our execution manager
-      await executionManager.executeTransaction(
-        {
-          ovmEntrypoint: simpleStorageOvmAddress,
-          ovmCalldata: setStorageCalldata,
-        },
-        0,
-        0
-      )
+      await setStorage(slot, value)
 
-      //
-      // GET STORAGE
-      // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        simpleStorage,
-        'getStorage',
-        [slot]
-      )
-      // Call our execution manager
-      const result = await executionManager.executeCall(
-        {
-          ovmEntrypoint: simpleStorageOvmAddress,
-          ovmCalldata: calldata,
-        },
-        0,
-        0
-      )
+      // Execute the getStorage CALL
+      const executeCallMethodId: string = ethereumjsAbi
+        .methodID('executeCall', [])
+        .toString('hex')
+
+      const timestamp: string = '00'.repeat(32)
+      const origin: string = '00'.repeat(32)
+      const entrypoint: string =
+        '00'.repeat(12) + remove0x(simpleStorageOvmAddress)
+      const txBody: string = `${executeCallMethodId}${timestamp}${origin}${entrypoint}`
+
+      const setStorageMethodId: string = ethereumjsAbi
+        .methodID('getStorage', [])
+        .toString('hex')
+
+      const innerParams: string = `${setStorageMethodId}${slot}`
+      // create calldata
+      const data = `0x${txBody}${innerParams}`
+
+      // Now actually apply it to our execution manager
+      const result = await executionManager.provider.call({
+        to: executionManager.address,
+        data,
+        gasLimit: 6_700_000,
+      })
+
       // Check the result is what we expected
-      result.should.equal(value)
+      result.should.equal(add0x(value))
     })
   })
 })

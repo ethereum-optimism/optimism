@@ -62,6 +62,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
 
     // Deploy SimpleCopier with the ExecutionManager
     dummyContractAddress = await manuallyDeployOvmContract(
+      wallet,
       provider,
       executionManager,
       DummyContract,
@@ -141,14 +142,13 @@ describe('Execution Manager -- Code-related opcodes', () => {
       const data: string = `0x${methodId}${remove0x(encodedParams)}`
 
       const code: string = await executionManager.provider.call({
-        to: add0x(executionManager.address),
+        to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit: 6_700_000_000,
       })
       log.debug(`Resulting code: [${code}]`)
 
       const codeBuff: Buffer = Buffer.from(remove0x(code), 'hex')
-
       codeBuff.should.eql(dummyContractBytecode, 'Incorrect code!')
     })
   })
