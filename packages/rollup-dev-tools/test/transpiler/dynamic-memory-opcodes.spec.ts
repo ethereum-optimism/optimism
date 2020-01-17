@@ -99,7 +99,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
     )
     return bufToHexString(result.result)
   }
-  describe.only('Call-type opcode replacements', () => {
+  describe('Call-type opcode replacements', () => {
     it('should parse a CALL replacement', async () => {
       const getterAddress: Address = await deployCallProxyContract(evmUtil)
       const callReplacement: EVMBytecode = [
@@ -109,7 +109,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
       ]
       const proxiedCall = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(callReplacement),
-        bytecodeToBuffer(callReplacement).length -1
+        bytecodeToBuffer(callReplacement).length - 1
       )
     })
   })
@@ -132,7 +132,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
       ]
       const proxiedCall = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(extcodesizeReplacement),
-        bytecodeToBuffer(extcodesizeReplacement).length -1 
+        bytecodeToBuffer(extcodesizeReplacement).length - 1
       )
     })
   })

@@ -4,7 +4,6 @@ import {
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
-  isValidOpcodeAndBytes,
   Address,
   formatBytecode,
 } from '@pigi/rollup-core'
@@ -12,12 +11,8 @@ import {
   bufToHexString,
   remove0x,
   getLogger,
-  isValidHexAddress,
   hexStrToBuf,
-  BigNumber,
 } from '@pigi/core-utils'
-import { ADDRCONFIG } from 'dns'
-import { POINT_CONVERSION_HYBRID } from 'constants'
 import {
   getSWAPNOp,
   getPUSHIntegerOp,
@@ -36,17 +31,17 @@ const log = getLogger(`call-type-replacement-gen`)
  * Notably, this:
  *  * Assumes the proper stack is in place to do the un-transpiled CALL
  *  * Replaces the call address in the stack with the executionManagerAddress
- *  * Safely prepends methodID and executionManagerCallMethodId arguments to CALL argument memory
+ *  * Safely prepends methodID and executionManagerCALLMethodId arguments to CALL argument memory
  *  * Updates CALL memory index and length to account for prepended arguments
  *
  * @param executionManagerAddress The address of the Execution Manager contract.
- * @param executionManagerCallMethodId The function name in the Execution Manager to handle CALLs.
+ * @param executionManagerCALLMethodId The function name in the Execution Manager to handle CALLs.
  * @param stackPositionOfCallArgsMemOffset The position on the stack of the CALL's arguments memory offset.
  */
 
 export const getCallTypeReplacement = (
   executionManagerAddress: Address,
-  executionManagerCallMethodId: string,
+  executionManagerCALLMethodId: string,
   stackPositionOfCallArgsMemOffset: number // expected to be 2 or 3 depending on value presence
 ): EVMBytecode => {
   // we're gonna MSTORE methodId + addr
@@ -54,12 +49,12 @@ export const getCallTypeReplacement = (
   const callMemoryBytesToPrepend: number = 32 * callMemoryWordsToPrepend
 
   const totalCALLTypeStackArguments: number =
-  stackPositionOfCallArgsMemOffset + 4 // 4 for retIndex, retLen, argIndex, argLen
+    stackPositionOfCallArgsMemOffset + 4 // 4 for retIndex, retLen, argIndex, argLen
 
-  const methodData: Buffer = abi.methodID(executionManagerCallMethodId, [])
+  const methodData: Buffer = abi.methodID(executionManagerCALLMethodId, [])
 
   // first, we store the memory we're going to overwrite in order to prepend methodId and params to the stack so the original memory can be recovered.
-  let op: EVMBytecode = [
+  const op: EVMBytecode = [
     // we will subtract the number of words we will prepend to get the index of memory we're pushing to stack to recover later
     getPUSHIntegerOp(callMemoryBytesToPrepend),
     getDUPNOp(1 + stackPositionOfCallArgsMemOffset + 1), // dup modified calldata arg index so it can be stored there
@@ -70,9 +65,11 @@ export const getCallTypeReplacement = (
 
   // stack should now be [(index of mem pushed to stack), ...[mem words pushed to stack], ...[original stack]]]
   // duplicate the four memory-related params from the original CALL to front of stack
-  op.push(...new Array(4).fill(
+  op.push(
+    ...new Array(4).fill(
       getDUPNOp(1 + callMemoryWordsToPrepend + totalCALLTypeStackArguments)
-    ))
+    )
+  )
 
   // stack should now be [argOffstet, argLen, retOffst, retLength, (index of mem pushed to stack), ...[mem words pushed to stack], ...[original stack]]]
   // where those first four memory params are un-modified from the pre-transpiled CALL.
@@ -88,10 +85,10 @@ export const getCallTypeReplacement = (
   // store the [methodId, stack args] words in memory. To do this, we DUP (index of mem pushed to stack), because that's what the storeStackInMemory() expects as first element.
   op.push(
     getDUPNOp(2 + 4 + 1), // EM CALL args offset is immediately after (previous DUPN and PUSHBuffer = 2) + (memory args = 4)
-    ...storeStackInMemory(callMemoryWordsToPrepend),
+    ...storeStackInMemory(callMemoryWordsToPrepend)
   )
   // pop the index we were just using to store stack in memory
-  op.push({opcode: Opcode.POP, consumedBytes: undefined })
+  op.push({ opcode: Opcode.POP, consumedBytes: undefined })
 
   // at this point the stack should be [4 words of CALL memory arguments, EM CALL args offset, ...[words pulled from memory], ...original stack]
   // now that we have prepended the correct calldata to memory, we need to update the args length and offset appropriately to actually pass the prepended data.
@@ -108,7 +105,7 @@ export const getCallTypeReplacement = (
     getPUSHIntegerOp(numBytesForExtraArgs),
     { opcode: Opcode.ADD, consumedBytes: undefined },
     // swap back from first to second
-    getSWAPNOp(1),
+    getSWAPNOp(1)
   )
   // now we are ready to execute the call.  The memory-related args have already been set up, we just need to add the first three fields and execute.
   op.push(
@@ -122,7 +119,7 @@ export const getCallTypeReplacement = (
     {
       opcode: Opcode.CALL,
       consumedBytes: undefined,
-    },
+    }
   )
   // now we have the success result at the top of the stack, so we swap it out to where it will be first after we put back the old memory and pop the original params.
   // this index should be (1 for memory replacment index + callMemoryWordsToPrepend + numStackArgumentsToPass + 4 for memory offset and calldata for arg vals and return vals))
@@ -140,17 +137,21 @@ export const getCallTypeReplacement = (
     ...new Array(1 + totalCALLTypeStackArguments - 1).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
-    }))
+    })
+  )
 
   return op
 }
 
 export const getEXTCODECOPYReplacement = (
   executionManagerAddress: Address,
-  methodName: string
+  executionManagerEXTCODECOPYMethodId: string
 ) => {
-  const methodData: Buffer = abi.methodID(methodName, [])
-  let op: EVMBytecode = []
+  const methodData: Buffer = abi.methodID(
+    executionManagerEXTCODECOPYMethodId,
+    []
+  )
+  const op: EVMBytecode = []
 
   // EXTCODECOPY params and execution do the following to the stack:
   // [addr, destOffset, offset, length, …], -> […]
@@ -166,7 +167,7 @@ export const getEXTCODECOPYReplacement = (
     getDUPNOp(4), // DUP length
     getDUPNOp(3), // DUP destOffset
     { opcode: Opcode.ADD, consumedBytes: undefined }, // add them to get where we expect to store
-    ...pushMemoryOntoStack(callMemoryWordsToPrepend),
+    ...pushMemoryOntoStack(callMemoryWordsToPrepend)
   )
   // Now, the stack should be [(index of memory to replace), ...[pushed memory to swap back], ...[original stack]]
 
@@ -180,7 +181,7 @@ export const getEXTCODECOPYReplacement = (
 
   const indexOfOriginalStack: number = 1 + callMemoryWordsToPrepend
   op.push(
-    // the final params of addition here (+0, +1, +2) account for the increased stack caused by each DUP
+    // the final params of addition here (+0, +1, +2) account for the increased stack caused by each preceeding DUP
     getDUPNOp(indexOfOriginalStack + 4 + 0), // length
     getDUPNOp(indexOfOriginalStack + 3 + 1), // offset
     getDUPNOp(indexOfOriginalStack + 1 + 2), // addr
@@ -191,7 +192,7 @@ export const getEXTCODECOPYReplacement = (
       // pop the storage index as it was DUPed above
       opcode: Opcode.POP,
       consumedBytes: undefined,
-    },
+    }
   )
   // the stack should now be [(mem index to recover memory to), ...[memory words to recover], ...[original stack]]
   // Now we need to set up the CALL!
@@ -218,7 +219,7 @@ export const getEXTCODECOPYReplacement = (
     {
       opcode: Opcode.POP,
       consumedBytes: undefined,
-    },
+    }
   )
   // Cleanup time is all that's left!
   op.push(
@@ -227,7 +228,7 @@ export const getEXTCODECOPYReplacement = (
     ...new Array(4).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
-    }),
+    })
   )
   return op
 }
