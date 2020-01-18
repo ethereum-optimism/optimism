@@ -54,6 +54,29 @@ UNAUTHORIZED=$(vault write -f -field=address immutability-eth-plugin/wallets/pla
 echo "UNAUTHORIZED=$UNAUTHORIZED"
 banner
 vault write -f -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts
+banner
+echo "*** SHOULD FAIL! ***" 
+echo "UNAUTHORIZED ACTIVATION OF CHILD CHAIN BY $UNAUTHORIZED" 
+echo "vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/activateChildChain contract=$PLASMA_CONTRACT"
+vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/activateChildChain contract=$PLASMA_CONTRACT
+banner
+vault write -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/activateChildChain contract=$PLASMA_CONTRACT
+
+banner
+echo "*** SHOULD SUCCEED ***" 
+echo "AUTHORIZED ACTIVATION OF CHILD CHAIN BY $ORIGINAL_AUTHORITY" 
+echo "vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT"
+vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
+banner
+vault write -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
+
+banner
+echo "*** SHOULD FAIL ***" 
+echo "SECOND CALL TO ACTIVATION OF CHILD CHAIN BY $ORIGINAL_AUTHORITY" 
+echo "vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT"
+vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
+banner
+vault write -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
 
 banner
 echo "*** SHOULD FAIL! ***" 
