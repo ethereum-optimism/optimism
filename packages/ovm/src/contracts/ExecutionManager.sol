@@ -12,11 +12,13 @@ import {CreatorContract} from "./CreatorContract.sol";
  * @notice The execution manager ensures that the execution of each transaction is sandboxed in a distinct enviornment as defined
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
-contract ExecutionManager is FullStateManager, ContractAddressGenerator {
+contract ExecutionManager is FullStateManager {
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // Execution storage
     dt.ExecutionContext executionContext;
+    // RLP encoding library
+    ContractAddressGenerator cag;
 
     // Events
     event CreatedContract(
@@ -35,10 +37,10 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
      * @param _purityCheckerAddress The address for our purity checker, used during contract creation.
      * @param _owner The owner of our contract -- the only address allowed to make calls to our purity checker.
      */
-    constructor(address _purityCheckerAddress, address _owner) public {
+    constructor(address _purityCheckerAddress, address _contractAddressGeneration, address _owner) public {
         // Set the purity checker address
         // TODO
-
+        cag = ContractAddressGenerator(_contractAddressGeneration);
         // Deploy our genesis code contract (the normal way)
         CreatorContract creatorContract = new CreatorContract(address(this));
         // Set our genesis creator contract to be the zero address
@@ -233,7 +235,7 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
         // First we need to generate the CREATE address
         address creator = executionContext.ovmActiveContract;
         uint creatorNonce = getOvmContractNonce(creator);
-        address _newOvmContractAddress = getAddressFromCREATE(creator, creatorNonce);
+        address _newOvmContractAddress = cag.getAddressFromCREATE(creator, creatorNonce);
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
         // We also need to increment the contract nonce
@@ -277,7 +279,7 @@ contract ExecutionManager is FullStateManager, ContractAddressGenerator {
 
         // First we need to generate the CREATE2 address
         address creator = executionContext.ovmActiveContract;
-        address _newOvmContractAddress = getAddressFromCREATE2(creator, _salt, _ovmInitcode);
+        address _newOvmContractAddress = cag.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 

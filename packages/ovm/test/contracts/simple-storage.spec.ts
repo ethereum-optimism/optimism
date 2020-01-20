@@ -9,6 +9,8 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
+import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
+import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
 import {
@@ -28,8 +30,25 @@ describe('SimpleStorage', () => {
 
   // Create pointers to our execution manager & simple storage contract
   let executionManager
+  let contractAddressGenerator
+  let rlpEncode
   let simpleStorage
   let simpleStorageOvmAddress
+
+  /* Link libraries before tests */
+  before(async () => {
+    rlpEncode = await deployContract(wallet, RLPEncode, [], {
+      gasLimit: 6700000,
+    })
+    contractAddressGenerator = await deployContract(
+      wallet,
+      ContractAddressGenerator,
+      [rlpEncode.address],
+      {
+        gasLimit: 6700000,
+      }
+    )
+  })
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
@@ -38,7 +57,11 @@ describe('SimpleStorage', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      new Array(2).fill('0x' + '00'.repeat(20)),
+      [
+        '0x' + '00'.repeat(20),
+        contractAddressGenerator.address,
+        '0x' + '00'.repeat(20),
+      ],
       {
         gasLimit: 6700000,
       }

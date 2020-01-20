@@ -1,11 +1,19 @@
 /* External Imports */
 import { Address } from '@pigi/rollup-core/'
-import { getLogger, add0x, abi, remove0x, hexStrToBuf } from '@pigi/core-utils'
-
+import {
+  getLogger,
+  add0x,
+  abi,
+  keccak256,
+  remove0x,
+  hexStrToBuf,
+} from '@pigi/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet } from 'ethers'
-import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
 import { Provider } from 'ethers/providers'
+
+/* Contract Imports */
+import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
 
 const log = getLogger('helpers', true)
 
@@ -72,4 +80,26 @@ export const getUnsignedTransactionCalldata = (
   args
 ) => {
   return contract.interface.functions[functionName].encode(args)
+}
+
+/**
+ * Deterministically computes the smart contract address given
+ * the account that will deploy the contract (factory contract)
+ * the salt as uint256 and the contract bytecode
+ * Source: https://github.com/miguelmota/solidity-create2-example
+ * Note: Use this function to generate new tests
+ */
+export const buildCreate2Address = (
+  creatorAddress,
+  saltHex,
+  byteCode
+): Address => {
+  const preimage: string = `ff${remove0x(creatorAddress)}${remove0x(
+    saltHex
+  )}${keccak256(byteCode)}`
+  return add0x(
+    keccak256(preimage)
+      .slice(-40)
+      .toLowerCase()
+  )
 }
