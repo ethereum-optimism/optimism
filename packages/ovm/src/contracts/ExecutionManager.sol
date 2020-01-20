@@ -54,37 +54,41 @@ contract ExecutionManager is FullStateManager {
     /**
      * @notice Execute a transaction which consists of running a transaction within the context of a timestamp
      *         and queue origin.
-     * @param _transaction The transaction which we will be executing against the state.
-     * @param _timestamp The timestamp for the particular rollup block we are running.
-     * @param _queueOrigin The queue which this transaction was sent from. Examples include the L1 contract queue, slow-track queue, and sequencer queue.
-     * @return The updated storage elements. This will be used by the fraud prover to check the post state root.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [timestamp (uint)]
+     *       [queueOrigin (uint)]
+     *       [ovmEntrypointAddress (address as bytes32 (big-endian))]
+     *       [callBytes (bytes (variable length))]
+     * returndata: [variable-length bytes returned from call] - The updated storage elements.
+     *      This will be used by the fraud prover to check the post state root.
      */
-    function executeTransaction(dt.Transaction calldata _transaction, uint _timestamp, uint _queueOrigin) external returns(dt.StorageElement[] memory) {
-        // Initialize our context
-        initializeContext(_timestamp, _queueOrigin);
-        // And then make the entrypoint CALL!
-        (bool success,) = ovmCALL(_transaction.ovmEntrypoint, _transaction.ovmCalldata);
-        require(success);
+    function executeTransaction() external {
+        address addr = address(this);
+        bytes4 methodId = bytes4(keccak256("executeCall()") >> 224);
+
+        bytes memory execCallBytes;
+        assembly {
+            execCallBytes := mload(0x40)
+            calldatacopy(execCallBytes, 0, calldatasize)
+
+            mstore8(execCallBytes, shr(24, methodId))
+            mstore8(add(execCallBytes, 1), shr(16, methodId))
+            mstore8(add(execCallBytes, 2), shr(8, methodId))
+            mstore8(add(execCallBytes, 3), methodId)
+
+            // overwrite call's data
+            let result := mload(0x40)
+            let success := call(gas, addr, 0, execCallBytes, calldatasize, result, 500000)
+
+            if eq(success,0) {
+                revert(0,0)
+            }
+        }
         // TODO: Track & return storage elements
     }
-
-    /**
-     * @notice Execute a call which will return the result of the call instead of the updated storage.
-     *         Note: This should only be used with a Web3 `call` operation, otherwise you may accidentally save changes to the state.
-     * @param _transaction The transaction which we will be executing against the state.
-     * @param _timestamp The timestamp for the particular rollup block we are running.
-     * @param _queueOrigin The queue which this transaction was sent from. Examples include the L1 contract queue, slow-track queue, and sequencer queue.
-     * @return Result of the call as bytes
-     */
-    function executeCall(dt.Transaction calldata _transaction, uint _timestamp, uint _queueOrigin) external returns(bytes memory) {
-        // Initialize our context
-        initializeContext(_timestamp, _queueOrigin);
-        // And then make the entrypoint CALL!
-        (bool success, bytes memory _callResult) = ovmCALL(_transaction.ovmEntrypoint, _transaction.ovmCalldata);
-        require(success);
-        return _callResult;
-    }
-
 
     /**
      * @notice Execute a call which will return the result of the call instead of the updated storage.
@@ -95,39 +99,35 @@ contract ExecutionManager is FullStateManager {
      *       [methodID (bytes4)]
      *       [timestamp (uint)]
      *       [queueOrigin (uint)]
-     *       [ovmEntrypointAddress (address as bytes32)]
+     *       [ovmEntrypointAddress (address as bytes32 (big-endian))]
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
-    function executeRawCall() external {
-        bytes memory calldataMemory;
+    function executeCall() external {
+        bytes4 methodId = bytes4(keccak256("ovmCALL()") >> 224);
+
         uint _timestamp;
         uint _queueOrigin;
-        bytes4 methodId = bytes4(keccak256("ovmRawCALL()") >> 224);
-
         uint callSize;
         bytes memory callBytes;
 
         assembly {
-            // read calldata, ignoring methodID
-            let paramSize := sub(calldatasize, 4)
-            calldataMemory := mload(0x40)
-            calldatacopy(calldataMemory, 4, paramSize)
-
             // populate timestamp and queue origin from calldata
-            _timestamp := mload(calldataMemory)
-            _queueOrigin := mload(add(calldataMemory, 0x20))
+            _timestamp := calldataload(4)
+            // skip method ID (bytes4) and timestamp (bytes32)
+            _queueOrigin := calldataload(0x24)
 
-            // leave first 4 bytes for methodID
-            callBytes := add(calldataMemory, 60)
+            // set callsize: total param size minus 2 uints plus 4 byte method ID - 4 bytes (new method ID)
+            callSize := sub(calldatasize, 0x40)
+            callBytes := mload(0x40)
+            mstore(0x40, add(callBytes, callSize))
+
+            // leave room for method ID, skip ahead in calldata methodID(4), timestamp(32), queueOrigin(32)
+            calldatacopy(add(callBytes, 4), 0x44, callSize)
             mstore8(callBytes, shr(24, methodId))
             mstore8(add(callBytes, 1), shr(16, methodId))
             mstore8(add(callBytes, 2), shr(8, methodId))
             mstore8(add(callBytes, 3), methodId)
-
-            // set callsize: total param size minus 2 uints plus 4 byte method ID
-            callSize := sub(paramSize, 60)
-            mstore(0x40, add(callBytes, callSize))
         }
 
         // Initialize our context
@@ -136,13 +136,14 @@ contract ExecutionManager is FullStateManager {
         address addr = address(this);
         assembly {
             let result := mload(0x40)
-            let success := call(gas, addr, callvalue, callBytes, callSize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, callSize, result, 500000)
+            let size := returndatasize
 
             if eq(success, 0) {
                 revert(0, 0)
             }
 
-            return(result, returndatasize)
+            return(result, size)
         }
     }
 
@@ -210,36 +211,87 @@ contract ExecutionManager is FullStateManager {
 
     /**
      * @notice CREATE opcode -- deploying a new ovm contract to a CREATE address.
-     * @param _ovmInitcode The initcode for our new contract.
-     * @return The newly deployed ovm contract address.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [ovmInitcode (bytes (variable length))]
+     * returndata: [newOvmContractAddress (as bytes32)]
      */
-    function ovmCREATE(bytes memory _ovmInitcode) public returns(address _newOvmContractAddress) {
+    function ovmCREATE() public {
+        bytes memory _ovmInitcode;
+        assembly {
+            _ovmInitcode := mload(0x40)
+            // ignore methodID
+            let initcodeSize := sub(calldatasize, 4)
+            // need to ABI-encode _ovmInitcode for solidity calls
+            mstore(_ovmInitcode, initcodeSize)
+            // read calldata, ignoring methodID -- the rest is _ovmInitcode
+            calldatacopy(add(_ovmInitcode, 0x20), 4, initcodeSize)
+            // update free mem pointer
+            mstore(0x40, add(add(_ovmInitcode, 0x20), initcodeSize))
+        }
+
         // First we need to generate the CREATE address
         address creator = executionContext.ovmActiveContract;
         uint creatorNonce = getOvmContractNonce(creator);
-        _newOvmContractAddress = cag.getAddressFromCREATE(creator, creatorNonce);
+        address _newOvmContractAddress = cag.getAddressFromCREATE(creator, creatorNonce);
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
         // We also need to increment the contract nonce
         incrementOvmContractNonce(creator);
+
+        // Shifting so that it is big-endian ('00'x12 + 20 bytes of address)
+        bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
+
         // And finally return the address of the newly created ovmContract
-        return _newOvmContractAddress;
+        assembly {
+            let returnData := mload(0x40)
+            mstore(returnData, newOvmContractAddressBytes32)
+            return(returnData, 0x20)
+        }
     }
 
     /**
      * @notice CREATE2 opcode -- deploying a new ovm contract to a CREATE2 address.
-     * @param _salt The CREATE2 salt, used for address generation.
-     * @param _ovmInitcode The initcode for our new CREATE2 contract
-     * @return The newly deployed ovm contract address.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [salt (bytes32)]
+     *       [ovmInitcode (bytes (variable length))]
+     * returndata: [newOvmContractAddress (as bytes32)]
      */
-    function ovmCREATE2(bytes32 _salt, bytes memory _ovmInitcode) public returns(address _newOvmContractAddress) {
+    function ovmCREATE2() public {
+        bytes memory _ovmInitcode;
+        bytes32 _salt;
+        assembly {
+            _ovmInitcode := mload(0x40)
+            // skip methodID, copy first 32 bytes for _salt
+            _salt := calldataload(4)
+
+            // Copy initcode
+            let initcodeSize := sub(calldatasize, 0x24)
+            calldatacopy(_ovmInitcode, 0x24, initcodeSize)
+
+            mstore(0x40, add(_ovmInitcode, initcodeSize))
+        }
+
         // First we need to generate the CREATE2 address
         address creator = executionContext.ovmActiveContract;
-        _newOvmContractAddress = cag.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
+        address _newOvmContractAddress = cag.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
+
+        // Shifting so that it is big-endian ('00'x12 + 20 bytes of address)
+        bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
+
         // And finally return the address of the newly created ovmContract
-        return _newOvmContractAddress;
+        assembly {
+            let returnData := mload(0x40)
+            mstore(returnData, newOvmContractAddressBytes32)
+            return(returnData, 0x20)
+        }
     }
 
     /********* Utils *********/
@@ -291,72 +343,30 @@ contract ExecutionManager is FullStateManager {
 
     /**
      * @notice CALL opcode -- simply calls a particular code contract with the desired OVM contract context.
-     * @param _targetOvmContractAddress The OVM contract address the we are calling.
-     * @param _ovmCalldata The calldata which will be used to call this OVM contract.
-     * @return True/False if the contract succeeded or failed, and bytes being the return value.
-     */
-    function ovmCALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public returns(bool, bytes memory result) {
-        // Switch the context to the _targetOvmContractAddress
-        (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
-        // Call the contract
-        (bool success, bytes memory returnValue) = getCodeContractAddress(_targetOvmContractAddress).call(_ovmCalldata);
-
-        // Revert back to our old execution context
-        restoreContractContext(oldMsgSender, oldActiveContract);
-
-        if (success) {
-            assembly {
-                switch mload(returnValue)
-                case 0x20 {
-                    // This means that the bytes array just wraps a single value
-                    result := returnValue
-                }
-                default {
-                    result := add(returnValue, 0x40)
-                }
-            }
-        } else {
-            result = returnValue;
-        }
-
-
-        // Return success and the return value
-        return (success, result);
-    }
-
-    /**
-     * @notice CALL opcode -- simply calls a particular code contract with the desired OVM contract context.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
      * calldata: variable-length bytes:
      *       [methodID (bytes4)]
-     *       [targetOvmContractAddress (address as bytes32)]
+     *       [targetOvmContractAddress (address as bytes32 (big-endian))]
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
-    function ovmRawCALL() public {
-        bytes memory calldataMemory;
-        bytes32 _targetOvmContractAddressBytes;
-
+    function ovmCALL() public {
         uint callSize;
         bytes memory _callBytes;
+        bytes32 _targetOvmContractAddressBytes;
         // parse calldata
         assembly {
-            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
-            let paramSize := sub(calldatasize, 16)
-            calldataMemory := mload(0x40)
+            // skip 4 bytes for methodID and first 12 bytes of address
+            _targetOvmContractAddressBytes := calldataload(16)
 
-            calldatacopy(calldataMemory, 16, paramSize)
-
-            // populate timestamp and queue origin from calldata
-            _targetOvmContractAddressBytes := mload(calldataMemory)
-
-            // set callsize: total param size minus an address
-            callSize := sub(paramSize, 20)
+            // size is calldata - methodID - address (as bytes32)
+            callSize := sub(calldatasize, 0x24)
 
             // set callBytes
-            _callBytes := add(calldataMemory, 20)
+            _callBytes := mload(0x40)
             mstore(0x40, add(_callBytes, callSize))
+            calldatacopy(_callBytes, 0x24, callSize)
         }
         address _targetOvmContractAddress = address(bytes20(_targetOvmContractAddressBytes));
 
@@ -373,17 +383,18 @@ contract ExecutionManager is FullStateManager {
             let success := call(
               gas,
               codeAddress,
-              callvalue,
+              0,
               _callBytes,
               callSize,
               returnData,
               500000
             )
+
+            returnSize := returndatasize
+
             if eq(success, 0) {
                 revert(0, 0)
             }
-
-            returnSize := returndatasize
         }
 
         // Revert back to our old execution context
@@ -405,22 +416,52 @@ contract ExecutionManager is FullStateManager {
 
     /**
      * @notice Load a value from storage. Note each contract has it's own storage.
-     * @param _slot The slot (aka key) for the storage slot value that you are trying to load.
-     * @return The value of that storage slot.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [storageSlot (bytes32)]
+     * returndata: [storageValue (bytes32)]
      */
-    function ovmSLOAD(bytes32 _slot) public view returns(bytes32) {
-        return getStorage(executionContext.ovmActiveContract, _slot);
+    function ovmSLOAD() public view {
+        bytes32 _storageSlot;
+        assembly {
+            // skip methodID (4 bytes)
+            _storageSlot := calldataload(4)
+        }
+
+        bytes32 slotValue = getStorage(executionContext.ovmActiveContract, _storageSlot);
+
+        assembly {
+            let ret := mload(0x40)
+            mstore(ret, slotValue)
+            return(ret, 0x20)
+        }
     }
 
     /**
      * @notice Store a value. Note each contract has it's own storage.
-     * @param _slot The slot (aka key) for the storage slot value that you are trying to store.
-     * @param _value The desired value of the storage slot.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [storageSlot (bytes32)]
+     *       [storageValue (bytes32)]
+     * returndata: empty.
      */
-    function ovmSSTORE(bytes32 _slot, bytes32 _value) public {
-        setStorage(executionContext.ovmActiveContract, _slot, _value);
+    function ovmSSTORE() public {
+        bytes32 _storageSlot;
+        bytes32 _storageValue;
+
+        assembly {
+            // skip methodID (4 bytes)
+            _storageSlot := calldataload(4)
+            _storageValue := calldataload(0x24)
+        }
+
+        setStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
         // Emit SetStorage event!
-        emit SetStorage(executionContext.ovmActiveContract, _slot, _value);
+        emit SetStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
     }
 
     /***********************
@@ -433,17 +474,14 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: 36 bytes:
      *      [methodID (bytes4)]
-     *      [targetOvmContractAddress (address as bytes32)]
+     *      [targetOvmContractAddress (address as bytes32 (big-endian))]
      * returndata: 32 bytes: the big-endian codesize int.
      */
     function ovmEXTCODESIZE() public {
-        bytes memory calldataMemory;
         bytes32 _targetAddressBytes;
         assembly {
-            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
-            calldataMemory := mload(0x40)
-            calldatacopy(calldataMemory, 16, 20)
-            _targetAddressBytes := mload(calldataMemory)
+        // read calldata, ignoring methodID and first 12 bytes of address
+            _targetAddressBytes := calldataload(16)
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
@@ -462,17 +500,14 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: 36 bytes:
      *      [methodID (bytes4)]
-     *      [targetOvmContractAddress (address as bytes32)]
+     *      [targetOvmContractAddress (address as bytes32 (big-endian))]
      * returndata: 32 bytes: the hash.
      */
     function ovmEXTCODEHASH() public {
-        bytes memory calldataMemory;
         bytes32 _targetAddressBytes;
         assembly {
-            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
-            calldataMemory := mload(0x40)
-            calldatacopy(calldataMemory, 16, 20)
-            _targetAddressBytes := mload(calldataMemory)
+            // read calldata, ignoring methodID and first 12 bytes of address
+            _targetAddressBytes := calldataload(16)
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
@@ -493,34 +528,29 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: 100 bytes:
      *       [methodID (bytes4)]
-     *       [targetOvmContractAddress (address as bytes32)]
+     *       [targetOvmContractAddress (address as bytes32 (big-endian))]
      *       [index (uint (32)]
      *       [length (uint (32))]
      * returndata: length (input param) bytes of contract at address, starting at index.
      */
     function ovmEXTCODECOPY() public {
-        bytes memory calldataMemory;
         bytes32 _targetAddressBytes;
         uint _index;
         uint _length;
         assembly {
-            // read calldata, ignoring methodID & first 12 bytes of address as bytes32
-            calldataMemory := mload(0x40)
-            calldatacopy(calldataMemory, 16, 84)
-
-            _targetAddressBytes := mload(calldataMemory)
-            _index := mload(add(calldataMemory, 20))
-            _length := mload(add(calldataMemory, 52))
+            // read calldata, ignoring methodID
+            _targetAddressBytes := calldataload(16)
+            // skip 4 + 32
+            _index := calldataload(0x24)
+            // skip 4 + 32 + 32
+            _length := calldataload(0x44)
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
         address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
 
         assembly {
-            // allocate output byte array
             let codeContractBytecode := mload(0x40)
-            // new "memory end"
-            mstore(0x40, add(codeContractBytecode, _length))
             // store code in memory
             extcodecopy(codeContractAddress, codeContractBytecode, _index, _length)
             // write code to returndata

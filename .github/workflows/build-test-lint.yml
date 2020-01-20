@@ -62,13 +62,6 @@ jobs:
           path: packages/optimistic-game-semantics/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/optimistic-game-semantics/package.json') }}
 
-      - name: Cache plasma deps
-        uses: actions/cache@v1
-        id: cache_plasma
-        with:
-          path: packages/plasma/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/plasma/package.json') }}
-
       - name: Cache rollup-full-node deps
         uses: actions/cache@v1
         id: cache_rollup-full-node

@@ -1,7 +1,15 @@
 import '../setup'
 
 /* Internal Imports */
-import { sleep, remove0x, add0x, getNullString, isObject } from '../../src/app'
+import {
+  sleep,
+  remove0x,
+  add0x,
+  getNullString,
+  isObject,
+  hexStrToBuf,
+  TestUtils,
+} from '../../src/app'
 
 describe('Miscellaneous Utils', () => {
   describe('sleep', () => {
@@ -71,6 +79,56 @@ describe('Miscellaneous Utils', () => {
       const nullString = getNullString(10)
 
       nullString.should.equal('0x0000000000')
+    })
+  })
+
+  describe('hexStrToBuf', () => {
+    it('works for regular hex strings', () => {
+      const num: number = 1_234_567_890
+      const str: string = num.toString(16)
+
+      const expected = Buffer.alloc(4)
+      expected.writeInt32BE(num, 0)
+
+      const buff: Buffer = hexStrToBuf(str)
+      expected.should.eql(buff, 'Buffer mismatch!')
+    })
+
+    it('works with 0x hex strings', () => {
+      const num: number = 1_234_567_890
+      const str: string = num.toString(16)
+
+      const expected = Buffer.alloc(4)
+      expected.writeInt32BE(num, 0)
+
+      const buff: Buffer = hexStrToBuf(add0x(str))
+      expected.should.eql(buff, 'Buffer mismatch!')
+    })
+
+    it('works with empty', () => {
+      const expected = Buffer.alloc(0)
+
+      const buff: Buffer = hexStrToBuf('')
+      expected.should.eql(buff, 'Buffer mismatch!')
+    })
+
+    it('works with empty 0x', () => {
+      const expected = Buffer.alloc(0)
+
+      const buff: Buffer = hexStrToBuf('0x')
+      expected.should.eql(buff, 'Buffer mismatch!')
+    })
+
+    it('throws on non-hex strings', () => {
+      TestUtils.assertThrows(() => hexStrToBuf('abcdefg'), RangeError)
+      TestUtils.assertThrows(() => hexStrToBuf('z'), RangeError)
+    })
+
+    it('throws on odd digits hex strings', () => {
+      TestUtils.assertThrows(() => hexStrToBuf('0x1'), RangeError)
+      TestUtils.assertThrows(() => hexStrToBuf('0x012'), RangeError)
+      TestUtils.assertThrows(() => hexStrToBuf('1'), RangeError)
+      TestUtils.assertThrows(() => hexStrToBuf('012'), RangeError)
     })
   })
 })

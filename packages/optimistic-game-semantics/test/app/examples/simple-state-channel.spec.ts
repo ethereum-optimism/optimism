@@ -3,6 +3,7 @@ import '../../setup'
 /* External Imports */
 import {
   BigNumber,
+  bufToHexString,
   DefaultSignatureProvider,
   DefaultSignatureVerifier,
   objectsEqual,

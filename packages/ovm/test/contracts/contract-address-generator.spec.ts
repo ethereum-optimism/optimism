@@ -5,13 +5,13 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger } from '@pigi/core-utils'
 import { Address } from '@pigi/rollup-core'
 import { utils } from 'ethers'
-import { create2Tests } from './test-files/create2test.json'
 
 /* Contract Imports */
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
+import { create2Tests } from './test-files/create2test.json'
 import { buildCreate2Address } from '../helpers'
 
 const log = getLogger('contract-address-generator', true)

@@ -2,8 +2,10 @@
 import {
   BigNumber,
   deserializeObject,
+  hexStrToString,
   objectToBuffer,
   serializeObject,
+  strToHexStr,
 } from '@pigi/core-utils'
 
 /* Internal Imports */
@@ -19,7 +21,7 @@ import { AddressBalance, StateChannelMessage } from './examples'
 export const stateChannelMessageToString = (
   message: StateChannelMessage
 ): string => {
-  return serializeObject(message)
+  return strToHexStr(serializeObject(message))
 }
 
 /**
@@ -49,13 +51,15 @@ export const messageToBuffer = (
  */
 export const messageToString = (
   message: Message,
-  messageSerializer: ({}) => string = (_) => '{}'
+  messageSerializer: ({}) => string = (_) => strToHexStr('{}')
 ): string => {
-  return serializeObject({
-    channelID: message.channelID.toString(),
-    nonce: message.nonce,
-    data: messageSerializer(message.data),
-  })
+  return strToHexStr(
+    serializeObject({
+      channelID: message.channelID.toString(),
+      nonce: message.nonce,
+      data: messageSerializer(message.data),
+    })
+  )
 }
 
 /**
@@ -84,7 +88,8 @@ export const deserializeBuffer = (
  */
 export const deserializeMessageString = (
   message: string,
-  messageDeserializer: (string, any?) => any = (s) => JSON.parse(s),
+  messageDeserializer: (string, any?) => any = (s) =>
+    JSON.parse(hexStrToString(s)),
   functionParams?: any
 ): any => {
   return messageDeserializer(message, functionParams)
@@ -101,7 +106,7 @@ export const deserializeMessage = (
   message: string,
   dataDeserializer: (string) => {} = (d) => d
 ): Message => {
-  const parsedObject = deserializeObject(message)
+  const parsedObject = deserializeObject(hexStrToString(message))
   return {
     channelID: parsedObject['channelID'],
     nonce:
@@ -121,7 +126,7 @@ export const deserializeMessage = (
 export const stateChannelMessageDeserializer = (
   message: string
 ): StateChannelMessage => {
-  const deserialized: {} = deserializeObject(message)
+  const deserialized: {} = deserializeObject(hexStrToString(message))
   const addressBalance: AddressBalance = {}
   Object.entries(deserialized['addressBalance']).forEach(
     ([address, balance]: [string, string]) => {
