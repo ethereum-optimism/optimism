@@ -31,17 +31,17 @@ const log = getLogger(`call-type-replacement-gen`)
  * Notably, this:
  *  * Assumes the proper stack is in place to do the un-transpiled CALL
  *  * Replaces the call address in the stack with the executionManagerAddress
- *  * Safely prepends methodID and executionManagerCALLMethodId arguments to CALL argument memory
+ *  * Safely prepends method id and arguments to CALL argument memory
  *  * Updates CALL memory index and length to account for prepended arguments
  *
  * @param executionManagerAddress The address of the Execution Manager contract.
- * @param executionManagerCALLMethodId The function name in the Execution Manager to handle CALLs.
- * @param stackPositionOfCallArgsMemOffset The position on the stack of the CALL's arguments memory offset.
+ * @param executionManagerCALLMethodName The function name in the Execution Manager to handle CALLs.
+ * @param stackPositionOfCallArgsMemOffset The position on the stack of the CALL's arguments memory offset.  0-indexed.
  */
 
 export const getCallTypeReplacement = (
   executionManagerAddress: Address,
-  executionManagerCALLMethodId: string,
+  executionManagerCALLMethodName: string,
   stackPositionOfCallArgsMemOffset: number // expected to be 2 or 3 depending on value presence
 ): EVMBytecode => {
   // we're gonna MSTORE methodId + addr
@@ -51,7 +51,7 @@ export const getCallTypeReplacement = (
   const totalCALLTypeStackArguments: number =
     stackPositionOfCallArgsMemOffset + 4 // 4 for retIndex, retLen, argIndex, argLen
 
-  const methodData: Buffer = abi.methodID(executionManagerCALLMethodId, [])
+  const methodData: Buffer = abi.methodID(executionManagerCALLMethodName, [])
 
   // first, we store the memory we're going to overwrite in order to prepend methodId and params to the stack so the original memory can be recovered.
   const op: EVMBytecode = [
@@ -143,12 +143,25 @@ export const getCallTypeReplacement = (
   return op
 }
 
+/**
+ * This replaces EXTCODECOPY Opcode with a CALL to our ExecutionManager.
+ * Notably, this:
+ *  * Assumes the proper stack is in place to do the un-transpiled EXTCODECOPY
+ *  * Stores memory to be modified to the stack
+ *  * Safely stores method id and arguments to CALL argument memory
+ *  * CALLs the specified ovmEXTCODECOPY function
+ *  * Returns memory to its original pre-CALL state
+ *
+ * @param executionManagerAddress The address of the Execution Manager contract.
+ * @param executionManagerEXTCODECOPYMethodName The function name in the Execution Manager to handle EXTCODECOPYs.
+ */
+
 export const getEXTCODECOPYReplacement = (
   executionManagerAddress: Address,
-  executionManagerEXTCODECOPYMethodId: string
+  executionManagerEXTCODECOPYMethodName: string
 ) => {
   const methodData: Buffer = abi.methodID(
-    executionManagerEXTCODECOPYMethodId,
+    executionManagerEXTCODECOPYMethodName,
     []
   )
   const op: EVMBytecode = []
@@ -156,10 +169,11 @@ export const getEXTCODECOPYReplacement = (
   // EXTCODECOPY params and execution do the following to the stack:
   // [addr, destOffset, offset, length, …], -> […]
 
-  // We will need to pass addr, index, length
+  // We will only need to pass addr, index, length as calldata.
+  // (destOffset is what the opcode writes to, so it is not passed to the X-Mgr but instead reflected in the CALL's retOffset)
   const numStackWordsToPass: number = 3
   // this is the number of memory words we'll be overwriting for the call.
-  const callMemoryWordsToPrepend: number = 1 + numStackWordsToPass // 1 extra for methodId!
+  const callMemoryWordsToPass: number = 1 + numStackWordsToPass // 1 extra for methodId!
 
   // first, we push the memory we're gonna overwrite with calldata onto the stack, so that it may be parsed later.
   // to make sure there is not a collision between call and return data locations, we will store this AFTER (destOffset + length)
@@ -167,7 +181,7 @@ export const getEXTCODECOPYReplacement = (
     getDUPNOp(4), // DUP length
     getDUPNOp(3), // DUP destOffset
     { opcode: Opcode.ADD, consumedBytes: undefined }, // add them to get where we expect to store
-    ...pushMemoryOntoStack(callMemoryWordsToPrepend)
+    ...pushMemoryOntoStack(callMemoryWordsToPass)
   )
   // Now, the stack should be [(index of memory to replace), ...[pushed memory to swap back], ...[original stack]]
 
@@ -179,7 +193,7 @@ export const getEXTCODECOPYReplacement = (
   // *       [length (uint (32))]
   // so we will push thse in reverse order.
 
-  const indexOfOriginalStack: number = 1 + callMemoryWordsToPrepend
+  const indexOfOriginalStack: number = 1 + callMemoryWordsToPass
   op.push(
     // the final params of addition here (+0, +1, +2) account for the increased stack caused by each preceeding DUP
     getDUPNOp(indexOfOriginalStack + 4 + 0), // length
@@ -200,8 +214,8 @@ export const getEXTCODECOPYReplacement = (
   // CALL expects:
   // [gas, addr, value, argsOffset, argsLength, retOffset, retLength, …] -> [success, …]
   op.push(
-    getDUPNOp(0 + 1 + callMemoryWordsToPrepend + 4), // retLength is same as original stack's `len` (4th element)
-    getDUPNOp(1 + 1 + callMemoryWordsToPrepend + 2), // retOffset is second stack item of original stack
+    getDUPNOp(0 + 1 + callMemoryWordsToPass + 4), // retLength is same as original stack's `len` (4th element)
+    getDUPNOp(1 + 1 + callMemoryWordsToPass + 2), // retOffset is second stack item of original stack
     getPUSHIntegerOp(numBytesForCalldata), // argsLen
     // argsOffset is wherever we stored the params in memory, with added 32-4 = 28 bytes of 0s when methodId was MSTORE'd which we don't want to pass
     getDUPNOp(3 + 1), // three elements were just pushed, next is th index we stored at
@@ -223,7 +237,7 @@ export const getEXTCODECOPYReplacement = (
   )
   // Cleanup time is all that's left!
   op.push(
-    ...storeStackInMemory(callMemoryWordsToPrepend), // recover the original memory we pushed the stack
+    ...storeStackInMemory(callMemoryWordsToPass), // recover the original memory we pushed the stack
     // pop the original stack args which have now served their purpose.  RIP
     ...new Array(4).fill({
       opcode: Opcode.POP,
