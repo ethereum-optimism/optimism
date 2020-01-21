@@ -204,7 +204,7 @@ describe('Static Memory Opcode Replacement', () => {
     })
   })
   describe('callContractWithStackElementsAndReturnWordToStack', () => {
-    it.only('Should return the result of a simple contract getter with 2 stack params to memory successfully', async () => {
+    it('Should return the result of a simple contract getter with 2 stack params to memory successfully', async () => {
       const getterAddress: Address = await deployAssemblyReturningContract(
         evmUtil
       )

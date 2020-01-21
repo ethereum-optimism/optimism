@@ -17,6 +17,11 @@ import {
   ExecutionResultComparison,
 } from '../src/types/vm'
 
+import {
+  getPUSHBuffer,
+  getPUSHIntegerOp,
+} from '../src/tools/transpiler/memory-substitution'
+
 export const emptyBuffer: Buffer = Buffer.from('', 'hex')
 export const stateManagerAddress: Address =
   '0x0000000000000000000000000000000000000000'
@@ -270,6 +275,30 @@ export const stackDiffersBytecode: EVMBytecode = [
   },
 ]
 
+export const setupStackAndCALL = (
+  gas: number,
+  callTarget: Address,
+  value: number,
+  argOffset: number,
+  argLength: number,
+  retOffset: number,
+  retLength: number
+): EVMBytecode => {
+  return [
+    getPUSHIntegerOp(retLength), // ret length
+    getPUSHIntegerOp(retOffset), // ret offset; must exceed 4 * 32, TODO: need to write new memory in a loop to fix this edge case?
+    getPUSHIntegerOp(argLength), // args length
+    getPUSHIntegerOp(argOffset), // args offset; must exceed 4 * 32, TODO: need to write new memory in a loop to fix this edge case?
+    getPUSHIntegerOp(value), // value
+    getPUSHBuffer(hexStrToBuf(callTarget)), // target address
+    getPUSHIntegerOp(gas), // gas
+    {
+      opcode: Opcode.CALL,
+      consumedBytes: undefined,
+    },
+  ]
+}
+
 export const getBytecodeCallingContractMethod = (
   address: Address,
   methodName: string,
@@ -369,4 +398,20 @@ export const getBytecodeCallingContractMethod = (
       consumedBytes: undefined,
     },
   ]
+}
+
+export const setMemory = (toSet: Buffer): EVMBytecode => {
+  const op: EVMBytecode = []
+  const numWords = Math.ceil(toSet.byteLength / 32)
+  for (let i = 0; i < numWords; i++) {
+    op.push(
+      getPUSHBuffer(toSet.slice(i * 32, (i + 1) * 32)),
+      getPUSHIntegerOp(i * 32),
+      {
+        opcode: Opcode.MSTORE,
+        consumedBytes: undefined,
+      }
+    )
+  }
+  return op
 }

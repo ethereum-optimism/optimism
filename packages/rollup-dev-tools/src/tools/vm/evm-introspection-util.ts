@@ -8,8 +8,14 @@ import {
   remove0x,
   logError,
   hexStrToBuf,
+  bufferUtils,
 } from '@pigi/core-utils'
-import { Address, Opcode } from '@pigi/rollup-core'
+import {
+  Address,
+  Opcode,
+  bufferToBytecode,
+  EVMOpcodeAndBytes,
+} from '@pigi/rollup-core'
 
 import * as AsyncLock from 'async-lock'
 import * as abi from 'ethereumjs-abi'
@@ -29,6 +35,8 @@ import {
   StepContext,
   ExecutionComparison,
   ExecutionResult,
+  CallContext,
+  InvalidCALLStackError,
 } from '../../types/vm'
 
 const log: Logger = getLogger('evm-util')
@@ -154,6 +162,55 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
 
     return {
       result: result.execResult.returnValue,
+    }
+  }
+
+  public async getCallContext(bytecode: Buffer): Promise<CallContext> {
+    let contextBeforeCALL: StepContext
+    let hasCALLed: boolean
+
+    const callback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory(
+      async (stepContext: StepContext) => {
+        if (stepContext.opcode.code.equals(Opcode.CALL.code) && !hasCALLed) {
+          contextBeforeCALL = stepContext
+          hasCALLed = true
+        }
+      }
+    )
+    await this.runLocked(bytecode, callback)
+
+    if (contextBeforeCALL.stackDepth < 7) {
+      throw new InvalidCALLStackError()
+    }
+
+    const gas: Buffer = contextBeforeCALL.stack[0]
+    const addr: Address = bufferUtils.bufferToAddress(
+      contextBeforeCALL.stack[1]
+    )
+    const value: Buffer = contextBeforeCALL.stack[2]
+    const argOffset = new BN(contextBeforeCALL.stack[3]).toNumber()
+    const argLength = new BN(contextBeforeCALL.stack[4]).toNumber()
+    const retOffset = new BN(contextBeforeCALL.stack[5]).toNumber()
+    const retLength = new BN(contextBeforeCALL.stack[6]).toNumber()
+
+    let callData: Buffer = contextBeforeCALL.memory.slice(
+      argOffset,
+      argOffset + argLength
+    )
+    callData = bufferUtils.padRight(callData, argLength)
+
+    return {
+      input: {
+        gas,
+        addr,
+        value,
+        argOffset,
+        argLength,
+        retOffset,
+        retLength,
+      },
+      callData,
+      stepContext: contextBeforeCALL,
     }
   }
 

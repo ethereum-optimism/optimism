@@ -22,18 +22,11 @@ import {
   StepContext,
 } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
-import {
-  duplicateStackAt,
-  callContractWithStackElementsAndReturnWordToMemory,
-  storeStackElementsAsMemoryWords,
-  callContractWithStackElementsAndReturnWordToStack,
-} from '../../src/tools/transpiler/static-memory-opcodes'
-
+import { setMemory } from '../helpers'
 import { getCallTypeReplacement, getEXTCODECOPYReplacement } from '../../src'
 
 const log = getLogger(`test-static-memory-opcodes`)
 
-import * as abiForMethod from 'ethereumjs-abi'
 const abi = new ethers.utils.AbiCoder()
 
 /* Contracts */
@@ -42,24 +35,6 @@ import {
   getPUSHBuffer,
   getPUSHIntegerOp,
 } from '../../src/tools/transpiler/memory-substitution'
-
-// Helper function, sets the memory to the given buffer
-// TODO Move this into helpers and de-duplicate the one in static-mem-opcodes test
-const setMemory = (toSet: Buffer): EVMBytecode => {
-  let op: EVMBytecode = []
-  const numWords = Math.ceil(toSet.byteLength / 32)
-  for (let i = 0; i < numWords; i++) {
-    op = op.concat([
-      getPUSHBuffer(toSet.slice(i * 32, (i + 1) * 32)),
-      getPUSHIntegerOp(i * 32),
-      {
-        opcode: Opcode.MSTORE,
-        consumedBytes: undefined,
-      },
-    ])
-  }
-  return op
-}
 
 const contractDeployParams: Buffer = Buffer.from(
   remove0x(abi.encode(['bytes'], ['0xbeadfeed'])),
@@ -82,10 +57,6 @@ describe('Memory-dynamic Opcode Replacement', () => {
     getPUSHIntegerOp(100100100), // gas
   ]
 
-  beforeEach(async () => {
-    evmUtil = await EvmIntrospectionUtilImpl.create()
-  })
-
   const deployCallProxyContract = async (
     util: EvmIntrospectionUtil
   ): Promise<Address> => {
@@ -99,6 +70,10 @@ describe('Memory-dynamic Opcode Replacement', () => {
     )
     return bufToHexString(result.result)
   }
+  beforeEach(async () => {
+    evmUtil = await EvmIntrospectionUtilImpl.create()
+  })
+
   describe('Call-type opcode replacements', () => {
     it('should parse a CALL replacement', async () => {
       const getterAddress: Address = await deployCallProxyContract(evmUtil)

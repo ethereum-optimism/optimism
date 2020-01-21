@@ -7,6 +7,7 @@ import {
   ExecutionResult,
   ExecutionResultComparison,
   StepContext,
+  CallContext,
 } from './types'
 
 /**
@@ -42,6 +43,15 @@ export interface EvmIntrospectionUtil {
     paramTypes?: string[],
     abiEncodedParams?: Buffer
   ): Promise<ExecutionResult>
+
+  /**
+   * Gets the call details and call context right before the execution of the
+   * provided bytecode at its first CALL.
+   *
+   * @param bytecode The bytecode leading to a CALL to execute.
+   * @returns The CallContext at the first CALL in the bytecode.
+   */
+  getCallContext(bytecode: Buffer): Promise<CallContext>
 
   /**
    * Gets the result from executing the provided bytecode.

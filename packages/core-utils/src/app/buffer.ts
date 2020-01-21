@@ -1,3 +1,8 @@
+import { Address } from 'cluster'
+import { BigNumber } from 'ethers/utils'
+import { AddressZero } from 'ethers/constants'
+import { bufToHexString } from '../app/misc'
+
 /**
  * Checks if buf1 is less than or equal to buf2
  * @param buf1 the first Buffer
@@ -111,6 +116,10 @@ const numberToBuffer = (
   return buf
 }
 
+const bufferToAddress = (addressAsBuffer: Buffer): string => {
+  return bufToHexString(padLeft(addressAsBuffer, 20))
+}
+
 /**
  * A collection of useful utilities for comparing buffers.
  */
@@ -124,4 +133,5 @@ export const bufferUtils = {
   padLeft,
   padRight,
   numberToBuffer,
+  bufferToAddress,
 }

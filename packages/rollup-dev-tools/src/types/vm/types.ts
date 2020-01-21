@@ -15,6 +15,20 @@ export interface StepContext {
   memoryWordCount: number
 }
 
+export interface CallContext {
+  input: {
+    gas
+    addr: Address
+    value: Buffer
+    argOffset: number
+    argLength: number
+    retOffset: number
+    retLength: number
+  }
+  callData: Buffer
+  stepContext: StepContext
+}
+
 export interface ExecutionResultComparison {
   resultsDiffer: boolean
   firstResult: ExecutionResult
