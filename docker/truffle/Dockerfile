@@ -4,10 +4,11 @@
 FROM ajmay/truffle
 
 RUN apt update -y \
-    && apt install -y netcat jq
+    && apt install -y netcat jq python make g++
 
 RUN git clone https://github.com/omisego/plasma-contracts.git \
         && cd plasma-contracts/plasma_framework \
         && npm install \
-        && truffle compile \
-        && truffle tests
+        && npm install typescript \
+        && npx truffle compile \
+        && npm run test
