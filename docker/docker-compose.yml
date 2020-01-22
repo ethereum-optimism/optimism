@@ -32,7 +32,6 @@ services:
           sleep 1
         done;
         cd plasma-contracts/plasma_framework
-        rm -rf build
         truffle compile
         sed -i 's/127.0.0.1/ganache/g'  truffle-config.js
         truffle migrate --network local 2>&1 | tee /truffleshuffle/migrate.out
