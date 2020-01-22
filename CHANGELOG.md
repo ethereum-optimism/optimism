@@ -1,3 +1,19 @@
+## 0.0.5 (January 18, 2020)
+
+NEW FEATURES:
+
+N/A
+
+IMPROVEMENTS:
+
+* Wallet Smoke Test 
+  - [x] Execute test of `activateChildChain`.
+* Re-generate Plasma bindings
+
+BUG FIXES:
+
+N/A
+
 ## 0.0.4 (November 17, 2019)
 
 NEW FEATURES:
