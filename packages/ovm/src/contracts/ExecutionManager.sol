@@ -52,6 +52,11 @@ contract ExecutionManager is FullStateManager {
         address genesisAddress = ZERO_ADDRESS;
         associateCodeContract(genesisAddress, address(creatorContract));
 
+        // TODO: Set this in a more useful way
+        executionContext.gasLimit = 100000000;
+        // TODO: Set this in a more useful way
+        executionContext.fraudProofGasLimit = 50000000;
+
         // Set our owner
         // TODO
     }
@@ -65,7 +70,7 @@ contract ExecutionManager is FullStateManager {
      *       [methodID (bytes4)]
      *       [timestamp (uint)]
      *       [queueOrigin (uint)]
-     *       [ovmEntrypointAddress (address as bytes32 (big-endian))]
+     *       [ovmEntrypointAddress (address as bytes32 (left-padded, big-endian))]
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call] - The updated storage elements.
      *      This will be used by the fraud prover to check the post state root.
@@ -104,7 +109,7 @@ contract ExecutionManager is FullStateManager {
      *       [methodID (bytes4)]
      *       [timestamp (uint)]
      *       [queueOrigin (uint)]
-     *       [ovmEntrypointAddress (address as bytes32 (big-endian))]
+     *       [ovmEntrypointAddress (address as bytes32 (left-padded, big-endian))]
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
@@ -155,19 +160,130 @@ contract ExecutionManager is FullStateManager {
     * OVM Context Opcodes *
     **********************/
 
-    function ovmMsgSender() public view returns(address) {
+    /**
+     * @notice CALLER opcode (msg.sender) -- this gets the caller of the currently-running contract.
+     * Note: Calling this requires a CALL, which changes the CALLER, which is why we use executionContext.
+     *
+     * This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: 32-byte CALLER address containing the left-padded, big-endian encoding of the address.
+     */
+    function ovmCALLER() public view {
         // First make sure the ovmMsgSender was set
-        require(executionContext.ovmMsgSender != ZERO_ADDRESS, "Error attempting to access non-existent msgSender.");
-        // If not, simply return the msgSender
-        return executionContext.ovmMsgSender;
+        require(executionContext.ovmMsgSender != ZERO_ADDRESS, "Error: attempting to access non-existent msgSender.");
+
+        // This is returned as left-padded, big-endian, so pad it left!
+        bytes32 addressBytes = bytes32(bytes20(executionContext.ovmMsgSender)) >> 96;
+
+        assembly {
+            let addressMemory := mload(0x40)
+            mstore(addressMemory, addressBytes)
+            return(addressMemory, 32)
+        }
     }
 
-    // TODO: Add more context getters like timestamp & queueOrigin.
+    /**
+     * @notice ADDRESS opcode -- Gets the address of the currently-running contract.
+     * Note: Calling this requires a CALL, which changes the ADDRESS, which is why we use executionContext.
+     *
+     * This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: 32-byte ADDRESS containing the left-padded, big-endian encoding of the address.
+     */
+    function ovmADDRESS() public view {
+        // First make sure the ovmMsgSender was set
+        require(executionContext.ovmActiveContract != ZERO_ADDRESS, "Error: attempting to access non-existent ovmActiveContract.");
+
+        // This is returned as left-padded, big-endian, so pad it left!
+        bytes32 addressBytes = bytes32(bytes20(executionContext.ovmActiveContract)) >> 96;
+
+        assembly {
+            let addressMemory := mload(0x40)
+            mstore(addressMemory, addressBytes)
+            return(addressMemory, 32)
+        }
+    }
+
+    /**
+     * @notice TIMESTAMP opcode -- this gets the current timestamp. Since the L2 value for this
+     * will necessarily be different than L1, this needs to be overridden for the OVM.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the current timestamp.
+     */
+    function ovmTIMESTAMP() public view {
+        // First make sure the timestamp was set
+        require(executionContext.timestamp != 0, "Error: attempting to access non-existent timestamp.");
+
+        uint t = executionContext.timestamp;
+
+        assembly {
+            let timestampMemory := mload(0x40)
+            mstore(timestampMemory, t)
+            return(timestampMemory, 32)
+        }
+    }
+
+    /**
+     * @notice GASLIMIT opcode -- this gets the gas limit for the current transaction. Since the L2 value for this
+     * may be different than L1, this needs to be overridden for the OVM.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the current gas limit.
+     */
+    function ovmGASLIMIT() public view {
+        uint g = executionContext.gasLimit;
+
+        assembly {
+            let gasLimitMemory := mload(0x40)
+            mstore(gasLimitMemory, g)
+            return(gasLimitMemory, 32)
+        }
+    }
+
+    /**
+     * @notice Gets the gas limit for fraud proofs. This value exists to make sure that fraud proofs
+     * don't require an excessive amount of gas that is not feasible on L1.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the fraud proof gas limit.
+     */
+    function ovmFraudProofGasLimit() public view {
+        uint g = executionContext.fraudProofGasLimit;
+
+        assembly {
+            let gasLimitMemory := mload(0x40)
+            mstore(gasLimitMemory, g)
+            return(gasLimitMemory, 32)
+        }
+    }
+
+    /**
+     * @notice Gets the queue origin in the current Execution Context.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the current queue origin.
+     */
+    function ovmQueueOrigin() public view {
+        uint q = executionContext.queueOrigin;
+
+        assembly {
+            let queueOriginMemory := mload(0x40)
+            mstore(queueOriginMemory, q)
+            return(queueOriginMemory, 32)
+        }
+    }
 
     /********* Utils *********/
 
     /**
-     * @notice Initialize a new context, setting the timestamp and queue origin as well as zeroing out the
+     * @notice Initialize a new context, setting the timestamp, queue origin, and gasLimit as well as zeroing out the
      *         msgSender of the previous context.
      *         NOTE: this zeroing may not technically be needed as the context should always end up as zero at the end of each execution.
      * @param _timestamp The timestamp which should be used for this context.
@@ -245,7 +361,7 @@ contract ExecutionManager is FullStateManager {
         // We also need to increment the contract nonce
         incrementOvmContractNonce(creator);
 
-        // Shifting so that it is big-endian ('00'x12 + 20 bytes of address)
+        // Shifting so that it is left-padded, big-endian ('00'x12 + 20 bytes of address)
         bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
 
         // And finally return the address of the newly created ovmContract
@@ -287,7 +403,7 @@ contract ExecutionManager is FullStateManager {
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
-        // Shifting so that it is big-endian ('00'x12 + 20 bytes of address)
+        // Shifting so that it is left-padded, big-endian ('00'x12 + 20 bytes of address)
         bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
 
         // And finally return the address of the newly created ovmContract
@@ -351,7 +467,7 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: variable-length bytes:
      *       [methodID (bytes4)]
-     *       [targetOvmContractAddress (address as bytes32 (big-endian))]
+     *       [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
@@ -422,7 +538,7 @@ contract ExecutionManager is FullStateManager {
      * @notice Load a value from storage. Note each contract has it's own storage.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
-     * calldata: variable-length bytes:
+     * calldata: 36 bytes:
      *       [methodID (bytes4)]
      *       [storageSlot (bytes32)]
      * returndata: [storageValue (bytes32)]
@@ -447,7 +563,7 @@ contract ExecutionManager is FullStateManager {
      * @notice Store a value. Note each contract has it's own storage.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
-     * calldata: variable-length bytes:
+     * calldata: 68 bytes:
      *       [methodID (bytes4)]
      *       [storageSlot (bytes32)]
      *       [storageValue (bytes32)]
@@ -478,7 +594,7 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: 36 bytes:
      *      [methodID (bytes4)]
-     *      [targetOvmContractAddress (address as bytes32 (big-endian))]
+     *      [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      * returndata: 32 bytes: the big-endian codesize int.
      */
     function ovmEXTCODESIZE() public {
@@ -504,7 +620,7 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: 36 bytes:
      *      [methodID (bytes4)]
-     *      [targetOvmContractAddress (address as bytes32 (big-endian))]
+     *      [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      * returndata: 32 bytes: the hash.
      */
     function ovmEXTCODEHASH() public {
@@ -532,7 +648,7 @@ contract ExecutionManager is FullStateManager {
      * Below format of the bytes expected as input and written as output:
      * calldata: 100 bytes:
      *       [methodID (bytes4)]
-     *       [targetOvmContractAddress (address as bytes32 (big-endian))]
+     *       [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      *       [index (uint (32)]
      *       [length (uint (32))]
      * returndata: length (input param) bytes of contract at address, starting at index.

@@ -7,6 +7,8 @@ import {
   keccak256,
   remove0x,
   hexStrToBuf,
+  bufToHexString,
+  bufferUtils,
 } from '@pigi/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet } from 'ethers'
@@ -102,4 +104,24 @@ export const buildCreate2Address = (
       .slice(-40)
       .toLowerCase()
   )
+}
+
+/**
+ * Gets an address string from a bytes32 big-endian Address.
+ * @param bytes32Address The 32-byte address string
+ * @returns The 0x-prefixed 20-byte address string
+ */
+export const bytes32AddressToAddress = (bytes32Address: string): Address => {
+  return bufToHexString(hexStrToBuf(bytes32Address).slice(12)).toLowerCase()
+}
+
+/**
+ * Gets a padded big-endian 32-byte address string from an address string.
+ * @param addr The 20-byte address string
+ * @returns The 0x-prefixed 32-byte address string
+ */
+export const addressTobytes32Address = (addr: Address): string => {
+  return bufToHexString(
+    bufferUtils.padLeft(hexStrToBuf(addr), 32)
+  ).toLowerCase()
 }
