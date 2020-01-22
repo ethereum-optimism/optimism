@@ -21,7 +21,8 @@ contract SimpleCall {
     // expects _targetContract (address as bytes32), _calldata (variable-length bytes).
     // returns variable-length bytes result.
     function makeCall() public {
-        bytes4 methodId = bytes4(keccak256("ovmCALL()") >> 224);
+        // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
+        bytes32 methodId = keccak256("ovmCALL()") >> 224;
         address addr = executionManagerAddress;
         assembly {
             let callBytes := mload(0x40)

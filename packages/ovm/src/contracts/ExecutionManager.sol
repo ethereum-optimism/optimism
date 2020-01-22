@@ -13,12 +13,17 @@ import {CreatorContract} from "./CreatorContract.sol";
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is FullStateManager {
+    // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
+    bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
+    bytes32 constant executeCallMethodId = keccak256("executeCall()") >> 224;
+
+
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // Execution storage
     dt.ExecutionContext executionContext;
     // RLP encoding library
-    ContractAddressGenerator cag;
+    ContractAddressGenerator contractAddressGenerator;
 
     // Events
     event CreatedContract(
@@ -40,7 +45,7 @@ contract ExecutionManager is FullStateManager {
     constructor(address _purityCheckerAddress, address _contractAddressGeneration, address _owner) public {
         // Set the purity checker address
         // TODO
-        cag = ContractAddressGenerator(_contractAddressGeneration);
+        contractAddressGenerator = ContractAddressGenerator(_contractAddressGeneration);
         // Deploy our genesis code contract (the normal way)
         CreatorContract creatorContract = new CreatorContract(address(this));
         // Set our genesis creator contract to be the zero address
@@ -67,7 +72,7 @@ contract ExecutionManager is FullStateManager {
      */
     function executeTransaction() external {
         address addr = address(this);
-        bytes4 methodId = bytes4(keccak256("executeCall()") >> 224);
+        bytes32 methodId = executeCallMethodId;
 
         bytes memory execCallBytes;
         assembly {
@@ -104,12 +109,11 @@ contract ExecutionManager is FullStateManager {
      * returndata: [variable-length bytes returned from call]
      */
     function executeCall() external {
-        bytes4 methodId = bytes4(keccak256("ovmCALL()") >> 224);
-
         uint _timestamp;
         uint _queueOrigin;
         uint callSize;
         bytes memory callBytes;
+        bytes32 methodId = ovmCallMethodId;
 
         assembly {
             // populate timestamp and queue origin from calldata
@@ -235,7 +239,7 @@ contract ExecutionManager is FullStateManager {
         // First we need to generate the CREATE address
         address creator = executionContext.ovmActiveContract;
         uint creatorNonce = getOvmContractNonce(creator);
-        address _newOvmContractAddress = cag.getAddressFromCREATE(creator, creatorNonce);
+        address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
         // We also need to increment the contract nonce
@@ -279,7 +283,7 @@ contract ExecutionManager is FullStateManager {
 
         // First we need to generate the CREATE2 address
         address creator = executionContext.ovmActiveContract;
-        address _newOvmContractAddress = cag.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
+        address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
