@@ -1,9 +1,10 @@
 import '../setup'
 
 /* External Imports */
+import { Address } from '@pigi/rollup-core'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger, add0x, abi, remove0x } from '@pigi/core-utils'
-import { ContractFactory } from 'ethers'
+import { Contract, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
@@ -11,6 +12,7 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */
 import {
@@ -27,13 +29,15 @@ const log = getLogger('simple-storage', true)
 describe('SimpleStorage', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-
   // Create pointers to our execution manager & simple storage contract
-  let executionManager
-  let contractAddressGenerator
-  let rlpEncode
-  let simpleStorage
-  let simpleStorageOvmAddress
+  let executionManager: Contract
+  let contractAddressGenerator: Contract
+  let rlpEncode: Contract
+  let purityChecker: Contract
+  let simpleStorage: ContractFactory
+  let simpleStorageOvmAddress: Address
+  // Useful constants
+  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
 
   /* Link libraries before tests */
   before(async () => {
@@ -44,9 +48,13 @@ describe('SimpleStorage', () => {
       wallet,
       ContractAddressGenerator,
       [rlpEncode.address],
-      {
-        gasLimit: 6700000,
-      }
+      { gasLimit: 6700000 }
+    )
+    purityChecker = await deployContract(
+      wallet,
+      PurityChecker,
+      [ONE_FILLED_BYTES_32],
+      { gasLimit: 6700000 }
     )
   })
 
@@ -58,7 +66,7 @@ describe('SimpleStorage', () => {
       wallet,
       ExecutionManager,
       [
-        '0x' + '00'.repeat(20),
+        purityChecker.address,
         contractAddressGenerator.address,
         '0x' + '00'.repeat(20),
       ],

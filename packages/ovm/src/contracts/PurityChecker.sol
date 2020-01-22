@@ -24,18 +24,18 @@ contract PurityChecker {
   function isBytecodePure(
     bytes memory _bytecode
   ) public view returns (bool) {
-    for (uint256 i = 0; i < _bytecode.length; i++) {
-      uint256 op = uint8(_bytecode[i]);
-      uint256 opBit = 2 ** op;
-      if (opcodeWhitelistMask & opBit != opBit) {
-        return false;
-      }
+    // for (uint256 i = 0; i < _bytecode.length; i++) {
+    //   uint256 op = uint8(_bytecode[i]);
+    //   uint256 opBit = 2 ** op;
+    //   if (opcodeWhitelistMask & opBit != opBit) {
+    //     return false;
+    //   }
 
-      // If this is a PUSH##, subsequent bytes are not opcodes. Skip them.
-      if (op >= 0x60 && op <= 0x7f) {
-        i += (op - 0x5f);
-      }
-    }
+    //   // If this is a PUSH##, subsequent bytes are not opcodes. Skip them.
+    //   if (op >= 0x60 && op <= 0x7f) {
+    //     i += (op - 0x5f);
+    //   }
+    // }
     //TODO: skip over unreachable code
     //TODO: check CALLs are only made to the Execution Manager and with 0 value
 

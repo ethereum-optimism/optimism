@@ -11,15 +11,19 @@ const log = getLogger('state-manager', true)
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 import { Contract, ContractFactory, Wallet, utils } from 'ethers'
 
 /* Begin tests */
 describe('ExecutionManager', () => {
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
-  let executionManager
-  let contractAddressGenerator
-  let rlpEncode
+  let executionManager: Contract
+  let contractAddressGenerator: Contract
+  let rlpEncode: Contract
+  let purityChecker: Contract
+  // Useful constants
+  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
 
   /* Link libraries before tests */
   before(async () => {
@@ -30,9 +34,13 @@ describe('ExecutionManager', () => {
       wallet1,
       ContractAddressGenerator,
       [rlpEncode.address],
-      {
-        gasLimit: 6700000,
-      }
+      { gasLimit: 6700000 }
+    )
+    purityChecker = await deployContract(
+      wallet1,
+      PurityChecker,
+      [ONE_FILLED_BYTES_32],
+      { gasLimit: 6700000 }
     )
   })
 

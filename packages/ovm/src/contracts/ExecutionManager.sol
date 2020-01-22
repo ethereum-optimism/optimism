@@ -6,6 +6,7 @@ import {DataTypes as dt} from "./DataTypes.sol";
 import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
 import {CreatorContract} from "./CreatorContract.sol";
+import {PurityChecker} from "./PurityChecker.sol";
 
 /**
  * @title ExecutionManager
@@ -17,8 +18,10 @@ contract ExecutionManager is FullStateManager {
 
     // Execution storage
     dt.ExecutionContext executionContext;
-    // RLP encoding library
+    // Add Contract Address Generation library
     ContractAddressGenerator cag;
+    // Add Purity Checker library
+    PurityChecker purityChecker;
 
     // Events
     event CreatedContract(
@@ -39,7 +42,8 @@ contract ExecutionManager is FullStateManager {
      */
     constructor(address _purityCheckerAddress, address _contractAddressGeneration, address _owner) public {
         // Set the purity checker address
-        // TODO
+        purityChecker = PurityChecker(_purityCheckerAddress);
+        // Set the contract address generation address
         cag = ContractAddressGenerator(_contractAddressGeneration);
         // Deploy our genesis code contract (the normal way)
         CreatorContract creatorContract = new CreatorContract(address(this));
@@ -303,15 +307,19 @@ contract ExecutionManager is FullStateManager {
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal {
         // Purity check the initcode
-        // TODO
+        require(purityChecker.isBytecodePure(_ovmInitcode), "createNewContract: Contract init code is not pure.");
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
         address codeContractAddress = deployCodeContract(_ovmInitcode);
+        // Get the runtime bytecode
+        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
+        // Purity check the runtime bytecode
+        require(purityChecker.isBytecodePure(codeContractBytecode), "createNewContract: Contract runtime bytecode is not pure.");
         // Associate the code contract with our ovm contract
         associateCodeContract(_newOvmContractAddress, codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
-        bytes32 codeContractHash = getCodeContractHash(codeContractAddress);
+        bytes32 codeContractHash = keccak256(codeContractBytecode);
         // Revert to the previous the context
         restoreContractContext(oldMsgSender, oldActiveContract);
         // Emit CreatedContract event! We've created a new contract!

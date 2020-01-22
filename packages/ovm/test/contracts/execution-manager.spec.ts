@@ -4,13 +4,14 @@ import '../setup'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { abi, add0x, getLogger, remove0x } from '@pigi/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import { ContractFactory } from 'ethers'
+import { Contract, ContractFactory } from 'ethers'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 const log = getLogger('execution-manager', true)
 
@@ -21,9 +22,10 @@ const log = getLogger('execution-manager', true)
 describe('ExecutionManager', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  let executionManager
-  let contractAddressGenerator
-  let rlpEncode
+  let executionManager: Contract
+  let contractAddressGenerator: Contract
+  let rlpEncode: Contract
+  let purityChecker: Contract
   // Useful constants
   const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
   const TWO_FILLED_BYTES_32 = '0x' + '22'.repeat(32)
@@ -37,9 +39,13 @@ describe('ExecutionManager', () => {
       wallet,
       ContractAddressGenerator,
       [rlpEncode.address],
-      {
-        gasLimit: 6700000,
-      }
+      { gasLimit: 6700000 }
+    )
+    purityChecker = await deployContract(
+      wallet,
+      PurityChecker,
+      [ONE_FILLED_BYTES_32],
+      { gasLimit: 6700000 }
     )
   })
 
@@ -50,7 +56,7 @@ describe('ExecutionManager', () => {
       wallet,
       ExecutionManager,
       [
-        '0x' + '00'.repeat(20),
+        purityChecker.address,
         contractAddressGenerator.address,
         '0x' + '00'.repeat(20),
       ],
