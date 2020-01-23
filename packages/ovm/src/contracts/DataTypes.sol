@@ -20,6 +20,8 @@ contract DataTypes {
     struct ExecutionContext {
         uint timestamp;
         uint queueOrigin;
+        uint gasLimit;
+        uint fraudProofGasLimit;
         address ovmActiveContract;
         address ovmMsgSender;
     }

@@ -20,7 +20,8 @@ contract SimpleStorage {
 
     // takes slot bytes32, returns value bytes32
     function getStorage() public {
-        bytes4 methodId = bytes4(keccak256("ovmSLOAD()") >> 224);
+        // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
+        bytes32 methodId = keccak256("ovmSLOAD()") >> 224;
         address addr = executionManagerAddress;
 
         assembly {
@@ -47,7 +48,8 @@ contract SimpleStorage {
 
     // takes slot bytes32, value bytes32. No return value.
     function setStorage() public {
-        bytes4 methodId = bytes4(keccak256("ovmSSTORE()") >> 224);
+        // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
+        bytes32 methodId = keccak256("ovmSSTORE()") >> 224;
         address addr = executionManagerAddress;
 
         assembly {

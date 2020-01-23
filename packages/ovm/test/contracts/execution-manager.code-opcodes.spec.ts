@@ -30,7 +30,7 @@ import {
 
 export const abi = new ethers.utils.AbiCoder()
 
-const log = getLogger('code-related-opcodes', true)
+const log = getLogger('execution-manager-code-opcodes', true)
 
 /*********
  * TESTS *
@@ -68,9 +68,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       wallet,
       ExecutionManager,
       [purityChecker.address, '0x' + '00'.repeat(20)],
-      {
-        gasLimit: 6700000,
-      }
+      { gasLimit: 6700000 }
     )
 
     // Deploy SimpleCopier with the ExecutionManager
@@ -161,7 +159,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       })
       log.debug(`Resulting code: [${code}]`)
 
-      const codeBuff: Buffer = Buffer.from(remove0x(code), 'hex')
+      const codeBuff: Buffer = hexStrToBuf(code)
       codeBuff.should.eql(dummyContractBytecode, 'Incorrect code!')
     })
   })

@@ -11,13 +11,13 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
-const log = getLogger('execution-manager', true)
+const log = getLogger('execution-manager-create', true)
 
 /*********
  * TESTS *
  *********/
 
-describe('ExecutionManager', () => {
+describe('ExecutionManager -- Create opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let executionManager: Contract
@@ -73,69 +73,6 @@ describe('ExecutionManager', () => {
       log.debug(`Result: [${result}]`)
 
       result.length.should.be.greaterThan(2, 'Should not just be 0x')
-    })
-  })
-
-  const sstore = async (): Promise<void> => {
-    const methodId: string = ethereumjsAbi
-      .methodID('ovmSSTORE', [])
-      .toString('hex')
-
-    const data = `0x${methodId}${remove0x(ONE_FILLED_BYTES_32)}${remove0x(
-      TWO_FILLED_BYTES_32
-    )}`
-
-    // Now actually apply it to our execution manager
-    const tx = await wallet.sendTransaction({
-      to: executionManager.address,
-      data,
-      gasLimit: 6_700_000,
-    })
-
-    const reciept = await provider.getTransactionReceipt(tx.hash)
-    // Now make sure the SetStorage event was emitted
-    const rawSetStorageEvent = reciept.logs[0].data
-    const decodedSetStorageEvent = abi.decode(
-      ['address', 'bytes32', 'bytes32'],
-      rawSetStorageEvent
-    )
-
-    // Make sure we got back what we expect
-    decodedSetStorageEvent[1].should.equal(ONE_FILLED_BYTES_32)
-    decodedSetStorageEvent[2].should.equal(TWO_FILLED_BYTES_32)
-  }
-
-  /*
-   * Test SSTORE opcode
-   */
-  describe('ovmSSTORE', async () => {
-    it('successfully stores without throwing', async () => {
-      await sstore()
-    })
-  })
-
-  /*
-   * Test SLOAD opcode
-   */
-  describe('ovmSLOAD', async () => {
-    it('loads a value immediately after it is stored', async () => {
-      await sstore()
-
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmSLOAD', [])
-        .toString('hex')
-
-      const data = `0x${methodId}${remove0x(ONE_FILLED_BYTES_32)}`
-
-      // Now actually apply it to our execution manager
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit: 6_700_000,
-      })
-
-      // It should load the value which we just set
-      result.should.equal(TWO_FILLED_BYTES_32)
     })
   })
 })
