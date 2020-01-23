@@ -83,7 +83,6 @@ describe('SimpleStorage', () => {
       SimpleStorage,
       [executionManager.address]
     )
-
     // Also set our simple storage ethers contract so we can generate unsigned transactions
     simpleStorage = new ContractFactory(
       SimpleStorage.abi as any, // For some reason the ABI type definition is not accepted
