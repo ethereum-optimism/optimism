@@ -10,8 +10,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */
@@ -31,8 +29,6 @@ describe('SimpleStorage', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple storage contract
   let executionManager: Contract
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
   let purityChecker: Contract
   let simpleStorage: ContractFactory
   let simpleStorageOvmAddress: Address
@@ -41,15 +37,6 @@ describe('SimpleStorage', () => {
 
   /* Link libraries before tests */
   before(async () => {
-    rlpEncode = await deployContract(wallet, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-    contractAddressGenerator = await deployContract(
-      wallet,
-      ContractAddressGenerator,
-      [rlpEncode.address],
-      { gasLimit: 6700000 }
-    )
     purityChecker = await deployContract(
       wallet,
       PurityChecker,
@@ -65,11 +52,7 @@ describe('SimpleStorage', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [
-        purityChecker.address,
-        contractAddressGenerator.address,
-        '0x' + '00'.repeat(20),
-      ],
+      [purityChecker.address, '0x' + '00'.repeat(20)],
       {
         gasLimit: 6700000,
       }

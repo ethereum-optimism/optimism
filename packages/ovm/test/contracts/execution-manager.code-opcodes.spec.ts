@@ -20,8 +20,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */
@@ -43,8 +41,6 @@ describe('Execution Manager -- Code-related opcodes', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
   let purityChecker: Contract
   let dummyContract: ContractFactory
   let dummyContractAddress: Address
@@ -57,15 +53,6 @@ describe('Execution Manager -- Code-related opcodes', () => {
 
   /* Link libraries before tests */
   before(async () => {
-    rlpEncode = await deployContract(wallet, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-    contractAddressGenerator = await deployContract(
-      wallet,
-      ContractAddressGenerator,
-      [rlpEncode.address],
-      { gasLimit: 6700000 }
-    )
     purityChecker = await deployContract(
       wallet,
       PurityChecker,
@@ -80,11 +67,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [
-        purityChecker.address,
-        contractAddressGenerator.address,
-        '0x' + '00'.repeat(20),
-      ],
+      [purityChecker.address, '0x' + '00'.repeat(20)],
       {
         gasLimit: 6700000,
       }

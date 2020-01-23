@@ -18,9 +18,9 @@ contract ExecutionManager is FullStateManager {
 
     // Execution storage
     dt.ExecutionContext executionContext;
-    // Add Contract Address Generation library
+    // Add Contract Address Generation contract
     ContractAddressGenerator cag;
-    // Add Purity Checker library
+    // Add Purity Checker contract
     PurityChecker purityChecker;
 
 
@@ -42,11 +42,11 @@ contract ExecutionManager is FullStateManager {
      * @param _purityCheckerAddress The address for our purity checker, used during contract creation.
      * @param _owner The owner of our contract -- the only address allowed to make calls to our purity checker.
      */
-    constructor(address _purityCheckerAddress, address _contractAddressGeneration, address _owner) public {
+    constructor(address _purityCheckerAddress, address _owner) public {
         // Set the purity checker address
         purityChecker = PurityChecker(_purityCheckerAddress);
-        // Set the contract address generation address
-        cag = ContractAddressGenerator(_contractAddressGeneration);
+        // Initialize new contract address generator
+        cag = new ContractAddressGenerator();
         // Deploy our genesis code contract (the normal way)
         CreatorContract creatorContract = new CreatorContract(address(this));
         // Set our genesis creator contract to be the zero address

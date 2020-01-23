@@ -8,7 +8,6 @@ import { utils } from 'ethers'
 
 /* Contract Imports */
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
 import { create2Tests } from './test-files/create2test.json'
@@ -24,14 +23,6 @@ describe('ContractAddressGenerator', () => {
   const [wallet1, wallet2] = getWallets(createMockProvider())
   // Create pointers to our contractAddressGenerator
   let contractAddressGenerator
-  let rlpEncode
-
-  /* Link libraries before tests */
-  before(async () => {
-    rlpEncode = await deployContract(wallet1, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-  })
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
@@ -39,7 +30,7 @@ describe('ContractAddressGenerator', () => {
     contractAddressGenerator = await deployContract(
       wallet1,
       ContractAddressGenerator,
-      [rlpEncode.address],
+      [],
       {
         gasLimit: 6700000,
       }

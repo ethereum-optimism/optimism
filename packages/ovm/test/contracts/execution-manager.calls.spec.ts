@@ -38,8 +38,6 @@ describe('Execution Manager -- Calls', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
   let purityChecker: Contract
   let dummyContract: ContractFactory
   let dummyContractAddress: Address
@@ -48,15 +46,6 @@ describe('Execution Manager -- Calls', () => {
 
   /* Link libraries before tests */
   before(async () => {
-    rlpEncode = await deployContract(wallet, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-    contractAddressGenerator = await deployContract(
-      wallet,
-      ContractAddressGenerator,
-      [rlpEncode.address],
-      { gasLimit: 6700000 }
-    )
     purityChecker = await deployContract(
       wallet,
       PurityChecker,
@@ -71,11 +60,7 @@ describe('Execution Manager -- Calls', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [
-        purityChecker.address,
-        contractAddressGenerator.address,
-        '0x' + '00'.repeat(20),
-      ],
+      [purityChecker.address, '0x' + '00'.repeat(20)],
       {
         gasLimit: 6700000,
       }
