@@ -15,8 +15,8 @@ contract ContractAddressGenerator {
     /***************
     * Constructor *
     **************/
-    constructor(address _rlpEncodeAddress) public {
-        rlp = RLPEncode(_rlpEncodeAddress);
+    constructor() public {
+        rlp = new RLPEncode();
     }
     /**
      * @notice Generate a contract address using CREATE.

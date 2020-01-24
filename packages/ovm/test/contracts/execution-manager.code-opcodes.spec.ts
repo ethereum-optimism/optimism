@@ -20,8 +20,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */
 import {
@@ -42,26 +41,23 @@ describe('Execution Manager -- Code-related opcodes', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
+  let purityChecker: Contract
   let dummyContract: ContractFactory
   let dummyContractAddress: Address
   const dummyContractBytecode: Buffer = Buffer.from(
     DummyContract.evm.deployedBytecode.object,
     'hex'
   )
+  // Useful constants
+  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
+
   /* Link libraries before tests */
   before(async () => {
-    rlpEncode = await deployContract(wallet, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-    contractAddressGenerator = await deployContract(
+    purityChecker = await deployContract(
       wallet,
-      ContractAddressGenerator,
-      [rlpEncode.address],
-      {
-        gasLimit: 6700000,
-      }
+      PurityChecker,
+      [ONE_FILLED_BYTES_32],
+      { gasLimit: 6700000 }
     )
   })
   beforeEach(async () => {
@@ -71,14 +67,8 @@ describe('Execution Manager -- Code-related opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [
-        '0x' + '00'.repeat(20),
-        contractAddressGenerator.address,
-        '0x' + '00'.repeat(20),
-      ],
-      {
-        gasLimit: 6700000,
-      }
+      [purityChecker.address, '0x' + '00'.repeat(20)],
+      { gasLimit: 6700000 }
     )
 
     // Deploy SimpleCopier with the ExecutionManager

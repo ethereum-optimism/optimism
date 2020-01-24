@@ -11,7 +11,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 const log = getLogger('test:debug:rollup-list')
 
 /* Contract Imports */
-import * as OpcodeWhitelist from '../../build/OpcodeWhitelist.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 const whitelistMask =
   '0x600800000000000000000000ffffffffffffffff0bcf0000620000013fff0fff'
@@ -54,22 +54,25 @@ const whitelisted: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
   (x) => notWhitelisted.indexOf(x) < 0
 )
 
-describe('Opcode Whitelist', () => {
+describe('Purity Checker', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  let whitelist: Contract
+  let purityChecker: Contract
 
   /* Deploy a new whitelist contract before each test */
   beforeEach(async () => {
-    whitelist = await deployContract(wallet, OpcodeWhitelist, [whitelistMask], {
-      gasLimit: 6700000,
-    })
+    purityChecker = await deployContract(
+      wallet,
+      PurityChecker,
+      [whitelistMask],
+      { gasLimit: 6700000 }
+    )
   })
 
   describe('isBytecodeWhitelisted()', async () => {
     describe('Empty case', () => {
       it('should work for empty case', async () => {
-        const res: boolean = await whitelist.isBytecodeWhitelisted([])
+        const res: boolean = await purityChecker.isBytecodePure([])
         res.should.eq(true, `empty bytecode should be whitelisted!`)
       })
     })
@@ -77,7 +80,7 @@ describe('Opcode Whitelist', () => {
     describe('Single op-code cases', async () => {
       it('should correctly classify non-whitelisted', async () => {
         for (const opcode of notWhitelisted) {
-          const res: boolean = await whitelist.isBytecodeWhitelisted(
+          const res: boolean = await purityChecker.isBytecodePure(
             `0x${opcode.code.toString('hex')}`
           )
           res.should.eq(
@@ -89,7 +92,7 @@ describe('Opcode Whitelist', () => {
 
       it('should correctly classify whitelisted', async () => {
         for (const opcode of whitelisted) {
-          const res: boolean = await whitelist.isBytecodeWhitelisted(
+          const res: boolean = await purityChecker.isBytecodePure(
             `0x${opcode.code.toString('hex')}`
           )
           res.should.eq(
@@ -111,7 +114,7 @@ describe('Opcode Whitelist', () => {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
           )}${invalidOpcode.repeat(i)}`
-          const res: boolean = await whitelist.isBytecodeWhitelisted(bytecode)
+          const res: boolean = await purityChecker.isBytecodePure(bytecode)
           res.should.eq(
             true,
             `PUSH${i} failed by not skipping ${i} bytes of bytecode!`
@@ -129,7 +132,7 @@ describe('Opcode Whitelist', () => {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
           )}${invalidOpcode.repeat(i + 1)}`
-          const res: boolean = await whitelist.isBytecodeWhitelisted(bytecode)
+          const res: boolean = await purityChecker.isBytecodePure(bytecode)
           res.should.eq(
             false,
             `PUSH${i} succeeded, skipping ${i +
@@ -150,7 +153,7 @@ describe('Opcode Whitelist', () => {
           )}`
         }
 
-        const res: boolean = await whitelist.isBytecodeWhitelisted(bytecode)
+        const res: boolean = await purityChecker.isBytecodePure(bytecode)
         res.should.eq(true, `Bytecode of all whitelisted failed!`)
       })
 
@@ -165,7 +168,7 @@ describe('Opcode Whitelist', () => {
         }
 
         for (const opcode of notWhitelisted) {
-          const res: boolean = await whitelist.isBytecodeWhitelisted(
+          const res: boolean = await purityChecker.isBytecodePure(
             bytecode + opcode.code.toString('hex')
           )
           res.should.eq(

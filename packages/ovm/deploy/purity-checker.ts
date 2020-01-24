@@ -1,12 +1,12 @@
 import { Wallet } from 'ethers'
 import { deploy, deployContract } from './common'
 
-import * as OpcodeWhitelist from '../build/OpcodeWhitelist.json'
+import * as PurityChecker from '../build/contracts/PurityChecker.json'
 
 const deployContracts = async (wallet: Wallet): Promise<void> => {
-  let opcodeWhitelistContractAddress =
-    process.env.DEPLOY_OPCODE_WHITELIST_CONTRACT_ADDRESS
-  if (!opcodeWhitelistContractAddress) {
+  let purityCheckerContractAddress =
+    process.env.DEPLOY_PURITY_CHECKER_CONTRACT_ADDRESS
+  if (!purityCheckerContractAddress) {
     // Default config whitelists all opcodes EXCEPT:
     //    ADDRESS, BALANCE, BLOCKHASH, CALLCODE, CALLER, CALLVALUE, COINBASE,
     //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, EXTCODECOPY, EXTCODESIZE,
@@ -19,19 +19,19 @@ const deployContracts = async (wallet: Wallet): Promise<void> => {
 
     console.log(`Deploying OpcodeWhitelist using mask '${whitelistMask}'...`)
 
-    const opcodeWhitelist = await deployContract(
-      OpcodeWhitelist,
+    const purityChecker = await deployContract(
+      PurityChecker,
       wallet,
       whitelistMask
     )
-    opcodeWhitelistContractAddress = opcodeWhitelist.address
+    purityCheckerContractAddress = purityChecker.address
 
     console.log(
-      `OpcodeWhitelist deployed to ${opcodeWhitelistContractAddress}!\n\n`
+      `Purity Checker deployed to ${purityCheckerContractAddress}!\n\n`
     )
   } else {
     console.log(
-      `Using OpcodeWhitelist contract at ${opcodeWhitelistContractAddress}\n`
+      `Using Purity Checker contract at ${purityCheckerContractAddress}\n`
     )
   }
 

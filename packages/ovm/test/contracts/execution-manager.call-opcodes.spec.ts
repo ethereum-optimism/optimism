@@ -16,9 +16,9 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
+import * as DummyContract from '../../build/contracts/DummyContract.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 import * as SimpleCall from '../../build/contracts/SimpleCall.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
 import { manuallyDeployOvmContract, addressToBytes32Address } from '../helpers'
@@ -71,10 +71,11 @@ const timestampAndQueueOrigin: string = '00'.repeat(64)
 describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
+  // Useful constant
+  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
+  let purityChecker: Contract
   let callContract: ContractFactory
   let callContractAddress: Address
   let callContract2Address: Address
@@ -90,22 +91,17 @@ describe('Execution Manager -- Call opcodes', () => {
 
   /* Link libraries before tests */
   before(async () => {
-    rlpEncode = await deployContract(wallet, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-    contractAddressGenerator = await deployContract(
+    purityChecker = await deployContract(
       wallet,
-      ContractAddressGenerator,
-      [rlpEncode.address],
-      {
-        gasLimit: 6700000,
-      }
+      PurityChecker,
+      [ONE_FILLED_BYTES_32],
+      { gasLimit: 6700000 }
     )
 
     const deployTx = new ContractFactory(
       SimpleCall.abi,
       SimpleCall.bytecode
-    ).getDeployTransaction(contractAddressGenerator.address)
+    ).getDeployTransaction(purityChecker.address)
 
     createMethodIdAndData = `${createMethodId}${remove0x(deployTx.data)}`
     create2MethodIdAndData = `${create2MethodId}${'00'.repeat(32)}${remove0x(
@@ -119,11 +115,7 @@ describe('Execution Manager -- Call opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [
-        '0x' + '00'.repeat(20),
-        contractAddressGenerator.address,
-        '0x' + '00'.repeat(20),
-      ],
+      [purityChecker.address, '0x' + '00'.repeat(20)],
       {
         gasLimit: 6700000,
       }

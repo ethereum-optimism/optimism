@@ -38,7 +38,7 @@ describe('generates whitelist masks -- this is a util, not a test', () => {
   it('does the thing', () => {
     // Produces a hex number of 256 bits where each bit represents an
     // opcode, 0 - 255, which is set if whitelisted and unset otherwise.
-    // Useful for rollup-contracts' OpcodeWhitelist contract.
+    // Useful for the PurityChecker contract.
     console.log(
       `WHITELISTED OPCODES: ${whitelistedOpcodes.map((x) => x.name).join(',')}`
     )
