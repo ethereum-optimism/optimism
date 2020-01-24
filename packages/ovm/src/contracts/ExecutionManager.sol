@@ -284,6 +284,23 @@ contract ExecutionManager is FullStateManager {
         }
     }
 
+    /**
+     * @notice This gets whether or not this contract is currently in a static call context.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 of 1 if in a static context and 0 if not.
+     */
+    function isStaticContext() public view {
+        uint staticContext = executionContext.inStaticContext ? 1 : 0;
+
+        assembly {
+            let contextMemory := mload(0x40)
+            mstore(contextMemory, staticContext)
+            return(contextMemory, 32)
+        }
+    }
+
     /********* Utils *********/
 
     /**
@@ -343,6 +360,8 @@ contract ExecutionManager is FullStateManager {
      * returndata: [newOvmContractAddress (as bytes32)]
      */
     function ovmCREATE() public {
+        require(!executionContext.inStaticContext, "Cannot create new contracts from a STATICCALL.");
+
         bytes memory _ovmInitcode;
         assembly {
             _ovmInitcode := mload(0x40)
@@ -387,18 +406,22 @@ contract ExecutionManager is FullStateManager {
      * returndata: [newOvmContractAddress (as bytes32)]
      */
     function ovmCREATE2() public {
+        require(!executionContext.inStaticContext, "Cannot create new contracts from a STATICCALL.");
+
         bytes memory _ovmInitcode;
         bytes32 _salt;
         assembly {
+            // everything other than MethodID and salt is initcode
+            let initcodeSize := sub(calldatasize, 0x24)
             _ovmInitcode := mload(0x40)
             // skip methodID, copy first 32 bytes for _salt
             _salt := calldataload(4)
+            // need to ABI-encode _ovmInitcode for solidity calls
+            mstore(_ovmInitcode, initcodeSize)
+            // read calldata, ignoring methodID and salt -- the rest is _ovmInitcode
+            calldatacopy(add(_ovmInitcode, 0x20), 0x24, initcodeSize)
 
-            // Copy initcode
-            let initcodeSize := sub(calldatasize, 0x24)
-            calldatacopy(_ovmInitcode, 0x24, initcodeSize)
-
-            mstore(0x40, add(_ovmInitcode, initcodeSize))
+            mstore(0x40, add(0x20,add(_ovmInitcode, initcodeSize)))
         }
 
         // First we need to generate the CREATE2 address
@@ -534,8 +557,130 @@ contract ExecutionManager is FullStateManager {
         }
     }
 
-    function ovmSTATICCALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public { /* TODO */ }
-    function ovmDELEGATECALL(address _targetOvmContractAddress, bytes memory _ovmCalldata) public { /* TODO */ }
+    /**
+     * @notice STATICCALL opcode -- calls the code in question without allowing state modification.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [targetOvmContractAddress (address as bytes32 (big-endian))]
+     *       [callBytes (bytes (variable length))]
+     * returndata: [variable-length bytes returned from call]
+     */
+    function ovmSTATICCALL() public {
+        uint callSize;
+        bytes memory _callBytes;
+        bytes32 _targetOvmContractAddressBytes;
+        // parse calldata
+        assembly {
+            // skip 4 bytes for methodID and first 12 bytes of address
+            _targetOvmContractAddressBytes := calldataload(16)
+
+            // size is calldata - methodID - address (as bytes32)
+            callSize := sub(calldatasize, 0x24)
+
+            // set callBytes
+            _callBytes := mload(0x40)
+            mstore(0x40, add(_callBytes, callSize))
+            calldatacopy(_callBytes, 0x24, callSize)
+        }
+
+        bool wasStaticContext = executionContext.inStaticContext;
+        executionContext.inStaticContext = true;
+
+        address _targetOvmContractAddress = address(bytes20(_targetOvmContractAddressBytes));
+
+        // switch the context to the _targetOvmContractAddress
+        (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
+        address codeAddress = getCodeContractAddress(_targetOvmContractAddress);
+
+        bytes memory returnData;
+        uint returnSize;
+        // make the call
+        assembly {
+            returnData := mload(0x40)
+
+            let success := call(
+            gas,
+            codeAddress,
+            0,
+            _callBytes,
+            callSize,
+            returnData,
+            500000
+            )
+
+            returnSize := returndatasize
+
+            if eq(success, 0) {
+                revert(0, 0)
+            }
+        }
+
+        // Revert back to our old execution context
+        restoreContractContext(oldMsgSender, oldActiveContract);
+        // This covers the nested STATICCALL case
+        executionContext.inStaticContext = wasStaticContext;
+
+        // Return the return value
+        assembly {
+            return(returnData, returnSize)
+        }
+    }
+
+    /**
+     * @notice DELEGATECALL opcode -- calls the code in question without changing the OVM contract context.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: variable-length bytes:
+     *       [methodID (bytes4)]
+     *       [targetOvmContractAddress (address as bytes32 (big-endian))]
+     *       [callBytes (bytes (variable length))]
+     * returndata: [variable-length bytes returned from call]
+     */
+    function ovmDELEGATECALL() public {
+        uint callSize;
+        bytes memory _callBytes;
+        bytes32 _targetOvmContractAddressBytes;
+        // parse calldata
+        assembly {
+            // skip 4 bytes for methodID and first 12 bytes of address
+            _targetOvmContractAddressBytes := calldataload(16)
+
+            // size is calldata - methodID - address (as bytes32)
+            callSize := sub(calldatasize, 0x24)
+
+            // set callBytes
+            _callBytes := mload(0x40)
+            mstore(0x40, add(_callBytes, callSize))
+            calldatacopy(_callBytes, 0x24, callSize)
+        }
+
+        address _targetOvmContractAddress = address(bytes20(_targetOvmContractAddressBytes));
+        // NOTE: WE DO NOT SWITCH CONTEXTS HERE.
+        address codeAddress = getCodeContractAddress(_targetOvmContractAddress);
+
+        // make the call
+        assembly {
+            let returnData := mload(0x40)
+
+            let success := call(
+            gas,
+            codeAddress,
+            0,
+            _callBytes,
+            callSize,
+            returnData,
+            500000
+            )
+
+            if eq(success, 0) {
+                revert(0, 0)
+            }
+
+            return(returnData, returndatasize)
+        }
+    }
 
 
     /***************************
@@ -578,6 +723,8 @@ contract ExecutionManager is FullStateManager {
      * returndata: empty.
      */
     function ovmSSTORE() public {
+        require(!executionContext.inStaticContext, "Cannot call SSTORE from within a STATICCALL.");
+
         bytes32 _storageSlot;
         bytes32 _storageValue;
 

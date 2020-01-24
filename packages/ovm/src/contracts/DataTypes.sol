@@ -18,6 +18,7 @@ contract DataTypes {
     }
 
     struct ExecutionContext {
+        bool inStaticContext;
         uint timestamp;
         uint queueOrigin;
         uint gasLimit;
