@@ -33,7 +33,7 @@ const methodId: string = ethereumjsAbi
   .methodID('executeCall', [])
   .toString('hex')
 
-describe('Execution Manager -- Calls', () => {
+describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract

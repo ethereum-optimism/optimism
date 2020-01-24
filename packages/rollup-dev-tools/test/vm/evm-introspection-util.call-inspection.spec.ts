@@ -41,20 +41,19 @@ import {
 import * as AssemblyReturnGetter from '../contracts/build/AssemblyReturnGetter.json'
 const abi = new ethers.utils.AbiCoder()
 
-import * as abiForMethod from 'ethereumjs-abi'
+import * as ethereumjsAbi from 'ethereumjs-abi'
 import { CALL_EXCEPTION } from 'ethers/errors'
 
 const getRandomWordsWithMethodIdAtOffset = (
   methodName: string,
-  offset: number
+  offset: number,
+  totalWords: number
 ): Buffer => {
-  const memoryBeforeMethodId: Buffer = Buffer.alloc(offset).fill(25)
-  const methodId: Buffer = abiForMethod.methodID(methodName, [])
-  const totalSize: number = 32 * 7
-  const memoryAfterMethodId: Buffer = Buffer.alloc(totalSize - offset - 4).fill(
-    69
-  )
-  return Buffer.concat([memoryBeforeMethodId, methodId, memoryAfterMethodId])
+  const totalSizeBytes: number = 32 * totalWords
+  return Buffer.alloc(totalSizeBytes)
+    .fill(25, 0, offset)
+    .fill(ethereumjsAbi.methodID(methodName, []), offset, offset + 4)
+    .fill(69, offset + 4)
 }
 
 const valToReturn: Buffer = hexStrToBuf('0xdeadbeef')
@@ -94,7 +93,8 @@ describe('EvmIntrospectionUtil', () => {
     it('should successfully parse a CALL to a simple returner contract', async () => {
       const memoryToFill: Buffer = getRandomWordsWithMethodIdAtOffset(
         getterMethodName,
-        argOffset
+        argOffset,
+        7 // random val
       )
 
       const fillMemoryAndCall: EVMBytecode = [
@@ -118,21 +118,39 @@ describe('EvmIntrospectionUtil', () => {
         bytecodeToBuffer(fillMemoryAndCall)
       )
 
-      // context should indeed be a CALL with the pre-RETURNed memory
-      console.log(bufToHexString(callContext.stepContext.memory))
-      callContext.stepContext.memory.should.deep.equal(memoryToFill)
-      callContext.stepContext.opcode.should.equal(Opcode.CALL)
-      // argsLocation should match up
-      callContext.input.argLength.should.equal(argLength)
-      callContext.input.argOffset.should.equal(argOffset)
-      // calldata should be the methodId
-      const methodId: Buffer = abiForMethod.methodID(getterMethodName, [])
-      callContext.callData.should.deep.equal(methodId)
-      // should be headed to the returner address specified
-      callContext.input.addr.should.deep.equal(returnerAddress)
-      // check return memory vals
-      callContext.input.retOffset.should.equal(retOffset)
-      callContext.input.retLength.should.equal(retLength)
+      callContext.stepContext.memory.should.deep.equal(
+        memoryToFill,
+        'context should have the pre-RETURNed memory'
+      )
+      callContext.stepContext.opcode.should.equal(
+        Opcode.CALL,
+        'context should be a CALL'
+      )
+      callContext.input.argLength.should.equal(
+        argLength,
+        'argLength should be the same as provided to call'
+      )
+      callContext.input.argOffset.should.equal(
+        argOffset,
+        'argOffset should be the same as provided to call'
+      )
+      const methodId: Buffer = ethereumjsAbi.methodID(getterMethodName, [])
+      callContext.callData.should.deep.equal(
+        methodId,
+        'calldata should be the methodId'
+      )
+      callContext.input.addr.should.deep.equal(
+        returnerAddress,
+        'CALL should be headed to the returner address specified'
+      )
+      callContext.input.retOffset.should.equal(
+        retOffset,
+        'retOffset should be the same as provided to call'
+      )
+      callContext.input.retLength.should.equal(
+        retLength,
+        'retLength should be the same as provided to call'
+      )
     })
 
     it('Should pad calldata with 0s if exceeding memory size', async () => {
