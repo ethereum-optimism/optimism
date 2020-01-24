@@ -11,8 +11,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */

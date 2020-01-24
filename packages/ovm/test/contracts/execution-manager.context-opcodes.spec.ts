@@ -15,8 +15,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as ContextContract from '../../build/contracts/ContextContract.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */
 import {
@@ -47,12 +46,11 @@ describe('Execution Manager -- Context opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   const defaultTimestampAndQueueOrigin: string = '00'.repeat(64)
+  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
 
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
-
+  let purityChecker: Contract
   let contract: ContractFactory
   let contract2: ContractFactory
   let contractAddress: Address
@@ -63,18 +61,14 @@ describe('Execution Manager -- Context opcodes', () => {
 
   /* Link libraries before tests */
   before(async () => {
-    rlpEncode = await deployContract(wallet, RLPEncode, [], {
-      gasLimit: 6700000,
-    })
-    contractAddressGenerator = await deployContract(
+    purityChecker = await deployContract(
       wallet,
-      ContractAddressGenerator,
-      [rlpEncode.address],
-      {
-        gasLimit: 6700000,
-      }
+      PurityChecker,
+      [ONE_FILLED_BYTES_32],
+      { gasLimit: 6700000 }
     )
   })
+
   beforeEach(async () => {
     // Before each test let's deploy a fresh ExecutionManager and DummyContract
 
@@ -82,14 +76,8 @@ describe('Execution Manager -- Context opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [
-        '0x' + '00'.repeat(20),
-        contractAddressGenerator.address,
-        '0x' + '00'.repeat(20),
-      ],
-      {
-        gasLimit: 6700000,
-      }
+      [purityChecker.address, '0x' + '00'.repeat(20)],
+      { gasLimit: 6700000 }
     )
 
     // Deploy SimpleCopier with the ExecutionManager

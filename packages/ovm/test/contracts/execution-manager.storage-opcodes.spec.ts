@@ -43,9 +43,7 @@ describe('ExecutionManager -- Storage opcodes', () => {
       wallet,
       ExecutionManager,
       [purityChecker.address, '0x' + '00'.repeat(20)],
-      {
-        gasLimit: 6700000,
-      }
+      { gasLimit: 6700000 }
     )
   })
 
