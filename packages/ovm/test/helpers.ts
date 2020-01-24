@@ -120,7 +120,7 @@ export const bytes32AddressToAddress = (bytes32Address: string): Address => {
  * @param addr The 20-byte address string
  * @returns The 0x-prefixed 32-byte address string
  */
-export const addressTobytes32Address = (addr: Address): string => {
+export const addressToBytes32Address = (addr: Address): string => {
   return bufToHexString(
     bufferUtils.padLeft(hexStrToBuf(addr), 32)
   ).toLowerCase()

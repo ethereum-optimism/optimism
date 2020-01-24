@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { abi, add0x, getLogger, remove0x } from '@pigi/core-utils'
+import { getLogger, remove0x } from '@pigi/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { ContractFactory } from 'ethers'
 
@@ -24,9 +24,7 @@ describe('ExecutionManager -- Create opcodes', () => {
   let executionManager
   let contractAddressGenerator
   let rlpEncode
-  // Useful constants
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
-  const TWO_FILLED_BYTES_32 = '0x' + '22'.repeat(32)
+  let deployTx
 
   /* Link libraries before tests */
   before(async () => {
@@ -58,6 +56,10 @@ describe('ExecutionManager -- Create opcodes', () => {
         gasLimit: 6700000,
       }
     )
+    deployTx = new ContractFactory(
+      SimpleStorage.abi,
+      SimpleStorage.bytecode
+    ).getDeployTransaction(executionManager.address)
   })
 
   /*
@@ -65,16 +67,35 @@ describe('ExecutionManager -- Create opcodes', () => {
    */
   describe('ovmCREATE', async () => {
     it('does not throw when passed bytecode', async () => {
-      const deployTx = new ContractFactory(
-        SimpleStorage.abi,
-        SimpleStorage.bytecode
-      ).getDeployTransaction(executionManager.address)
-
       const methodId: string = ethereumjsAbi
         .methodID('ovmCREATE', [])
         .toString('hex')
 
       const data = `0x${methodId}${remove0x(deployTx.data)}`
+
+      // Now actually apply it to our execution manager
+      const result = await executionManager.provider.call({
+        to: executionManager.address,
+        data,
+        gasLimit: 6_700_000,
+      })
+
+      log.debug(`Result: [${result}]`)
+
+      result.length.should.be.greaterThan(2, 'Should not just be 0x')
+    })
+  })
+
+  /*
+   * Test CREATE2 opcode
+   */
+  describe('ovmCREATE2', async () => {
+    it('does not throw when passed salt and bytecode', async () => {
+      const methodId: string = ethereumjsAbi
+        .methodID('ovmCREATE2', [])
+        .toString('hex')
+
+      const data = `0x${methodId}${'00'.repeat(32)}${remove0x(deployTx.data)}`
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({

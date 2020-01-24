@@ -23,7 +23,7 @@ import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
   bytes32AddressToAddress,
-  addressTobytes32Address,
+  addressToBytes32Address,
 } from '../helpers'
 import { should } from '../setup'
 
@@ -126,8 +126,8 @@ describe('Execution Manager -- Context opcodes', () => {
       ContextContract.bytecode
     )
 
-    contractAddress32 = addressTobytes32Address(contractAddress)
-    contract2Address32 = addressTobytes32Address(contract2Address)
+    contractAddress32 = addressToBytes32Address(contractAddress)
+    contract2Address32 = addressToBytes32Address(contract2Address)
   })
 
   describe('ovmCALLER', async () => {
