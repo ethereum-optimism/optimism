@@ -76,10 +76,6 @@ describe('Execution Manager -- Call opcodes', () => {
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
   let purityChecker: Contract
-  let dummyContract: ContractFactory
-  let dummyContractAddress: Address
-  let contractAddressGenerator: Contract
-  let rlpEncode: Contract
   let callContract: ContractFactory
   let callContractAddress: Address
   let callContract2Address: Address
