@@ -4,7 +4,7 @@ pragma solidity ^0.5.0;
  * @title PurityChecker
  * @notice Purity Checker contract used to check whether or not bytecode is pure, meaning:
  * 1. It uses only whitelisted opcodes
- * 2. CALLs are preceded by specific opcodes ()
+ * 2. All CALLs are to the Execution Manager and have no value set (no ETH sent)
  */
 contract PurityChecker {
   uint256 public opcodeWhitelistMask;

@@ -27,11 +27,11 @@ const deployContracts = async (wallet: Wallet): Promise<void> => {
     purityCheckerContractAddress = purityChecker.address
 
     console.log(
-      `OpcodeWhitelist deployed to ${purityCheckerContractAddress}!\n\n`
+      `Purity Checker deployed to ${purityCheckerContractAddress}!\n\n`
     )
   } else {
     console.log(
-      `Using OpcodeWhitelist contract at ${purityCheckerContractAddress}\n`
+      `Using Purity Checker contract at ${purityCheckerContractAddress}\n`
     )
   }
 
