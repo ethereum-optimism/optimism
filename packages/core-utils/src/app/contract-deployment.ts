@@ -1,27 +1,33 @@
-// Make sure an environment argument was passed
+/* tslint:disable:no-console */
+
+/* External Imports */
 import { config } from 'dotenv'
-import { resolve } from 'path'
 import { Contract, ContractFactory, ethers, Wallet } from 'ethers'
 import { Provider } from 'ethers/providers'
 
+/* Internal Imports */
+import { ContractDeploymentFunction } from '../types'
+import { sleep } from './misc'
+
 /**
  * Makes sure the necessary environment parameters are defined and loads environment config.
+ *
+ * @param configDirectoryPath The absolute path to the config directory for this deployment.
  */
-const checkParamsAndLoadConfig = () => {
+const checkParamsAndLoadConfig = (configDirectoryPath: string) => {
   if (
     !process.argv.length ||
     process.argv[process.argv.length - 1].endsWith('.js')
   ) {
     console.log(
-      '\n\nError: Environment argument not provided. Usage: "yarn run deploy:purity-checker <env>"\n'
+      '\n\nError: Environment argument not provided. Usage: "yarn run deploy:<contract> <env>"\n'
     )
     process.exit(0)
   }
 
   // Get the environment and read the appropriate environment file
   const environment = process.argv[process.argv.length - 1]
-  // Note: Path is from 'build/deploy/<script>.js'
-  config({ path: resolve(__dirname, `../../config/.${environment}.env`) })
+  config({ path: `${configDirectoryPath}/.${environment}.env` })
 }
 
 /**
@@ -53,15 +59,23 @@ export const deployContract = async (
  * Handles deploying contracts by calling the provided `deployContractsFunction`.
  * This function loads all of the necessary config and context for a deployment,
  * allowing `deployContractsFunction` to focus on what is being deployed.
- * @param deployContractsFunction The function that dictates what is deployed
+ *
+ * @param deployContractFunction The function that dictates what is deployed
+ * @param configDirectoryPath The absolute path to the config directory for this deployment
+ * @param rootContract Whether or not this is the main contract being deployed (as compared to a dependency).
+ * @returns The address of the deployed contract
  */
 export const deploy = async (
-  deployContractsFunction: (w: Wallet) => Promise<void>
-): Promise<void> => {
+  deployContractFunction: ContractDeploymentFunction,
+  configDirectoryPath: string,
+  rootContract: boolean = true
+): Promise<string> => {
   // If this doesn't work, nothing will happen.
-  checkParamsAndLoadConfig()
+  checkParamsAndLoadConfig(configDirectoryPath)
 
-  console.log(`\n\n********** STARTING DEPLOYMENT ***********\n\n`)
+  if (rootContract) {
+    console.log(`\n\n********** STARTING DEPLOYMENT ***********\n\n`)
+  }
   // Make sure mnemonic exists
   const deployMnemonic = process.env.DEPLOY_MNEMONIC
   if (!deployMnemonic) {
@@ -85,8 +99,12 @@ export const deploy = async (
   // Create wallet
   const wallet = Wallet.fromMnemonic(deployMnemonic).connect(provider)
 
-  console.log(`\nDeploying to network [${network || 'local'}] in 5 seconds!\n`)
-  setTimeout(() => {
-    deployContractsFunction(wallet)
-  }, 5_000)
+  if (rootContract) {
+    console.log(
+      `\nDeploying to network [${network || 'local'}] in 5 seconds!\n`
+    )
+    await sleep(5_000)
+  }
+
+  return deployContractFunction(wallet)
 }

@@ -1,12 +1,20 @@
+/* External Imports */
+import { Address } from '@pigi/rollup-core'
+import { deploy, deployContract } from '@pigi/core-utils'
 import { Wallet } from 'ethers'
-import { deploy, deployContract } from './common'
 
+/* Internal Imports */
 import * as PurityChecker from '../build/contracts/PurityChecker.json'
+import { resolve } from 'path'
 
-const deployContracts = async (wallet: Wallet): Promise<void> => {
+const purityCheckerDeploymentFunction = async (
+  wallet: Wallet
+): Promise<Address> => {
   let purityCheckerContractAddress =
     process.env.DEPLOY_PURITY_CHECKER_CONTRACT_ADDRESS
   if (!purityCheckerContractAddress) {
+    console.log(`\nDeploying Purity Checker!\n`)
+
     // Default config whitelists all opcodes EXCEPT:
     //    ADDRESS, BALANCE, BLOCKHASH, CALLCODE, CALLER, CALLVALUE, COINBASE,
     //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, EXTCODECOPY, EXTCODESIZE,
@@ -34,8 +42,22 @@ const deployContracts = async (wallet: Wallet): Promise<void> => {
       `Using Purity Checker contract at ${purityCheckerContractAddress}\n`
     )
   }
-
-  // TODO: Deploy other stuff that depends on whitelist
+  return purityCheckerContractAddress
 }
 
-deploy(deployContracts)
+/**
+ * Deploys the Purity Checker contract.
+ *
+ * @param rootContract Whether or not this is the main contract being deployed (as compared to a dependency).
+ * @returns The deployed contract's address.
+ */
+export const deployPurityChecker = async (
+  rootContract: boolean = false
+): Promise<string> => {
+  // Note: Path is from 'build/deploy/<script>.js'
+  const configDirPath = resolve(__dirname, `../../config/`)
+
+  return deploy(purityCheckerDeploymentFunction, configDirPath, rootContract)
+}
+
+deployPurityChecker(true)

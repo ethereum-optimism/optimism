@@ -1,6 +1,7 @@
 export * from './keystore'
 export * from './serialization'
 
+export * from './contract-deployment'
 export * from './hash-algorithms'
 export * from './log'
 export * from './range'

@@ -7,6 +7,7 @@ export * from './serialization'
 export * from './transport'
 
 export * from './buffer'
+export * from './contract-deployment'
 export * from './crypto'
 export * from './equals'
 export * from './log'
