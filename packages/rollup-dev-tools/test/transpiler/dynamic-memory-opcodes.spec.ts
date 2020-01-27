@@ -29,6 +29,7 @@ import {
   getCallTypeReplacement,
   getEXTCODECOPYReplacement,
   callContractWithStackElementsAndReturnWordToMemory,
+  BIG_ENOUGH_GAS_LIMIT,
 } from '../../src'
 
 const log = getLogger(`test-static-memory-opcodes`)
@@ -42,7 +43,8 @@ import {
   getPUSHIntegerOp,
 } from '../../src/tools/transpiler/memory-substitution'
 
-const valToReturn = '0xbeadfeedbeadfeed'
+const valToReturn =
+  '0xbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeed'
 const contractDeployParams: Buffer = Buffer.from(
   remove0x(abi.encode(['bytes'], [valToReturn])),
   'hex'
@@ -60,7 +62,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
   const originalArgLength: number = 15
 
   const setupStackForCALL: EVMBytecode = setupStackAndCALL(
-    1000100100,
+    BIG_ENOUGH_GAS_LIMIT,
     originalAddress,
     0,
     originalArgOffset,
@@ -115,6 +117,9 @@ describe('Memory-dynamic Opcode Replacement', () => {
         ), // original calldata
       ])
 
+      console.log('expected:' + bufToHexString(callContext.callData))
+      console.log('actual:  ' + bufToHexString(expectedCallData))
+
       callContext.callData.equals(expectedCallData).should.be.true
 
       // make sure the end state of memory is unaffectedx
@@ -124,9 +129,10 @@ describe('Memory-dynamic Opcode Replacement', () => {
       )
       const expectedFinalMemory: Buffer = Buffer.concat([
         mockMemory.slice(0, retoffset),
-        hexStrToBuf(valToReturn).slice(0, retLength - 1),
-        mockMemory.slice(retoffset + retLength - 1),
+        hexStrToBuf(valToReturn).slice(0, retLength),
+        mockMemory.slice(retoffset + retLength),
       ])
+
       finalContext.memory.equals(expectedFinalMemory).should.be.true
 
       // check that (success) bool is only thing left on the stack
@@ -169,8 +175,8 @@ describe('Memory-dynamic Opcode Replacement', () => {
       )
       const expectedFinalMemory: Buffer = Buffer.concat([
         mockMemory.slice(0, retoffset),
-        hexStrToBuf(valToReturn).slice(0, retLength - 1),
-        mockMemory.slice(retoffset + retLength - 1),
+        hexStrToBuf(valToReturn).slice(0, retLength),
+        mockMemory.slice(retoffset + retLength),
       ])
       finalContext.memory.equals(expectedFinalMemory).should.be.true
 

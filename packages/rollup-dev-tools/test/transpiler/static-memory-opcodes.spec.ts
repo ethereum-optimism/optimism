@@ -48,11 +48,13 @@ describe('Static Memory Opcode Replacement', () => {
     'hex'
   )
   const getterFunctionName: string = 'get'
+  const valToReturn: Buffer = hexStrToBuf(
+    '0xbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeed'
+  )
   const contractDeployParams: Buffer = Buffer.from(
-    remove0x(abi.encode(['bytes'], ['0xdeadbeef'])),
+    remove0x(abi.encode(['bytes'], [bufToHexString(valToReturn)])),
     'hex'
   )
-
   beforeEach(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()
   })
@@ -155,13 +157,12 @@ describe('Static Memory Opcode Replacement', () => {
       )
 
       const methodBytes: Buffer = abiForMethod.methodID(getterFunctionName, [])
-      // the resulting memory should be: [0000s proceeding method Id, methodId], [deadbeef, 0000...]
+      // the resulting memory should be: [0000s proceeding method Id, methodId], [valToReturn]
       // where [] above indicates a 32 byte word.
       const expectedMemorySlice: Buffer = Buffer.concat([
         Buffer.alloc(32 - 4),
         methodBytes,
-        Buffer.from('deadbeef', 'hex'),
-        Buffer.alloc(32 - 4),
+        valToReturn,
       ])
 
       finalContext.memory.should.deep.equal(expectedMemorySlice)
@@ -197,7 +198,8 @@ describe('Static Memory Opcode Replacement', () => {
       // the resulting memory should be: [0000s proceeding method Id, methodId], [stack param 1], [stack param 2], [stack param 3] [deadbeef, 0000...]
       // where [] above indicates a 32 byte word.
       const expectedMemorySlice: Buffer = hexStrToBuf(
-        '0x000000000000000000000000000000000000000000000000000000006d4ce63c000000000000000000000000000000000000000000000000000000000000000001010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202deadbeef00000000000000000000000000000000000000000000000000000000'
+        '0x000000000000000000000000000000000000000000000000000000006d4ce63c000000000000000000000000000000000000000000000000000000000000000001010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202' +
+          remove0x(bufToHexString(valToReturn))
       )
 
       finalContext.memory.should.deep.equal(expectedMemorySlice)
@@ -243,9 +245,7 @@ describe('Static Memory Opcode Replacement', () => {
       finalContext.memory.should.deep.equal(initialMemory)
       // make sure deadbeef was put on  the stack
       finalContext.stackDepth.should.equal(1)
-      finalContext.stack[0]
-        .slice(0, 4)
-        .should.deep.equal(hexStrToBuf('0xdeadbeef'))
+      finalContext.stack[0].should.deep.equal(valToReturn)
     })
   })
 })
