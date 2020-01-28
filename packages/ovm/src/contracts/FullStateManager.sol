@@ -92,7 +92,7 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
-    function getCodeContractAddress(address _ovmContractAddress) internal returns(address) {
+    function getCodeContractAddress(address _ovmContractAddress) public view returns(address) {
         return ovmCodeContracts[_ovmContractAddress];
     }
 

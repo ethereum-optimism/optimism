@@ -18,7 +18,8 @@ contract ExecutionManager is FullStateManager {
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
     bytes32 constant executeCallMethodId = keccak256("executeCall()") >> 224;
 
-
+    // creator contract address
+    address constant creatorContractAddress = 0x0000000000000000000000000000000000000000;
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // Execution storage
@@ -29,6 +30,7 @@ contract ExecutionManager is FullStateManager {
     PurityChecker purityChecker;
 
     // Events
+    event ActiveContract(address _activeContract);
     event CreatedContract(
         address _ovmContractAddress,
         address _codeContractAddress,
@@ -53,7 +55,7 @@ contract ExecutionManager is FullStateManager {
         // Deploy our genesis code contract (the normal way)
         CreatorContract creatorContract = new CreatorContract(address(this));
         // Set our genesis creator contract to be the zero address
-        address genesisAddress = ZERO_ADDRESS;
+        address genesisAddress = creatorContractAddress;
         associateCodeContract(genesisAddress, address(creatorContract));
 
         // TODO: Set this in a more useful way
@@ -330,6 +332,8 @@ contract ExecutionManager is FullStateManager {
         // Set our new context
         executionContext.ovmActiveContract = _newActiveContract;
         executionContext.ovmMsgSender = _oldActiveContract;
+        // Emit an event so we can track the active contract. This is used in order to parse transaction receipts in the fullnode
+        emit ActiveContract(_newActiveContract);
         // Return old context so we can later revert to it
         return (_oldMsgSender, _oldActiveContract);
     }

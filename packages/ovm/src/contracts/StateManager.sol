@@ -17,7 +17,7 @@ contract StateManager {
 
     // Contract code storage / contract address retrieval
     function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) internal;
-    function getCodeContractAddress(address _ovmContractAddress) internal returns(address);
+    function getCodeContractAddress(address _ovmContractAddress) public view returns(address);
     function getCodeContractBytecode(address _codeContractAddress) internal view returns (bytes memory codeContractBytecode);
     function getCodeContractHash(address _codeContractAddress) internal view returns (bytes32 _codeContractHash);
 }

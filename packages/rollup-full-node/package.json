@@ -8,11 +8,11 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "build": "tsc -p .",
+    "build": "waffle waffle-config.json && tsc -p .",
     "clean": "rimraf build/",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "server": "node ./build/src/exec/aggregator.js"
   },
   "keywords": [
@@ -32,11 +32,13 @@
   "dependencies": {
     "@pigi/core-db": "0.0.10-alpha.0",
     "@pigi/core-utils": "0.0.10-alpha.0",
+    "@pigi/ovm": "^0.0.1-alpha.9",
     "@pigi/rollup-core": "0.0.10-alpha.0",
     "async-lock": "^1.2.2",
     "axios": "^0.19.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
+    "ethereum-waffle": "^2.0.12",
     "ethers": "^4.0.39",
     "fastpriorityqueue": "^0.6.3"
   },
@@ -47,6 +49,7 @@
     "@types/node": "^12.0.7",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
+    "ethereumjs-abi": "^0.6.8",
     "mocha": "^6.1.4",
     "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",

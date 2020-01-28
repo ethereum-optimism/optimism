@@ -16,6 +16,7 @@ import { Provider } from 'ethers/providers'
 
 /* Contract Imports */
 import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
+import { convertInternalLogsToOvmLogs } from '../src/app'
 
 const log = getLogger('helpers', true)
 
@@ -38,10 +39,6 @@ export const manuallyDeployOvmContract = async (
     .methodID('executeCall', [])
     .toString('hex')
 
-  const ovmCreateMethodId: string = ethereumjsAbi
-    .methodID('ovmCREATE', [])
-    .toString('hex')
-
   const timestamp: string = '00'.repeat(32)
   const origin: string = '00'.repeat(32)
 
@@ -60,12 +57,10 @@ export const manuallyDeployOvmContract = async (
 
   // Extract the resulting ovm contract address
   const receipt = await provider.getTransactionReceipt(tx.hash)
-  const createContractEventTypes = ['address', 'address', 'bytes32']
-  const ovmContractAddress: Address = abi.decode(
-    createContractEventTypes,
-    receipt.logs[0].data
-  )[0] // The OVM address is the first one in the list
-
+  const ovmContractAddress: Address = convertInternalLogsToOvmLogs(
+    executionManager,
+    receipt.logs
+  ).ovmCreatedContractAddress
   log.info('Deployed new contract at OVM address:', ovmContractAddress)
   return ovmContractAddress
 }

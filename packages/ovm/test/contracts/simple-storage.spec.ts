@@ -98,8 +98,8 @@ describe('SimpleStorage', () => {
     })
 
     const reciept = await provider.getTransactionReceipt(tx.hash)
-    // Now make sure the SetStorage event was emitted
-    const rawSetStorageEvent = reciept.logs[0].data
+    // Now make sure the SetStorage event was emitted (note it should be the 2nd event after the ActiveContract event)
+    const rawSetStorageEvent = reciept.logs[1].data
     const decodedSetStorageEvent = abi.decode(
       ['address', 'bytes32', 'bytes32'],
       rawSetStorageEvent
