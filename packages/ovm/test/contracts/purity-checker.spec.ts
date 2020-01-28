@@ -8,25 +8,19 @@ import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Logging */
-const log = getLogger('test:debug:rollup-list')
+const log = getLogger('purity-checker')
 
 /* Contract Imports */
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 const whitelistMask =
-  '0x600800000000000000000000ffffffffffffffff0bcf0000620000013fff0fff'
+  '0x200a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
 const notWhitelisted: EVMOpcode[] = [
   Opcode.ADDRESS,
   Opcode.BALANCE,
   Opcode.BLOCKHASH,
-  Opcode.CALL,
   Opcode.CALLCODE,
-  Opcode.CALLDATACOPY,
-  Opcode.CALLDATALOAD,
-  Opcode.CALLDATASIZE,
   Opcode.CALLER,
-  Opcode.CALLVALUE,
-  Opcode.CODESIZE,
   Opcode.COINBASE,
   Opcode.CREATE,
   Opcode.CREATE2,
@@ -34,14 +28,9 @@ const notWhitelisted: EVMOpcode[] = [
   Opcode.DIFFICULTY,
   Opcode.EXTCODECOPY,
   Opcode.EXTCODESIZE,
-  Opcode.GAS,
   Opcode.GASLIMIT,
   Opcode.GASPRICE,
-  Opcode.LOG0,
-  Opcode.LOG1,
-  Opcode.LOG2,
-  Opcode.LOG3,
-  Opcode.LOG4,
+  Opcode.INVALID,
   Opcode.NUMBER,
   Opcode.ORIGIN,
   Opcode.SELFDESTRUCT,
@@ -50,8 +39,11 @@ const notWhitelisted: EVMOpcode[] = [
   Opcode.STATICCALL,
   Opcode.TIMESTAMP,
 ]
-const whitelisted: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
-  (x) => notWhitelisted.indexOf(x) < 0
+const haltingOpcodes: EVMOpcode[] = [Opcode.STOP, Opcode.REVERT, Opcode.JUMP]
+const stopAndRevert: EVMOpcode[] = [Opcode.STOP, Opcode.REVERT]
+const jumps: EVMOpcode[] = [Opcode.JUMP, Opcode.JUMPI]
+const whitelistedNotHalting: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
+  (x) => notWhitelisted.indexOf(x) < 0 && haltingOpcodes.indexOf(x) < 0
 )
 
 describe('Purity Checker', () => {
@@ -91,7 +83,7 @@ describe('Purity Checker', () => {
       })
 
       it('should correctly classify whitelisted', async () => {
-        for (const opcode of whitelisted) {
+        for (const opcode of whitelistedNotHalting) {
           const res: boolean = await purityChecker.isBytecodePure(
             `0x${opcode.code.toString('hex')}`
           )
@@ -143,40 +135,175 @@ describe('Purity Checker', () => {
     })
 
     describe('multiple opcode cases', async () => {
-      it('works for whitelisted codes', async () => {
+      it('works for whitelisted, non-halting codes', async () => {
         let bytecode: string = '0x'
         const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
 
-        for (const opcode of whitelisted) {
+        for (const opcode of whitelistedNotHalting) {
           bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
             opcode.programBytesConsumed
           )}`
         }
 
         const res: boolean = await purityChecker.isBytecodePure(bytecode)
-        res.should.eq(true, `Bytecode of all whitelisted failed!`)
+        res.should.eq(true, `Bytecode of all whitelisted (non-halting) failed!`)
       })
 
-      it('fails for whitelisted codes with one not on whitelist at the end', async () => {
+      it('fails for non-halting whitelisted codes with one not on whitelist at the end', async () => {
         let bytecode: string = '0x'
         const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
 
-        for (const opcode of whitelisted) {
+        for (const opcode of whitelistedNotHalting) {
           bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
             opcode.programBytesConsumed
           )}`
         }
-
         for (const opcode of notWhitelisted) {
           const res: boolean = await purityChecker.isBytecodePure(
             bytecode + opcode.code.toString('hex')
           )
           res.should.eq(
             false,
-            `Bytecode of all whitelisted + ${opcode.name} passed when it should have failed!`
+            `Bytecode of all whitelisted (non-halting) + ${opcode.name} passed when it should have failed!`
           )
         }
       }).timeout(20_000)
+    })
+
+    describe('handles unreachable code', async () => {
+      it(`skips unreachable bytecode after a halting opcode`, async () => {
+        for (const haltingOp of haltingOpcodes) {
+          let bytecode: string = '0x'
+          bytecode += haltingOp.code.toString('hex')
+          for (const opcode of notWhitelisted) {
+            bytecode += opcode.code.toString('hex')
+          }
+          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          res.should.eq(
+            true,
+            `Bytecode containing invalid opcodes in unreachable code after a ${haltingOp.name} failed!`
+          )
+        }
+      })
+      it('skips bytecode after an unreachable JUMPDEST', async () => {
+        for (const haltingOp of stopAndRevert) {
+          let bytecode: string = '0x'
+          bytecode += haltingOp.code.toString('hex')
+          bytecode += Opcode.JUMPDEST.code.toString('hex')
+          for (const opcode of notWhitelisted) {
+            bytecode += opcode.code.toString('hex')
+          }
+          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          res.should.eq(
+            true,
+            `Bytecode containing invalid opcodes after unreachable JUMPDEST (after a ${haltingOp.name}) failed!`
+          )
+        }
+      })
+
+      it('parses opcodes after a reachable JUMPDEST', async () => {
+        for (const haltingOp of stopAndRevert) {
+          for (const jump of jumps) {
+            let bytecode: string = '0x'
+            bytecode += jump.code.toString('hex')
+            bytecode += Opcode.JUMPDEST.code.toString('hex') // JUMPDEST here so that the haltingOp is reachable
+            bytecode += haltingOp.code.toString('hex')
+            bytecode += Opcode.JUMPDEST.code.toString('hex')
+            for (const opcode of notWhitelisted) {
+              bytecode += opcode.code.toString('hex')
+            }
+            const res: boolean = await purityChecker.isBytecodePure(bytecode)
+            res.should.eq(
+              false,
+              `Bytecode containing invalid opcodes after a JUMPDEST preceded by a ${haltingOp.name} and reachable by ${jump.name} should have failed!`
+            )
+          }
+        }
+      })
+
+      it('parses opcodes after first JUMP and JUMPDEST', async () => {
+        let bytecode: string = '0x'
+        bytecode += Opcode.JUMP.code.toString('hex')
+        bytecode += Opcode.JUMPDEST.code.toString('hex')
+        for (const opcode of notWhitelisted) {
+          bytecode += opcode.code.toString('hex')
+        }
+        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        res.should.eq(
+          false,
+          `Bytecode containing invalid opcodes after reachble JUMPDEST should have failed!`
+        )
+      })
+
+      it('parses opcodes after JUMPI', async () => {
+        let bytecode: string = '0x'
+        bytecode += Opcode.JUMPI.code.toString('hex')
+        for (const opcode of notWhitelisted) {
+          bytecode += opcode.code.toString('hex')
+        }
+        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        res.should.eq(
+          false,
+          `Bytecode containing invalid opcodes after JUMPI should have failed!`
+        )
+      })
+
+      it('should correctly handle alternating reachable/uncreachable code ending in reachable, valid code', async () => {
+        for (const haltingOp of stopAndRevert) {
+          for (const jump of jumps) {
+            let bytecode: string = '0x'
+            bytecode += jump.code.toString('hex')
+            // JUMPDEST here so that the haltingOp is reachable
+            bytecode += Opcode.JUMPDEST.code.toString('hex')
+            for (let i = 0; i < 3; i++) {
+              bytecode += haltingOp.code.toString('hex')
+              // Unreachable, invalid code
+              for (const opcode of notWhitelisted) {
+                bytecode += opcode.code.toString('hex')
+              }
+              bytecode += Opcode.JUMPDEST.code.toString('hex')
+              // Reachable, valid code
+              for (const opcode of whitelistedNotHalting) {
+                bytecode += opcode.code.toString('hex')
+              }
+            }
+            const res: boolean = await purityChecker.isBytecodePure(bytecode)
+            res.should.eq(
+              true,
+              `Bytecode containing alternating valid reachable and invalid unreachable code failed!`
+            )
+          }
+        }
+      })
+
+      it('should correctly handle alternating reachable/uncreachable code ending in reachable, invalid code', async () => {
+        for (const haltingOp of stopAndRevert) {
+          for (const jump of jumps) {
+            let bytecode: string = '0x'
+            bytecode += jump.code.toString('hex')
+            // JUMPDEST here so that the haltingOp is reachable
+            bytecode += Opcode.JUMPDEST.code.toString('hex')
+            for (let i = 0; i < 3; i++) {
+              bytecode += haltingOp.code.toString('hex')
+              // Unreachable, invalid code
+              for (const opcode of notWhitelisted) {
+                bytecode += opcode.code.toString('hex')
+              }
+              bytecode += Opcode.JUMPDEST.code.toString('hex')
+              // Reachable, valid code
+              for (const opcode of whitelistedNotHalting) {
+                bytecode += opcode.code.toString('hex')
+              }
+            }
+            bytecode += notWhitelisted[0].code.toString('hex')
+            const res: boolean = await purityChecker.isBytecodePure(bytecode)
+            res.should.eq(
+              false,
+              `Bytecode containing alternating valid reachable and invalid unreachable code, ending in reachable, invalid code should have failed!`
+            )
+          }
+        }
+      })
     })
   })
 })

@@ -24,19 +24,40 @@ contract PurityChecker {
   function isBytecodePure(
     bytes memory _bytecode
   ) public view returns (bool) {
+    bool seenJUMP = false;
+    bool insideUnreachableCode = false;
     for (uint256 i = 0; i < _bytecode.length; i++) {
       uint256 op = uint8(_bytecode[i]);
-      uint256 opBit = 2 ** op;
-      if (opcodeWhitelistMask & opBit != opBit) {
-        return false;
-      }
-
       // If this is a PUSH##, subsequent bytes are not opcodes. Skip them.
       if (op >= 0x60 && op <= 0x7f) {
         i += (op - 0x5f);
       }
+      if (insideUnreachableCode) {
+        // found a JUMPDEST - this bytecode is now reachable
+        if (op == 0x5b) {
+          insideUnreachableCode = false;
+        }
+      } else {
+        // check that opcode is whitelisted (using the whitelist mask)
+        uint256 opBit = 2 ** op;
+        if (opcodeWhitelistMask & opBit != opBit) {
+          return false;
+        }
+        // If this is a JUMP or JUMPI, set seenJUMP to true
+        if (op == 0x56 || op == 0x57) {
+          seenJUMP = true;
+        }
+        // If this is a STOP, JUMP, or REVERT, then we are entering unreachable code
+        if (op == 0x00 || op == 0x56 || op == 0xfd) {
+          //If there have been no JUMPs or JUMPIs seen yet, then all remaining bytecode is unreachable
+          if (!seenJUMP) {
+            return true;
+          }
+          // We are now inside unreachable code!
+          insideUnreachableCode = true;
+        }
+      }
     }
-    //TODO: skip over unreachable code
     //TODO: check CALLs are only made to the Execution Manager and with 0 value
 
     return true;
