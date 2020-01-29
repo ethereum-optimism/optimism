@@ -17,7 +17,11 @@ import { Web3Provider } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
-import { Web3RpcMethods, Web3RpcHandlerFunctions } from '../types'
+import {
+  Web3RpcMethods,
+  Web3RpcHandlerFunctions,
+  FullnodeHandler,
+} from '../types'
 
 const getExeCallInternalCalldata = (
   ovmEntrypoint: string,
@@ -50,7 +54,7 @@ const getExecutionMgrTxData = (method, ovmEntrypoint, ovmCalldata) => {
 
 const log = getLogger('mock-rollup-fullnode')
 
-export class EthnodeProxy {
+export class EthnodeProxy implements FullnodeHandler {
   private executionManager: Contract
   private internalTxHashes: { string: string } | {} = {}
 
@@ -201,6 +205,22 @@ export class EthnodeProxy {
         codeContractAddress,
         'latest',
       ])
+      return response
+    },
+    [Web3RpcMethods.getExecutionManagerAddress]: async (
+      params: any[]
+    ): Promise<string> => {
+      if (this.executionManager === undefined) {
+        await this.deployExecutionManager()
+      }
+      const response = this.executionManager.address
+      return response
+    },
+    [Web3RpcMethods.networkVersion]: async (params: any[]): Promise<string> => {
+      const response = await this.provider.send(
+        Web3RpcMethods.networkVersion,
+        params
+      )
       return response
     },
   }

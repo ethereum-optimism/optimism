@@ -12,9 +12,9 @@ export const createMockOvmProvider = async () => {
   // First, we create a mock provider which is identical to a normal ethers "mock provider"
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  // Next initialize a mock fullnode for us to interact with
-  const fullnode = createMockEthnodeProxy()
-  const executionManagerAddress = await fullnode.deployExecutionManager()
+  // Next initialize a mock ethnodeProxy for us to interact with
+  const ethnodeProxy = createLocalEthnodeProxy()
+  const executionManagerAddress = await ethnodeProxy.deployExecutionManager()
 
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   const origSend = provider.send
@@ -22,7 +22,7 @@ export const createMockOvmProvider = async () => {
     log.info('Sending -- Method:', method, 'Params:', params)
 
     // Convert the message or response if we need to
-    const response = await fullnode.handleRequest(method, params)
+    const response = await ethnodeProxy.handleRequest(method, params)
 
     log.info('Received Response --', response)
     return response
@@ -32,7 +32,7 @@ export const createMockOvmProvider = async () => {
   return [provider, executionManagerAddress]
 }
 
-const createMockEthnodeProxy = (): EthnodeProxy => {
+export const createLocalEthnodeProxy = (): EthnodeProxy => {
   // Note this is a mock provider intended for internal use
   const ethnodeProvider = createMockProvider()
   const [proxyWallet] = getWallets(ethnodeProvider)
