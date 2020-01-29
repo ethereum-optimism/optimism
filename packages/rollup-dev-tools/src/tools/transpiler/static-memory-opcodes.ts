@@ -141,6 +141,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
   address: Address,
   methodName: string,
   numStackArgumentsToPass: number,
+  numStackValuesReturned: 1 | 0,
   memoryIndexToUse: number = 0
 ): EVMBytecode => {
   // 1 word for method Id, 1 word for each stack argument, 1 word for return
@@ -149,7 +150,7 @@ export const callContractWithStackElementsAndReturnWordToStack = (
   // ad 1 word for method Id, 1 word for each stack argument, and then the immediately following index will be the return val
   const returnedWordMemoryIndex: number = 32 * (1 + numStackArgumentsToPass)
 
-  return [
+  const op = [
     // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
     ...pushMemoryAtIndexOntoStack(memoryIndexToUse, numWordsToStash),
     // Now that the stashed memory is first on the stack, recover the original stack elements we expected to consume/pass to execution manager
@@ -176,6 +177,14 @@ export const callContractWithStackElementsAndReturnWordToStack = (
     // POP the extra elements that came from the above duplications
     ...POPNTimes(numWordsToStash + numStackArgumentsToPass),
   ]
+  if (numStackValuesReturned === 0) {
+    // if we don't care about a return value just pop whatever was randomly grabbed from memory
+    op.push({
+      opcode: Opcode.POP,
+      consumedBytes: undefined,
+    })
+  }
+  return op
 }
 
 export const duplicateStackAt = (
