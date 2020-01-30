@@ -1,41 +1,112 @@
 /* External Imports */
 import { Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
 import { getLogger, hexStrToBuf } from '@pigi/core-utils'
+import * as abi from 'ethereumjs-abi'
+
+/* Internal Imports */
 import {
   getPUSHIntegerOp,
   getPUSHBuffer,
   pushMemoryAtIndexOntoStack,
-  getDUPNOp,
   storeStackInMemoryAtIndex,
   getSWAPNOp,
-} from './memory-substitution'
-
-import * as abi from 'ethereumjs-abi'
+  duplicateStackAt,
+  POPNTimes,
+  storeStackElementsAsMemoryWords,
+} from './helpers'
 
 const log = getLogger(`static-memory-opcodes`)
-/**
- * Stores the first `numWords` elements on the stack to memory at the specified index.
- *
- * Used to pass stack params into the Execution manager as calldata.
- *
- * @param numStackElementsToStore The number of stack elements to put in the memory
- * @param memoryIndexToStoreAt The byte index in the memory to store the stack elements to.
- * @returns Btyecode which results in the storage operation described above.
- */
-export const storeStackElementsAsMemoryWords = (
-  numStackElementsToStore: number,
-  memoryIndexToStoreAt: number = 0
+
+export const ovmADDRESSName: string = 'ovmADDRESS'
+export const ovmCALLERName: string = 'ovmCALLER'
+export const ovmEXTCODEHASHName: string = 'ovmEXTCODEHASH'
+export const ovmEXTCODESIZEName: string = 'ovmEXTCODESIZE'
+export const ovmSLOADName: string = 'ovmSLOAD'
+export const ovmSSTOREName: string = 'ovmSSTORE'
+export const ovmTIMESTAMPName: string = 'ovmTIMESTAMP'
+
+export const getADDRESSReplacement = (
+  executionManagerAddress: Address,
+  ovmADDRESSFunctionName: string = ovmADDRESSName
 ): EVMBytecode => {
-  let op: EVMBytecode = []
-  for (let i = 0; i < numStackElementsToStore; i++) {
-    op = op.concat([
-      // push storage index
-      getPUSHIntegerOp(i * 32 + memoryIndexToStoreAt),
-      // store the stack item
-      { opcode: Opcode.MSTORE, consumedBytes: undefined },
-    ])
-  }
-  return op
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmADDRESSFunctionName,
+    0,
+    1
+  )
+}
+
+export const getCALLERReplacement = (
+  executionManagerAddress: Address,
+  ovmCALLERFunctionName: string = ovmCALLERName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmCALLERFunctionName,
+    0,
+    1
+  )
+}
+
+export const getEXTCODEHASHReplacement = (
+  executionManagerAddress: Address,
+  ovmEXTCODEHASHFunctionName: string = ovmEXTCODEHASHName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmEXTCODEHASHFunctionName,
+    1,
+    1
+  )
+}
+
+export const getEXTCODESIZEReplacement = (
+  executionManagerAddress: Address,
+  ovmEXTCODESIZEFunctionName: string = ovmEXTCODESIZEName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmEXTCODESIZEFunctionName,
+    1,
+    1
+  )
+}
+
+export const getSLOADReplacement = (
+  executionManagerAddress: Address,
+  ovmSLOADFunctionName: string = ovmSLOADName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmSLOADFunctionName,
+    1,
+    1
+  )
+}
+
+export const getSSTOREReplacement = (
+  executionManagerAddress: Address,
+  ovmSSTOREFunctionName: string = ovmSSTOREName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmSSTOREFunctionName,
+    2,
+    0
+  )
+}
+
+export const getTIMESTAMPReplacement = (
+  executionManagerAddress: Address,
+  ovmTIMESTAMPFunctionName: string = ovmTIMESTAMPName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmTIMESTAMPFunctionName,
+    1,
+    1
+  )
 }
 
 /**
@@ -56,7 +127,7 @@ export const storeStackElementsAsMemoryWords = (
 export const callContractWithStackElementsAndReturnWordToMemory = (
   address: Address,
   methodName: string,
-  numStackArgumentsToPass: number,
+  numStackArgumentsToPass: number = 0,
   memoryIndexToUse: number = 0
 ): EVMBytecode => {
   const methodData: Buffer = abi.methodID(methodName, [])
@@ -184,26 +255,5 @@ export const callContractWithStackElementsAndReturnWordToStack = (
       consumedBytes: undefined,
     })
   }
-  return op
-}
-
-export const duplicateStackAt = (
-  numStackElementsToIgnore: number,
-  numStackElementsToDuplicate: number
-): EVMBytecode => {
-  // TODO: error if N is too high to DUPN
-  const op: EVMBytecode = []
-  for (let i = 0; i < numStackElementsToDuplicate; i++) {
-    op.push(getDUPNOp(numStackElementsToIgnore + numStackElementsToDuplicate))
-  }
-  return op
-}
-
-export const POPNTimes = (numStackElementsToPop: number): EVMBytecode => {
-  const op: EVMBytecode = new Array(numStackElementsToPop)
-  op.fill({
-    opcode: Opcode.POP,
-    consumedBytes: undefined,
-  })
   return op
 }

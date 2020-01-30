@@ -1,18 +1,9 @@
 /* External Imports */
-import {
-  Opcode,
-  EVMOpcode,
-  EVMOpcodeAndBytes,
-  EVMBytecode,
-  Address,
-  formatBytecode,
-} from '@pigi/rollup-core'
-import {
-  bufToHexString,
-  remove0x,
-  getLogger,
-  hexStrToBuf,
-} from '@pigi/core-utils'
+import { Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
+import { getLogger, hexStrToBuf } from '@pigi/core-utils'
+import * as ethereumjsAbi from 'ethereumjs-abi'
+
+/* Internal Imports */
 import {
   getSWAPNOp,
   getPUSHIntegerOp,
@@ -20,13 +11,13 @@ import {
   pushMemoryOntoStack,
   getPUSHBuffer,
   storeStackInMemory,
-  pushMemoryAtIndexOntoStack,
-} from './memory-substitution'
+} from './helpers'
 import { BIG_ENOUGH_GAS_LIMIT } from './'
-import * as abi from 'ethereumjs-abi'
-import { isArrayish } from 'ethers/utils/bytes'
 
 const log = getLogger(`contract-creation-replacement-gen`)
+
+export const ovmCREATEName = 'ovmCREATE'
+export const ovmCREATE2Name = 'ovmCREATE2'
 
 /**
  * This replaces CREATE Opcode with a CALL to our ExecutionManager.
@@ -39,11 +30,11 @@ const log = getLogger(`contract-creation-replacement-gen`)
  *  * Returns memory to its original pre-CALL state and cleans up the stack to what a normal CREATE would do.
  *
  * @param executionManagerAddress The address of the Execution Manager contract.
- * @param executionManagerCREATEMethodName The function name in the Execution Manager to handle CREATEs.
+ * @param ovmCREATEFunctionName (ONLY USED FOR TESTING) The function name in the Execution Manager to handle CREATEs.
  */
 export const getCREATEReplacement = (
   executionManagerAddress: Address,
-  executionManagerCREATEMethodName: string
+  ovmCREATEFunctionName: string = ovmCREATEName
 ): EVMBytecode => {
   // CREATE params and execution do the following to the stack:
   // [value, offset, length, ...] --> 	[addr, ...]
@@ -57,7 +48,7 @@ export const getCREATEReplacement = (
   const callMemoryWordsToPrepend: number = 1 // NOTE: if we needed to pass the call value in the future alongside addr, we would increment this
   const callMemoryBytesToPrepend: number = 32 * callMemoryWordsToPrepend
 
-  const methodId: Buffer = abi.methodID(executionManagerCREATEMethodName, [])
+  const methodId: Buffer = ethereumjsAbi.methodID(ovmCREATEFunctionName, [])
 
   // First, we store the memory we're going to overwrite in order to prepend methodId and params to the stack so the original memory can be recovered.
   // We will use this same memory for recovering the returned created Addr after the call.  So it will be referred to as retOffset in these comments.
@@ -179,11 +170,11 @@ export const getCREATEReplacement = (
  *  * Returns memory to its original pre-CALL state and cleans up the stack to what a normal CREATE2 would do.
  *
  * @param executionManagerAddress The address of the Execution Manager contract.
- * @param executionManagerCREATE2MethodName The function name in the Execution Manager to handle CREATE2s.
+ * @param ovmCREATE2FunctionName The function name in the Execution Manager to handle CREATE2s.
  */
 export const getCREATE2Replacement = (
   executionManagerAddress: Address,
-  executionManagerCREATE2MethodName: string
+  ovmCREATE2FunctionName: string = ovmCREATE2Name
 ): EVMBytecode => {
   // CREATE2 params and execution do the following to the stack:
   // [value, offset, length, salt, ...] --> 	[addr, ...]
@@ -198,7 +189,7 @@ export const getCREATE2Replacement = (
   const callMemoryWordsToPrepend: number = 2 // NOTE: if we needed to pass the call value in the future alongside addr, we would increment this
   const callMemoryBytesToPrepend: number = 32 * callMemoryWordsToPrepend
 
-  const methodId: Buffer = abi.methodID(executionManagerCREATE2MethodName, [])
+  const methodId: Buffer = ethereumjsAbi.methodID(ovmCREATE2FunctionName, [])
 
   // First, we store the memory we're going to overwrite in order to prepend methodId and params to the stack so the original memory can be recovered.
   // We will use this same memory for recovering the returned created Addr after the call.  So it will be referred to as retOffset in these comments.

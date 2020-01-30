@@ -11,7 +11,6 @@ import {
   Address,
   bytecodeToBuffer,
   EVMBytecode,
-  formatBytecode,
   Opcode,
 } from '@pigi/rollup-core'
 import * as abiForMethod from 'ethereumjs-abi'
@@ -20,15 +19,14 @@ import * as abiForMethod from 'ethereumjs-abi'
 import {
   EvmIntrospectionUtil,
   ExecutionResult,
-  StepContext,
   CallContext,
 } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 import { setMemory, setupStackAndCALL } from '../helpers'
 import {
-  getCallTypeReplacement,
+  getCALLReplacement,
+  getSTATICCALLReplacement,
   getEXTCODECOPYReplacement,
-  callContractWithStackElementsAndReturnWordToMemory,
   BIG_ENOUGH_GAS_LIMIT,
 } from '../../src'
 
@@ -38,10 +36,7 @@ const abi = new ethers.utils.AbiCoder()
 
 /* Contracts */
 import * as AssemblyReturnGetter from '../contracts/build/AssemblyReturnGetter.json'
-import {
-  getPUSHBuffer,
-  getPUSHIntegerOp,
-} from '../../src/tools/transpiler/memory-substitution'
+import { getPUSHBuffer, getPUSHIntegerOp } from '../../src/'
 
 const valToReturn =
   '0xbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeed'
@@ -100,7 +95,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
         // fill memory with some random data so that we can confirm it was not modified
         ...setMemory(mockMemory),
         ...setupStackForCALL,
-        ...getCallTypeReplacement(getterAddress, getMethodName, 3),
+        ...getCALLReplacement(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const callContext: CallContext = await evmUtil.getCallContext(
@@ -116,9 +111,6 @@ describe('Memory-dynamic Opcode Replacement', () => {
           originalArgOffset + originalArgLength
         ), // original calldata
       ])
-
-      console.log('expected:' + bufToHexString(callContext.callData))
-      console.log('actual:  ' + bufToHexString(expectedCallData))
 
       callContext.callData.equals(expectedCallData).should.be.true
 
@@ -148,7 +140,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
         // fill memory with some random data so that we can confirm it was not modified
         ...setMemory(mockMemory),
         ...setupStackForCALL,
-        ...getCallTypeReplacement(getterAddress, getMethodName, 2),
+        ...getSTATICCALLReplacement(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const callContext: CallContext = await evmUtil.getCallContext(

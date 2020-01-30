@@ -11,7 +11,6 @@ import {
   Address,
   bytecodeToBuffer,
   EVMBytecode,
-  formatBytecode,
   Opcode,
 } from '@pigi/rollup-core'
 import * as abiForMethod from 'ethereumjs-abi'
@@ -20,12 +19,14 @@ import * as abiForMethod from 'ethereumjs-abi'
 import {
   EvmIntrospectionUtil,
   ExecutionResult,
-  StepContext,
   CallContext,
-} from '../../src/types/vm'
-import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
-import { setMemory, setupStackAndCALL } from '../helpers'
-import { getCREATEReplacement, getCREATE2Replacement } from '../../src'
+  EvmIntrospectionUtilImpl,
+  getCREATEReplacement,
+  getCREATE2Replacement,
+  getPUSHBuffer,
+  getPUSHIntegerOp,
+} from '../../src'
+import { setMemory } from '../helpers'
 
 const log = getLogger(`test-static-memory-opcodes`)
 
@@ -33,10 +34,6 @@ const abi = new ethers.utils.AbiCoder()
 
 /* Contracts */
 import * as AssemblyReturnGetter from '../contracts/build/AssemblyReturnGetter.json'
-import {
-  getPUSHBuffer,
-  getPUSHIntegerOp,
-} from '../../src/tools/transpiler/memory-substitution'
 
 const valToReturn =
   '0xbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeed'

@@ -5,7 +5,6 @@ import {
   remove0x,
   getLogger,
   hexStrToBuf,
-  bufferUtils,
 } from '@pigi/core-utils'
 import {
   Address,
@@ -15,6 +14,7 @@ import {
   Opcode,
   EVMOpcodeAndBytes,
 } from '@pigi/rollup-core'
+import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
 import {
@@ -22,26 +22,20 @@ import {
   ExecutionResult,
   StepContext,
   CallContext,
-} from '../../src/types/vm'
-import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
-import {
+  EvmIntrospectionUtilImpl,
+  getPUSHBuffer,
+  getPUSHIntegerOp,
   duplicateStackAt,
   callContractWithStackElementsAndReturnWordToMemory,
   storeStackElementsAsMemoryWords,
   callContractWithStackElementsAndReturnWordToStack,
-} from '../../src/tools/transpiler/static-memory-opcodes'
+} from '../../src'
 
 const log = getLogger(`test-static-memory-opcodes`)
-
-import * as abiForMethod from 'ethereumjs-abi'
 const abi = new ethers.utils.AbiCoder()
 
 /* Contracts */
 import * as AssemblyReturnGetter from '../contracts/build/AssemblyReturnGetter.json'
-import {
-  getPUSHBuffer,
-  getPUSHIntegerOp,
-} from '../../src/tools/transpiler/memory-substitution'
 
 describe('Static Memory Opcode Replacement', () => {
   let evmUtil: EvmIntrospectionUtil
@@ -50,7 +44,7 @@ describe('Static Memory Opcode Replacement', () => {
     'hex'
   )
   const getterFunctionName: string = 'get'
-  const getterMethodId: Buffer = abiForMethod.methodID(getterFunctionName, [])
+  const getterMethodId: Buffer = ethereumjsAbi.methodID(getterFunctionName, [])
   const valToReturn: Buffer = hexStrToBuf(
     '0xbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeedbeadfeed'
   )
@@ -153,7 +147,7 @@ describe('Static Memory Opcode Replacement', () => {
         73
       )
 
-      const methodBytes: Buffer = abiForMethod.methodID(getterFunctionName, [])
+      const methodBytes: Buffer = ethereumjsAbi.methodID(getterFunctionName, [])
       // the resulting memory should be: [0000s proceeding method Id, methodId], [valToReturn]
       // where [] above indicates a 32 byte word.
       const expectedMemorySlice: Buffer = Buffer.concat([

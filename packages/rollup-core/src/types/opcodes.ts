@@ -231,6 +231,11 @@ export class Opcode {
     name: 'RETURNDATACOPY',
     programBytesConsumed: 0,
   }
+  public static readonly EXTCODEHASH: EVMOpcode = {
+    code: Buffer.from('3f', 'hex'),
+    name: 'EXTCODEHASH',
+    programBytesConsumed: 0,
+  }
   public static readonly BLOCKHASH: EVMOpcode = {
     code: Buffer.from('40', 'hex'),
     name: 'BLOCKHASH',
@@ -781,6 +786,7 @@ export class Opcode {
     Opcode.EXTCODECOPY,
     Opcode.RETURNDATASIZE,
     Opcode.RETURNDATACOPY,
+    Opcode.EXTCODEHASH,
     Opcode.BLOCKHASH,
     Opcode.COINBASE,
     Opcode.TIMESTAMP,

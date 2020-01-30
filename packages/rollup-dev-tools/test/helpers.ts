@@ -17,10 +17,7 @@ import {
   ExecutionResultComparison,
 } from '../src/types/vm'
 
-import {
-  getPUSHBuffer,
-  getPUSHIntegerOp,
-} from '../src/tools/transpiler/memory-substitution'
+import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
 
 export const emptyBuffer: Buffer = Buffer.from('', 'hex')
 export const stateManagerAddress: Address =

@@ -12,6 +12,7 @@ import {
   remove0x,
   getLogger,
   isValidHexAddress,
+  hexStrToBuf,
 } from '@pigi/core-utils'
 
 /* Internal Imports */
@@ -21,6 +22,25 @@ import {
   InvalidBytesConsumedError,
   UnsupportedOpcodeError,
 } from '../../index'
+import {
+  getCALLReplacement,
+  getSTATICCALLReplacement,
+  getDELEGATECALLReplacement,
+  getEXTCODECOPYReplacement,
+} from './dynamic-memory-opcodes'
+import {
+  getCREATEReplacement,
+  getCREATE2Replacement,
+} from './contract-creation-opcodes'
+import {
+  getADDRESSReplacement,
+  getCALLERReplacement,
+  getEXTCODEHASHReplacement,
+  getEXTCODESIZEReplacement,
+  getSLOADReplacement,
+  getSSTOREReplacement,
+  getTIMESTAMPReplacement,
+} from './static-memory-opcodes'
 
 const log = getLogger('transpiler:opcode-replacement')
 
@@ -29,58 +49,65 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     `{execution manager address placeholder}`
   )
   private readonly excutionManagerAddressBuffer: Buffer
+
+  /**
+   * Creates an OpcodeReplacer, validating the provided address and any given replacements.
+   *
+   * @param executionManagerAddress The address of the ExecutionManager -- all calls get routed through this contract.
+   * @param optionalReplacements Optional opcodes to replace with bytecode.
+   */
   constructor(
     executionManagerAddress: Address,
-    private readonly opcodeReplacementBytecodes: Map<EVMOpcode, EVMBytecode>
+    private readonly optionalReplacements: Map<
+      EVMOpcode,
+      EVMBytecode
+    > = new Map<EVMOpcode, EVMBytecode>()
   ) {
     // check and store address
     if (!isValidHexAddress(executionManagerAddress)) {
-      log.error(
-        `Opcode replacer received ${executionManagerAddress} for the execution manager address.  Not a valid hex string address!`
-      )
-      throw new InvalidAddressError()
-    } else {
-      this.excutionManagerAddressBuffer = Buffer.from(
-        remove0x(executionManagerAddress),
-        'hex'
-      )
+      const msg: string = `Opcode replacer received ${executionManagerAddress} for the execution manager address.  Not a valid hex string address!`
+      log.error(msg)
+      throw new InvalidAddressError(msg)
     }
+
+    this.excutionManagerAddressBuffer = hexStrToBuf(executionManagerAddress)
+
     for (const [
       toReplace,
       bytecodeToReplaceWith,
-    ] of opcodeReplacementBytecodes.entries()) {
+    ] of optionalReplacements.entries()) {
       // Make sure we're not attempting to overwrite PUSHN, not yet supported
       if (toReplace.programBytesConsumed > 0) {
-        log.error(
-          `Transpilation currently does not support opcodes which consume bytes, but config specified a replacement for ${JSON.stringify(
-            toReplace
-          )}.`
-        )
-        throw new UnsupportedOpcodeError()
+        const msg: string = `Transpilation currently does not support opcodes which consume bytes, but config specified a replacement for ${JSON.stringify(
+          toReplace
+        )}.`
+        log.error(msg)
+        throw new UnsupportedOpcodeError(msg)
       }
+
       // for each operation in the replacement bytecode for this toReplace...
-      for (const opcodeAndBytesInReplacement of bytecodeToReplaceWith) {
-        // ... replace execution manager plpaceholder
+      for (const replacementBytes of bytecodeToReplaceWith) {
+        // ... replace execution manager placeholder
         if (
-          opcodeAndBytesInReplacement.consumedBytes ===
-          OpcodeReplacerImpl.EX_MGR_PLACEHOLDER
-        ) {
-          opcodeAndBytesInReplacement.consumedBytes = this.excutionManagerAddressBuffer
-        }
-        // ...type check consumed bytes are the right length
-        if (!isValidOpcodeAndBytes(opcodeAndBytesInReplacement)) {
-          log.error(
-            `Replacement config specified a ${
-              opcodeAndBytesInReplacement.opcode.name
-            } as an operation in the replacement bytecode for ${
-              toReplace.name
-            }, but the consumed bytes specified was ${bufToHexString(
-              opcodeAndBytesInReplacement.consumedBytes
-            )}--invalid length! (length ${
-              opcodeAndBytesInReplacement.consumedBytes.length
-            })`
+          !!replacementBytes.consumedBytes &&
+          replacementBytes.consumedBytes.equals(
+            OpcodeReplacerImpl.EX_MGR_PLACEHOLDER
           )
-          throw new InvalidBytesConsumedError()
+        ) {
+          replacementBytes.consumedBytes = this.excutionManagerAddressBuffer
+        }
+
+        // ...type check consumed bytes are the right length
+        if (!isValidOpcodeAndBytes(replacementBytes)) {
+          const msg: string = `Replacement config specified a ${
+            replacementBytes.opcode.name
+          } as an operation in the replacement bytecode for ${
+            toReplace.name
+          }, but the consumed bytes specified was ${bufToHexString(
+            replacementBytes.consumedBytes
+          )}--invalid length! (length ${replacementBytes.consumedBytes.length})`
+          log.error(msg)
+          throw new InvalidBytesConsumedError(msg)
         }
       }
     }
@@ -93,10 +120,78 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
    */
   public replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
-    if (!this.opcodeReplacementBytecodes.has(opcodeAndBytes.opcode)) {
+    const replacement: EVMBytecode = this.getMandatoryReplacement(
+      opcodeAndBytes
+    )
+    if (!!replacement) {
+      return replacement
+    }
+
+    if (!this.optionalReplacements.has(opcodeAndBytes.opcode)) {
       return [opcodeAndBytes]
     } else {
-      return this.opcodeReplacementBytecodes.get(opcodeAndBytes.opcode)
+      return this.optionalReplacements.get(opcodeAndBytes.opcode)
+    }
+  }
+
+  private getMandatoryReplacement(
+    opcodeAndBytes: EVMOpcodeAndBytes
+  ): EVMBytecode {
+    switch (opcodeAndBytes.opcode) {
+      case Opcode.ADDRESS:
+        return getADDRESSReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.CALL:
+        return getCALLReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.CALLER:
+        return getCALLERReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.CREATE:
+        return getCREATEReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.CREATE2:
+        return getCREATE2Replacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.DELEGATECALL:
+        return getDELEGATECALLReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.EXTCODECOPY:
+        return getEXTCODECOPYReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.EXTCODEHASH:
+        return getEXTCODEHASHReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.EXTCODESIZE:
+        return getEXTCODESIZEReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.SLOAD:
+        return getSLOADReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.SSTORE:
+        return getSSTOREReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.STATICCALL:
+        return getSTATICCALLReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.TIMESTAMP:
+        return getTIMESTAMPReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      default:
+        return undefined
     }
   }
 }

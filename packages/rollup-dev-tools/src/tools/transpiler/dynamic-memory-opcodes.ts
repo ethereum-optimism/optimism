@@ -1,18 +1,6 @@
 /* External Imports */
-import {
-  Opcode,
-  EVMOpcode,
-  EVMOpcodeAndBytes,
-  EVMBytecode,
-  Address,
-  formatBytecode,
-} from '@pigi/rollup-core'
-import {
-  bufToHexString,
-  remove0x,
-  getLogger,
-  hexStrToBuf,
-} from '@pigi/core-utils'
+import { Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
+import { getLogger, hexStrToBuf } from '@pigi/core-utils'
 import {
   getSWAPNOp,
   getPUSHIntegerOp,
@@ -20,11 +8,77 @@ import {
   pushMemoryOntoStack,
   getPUSHBuffer,
   storeStackInMemory,
-  pushMemoryAtIndexOntoStack,
-} from './memory-substitution'
+} from './helpers'
 import * as abi from 'ethereumjs-abi'
 
 const log = getLogger(`call-type-replacement-gen`)
+
+export const ovmCALLName: string = 'ovmCALL'
+export const ovmSTATICCALLName: string = 'ovmSTATICCALL'
+export const ovmDELEGATECALLName: string = 'ovmDELEGATECALL'
+export const ovmEXTCODECOPYName: string = 'ovmEXTCODECOPY'
+
+/**
+ * This replaces the CALL Opcode with a CALL to our ExecutionManager.
+ * Notably, this:
+ *  * Assumes the proper stack is in place to do the un-transpiled CALL
+ *  * Replaces the call address in the stack with the executionManagerAddress
+ *  * Safely prepends method id and arguments to CALL argument memory
+ *  * Updates CALL memory index and length to account for prepended arguments
+ *
+ * @param executionManagerAddress The address of the Execution Manager contract.
+ * @param ovmCALLFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle DELEGTECALLs.
+ */
+export const getCALLReplacement = (
+  executionManagerAddress: Address,
+  ovmCALLFunctionName: string = ovmCALLName
+): EVMBytecode => {
+  return getCallTypeReplacement(executionManagerAddress, ovmCALLFunctionName, 3)
+}
+
+/**
+ * This replaces the STATICCALL Opcode with a CALL to our ExecutionManager.
+ * Notably, this:
+ *  * Assumes the proper stack is in place to do the un-transpiled CALL
+ *  * Replaces the call address in the stack with the executionManagerAddress
+ *  * Safely prepends method id and arguments to STATICCALL argument memory
+ *  * Updates STATICCALL memory index and length to account for prepended arguments
+ *
+ * @param executionManagerAddress The address of the Execution Manager contract.
+ * @param ovmSTATICCALLFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle DELEGTECALLs.
+ */
+export const getSTATICCALLReplacement = (
+  executionManagerAddress: Address,
+  ovmSTATICCALLFunctionName: string = ovmSTATICCALLName
+): EVMBytecode => {
+  return getCallTypeReplacement(
+    executionManagerAddress,
+    ovmSTATICCALLFunctionName,
+    2
+  )
+}
+
+/**
+ * This replaces the DELEGATECALL Opcode with a CALL to our ExecutionManager.
+ * Notably, this:
+ *  * Assumes the proper stack is in place to do the un-transpiled CALL
+ *  * Replaces the call address in the stack with the executionManagerAddress
+ *  * Safely prepends method id and arguments to DELEGATECALL argument memory
+ *  * Updates DELEGATECALL memory index and length to account for prepended arguments
+ *
+ * @param executionManagerAddress The address of the Execution Manager contract.
+ * @param ovmDELEGATECALLFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle DELEGTECALLs.
+ */
+export const getDELEGATECALLReplacement = (
+  executionManagerAddress: Address,
+  ovmDELEGATECALLFunctionName: string = ovmDELEGATECALLName
+): EVMBytecode => {
+  return getCallTypeReplacement(
+    executionManagerAddress,
+    ovmDELEGATECALLFunctionName,
+    2
+  )
+}
 
 /**
  * This replaces CALL-type Opcodes with CALLs to our ExecutionManager.
@@ -38,8 +92,7 @@ const log = getLogger(`call-type-replacement-gen`)
  * @param executionManagerCALLMethodName The function name in the Execution Manager to handle CALLs.
  * @param stackPositionOfCallArgsMemOffset The position on the stack of the CALL's arguments memory offset.  0-indexed.
  */
-
-export const getCallTypeReplacement = (
+const getCallTypeReplacement = (
   executionManagerAddress: Address,
   executionManagerCALLMethodName: string,
   stackPositionOfCallArgsMemOffset: number // expected to be 2 or 3 depending on value presence
@@ -153,17 +206,14 @@ export const getCallTypeReplacement = (
  *  * Returns memory to its original pre-CALL state
  *
  * @param executionManagerAddress The address of the Execution Manager contract.
- * @param executionManagerEXTCODECOPYMethodName The function name in the Execution Manager to handle EXTCODECOPYs.
+ * @param ovmEXTCODECOPYFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle EXTCODECOPYs.
  */
 
 export const getEXTCODECOPYReplacement = (
   executionManagerAddress: Address,
-  executionManagerEXTCODECOPYMethodName: string
+  ovmEXTCODECOPYFunctionName: string = ovmEXTCODECOPYName
 ) => {
-  const methodData: Buffer = abi.methodID(
-    executionManagerEXTCODECOPYMethodName,
-    []
-  )
+  const methodData: Buffer = abi.methodID(ovmEXTCODECOPYFunctionName, [])
   const op: EVMBytecode = []
 
   // EXTCODECOPY params and execution do the following to the stack:

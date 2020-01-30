@@ -17,13 +17,12 @@ const purityCheckerDeploymentFunction = async (
 
     // Default config whitelists all opcodes EXCEPT:
     //    ADDRESS, BALANCE, BLOCKHASH, CALLCODE, CALLER, COINBASE,
-    //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, EXTCODECOPY, EXTCODESIZE,
-    //    GASLIMIT, GASPRICE, INVALID, NUMBER, ORIGIN, SELFDESTRUCT, SLOAD, SSTORE,
-    //    STATICCALL, TIMESTAMP
+    //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, GASLIMIT, GASPRICE,
+    //    INVALID, NUMBER, ORIGIN, SELFDESTRUCT, SLOAD, SSTORE, STATICCALL, TIMESTAMP
     // See test/purity-checker/whitelist-mask-generator.spec.ts for more info
     const whitelistMask =
       process.env.OPCODE_WHITELIST_MASK ||
-      '0x200a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
+      '0x200a0000000000000000001fffffffffffffffff0fcf0000fbf000013fff0fff'
 
     console.log(`Deploying OpcodeWhitelist using mask '${whitelistMask}'...`)
 

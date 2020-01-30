@@ -14,7 +14,7 @@ const log = getLogger('purity-checker')
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 const whitelistMask =
-  '0x200a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
+  '0x200a0000000000000000001fffffffffffffffff0fcf0000fbf000013fff0fff'
 const notWhitelisted: EVMOpcode[] = [
   Opcode.ADDRESS,
   Opcode.BALANCE,
@@ -26,8 +26,6 @@ const notWhitelisted: EVMOpcode[] = [
   Opcode.CREATE2,
   Opcode.DELEGATECALL,
   Opcode.DIFFICULTY,
-  Opcode.EXTCODECOPY,
-  Opcode.EXTCODESIZE,
   Opcode.GASLIMIT,
   Opcode.GASPRICE,
   Opcode.INVALID,

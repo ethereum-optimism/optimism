@@ -2,7 +2,6 @@
 import { ethers } from 'ethers'
 import {
   bufToHexString,
-  isValidHexAddress,
   remove0x,
   hexStrToBuf,
   TestUtils,
@@ -13,36 +12,21 @@ import {
   EVMBytecode,
   Opcode,
 } from '@pigi/rollup-core'
+import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
 import { should } from '../setup'
 import {
-  EvmErrors,
   EvmIntrospectionUtil,
   ExecutionResult,
   CallContext,
-  StepContext,
   InvalidCALLStackError,
 } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
-import {
-  emptyBuffer,
-  getBytecodeCallingContractMethod,
-  invalidBytesConsumedBytecode,
-  setMemory,
-  setupStackAndCALL,
-} from '../helpers'
-
-import {
-  getPUSHBuffer,
-  getPUSHIntegerOp,
-} from '../../src/tools/transpiler/memory-substitution'
+import { setMemory, setupStackAndCALL } from '../helpers'
 
 import * as AssemblyReturnGetter from '../contracts/build/AssemblyReturnGetter.json'
 const abi = new ethers.utils.AbiCoder()
-
-import * as ethereumjsAbi from 'ethereumjs-abi'
-import { CALL_EXCEPTION } from 'ethers/errors'
 
 const getRandomWordsWithMethodIdAtOffset = (
   methodName: string,

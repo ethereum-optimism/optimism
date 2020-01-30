@@ -15,8 +15,6 @@ const excludedOpCodes: EVMOpcode[] = [
   Opcode.CREATE2,
   Opcode.DELEGATECALL,
   Opcode.DIFFICULTY,
-  Opcode.EXTCODECOPY,
-  Opcode.EXTCODESIZE,
   Opcode.GASLIMIT,
   Opcode.GASPRICE,
   Opcode.INVALID,
