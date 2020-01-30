@@ -1,42 +1,38 @@
-/* Internal Imports */
-import { EthnodeProxy } from '.'
-
 /* External Imports */
-import { utils, providers, ContractFactory, Wallet, Contract } from 'ethers'
 import { getLogger } from '@pigi/core-utils'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-const log = getLogger('rollup-mock-provider')
+import { providers, ContractFactory, Wallet, Contract } from 'ethers'
+import { createMockProvider } from 'ethereum-waffle'
+import { FullnodeHandler } from '../types'
+import { Web3Provider } from 'ethers/providers'
 
-export const createMockOvmProvider = async () => {
+const log = getLogger('utils')
+
+/**
+ * Creates a Provider that uses the provided handler to handle `send`s.
+ *
+ * @param fullnodeHandler The handler to use for the provider's send function.
+ * @return The provider.
+ */
+export const createProviderForHandler = (
+  fullnodeHandler: FullnodeHandler
+): Web3Provider => {
   // First, we create a mock provider which is identical to a normal ethers "mock provider"
   const provider = createMockProvider()
-  const [wallet] = getWallets(provider)
-  // Next initialize a mock ethnodeProxy for us to interact with
-  const ethnodeProxy = createLocalEthnodeProxy()
-  const executionManagerAddress = await ethnodeProxy.deployExecutionManager()
 
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
-  const origSend = provider.send
   provider.send = async (method: string, params: any) => {
     log.info('Sending -- Method:', method, 'Params:', params)
 
     // Convert the message or response if we need to
-    const response = await ethnodeProxy.handleRequest(method, params)
+    const response = await fullnodeHandler.handleRequest(method, params)
 
     log.info('Received Response --', response)
     return response
   }
 
   // The return our slightly modified provider & the execution manager address
-  return [provider, executionManagerAddress]
-}
-
-export const createLocalEthnodeProxy = (): EthnodeProxy => {
-  // Note this is a mock provider intended for internal use
-  const ethnodeProvider = createMockProvider()
-  const [proxyWallet] = getWallets(ethnodeProvider)
-  return new EthnodeProxy(ethnodeProvider, proxyWallet)
+  return provider
 }
 
 const defaultDeployOptions = {

@@ -72,15 +72,15 @@ describe('SimpleStorage', () => {
   })
 
   const setStorage = async (slot, value): Promise<void> => {
-    const executeTransactionMethodId: string = ethereumjsAbi
-      .methodID('executeTransaction', [])
+    const executeCallMethodId: string = ethereumjsAbi
+      .methodID('executeCall', [])
       .toString('hex')
 
     const timestamp: string = '00'.repeat(32)
     const origin: string = '00'.repeat(32)
     const entrypoint: string =
       '00'.repeat(12) + remove0x(simpleStorageOvmAddress)
-    const txBody: string = `${executeTransactionMethodId}${timestamp}${origin}${entrypoint}`
+    const txBody: string = `${executeCallMethodId}${timestamp}${origin}${entrypoint}`
 
     const setStorageMethodId: string = ethereumjsAbi
       .methodID('setStorage', [])

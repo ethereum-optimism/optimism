@@ -68,45 +68,6 @@ contract ExecutionManager is FullStateManager {
     }
 
     /**
-     * @notice Execute a transaction which consists of running a transaction within the context of a timestamp
-     *         and queue origin.
-     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
-     * Below format of the bytes expected as input and written as output:
-     * calldata: variable-length bytes:
-     *       [methodID (bytes4)]
-     *       [timestamp (uint)]
-     *       [queueOrigin (uint)]
-     *       [ovmEntrypointAddress (address as bytes32 (left-padded, big-endian))]
-     *       [callBytes (bytes (variable length))]
-     * returndata: [variable-length bytes returned from call] - The updated storage elements.
-     *      This will be used by the fraud prover to check the post state root.
-     */
-    function executeTransaction() external {
-        address addr = address(this);
-        bytes32 methodId = executeCallMethodId;
-
-        bytes memory execCallBytes;
-        assembly {
-            execCallBytes := mload(0x40)
-            calldatacopy(execCallBytes, 0, calldatasize)
-
-            mstore8(execCallBytes, shr(24, methodId))
-            mstore8(add(execCallBytes, 1), shr(16, methodId))
-            mstore8(add(execCallBytes, 2), shr(8, methodId))
-            mstore8(add(execCallBytes, 3), methodId)
-
-            // overwrite call's data
-            let result := mload(0x40)
-            let success := call(gas, addr, 0, execCallBytes, calldatasize, result, 500000)
-
-            if eq(success,0) {
-                revert(0,0)
-            }
-        }
-        // TODO: Track & return storage elements
-    }
-
-    /**
      * @notice Execute a call which will return the result of the call instead of the updated storage.
      *         Note: This should only be used with a Web3 `call` operation, otherwise you may accidentally save changes to the state.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
@@ -125,20 +86,25 @@ contract ExecutionManager is FullStateManager {
         uint callSize;
         bytes memory callBytes;
         bytes32 methodId = ovmCallMethodId;
-
         assembly {
+            // Revert if we don't have methodId, timestamp, queueOrigin, and ovmEntrypointAddress.
+            if lt(calldatasize, 100) {
+                revert(0,0)
+            }
+
             // populate timestamp and queue origin from calldata
             _timestamp := calldataload(4)
             // skip method ID (bytes4) and timestamp (bytes32)
             _queueOrigin := calldataload(0x24)
 
-            // set callsize: total param size minus 2 uints plus 4 byte method ID - 4 bytes (new method ID)
-            callSize := sub(calldatasize, 0x40)
             callBytes := mload(0x40)
+            // set callsize: total param size minus 2 uints (methodId bytes are repurposed)
+            callSize := sub(calldatasize, 0x40)
             mstore(0x40, add(callBytes, callSize))
 
             // leave room for method ID, skip ahead in calldata methodID(4), timestamp(32), queueOrigin(32)
-            calldatacopy(add(callBytes, 4), 0x44, callSize)
+            calldatacopy(add(callBytes, 4), 0x44, sub(callSize, 4))
+
             mstore8(callBytes, shr(24, methodId))
             mstore8(add(callBytes, 1), shr(16, methodId))
             mstore8(add(callBytes, 2), shr(8, methodId))
@@ -545,11 +511,12 @@ contract ExecutionManager is FullStateManager {
               500000
             )
 
-            returnSize := returndatasize
-
             if eq(success, 0) {
                 revert(0, 0)
             }
+
+            returnSize := returndatasize
+            mstore(0x40, add(returnData, returnSize))
         }
 
         // Revert back to our old execution context
@@ -756,7 +723,7 @@ contract ExecutionManager is FullStateManager {
      *      [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      * returndata: 32 bytes: the big-endian codesize int.
      */
-    function ovmEXTCODESIZE() public {
+    function ovmEXTCODESIZE() public view {
         bytes32 _targetAddressBytes;
         assembly {
         // read calldata, ignoring methodID and first 12 bytes of address
@@ -782,7 +749,7 @@ contract ExecutionManager is FullStateManager {
      *      [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      * returndata: 32 bytes: the hash.
      */
-    function ovmEXTCODEHASH() public {
+    function ovmEXTCODEHASH() public view {
         bytes32 _targetAddressBytes;
         assembly {
             // read calldata, ignoring methodID and first 12 bytes of address
@@ -812,7 +779,7 @@ contract ExecutionManager is FullStateManager {
      *       [length (uint (32))]
      * returndata: length (input param) bytes of contract at address, starting at index.
      */
-    function ovmEXTCODECOPY() public {
+    function ovmEXTCODECOPY() public view {
         bytes32 _targetAddressBytes;
         uint _index;
         uint _length;

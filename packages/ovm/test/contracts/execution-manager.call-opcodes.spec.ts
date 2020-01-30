@@ -35,10 +35,6 @@ const executeCallMethodId: string = ethereumjsAbi
   .methodID('executeCall', [])
   .toString('hex')
 
-const executeTransactionMethodId: string = ethereumjsAbi
-  .methodID('executeTransaction', [])
-  .toString('hex')
-
 const sstoreMethodId: string = ethereumjsAbi
   .methodID('notStaticFriendlySSTORE', [])
   .toString('hex')
@@ -84,7 +80,6 @@ describe('Execution Manager -- Call opcodes', () => {
   let callContract2Address32: string
   let callContract3Address32: string
   let executeCallToCallContractData: string
-  let executeTransactionToCallContractData: string
 
   let createMethodIdAndData: string
   let create2MethodIdAndData: string
@@ -167,7 +162,6 @@ describe('Execution Manager -- Call opcodes', () => {
     )
     const encodedParams = `${timestampAndQueueOrigin}${callContractAddress32}`
     executeCallToCallContractData = `0x${executeCallMethodId}${encodedParams}`
-    executeTransactionToCallContractData = `0x${executeTransactionMethodId}${encodedParams}`
   })
 
   describe('ovmCALL', async () => {
@@ -190,7 +184,7 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to SSTORE', async () => {
-      const data: string = `${executeTransactionToCallContractData}${callMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
+      const data: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
 
       // Note: Send transaction vs call so it is persisted
       await wallet.sendTransaction({
@@ -256,7 +250,7 @@ describe('Execution Manager -- Call opcodes', () => {
       .toString('hex')
 
     it('properly executes ovmDELEGATECALL to SSTORE', async () => {
-      const data: string = `${executeTransactionToCallContractData}${delegateCallMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
+      const data: string = `${executeCallToCallContractData}${delegateCallMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
 
       // Note: Send transaction vs call so it is persisted
       await wallet.sendTransaction({
@@ -299,7 +293,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('properly executes nested ovmDELEGATECALLs to SSTORE', async () => {
       // contract 1 delegate calls contract 2 delegate calls contract 3
-      const data: string = `${executeTransactionToCallContractData}${delegateCallMethodId}${callContract2Address32}${delegateCallMethodId}${callContract3Address32}${sstoreMethodIdAndParams}`
+      const data: string = `${executeCallToCallContractData}${delegateCallMethodId}${callContract2Address32}${delegateCallMethodId}${callContract3Address32}${sstoreMethodIdAndParams}`
 
       // Note: Send transaction vs call so it is persisted
       await wallet.sendTransaction({
@@ -412,7 +406,7 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('fails on ovmSTATICCALL to SSTORE', async () => {
-      const data: string = `${executeTransactionToCallContractData}${staticCallMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
+      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
 
       await TestUtils.assertThrowsAsync(async () => {
         // Note: Send transaction vs call so it is persisted

@@ -11,17 +11,17 @@ import { CREATOR_CONTRACT_ADDRESS } from '.'
 const log = getLogger('utils')
 
 /**
- * Contrat Definitions!
+ * Contract Definitions!
  * Useful if you need to deploy an ExecutionManager from a different package
  */
-// imports
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
+// Contract Imports
+import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
-// exports
-export const ExecutionManagerContractDefinition = {
-  abi: ExecutionManager.abi,
-  bytecode: ExecutionManager.bytecode,
+// Contract Exports
+export const L2ExecutionManagerContractDefinition = {
+  abi: L2ExecutionManager.abi,
+  bytecode: L2ExecutionManager.bytecode,
 }
 export const ContractAddressGeneratorContractDefinition = {
   abi: ContractAddressGenerator.abi,

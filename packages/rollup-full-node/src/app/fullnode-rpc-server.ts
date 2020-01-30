@@ -8,7 +8,9 @@ import {
   Logger,
   JsonRpcRequest,
 } from '@pigi/core-utils'
-import { FullnodeHandler } from '../types'
+
+/* Internal Imports */
+import { FullnodeHandler, UnsupportedMethodError } from '../types'
 
 const log: Logger = getLogger('rollup-fullnode-rpc-server')
 
@@ -28,7 +30,6 @@ export class FullnodeRpcServer extends ExpressHttpServer {
    * @param middleware any express middle
    */
   constructor(
-    private readonly supportedMethods: Set<string>,
     fullnodeHandler: FullnodeHandler,
     hostname: string,
     port: number,
@@ -48,10 +49,6 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         return res.json(buildJsonRpcError('INVALID_REQUEST', null))
       }
 
-      if (!this.supportedMethods.has(request.method)) {
-        return res.json(buildJsonRpcError('METHOD_NOT_FOUND', request.id))
-      }
-
       try {
         const result = await this.fullnodeHandler.handleRequest(
           request.method,
@@ -63,6 +60,9 @@ export class FullnodeRpcServer extends ExpressHttpServer {
           result,
         })
       } catch (err) {
+        if (err instanceof UnsupportedMethodError) {
+          return res.json(buildJsonRpcError('METHOD_NOT_FOUND', request.id))
+        }
         logError(log, `Uncaught exception at endpoint-level`, err)
         return res.json(buildJsonRpcError('INTERNAL_ERROR', request.id))
       }

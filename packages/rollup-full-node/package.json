@@ -9,7 +9,7 @@
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "build": "waffle waffle-config.json && tsc -p .",
-    "clean": "rimraf build/",
+    "clean": "rimraf build/ && rimraf test/contracts/build",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pigi/core-db": "0.0.10-alpha.0",
     "@pigi/core-utils": "0.0.10-alpha.0",
-    "@pigi/ovm": "^0.0.1-alpha.9",
+    "@pigi/ovm": "0.0.1-alpha.9",
     "@pigi/rollup-core": "0.0.10-alpha.0",
     "async-lock": "^1.2.2",
     "axios": "^0.19.0",

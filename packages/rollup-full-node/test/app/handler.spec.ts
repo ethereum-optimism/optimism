@@ -5,15 +5,14 @@ import { DB, newInMemoryDB } from '@pigi/core-db/'
 
 /* Internal Imports */
 import {
-  EthnodeProxy,
   FullnodeRpcServer,
-  createLocalEthnodeProxy,
   deployOvmContract,
+  DefaultWeb3Handler,
 } from '../../src/app'
-import { SupportedWeb3MethodsSet } from '../../src/types'
 import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
 import { ethers } from 'ethers'
 import { getWallets } from 'ethereum-waffle'
+import { FullnodeHandler } from '../../src/types'
 
 const log = getLogger('ethnode-proxy', true)
 
@@ -24,18 +23,14 @@ const port = 9999
  * TESTS *
  *********/
 
-describe('EthnodeProxy', () => {
-  const fullnodeHandler: EthnodeProxy = createLocalEthnodeProxy()
+describe('Web3Handler', () => {
+  let fullnodeHandler: FullnodeHandler
   let fullnodeRpcServer: FullnodeRpcServer
   let baseUrl: string
 
   beforeEach(async () => {
-    fullnodeRpcServer = new FullnodeRpcServer(
-      SupportedWeb3MethodsSet,
-      fullnodeHandler,
-      host,
-      port
-    )
+    fullnodeHandler = await DefaultWeb3Handler.create()
+    fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
 
     fullnodeRpcServer.listen()
 

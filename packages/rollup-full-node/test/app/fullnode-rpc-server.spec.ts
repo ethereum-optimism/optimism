@@ -12,19 +12,23 @@ import {
 import { AxiosResponse } from 'axios'
 
 /* Internal Imports */
-import { FullnodeRpcServer } from '../../src/app/fullnode-rpc-server'
-import { FullnodeHandler } from '../../src/types'
+import { FullnodeRpcServer } from '../../src/app'
+import { FullnodeHandler, UnsupportedMethodError } from '../../src/types'
 import { should } from '../setup'
 
 const log = getLogger('fullnode-rpc-server', true)
 
 const dummyResponse: string = 'Dummy Response =D'
 
+const unsupportedMethod: string = 'unsupported!'
 class DummyFullnodeHandler implements FullnodeHandler {
   public async handleRequest(
     method: string,
     params: string[]
   ): Promise<string> {
+    if (method === unsupportedMethod) {
+      throw new UnsupportedMethodError()
+    }
     return dummyResponse
   }
 }
@@ -56,12 +60,7 @@ describe('FullnodeHandler RPC Server', () => {
   let client: AxiosHttpClient
 
   beforeEach(() => {
-    fullnodeRpcServer = new FullnodeRpcServer(
-      defaultSupportedMethods,
-      fullnodeHandler,
-      host,
-      port
-    )
+    fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
 
     fullnodeRpcServer.listen()
 
@@ -111,7 +110,7 @@ describe('FullnodeHandler RPC Server', () => {
         method: defaultSupportedMethods[0],
       }),
       request(client, { id: 1, jsonrpc: '2.0' }),
-      request(client, { id: 1, jsonrpc: '2.0', method: 'notValid' }),
+      request(client, { id: 1, jsonrpc: '2.0', method: unsupportedMethod }),
     ])
 
     results.forEach((r) => {

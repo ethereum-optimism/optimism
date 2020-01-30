@@ -2,7 +2,7 @@
   "name": "@pigi/ovm",
   "version": "0.0.1-alpha.9",
   "description": "A simple EVM state machine designed for rollup",
-  "main": "build/src/app/index.js",
+  "main": "build/index.js",
   "files": [
     "build/**/*.js"
   ],

@@ -1,5 +1,5 @@
 export * from './aggregator'
 export * from './block-builder'
 export * from './block-submitter'
-export * from './ethnode-proxy'
 export * from './errors'
+export * from './handler'
