@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 export VAULT_CACERT=$DEVDIR/docker/ca/certs/ca.crt
 
 # We used a self-signed cert for Vault so the agent needs it
