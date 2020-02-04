@@ -39,6 +39,8 @@ We will create a policy that allows the OmiseGo service account to submit blocks
 **NOTE:** Configuration of the kubernetes authentication backend requires access to the credentials for the service account:
 
 ```sh
+export VAULT_SA_NAME=$(kubectl get sa omisego-service -o jsonpath="{.secrets[*]['name']}")
+
 export SA_JWT_TOKEN=$(kubectl get secret $VAULT_SA_NAME -o jsonpath="{.data.token}" | base64 --decode; echo)
 ```
 

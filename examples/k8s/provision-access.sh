@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 export VAULT_CACERT=$DEVDIR/docker/ca/certs/ca.crt
 export VAULT_TOKEN="totally-secure"
 export AUTHORITY_ADDRESS="0x4BC91c7fA64017a94007B7452B75888cD82185F7"

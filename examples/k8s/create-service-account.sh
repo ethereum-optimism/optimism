@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -x
+
+
 # Create a service account, 'omisego-service'
 kubectl create serviceaccount omisego-service
 
