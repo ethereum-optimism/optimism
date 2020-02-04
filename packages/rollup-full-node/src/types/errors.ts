@@ -9,3 +9,11 @@ export class UnsupportedMethodError extends Error {
     super(message || 'This method is not supported.')
   }
 }
+
+export class InvalidParametersError extends Error {
+  constructor(message?: string) {
+    super(
+      message || 'The provided params are invalid for the call in question.'
+    )
+  }
+}

@@ -10,7 +10,11 @@ import {
 } from '@pigi/core-utils'
 
 /* Internal Imports */
-import { FullnodeHandler, UnsupportedMethodError } from '../types'
+import {
+  FullnodeHandler,
+  InvalidParametersError,
+  UnsupportedMethodError,
+} from '../types'
 
 const log: Logger = getLogger('rollup-fullnode-rpc-server')
 
@@ -44,12 +48,14 @@ export class FullnodeRpcServer extends ExpressHttpServer {
    */
   protected initRoutes(): void {
     this.app.post('/', async (req, res) => {
-      const request: JsonRpcRequest = req.body
-      if (!isJsonRpcRequest(request)) {
-        return res.json(buildJsonRpcError('INVALID_REQUEST', null))
-      }
-
+      let request: JsonRpcRequest
       try {
+        request = req.body
+        if (!isJsonRpcRequest(request)) {
+          log.debug(`Received request of unsupported format: [${request}]`)
+          return res.json(buildJsonRpcError('INVALID_REQUEST', null))
+        }
+
         const result = await this.fullnodeHandler.handleRequest(
           request.method,
           request.params
@@ -61,7 +67,19 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         })
       } catch (err) {
         if (err instanceof UnsupportedMethodError) {
+          log.debug(
+            `Received request with unsupported method: [${JSON.stringify(
+              request
+            )}]`
+          )
           return res.json(buildJsonRpcError('METHOD_NOT_FOUND', request.id))
+        } else if (err instanceof InvalidParametersError) {
+          log.debug(
+            `Received request with valid method but invalid parameters: [${JSON.stringify(
+              request
+            )}]`
+          )
+          return res.json(buildJsonRpcError('INVALID_PARAMS', request.id))
         }
         logError(log, `Uncaught exception at endpoint-level`, err)
         return res.json(buildJsonRpcError('INTERNAL_ERROR', request.id))
