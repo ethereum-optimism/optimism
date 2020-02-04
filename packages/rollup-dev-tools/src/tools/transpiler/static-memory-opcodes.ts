@@ -104,7 +104,7 @@ export const getTIMESTAMPReplacement = (
   return callContractWithStackElementsAndReturnWordToStack(
     executionManagerAddress,
     ovmTIMESTAMPFunctionName,
-    1,
+    0,
     1
   )
 }
