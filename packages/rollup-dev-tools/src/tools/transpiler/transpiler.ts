@@ -21,8 +21,6 @@ import {
 import {
   getExpectedFooterSwitchStatementJumpdestIndex,
   getJumpIndexSwitchStatementBytecode,
-  getJumpdestReplacementBytecode,
-  getJumpdestReplacementBytecodeLength,
   getJumpiReplacementBytecode,
   getJumpiReplacementBytecodeLength,
   getJumpReplacementBytecode,
@@ -256,9 +254,9 @@ export class TranspilerImpl implements Transpiler {
         )
         pc += getJumpiReplacementBytecodeLength()
       } else if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
+        replacedBytecode.push(opcodeAndBytes)
         jumpdestIndexesAfter.push(pc)
-        replacedBytecode.push(...getJumpdestReplacementBytecode())
-        pc += getJumpdestReplacementBytecodeLength()
+        pc += 1
       } else {
         replacedBytecode.push(opcodeAndBytes)
         pc += 1 + opcodeAndBytes.opcode.programBytesConsumed
@@ -282,7 +280,8 @@ export class TranspilerImpl implements Transpiler {
     replacedBytecode.push(
       ...getJumpIndexSwitchStatementBytecode(
         jumpdestIndexesBefore,
-        jumpdestIndexesAfter
+        jumpdestIndexesAfter,
+        bytecodeToBuffer(replacedBytecode).length
       )
     )
 

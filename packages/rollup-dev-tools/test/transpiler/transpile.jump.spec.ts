@@ -9,6 +9,7 @@ import {
   bytecodeToBuffer,
   bufferToBytecode,
   EVMOpcodeAndBytes,
+  formatBytecode,
 } from '@pigi/rollup-core'
 
 /* Internal imports */
@@ -82,40 +83,42 @@ const validateJumpBytecode = (successResult: SuccessfulTranspilation): void => {
     )}, not ${bufToHexString(Opcode.JUMPDEST.code)}`
   )
 
+  const switchSuccessJumpdestIndex: number = jumpdestIndexes.pop()
+  const switchSuccessJumpdest: Buffer = successResult.bytecode.slice(
+    switchSuccessJumpdestIndex,
+    switchSuccessJumpdestIndex + 1
+  )
+  switchSuccessJumpdest.should.eql(
+    Opcode.JUMPDEST.code,
+    `Switch success JUMPDEST index is ${switchJumpdestIndex}, but byte at that index is ${bufToHexString(
+      switchJumpdest
+    )}, not ${bufToHexString(Opcode.JUMPDEST.code)}`
+  )
+
   opcodesBeforeJump.size.should.be.greaterThan(
     0,
     'opcodesBeforeJump should have entries but does not!'
   )
 
   for (const [index, opcodeBeforeJump] of opcodesBeforeJump.entries()) {
-    opcodeBeforeJump.opcode.should.equal(
-      Opcode.PUSH32,
-      'Opcode before JUMP should be a PUSH32, pushing the location of the footer JUMP switch!'
-    )
-    if (index < switchJumpdestIndex) {
+    if (index < switchSuccessJumpdestIndex) {
       // All regular program JUMPs should go to the footer JUMPDEST
+      opcodeBeforeJump.opcode.programBytesConsumed.should.be.gt(
+        0,
+        'Opcode before JUMP should be a PUSH32, pushing the location of the footer JUMP switch!'
+      )
       opcodeBeforeJump.consumedBytes.should.eql(
         bufferUtils.numberToBuffer(switchJumpdestIndex),
         'JUMP should be equal to index of footer switch JUMPDEST!'
       )
-    } else {
-      // Make sure that all footer JUMPS go to JUMPDESTs
+    } else if (index > switchJumpdestIndex) {
+      // Make sure that all footer JUMPS go to footer JUMP success jumpdest
       const dest: number = opcodeBeforeJump.consumedBytes.readInt32BE(28)
-      successResult.bytecode
-        .slice(dest, dest + 1)
-        .should.eql(
-          Opcode.JUMPDEST.code,
-          'JUMP should be equal to index of footer switch JUMPDEST!'
-        )
+      dest.should.eq(
+        switchSuccessJumpdestIndex,
+        'All footer JUMPs should go to success JUMPDEST block'
+      )
     }
-  }
-
-  // Need to make sure that regular program JUMPDESTs are followed by POP
-  // due to the way our switch statement leaves an extra item on the stack.
-  for (const index of jumpdestIndexes) {
-    successResult.bytecode
-      .slice(index + 1, index + 2)
-      .should.eql(Opcode.POP.code)
   }
 }
 
@@ -157,6 +160,7 @@ describe('Transpile - JUMPs', () => {
       transpiler,
       initialBytecode
     )
+
     validateJumpBytecode(successResult)
     await assertExecutionEqual(evmUtil, initialBytecode, successResult.bytecode)
   })

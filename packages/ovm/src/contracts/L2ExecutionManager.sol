@@ -12,7 +12,7 @@ import {ExecutionManager} from "./ExecutionManager.sol";
 contract L2ExecutionManager is ExecutionManager {
   mapping(bytes32 => bytes32) ovmHashToEvmHash;
 
-  constructor(address _purityCheckerAddress, address _owner) ExecutionManager(_purityCheckerAddress, _owner) public {}
+  constructor(uint256 _opcodeWhitelistMask, address _owner, bool _overridePurityChecker) ExecutionManager(_opcodeWhitelistMask, _owner, _overridePurityChecker) public {}
 
   /**
    @notice Associates the provided OVM transaction hash with the EVM transaction hash so that we can properly

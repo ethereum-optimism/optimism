@@ -14,6 +14,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Internal Imports */
 import {
   FullnodeHandler,
+  InvalidParametersError,
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
@@ -62,67 +63,53 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     log.debug(`Handling request, method: [${method}], params: [${params}]`)
 
     // Make sure the method is available
-    let response
-    if (method === Web3RpcMethods.blockNumber && params.length === 0) {
-      response = await this.blockNumber()
-    } else if (
-      method === Web3RpcMethods.call &&
-      (params.length === 1 || params.length === 2)
-    ) {
-      response = await this.call(
-        params[0],
-        params.length > 1 ? params[1] : latestBlock
-      )
-    } else if (
-      method === Web3RpcMethods.estimateGas &&
-      (params.length === 1 || params.length === 2)
-    ) {
-      response = await this.estimateGas(
-        params[0],
-        params.length > 1 ? params[1] : latestBlock
-      )
-    } else if (method === Web3RpcMethods.gasPrice && params.length === 0) {
-      response = await this.gasPrice()
-    } else if (
-      method === Web3RpcMethods.getCode &&
-      (params.length === 1 || params.length === 2)
-    ) {
-      response = await this.getCode(
-        params[0],
-        params.length > 1 ? params[1] : latestBlock
-      )
-    } else if (
-      method === Web3RpcMethods.getExecutionManagerAddress &&
-      params.length === 0
-    ) {
-      response = await this.getExecutionManagerAddress()
-    } else if (
-      method === Web3RpcMethods.getTransactionCount &&
-      (params.length === 1 || params.length === 2)
-    ) {
-      response = await this.getTransactionCount(
-        params[0],
-        params.length > 1 ? params[1] : latestBlock
-      )
-    } else if (
-      method === Web3RpcMethods.getTransactionReceipt &&
-      params.length === 1
-    ) {
-      response = await this.getTransactionReceipt(params[0])
-    } else if (
-      method === Web3RpcMethods.sendRawTransaction &&
-      params.length === 1
-    ) {
-      response = await this.sendRawTransaction(params[0])
-    } else if (
-      method === Web3RpcMethods.networkVersion &&
-      params.length === 0
-    ) {
-      response = await this.networkVersion()
-    } else {
-      const msg: string = `Method / params [${method} / ${params}] is not supported by this Web3 handler!`
-      log.error(msg)
-      throw new UnsupportedMethodError(msg)
+    let response: string
+    let args: any[]
+    switch (method) {
+      case Web3RpcMethods.blockNumber:
+        this.assertParameters(params, 0)
+        response = await this.blockNumber()
+        break
+      case Web3RpcMethods.call:
+        args = this.assertParameters(params, 2, latestBlock)
+        response = await this.call(args[0], args[1])
+        break
+      case Web3RpcMethods.estimateGas:
+        args = this.assertParameters(params, 2, latestBlock)
+        response = await this.estimateGas(args[0], args[1])
+        break
+      case Web3RpcMethods.gasPrice:
+        this.assertParameters(params, 0)
+        response = await this.gasPrice()
+        break
+      case Web3RpcMethods.getCode:
+        args = this.assertParameters(params, 2, latestBlock)
+        response = await this.getCode(args[0], args[1])
+        break
+      case Web3RpcMethods.getExecutionManagerAddress:
+        this.assertParameters(params, 0)
+        response = await this.getExecutionManagerAddress()
+        break
+      case Web3RpcMethods.getTransactionCount:
+        args = this.assertParameters(params, 2, latestBlock)
+        response = await this.getTransactionCount(args[0], args[1])
+        break
+      case Web3RpcMethods.getTransactionReceipt:
+        args = this.assertParameters(params, 1)
+        response = await this.getTransactionReceipt(args[0])
+        break
+      case Web3RpcMethods.sendRawTransaction:
+        args = this.assertParameters(params, 1)
+        response = await this.sendRawTransaction(args[0])
+        break
+      case Web3RpcMethods.networkVersion:
+        this.assertParameters(params, 0)
+        response = await this.networkVersion()
+        break
+      default:
+        const msg: string = `Method / params [${method} / ${params}] is not supported by this Web3 handler!`
+        log.error(msg)
+        throw new UnsupportedMethodError(msg)
     }
 
     log.debug(
@@ -132,9 +119,11 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async blockNumber(): Promise<string> {
+    log.debug(`Requesting block number.`)
     const response = await this.provider.send(Web3RpcMethods.blockNumber, [])
     // For now we will just use the internal node's blocknumber.
     // TODO: Add rollup block tracking
+    log.debug(`Received block number [${response}].`)
     return response
   }
 
@@ -209,7 +198,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     if (defaultBlock !== 'latest') {
       throw new Error('No support for historical code lookups!')
     }
-    log.debug(`Getting code for address: [${address}]`)
+    log.debug(
+      `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
+    )
     // First get the code contract address at the requested OVM address
     const codeContractAddress = await this.executionManager.getCodeContractAddress(
       address
@@ -218,7 +209,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       codeContractAddress,
       'latest',
     ])
-    log.debug(`Got code for address: [${address}]: [${response}]`)
+    log.debug(
+      `Got code for address [${address}], block [${defaultBlock}]: [${response}]`
+    )
     return response
   }
 
@@ -230,9 +223,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     address: Address,
     defaultBlock: string
   ): Promise<string> {
+    log.debug(
+      `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
+    )
     const response = await this.provider.send(
       Web3RpcMethods.getTransactionCount,
       [address, defaultBlock]
+    )
+    log.debug(
+      `Received transaction count for Address [${address}], block: [${defaultBlock}]: [${response}].`
     )
     return response
   }
@@ -257,7 +256,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async networkVersion(): Promise<string> {
+    log.debug('Getting network version')
     const response = await this.provider.send(Web3RpcMethods.networkVersion, [])
+    log.debug(`Got network version: [${response}]`)
     return response
   }
 
@@ -408,5 +409,24 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
 
     return executionManager
+  }
+
+  private assertParameters(
+    params: any[],
+    expected: number,
+    defaultLast?: any
+  ): any[] {
+    if (!params) {
+      if (!expected) {
+        return []
+      }
+    } else if (params.length === expected - 1 || params.length === expected) {
+      return params.length === expected ? params : [...params, defaultLast]
+    }
+    throw new InvalidParametersError(
+      `Expected ${expected} parameters but received ${
+        !params ? 0 : params.length
+      }.`
+    )
   }
 }

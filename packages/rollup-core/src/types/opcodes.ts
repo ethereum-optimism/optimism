@@ -740,7 +740,7 @@ export class Opcode {
     programBytesConsumed: 0,
   }
 
-  public static readonly ALL_OP_CODES = [
+  public static readonly ALL_OP_CODES: EVMOpcode[] = [
     Opcode.STOP,
     Opcode.ADD,
     Opcode.MUL,
@@ -892,6 +892,14 @@ export class Opcode {
     Opcode.REVERT,
     Opcode.INVALID,
     Opcode.SELFDESTRUCT,
+  ]
+
+  public static readonly HALTING_OP_CODES: EVMOpcode[] = [
+    Opcode.STOP,
+    Opcode.JUMP,
+    Opcode.RETURN,
+    Opcode.REVERT,
+    Opcode.INVALID,
   ]
 
   private static readonly nameToOpcode: Map<string, EVMOpcode> = new Map<
