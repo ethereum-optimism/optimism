@@ -50,6 +50,8 @@ export const whitelistedOpcodes: EVMOpcode[] = [
   Opcode.MLOAD,
   Opcode.SUB,
   Opcode.RETURN,
+  Opcode.REVERT,
+  Opcode.INVALID,
 ]
 
 export const validBytecode: EVMBytecode = [
@@ -60,7 +62,6 @@ export const validBytecode: EVMBytecode = [
   { opcode: Opcode.ADD, consumedBytes: undefined },
   { opcode: Opcode.MUL, consumedBytes: undefined },
   { opcode: Opcode.EQ, consumedBytes: undefined },
-  { opcode: Opcode.RETURN, consumedBytes: undefined },
 ]
 
 export const singleNonWhitelisted: EVMBytecode = [
@@ -106,6 +107,18 @@ export const invalidBytesConsumedBytecode: EVMBytecode = [
   { opcode: Opcode.PUSH1, consumedBytes: undefined },
 ]
 
+export const invalidBytesConsumedBytecodeNoReturn: EVMBytecode = [
+  { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('00', 'hex') },
+  { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('01', 'hex') },
+  { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('02', 'hex') },
+  { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('03', 'hex') },
+  { opcode: Opcode.ADD, consumedBytes: undefined },
+  { opcode: Opcode.MUL, consumedBytes: undefined },
+  { opcode: Opcode.EQ, consumedBytes: undefined },
+  { opcode: Opcode.POP, consumedBytes: undefined },
+  { opcode: Opcode.PUSH1, consumedBytes: undefined },
+]
+
 export const multipleErrors: EVMBytecode = [
   { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('00', 'hex') },
   { opcode: Opcode.PUSH1, consumedBytes: Buffer.from('01', 'hex') },
@@ -114,7 +127,6 @@ export const multipleErrors: EVMBytecode = [
   { opcode: Opcode.ADD, consumedBytes: undefined },
   { opcode: Opcode.MUL, consumedBytes: undefined },
   { opcode: Opcode.EQ, consumedBytes: undefined },
-  { opcode: Opcode.RETURN, consumedBytes: undefined },
   { opcode: Opcode.SLOAD, consumedBytes: undefined },
   { opcode: Opcode.PUSH1, consumedBytes: undefined },
 ]

@@ -902,6 +902,11 @@ export class Opcode {
     Opcode.INVALID,
   ]
 
+  public static readonly JUMP_OP_CODES: EVMOpcode[] = [
+    Opcode.JUMP,
+    Opcode.JUMPI,
+  ]
+
   private static readonly nameToOpcode: Map<string, EVMOpcode> = new Map<
     string,
     EVMOpcode

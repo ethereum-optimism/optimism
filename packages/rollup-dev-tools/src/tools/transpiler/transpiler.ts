@@ -7,7 +7,7 @@ import {
   EVMOpcode,
   formatBytecode,
 } from '@pigi/rollup-core'
-import { getLogger } from '@pigi/core-utils'
+import { getLogger, bufToHexString, hexStrToBuf, add0x } from '@pigi/core-utils'
 
 /* Internal Imports */
 import {
@@ -47,46 +47,70 @@ export class TranspilerImpl implements Transpiler {
     const errors: TranspilationError[] = []
     const jumpdestIndexesBefore: number[] = []
     let lastOpcode: EVMOpcode
+    let insideUnreachableCode: boolean = false
+    let seenJump: boolean = false
     for (let pc = 0; pc < inputBytecode.length; pc++) {
-      const opcode = Opcode.parseByNumber(inputBytecode[pc])
-
-      if (!TranspilerImpl.validOpcode(opcode, pc, lastOpcode, errors)) {
-        lastOpcode = undefined
-        continue
+      let opcode = Opcode.parseByNumber(inputBytecode[pc])
+      // This JUMPDEST is reachable
+      if (insideUnreachableCode && seenJump && opcode === Opcode.JUMPDEST) {
+        insideUnreachableCode = false
       }
-      lastOpcode = opcode
+      if (!insideUnreachableCode) {
+        if (
+          !TranspilerImpl.validOpcode(
+            opcode,
+            pc,
+            inputBytecode[pc],
+            lastOpcode,
+            errors
+          )
+        ) {
+          lastOpcode = undefined
+          continue
+        }
+        lastOpcode = opcode
+        seenJump = seenJump || Opcode.JUMP_OP_CODES.includes(opcode)
+        insideUnreachableCode = Opcode.HALTING_OP_CODES.includes(opcode)
 
-      if (opcode === Opcode.JUMPDEST) {
-        jumpdestIndexesBefore.push(pc)
+        if (opcode === Opcode.JUMPDEST) {
+          jumpdestIndexesBefore.push(pc)
+        }
+        if (!this.opcodeWhitelisted(opcode, pc, errors)) {
+          pc += opcode.programBytesConsumed
+          continue
+        }
+        if (
+          !TranspilerImpl.enoughBytesLeft(
+            opcode,
+            inputBytecode.length,
+            pc,
+            errors
+          )
+        ) {
+          break
+        }
+      }
+      if (insideUnreachableCode && !opcode) {
+        const unreachableCode: Buffer = inputBytecode.slice(pc, pc + 1)
+        opcode = {
+          name: `UNREACHABLE (${bufToHexString(unreachableCode)})`,
+          code: unreachableCode,
+          programBytesConsumed: 0,
+        }
       }
 
-      if (!this.opcodeWhitelisted(opcode, pc, errors)) {
-        pc += opcode.programBytesConsumed
-        continue
-      }
-      if (
-        !TranspilerImpl.enoughBytesLeft(
-          opcode,
-          inputBytecode.length,
-          pc,
-          errors
-        )
-      ) {
-        break
-      }
-
-      // Replacement
       const opcodeAndBytes: EVMOpcodeAndBytes = {
         opcode,
         consumedBytes: !opcode.programBytesConsumed
           ? undefined
           : inputBytecode.slice(pc + 1, pc + 1 + opcode.programBytesConsumed),
       }
+      // copy over opcode as is if unreachable
+      const transpiledOpcodeAndBytes = insideUnreachableCode
+        ? [opcodeAndBytes]
+        : this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
 
-      transpiledBytecode.push(
-        ...this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
-      )
-
+      transpiledBytecode.push(...transpiledOpcodeAndBytes)
       pc += opcode.programBytesConsumed
     }
 
@@ -120,6 +144,7 @@ export class TranspilerImpl implements Transpiler {
    *
    * @param opcode The opcode in question.
    * @param pc The current program counter value.
+   * @param code The code (decimal) of the opcode in question .
    * @param lastOpcode The last Opcode seen before this one.
    * @param errors The cumulative errors list.
    * @returns True if valid, False otherwise.
@@ -127,6 +152,7 @@ export class TranspilerImpl implements Transpiler {
   private static validOpcode(
     opcode: EVMOpcode,
     pc: number,
+    code: number,
     lastOpcode: EVMOpcode,
     errors: TranspilationError[]
   ): boolean {
@@ -138,7 +164,9 @@ export class TranspilerImpl implements Transpiler {
           lastOpcode.programBytesConsumed
         } bytes as expected?`
       }
-      const message: string = `Cannot find opcode for number (decimal): ${opcode}.${messageExtension}`
+      const message: string = `Cannot find opcode for: ${add0x(
+        code.toString(16)
+      )}.${messageExtension}`
       log.debug(message)
       errors.push(
         TranspilerImpl.createError(
