@@ -1,4 +1,6 @@
+/* Internal Imports */
 import '../setup'
+import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
@@ -20,7 +22,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 /* Internal Imports */
 import {
@@ -41,25 +42,13 @@ describe('Execution Manager -- Code-related opcodes', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let purityChecker: Contract
   let dummyContract: ContractFactory
   let dummyContractAddress: Address
   const dummyContractBytecode: Buffer = Buffer.from(
     DummyContract.evm.deployedBytecode.object,
     'hex'
   )
-  // Useful constants
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
 
-  /* Link libraries before tests */
-  before(async () => {
-    purityChecker = await deployContract(
-      wallet,
-      PurityChecker,
-      [ONE_FILLED_BYTES_32],
-      { gasLimit: 6700000 }
-    )
-  })
   beforeEach(async () => {
     // Before each test let's deploy a fresh ExecutionManager and DummyContract
 
@@ -67,7 +56,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [purityChecker.address, '0x' + '00'.repeat(20)],
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
       { gasLimit: 6700000 }
     )
 

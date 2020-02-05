@@ -1,4 +1,10 @@
+/* Internal Imports */
 import '../setup'
+import {
+  manuallyDeployOvmContract,
+  getUnsignedTransactionCalldata,
+} from '../helpers'
+import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
@@ -10,13 +16,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
-
-/* Internal Imports */
-import {
-  manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
-} from '../helpers'
 
 const log = getLogger('simple-storage', true)
 
@@ -29,21 +28,8 @@ describe('SimpleStorage', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple storage contract
   let executionManager: Contract
-  let purityChecker: Contract
   let simpleStorage: ContractFactory
   let simpleStorageOvmAddress: Address
-  // Useful constants
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
-
-  /* Link libraries before tests */
-  before(async () => {
-    purityChecker = await deployContract(
-      wallet,
-      PurityChecker,
-      [ONE_FILLED_BYTES_32],
-      { gasLimit: 6700000 }
-    )
-  })
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
@@ -52,7 +38,7 @@ describe('SimpleStorage', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [purityChecker.address, '0x' + '00'.repeat(20)],
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
       { gasLimit: 6700000 }
     )
 

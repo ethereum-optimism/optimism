@@ -1,3 +1,13 @@
+/* Internal Imports */
+import {
+  manuallyDeployOvmContract,
+  getUnsignedTransactionCalldata,
+  bytes32AddressToAddress,
+  addressToBytes32Address,
+} from '../helpers'
+import { should } from '../setup'
+import { OPCODE_WHITELIST_MASK } from '../../src/app'
+
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
 import {
@@ -15,16 +25,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as ContextContract from '../../build/contracts/ContextContract.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
-
-/* Internal Imports */
-import {
-  manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
-  bytes32AddressToAddress,
-  addressToBytes32Address,
-} from '../helpers'
-import { should } from '../setup'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -46,37 +46,22 @@ describe('Execution Manager -- Context opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   const defaultTimestampAndQueueOrigin: string = '00'.repeat(64)
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
 
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let purityChecker: Contract
   let contract: ContractFactory
   let contract2: ContractFactory
   let contractAddress: Address
   let contract2Address: Address
-
   let contractAddress32: string
   let contract2Address32: string
 
-  /* Link libraries before tests */
-  before(async () => {
-    purityChecker = await deployContract(
-      wallet,
-      PurityChecker,
-      [ONE_FILLED_BYTES_32],
-      { gasLimit: 6700000 }
-    )
-  })
-
   beforeEach(async () => {
-    // Before each test let's deploy a fresh ExecutionManager and DummyContract
-
     // Deploy ExecutionManager the normal way
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [purityChecker.address, '0x' + '00'.repeat(20)],
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
       { gasLimit: 6700000 }
     )
 

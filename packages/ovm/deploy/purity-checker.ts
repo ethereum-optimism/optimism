@@ -1,6 +1,6 @@
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
-import { deploy, deployContract } from '@pigi/core-utils'
+import { deploy, deployContract, add0x } from '@pigi/core-utils'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
@@ -17,19 +17,26 @@ const purityCheckerDeploymentFunction = async (
 
     // Default config whitelists all opcodes EXCEPT:
     //    ADDRESS, BALANCE, BLOCKHASH, CALLCODE, CALLER, COINBASE,
-    //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, GASLIMIT, GASPRICE,
-    //    INVALID, NUMBER, ORIGIN, SELFDESTRUCT, SLOAD, SSTORE, STATICCALL, TIMESTAMP
+    //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, EXTCODECOPY, EXTCODESIZE,
+    //    GASLIMIT, GASPRICE, NUMBER, ORIGIN, SELFDESTRUCT, SLOAD, SSTORE,
+    //    STATICCALL, TIMESTAMP
     // See test/purity-checker/whitelist-mask-generator.spec.ts for more info
     const whitelistMask =
       process.env.OPCODE_WHITELIST_MASK ||
-      '0x200a0000000000000000001fffffffffffffffff0fcf0000fbf000013fff0fff'
+      '0x600a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
 
-    console.log(`Deploying OpcodeWhitelist using mask '${whitelistMask}'...`)
+    const executionManagerAddress =
+      process.env.EXECUTION_MANAGER_ADDRESS || add0x('12'.repeat(20))
 
+    console.log(
+      `Deploying Purity Checker using mask '${whitelistMask}' and execution manager '${executionManagerAddress}'...`
+    )
+    whitelistMask
     const purityChecker = await deployContract(
       PurityChecker,
       wallet,
-      whitelistMask
+      whitelistMask,
+      executionManagerAddress
     )
     purityCheckerContractAddress = purityChecker.address
 

@@ -1,4 +1,6 @@
+/* Internal Imports */
 import '../setup'
+import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
@@ -17,7 +19,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 import * as SimpleCall from '../../build/contracts/SimpleCall.json'
 
 /* Internal Imports */
@@ -67,11 +68,9 @@ const timestampAndQueueOrigin: string = '00'.repeat(64)
 describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  // Useful constant
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let purityChecker: Contract
+  let dummyContract: Contract
   let callContract: ContractFactory
   let callContractAddress: Address
   let callContract2Address: Address
@@ -86,17 +85,14 @@ describe('Execution Manager -- Call opcodes', () => {
 
   /* Link libraries before tests */
   before(async () => {
-    purityChecker = await deployContract(
-      wallet,
-      PurityChecker,
-      [ONE_FILLED_BYTES_32],
-      { gasLimit: 6700000 }
-    )
+    dummyContract = await deployContract(wallet, DummyContract, [], {
+      gasLimit: 6700000,
+    })
 
     const deployTx = new ContractFactory(
       SimpleCall.abi,
       SimpleCall.bytecode
-    ).getDeployTransaction(purityChecker.address)
+    ).getDeployTransaction(dummyContract.address)
 
     createMethodIdAndData = `${createMethodId}${remove0x(deployTx.data)}`
     create2MethodIdAndData = `${create2MethodId}${'00'.repeat(32)}${remove0x(
@@ -104,16 +100,12 @@ describe('Execution Manager -- Call opcodes', () => {
     )}`
   })
   beforeEach(async () => {
-    // Before each test let's deploy a fresh ExecutionManager and DummyContract
-
     // Deploy ExecutionManager the normal way
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [purityChecker.address, '0x' + '00'.repeat(20)],
-      {
-        gasLimit: 6700000,
-      }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
+      { gasLimit: 6700000 }
     )
 
     // Deploy SimpleCall with the ExecutionManager

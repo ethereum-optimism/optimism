@@ -1,14 +1,14 @@
+/* Internal Imports */
 import '../setup'
+import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { add0x, getLogger } from '@pigi/core-utils'
-
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -25,29 +25,16 @@ const value: string = add0x('02'.repeat(32))
 describe('L2 Execution Manager', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  // Useful constant
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
   // Create pointers to our execution manager & simple copier contract
   let l2ExecutionManager: Contract
-  let purityChecker: Contract
 
-  /* Link libraries before tests */
-  before(async () => {
-    purityChecker = await deployContract(
-      wallet,
-      PurityChecker,
-      [ONE_FILLED_BYTES_32],
-      { gasLimit: 6700000 }
-    )
-  })
+  /* Deploy contracts before each test */
   beforeEach(async () => {
-    // Before each test let's deploy a fresh ExecutionManager and DummyContract
-
-    // Deploy ExecutionManager the normal way
+    // Deploy the execution manager
     l2ExecutionManager = await deployContract(
       wallet,
       L2ExecutionManager,
-      [purityChecker.address, '0x' + '00'.repeat(20)],
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
       { gasLimit: 6700000 }
     )
   })

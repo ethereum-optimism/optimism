@@ -28,6 +28,8 @@ contract ExecutionManager is FullStateManager {
     ContractAddressGenerator contractAddressGenerator;
     // Add Purity Checker contract
     PurityChecker purityChecker;
+    // for testing: if true, then do not perform purity checking on init code or deployed bytecode
+    bool overridePurityChecker;
 
     // Events
     event ActiveContract(address _activeContract);
@@ -44,18 +46,21 @@ contract ExecutionManager is FullStateManager {
 
     /**
      * @notice Construct a new ExecutionManager with a specified purity checker & owner.
-     * @param _purityCheckerAddress The address for our purity checker, used during contract creation.
-     * @param _owner The owner of our contract -- the only address allowed to make calls to our purity checker.
+     * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our purity checker
+     * @param _owner The owner of this contract.
+     * @param _overridePurityChecker Set to true to disable purity checking (WARNING: Only do this in test environments)
      */
-    constructor(address _purityCheckerAddress, address _owner) public {
+    constructor(uint256 _opcodeWhitelistMask, address _owner, bool _overridePurityChecker) public {
+        // Set override purity checker flag
+        overridePurityChecker = _overridePurityChecker;
         // Set the purity checker address
-        purityChecker = PurityChecker(_purityCheckerAddress);
+        purityChecker = new PurityChecker(_opcodeWhitelistMask, address(this));
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
         // Deploy our genesis code contract (the normal way)
         CreatorContract creatorContract = new CreatorContract(address(this));
         // Set our genesis creator contract to be the zero address
-        address genesisAddress = creatorContractAddress;
+        address genesisAddress = ZERO_ADDRESS;
         associateCodeContract(genesisAddress, address(creatorContract));
 
         // TODO: Set this in a more useful way
@@ -66,6 +71,7 @@ contract ExecutionManager is FullStateManager {
         // Set our owner
         // TODO
     }
+
 
     /**
      * @notice Execute a call which will return the result of the call instead of the updated storage.
@@ -419,16 +425,16 @@ contract ExecutionManager is FullStateManager {
      * @param _ovmInitcode The initcode for our new contract
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal {
-        // Purity check the initcode -- TODO uncomment this
-        // require(purityChecker.isBytecodePure(_ovmInitcode), "createNewContract: Contract init code is not pure.");
+        // Purity check the initcode -- unless the overridePurityChecker flag is set to true
+        require(overridePurityChecker || purityChecker.isBytecodePure(_ovmInitcode), "createNewContract: Contract init code is not pure.");
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
         address codeContractAddress = deployCodeContract(_ovmInitcode);
         // Get the runtime bytecode
         bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
-        // Purity check the runtime bytecode -- TODO uncomment this
-        // require(purityChecker.isBytecodePure(codeContractBytecode), "createNewContract: Contract runtime bytecode is not pure.");
+        // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
+        require(overridePurityChecker || purityChecker.isBytecodePure(codeContractBytecode), "createNewContract: Contract runtime bytecode is not pure.");
         // Associate the code contract with our ovm contract
         associateCodeContract(_newOvmContractAddress, codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event

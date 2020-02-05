@@ -1,4 +1,6 @@
+/* Internal Imports */
 import '../setup'
+import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -9,7 +11,6 @@ import { Contract, ContractFactory } from 'ethers'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 
 const log = getLogger('execution-manager-create', true)
 
@@ -21,21 +22,7 @@ describe('ExecutionManager -- Create opcodes', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let executionManager: Contract
-  let purityChecker: Contract
   let deployTx
-  // Useful constants
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
-  const TWO_FILLED_BYTES_32 = '0x' + '22'.repeat(32)
-
-  /* Link libraries before tests */
-  before(async () => {
-    purityChecker = await deployContract(
-      wallet,
-      PurityChecker,
-      [ONE_FILLED_BYTES_32],
-      { gasLimit: 6700000 }
-    )
-  })
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
@@ -43,7 +30,7 @@ describe('ExecutionManager -- Create opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [purityChecker.address, '0x' + '00'.repeat(20)],
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
       { gasLimit: 6700000 }
     )
     deployTx = new ContractFactory(
