@@ -84,13 +84,13 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   }
 
   public async deployContract(
-    bytecode: Buffer,
+    initcode: Buffer,
     abiEncodedParameters?: Buffer
   ): Promise<ExecutionResult> {
     const params: string = !!abiEncodedParameters
       ? abiEncodedParameters.toString('hex')
       : ''
-    const data: string = add0x(bytecode.toString('hex') + params)
+    const data: string = add0x(initcode.toString('hex') + params)
 
     const tx: Transaction = new Transaction({
       value: 0,
@@ -107,7 +107,7 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     })
 
     if (!!deployResult.execResult.exceptionError) {
-      const msg: string = `Error deploying contract [${bytecode.toString(
+      const msg: string = `Error deploying contract [${initcode.toString(
         'hex'
       )}] with params: [${params}]: ${
         deployResult.execResult.exceptionError.errorType
@@ -124,6 +124,22 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     return {
       result: deployResult.createdAddress,
     }
+  }
+
+  public async deployBytecodeToAddress(
+    deployedBytecode: Buffer,
+    address: Buffer
+  ): Promise<void> {
+    const result: void = await this.lock.acquire(KEY, async () => {
+      return this.vm.stateManager.putContractCode(
+        address,
+        deployedBytecode,
+        () => {
+          return
+        }
+      )
+    })
+    return result
   }
 
   public async callContract(

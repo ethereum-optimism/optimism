@@ -18,14 +18,25 @@ export interface EvmIntrospectionUtil {
   /**
    * Deploys a contract with the provided bytecode and returns its resulting address.
    *
-   * @param bytecode The bytecode of the contract to deploy.
+   * @param initcode The initcode of the contract to deploy.
    * @parameter abiEncodedParameters The ABI-encoded constructor args.
    * @returns The ExecutionResult containing the deployed contract address or the deployment error.
    */
   deployContract(
-    bytecode: Buffer,
+    initcode: Buffer,
     abiEncodedParameters?: Buffer
   ): Promise<ExecutionResult>
+
+  /**
+   * Deploys a contract with the provided bytecode and to the specified address.
+   *
+   * @param bytecode The bytecode of the contract to deploy.
+   * @param address The address to deploy the bytecode to
+   */
+  deployBytecodeToAddress(
+    deployedBytecode: Buffer,
+    address: Buffer
+  ): Promise<void>
 
   /**
    * Calls the provided method of the provided contract, passing in the
