@@ -1,46 +1,39 @@
 {
-  "name": "@pigi/core-db",
+  "name": "@pigi/solc-transpiler",
   "version": "0.0.10-alpha.0",
-  "description": "Plasma Group DB Utils",
+  "description": "Optimism Transpiler Solc Compiler Wrapper",
   "main": "build/index.js",
   "files": [
     "build/**/.js"
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "build": "tsc -p .",
-    "clean": "rimraf build/",
+    "build": "mkdir -p test/contracts/build && waffle test/waffle-config.json && tsc -p .",
+    "clean": "rimraf build/ && rimraf test/contracts/build",
     "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mkdir -p test/contracts/build && waffle test/waffle-config.json && mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
   },
   "keywords": [
-    "plasma",
-    "group",
+    "optimism",
+    "rollup",
+    "optimistic",
     "ethereum",
     "client"
   ],
-  "homepage": "https://github.com/plasma-group/pigi/tree/master/packages/core-db#readme",
-  "bugs": "https://github.com/plasma-group/pigi/labels/%40pigi%2Fcore-db",
+  "homepage": "https://github.com/op-optimism/optimistic-rollup/tree/master/packages/solc-transpiler#readme",
   "license": "MIT",
-  "author": "Plasma Group",
+  "author": "Optimism PBC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plasma-group/pigi.git"
+    "url": "https://github.com/op-optimism/optimistic-rollup.git"
   },
   "dependencies": {
+    "@pigi/rollup-dev-tools": "0.0.10-alpha.0",
     "@pigi/core-utils": "0.0.10-alpha.0",
-    "abstract-leveldown": "^6.2.2",
-    "async-lock": "^1.2.2",
-    "chai": "^4.2.0",
-    "chai-as-promised": "^7.1.1",
-    "debug": "^4.1.1",
-    "ethers": "^4.0.39",
-    "level": "^6.0.0",
-    "memdown": "^4.0.0"
+    "solc": "^0.5.12"
   },
   "devDependencies": {
-    "@types/abstract-leveldown": "^5.0.1",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.7",
     "@types/node": "^12.0.7",

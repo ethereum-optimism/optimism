@@ -90,12 +90,26 @@ jobs:
           path: packages/rollup-dev-tools/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-dev-tools/package.json') }}
 
+      - name: Cache solc-transpiler deps
+        uses: actions/cache@v1
+        id: cache_solc-transpiler
+        with:
+          path: packages/solc-transpiler/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
+
       - name: Cache types deps
         uses: actions/cache@v1
         id: cache_types
         with:
           path: packages/types/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/types/package.json') }}
+
+      - name: Cache wrapped-solc-example deps
+        uses: actions/cache@v1
+        id: cache_wrapped-solc-example
+        with:
+          path: packages/wrapped-solc-example/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/wrapped-solc-example/package.json') }}
 
       # END DEPENDENCY CACHING
 
