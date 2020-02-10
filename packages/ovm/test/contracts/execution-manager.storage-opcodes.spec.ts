@@ -1,6 +1,4 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -12,6 +10,10 @@ import { Contract, ContractFactory } from 'ethers'
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
+/* Internal Imports */
+import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+
 const log = getLogger('execution-manager-storage', true)
 
 /*********
@@ -19,7 +21,7 @@ const log = getLogger('execution-manager-storage', true)
  *********/
 
 describe('ExecutionManager -- Storage opcodes', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
   // Useful constants
@@ -32,8 +34,8 @@ describe('ExecutionManager -- Storage opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
 

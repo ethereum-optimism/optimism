@@ -19,10 +19,10 @@ contract DataTypes {
 
     struct ExecutionContext {
         bool inStaticContext;
+        uint chainId;
         uint timestamp;
         uint queueOrigin;
         uint gasLimit;
-        uint fraudProofGasLimit;
         address ovmActiveContract;
         address ovmMsgSender;
     }

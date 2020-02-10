@@ -1,6 +1,4 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -14,12 +12,16 @@ import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 const log = getLogger('execution-manager-create', true)
 
+/* Internal Imports */
+import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+
 /*********
  * TESTS *
  *********/
 
 describe('ExecutionManager -- Create opcodes', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
   let deployTx
@@ -30,8 +32,8 @@ describe('ExecutionManager -- Create opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
     deployTx = new ContractFactory(
       SimpleStorage.abi,

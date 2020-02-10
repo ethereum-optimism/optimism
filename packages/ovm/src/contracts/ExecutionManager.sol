@@ -7,6 +7,7 @@ import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
 import {CreatorContract} from "./CreatorContract.sol";
 import {PurityChecker} from "./PurityChecker.sol";
+import {RLPEncode} from "./RLPEncode.sol";
 
 /**
  * @title ExecutionManager
@@ -16,6 +17,7 @@ import {PurityChecker} from "./PurityChecker.sol";
 contract ExecutionManager is FullStateManager {
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
+    bytes32 constant ovmCreateMethodId = keccak256("ovmCREATE()") >> 224;
     bytes32 constant executeCallMethodId = keccak256("executeCall()") >> 224;
 
     // creator contract address
@@ -28,6 +30,7 @@ contract ExecutionManager is FullStateManager {
     ContractAddressGenerator contractAddressGenerator;
     // Add Purity Checker contract
     PurityChecker purityChecker;
+    RLPEncode rlp;
     // for testing: if true, then do not perform purity checking on init code or deployed bytecode
     bool overridePurityChecker;
 
@@ -37,6 +40,10 @@ contract ExecutionManager is FullStateManager {
         address _ovmContractAddress,
         address _codeContractAddress,
         bytes32 _codeContractHash
+    );
+    event CallingWithEOA();
+    event EOACreatedContract(
+        address _ovmContractAddress
     );
     event SetStorage(
         address _ovmContractAddress,
@@ -48,30 +55,29 @@ contract ExecutionManager is FullStateManager {
      * @notice Construct a new ExecutionManager with a specified purity checker & owner.
      * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our purity checker
      * @param _owner The owner of this contract.
+     * @param _blockGasLimit The block gas limit for OVM blocks
      * @param _overridePurityChecker Set to true to disable purity checking (WARNING: Only do this in test environments)
      */
-    constructor(uint256 _opcodeWhitelistMask, address _owner, bool _overridePurityChecker) public {
+    constructor(uint256 _opcodeWhitelistMask, address _owner, uint _blockGasLimit, bool _overridePurityChecker) public {
+        rlp = new RLPEncode();
         // Set override purity checker flag
         overridePurityChecker = _overridePurityChecker;
         // Set the purity checker address
         purityChecker = new PurityChecker(_opcodeWhitelistMask, address(this));
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
-        // Deploy our genesis code contract (the normal way)
-        CreatorContract creatorContract = new CreatorContract(address(this));
-        // Set our genesis creator contract to be the zero address
-        address genesisAddress = ZERO_ADDRESS;
-        associateCodeContract(genesisAddress, address(creatorContract));
 
-        // TODO: Set this in a more useful way
-        executionContext.gasLimit = 100000000;
-        // TODO: Set this in a more useful way
-        executionContext.fraudProofGasLimit = 50000000;
+        // Associate all precompiles
+        for (uint160 i = 1; i < 20; i++) {
+            associateCodeContract(address(i), address(i));
+        }
+
+        executionContext.gasLimit = _blockGasLimit;
+        executionContext.chainId = 108;
 
         // Set our owner
         // TODO
     }
-
 
     /**
      * @notice Execute a call which will return the result of the call instead of the updated storage.
@@ -132,6 +138,156 @@ contract ExecutionManager is FullStateManager {
 
             return(result, size)
         }
+    }
+
+    /********************
+    * Execute EOA Calls *
+    ********************/
+
+    /**
+     * @notice Execute an Externally Owned Account (EOA) call. This will accept all information required
+     *         for an OVM transaction as well as a signature from an EOA. First we will calculate the
+     *         sender address (EOA address) and then we will perform the call.
+     * @param _timestamp The timestamp which should be used for this call's context.
+     * @param _queueOrigin The parent-chain queue from which this call originated.
+     * @param _nonce The current nonce of the EOA.
+     * @param _ovmEntrypoint The contract which this transaction should be executed against.
+     * @param _callBytes The calldata for this ovm transaction.
+     * @param _v The v value of the ECDSA signature + CHAIN_ID.
+     * @param _r The r value of the ECDSA signature.
+     * @param _s The s value of the ECDSA signature.
+     */
+    function executeEOACall(
+        uint _timestamp,
+        uint _queueOrigin,
+        uint _nonce,
+        address _ovmEntrypoint,
+        bytes memory _callBytes,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) public {
+        // Get EOA address
+        address eoaAddress = recoverEOAAddress(_nonce, _ovmEntrypoint, _callBytes, _v, _r, _s);
+        // Require that the EOA signature isn't zero (invalid signature)
+        require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
+        // Require nonce to be correct
+        require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
+        // Make the EOA call for the account
+        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress);
+    }
+
+    /**
+     * @notice Execute an unsigned EOA call. Note that unsigned EOA calls are unauthenticated.
+     *         This means that they should not be allowed for normal execution.
+     * @param _timestamp The timestamp which should be used for this call's context.
+     * @param _queueOrigin The parent-chain queue from which this call originated.
+     * @param _ovmEntrypoint The contract which this transaction should be executed against.
+     * @param _callBytes The calldata for this ovm transaction.
+     * @param _fromAddress The address which this call should originate from--the msg.sender.
+     */
+    function executeUnsignedEOACall(
+        uint _timestamp,
+        uint _queueOrigin,
+        address _ovmEntrypoint,
+        bytes memory _callBytes,
+        address _fromAddress
+    ) public {
+        uint _nonce = getOvmContractNonce(_fromAddress);
+        emit CallingWithEOA();
+        // Initialize our context
+        initializeContext(_timestamp, _queueOrigin);
+
+        // Set the active contract to be our EOA address
+        switchActiveContract(_fromAddress);
+
+        // Set methodId based on whether we're creating a contract
+        bytes32 methodId;
+        uint256 callSize;
+        bool isCreate = _ovmEntrypoint == ZERO_ADDRESS;
+        // Check if we're creating -- ovmEntrypoint == ZERO_ADDRESS
+        if (isCreate) {
+          methodId = ovmCreateMethodId;
+          callSize = _callBytes.length + 4;
+          // Emit event that we are creating a contract with an EOA
+          address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
+          emit EOACreatedContract(_newOvmContractAddress);
+        } else {
+          methodId = ovmCallMethodId;
+          callSize = _callBytes.length + 32 + 4;
+        }
+
+        assembly {
+          if eq(isCreate, 0) {
+            _callBytes := sub(_callBytes, 4)
+            mstore8(_callBytes, shr(24, methodId))
+            mstore8(add(_callBytes, 1), shr(16, methodId))
+            mstore8(add(_callBytes, 2), shr(8, methodId))
+            mstore8(add(_callBytes, 3), methodId)
+            // And now set the ovmEntrypoint
+            mstore(add(_callBytes, 4), _ovmEntrypoint)
+          }
+          if eq(isCreate, 1) {
+            _callBytes := add(_callBytes, 28)
+            mstore8(_callBytes, shr(24, methodId))
+            mstore8(add(_callBytes, 1), shr(16, methodId))
+            mstore8(add(_callBytes, 2), shr(8, methodId))
+            mstore8(add(_callBytes, 3), methodId)
+          }
+        }
+
+        address addr = address(this);
+        assembly {
+            let result := mload(0x40)
+            let success := call(gas, addr, 0, _callBytes, callSize, result, 500000)
+            let size := returndatasize
+
+            if eq(success, 0) {
+                revert(0, 0)
+            }
+
+            return(result, size)
+        }
+    }
+
+    /**
+     * @notice Recover the EOA of an ECDSA-signed Ethereum transaction. Note some values will be set to zero by default.
+     *         Additionally, the `to=ZERO_ADDRESS` is reserved for contract creation transactions.
+     * @param _nonce The nonce of the transaction.
+     * @param _to The entrypoint / recipient of the transaction.
+     * @param _callData The calldata which will be applied to the entrypoint contract.
+     * @param _v The v value of the ECDSA signature + CHAIN_ID.
+     * @param _r The r value of the ECDSA signature.
+     * @param _s The s value of the ECDSA signature.
+     */
+    function recoverEOAAddress(uint _nonce, address _to, bytes memory _callData, uint8 _v, bytes32 _r, bytes32 _s) public 
+view returns (address) {
+        bytes[] memory message = new bytes[](9);
+        message[0] = rlp.encodeUint(_nonce); // Nonce
+        message[1] = rlp.encodeUint(0); // Gas price
+        message[2] = rlp.encodeUint(executionContext.gasLimit); // Gas limit
+        // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
+        if (_to == ZERO_ADDRESS) {
+            message[3] = rlp.encodeUint(0);
+        } else {
+            message[3] = rlp.encodeAddress(_to);
+        }
+        message[4] = rlp.encodeUint(0); // Value
+        message[5] = rlp.encodeBytes(_callData); // Data
+        message[6] = rlp.encodeUint(executionContext.chainId); // ChainID
+        message[7] = rlp.encodeUint(0); // Zeros for R
+        message[8] = rlp.encodeUint(0); // Zeros for S
+
+        bytes memory encodedMessage = rlp.encodeList(message);
+        bytes32 hash = keccak256(abi.encodePacked(encodedMessage));
+        /*
+         * Replay protection is used to prevent signatures on one chain from
+         * being used on other chains. To support replay protection ethereum
+         * modifies the value of v in the signature to be different for each
+         * chainID. This was implemented based on the following EIP:
+         * https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md#specification
+         */
+        return ecrecover(hash, (_v - uint8(executionContext.chainId) * 2) - 8, _r, _s);
     }
 
     /**********************
@@ -231,8 +387,8 @@ contract ExecutionManager is FullStateManager {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the fraud proof gas limit.
      */
-    function ovmFraudProofGasLimit() public view {
-        uint g = executionContext.fraudProofGasLimit;
+    function ovmBlockGasLimit() public view {
+        uint g = executionContext.gasLimit;
 
         assembly {
             let gasLimitMemory := mload(0x40)

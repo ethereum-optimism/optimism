@@ -1,6 +1,4 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
@@ -22,7 +20,12 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 import * as SimpleCall from '../../build/contracts/SimpleCall.json'
 
 /* Internal Imports */
-import { manuallyDeployOvmContract, addressToBytes32Address } from '../helpers'
+import {
+  manuallyDeployOvmContract,
+  addressToBytes32Address,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../helpers'
+import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -66,7 +69,7 @@ const sloadMethodIdAndParams: string = `${sloadMethodId}${sloadKey}`
 const timestampAndQueueOrigin: string = '00'.repeat(64)
 
 describe('Execution Manager -- Call opcodes', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
@@ -86,7 +89,7 @@ describe('Execution Manager -- Call opcodes', () => {
   /* Link libraries before tests */
   before(async () => {
     dummyContract = await deployContract(wallet, DummyContract, [], {
-      gasLimit: 6700000,
+      gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
     })
 
     const deployTx = new ContractFactory(
@@ -104,8 +107,10 @@ describe('Execution Manager -- Call opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      {
+        gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+      }
     )
 
     // Deploy SimpleCall with the ExecutionManager

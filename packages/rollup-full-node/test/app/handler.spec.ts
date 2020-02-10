@@ -10,7 +10,7 @@ import {
   DefaultWeb3Handler,
 } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
-import { ethers } from 'ethers'
+import { ethers, ContractFactory } from 'ethers'
 import { getWallets } from 'ethereum-waffle'
 import { FullnodeHandler } from '../../src/types'
 
@@ -50,12 +50,29 @@ describe('Web3Handler', () => {
         'ovm_getExecutionManagerAddress',
         []
       )
-      const wallet = getWallets(httpProvider)[0]
-      const simpleStorage = await deployOvmContract(wallet, SimpleStorage)
+      const privateKey = '0x' + '60'.repeat(32)
+      const wallet = new ethers.Wallet(privateKey, httpProvider)
+      log.debug('Wallet address:', wallet.address)
+      const factory = new ContractFactory(
+        SimpleStorage.abi,
+        SimpleStorage.bytecode,
+        wallet
+      )
+
+      // Deploy tx normally
+      const simpleStorage = await factory.deploy()
+      // Get the deployment tx receipt
+      const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
+        simpleStorage.deployTransaction.hash
+      )
+      // Verify that the contract which was deployed is correct
+      deploymentTxReceipt.contractAddress.should.equal(simpleStorage.address)
+
       // Create some constants we will use for storage
       const storageKey = '0x' + '01'.repeat(32)
       const storageValue = '0x' + '02'.repeat(32)
       // Set storage with our new storage elements
+      const networkInfo = await httpProvider.getNetwork()
       const tx = await simpleStorage.setStorage(
         executionManagerAddress,
         storageKey,

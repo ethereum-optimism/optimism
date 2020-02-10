@@ -1,6 +1,4 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
@@ -27,7 +25,9 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
+import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -38,7 +38,7 @@ const log = getLogger('execution-manager-code-opcodes', true)
  *********/
 
 describe('Execution Manager -- Code-related opcodes', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
@@ -56,8 +56,8 @@ describe('Execution Manager -- Code-related opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 
     // Deploy SimpleCopier with the ExecutionManager

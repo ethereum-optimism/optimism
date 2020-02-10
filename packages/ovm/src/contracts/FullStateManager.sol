@@ -50,7 +50,7 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The contract we're getting the nonce of.
      * @return The contract nonce used for contract creation.
      */
-    function getOvmContractNonce(address _ovmContractAddress) internal returns(uint) {
+    function getOvmContractNonce(address _ovmContractAddress) public view returns(uint) {
         return ovmContractNonces[_ovmContractAddress];
     }
 

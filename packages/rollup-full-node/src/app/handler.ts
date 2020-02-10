@@ -2,8 +2,11 @@
 import { Address } from '@pigi/rollup-core'
 import { add0x, getLogger, remove0x, ZERO_ADDRESS } from '@pigi/core-utils'
 import {
+  CHAIN_ID,
+  GAS_LIMIT,
   convertInternalLogsToOvmLogs,
   L2ExecutionManagerContractDefinition,
+  OPCODE_WHITELIST_MASK,
 } from '@pigi/ovm'
 
 import { Contract, utils, Wallet } from 'ethers'
@@ -12,6 +15,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '.'
 import {
   FullnodeHandler,
   InvalidParametersError,
@@ -23,6 +27,7 @@ import {
 const log = getLogger('web3-handler')
 
 const latestBlock: string = 'latest'
+
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -32,13 +37,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: Web3Provider = createMockProvider()
+    provider: Web3Provider = createMockProvider({
+      gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+    })
   ): Promise<DefaultWeb3Handler> {
     // Initialize a mock fullnode for us to interact with
     const [wallet] = getWallets(provider)
     const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
       wallet,
-      ZERO_ADDRESS
+      OPCODE_WHITELIST_MASK
     )
 
     return new DefaultWeb3Handler(provider, wallet, executionManager)
@@ -133,11 +140,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         txObject
       )}], defaultBlock: [${defaultBlock}]`
     )
-    // First get the internal calldata for our internal call
-    const internalCalldata = DefaultWeb3Handler.getExecutionMgrTxData(
+    // First generate the internalTx calldata
+    const internalCalldata = this.generateUnsignedCallCalldata(
+      0,
+      0,
       txObject['to'],
-      txObject['data']
+      txObject['data'],
+      txObject['from']
     )
+
     // Then actually make the call and get the response
     const response = await this.provider.send(Web3RpcMethods.call, [
       {
@@ -165,11 +176,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         txObject
       )}], defaultBlock: [${defaultBlock}]`
     )
-    // First convert the calldata
-    const internalCalldata = DefaultWeb3Handler.getExecutionMgrTxData(
+    // First generate the internalTx calldata
+    const internalCalldata = this.generateUnsignedCallCalldata(
+      0,
+      0,
       txObject['to'],
-      txObject['data']
+      txObject['data'],
+      txObject['from']
     )
+
+    log.debug(internalCalldata)
     // Then estimate the gas
     const response = await this.provider.send(Web3RpcMethods.estimateGas, [
       {
@@ -178,12 +194,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         data: internalCalldata,
       },
     ])
+    // TODO: Make sure gas limit is below max
     log.debug(
       `Estimated gas: request: [${JSON.stringify(
         txObject
       )}] default block: ${defaultBlock} got response [${response}]`
     )
-    return response
+    return add0x(GAS_LIMIT.toString(16))
   }
 
   public async gasPrice(): Promise<string> {
@@ -226,9 +243,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     log.debug(
       `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
     )
-    const response = await this.provider.send(
-      Web3RpcMethods.getTransactionCount,
-      [address, defaultBlock]
+    const response = add0x(
+      (await this.executionManager.getOvmContractNonce(address)).toString(16)
     )
     log.debug(
       `Received transaction count for Address [${address}], block: [${defaultBlock}]: [${response}].`
@@ -257,9 +273,11 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
   public async networkVersion(): Promise<string> {
     log.debug('Getting network version')
-    const response = await this.provider.send(Web3RpcMethods.networkVersion, [])
+    // Return our internal chain_id
+    // TODO: Add getter for chainId that is not just imported
+    const response = CHAIN_ID
     log.debug(`Got network version: [${response}]`)
-    return response
+    return response.toString()
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
@@ -319,24 +337,41 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // Decode the OVM transaction -- this will be used to construct our internal transaction
     const ovmTx = utils.parseTransaction(rawOvmTx)
     log.debug(`OVM Transaction being parsed ${JSON.stringify(ovmTx)}`)
+    // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
+    if (ovmTx.to === ZERO_ADDRESS) {
+      throw new Error('Sending to Zero Address disallowed')
+    }
     // Get the nonce of the account that we will use to send everything
     // Note: + 1 because all transactions will have a tx hash mapping tx sent before them.
+    // Check that this is an EOA transaction, if not we throw until we've
+    // implemented non-EOA transactions
+    if (ovmTx.v === 0) {
+      log.error(
+        'Transaction does not have a valid signature! For now we only support calls from EOAs'
+      )
+      throw new Error('Non-EOA transaction detected')
+    }
     // TODO: Make sure we lock this function with this nonce so we don't send to txs with the same nonce
     const nonce = (await this.wallet.getTransactionCount()) + 1
     // Generate the calldata which we'll use to call our internal execution manager
-    // First pull out the ovmEntrypoint (we just need to check if it's null & if so set ovmEntrypoint to the zero address as that's how we deploy contracts)
-    const ovmEntrypoint = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
-
-    // Then construct the internal calldata
-    const internalCalldata = DefaultWeb3Handler.getExecutionMgrTxData(
-      ovmEntrypoint,
-      ovmTx.data
+    // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
+    const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
+    // Construct the raw transaction calldata
+    const internalCalldata = this.generateEOACallCalldata(
+      0,
+      0,
+      ovmTx.nonce,
+      ovmTo,
+      ovmTx.data,
+      ovmTx.v,
+      ovmTx.r,
+      ovmTx.s
     )
-    // Construct the transaction
+
     const internalTx = {
       nonce,
-      gasPrice: 0,
       gasLimit: ovmTx.gasLimit,
+      gasPrice: 0,
       to: this.executionManager.address,
       value: 0,
       data: internalCalldata,
@@ -355,7 +390,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       this.executionManager,
       internalTxReceipt.logs
     )
-
     // Construct a new receipt
     //
     // Start off with the internalTxReceipt
@@ -363,44 +397,28 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // Add the converted logs
     ovmTxReceipt.logs = convertedOvmLogs.ovmLogs
     // Update the to and from fields
-    ovmTxReceipt.to = convertedOvmLogs.ovmEntrypoint
+    ovmTxReceipt.to = convertedOvmLogs.ovmTo
     // TODO: Update this to use some default account abstraction library potentially.
-    ovmTxReceipt.from = ZERO_ADDRESS
+    ovmTxReceipt.from = convertedOvmLogs.ovmFrom
     // Also update the contractAddress in case we deployed a new contract
     ovmTxReceipt.contractAddress = convertedOvmLogs.ovmCreatedContractAddress
+    log.debug('Ovm parsed logs:', convertedOvmLogs)
     // TODO: Fix the logsBloom to remove the txs we just removed
 
     // Return!
     return ovmTxReceipt
   }
 
-  /**
-   * Generates the calldata for executing either a call or transaction
-   */
-  private static getExecutionMgrTxData(ovmEntrypoint, ovmCalldata) {
-    const methodId: string = ethereumjsAbi
-      .methodID('executeCall', [])
-      .toString('hex')
-
-    // TODO: make timestamp and origin actually useful.
-    const timestamp: string = '00'.repeat(32)
-    const origin: string = '00'.repeat(32)
-    const encodedEntrypoint: string = '00'.repeat(12) + remove0x(ovmEntrypoint)
-    const txBody: string = `0x${methodId}${timestamp}${origin}${encodedEntrypoint}${remove0x(
-      ovmCalldata
-    )}`
-    return txBody
-  }
-
   private static async deployExecutionManager(
     wallet: Wallet,
-    purityCheckerContractAddress: Address
+    opcodeWhitelistMask: string
   ): Promise<Contract> {
     // Now deploy the execution manager!
     const executionManager: Contract = await deployContract(
       wallet,
       L2ExecutionManagerContractDefinition,
-      [purityCheckerContractAddress, wallet.address]
+      [opcodeWhitelistMask, wallet.address, GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 
     log.debug(
@@ -409,6 +427,48 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
 
     return executionManager
+  }
+
+  private generateUnsignedCallCalldata(
+    timestamp: number,
+    queueOrigin: number,
+    ovmEntrypoint: string,
+    callBytes: string,
+    fromAddress: string
+  ): string {
+    // Update the ovmEntrypoint to be the ZERO_ADDRESS if this is a contract creation
+    if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
+      ovmEntrypoint = ZERO_ADDRESS
+    }
+    return this.executionManager.interface.functions[
+      'executeUnsignedEOACall'
+    ].encode([timestamp, queueOrigin, ovmEntrypoint, callBytes, fromAddress])
+  }
+
+  private generateEOACallCalldata(
+    timestamp: number,
+    queueOrigin: number,
+    nonce: number,
+    ovmEntrypoint: string,
+    callBytes: string,
+    v: number,
+    r: string,
+    s: string
+  ): string {
+    // Update the ovmEntrypoint to be the ZERO_ADDRESS if this is a contract creation
+    if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
+      ovmEntrypoint = ZERO_ADDRESS
+    }
+    return this.executionManager.interface.functions['executeEOACall'].encode([
+      timestamp,
+      queueOrigin,
+      nonce,
+      ovmEntrypoint,
+      callBytes,
+      v,
+      r,
+      s,
+    ])
   }
 
   private assertParameters(

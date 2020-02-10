@@ -1,12 +1,4 @@
-/* Internal Imports */
-import {
-  manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
-  bytes32AddressToAddress,
-  addressToBytes32Address,
-} from '../helpers'
 import { should } from '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { Address } from '@pigi/rollup-core'
@@ -26,6 +18,16 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as ContextContract from '../../build/contracts/ContextContract.json'
 
+/* Internal Imports */
+import {
+  manuallyDeployOvmContract,
+  getUnsignedTransactionCalldata,
+  bytes32AddressToAddress,
+  addressToBytes32Address,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../helpers'
+import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+
 export const abi = new ethers.utils.AbiCoder()
 
 const log = getLogger('execution-manager-context', true)
@@ -43,7 +45,7 @@ const callThroughEMMethodId: string = ethereumjsAbi
  *********/
 
 describe('Execution Manager -- Context opcodes', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   const defaultTimestampAndQueueOrigin: string = '00'.repeat(64)
 
@@ -61,8 +63,8 @@ describe('Execution Manager -- Context opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 
     // Deploy SimpleCopier with the ExecutionManager
@@ -269,37 +271,7 @@ describe('Execution Manager -- Context opcodes', () => {
 
       should.exist(result, 'Result should exist!')
       const expected: string = bufToHexString(
-        bufferUtils.numberToBuffer(100_000_000)
-      )
-      result.should.equal(expected, 'Gas limits do not match.')
-    })
-  })
-
-  describe('ovmFraudProofGasLimit', async () => {
-    it('properly retrieves fraudProofGasLimit', async () => {
-      const gasLimitMethodId: string = ethereumjsAbi
-        .methodID('getFraudProofGasLimit', [])
-        .toString('hex')
-
-      const internalCall: string = `${callThroughEMMethodId}${remove0x(
-        contractAddress32
-      )}${gasLimitMethodId}`
-
-      const data = `0x${executeCallMethodId}${defaultTimestampAndQueueOrigin}${remove0x(
-        contract2Address32
-      )}${internalCall}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit: 6_700_000,
-      })
-
-      log.debug(`Fraud Proof Gas Limit result: ${result}`)
-
-      should.exist(result, 'Result should exist!')
-      const expected: string = bufToHexString(
-        bufferUtils.numberToBuffer(50_000_000)
+        bufferUtils.numberToBuffer(GAS_LIMIT)
       )
       result.should.equal(expected, 'Gas limits do not match.')
     })

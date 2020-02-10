@@ -11,7 +11,7 @@ contract StateManager {
     function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) internal;
 
     // Nonces (this is used during contract creation to determine the contract address)
-    function getOvmContractNonce(address _ovmContractAddress) internal returns(uint);
+    function getOvmContractNonce(address _ovmContractAddress) public view returns(uint);
     function setOvmContractNonce(address _ovmContractAddress, uint _value) internal;
     function incrementOvmContractNonce(address _ovmContractAddress) internal;
 

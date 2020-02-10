@@ -1,22 +1,24 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { getLogger } from '@pigi/core-utils'
 import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-const log = getLogger('state-manager', true)
-
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as PurityChecker from '../../build/contracts/PurityChecker.json'
 import { Contract, ContractFactory, Wallet, utils } from 'ethers'
 
+/* Internal Imports */
+import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+
+const log = getLogger('state-manager', true)
+
 /* Begin tests */
 describe('ExecutionManager', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet1, wallet2] = getWallets(provider)
   let executionManager: Contract
 
@@ -26,8 +28,8 @@ describe('ExecutionManager', () => {
     executionManager = await deployContract(
       wallet1,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
 

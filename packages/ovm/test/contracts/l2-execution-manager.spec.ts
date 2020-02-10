@@ -1,6 +1,4 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { add0x, getLogger } from '@pigi/core-utils'
@@ -10,9 +8,13 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 /* Contract Imports */
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 
-export const abi = new ethers.utils.AbiCoder()
+/* Internal Imports */
+import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 const log = getLogger('l2-execution-manager-calls', true)
+
+export const abi = new ethers.utils.AbiCoder()
 
 /*********
  * TESTS *
@@ -23,7 +25,7 @@ const key: string = add0x('01'.repeat(32))
 const value: string = add0x('02'.repeat(32))
 
 describe('L2 Execution Manager', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let l2ExecutionManager: Contract
@@ -34,8 +36,8 @@ describe('L2 Execution Manager', () => {
     l2ExecutionManager = await deployContract(
       wallet,
       L2ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), true],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
 

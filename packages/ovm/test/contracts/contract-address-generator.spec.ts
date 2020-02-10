@@ -11,7 +11,7 @@ import * as ContractAddressGenerator from '../../build/contracts/ContractAddress
 
 /* Internal Imports */
 import { create2Tests } from './test-files/create2test.json'
-import { buildCreate2Address } from '../helpers'
+import { buildCreate2Address, DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 const log = getLogger('contract-address-generator', true)
 
@@ -20,7 +20,9 @@ const log = getLogger('contract-address-generator', true)
  *********/
 
 describe('ContractAddressGenerator', () => {
-  const [wallet1, wallet2] = getWallets(createMockProvider())
+  const [wallet1, wallet2] = getWallets(
+    createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
+  )
   // Create pointers to our contractAddressGenerator
   let contractAddressGenerator
 
@@ -32,7 +34,7 @@ describe('ContractAddressGenerator', () => {
       ContractAddressGenerator,
       [],
       {
-        gasLimit: 6700000,
+        gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       }
     )
   })

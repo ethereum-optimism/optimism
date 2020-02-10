@@ -1,7 +1,4 @@
-/* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
-import { manuallyDeployOvmContract } from '../helpers'
 
 /* External Imports */
 import { getLogger } from '@pigi/core-utils'
@@ -13,6 +10,13 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as AddThree from '../../build/contracts/AddThree.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
 
+/* Internal Imports */
+import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
+import {
+  manuallyDeployOvmContract,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../helpers'
+
 const log = getLogger('execution-manager-purity-checking', true)
 
 /*********
@@ -20,7 +24,7 @@ const log = getLogger('execution-manager-purity-checking', true)
  *********/
 
 describe('Execution Manager -- Purity Checking', () => {
-  const provider = createMockProvider()
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
@@ -30,8 +34,8 @@ describe('Execution Manager -- Purity Checking', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), false],
-      { gasLimit: 6700000 }
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
   describe('Purity Checking within Execution Manager', async () => {

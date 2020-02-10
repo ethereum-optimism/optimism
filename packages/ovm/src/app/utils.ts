@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
+import { getLogger, ZERO_ADDRESS } from '@pigi/core-utils'
 import { Contract } from 'ethers'
 import { Log } from 'ethers/providers'
 
@@ -44,7 +44,8 @@ const ExecutionManagerEvents = {
 }
 
 interface LogConversionResult {
-  ovmEntrypoint: string
+  ovmTo: string
+  ovmFrom: string
   ovmCreatedContractAddress: string
   ovmLogs: Log[]
 }
@@ -55,48 +56,7 @@ interface LogConversionResult {
  * parse them, and then convert them into logs which look like they would if you were running this tx
  * using an OVM backend.
  *
- * There are two structures of logs which we expect:
- * 1) Normal contract execution, 2) CreatorContract execution (essentially our form of EOA)
- *
- *  ## Normal contract execution will look like:
- *  [
- *    ActiveContract -- This will always be the entrypoint
- *    Contract1 logs... -- The contract address for normal contract logs will have the **code contract** address. We want the ovm contract address!
- *    ActiveContract -- This event is triggered if the Entrypoint contract CALLs another contract
- *    Contract2 logs...
- *    ActiveContract...
- *    ...etc...
- *  ]
- *
- *  These logs will be parsed to instead look like:
- *  [
- *    Contract1 logs (with correct ovm contract address)
- *    Contract2 logs (^)
- *    ...etc...
- *  ]
- *  And we will return the ovmEntrypoint as the Contract1 address (and a null ovmCreatedContract)
- *
- *  ## CreatorContract execution
- *  [
- *    ActiveContract -- This will always be the entrypoint === CREATOR_CONTRACT_ADDRESS
- *    ActiveContract -- This will always be the newly created ovm contract address
- *    CreatedContract -- This will be the newly created ovm contract address (just like previous ActiveContract event)
- *    Contract1 logs... -- Any logs emitted in the initcode or contracts called in the constructor
- *    ActiveContract -- This event is triggered if the created contract CALLs another contract
- *    ...etc...
- *  ]
- *
- *  These logs will be parsed to instead look like:
- *  [
- *    Contract1 logs (with correct ovm contract address)
- *    Contract2 logs (^)
- *    ...etc...
- *  ]
- *
- *  This time when parsing, the `ovmCreatedContractAddress` will be equal to the newly created contract address, but
- *  otherwise logs will be parsed in the same way.
- *
- *  This function will handle these two cases.
+ * TODO: Add documentation on how the events are parsed
  *
  * @param executionManager an Ethers executionManager object which allows us to parse the event & get
  *                         the execution manager's address.
@@ -105,27 +65,47 @@ interface LogConversionResult {
  */
 export const convertInternalLogsToOvmLogs = (
   executionManager: Contract,
-  logs: Log[]
+  logs: Log[],
+  debugMode: boolean = false
 ): LogConversionResult => {
+  if (logs.length === 0) {
+    throw new Error('Expected logs from ExecutionManager!')
+  }
+
   let ovmCreatedContractAddress = null // The address of a newly created contract (NOTE: null is what is returned by Ethers.js)
   let activeContract // A pointer to the current active contract, used for overwriting the internal logs `address` feild.
   let logCounter = 0 // Counter used to iterate over all the to be converted logs
+  let ovmFrom = ZERO_ADDRESS
+  let ovmTo
 
-  // Set the ovmEntrypoint based on the first event -- it must be an activeContract event referencing the ovmEntrypoint.
-  const ovmEntrypoint = executionManager.interface.parseLog(logs[0]).values[
-    '_activeContract'
-  ]
-  activeContract = ovmEntrypoint
-  logCounter++
+  if (executionManager.interface.parseLog(logs[0]).name === 'CallingWithEOA') {
+    // Initiate EOA log parsing
+    ovmFrom = executionManager.interface.parseLog(logs[1]).values[
+      '_activeContract'
+    ]
+    // Check if we are creating a new contract
+    if (
+      executionManager.interface.parseLog(logs[2]).name === 'EOACreatedContract'
+    ) {
+      ovmCreatedContractAddress = executionManager.interface.parseLog(logs[2])
+        .values['_ovmContractAddress']
+      ovmTo = ovmCreatedContractAddress
+    } else {
+      ovmTo = executionManager.interface.parseLog(logs[2]).values[
+        '_activeContract'
+      ]
+    }
+    logCounter += 3
+  } else {
+    ovmTo = executionManager.interface.parseLog(logs[0]).values[
+      '_activeContract'
+    ]
+  }
 
-  // Handle special case #2 -- CreatorContract execution
-  // If the entrypoint is the CREATOR_CONTRACT_ADDRESS then we must have created a contract. Get the new contract address
-  // and set it as the `ovmCreatedContractAddress` field.
-  if (ovmEntrypoint === CREATOR_CONTRACT_ADDRESS) {
-    // The ovmContractAddress will be the 3rd event emitted if the entrypoint is the creator contract
-    ovmCreatedContractAddress = executionManager.interface.parseLog(logs[2])
-      .values['_ovmContractAddress']
-    logCounter += 2
+  if (debugMode) {
+    // Print all the ExecutionManager logs -- very useful for debugging
+    log.debug('Converting logs! Pre-conversion log list:')
+    logs.map((_log) => log.debug(executionManager.interface.parseLog(_log)))
   }
 
   // Now iterate over the remaining logs, converting them and adding them to our ovmLogs list
@@ -153,7 +133,8 @@ export const convertInternalLogsToOvmLogs = (
   }
 
   return {
-    ovmEntrypoint,
+    ovmTo,
+    ovmFrom,
     ovmCreatedContractAddress,
     ovmLogs,
   }
