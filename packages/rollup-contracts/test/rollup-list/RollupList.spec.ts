@@ -184,7 +184,7 @@ describe('RollupList', () => {
         log.debug('isIncluded: ', JSON.stringify(isIncluded))
         isIncluded.should.equal(true)
       }
-    }).timeout(8000)
+    })
 
     it('should return false for wrong position with wrong indexInBlock', async () => {
       const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
@@ -217,7 +217,7 @@ describe('RollupList', () => {
       )
       log.debug('isIncluded: ', JSON.stringify(isIncluded))
       isIncluded.should.equal(false)
-    }).timeout(8000)
+    })
 
     it('should return false for wrong position and matching indexInBlock', async () => {
       const block = ['0x1234', '0x4567', '0x890a', '0xabcd']
@@ -253,7 +253,7 @@ describe('RollupList', () => {
       )
       log.debug('isIncluded: ', JSON.stringify(isIncluded))
       isIncluded.should.equal(false)
-    }).timeout(8000)
+    })
   })
 
   /*
@@ -285,7 +285,7 @@ describe('RollupList', () => {
       blocksLength = await rollupList.getBlocksLength()
       log.debug(`blocksLength after deletion: ${blocksLength}`)
       blocksLength.should.equal(0)
-    }).timeout(8000)
+    })
 
     it('should delete many blocks', async () => {
       const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
@@ -316,7 +316,7 @@ describe('RollupList', () => {
       blocksLength = await rollupList.getBlocksLength()
       log.debug(`blocksLength after deletion: ${blocksLength}`)
       blocksLength.should.equal(0)
-    }).timeout(8000)
+    })
   })
 
   describe('dequeueBeforeInclusive()', async () => {
@@ -350,7 +350,7 @@ describe('RollupList', () => {
       front = await rollupList.front()
       log.debug(`front after deletion: ${front}`)
       front.should.equal(1)
-    }).timeout(8000)
+    })
 
     it('should dequeue many blocks', async () => {
       const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
@@ -387,6 +387,6 @@ describe('RollupList', () => {
           '0x0000000000000000000000000000000000000000000000000000000000000000'
         )
       }
-    }).timeout(8000)
+    })
   })
 })

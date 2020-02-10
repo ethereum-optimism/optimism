@@ -1058,6 +1058,11 @@ anymatch@^2.0.0:
     micromatch "^3.1.4"
     normalize-path "^2.1.1"
 
+app-module-path@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/app-module-path/-/app-module-path-2.2.0.tgz#641aa55dfb7d6a6f0a8141c4b9c0aa50b6c24dd5"
+  integrity sha1-ZBqlXft9am8KgUHEucCqULbCTdU=
+
 append-buffer@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/append-buffer/-/append-buffer-1.0.2.tgz#d8220cf466081525efea50614f3de6514dfa58f1"
@@ -2405,6 +2410,11 @@ combined-stream@^1.0.6, combined-stream@~1.0.6:
 command-exists@^1.2.8:
   version "1.2.8"
   resolved "https://registry.yarnpkg.com/command-exists/-/command-exists-1.2.8.tgz#715acefdd1223b9c9b37110a149c6392c2852291"
+
+commander@2.15.1:
+  version "2.15.1"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-2.15.1.tgz#df46e867d0fc2aec66a34662b406a9ccafff5b0f"
+  integrity sha512-VlfT9F3V0v+jr4yxPc5gg9s62/fIVWsd2Bk2iD435um1NlGMYdVCq+MjcXnhYq2icNOizHr1kK+5TI6H0Hy0ag==
 
 commander@3.0.2:
   version "3.0.2"
@@ -4406,6 +4416,18 @@ glob-watcher@^5.0.3:
     just-debounce "^1.0.0"
     object.defaults "^1.1.0"
 
+glob@7.1.2:
+  version "7.1.2"
+  resolved "https://registry.yarnpkg.com/glob/-/glob-7.1.2.tgz#c19c9df9a028702d678612384a6552404c636d15"
+  integrity sha512-MJTUg1kjuLeQCJ+ccE4Vpa6kKVXkPYJ2mOCQyUuKLcLQsdrMCpBPUi8qVE6+YuaJkozeA9NusTAw3hLr8Xe5EQ==
+  dependencies:
+    fs.realpath "^1.0.0"
+    inflight "^1.0.4"
+    inherits "2"
+    minimatch "^3.0.4"
+    once "^1.3.0"
+    path-is-absolute "^1.0.0"
+
 glob@7.1.3:
   version "7.1.3"
   resolved "https://registry.yarnpkg.com/glob/-/glob-7.1.3.tgz#3960832d3f1574108342dafd3a67b332c0969df1"
@@ -4671,6 +4693,11 @@ hdkey@^1.1.0:
     coinstring "^2.0.0"
     safe-buffer "^5.1.1"
     secp256k1 "^3.0.1"
+
+he@1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/he/-/he-1.1.1.tgz#93410fd21b009735151f8868c2f271f3427e23fd"
+  integrity sha1-k0EP0hsAlzUVH4howvJx80J+I/0=
 
 he@1.2.0:
   version "1.2.0"
@@ -6125,6 +6152,23 @@ mkdirp@*, mkdirp@0.5.1, "mkdirp@>=0.5 0", mkdirp@^0.5.0, mkdirp@^0.5.1:
   dependencies:
     minimist "0.0.8"
 
+mocha@5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/mocha/-/mocha-5.2.0.tgz#6d8ae508f59167f940f2b5b3c4a612ae50c90ae6"
+  integrity sha512-2IUgKDhc3J7Uug+FxMXuqIyYzH7gJjXECKe/w43IGgQHTSj3InJi+yAA7T24L9bQMRKiUEHxEX37G5JpVUGLcQ==
+  dependencies:
+    browser-stdout "1.3.1"
+    commander "2.15.1"
+    debug "3.1.0"
+    diff "3.5.0"
+    escape-string-regexp "1.0.5"
+    glob "7.1.2"
+    growl "1.10.5"
+    he "1.1.1"
+    minimatch "3.0.4"
+    mkdirp "0.5.1"
+    supports-color "5.4.0"
+
 mocha@^6.0.2, mocha@^6.1.4:
   version "6.2.2"
   resolved "https://registry.yarnpkg.com/mocha/-/mocha-6.2.2.tgz#5d8987e28940caf8957a7d7664b910dc5b2fea20"
@@ -6584,6 +6628,11 @@ ordered-read-streams@^1.0.0:
   resolved "https://registry.yarnpkg.com/ordered-read-streams/-/ordered-read-streams-1.0.1.tgz#77c0cb37c41525d64166d990ffad7ec6a0e1363e"
   dependencies:
     readable-stream "^2.0.1"
+
+original-require@1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/original-require/-/original-require-1.0.1.tgz#0f130471584cd33511c5ec38c8d59213f9ac5e20"
+  integrity sha1-DxMEcVhM0zURxew4yNWSE/msXiA=
 
 os-homedir@^1.0.0:
   version "1.0.2"
@@ -8124,6 +8173,13 @@ strong-log-transformer@^2.0.0:
     minimist "^1.2.0"
     through "^2.3.4"
 
+supports-color@5.4.0:
+  version "5.4.0"
+  resolved "https://registry.yarnpkg.com/supports-color/-/supports-color-5.4.0.tgz#1c6b337402c2137605efe19f10fec390f6faab54"
+  integrity sha512-zjaXglF5nnWpsq470jSv6P9DwPvgLkuapYmfDm3JWOm0vkNTVF2tI4UrN2r6jH1qM/uc/WtxYY1hYoA2dOKj5w==
+  dependencies:
+    has-flag "^3.0.0"
+
 supports-color@6.0.0:
   version "6.0.0"
   resolved "https://registry.yarnpkg.com/supports-color/-/supports-color-6.0.0.tgz#76cfe742cf1f41bb9b1c29ad03068c05b4c0e40a"
@@ -8404,6 +8460,15 @@ trim-off-newlines@^1.0.0:
 trim-right@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/trim-right/-/trim-right-1.0.1.tgz#cb2e1203067e0c8de1f614094b9fe45704ea6003"
+
+truffle@^5.1.12:
+  version "5.1.12"
+  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.12.tgz#7d41fe2205b223e5631fcbe5c7faa09899b6ca38"
+  integrity sha512-lw5NC3S4esGqKIbqKXWutOcOMz3G+2LCKvacnrwH/PNh/Wk0qPKia7daiLJqRdqjJkHPtAUpRf8b1aqrcot2Ww==
+  dependencies:
+    app-module-path "^2.2.0"
+    mocha "5.2.0"
+    original-require "1.0.1"
 
 ts-md5@^1.2.4:
   version "1.2.7"

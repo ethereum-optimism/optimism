@@ -269,6 +269,6 @@ describe('RollupMerkleUtils', () => {
           newContractRoot.should.equal(bufToHexString(newLocalRoot))
         }
       }
-    }).timeout(10_000)
+    })
   })
 })

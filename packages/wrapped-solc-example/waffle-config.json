@@ -1,6 +1,6 @@
 {
   "sourcesPath": "./contracts",
-  "targetPath": "./build",
+  "targetPath": "./build/waffle",
   "npmPath": "../../node_modules",
   "solcVersion": "../../node_modules/@pigi/solc-transpiler",
   "compilerOptions": {

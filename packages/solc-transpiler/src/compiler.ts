@@ -35,6 +35,7 @@ interface TranspilationOutput {
  * @returns The Solc output as a string.
  */
 export const compile = (configJsonString: string, callbacks?: any): string => {
+  log.debug(`Trying to transpile with config: ${configJsonString}`)
   let json: any
   try {
     json = JSON.parse(configJsonString)
@@ -66,7 +67,7 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
 
   const transpiler: Transpiler = new TranspilerImpl(
     new OpcodeWhitelistImpl(),
-    new OpcodeReplacerImpl(json.settings.executionManagerAddress)
+    new OpcodeReplacerImpl(getExecutionManagerAddress(json))
   )
 
   for (const [filename, fileJson] of Object.entries(res.contracts)) {
@@ -99,6 +100,13 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   return formatOutput(res, json)
 }
 
+const getExecutionManagerAddress = (configObject: any): string => {
+  return (
+    configObject.settings.executionManagerAddress ||
+    process.env.EXECUTION_MANAGER_ADDRESS
+  )
+}
+
 /**
  * Validates the input jsonObject by checking to see that it's formatted properly. If not, it will return
  * an errors as properly-formatted solc output.
@@ -113,14 +121,15 @@ const getInputErrors = (configObject: any): string => {
     )
   }
 
-  if (
-    !configObject.settings.executionManagerAddress ||
-    !isValidHexAddress(configObject.settings.executionManagerAddress)
-  ) {
+  const executionManagerAddress: string = getExecutionManagerAddress(
+    configObject
+  )
+  if (!executionManagerAddress || !isValidHexAddress(executionManagerAddress)) {
     return getFormattedSolcErrorOutput(
-      'Input must include "executionManagerAddress" field in "settings" object, and it must be a valid Ethereum address as a hex string (case insensitive).'
+      'Input must include "executionManagerAddress" field in the "settings" object or there must be an "EXECUTION_MANAGER_ADDRESS" environment variable, and it must be a valid Ethereum address as a hex string (case insensitive).'
     )
   }
+  log.info(`Compiling with executionManagerAddress ${executionManagerAddress}`)
 
   if (
     !configObject.settings.outputSelection ||

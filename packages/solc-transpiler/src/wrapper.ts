@@ -3,9 +3,9 @@ import * as packageJson from '../package.json'
 import { compile } from './compiler'
 
 export const wrapper = {
-  version: packageJson.version,
-  semver: packageJson.version,
-  license: packageJson.version,
+  version: () => packageJson.version,
+  semver: () => packageJson.version,
+  license: () => packageJson.version,
   compile,
   compileStandard: compile,
   compileStandardWrapper: compile,
