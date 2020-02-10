@@ -1,19 +1,18 @@
-# Rollup Dev Tools
+# Rollup Developer Tools
 Package that contains developer tools for building on optimistic rollup.
 
-# Dependencies
+### Dependencies
 Please refer to the root README of this repo.
 
-# Setup
+### Setup
 Run `yarn install` to install necessary dependencies.
 
-# Building
+### Building
 Run `yarn build` to build the code. Note: `yarn all` may be used to build and run tests.
 
-# Testing
+### Testing
 Run `yarn test` to run the unit tests.
 
-# Tools
 ## Transpiler
 Enables transpilation of L1 contracts to L2 bytecode.
 

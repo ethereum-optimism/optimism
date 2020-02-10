@@ -1,6 +1,3 @@
-# Aggregator
-TODO: this.
-
 # Dependencies
 The `/exec/` scripts depend on [parity](https://github.com/paritytech/parity-ethereum/releases/tag/v2.5.13) being installed.
 
