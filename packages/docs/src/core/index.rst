@@ -1,12 +1,12 @@
 ========================
-@eth-optimism documentation
+@eth-optimism Documentation
 ========================
 Hello and welcome to the documentation for Optimism's ``@eth-optimism``!
 ``@eth-optimism`` is the set of core modules that the OVM and our L2 implementations use.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Developer Documentation
+   :caption: Developer Documentation2
 
    
 .. toctree::
