@@ -2,12 +2,15 @@
 import { getLogger } from '@eth-optimism/core-utils'
 
 import { providers, ContractFactory, Wallet, Contract } from 'ethers'
-import { createMockProvider } from 'ethereum-waffle'
+import * as waffle from 'ethereum-waffle'
 import { FullnodeHandler } from '../types'
 import { Web3Provider } from 'ethers/providers'
 
-const log = getLogger('utils')
+/* Internal Imports */
+import { DefaultWeb3Handler } from './handler'
+import { FullnodeRpcServer } from './fullnode-rpc-server'
 
+const log = getLogger('utils')
 /**
  * Creates a Provider that uses the provided handler to handle `send`s.
  *
@@ -18,7 +21,7 @@ export const createProviderForHandler = (
   fullnodeHandler: FullnodeHandler
 ): Web3Provider => {
   // First, we create a mock provider which is identical to a normal ethers "mock provider"
-  const provider = createMockProvider()
+  const provider = waffle.createMockProvider()
 
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   provider.send = async (method: string, params: any) => {
@@ -71,4 +74,47 @@ export async function deployOvmContract(
     contractJSON.abi,
     wallet
   )
+}
+
+export async function createMockProvider() {
+  const host = '0.0.0.0'
+  const port = 9999
+  const fullnodeHandler = await DefaultWeb3Handler.create()
+  const fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
+  fullnodeRpcServer.listen()
+  const baseUrl = `http://${host}:${port}`
+  const httpProvider = new providers.JsonRpcProvider(baseUrl)
+  httpProvider['closeOVM'] = () => {
+    if (!!fullnodeRpcServer) {
+      fullnodeRpcServer.close()
+    }
+  }
+  return httpProvider
+}
+
+export function getWallets(httpProvider) {
+  const walletsToReturn = []
+  for (let i = 0; i < 9; i++) {
+    const privateKey = '0x' + ('5' + i).repeat(32)
+    const nextWallet = new Wallet(privateKey, httpProvider)
+    walletsToReturn[i] = nextWallet
+  }
+  return walletsToReturn
+}
+
+export async function deployContract(
+  wallet,
+  contractJSON,
+  args,
+  overrideOptions
+) {
+  const factory = new ContractFactory(
+    contractJSON.abi,
+    contractJSON.bytecode,
+    wallet
+  )
+
+  const contract = await factory.deploy(...args)
+  await contract.deployed()
+  return contract
 }
