@@ -26,7 +26,7 @@ contract PurityChecker {
      * @param _start The start index from which to extract the address from (e.g. 0 if _bytes starts with the address)
      */
     function toAddress(bytes memory _bytes, uint256 _start) internal pure returns (address addr) {
-        require(_bytes.length >= (_start + 20));
+        require(_bytes.length >= (_start + 20), "Addresses must be at least 20 bytes");
         assembly {
             addr := mload(add(add(_bytes, 20), _start))
         }
@@ -34,7 +34,7 @@ contract PurityChecker {
 
     /**
      * @notice Returns whether or not all of the provided bytecode is pure.
-     * @param _bytecode The bytecode to purity check. This can be either creation bytecode (aka initcode) or runtime bytecode (aka contract code). 
+     * @param _bytecode The bytecode to purity check. This can be either creation bytecode (aka initcode) or runtime bytecode (aka contract code).
      * More info on creation vs. runtime bytecode: https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904
      */
     function isBytecodePure(
@@ -50,7 +50,7 @@ contract PurityChecker {
 
             // PUSH##
             if (op >= 0x60 && op <= 0x7f) {
-                // subsequent bytes are not opcodes. Skip them. 
+                // subsequent bytes are not opcodes. Skip them.
                 pc += (op - 0x5f);
             }
             // If we're in between a STOP or REVERT or JUMP and a JUMPDEST
@@ -74,7 +74,7 @@ contract PurityChecker {
                     // We can now reach all JUMPDESTs
                     seenJUMP = true;
                 // JUMP
-                } else if (op == 0x56) { 
+                } else if (op == 0x56) {
                     // We can now reach all JUMPDESTs
                     seenJUMP = true;
                     // we are now inside unreachable code until we hit a JUMPDEST!

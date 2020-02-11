@@ -11,5 +11,6 @@ import {StateManager} from "./StateManager.sol";
  *         is unlike the FullStateManager which has access to every storage slot.
  */
 contract PartialStateManager is StateManager {
-    // TODO
+  // solium-disable-previous-line no-empty-blocks
+  // TODO
 }

@@ -11,7 +11,7 @@ import {RLPEncode} from "./RLPEncode.sol";
 
 /**
  * @title ExecutionManager
- * @notice The execution manager ensures that the execution of each transaction is sandboxed in a distinct enviornment as defined
+ * @notice The execution manager ensures that the execution of each transaction is sandboxed in a distinct environment as defined
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is FullStateManager {
@@ -207,25 +207,25 @@ contract ExecutionManager is FullStateManager {
         bool isCreate = _ovmEntrypoint == ZERO_ADDRESS;
         // Check if we're creating -- ovmEntrypoint == ZERO_ADDRESS
         if (isCreate) {
-          methodId = ovmCreateMethodId;
-          callSize = _callBytes.length + 4;
-          // Emit event that we are creating a contract with an EOA
-          address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
-          emit EOACreatedContract(_newOvmContractAddress);
+            methodId = ovmCreateMethodId;
+            callSize = _callBytes.length + 4;
+            // Emit event that we are creating a contract with an EOA
+            address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
+            emit EOACreatedContract(_newOvmContractAddress);
         } else {
-          methodId = ovmCallMethodId;
-          callSize = _callBytes.length + 32 + 4;
+            methodId = ovmCallMethodId;
+            callSize = _callBytes.length + 32 + 4;
         }
 
         assembly {
           if eq(isCreate, 0) {
-            _callBytes := sub(_callBytes, 4)
-            mstore8(_callBytes, shr(24, methodId))
-            mstore8(add(_callBytes, 1), shr(16, methodId))
-            mstore8(add(_callBytes, 2), shr(8, methodId))
-            mstore8(add(_callBytes, 3), methodId)
-            // And now set the ovmEntrypoint
-            mstore(add(_callBytes, 4), _ovmEntrypoint)
+              _callBytes := sub(_callBytes, 4)
+              mstore8(_callBytes, shr(24, methodId))
+              mstore8(add(_callBytes, 1), shr(16, methodId))
+              mstore8(add(_callBytes, 2), shr(8, methodId))
+              mstore8(add(_callBytes, 3), methodId)
+              // And now set the ovmEntrypoint
+              mstore(add(_callBytes, 4), _ovmEntrypoint)
           }
           if eq(isCreate, 1) {
             _callBytes := add(_callBytes, 28)
@@ -260,8 +260,14 @@ contract ExecutionManager is FullStateManager {
      * @param _r The r value of the ECDSA signature.
      * @param _s The s value of the ECDSA signature.
      */
-    function recoverEOAAddress(uint _nonce, address _to, bytes memory _callData, uint8 _v, bytes32 _r, bytes32 _s) public 
-view returns (address) {
+    function recoverEOAAddress(
+        uint _nonce,
+        address _to,
+        bytes memory _callData,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) public view returns (address) {
         bytes[] memory message = new bytes[](9);
         message[0] = rlp.encodeUint(_nonce); // Nonce
         message[1] = rlp.encodeUint(0); // Gas price
@@ -590,7 +596,10 @@ view returns (address) {
         // Get the runtime bytecode
         bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
         // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
-        require(overridePurityChecker || purityChecker.isBytecodePure(codeContractBytecode), "createNewContract: Contract runtime bytecode is not pure.");
+        require(
+            overridePurityChecker || purityChecker.isBytecodePure(codeContractBytecode),
+            "createNewContract: Contract runtime bytecode is not pure."
+        );
         // Associate the code contract with our ovm contract
         associateCodeContract(_newOvmContractAddress, codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
@@ -618,7 +627,6 @@ view returns (address) {
         }
         return codeContractAddress;
     }
-
 
     /************************
     * Contract CALL Opcodes *

@@ -46,7 +46,7 @@ contract RLPEncode {
         return encodeBytes(bytes(self));
     }
 
-    /** 
+    /**
      * @dev RLP encodes an address.
      * @param self The address to encode.
      * @return The RLP encoded address in bytes.
@@ -62,7 +62,7 @@ contract RLPEncode {
         return encodeBytes(inputBytes);
     }
 
-    /** 
+    /**
      * @dev RLP encodes a uint.
      * @param self The uint to encode.
      * @return The RLP encoded uint in bytes.
@@ -71,7 +71,7 @@ contract RLPEncode {
         return encodeBytes(toBinary(self));
     }
 
-    /** 
+    /**
      * @dev RLP encodes an int.
      * @param self The int to encode.
      * @return The RLP encoded int in bytes.
@@ -80,7 +80,7 @@ contract RLPEncode {
         return encodeUint(uint(self));
     }
 
-    /** 
+    /**
      * @dev RLP encodes a bool.
      * @param self The bool to encode.
      * @return The RLP encoded bool in bytes.
@@ -132,8 +132,8 @@ contract RLPEncode {
      */
     function toBinary(uint _x) private pure returns (bytes memory) {
         bytes memory b = new bytes(32);
-        assembly { 
-            mstore(add(b, 32), _x) 
+        assembly {
+            mstore(add(b, 32), _x)
         }
         uint i = 0;
         for (; i < 32; i++) {
@@ -199,7 +199,7 @@ contract RLPEncode {
 
         for(i = 0; i < _list.length; i++) {
             bytes memory item = _list[i];
-            
+
             uint listPtr;
             assembly { listPtr := add(item, 0x20)}
 

@@ -9,8 +9,8 @@
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "test": "waffle waffle-config.json && mocha --require source-map-support/register --require ts-node/register 'test/*/*.spec.ts' --timeout 8000 --exit",
-    "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{deploy,src,test}/**/*.ts'",
+    "lint": "tslint --format stylish --project . && solium --no-soliumignore -d src/contracts/",
+    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{deploy,src,test}/**/*.ts' && solium -d src/contracts --no-soliumignore --fix",
     "build": "mkdir -p ./build && waffle waffle-config.json && tsc -p .",
     "clean": "rimraf build/",
     "deploy:execution-manager": "yarn build && node ./build/deploy/execution-manager.js",
@@ -54,6 +54,7 @@
     "chai": "^4.2.0",
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37",
+    "ethlint": "^1.2.5",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0"
   }
