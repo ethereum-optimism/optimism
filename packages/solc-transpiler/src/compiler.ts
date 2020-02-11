@@ -17,6 +17,8 @@ import {
   remove0x,
 } from '@eth-optimism/core-utils'
 import * as solc from 'solc'
+import { execSync } from 'child_process'
+import * as requireFromString from 'require-from-string'
 
 const log: Logger = getLogger('solc-transpiler')
 
@@ -36,6 +38,7 @@ interface TranspilationOutput {
  * @returns The Solc output as a string.
  */
 export const compile = (configJsonString: string, callbacks?: any): string => {
+  const compiler = getCompiler(process.env.SOLC_VERSION)
   log.debug(`Trying to transpile with config: ${configJsonString}`)
   let json: any
   try {
@@ -43,7 +46,7 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   } catch (e) {
     log.debug(`Cannot parse JSON: ${JSON.stringify(e)}`)
     // todo: populate some errors
-    return solc.compile(configJsonString)
+    return compiler.compile(configJsonString)
   }
 
   const inputErrors: string = getInputErrors(json)
@@ -53,8 +56,8 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
 
   const solcConfig: string = getSolcConfig(json)
   const resString = !!callbacks
-    ? solc.compile(solcConfig, callbacks)
-    : solc.compile(solcConfig)
+    ? compiler.compile(solcConfig, callbacks)
+    : compiler.compile(solcConfig)
 
   const res = JSON.parse(resString)
   if (
@@ -108,6 +111,53 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   }
 
   return formatOutput(res, json)
+}
+
+const getCompiler = (versionString: string): typeof solc => {
+  if (versionString) {
+    const getCompilerString = `
+    function httpsRequest(params, postData) {
+      return new Promise(function(resolve, reject) {
+          var req = https.request(params, function(res) {
+              var body = [];
+              res.on("data", function(chunk) {
+                  body.push(chunk);
+              });
+              res.on("end", function() {
+                  try {
+                      body = Buffer.concat(body).toString();
+                  } catch(e) {
+                      reject(e);
+                  }
+                  resolve(body);
+              });
+          });
+          req.on("error", function(err) {
+              reject(err);
+          });
+          req.end();
+      });
+    }
+
+    async function getSolcVersion(versionString) {
+      const listUrl = "https://ethereum.github.io/solc-bin/bin/list.json";
+      const {releases} = JSON.parse(await httpsRequest(listUrl))
+      const solcUrl = "https://ethereum.github.io/solc-bin/bin/" + releases[versionString];
+      return await httpsRequest(solcUrl);
+    }
+
+    (async () => {
+      await process.stdout.write(await getSolcVersion("${versionString}"));
+    })();
+    `
+    return solc.setupMethods(
+      requireFromString(
+        execSync(`${process.argv[0]} -e '${getCompilerString}'`).toString()
+      )
+    )
+  } else {
+    return solc
+  }
 }
 
 const getExecutionManagerAddress = (configObject: any): string => {

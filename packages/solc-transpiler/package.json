@@ -31,6 +31,7 @@
   "dependencies": {
     "@eth-optimism/core-utils": "~0.0.1-alpha.7",
     "@eth-optimism/rollup-dev-tools": "~0.0.1-alpha.7",
+    "require-from-string": "^2.0.2",
     "solc": "^0.5.12"
   },
   "devDependencies": {
