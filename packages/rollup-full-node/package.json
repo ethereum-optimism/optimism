@@ -13,7 +13,9 @@
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "waffle waffle-config.json && mocha --require source-map-support/register --require ts-node/register 'test/**/*.spec.ts' --timeout 8000 --exit",
-    "server": "node ./build/src/exec/aggregator.js"
+    "server:aggregator": "env DEBUG=\"info:*,error:*\" node ./build/src/exec/aggregator.js",
+    "server:fullnode": "env DEBUG=\"info:*,error:*\" node ./build/src/exec/fullnode.js",
+    "server:fullnode:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/fullnode.js"
   },
   "keywords": [
     "plasma",

@@ -425,10 +425,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 
-    log.debug(
-      'Deployed execution manager to address:',
-      executionManager.address
-    )
+    log.info('Deployed execution manager to address:', executionManager.address)
 
     return executionManager
   }
