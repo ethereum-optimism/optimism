@@ -1,10 +1,10 @@
 {
   "name": "@eth-optimism/rollup-dev-tools",
-  "version": "0.0.1-alpha.0",
+  "version": "0.0.1-alpha.1",
   "description": "[Optimism] Optimistic Rollup Dev Tools Library",
   "main": "build/index.js",
   "files": [
-    "build/**/.js"
+    "build/**/*.js"
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
@@ -33,8 +33,8 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "0.0.1-alpha.0",
-    "@eth-optimism/rollup-core": "0.0.1-alpha.0",
+    "@eth-optimism/core-utils": "0.0.1-alpha.1",
+    "@eth-optimism/rollup-core": "0.0.1-alpha.1",
     "async-lock": "^1.2.2",
     "bn.js": "^5.1.1",
     "dotenv": "^8.2.0",
@@ -50,11 +50,11 @@
     "@types/node": "^12.0.7",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
+    "ethereum-waffle": "2.1.0",
     "mocha": "^6.1.4",
     "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
-    "typescript": "^3.5.1",
-    "ethereum-waffle": "2.1.0"
+    "typescript": "^3.5.1"
   },
   "publishConfig": {
     "access": "public"

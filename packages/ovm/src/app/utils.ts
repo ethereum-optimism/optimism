@@ -99,6 +99,9 @@ export const convertInternalLogsToOvmLogs = (
     ]
   }
 
+  // Set the initial activce context
+  activeContract = ovmTo
+
   if (debugMode) {
     // Print all the ExecutionManager logs -- very useful for debugging
     log.debug('Converting logs! Pre-conversion log list:')

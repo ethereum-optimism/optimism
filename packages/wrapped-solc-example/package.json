@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/wrapped-solc-example",
-  "version": "0.0.1-alpha.0",
+  "version": "0.0.1-alpha.1",
   "description": "Example of using solc-transpiler in place of solc-js",
   "scripts": {
     "clean": "rimraf build",
@@ -24,7 +24,7 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/solc-transpiler": "0.0.1-alpha.0",
+    "@eth-optimism/solc-transpiler": "0.0.1-alpha.1",
     "ethereum-waffle": "2.1.0",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12"
