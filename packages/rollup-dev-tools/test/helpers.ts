@@ -6,13 +6,13 @@ import {
   EVMOpcode,
   formatBytecode,
   Opcode,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 import {
   bufferUtils,
   bufToHexString,
   hexStrToBuf,
   remove0x,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import * as abi from 'ethereumjs-abi'
 import { ethers } from 'ethers'
 

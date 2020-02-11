@@ -7,7 +7,7 @@ import {
   hexStrToBuf,
   BigNumber,
   bufferUtils,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   Opcode,
   EVMOpcode,
@@ -15,7 +15,7 @@ import {
   bytecodeToBuffer,
   bufferToBytecode,
   formatBytecode,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 /* Internal imports */
 import { SuccessfulTranspilation } from '../../src/types/transpiler'

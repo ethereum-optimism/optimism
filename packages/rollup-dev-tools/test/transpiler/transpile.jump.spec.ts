@@ -1,7 +1,7 @@
 import { should } from '../setup'
 
 /* External Imports */
-import { bufferUtils, bufToHexString } from '@pigi/core-utils'
+import { bufferUtils, bufToHexString } from '@eth-optimism/core-utils'
 import {
   Opcode,
   EVMOpcode,
@@ -10,7 +10,7 @@ import {
   bufferToBytecode,
   EVMOpcodeAndBytes,
   formatBytecode,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 /* Internal imports */
 import {

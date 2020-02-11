@@ -1,5 +1,5 @@
 /* External Imports */
-import { Keystore } from '@pigi/core-utils/build'
+import { Keystore } from '@eth-optimism/core-utils/build'
 
 export interface WalletDB {
   putKeystore(keystore: Keystore): Promise<void>

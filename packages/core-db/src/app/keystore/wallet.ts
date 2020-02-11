@@ -4,7 +4,7 @@ import {
   DefaultSignatureProvider,
   SignatureProvider,
   Wallet,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { WalletDB } from '../../types'

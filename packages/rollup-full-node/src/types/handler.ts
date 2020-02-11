@@ -1,5 +1,5 @@
 // Web3 handler interface
-import { Address } from '@pigi/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 
 export interface FullnodeHandler {
   handleRequest(method: string, params: any[]): Promise<string>

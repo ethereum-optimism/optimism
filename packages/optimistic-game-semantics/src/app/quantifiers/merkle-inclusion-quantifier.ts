@@ -1,6 +1,6 @@
 /* External Imports */
-import { BigNumber } from '@pigi/core-utils'
-import { MerkleTree } from '@pigi/core-db'
+import { BigNumber } from '@eth-optimism/core-utils'
+import { MerkleTree } from '@eth-optimism/core-db'
 
 /* Internal Imports */
 import { QuantifierResult, Quantifier } from '../../types'

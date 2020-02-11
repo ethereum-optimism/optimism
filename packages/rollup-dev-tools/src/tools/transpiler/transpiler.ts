@@ -8,15 +8,8 @@ import {
   formatBytecode,
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
-} from '@pigi/rollup-core'
-import {
-  getLogger,
-  bufToHexString,
-  hexStrToBuf,
-  add0x,
-  remove0x,
-  bufferUtils,
-} from '@pigi/core-utils'
+} from '@eth-optimism/rollup-core'
+import { getLogger, bufToHexString, add0x } from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
 

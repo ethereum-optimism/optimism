@@ -1,7 +1,7 @@
 import '../../setup'
 
-import { IdentityVerifier, serializeObject } from '@pigi/core-utils'
-import { newInMemoryDB } from '@pigi/core-db'
+import { IdentityVerifier, serializeObject } from '@eth-optimism/core-utils'
+import { newInMemoryDB } from '@eth-optimism/core-db'
 import * as assert from 'assert'
 
 import {

@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger, logError, Md5Hash } from '@pigi/core-utils'
+import { getLogger, logError, Md5Hash } from '@eth-optimism/core-utils'
 import { ethers, Contract } from 'ethers'
 import { LogDescription } from 'ethers/utils'
 import { Filter, Log, Provider } from 'ethers/providers'
@@ -177,9 +177,9 @@ export class EthereumEventProcessor {
    */
   private async handleEvent(event: EthereumEvent): Promise<void> {
     log.debug(`Handling event ${JSON.stringify(event)}`)
-    const subscribers: Set<
-      EthereumListener<EthereumEvent>
-    > = this.subscriptions.get(event.eventID)
+    const subscribers: Set<EthereumListener<
+      EthereumEvent
+    >> = this.subscriptions.get(event.eventID)
 
     subscribers.forEach((s) => {
       try {

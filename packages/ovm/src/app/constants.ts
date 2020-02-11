@@ -1,4 +1,4 @@
-import { ZERO_ADDRESS } from '@pigi/core-utils'
+import { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 export const CREATOR_CONTRACT_ADDRESS = ZERO_ADDRESS
 export const GAS_LIMIT = 5_000_000

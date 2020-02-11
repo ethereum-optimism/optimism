@@ -9,7 +9,7 @@ import {
   objectsEqual,
   ONE,
   SignatureVerifier,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import * as assert from 'assert'
 
 /* Internal Imports */

@@ -1,5 +1,5 @@
 /* External Imports */
-import { EVMOpcode } from '@pigi/rollup-core'
+import { EVMOpcode } from '@eth-optimism/rollup-core'
 
 /**
  * Interface defining the available access operations for the OpCode Whitelist.

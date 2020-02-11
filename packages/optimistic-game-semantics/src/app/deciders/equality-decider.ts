@@ -1,5 +1,5 @@
 /* External Imports */
-import { areEqual } from '@pigi/core-utils'
+import { areEqual } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { Decider, Decision, ImplicationProofItem } from '../../types'

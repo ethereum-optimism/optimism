@@ -2,7 +2,7 @@ import { assert, should } from '../setup'
 
 /* External Imports */
 import debug from 'debug'
-import { logError } from '@pigi/core-utils'
+import { logError } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { Batch, DB, DEL_BATCH_TYPE, PUT_BATCH_TYPE } from '../../src/types/db'

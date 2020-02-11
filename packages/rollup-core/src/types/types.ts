@@ -1,5 +1,5 @@
 /* External Imports */
-import { BigNumber } from '@pigi/core-utils'
+import { BigNumber } from '@eth-optimism/core-utils'
 
 // TODO: Probably not necessary?
 //  Maybe just a map from token -> contract slot index (e.g. {ETH: 1, BAT: 2, REP: 3})?

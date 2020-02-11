@@ -1,6 +1,6 @@
 /* External Imports */
+import { getLogger, logError } from '@eth-optimism/core-utils'
 import { Block, Provider } from 'ethers/providers'
-import { getLogger, logError } from '@pigi/core-utils'
 
 /* Internal Imports */
 import { EthereumListener } from '../../types/ethereum'

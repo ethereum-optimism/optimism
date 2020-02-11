@@ -1,4 +1,4 @@
-import { EVMBytecode } from '@pigi/rollup-core'
+import { EVMBytecode } from '@eth-optimism/rollup-core'
 
 export interface TranspilationError {
   index: number

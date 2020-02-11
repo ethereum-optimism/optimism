@@ -1,7 +1,11 @@
 import '../../setup'
 
-import { HashAlgorithm, HashFunction, keccak256 } from '@pigi/core-utils'
-import { newInMemoryDB } from '@pigi/core-db'
+import {
+  HashAlgorithm,
+  HashFunction,
+  keccak256,
+} from '@eth-optimism/core-utils'
+import { newInMemoryDB } from '@eth-optimism/core-db'
 import * as assert from 'assert'
 
 import {

@@ -1,8 +1,8 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
-import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
+import { getLogger } from '@eth-optimism/core-utils'
+import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */

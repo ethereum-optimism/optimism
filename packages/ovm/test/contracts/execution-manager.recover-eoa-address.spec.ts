@@ -1,8 +1,8 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
-import { Contract, ContractFactory, ethers } from 'ethers'
+import { getLogger } from '@eth-optimism/core-utils'
+import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */

@@ -1,5 +1,5 @@
 /* External Imports */
-import { Address } from '@pigi/rollup-core/'
+import { Address } from '@eth-optimism/rollup-core/'
 import {
   ZERO_ADDRESS,
   getLogger,
@@ -10,7 +10,7 @@ import {
   hexStrToBuf,
   bufToHexString,
   bufferUtils,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
 import { Provider, TransactionReceipt } from 'ethers/providers'

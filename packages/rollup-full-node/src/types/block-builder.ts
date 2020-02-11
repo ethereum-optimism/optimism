@@ -1,5 +1,5 @@
 /* External Imports */
-import { TransactionResult } from '@pigi/rollup-core'
+import { TransactionResult } from '@eth-optimism/rollup-core'
 
 /**
  * Responsible for building Rollup Blocks from information about storage modified by

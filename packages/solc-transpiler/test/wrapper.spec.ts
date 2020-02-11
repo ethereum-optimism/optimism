@@ -8,8 +8,12 @@ import {
   TranspilationResult,
   Transpiler,
   TranspilerImpl,
-} from '@pigi/rollup-dev-tools'
-import { bufToHexString, hexStrToBuf, ZERO_ADDRESS } from '@pigi/core-utils'
+} from '@eth-optimism/rollup-dev-tools'
+import {
+  bufToHexString,
+  hexStrToBuf,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 import * as path from 'path'
 import * as fs from 'fs'
 

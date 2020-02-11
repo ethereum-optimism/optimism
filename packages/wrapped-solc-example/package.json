@@ -1,6 +1,6 @@
 {
-  "name": "@pigi/wrapped-solc-example",
-  "version": "0.0.10-alpha.0",
+  "name": "@eth-optimism/wrapped-solc-example",
+  "version": "0.0.1-alpha.0",
   "description": "Example of using solc-transpiler in place of solc-js",
   "scripts": {
     "clean": "rimraf build",
@@ -16,16 +16,16 @@
     "ethereum",
     "client"
   ],
-  "homepage": "https://github.com/op-optimism/optimistic-rollup/tree/master/packages/wrapped-solc-example#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/wrapped-solc-example#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/op-optimism/optimistic-rollup.git"
+    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@pigi/solc-transpiler": "0.0.10-alpha.0",
-    "ethereum-waffle": "^2.0.12",
+    "@eth-optimism/solc-transpiler": "0.0.1-alpha.0",
+    "ethereum-waffle": "2.1.0",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12"
   },

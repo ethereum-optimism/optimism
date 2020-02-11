@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { getLogger, remove0x } from '@pigi/core-utils'
+import { getLogger, remove0x } from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory } from 'ethers'
 

@@ -1,6 +1,7 @@
+/* External Imports */
+import { bufToHexString } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import { EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
-import { bufToHexString } from '@pigi/core-utils/build'
 
 /**
  * Takes EVMBytecode and serializes it into a single Buffer.

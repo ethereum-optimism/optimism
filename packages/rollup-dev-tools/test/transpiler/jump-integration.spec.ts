@@ -5,7 +5,7 @@ import {
   remove0x,
   getLogger,
   hexStrToBuf,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   Address,
   bytecodeToBuffer,
@@ -14,7 +14,7 @@ import {
   formatBytecode,
   Opcode,
   EVMOpcodeAndBytes,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import * as SimpleJumper from '../contracts/build/SimpleJumper.json'
 

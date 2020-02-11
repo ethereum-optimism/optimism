@@ -1,12 +1,12 @@
 import '../../setup'
 
 /* External Imports */
-import { BigNumber, TWO, ZERO } from '@pigi/core-utils'
+import { BigNumber, TWO, ZERO } from '@eth-optimism/core-utils'
 import {
   MerkleTree,
   MerkleTreeInclusionProof,
   MerkleUpdate,
-} from '@pigi/core-db'
+} from '@eth-optimism/core-db'
 import * as assert from 'assert'
 
 /* Internal Imports */

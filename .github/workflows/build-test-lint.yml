@@ -97,13 +97,6 @@ jobs:
           path: packages/solc-transpiler/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
-      - name: Cache types deps
-        uses: actions/cache@v1
-        id: cache_types
-        with:
-          path: packages/types/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/types/package.json') }}
-
       - name: Cache wrapped-solc-example deps
         uses: actions/cache@v1
         id: cache_wrapped-solc-example

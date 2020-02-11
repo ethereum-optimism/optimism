@@ -1,12 +1,17 @@
 /* External Imports */
-import { EVMOpcode, Opcode, Address, EVMBytecode } from '@pigi/rollup-core'
+import {
+  EVMOpcode,
+  Opcode,
+  Address,
+  EVMBytecode,
+} from '@eth-optimism/rollup-core'
 import {
   getLogger,
   logError,
   isValidHexAddress,
   remove0x,
   bufToHexString,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 import * as fs from 'fs'
 import { config, parse } from 'dotenv'

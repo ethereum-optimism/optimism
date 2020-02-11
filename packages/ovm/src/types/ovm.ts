@@ -1,12 +1,12 @@
 /* External Imports */
-import { BigNumber } from '@pigi/core-utils'
+import { BigNumber } from '@eth-optimism/core-utils'
 import {
   Address,
   StorageSlot,
   StorageValue,
   Transaction,
   TransactionResult,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 export interface RollupStateMachine {
   /**

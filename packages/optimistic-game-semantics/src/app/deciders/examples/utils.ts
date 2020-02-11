@@ -1,5 +1,5 @@
 /* External Imports */
-import { objectsEqual } from '@pigi/core-utils/build'
+import { objectsEqual } from '@eth-optimism/core-utils/build'
 
 /* Internal Imports */
 import { ParsedMessage } from '../../../types/serialization'

@@ -1,6 +1,10 @@
 /* External Imports */
-import { bufToHexString } from '@pigi/core-utils'
-import { bytecodeToBuffer, EVMBytecode, Opcode } from '@pigi/rollup-core'
+import { bufToHexString } from '@eth-optimism/core-utils'
+import {
+  bytecodeToBuffer,
+  EVMBytecode,
+  Opcode,
+} from '@eth-optimism/rollup-core'
 import * as fs from 'fs'
 import { resolve } from 'path'
 

@@ -1,4 +1,4 @@
-import { bufToHexString, remove0x } from '@pigi/core-utils/build/src'
+import { bufToHexString, remove0x } from '@eth-optimism/core-utils'
 
 export interface EVMOpcode {
   name: string

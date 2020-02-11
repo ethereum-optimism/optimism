@@ -7,7 +7,7 @@ import {
   ONE,
   TWO,
   ZERO,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   Address,
   ContractStorage,
@@ -18,7 +18,7 @@ import {
   TransactionLog,
   TransactionReceipt,
   TransactionResult,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 import { Contract } from 'ethers'
 

@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
+import { getLogger } from '@eth-optimism/core-utils'
 
 /* Internal imports */
 import { RollupBlock } from '../../types'

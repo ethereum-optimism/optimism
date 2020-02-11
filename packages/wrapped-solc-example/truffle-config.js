@@ -3,7 +3,7 @@ module.exports = {
   compilers: {
     solc: {
       // Add path to the solc-transpiler
-      version: "../../node_modules/@pigi/solc-transpiler",
+      version: "../../node_modules/@eth-optimism/solc-transpiler",
     }
   }
 }

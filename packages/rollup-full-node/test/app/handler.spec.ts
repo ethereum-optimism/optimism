@@ -1,7 +1,7 @@
 import '../setup'
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
-import { DB, newInMemoryDB } from '@pigi/core-db/'
+import { getLogger } from '@eth-optimism/core-utils'
+import { DB, newInMemoryDB } from '@eth-optimism/core-db/'
 
 /* Internal Imports */
 import {

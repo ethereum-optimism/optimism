@@ -7,7 +7,7 @@ import {
   JsonRpcSuccessResponse,
   RpcClient,
   SimpleClient,
-} from '@pigi/core-utils/build/src'
+} from '@eth-optimism/core-utils/build/src'
 import { AxiosResponse } from 'axios'
 
 /* Internal Imports */

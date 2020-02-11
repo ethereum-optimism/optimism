@@ -1,7 +1,7 @@
 import '../../setup'
 
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
+import { getLogger } from '@eth-optimism/core-utils'
 import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */

@@ -6,8 +6,8 @@ import {
   HashFunction,
   keccak256,
   serializeObject,
-} from '@pigi/core-utils'
-import { DB, newInMemoryDB } from '@pigi/core-db'
+} from '@eth-optimism/core-utils'
+import { DB, newInMemoryDB } from '@eth-optimism/core-db'
 import * as assert from 'assert'
 
 /* Internal Imports */

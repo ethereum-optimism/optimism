@@ -7,8 +7,8 @@ import {
   DefaultSignatureVerifier,
   serializeObject,
   deserializeObject,
-} from '@pigi/core-utils'
-import { DB } from '@pigi/core-db'
+} from '@eth-optimism/core-utils'
+import { DB } from '@eth-optimism/core-db'
 
 /* Internal Imports */
 import { SignedByDBInterface } from '../../types/db/signed-by-db.interface'

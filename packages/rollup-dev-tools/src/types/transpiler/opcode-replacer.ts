@@ -1,5 +1,5 @@
 /* External Imports */
-import { EVMOpcodeAndBytes, EVMBytecode } from '@pigi/rollup-core'
+import { EVMOpcodeAndBytes, EVMBytecode } from '@eth-optimism/rollup-core'
 
 /**
  * Interface defining the set of transpiled opcodes, and what bytecode to replace with.

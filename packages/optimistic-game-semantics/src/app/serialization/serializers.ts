@@ -6,7 +6,7 @@ import {
   objectToBuffer,
   serializeObject,
   strToHexStr,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { Message } from '../../types/serialization'

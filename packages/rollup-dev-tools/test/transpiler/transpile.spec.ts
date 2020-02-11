@@ -1,14 +1,18 @@
 import { should } from '../setup'
 
 /* External Imports */
-import { bufferUtils, bufToHexString, getLogger } from '@pigi/core-utils'
+import {
+  bufferUtils,
+  bufToHexString,
+  getLogger,
+} from '@eth-optimism/core-utils'
 
 import {
   Opcode,
   EVMOpcode,
   EVMBytecode,
   bytecodeToBuffer,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 /* Internal imports */
 import {

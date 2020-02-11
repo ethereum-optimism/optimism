@@ -5,7 +5,7 @@ import {
   JsonRpcResponse,
   logError,
   Logger,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import cors = require('cors')
 import * as fs from 'fs'
 import { config, parse } from 'dotenv'

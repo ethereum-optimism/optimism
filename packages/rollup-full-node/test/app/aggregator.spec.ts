@@ -9,8 +9,8 @@ import {
   ONE,
   TWO,
   ZERO,
-} from '@pigi/core-utils'
-import { DB, newInMemoryDB } from '@pigi/core-db/'
+} from '@eth-optimism/core-utils'
+import { DB, newInMemoryDB } from '@eth-optimism/core-db/'
 import {
   abiEncodeTransaction,
   Address,
@@ -20,7 +20,7 @@ import {
   StorageSlot,
   StorageValue,
   TransactionResult,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import { RollupBlockBuilder } from '../../src/types'

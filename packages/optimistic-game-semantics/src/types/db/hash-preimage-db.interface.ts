@@ -1,5 +1,5 @@
 /* External Imports */
-import { HashAlgorithm } from '@pigi/core-utils'
+import { HashAlgorithm } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { MessageSubscriber } from '../message-subscriber.interface'

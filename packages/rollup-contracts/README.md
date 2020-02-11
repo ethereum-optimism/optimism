@@ -1,8 +1,8 @@
 # contracts
-`rollup-contracts` is the set of smart contracts written in Solidity for Plasma Group's Optimistic Rollup.
+`rollup-contracts` is the set of smart contracts written in Solidity for Optimism's Optimistic Rollup.
 
 ### Requirements and Setup
-Clone the parent repo `optimistic-rollup` and follow its instructions.
+Clone the parent repo `optimism-monorepo` and follow its instructions.
 
 #### Node.js
 `rollup-contracts` is tested with [`Node.js`](https://nodejs.org/en/) and has been tested on the following versions of Node:

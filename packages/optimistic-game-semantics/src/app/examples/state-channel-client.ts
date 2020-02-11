@@ -5,7 +5,7 @@ import {
   ONE,
   SignatureProvider,
   ZERO,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import uuid = require('uuid')
 
 /* Internal Imports */

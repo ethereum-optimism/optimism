@@ -1,5 +1,5 @@
 /* External Imports */
-import { BigNumber, Endianness } from '@pigi/core-utils'
+import { BigNumber, Endianness } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {

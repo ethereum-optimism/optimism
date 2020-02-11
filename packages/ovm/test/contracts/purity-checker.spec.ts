@@ -3,8 +3,8 @@ import '../setup'
 import { OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
-import { EVMOpcode, Opcode } from '@pigi/rollup-core'
-import { getLogger, add0x, remove0x } from '@pigi/core-utils'
+import { EVMOpcode, Opcode } from '@eth-optimism/rollup-core'
+import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
 
 import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'

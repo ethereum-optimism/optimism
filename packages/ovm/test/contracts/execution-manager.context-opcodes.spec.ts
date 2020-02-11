@@ -1,14 +1,14 @@
 import { should } from '../setup'
 
 /* External Imports */
-import { Address } from '@pigi/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 import {
   bufferUtils,
   bufToHexString,
   getLogger,
   remove0x,
   TestUtils,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'

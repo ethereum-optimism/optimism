@@ -1,8 +1,8 @@
 /* External Imports */
-import { BigNumber, ZERO } from '@pigi/core-utils'
+import { BigNumber, ZERO } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { EVMOpcode, Opcode } from '@pigi/rollup-core'
+import { EVMOpcode, Opcode } from '@eth-optimism/rollup-core'
 
 const excludedOpCodes: EVMOpcode[] = [
   Opcode.ADDRESS,

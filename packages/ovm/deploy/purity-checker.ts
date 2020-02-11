@@ -1,6 +1,6 @@
 /* External Imports */
-import { Address } from '@pigi/rollup-core'
-import { deploy, deployContract, add0x } from '@pigi/core-utils'
+import { Address } from '@eth-optimism/rollup-core'
+import { deploy, deployContract, add0x } from '@eth-optimism/core-utils'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */

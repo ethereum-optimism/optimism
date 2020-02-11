@@ -1,7 +1,7 @@
 import { should } from '../../setup'
 
 /* External Imports */
-import { NULL_ADDRESS } from '@pigi/core-utils'
+import { NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 
 /* Internal Imports */

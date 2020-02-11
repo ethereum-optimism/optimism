@@ -1,14 +1,9 @@
 import '../setup'
 
 /* External Imports */
-import { Address } from '@pigi/rollup-core'
-import {
-  ZERO_ADDRESS,
-  getLogger,
-  BigNumber,
-  remove0x,
-  add0x,
-} from '@pigi/core-utils'
+import { Address } from '@eth-optimism/rollup-core'
+import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'

@@ -1,5 +1,5 @@
 /* External Imports */
-import { Address } from '@pigi/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {

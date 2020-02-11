@@ -1,7 +1,7 @@
 import '../../setup'
 
 /* External Imports */
-import { areEqual, objectsEqual } from '@pigi/core-utils'
+import { areEqual, objectsEqual } from '@eth-optimism/core-utils'
 import * as assert from 'assert'
 
 /* Internal Imports */

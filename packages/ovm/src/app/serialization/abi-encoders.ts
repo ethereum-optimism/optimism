@@ -1,6 +1,6 @@
 /* External Imports */
-import { add0x, getLogger } from '@pigi/core-utils'
-import { Transaction } from '@pigi/rollup-core'
+import { add0x, getLogger } from '@eth-optimism/core-utils'
+import { Transaction } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 

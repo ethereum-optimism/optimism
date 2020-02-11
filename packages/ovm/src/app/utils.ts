@@ -1,10 +1,7 @@
 /* External Imports */
-import { getLogger, ZERO_ADDRESS } from '@pigi/core-utils'
+import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 import { Log } from 'ethers/providers'
-
-/* Internal Imports */
-import { CREATOR_CONTRACT_ADDRESS } from '.'
 
 /* Contract Imports */
 

@@ -7,7 +7,7 @@ import {
   ExpressHttpServer,
   Logger,
   JsonRpcRequest,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import { Aggregator } from '../types'
 
 const log: Logger = getLogger('aggregator-rpc-server')

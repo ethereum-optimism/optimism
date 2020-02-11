@@ -6,13 +6,13 @@ import {
   getLogger,
   hexStrToBuf,
   bufferUtils,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   Address,
   bytecodeToBuffer,
   EVMBytecode,
   Opcode,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 import * as abiForMethod from 'ethereumjs-abi'
 
 /* Internal Imports */

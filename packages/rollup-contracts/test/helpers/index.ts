@@ -1,5 +1,10 @@
 /* Imports */
-import { keccak256, abi, hexStrToBuf, bufToHexString } from '@pigi/core-utils'
+import {
+  keccak256,
+  abi,
+  hexStrToBuf,
+  bufToHexString,
+} from '@eth-optimism/core-utils'
 
 /**********************************
  * Byte String Generation Helpers *

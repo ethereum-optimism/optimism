@@ -1,11 +1,11 @@
 /* External Imports */
-import { DB } from '@pigi/core-db'
+import { DB } from '@eth-optimism/core-db'
 import {
   abiDecodeRollupBlock,
   abiEncodeRollupBlock,
   RollupBlock,
-} from '@pigi/rollup-core'
-import { getLogger, logError } from '@pigi/core-utils'
+} from '@eth-optimism/rollup-core'
+import { getLogger, logError } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 
 import { RollupBlockSubmitter } from '../types'

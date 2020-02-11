@@ -4,8 +4,8 @@ import {
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
-} from '@pigi/rollup-core'
-import { getLogger, BigNumber } from '@pigi/core-utils'
+} from '@eth-optimism/rollup-core'
+import { getLogger, BigNumber } from '@eth-optimism/core-utils'
 
 const log = getLogger(`helpers`)
 

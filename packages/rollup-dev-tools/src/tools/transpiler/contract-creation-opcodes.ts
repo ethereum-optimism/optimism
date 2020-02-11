@@ -1,6 +1,6 @@
 /* External Imports */
-import { Opcode, EVMBytecode, Address } from '@pigi/rollup-core'
-import { getLogger, hexStrToBuf } from '@pigi/core-utils'
+import { Opcode, EVMBytecode, Address } from '@eth-optimism/rollup-core'
+import { getLogger, hexStrToBuf } from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */

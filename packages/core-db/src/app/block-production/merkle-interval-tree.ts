@@ -1,5 +1,5 @@
 /* External Imports */
-import { BigNumber, keccak256, reverse, ZERO } from '@pigi/core-utils'
+import { BigNumber, keccak256, reverse, ZERO } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {

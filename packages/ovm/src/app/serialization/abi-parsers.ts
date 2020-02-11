@@ -1,6 +1,6 @@
 /* External Imports */
-import { TransactionLog, TransactionReceipt } from '@pigi/rollup-core'
-import { BigNumber, getLogger } from '@pigi/core-utils'
+import { TransactionLog, TransactionReceipt } from '@eth-optimism/rollup-core'
+import { BigNumber, getLogger } from '@eth-optimism/core-utils'
 
 /* Internal imports */
 import { abi, logAbiTypes, transactionReceiptAbiTypes } from './common'

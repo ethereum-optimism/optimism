@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { Opcode, EVMOpcode } from '@pigi/rollup-core'
+import { Opcode, EVMOpcode } from '@eth-optimism/rollup-core'
 
 /* Internal imports */
 import { OpcodeWhitelist } from '../../src/types/transpiler'

@@ -4,9 +4,9 @@ import {
   bufToHexString,
   BigNumber,
   keccak256,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
-import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
+import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 
 import { utils } from 'ethers'
 

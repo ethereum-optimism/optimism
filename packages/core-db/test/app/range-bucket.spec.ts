@@ -1,5 +1,5 @@
 /* External Imports */
-import { BigNumber, ZERO } from '@pigi/core-utils'
+import { BigNumber, ZERO } from '@eth-optimism/core-utils'
 import debug from 'debug'
 import level = require('level')
 import MemDown from 'memdown'

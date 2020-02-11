@@ -1,5 +1,5 @@
 /* External Imports */
-import { BigNumber } from '@pigi/core-utils'
+import { BigNumber } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { Message } from '../../../types/serialization'

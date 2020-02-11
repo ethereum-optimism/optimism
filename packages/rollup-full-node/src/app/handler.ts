@@ -1,18 +1,22 @@
 /* External Imports */
-import { Address } from '@pigi/rollup-core'
-import { add0x, getLogger, remove0x, ZERO_ADDRESS } from '@pigi/core-utils'
+import { Address } from '@eth-optimism/rollup-core'
+import {
+  add0x,
+  getLogger,
+  remove0x,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
   GAS_LIMIT,
   convertInternalLogsToOvmLogs,
   L2ExecutionManagerContractDefinition,
   OPCODE_WHITELIST_MASK,
-} from '@pigi/ovm'
+} from '@eth-optimism/ovm'
 
 import { Contract, utils, Wallet } from 'ethers'
 import { Web3Provider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '.'

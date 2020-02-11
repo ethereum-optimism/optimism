@@ -1,6 +1,6 @@
 {
-  "name": "@pigi/rollup-contracts",
-  "version": "0.0.1-alpha.9",
+  "name": "@eth-optimism/rollup-contracts",
+  "version": "0.0.1-alpha.0",
   "description": "Optimistic Rollup smart contracts",
   "main": "build/index.js",
   "files": [
@@ -10,7 +10,7 @@
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "test": "waffle waffle-config.json && mocha --require ts-node/register 'test/*/*.spec.ts' --timeout 20000",
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{deploy,test}/**/*.ts'",
+    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{deploy,test}/**/*.ts'",
     "build": "waffle waffle-config.json && tsc -p .",
     "clean": "rimraf build/"
   },
@@ -22,21 +22,19 @@
     "smart",
     "contract"
   ],
-  "author": "Plasma Group",
+  "author": "Optimism",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plasma-group/pigi.git"
+    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "publishConfig": {
     "access": "public"
   },
   "devDependencies": {
-    "@pigi/prettier-config": "latest",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
     "@types/node": "^11.11.3",
-    "@types/web3": "^1.0.18",
     "chai": "^4.2.0",
     "chai-bignumber": "^3.0.0",
     "memdown": "^5.0.0",
@@ -45,12 +43,12 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
-    "@pigi/core-utils": "^0.0.10-alpha.0",
-    "@pigi/core-db": "^0.0.10-alpha.0",
-    "@pigi/rollup-core": "^0.0.10-alpha.0",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.0",
+    "@eth-optimism/core-db": "^0.0.1-alpha.0",
+    "@eth-optimism/rollup-core": "^0.0.1-alpha.0",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",
-    "ethereum-waffle": "^2.0.12",
+    "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0"

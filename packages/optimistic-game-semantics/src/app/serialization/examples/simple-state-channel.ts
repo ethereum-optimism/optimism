@@ -3,7 +3,7 @@ import {
   BigNumber,
   SignatureVerifier,
   DefaultSignatureVerifier,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { Message, ParsedMessage, Property, SignedMessage } from '../../../types'

@@ -1,5 +1,5 @@
 /* External Imports */
-import { RollupBlock } from '@pigi/rollup-core'
+import { RollupBlock } from '@eth-optimism/rollup-core'
 
 /**
  * Handles all rollup block queueing, submission, and monitoring.

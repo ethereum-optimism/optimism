@@ -7,14 +7,14 @@ import {
   TranspilationError,
   Transpiler,
   TranspilerImpl,
-} from '@pigi/rollup-dev-tools'
+} from '@eth-optimism/rollup-dev-tools'
 import {
   bufToHexString,
   getLogger,
   hexStrToBuf,
   isValidHexAddress,
   Logger,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import * as solc from 'solc'
 
 const log: Logger = getLogger('solc-transpiler')

@@ -4,7 +4,13 @@
  */
 
 /* External Imports */
-import { BigNumber, bufferUtils, getLogger, ONE, ZERO } from '@pigi/core-utils'
+import {
+  BigNumber,
+  bufferUtils,
+  getLogger,
+  ONE,
+  ZERO,
+} from '@eth-optimism/core-utils'
 import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
 
 import MemDown from 'memdown'

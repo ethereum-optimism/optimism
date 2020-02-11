@@ -1,6 +1,10 @@
-import { bytecodeToBuffer, EVMBytecode, Opcode } from '@pigi/rollup-core'
-import { bufferUtils, getLogger } from '@pigi/core-utils'
-import { getPUSHOpcode, getPUSHBuffer, getPUSHIntegerOp } from './helpers'
+import {
+  bytecodeToBuffer,
+  EVMBytecode,
+  Opcode,
+} from '@eth-optimism/rollup-core'
+import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
+import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
 import {
   JumpReplacementResult,
   TranspilationError,

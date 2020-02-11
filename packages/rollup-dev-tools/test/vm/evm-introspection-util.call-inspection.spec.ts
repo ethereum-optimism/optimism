@@ -5,13 +5,13 @@ import {
   remove0x,
   hexStrToBuf,
   TestUtils,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   Address,
   bytecodeToBuffer,
   EVMBytecode,
   Opcode,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */

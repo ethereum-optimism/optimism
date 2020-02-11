@@ -1,6 +1,6 @@
 {
-  "name": "@pigi/rollup-core",
-  "version": "0.0.10-alpha.0",
+  "name": "@eth-optimism/rollup-core",
+  "version": "0.0.1-alpha.0",
   "description": "[Optimism] Optimistic Rollup Core Library",
   "main": "build/index.js",
   "files": [
@@ -10,7 +10,7 @@
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "build": "tsc -p .",
     "clean": "rimraf build/",
-    "fix": "prettier --config ./.prettierrc.js --write 'index.ts' '{src,test}/**/*.ts'",
+    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
   },
@@ -20,17 +20,17 @@
     "ethereum",
     "client"
   ],
-  "homepage": "https://github.com/plasma-group/optimistic-rollup/tree/master/packages/rollup-core#readme",
-  "bugs": "https://github.com/plasma-group/optimistic-rollup/labels/%40pigi%2Frollup-core",
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/rollup-core#readme",
+  "bugs": "https://github.com/ethereum-optimism/optimism-monorepo/labels/%40pigi%2Frollup-core",
   "license": "MIT",
   "author": "Optimism",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plasma-group/optimistic-rollup.git"
+    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@pigi/core-db": "0.0.10-alpha.0",
-    "@pigi/core-utils": "0.0.10-alpha.0",
+    "@eth-optimism/core-db": "0.0.1-alpha.0",
+    "@eth-optimism/core-utils": "0.0.1-alpha.0",
     "async-lock": "^1.2.2",
     "ethers": "^4.0.39"
   },

@@ -1,7 +1,15 @@
 /* External Imports */
 import { ethers } from 'ethers'
-import { bufToHexString, isValidHexAddress, remove0x } from '@pigi/core-utils'
-import { Address, bytecodeToBuffer, EVMBytecode } from '@pigi/rollup-core'
+import {
+  bufToHexString,
+  isValidHexAddress,
+  remove0x,
+} from '@eth-optimism/core-utils'
+import {
+  Address,
+  bytecodeToBuffer,
+  EVMBytecode,
+} from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import { should } from '../setup'

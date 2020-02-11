@@ -1,12 +1,17 @@
 /* External Import */
-import { BigNumber, getLogger, logError, remove0x } from '@pigi/core-utils'
-import { DB, SparseMerkleTreeImpl } from '@pigi/core-db'
+import {
+  BigNumber,
+  getLogger,
+  logError,
+  remove0x,
+} from '@eth-optimism/core-utils'
+import { DB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 import {
   RollupBlock,
   TransactionResult,
   StorageElement,
   Address,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 import AsyncLock from 'async-lock'
 
@@ -307,7 +312,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
     // Let next block get appended to while we're building this block.
     const block: PendingBlock = this.pendingBlock
     // TODO: due to asynchrony, the block to build might be too big. Move txs into new block here if necessary.
-    //  See: https://github.com/plasma-group/optimistic-rollup/issues/39
+    //  See: https://github.com/ethereum-optimism/optimism-monorepo/issues/39
     this.pendingBlock = {
       blockNumber: block.blockNumber + 1,
       transactionResults: [],

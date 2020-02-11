@@ -5,7 +5,7 @@ import {
   bufferUtils,
   ONE,
   Range,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 /**
  * Checks if two ranges intersect, eg. [1,10) & [8,11) would return true.

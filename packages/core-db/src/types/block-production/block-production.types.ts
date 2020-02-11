@@ -1,5 +1,5 @@
 /* External Imports */
-import { BigNumber } from '@pigi/core-utils'
+import { BigNumber } from '@eth-optimism/core-utils'
 
 export interface MerkleIntervalTreeNode {
   hash: Buffer // Hash of the sibling or leaf data.

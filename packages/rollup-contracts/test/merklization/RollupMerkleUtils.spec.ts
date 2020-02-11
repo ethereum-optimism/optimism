@@ -4,13 +4,13 @@ import '../setup'
 import { makeRepeatedBytes } from '../helpers'
 
 /* External Imports */
-import { newInMemoryDB, SparseMerkleTreeImpl } from '@pigi/core-db'
+import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 import {
   hexStrToBuf,
   bufToHexString,
   BigNumber,
   getLogger,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 

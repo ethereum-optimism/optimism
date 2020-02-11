@@ -6,14 +6,14 @@ import {
   EVMBytecode,
   isValidOpcodeAndBytes,
   Address,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 import {
   bufToHexString,
   remove0x,
   getLogger,
   isValidHexAddress,
   hexStrToBuf,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { OpcodeReplacer } from '../../types/transpiler'

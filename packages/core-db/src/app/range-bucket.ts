@@ -10,7 +10,7 @@ import {
   Endianness,
   getLogger,
   ZERO,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {

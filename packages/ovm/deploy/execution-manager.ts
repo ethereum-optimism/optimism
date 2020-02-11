@@ -1,5 +1,5 @@
 /* External Imports */
-import { deploy, deployContract } from '@pigi/core-utils'
+import { deploy, deployContract } from '@eth-optimism/core-utils'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */

@@ -1,8 +1,8 @@
 import '../setup'
 
 /* External Imports */
-import { hexStrToBuf, TestUtils, ZERO_ADDRESS } from '@pigi/core-utils'
-import { Opcode, EVMOpcode, EVMBytecode } from '@pigi/rollup-core'
+import { hexStrToBuf, TestUtils, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import { Opcode, EVMOpcode, EVMBytecode } from '@eth-optimism/rollup-core'
 
 /* Internal imports */
 import { OpcodeReplacer, InvalidBytesConsumedError } from '../../src/types'

@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { Address } from '@pigi/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 import {
   getLogger,
   add0x,
@@ -11,7 +11,7 @@ import {
   keccak256,
   bufferUtils,
   bufToHexString,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'

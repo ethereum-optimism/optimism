@@ -9,22 +9,17 @@ import {
   logError,
   hexStrToBuf,
   bufferUtils,
-} from '@pigi/core-utils'
-import {
-  Address,
-  Opcode,
-  bufferToBytecode,
-  EVMOpcodeAndBytes,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/core-utils'
+import { Address, Opcode } from '@eth-optimism/rollup-core'
 
-import * as AsyncLock from 'async-lock'
-import * as abi from 'ethereumjs-abi'
+import AsyncLock from 'async-lock'
+import abi from 'ethereumjs-abi'
 
 import BN = require('bn.js')
 import VM from 'ethereumjs-vm'
+import { Transaction } from 'ethereumjs-tx'
 import { ethers } from 'ethers'
 import { promisify } from 'util'
-import { Transaction } from 'ethereumjs-tx'
 import { EVMResult, ExecResult } from 'ethereumjs-vm/dist/evm/evm'
 import { ERROR, VmError } from 'ethereumjs-vm/dist/exceptions'
 import {
@@ -77,10 +72,9 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
 
   private async init(): Promise<void> {
     // Give account 100 ETH
-    await promisify(this.vm.stateManager.putAccount.bind(this.vm.stateManager))(
-      Buffer.from(remove0x(this.wallet.address), 'hex'),
-      { balance: 100e18 }
-    )
+    await promisify(
+      this.vm.stateManager.putAccount.bind(this.vm.stateManager)
+    )(Buffer.from(remove0x(this.wallet.address), 'hex'), { balance: 100e18 })
   }
 
   public async deployContract(
@@ -455,7 +449,9 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   private static getStepContextString(stepContext: StepContext): string {
     return `{pc: 0x${stepContext.pc.toString(16)}, opcode: ${
       stepContext.opcode.name
-    }, stackDepth: ${stepContext.stackDepth}, stack: [${stepContext.stack
+    }, stackDepth: ${
+      stepContext.stackDepth
+    }, stack: [${stepContext.stack
       .map((x) => bufToHexString(x))
       .join(',')}], memoryWordCount: ${
       stepContext.memoryWordCount

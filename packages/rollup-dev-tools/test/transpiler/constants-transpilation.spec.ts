@@ -6,7 +6,7 @@ import {
   getLogger,
   hexStrToBuf,
   deploy,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   Address,
   bytecodeToBuffer,
@@ -16,7 +16,7 @@ import {
   Opcode,
   EVMOpcodeAndBytes,
   bufferToBytecode,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import * as ConstantGetter from '../contracts/build/ConstantGetter.json'
 

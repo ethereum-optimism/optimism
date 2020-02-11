@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger } from '@pigi/core-utils'
+import { getLogger } from '@eth-optimism/core-utils'
 
 import { providers, ContractFactory, Wallet, Contract } from 'ethers'
 import { createMockProvider } from 'ethereum-waffle'

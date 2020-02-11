@@ -4,7 +4,7 @@ import { ethers } from 'ethers'
 
 /* Internal Imports */
 import { EthereumListener } from '../../../src/types/ethereum'
-import { getLogger, sleep } from '@pigi/core-utils/build/src/app'
+import { getLogger, sleep } from '@eth-optimism/core-utils/build/src/app'
 
 const log = getLogger('ethereum-test-utils', true)
 

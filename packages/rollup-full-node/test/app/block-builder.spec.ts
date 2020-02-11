@@ -8,8 +8,8 @@ import {
   sleep,
   TWO,
   ZERO,
-} from '@pigi/core-utils'
-import { DB, newInMemoryDB } from '@pigi/core-db/'
+} from '@eth-optimism/core-utils'
+import { DB, newInMemoryDB } from '@eth-optimism/core-db/'
 import {
   abiEncodeTransaction,
   Address,
@@ -18,7 +18,7 @@ import {
   StorageValue,
   Transaction,
   TransactionResult,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import { RollupBlockSubmitter } from '../../src/types'

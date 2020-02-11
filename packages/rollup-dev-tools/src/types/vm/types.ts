@@ -1,4 +1,4 @@
-import { Address, EVMOpcode } from '@pigi/rollup-core'
+import { Address, EVMOpcode } from '@eth-optimism/rollup-core'
 
 export interface ExecutionResult {
   result: Buffer

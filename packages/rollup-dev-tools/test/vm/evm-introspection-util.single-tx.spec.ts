@@ -1,6 +1,6 @@
 /* External Imports */
-import { bytecodeToBuffer } from '@pigi/rollup-core'
-import { bufferUtils } from '@pigi/core-utils'
+import { bytecodeToBuffer } from '@eth-optimism/rollup-core'
+import { bufferUtils } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { should } from '../setup'

@@ -1,5 +1,5 @@
 /* External Imports */
-import { DB } from '@pigi/core-db'
+import { DB } from '@eth-optimism/core-db'
 import {
   BigNumber,
   DefaultSignatureVerifier,
@@ -8,12 +8,12 @@ import {
   JsonRpcResponse,
   ONE,
   SignatureVerifier,
-} from '@pigi/core-utils'
+} from '@eth-optimism/core-utils'
 import {
   RollupStateMachine,
   SignedTransaction,
   TransactionResult,
-} from '@pigi/rollup-core'
+} from '@eth-optimism/rollup-core'
 
 import AsyncLock from 'async-lock'
 import FastPriorityQueue from 'fastpriorityqueue'

@@ -3,7 +3,7 @@ import {
   MerkleTreeInclusionProof,
   newInMemoryDB,
   SparseMerkleTreeImpl,
-} from '@pigi/core-db'
+} from '@eth-optimism/core-db'
 
 /* Internal Imports */
 import { Decider, Decision } from '../../types'
