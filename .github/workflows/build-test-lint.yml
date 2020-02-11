@@ -97,12 +97,12 @@ jobs:
           path: packages/solc-transpiler/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
-      - name: Cache wrapped-solc-example deps
+      - name: Cache examples deps
         uses: actions/cache@v1
-        id: cache_wrapped-solc-example
+        id: cache_examples
         with:
-          path: packages/wrapped-solc-example/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/wrapped-solc-example/package.json') }}
+          path: packages/examples/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/examples/package.json') }}
 
       # END DEPENDENCY CACHING
 
