@@ -21,7 +21,7 @@
     "client"
   ],
   "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/ovm#readme",
-  "bugs": "https://github.com/ethereum-optimism/optimism-monorepo/labels/%40pigi%2Fovm",
+  "bugs": "https://github.com/ethereum-optimism/optimism-monorepo/labels/%40eth-optimism%2Fovm",
   "license": "MIT",
   "author": "Optimism",
   "repository": {
