@@ -106,7 +106,7 @@ describe('JUMP table solidity integration', () => {
       originalJumperDeployedBytecde,
       hexStrToBuf(originalJumperAddr)
     )
-    const transpiledJumperDeployedBytecode: Buffer = (transpiler.transpile(
+    const transpiledJumperDeployedBytecode: Buffer = (transpiler.transpileRawBytecode(
       originalJumperDeployedBytecde
     ) as SuccessfulTranspilation).bytecode
     await evmUtil.deployBytecodeToAddress(

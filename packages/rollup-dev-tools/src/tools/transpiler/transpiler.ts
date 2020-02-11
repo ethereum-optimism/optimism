@@ -6,8 +6,19 @@ import {
   bytecodeToBuffer,
   EVMOpcode,
   formatBytecode,
+  bufferToBytecode,
+  getPCOfEVMBytecodeIndex,
 } from '@pigi/rollup-core'
-import { getLogger, bufToHexString, hexStrToBuf, add0x } from '@pigi/core-utils'
+import {
+  getLogger,
+  bufToHexString,
+  hexStrToBuf,
+  add0x,
+  remove0x,
+  bufferUtils,
+} from '@pigi/core-utils'
+
+import BigNum = require('bn.js')
 
 /* Internal Imports */
 import {
@@ -17,17 +28,23 @@ import {
   TranspilationResult,
   TranspilationError,
   TranspilationErrors,
+  JumpReplacementResult,
+  SuccessfulTranspilation,
+  ErroredTranspilation,
+  TaggedTranspilationResult,
 } from '../../types/transpiler'
-import {
-  getExpectedFooterSwitchStatementJumpdestIndex,
-  getJumpIndexSwitchStatementBytecode,
-  getJumpiReplacementBytecode,
-  getJumpiReplacementBytecodeLength,
-  getJumpReplacementBytecode,
-  getJumpReplacementBytecodeLength,
-} from './jump-replacement'
+import { accountForJumps } from './jump-replacement'
+import { createError } from './util'
 
 const log = getLogger('transpiler-impl')
+
+const IS_CONSTANT_OFFSET: string = 'THIS IS A CONSTANT OFFSET'
+const IS_DEPLOY_CODECOPY_OFFSET: string =
+  'THIS IS THE OFFSET TO CODECOPY DEPLOYED BYTECODE FROM INITCODE DURING CREATE/2'
+const IS_DEPLOY_CODE_LENGTH: string =
+  'THIS IS THE LENGTH OF DEPLOYED BYTECODE TO COPY AND RETURN DURING CREATE/2'
+const IS_CONSTRUCTOR_INPUTS_OFFSET: string =
+  'THIS IS THE OFFSET AFTER WHICH CONSTRUCTOR INPUTS SHOULD BE'
 
 export class TranspilerImpl implements Transpiler {
   constructor(
@@ -42,16 +59,464 @@ export class TranspilerImpl implements Transpiler {
     }
   }
 
-  public transpile(inputBytecode: Buffer): TranspilationResult {
+  // This function transpiles initcode--that is, all bytecode fed to CREATE/CREATE2 other than the runtime-appended constructor inputs.
+  // The Solidity compiler produces this initcode with the following pattern:
+  // 1. constructor/deployment logic
+  // 2. deployed bytecode
+  // 3. constants accessed by the constructor
+  // This pattern has been confirmed/explored extensively at ../../tests/transpiler/initcode-structure-check.spec.ts
+  // The way we transpile this:
+  // 1. Separate out 1, 2, and 3 above
+  // 2. Tag the opcodes related to CODECOPY usage, the three types are 1. constants, 2. deployed bytecode to be returned, 3. inputs to the constructor.  Also, record the constants for case 1. so we know what they are.
+  // 3. Transpile the deployed bytecode and correct the constant indices.
+  // 4. Transpile the constructor/deployment logic.
+  // 5. Reconstruct the transpiled constructor/deployment logic, deployed bytecode, and constants accessed by the constructor
+  // 6. fix the remaining tagged CODECOPY indices which were detected in step 2.
+
+  public transpile(
+    bytecode: Buffer,
+    deployedBytecode: Buffer,
+    originalDeployedBytecodeSize: number = deployedBytecode.length
+  ): TranspilationResult {
+    const errors: TranspilationError[] = []
+
+    log.debug(
+      `transpiling raw full bytecode: ${bufToHexString(
+        bytecode
+      )} \nAnd original deployed raw bytecode: ${bufToHexString(
+        deployedBytecode
+      )}`
+    )
+    const startOfDeployedBytecode: number = bytecode.indexOf(deployedBytecode)
+    if (startOfDeployedBytecode === -1) {
+      log.debug(
+        `WARNING: Could not find deployed bytecode (${bufToHexString(
+          deployedBytecode
+        )}) within the original bytecode (${bufToHexString(
+          bytecode
+        )}).  If you are using a custom compiler, this may break.`
+      )
+    }
+
+    // **** SEPARATE THE THREE SECTIONS OF THE INPUT BYTECODE ****
+    // These sections are:
+    // 1. constructor/deployment logic
+    // 2. deployed bytecode
+    // 3. constants accessed by the constructor (if any)
+
+    const endOfDeployedBytecode: number =
+      startOfDeployedBytecode + deployedBytecode.length
+    let constantsUsedByConstructor: Buffer
+    if (endOfDeployedBytecode < bytecode.length) {
+      constantsUsedByConstructor = bytecode.slice(endOfDeployedBytecode)
+      log.debug(
+        `Detected constants being used by the constructor.  Together they are: \n${bufToHexString(
+          constantsUsedByConstructor
+        )}`
+      )
+    } else {
+      log.debug('Did not detect any constants being used by the constructor.')
+    }
+
+    const originalDeployedEVMBytecode: EVMBytecode = bufferToBytecode(
+      deployedBytecode
+    )
+    const originalConstructorInitLogic: EVMBytecode = bufferToBytecode(
+      bytecode.slice(0, startOfDeployedBytecode)
+    )
+
+    log.debug(
+      `original deployed evm bytecode is: ${formatBytecode(
+        originalDeployedEVMBytecode
+      )}`
+    )
+
+    // **** DETECT AND TAG THE CONSTANTS IN DEPLOYED BYTECODE AND TRANSPILE ****
+
+    let taggedDeployedEVMBytecode: EVMBytecode
+    taggedDeployedEVMBytecode = this.findAndTagConstants(
+      originalDeployedEVMBytecode,
+      deployedBytecode,
+      errors
+    )
+    const deployedBytecodeTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
+      taggedDeployedEVMBytecode
+    )
+    // todo error handle however above
+    if (!deployedBytecodeTranspilationResult.succeeded) {
+      errors.push(
+        ...(deployedBytecodeTranspilationResult as ErroredTranspilation).errors
+      )
+    }
+    const transpiledDeployedBytecode: EVMBytecode =
+      deployedBytecodeTranspilationResult.bytecodeWithTags
+
+    log.debug(`Fixing constant indices for transpiled deployed bytecode...`)
+    // Note that fixTaggedConstantOffsets() scrubs all fixed tags, so we do not re-fix when we use finalTranspiledDeployedBytecode to reconstruct the returned initcode
+    const finalTranspiledDeployedBytecode: EVMBytecode = this.fixTaggedConstantOffsets(
+      transpiledDeployedBytecode as EVMBytecode,
+      errors
+    )
+
+    // **** DETECT AND TAG USES OF CODECOPY IN CONSTRUCTOR BYTECODE AND TRANSPILE ****
+
+    let taggedOriginalConstructorInitLogic: EVMBytecode
+    taggedOriginalConstructorInitLogic = this.findAndTagConstants(
+      originalConstructorInitLogic,
+      bytecode,
+      errors
+    )
+    taggedOriginalConstructorInitLogic = this.findAndTagConstructorParamsLoader(
+      originalConstructorInitLogic,
+      errors,
+      bytecode,
+      originalDeployedBytecodeSize
+    )
+    taggedOriginalConstructorInitLogic = this.findAndTagDeployedBytecodeReturner(
+      originalConstructorInitLogic
+    )
+    const constructorInitLogicTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
+      taggedOriginalConstructorInitLogic
+    )
+    if (!constructorInitLogicTranspilationResult.succeeded) {
+      errors.push(
+        ...(constructorInitLogicTranspilationResult as ErroredTranspilation)
+          .errors
+      )
+    }
+    const transpiledConstructorInitLogic: EVMBytecode =
+      constructorInitLogicTranspilationResult.bytecodeWithTags
+
+    // **** FIX THE TAGGED VALUES USED IN CONSTRUCTOR ****
+
+    const transpiledInitLogicByteLength: number = bytecodeToBuffer(
+      transpiledConstructorInitLogic
+    ).byteLength
+
+    const transpiledDeployedBytecodeByteLength: number = bytecodeToBuffer(
+      transpiledDeployedBytecode
+    ).byteLength
+
+    const constantsUsedByConstructorLength: number = !constantsUsedByConstructor
+      ? 0
+      : constantsUsedByConstructor.byteLength
+
+    for (const [index, op] of transpiledConstructorInitLogic.entries()) {
+      const tag = op.tag
+      if (!!tag && tag.reasonTagged === IS_CONSTRUCTOR_INPUTS_OFFSET) {
+        // this should be the total length of the bytecode we're about to have generated!
+        transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
+          transpiledInitLogicByteLength +
+            transpiledDeployedBytecodeByteLength +
+            constantsUsedByConstructorLength
+        ).toBuffer('be', op.opcode.programBytesConsumed)
+      }
+      if (!!tag && tag.reasonTagged === IS_DEPLOY_CODE_LENGTH) {
+        transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
+          transpiledDeployedBytecodeByteLength
+        ).toBuffer('be', op.opcode.programBytesConsumed)
+      }
+      if (!!tag && tag.reasonTagged === IS_DEPLOY_CODECOPY_OFFSET) {
+        transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
+          transpiledInitLogicByteLength
+        ).toBuffer('be', op.opcode.programBytesConsumed)
+      }
+    }
+
+    // **** FIX CONSTANTS IN THE INITCODE AND RETURN THE FINALIZED BYTECODE ****
+
+    const finalTranspiledBytecode: EVMBytecode = this.fixTaggedConstantOffsets(
+      [
+        ...transpiledConstructorInitLogic,
+        ...finalTranspiledDeployedBytecode,
+        ...(!constantsUsedByConstructor
+          ? []
+          : bufferToBytecode(constantsUsedByConstructor)),
+      ],
+      errors
+    )
+
+    return {
+      succeeded: true,
+      bytecode: bytecodeToBuffer(finalTranspiledBytecode),
+    }
+  }
+
+  // Fixes the tagged constants-loading offset in some transpiled bytecode.
+  // Since we record the constant's value when we tag it, we can just search for the original value as a constant with indexOf() and set the index to that value.
+  private fixTaggedConstantOffsets(
+    taggedBytecode: EVMBytecode,
+    errors
+  ): EVMBytecode {
+    const inputAsBuf: Buffer = bytecodeToBuffer(taggedBytecode)
+    const bytecodeToReturn: EVMBytecode = []
+    for (const [index, op] of taggedBytecode.entries()) {
+      bytecodeToReturn[index] = {
+        opcode: taggedBytecode[index].opcode,
+        consumedBytes: taggedBytecode[index].consumedBytes,
+      }
+      if (!!op.tag && op.tag.reasonTagged === IS_CONSTANT_OFFSET) {
+        const theConstant: Buffer = op.tag.metadata
+        const newConstantOffset: number = inputAsBuf.indexOf(theConstant)
+        if (newConstantOffset === -1) {
+          errors.push(
+            TranspilerImpl.createError(
+              index,
+              TranspilationErrors.MISSING_CONSTANT_ERROR,
+              `Could not find CODECOPYed constant in transpiled deployed bytecode for PC 0x${index.toString(
+                16
+              )}.  We originally recorded the constant as ${bufToHexString(
+                theConstant
+              )}, but it does not exist in the post-transpiled ${bufToHexString(
+                inputAsBuf
+              )}`
+            )
+          )
+        }
+        const newConstantOffsetBuf: Buffer = new BigNum(
+          newConstantOffset
+        ).toBuffer('be', op.opcode.programBytesConsumed)
+        log.debug(
+          `fixing CODECOPY(constant) ad PC 0x${getPCOfEVMBytecodeIndex(
+            index,
+            taggedBytecode
+          ).toString(16)}.  Setting new index to 0x${bufToHexString(
+            newConstantOffsetBuf
+          )}`
+        )
+        bytecodeToReturn[index].consumedBytes = newConstantOffsetBuf
+      }
+    }
+    return bytecodeToReturn
+  }
+
+  // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing deployed bytecode which is returned during CREATE/CREATE2.
+  // Tags based on the pattern:
+  // PUSH2 // codecopy's and RETURN's length
+  // DUP1 // DUPed to use twice, for RETURN and CODECOPY both
+  // PUSH2 // codecopy's offset
+  // PUSH1 codecopy's destOffset
+  // CODECOPY // copy
+  // PUSH1 0 // RETURN offset
+  // RETURN // uses above RETURN offset and DUP'ed length above
+  // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
+  private findAndTagDeployedBytecodeReturner(
+    bytecode: EVMBytecode
+  ): EVMBytecode {
+    for (let index = 0; index < bytecode.length - 6; index++) {
+      const op: EVMOpcodeAndBytes = bytecode[index]
+      if (
+        Opcode.isPUSHOpcode(op.opcode) &&
+        Opcode.isPUSHOpcode(bytecode[index + 2].opcode) &&
+        bytecode[index + 4].opcode === Opcode.CODECOPY &&
+        bytecode[index + 6].opcode === Opcode.RETURN
+      ) {
+        log.debug(
+          `detected a [CODECOPY(deployed bytecode)... RETURN] (CREATE/2 deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
+            index,
+            bytecode
+          ).toString(16)}. Tagging the offset and size...`
+        )
+        bytecode[index] = {
+          opcode: op.opcode,
+          consumedBytes: op.consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_DEPLOY_CODE_LENGTH,
+            metadata: undefined,
+          },
+        }
+        bytecode[index + 2] = {
+          opcode: bytecode[index + 2].opcode,
+          consumedBytes: bytecode[index + 2].consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
+            metadata: undefined,
+          },
+        }
+      }
+    }
+    return bytecode
+  }
+
+  // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing constructor params during CREATE/CREATE2.
+  // Tags based on the pattern:
+  // PUSH2: 0x01cf // should be initcode.length + deployedbytecode.length
+  // CODESIZE
+  // SUB // subtract however big the code is from the amount pushed above to get the length of constructor input
+  // DUP1
+  // PUSH2: 0x01cf // should also be initcode.length + deployedbytecode.length
+  // DUP4
+  // CODECOPY
+  // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
+
+  /* Inputs:
+   * bytecode: EVMBytcode  - the subset of bytecode to tag.
+   * fullBytecodeBuf: Buffer - the full bytes of the code in which the subset will run.  Used to grab constructor constants which come AFTER deployed bytecode, while only tagging the constructor logic.
+   * sizeIncreaseFromPreviousPadding: any increase in length which the bytecode has experienced since being output from solc-js
+   * Outputs:
+   * EVMBytecode - the Bytecode, but with the constructor params loader PUSHes tagged.
+   */
+  private findAndTagConstructorParamsLoader(
+    bytecode: EVMBytecode,
+    errors,
+    fullBytecodeBuf: Buffer,
+    originalDeployedBytecodeSize: number = fullBytecodeBuf.byteLength
+  ): EVMBytecode {
+    for (let index = 0; index < bytecode.length - 6; index++) {
+      const op: EVMOpcodeAndBytes = bytecode[index]
+      if (
+        Opcode.isPUSHOpcode(op.opcode) &&
+        bytecode[index + 1].opcode === Opcode.CODESIZE &&
+        bytecode[index + 2].opcode === Opcode.SUB &&
+        Opcode.isPUSHOpcode(bytecode[index + 4].opcode) &&
+        bytecode[index + 6].opcode === Opcode.CODECOPY
+      ) {
+        const pushedOffset: number = new BigNum(op.consumedBytes).toNumber()
+        if (pushedOffset !== originalDeployedBytecodeSize) {
+          errors.push(
+            TranspilerImpl.createError(
+              index,
+              TranspilationErrors.DETECTED_CONSTANT_OOB,
+              `thought we were in a CODECOPY(constructor params), but wrong length...at PC: 0x${getPCOfEVMBytecodeIndex(
+                index,
+                bytecode
+              ).toString(
+                16
+              )}.  PUSH of offset which we thought was the total initcode length was 0x${pushedOffset.toString(
+                16
+              )}, but length of original bytecode was specified or detected to be 0x${originalDeployedBytecodeSize}`
+            )
+          )
+        }
+        log.debug(
+          `Successfully detected a CODECOPY(constructor params) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
+            index,
+            bytecode
+          ).toString(16)}.`
+        )
+        bytecode[index] = {
+          opcode: op.opcode,
+          consumedBytes: op.consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_CONSTRUCTOR_INPUTS_OFFSET,
+            metadata: undefined,
+          },
+        }
+        bytecode[index + 4] = {
+          opcode: bytecode[index + 4].opcode,
+          consumedBytes: bytecode[index + 4].consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_CONSTRUCTOR_INPUTS_OFFSET,
+            metadata: undefined,
+          },
+        }
+      }
+    }
+    return bytecode
+  }
+
+  // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing constants.
+  // Tags based on the pattern:
+  //   ...
+  // PUSH2 // offset of constant in bytecode
+  // PUSH1 // length of constant
+  // SWAP2 // where to put it into memory
+  // CODECOPY
+  // It also copies the constants into the tag so that their new position can be recovered later.
+  // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
+  public findAndTagConstants(
+    bytecode: EVMBytecode,
+    fullRawBytecode: Buffer,
+    errors
+  ): EVMBytecode {
+    const taggedBytecode: EVMBytecode = bytecode as EVMBytecode
+    for (let index = 0; index < bytecode.length - 3; index++) {
+      // this pattern is 3 long, so stop 2 early
+      const op: EVMOpcodeAndBytes = bytecode[index]
+
+      // log.debug(`cur index tagging constants: 0x${getPCOfEVMBytecodeIndex(index, bytecode).toString(16)}`)
+      // log.debug(`at this index we see the following opcodes: \n${formatBytecode(bytecode.slice(index, index + 10))}`)
+      if (
+        Opcode.isPUSHOpcode(op.opcode) &&
+        Opcode.isPUSHOpcode(bytecode[index + 1].opcode) &&
+        bytecode[index + 3].opcode === Opcode.CODECOPY
+      ) {
+        const offsetForCODECOPY: number = new BigNum(
+          op.consumedBytes
+        ).toNumber()
+        const lengthforCODECOPY: number = new BigNum(
+          bytecode[index + 1].consumedBytes
+        ).toNumber()
+        const constantStart: number = offsetForCODECOPY
+        const constantEnd: number = constantStart + lengthforCODECOPY
+        if (constantEnd > fullRawBytecode.byteLength) {
+          errors.push(
+            TranspilerImpl.createError(
+              index,
+              TranspilationErrors.DETECTED_CONSTANT_OOB,
+              `Thought we detected a CODECOP(a CODECOPY(constant) pattern at starting at PC: 0x${getPCOfEVMBytecodeIndex(
+                index,
+                bytecode
+              ).toString(
+                16
+              )}, but it is out of bounds (not part of the bytecode))`
+            )
+          )
+        }
+        const theConstant: Buffer = fullRawBytecode.slice(
+          constantStart,
+          constantEnd
+        )
+        log.debug(
+          `detected a CODECOPY(constant) pattern at starting at PC: 0x${getPCOfEVMBytecodeIndex(
+            index,
+            bytecode
+          ).toString(16)}.  Its val: ${bufToHexString(theConstant)}`
+        )
+        taggedBytecode[index] = {
+          opcode: op.opcode,
+          consumedBytes: op.consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_CONSTANT_OFFSET,
+            metadata: theConstant,
+          },
+        }
+      }
+    }
+    return taggedBytecode
+  }
+
+  // This function transpiles "deployed bytecode"-type bytecode, operating on potentially tagged EVMBytecode (==EVMOpcodeAndBytes[]).
+  // It preserves all .tags values of the EVMOpcodeAndBytes UNLESS:
+  // 1. The opcode is replaced by the replacer. (aka replaceIfNecessary() does not just return the input
+  // 2. The EVMOpcodeAndBytes is a JUMP/JUMPI/JUMPDEST (aka affected by the JUMP table)
+  private transpileBytecodePreservingTags(
+    bytecode: EVMBytecode
+  ): TaggedTranspilationResult {
     let transpiledBytecode: EVMBytecode = []
     const errors: TranspilationError[] = []
     const jumpdestIndexesBefore: number[] = []
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
+
+    const bytecodeBuf: Buffer = bytecodeToBuffer(bytecode)
+    // todo remove once confirmed with Kevin?
     let seenJump: boolean = false
-    for (let pc = 0; pc < inputBytecode.length; pc++) {
-      let opcode = Opcode.parseByNumber(inputBytecode[pc])
-      // This JUMPDEST is reachable
+    // track the index in EVMBytecode we are on so that we can preserve metadata when we append it
+    // incrementing at the beginning of the loop so start at -1
+    let indexOfOpcodeAndBytes: number = -1
+    for (let pc = 0; pc < bytecodeBuf.length; pc++) {
+      indexOfOpcodeAndBytes += 1
+      const currentTaggedOpcodeAndBytes: EVMOpcodeAndBytes =
+        bytecode[indexOfOpcodeAndBytes]
+
+      let opcode = Opcode.parseByNumber(bytecodeBuf[pc])
+      // If we are inside unreachable code, and see a JUMPDEST, the code is now reachable
       if (insideUnreachableCode && seenJump && opcode === Opcode.JUMPDEST) {
         insideUnreachableCode = false
       }
@@ -60,11 +525,17 @@ export class TranspilerImpl implements Transpiler {
           !TranspilerImpl.validOpcode(
             opcode,
             pc,
-            inputBytecode[pc],
+            bytecodeBuf[pc],
             lastOpcode,
             errors
           )
         ) {
+          log.debug(
+            `Deteced invalid opcode in reachable code: ${opcode}. at PC: 0x${pc.toString(
+              16
+            )} Skipping inclusion in transpilation output...`
+          )
+          // skip, do not push anything to the transpilation output
           lastOpcode = undefined
           continue
         }
@@ -82,7 +553,7 @@ export class TranspilerImpl implements Transpiler {
         if (
           !TranspilerImpl.enoughBytesLeft(
             opcode,
-            inputBytecode.length,
+            bytecodeBuf.length,
             pc,
             errors
           )
@@ -91,7 +562,7 @@ export class TranspilerImpl implements Transpiler {
         }
       }
       if (insideUnreachableCode && !opcode) {
-        const unreachableCode: Buffer = inputBytecode.slice(pc, pc + 1)
+        const unreachableCode: Buffer = bytecodeBuf.slice(pc, pc + 1)
         opcode = {
           name: `UNREACHABLE (${bufToHexString(unreachableCode)})`,
           code: unreachableCode,
@@ -99,13 +570,26 @@ export class TranspilerImpl implements Transpiler {
         }
       }
 
+      const tag = currentTaggedOpcodeAndBytes.tag
       const opcodeAndBytes: EVMOpcodeAndBytes = {
         opcode,
         consumedBytes: !opcode.programBytesConsumed
           ? undefined
-          : inputBytecode.slice(pc + 1, pc + 1 + opcode.programBytesConsumed),
+          : bytecodeBuf.slice(pc + 1, pc + 1 + opcode.programBytesConsumed),
+        tag,
       }
-      // copy over opcode as is if unreachable
+
+      if (!!tag && tag.padPUSH) {
+        opcodeAndBytes.consumedBytes = Buffer.concat([
+          Buffer.alloc(1),
+          opcodeAndBytes.consumedBytes,
+        ])
+        // will break if we ever tagged a push32 because push33 doesn't exist.  However we shouldn't be tagging any such val.
+        opcodeAndBytes.opcode = Opcode.parseByNumber(
+          Opcode.getCodeNumber(opcodeAndBytes.opcode) + 1
+        )
+      }
+
       const transpiledOpcodeAndBytes = insideUnreachableCode
         ? [opcodeAndBytes]
         : this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
@@ -120,11 +604,12 @@ export class TranspilerImpl implements Transpiler {
       )}`
     )
 
-    transpiledBytecode = TranspilerImpl.accountForJumps(
+    const res: JumpReplacementResult = accountForJumps(
       transpiledBytecode,
-      jumpdestIndexesBefore,
-      errors
+      jumpdestIndexesBefore
     )
+    errors.push(...(res.errors || []))
+    transpiledBytecode = res.bytecode
 
     if (!!errors.length) {
       return {
@@ -134,7 +619,24 @@ export class TranspilerImpl implements Transpiler {
     }
     return {
       succeeded: true,
-      bytecode: bytecodeToBuffer(transpiledBytecode),
+      bytecodeWithTags: transpiledBytecode,
+    }
+  }
+
+  public transpileRawBytecode(bytecodeBuf: Buffer): TranspilationResult {
+    const rawBytecodeTyped: EVMBytecode = bufferToBytecode(bytecodeBuf)
+    const transpilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
+      rawBytecodeTyped
+    )
+    if (!transpilationResult.succeeded) {
+      return {
+        succeeded: false,
+        errors: transpilationResult.errors,
+      }
+    }
+    return {
+      succeeded: true,
+      bytecode: bytecodeToBuffer(transpilationResult.bytecodeWithTags),
     }
   }
 
@@ -169,11 +671,7 @@ export class TranspilerImpl implements Transpiler {
       )}.${messageExtension}`
       log.debug(message)
       errors.push(
-        TranspilerImpl.createError(
-          pc,
-          TranspilationErrors.UNSUPPORTED_OPCODE,
-          message
-        )
+        createError(pc, TranspilationErrors.UNSUPPORTED_OPCODE, message)
       )
       return false
     }
@@ -198,11 +696,7 @@ export class TranspilerImpl implements Transpiler {
       const message: string = `Opcode [${opcode.name}] is not on the whitelist.`
       log.debug(message)
       errors.push(
-        TranspilerImpl.createError(
-          pc,
-          TranspilationErrors.OPCODE_NOT_WHITELISTED,
-          message
-        )
+        createError(pc, TranspilationErrors.OPCODE_NOT_WHITELISTED, message)
       )
       return false
     }
@@ -234,86 +728,11 @@ export class TranspilerImpl implements Transpiler {
       } left in input bytecode.`
       log.debug(message)
       errors.push(
-        TranspilerImpl.createError(
-          pc,
-          TranspilationErrors.INVALID_BYTES_CONSUMED,
-          message
-        )
+        createError(pc, TranspilationErrors.INVALID_BYTES_CONSUMED, message)
       )
       return false
     }
     return true
-  }
-
-  /**
-   * Takes the provided transpiled bytecode and accounts for JUMPs that may not jump
-   * to the intended spots now that transpilation has modified the code.
-   *
-   * @param transpiledBytecode The transpiled bytecode to operate on.
-   * @param jumpdestIndexesBefore The ordered indexes of JUMPDESTs before.
-   * @param errors The list of errors to append to if there is an error.
-   * @returns The new bytecode with all JUMPs accounted for.
-   */
-  private static accountForJumps(
-    transpiledBytecode: EVMBytecode,
-    jumpdestIndexesBefore: number[],
-    errors: TranspilationError[]
-  ): EVMBytecode {
-    if (jumpdestIndexesBefore.length === 0) {
-      return transpiledBytecode
-    }
-
-    const footerSwitchJumpdestIndex: number = getExpectedFooterSwitchStatementJumpdestIndex(
-      transpiledBytecode
-    )
-    const jumpdestIndexesAfter: number[] = []
-    const replacedBytecode: EVMBytecode = []
-    let pc: number = 0
-    // Replace all JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
-    for (const opcodeAndBytes of transpiledBytecode) {
-      if (opcodeAndBytes.opcode === Opcode.JUMP) {
-        replacedBytecode.push(
-          ...getJumpReplacementBytecode(footerSwitchJumpdestIndex)
-        )
-        pc += getJumpReplacementBytecodeLength()
-      } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
-        replacedBytecode.push(
-          ...getJumpiReplacementBytecode(footerSwitchJumpdestIndex)
-        )
-        pc += getJumpiReplacementBytecodeLength()
-      } else if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
-        replacedBytecode.push(opcodeAndBytes)
-        jumpdestIndexesAfter.push(pc)
-        pc += 1
-      } else {
-        replacedBytecode.push(opcodeAndBytes)
-        pc += 1 + opcodeAndBytes.opcode.programBytesConsumed
-      }
-    }
-
-    if (jumpdestIndexesBefore.length !== jumpdestIndexesAfter.length) {
-      const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
-      log.debug(message)
-      errors.push(
-        TranspilerImpl.createError(
-          -1,
-          TranspilationErrors.INVALID_SUBSTITUTION,
-          message
-        )
-      )
-      return transpiledBytecode
-    }
-
-    // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
-    replacedBytecode.push(
-      ...getJumpIndexSwitchStatementBytecode(
-        jumpdestIndexesBefore,
-        jumpdestIndexesAfter,
-        bytecodeToBuffer(replacedBytecode).length
-      )
-    )
-
-    return replacedBytecode
   }
 
   /**

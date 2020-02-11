@@ -1,7 +1,4 @@
-import { Address } from 'cluster'
-import { BigNumber } from 'ethers/utils'
-import { AddressZero } from 'ethers/constants'
-import { bufToHexString } from '../app/misc'
+import { bufToHexString, remove0x } from './misc'
 
 /**
  * Checks if buf1 is less than or equal to buf2
@@ -116,6 +113,31 @@ const numberToBuffer = (
   return buf
 }
 
+/**
+ * Returns whether or not the numbers represented by the provided buffers are equal.
+ * @param first
+ * @param second
+ */
+const numbersEqual = (first: Buffer, second: Buffer): boolean => {
+  const firstString = remove0x(bufToHexString(first))
+  const secondString = remove0x(bufToHexString(second))
+
+  const getIndexOfFirstNonZero = (str: string): number => {
+    let i = 0
+    for (; i < firstString.length; i++) {
+      if (firstString.charAt(i) !== '0') {
+        break
+      }
+    }
+    return i
+  }
+
+  return (
+    firstString.substr(getIndexOfFirstNonZero(firstString)) ===
+    secondString.substr(getIndexOfFirstNonZero(secondString))
+  )
+}
+
 const bufferToAddress = (addressAsBuffer: Buffer): string => {
   return bufToHexString(padLeft(addressAsBuffer, 20))
 }
@@ -133,5 +155,6 @@ export const bufferUtils = {
   padLeft,
   padRight,
   numberToBuffer,
+  numbersEqual,
   bufferToAddress,
 }

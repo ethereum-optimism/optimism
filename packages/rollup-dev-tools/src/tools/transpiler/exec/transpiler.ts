@@ -242,7 +242,7 @@ async function transpile() {
 
   let result: TranspilationResult
   try {
-    result = transpiler.transpile(inputBytecode)
+    result = transpiler.transpileRawBytecode(inputBytecode)
   } catch (e) {
     logError(
       log,

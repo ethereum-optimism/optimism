@@ -39,6 +39,14 @@ export interface EvmIntrospectionUtil {
   ): Promise<void>
 
   /**
+   * Gets the deployed bytecode for a given contract address which has been deployed
+   *
+   * @param address The address of the contract to get bytecode of.
+   * @returns The deployed bytecode.
+   */
+  getContractDeployedBytecode(address: Buffer): Promise<Buffer>
+
+  /**
    * Calls the provided method of the provided contract, passing in the
    * provided parameters.
    *

@@ -87,6 +87,13 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     initcode: Buffer,
     abiEncodedParameters?: Buffer
   ): Promise<ExecutionResult> {
+    log.debug(
+      `Deploy contract with bytecode ${bufToHexString(
+        initcode
+      )} and ABI encoded parameters ${
+        !!abiEncodedParameters ? bufToHexString(abiEncodedParameters) : 'N/A'
+      }`
+    )
     const params: string = !!abiEncodedParameters
       ? abiEncodedParameters.toString('hex')
       : ''
@@ -101,10 +108,13 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     })
 
     tx.sign(Buffer.from(remove0x(this.wallet.privateKey), 'hex'))
-
+    const stepCallback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory()
     const deployResult: EVMResult = await this.lock.acquire(KEY, async () => {
-      return this.vm.runTx({ tx })
+      this.vm.on('step', stepCallback)
+      const res = this.vm.runTx({ tx })
+      return res
     })
+    this.vm.removeListener('step', stepCallback)
 
     if (!!deployResult.execResult.exceptionError) {
       const msg: string = `Error deploying contract [${initcode.toString(
@@ -142,6 +152,22 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
     return result
   }
 
+  public async getContractDeployedBytecode(address: Buffer): Promise<Buffer> {
+    return new Promise((resolve) => {
+      this.lock.acquire(
+        KEY,
+        async (done) => {
+          this.vm.stateManager.getContractCode(address, (err, res) => {
+            done(err, res)
+          })
+        },
+        (err, ret) => {
+          resolve(ret as Buffer)
+        }
+      )
+    })
+  }
+
   public async callContract(
     address: Address,
     method: string,
@@ -153,13 +179,17 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
       abiEncodedParams,
     ])
 
+    const stepCallback: StepCallback = EvmIntrospectionUtilImpl.stepCallbackFactory()
     const result: EVMResult = await this.lock.acquire(KEY, async () => {
-      return this.vm.runCall({
+      this.vm.on('step', stepCallback)
+      const ret = this.vm.runCall({
         to: hexStrToBuf(address),
         caller: hexStrToBuf(this.wallet.address),
         origin: hexStrToBuf(this.wallet.address),
         data,
       })
+      this.vm.removeListener('step', stepCallback)
+      return ret
     })
 
     if (result.execResult.exceptionError) {
@@ -423,7 +453,7 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
   }
 
   private static getStepContextString(stepContext: StepContext): string {
-    return `{pc: ${stepContext.pc}, opcode: ${
+    return `{pc: 0x${stepContext.pc.toString(16)}, opcode: ${
       stepContext.opcode.name
     }, stackDepth: ${stepContext.stackDepth}, stack: [${stepContext.stack
       .map((x) => bufToHexString(x))

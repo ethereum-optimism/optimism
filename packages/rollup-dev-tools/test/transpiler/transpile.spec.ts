@@ -59,7 +59,7 @@ describe('Transpile', () => {
 
   describe('Valid input', () => {
     it('correctly accepts valid bytecode input', () => {
-      const result: TranspilationResult = transpiler.transpile(
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
         bytecodeToBuffer(validBytecode)
       )
       result.succeeded.should.equal(true)
@@ -73,7 +73,9 @@ describe('Transpile', () => {
         invalidOpcode,
       ])
 
-      const result: TranspilationResult = transpiler.transpile(inputBytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        inputBytecode
+      )
 
       result.succeeded.should.equal(false)
 
@@ -90,7 +92,9 @@ describe('Transpile', () => {
         invalidOpcode,
       ])
 
-      const result: TranspilationResult = transpiler.transpile(inputBytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        inputBytecode
+      )
 
       result.succeeded.should.equal(false)
 
@@ -105,7 +109,7 @@ describe('Transpile', () => {
 
   describe('Whitelist Enforcement', () => {
     it('flags non-whitelisted opcode', () => {
-      const result: TranspilationResult = transpiler.transpile(
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
         bytecodeToBuffer(singleNonWhitelisted)
       )
       result.succeeded.should.equal(false)
@@ -119,7 +123,7 @@ describe('Transpile', () => {
     })
 
     it('flags multiple non-whitelisted opcode', () => {
-      const result: TranspilationResult = transpiler.transpile(
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
         bytecodeToBuffer(multipleNonWhitelisted)
       )
       result.succeeded.should.equal(false)
@@ -144,7 +148,9 @@ describe('Transpile', () => {
         invalidBytesConsumedBytecodeNoReturn
       )
 
-      const result: TranspilationResult = transpiler.transpile(bytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        bytecode
+      )
       result.succeeded.should.equal(false)
 
       const error: ErroredTranspilation = result as ErroredTranspilation
@@ -167,7 +173,9 @@ describe('Transpile', () => {
         },
       ])
 
-      const result: TranspilationResult = transpiler.transpile(bytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        bytecode
+      )
       result.succeeded.should.equal(false)
 
       const error: ErroredTranspilation = result as ErroredTranspilation
@@ -192,7 +200,9 @@ describe('Transpile', () => {
         },
       ])
 
-      const result: TranspilationResult = transpiler.transpile(bytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        bytecode
+      )
       result.succeeded.should.equal(false)
 
       const error: ErroredTranspilation = result as ErroredTranspilation
@@ -210,7 +220,9 @@ describe('Transpile', () => {
         bytecodeToBuffer(multipleErrors),
       ])
 
-      const result: TranspilationResult = transpiler.transpile(bytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        bytecode
+      )
       result.succeeded.should.equal(false)
 
       const error: ErroredTranspilation = result as ErroredTranspilation
@@ -232,7 +244,9 @@ describe('Transpile', () => {
     it(`skips unreachable bytecode after a halting opcode`, async () => {
       for (const haltingOp of haltingOpcodes) {
         const bytecode: Buffer = Buffer.concat([haltingOp.code, invalidOpcode])
-        const result: TranspilationResult = transpiler.transpile(bytecode)
+        const result: TranspilationResult = transpiler.transpileRawBytecode(
+          bytecode
+        )
         result.succeeded.should.equal(
           true,
           `Bytecode containing invalid opcodes in unreachable code after a ${haltingOp.name} should not have failed!`
@@ -252,7 +266,9 @@ describe('Transpile', () => {
           Opcode.JUMPDEST.code,
           invalidOpcode,
         ])
-        const result: TranspilationResult = transpiler.transpile(bytecode)
+        const result: TranspilationResult = transpiler.transpileRawBytecode(
+          bytecode
+        )
         result.succeeded.should.equal(
           true,
           `Bytecode containing invalid opcodes in unreachable code after unreachable JUMPDEST (after a ${haltingOp.name})should not have failed!`
@@ -275,7 +291,9 @@ describe('Transpile', () => {
             Opcode.JUMPDEST.code,
             invalidOpcode,
           ])
-          const result: TranspilationResult = transpiler.transpile(bytecode)
+          const result: TranspilationResult = transpiler.transpileRawBytecode(
+            bytecode
+          )
           result.succeeded.should.equal(
             false,
             `Bytecode containing invalid opcodes after reachable JUMPDEST preceded by a ${haltingOp.name} should have failed!`
@@ -295,7 +313,9 @@ describe('Transpile', () => {
         Opcode.JUMPDEST.code,
         invalidOpcode,
       ])
-      const result: TranspilationResult = transpiler.transpile(bytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        bytecode
+      )
       result.succeeded.should.equal(
         false,
         `Bytecode containing invalid opcodes after reachable JUMPDEST should have failed!`
@@ -308,7 +328,9 @@ describe('Transpile', () => {
 
     it('parses opcodes after JUMPI', async () => {
       const bytecode: Buffer = Buffer.concat([Opcode.JUMPI.code, invalidOpcode])
-      const result: TranspilationResult = transpiler.transpile(bytecode)
+      const result: TranspilationResult = transpiler.transpileRawBytecode(
+        bytecode
+      )
       result.succeeded.should.equal(
         false,
         `Bytecode containing invalid opcodes after reachable JUMPI should have failed!`
@@ -338,7 +360,9 @@ describe('Transpile', () => {
               Opcode.ADD.code,
             ])
           }
-          const result: TranspilationResult = transpiler.transpile(bytecode)
+          const result: TranspilationResult = transpiler.transpileRawBytecode(
+            bytecode
+          )
           result.succeeded.should.equal(
             true,
             `Long bytecode containing alternating valid reachable and invalid unreachable code failed!`
@@ -371,7 +395,9 @@ describe('Transpile', () => {
             // Reachable, invalid code
             invalidOpcode,
           ])
-          const result: TranspilationResult = transpiler.transpile(bytecode)
+          const result: TranspilationResult = transpiler.transpileRawBytecode(
+            bytecode
+          )
           result.succeeded.should.equal(
             false,
             `Long bytecode ending in reachable, invalid code should have failed!`

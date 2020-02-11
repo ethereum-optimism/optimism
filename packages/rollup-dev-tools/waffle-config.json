@@ -1,5 +1,12 @@
 {
   "sourcesPath": "./test/contracts",
   "targetPath": "./test/contracts/build",
-  "npmPath": "../../node_modules"
+  "npmPath": "../../node_modules",
+  "compilerOptions": {
+    "outputSelection": {
+      "*": {
+        "*": ["*"]
+      }
+    }
+  }
 }

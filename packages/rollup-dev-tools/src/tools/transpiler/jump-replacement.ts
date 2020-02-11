@@ -1,8 +1,81 @@
 import { bytecodeToBuffer, EVMBytecode, Opcode } from '@pigi/rollup-core'
 import { bufferUtils, getLogger } from '@pigi/core-utils'
-import { getPUSHOpcode } from './helpers'
+import { getPUSHOpcode, getPUSHBuffer, getPUSHIntegerOp } from './helpers'
+import {
+  JumpReplacementResult,
+  TranspilationError,
+  TranspilationErrors,
+} from '../../types/transpiler'
+import { createError } from './util'
 
 const log = getLogger('jump-replacement')
+
+/**
+ * Takes the provided transpiled bytecode and accounts for JUMPs that may not jump
+ * to the intended spots now that transpilation has modified the code.
+ *
+ * @param transpiledBytecode The transpiled bytecode to operate on.
+ * @param jumpdestIndexesBefore The ordered indexes of JUMPDESTs before.
+ * @param errors The list of errors to append to if there is an error.
+ * @returns The new bytecode with all JUMPs accounted for.
+ */
+export const accountForJumps = (
+  transpiledBytecode: EVMBytecode,
+  jumpdestIndexesBefore: number[]
+): JumpReplacementResult => {
+  if (jumpdestIndexesBefore.length === 0) {
+    return { bytecode: transpiledBytecode }
+  }
+  const errors: TranspilationError[] = []
+
+  const footerSwitchJumpdestIndex: number = getExpectedFooterSwitchStatementJumpdestIndex(
+    transpiledBytecode
+  )
+  const jumpdestIndexesAfter: number[] = []
+  const replacedBytecode: EVMBytecode = []
+  let pc: number = 0
+  // Replace all JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
+  for (const opcodeAndBytes of transpiledBytecode) {
+    if (opcodeAndBytes.opcode === Opcode.JUMP) {
+      replacedBytecode.push(
+        ...getJumpReplacementBytecode(footerSwitchJumpdestIndex)
+      )
+      pc += getJumpReplacementBytecodeLength()
+    } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
+      replacedBytecode.push(
+        ...getJumpiReplacementBytecode(footerSwitchJumpdestIndex)
+      )
+      pc += getJumpiReplacementBytecodeLength()
+    } else if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
+      replacedBytecode.push(opcodeAndBytes)
+      jumpdestIndexesAfter.push(pc)
+      pc += 1
+    } else {
+      replacedBytecode.push(opcodeAndBytes)
+      pc += 1 + opcodeAndBytes.opcode.programBytesConsumed
+    }
+  }
+
+  if (jumpdestIndexesBefore.length !== jumpdestIndexesAfter.length) {
+    const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
+    log.debug(message)
+    errors.push(
+      createError(-1, TranspilationErrors.INVALID_SUBSTITUTION, message)
+    )
+    return { bytecode: transpiledBytecode, errors }
+  }
+
+  // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
+  replacedBytecode.push(
+    ...getJumpIndexSwitchStatementBytecode(
+      jumpdestIndexesBefore,
+      jumpdestIndexesAfter,
+      bytecodeToBuffer(replacedBytecode).length
+    )
+  )
+
+  return { bytecode: replacedBytecode, errors }
+}
 
 let jumpReplacementLength: number
 export const getJumpReplacementBytecodeLength = (): number => {
@@ -131,31 +204,29 @@ export const getJumpIndexSwitchStatementBytecode = (
     log.debug(
       `Adding bytecode to replace ${jumpdestIndexesBefore[i]} with ${jumpdestIndexesAfter[i]}`
     )
+
+    const beforeIndex: number = jumpdestIndexesBefore[i]
+    const afterIndex: number = jumpdestIndexesAfter[i]
     const beforeBuffer: Buffer = bufferUtils.numberToBuffer(
       jumpdestIndexesBefore[i]
     )
     const afterBuffer: Buffer = bufferUtils.numberToBuffer(
       jumpdestIndexesAfter[i]
     )
+
     footerBytecode.push(
       ...[
         {
           opcode: Opcode.DUP1,
           consumedBytes: undefined,
         },
-        {
-          opcode: getPUSHOpcode(beforeBuffer.length),
-          consumedBytes: beforeBuffer,
-        },
+        getPUSHIntegerOp(beforeIndex),
         {
           opcode: Opcode.EQ,
           consumedBytes: undefined,
         },
-        {
-          // push ACTUAL jumpdest
-          opcode: getPUSHOpcode(afterBuffer.length),
-          consumedBytes: afterBuffer,
-        },
+        // push ACTUAL jumpdest
+        getPUSHIntegerOp(afterIndex),
         {
           // swap actual jumpdest with EQ result so stack is [eq result, actual jumpdest, duped compare jumpdest, ...]
           opcode: Opcode.SWAP1,

@@ -264,7 +264,7 @@ describe('Memory Replacement Operations', () => {
       const opcodeWhitelist = new OpcodeWhitelistImpl(whitelistedOpcodes)
       const replacer = new OpcodeReplacerImpl(stateManagerAddress, replaceMap)
       const transpiler = new TranspilerImpl(opcodeWhitelist, replacer)
-      const transpilation = transpiler.transpile(
+      const transpilation = transpiler.transpileRawBytecode(
         memoryModifyingBytecodeBuf
       ) as SuccessfulTranspilation
       const transpiledMemoryModifyingBytecodeBuf: Buffer =

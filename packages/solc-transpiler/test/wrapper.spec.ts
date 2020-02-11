@@ -67,7 +67,7 @@ describe('Wrapper tests', () => {
 
     // Remove the AuxData at the end of the contract bytecode because this may be different even if it's the exact same contract
     const bytecodeWithoutAuxdata: string = bytecode.split(auxData)[0]
-    const transpilationResult: TranspilationResult = transpiler.transpile(
+    const transpilationResult: TranspilationResult = transpiler.transpileRawBytecode(
       hexStrToBuf(bytecodeWithoutAuxdata)
     )
 

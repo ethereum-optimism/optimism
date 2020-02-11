@@ -7,15 +7,25 @@ import {
   formatBytecode,
   Opcode,
 } from '@pigi/rollup-core'
-import { bufferUtils, bufToHexString, hexStrToBuf } from '@pigi/core-utils'
+import {
+  bufferUtils,
+  bufToHexString,
+  hexStrToBuf,
+  remove0x,
+} from '@pigi/core-utils'
 import * as abi from 'ethereumjs-abi'
+import { ethers } from 'ethers'
 
 /* Internal Imports */
 import { should } from './setup'
 import {
   EvmIntrospectionUtil,
   ExecutionResultComparison,
-} from '../src/types/vm'
+  TranspilationResult,
+  SuccessfulTranspilation,
+  ErroredTranspilation,
+  TranspilerImpl,
+} from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
 
@@ -423,4 +433,59 @@ export const setMemory = (toSet: Buffer): EVMBytecode => {
     )
   }
   return op
+}
+
+export const stripAuxData = (bytecode: Buffer, buildJSON: any): Buffer => {
+  const auxData = buildJSON.evm.legacyAssembly['.data']['0']['.auxdata']
+  const bytecodeWithoutAuxdata: Buffer = hexStrToBuf(
+    bufToHexString(bytecode).split(auxData)[0]
+  )
+  return bytecodeWithoutAuxdata
+}
+
+export const transpileAndDeployInitcode = async (
+  contractBuildJSON: any,
+  constructorParams: any[],
+  constructorParamsEncoding: string[],
+  transpiler: TranspilerImpl,
+  evmUtil: EvmIntrospectionUtil
+): Promise<Buffer> => {
+  const abiCoder = new ethers.utils.AbiCoder()
+  const originalDeployedBytecodeLength: number = hexStrToBuf(
+    contractBuildJSON.evm.deployedBytecode.object
+  ).length
+
+  const bytecodeStripped: Buffer = stripAuxData(
+    hexStrToBuf(contractBuildJSON.bytecode),
+    contractBuildJSON
+  )
+  const deployedBytecodeStripped: Buffer = stripAuxData(
+    hexStrToBuf(contractBuildJSON.evm.deployedBytecode.object),
+    contractBuildJSON
+  )
+
+  const initcodeTranspilationResult: TranspilationResult = transpiler.transpile(
+    bytecodeStripped,
+    deployedBytecodeStripped,
+    originalDeployedBytecodeLength
+  )
+  if (!initcodeTranspilationResult.succeeded) {
+    throw new Error(
+      `transpilation didn't work.  Errors: ${JSON.stringify(
+        (initcodeTranspilationResult as ErroredTranspilation).errors
+      )}`
+    )
+  }
+  const transpiledInitcode: Buffer = (initcodeTranspilationResult as SuccessfulTranspilation)
+    .bytecode
+  const encodedConstructorParams: Buffer = Buffer.from(
+    remove0x(abiCoder.encode(constructorParamsEncoding, constructorParams)),
+    'hex'
+  )
+  const deployedViaInitcode = await evmUtil.deployContract(
+    transpiledInitcode,
+    encodedConstructorParams
+  )
+  const deployedViaInitcodeAddress = deployedViaInitcode.result
+  return deployedViaInitcodeAddress
 }

@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { EVMBytecode, Opcode } from '../types'
+import { EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
 import { bufToHexString } from '@pigi/core-utils/build'
 
 /**
@@ -30,6 +30,17 @@ export const bufferToBytecode = (buffer: Buffer): EVMBytecode => {
 
   for (let pc = 0; pc < buffer.length; pc++) {
     const opcode = Opcode.parseByNumber(buffer[pc])
+    if (!opcode) {
+      bytecode.push({
+        opcode: {
+          name: `UNRECOGNIZED (${bufToHexString(Buffer.from([buffer[pc]]))})`,
+          code: Buffer.from([buffer[pc]]),
+          programBytesConsumed: 0,
+        },
+        consumedBytes: undefined,
+      })
+      continue
+    }
     const consumedBytes: Buffer =
       opcode.programBytesConsumed === 0
         ? undefined
@@ -53,11 +64,50 @@ export const bufferToBytecode = (buffer: Buffer): EVMBytecode => {
  */
 export const formatBytecode = (bytecode: EVMBytecode): string => {
   return bytecode
-    .map((x) => {
-      if (x.consumedBytes === undefined) {
-        return x.opcode.name
+    .map((x, index) => {
+      let tagString: string = '(no tag)'
+      if (!!x.tag) {
+        tagString = `Metadata Tag: ${JSON.stringify(x.tag)}`
       }
-      return `${x.opcode.name}: ${bufToHexString(x.consumedBytes)}`
+      const pcAsString: string = padToLength(
+        getPCOfEVMBytecodeIndex(index, bytecode),
+        10
+      )
+      if (x.consumedBytes === undefined) {
+        return `[PC ${pcAsString}] ${x.opcode.name} ${tagString}`
+      }
+      return `[PC ${pcAsString}] ${x.opcode.name}: ${bufToHexString(
+        x.consumedBytes
+      )} ${tagString}`
     })
     .join('\n')
+}
+
+const padToLength = (num: number, len: number): string => {
+  const str = num.toString(16)
+  return str.length >= len ? str : '0'.repeat(len - str.length) + str
+}
+
+/**
+ * Gets the PC of the operation at a given index in some EVMBytecode.
+ * In other words, it gives us the index of where a given element in some EVMBytecode would be in its raw Buffer form.
+ *
+ * @param indexOfEVMOpcodeAndBytes The index of an EVMOpcodeAndBytes element to find the PC of.
+ * @param bytecode The EVMBytecode in question.
+ * @returns The resulting index in raw bytes where the EVMOpcodeAndBytes begins.
+ */
+export const getPCOfEVMBytecodeIndex = (
+  indexOfEVMOpcodeAndBytes: number,
+  bytecode: EVMBytecode
+): number => {
+  let pc: number = 0
+  for (let i = 0; i < indexOfEVMOpcodeAndBytes; i++) {
+    const operation: EVMOpcodeAndBytes = bytecode[i]
+    const totalBytesForOperation =
+      operation.consumedBytes === undefined
+        ? 1
+        : 1 + operation.opcode.programBytesConsumed
+    pc += totalBytesForOperation
+  }
+  return pc
 }

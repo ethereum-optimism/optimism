@@ -336,6 +336,9 @@ const transpileContract = (
   filename: string,
   contractName: string
 ): TranspilationOutput => {
+  const originalBytecodeSize: number = hexStrToBuf(
+    contractSolcOutput.evm.bytecode.object
+  ).byteLength
   let bytecode: string = getBytecode(contractSolcOutput, false)
   let deployedBytecode: string = getBytecode(contractSolcOutput, true)
 
@@ -344,7 +347,11 @@ const transpileContract = (
   }
 
   if (!!bytecode) {
-    const transpilationResult = transpiler.transpile(hexStrToBuf(bytecode))
+    const transpilationResult = transpiler.transpile(
+      hexStrToBuf(bytecode),
+      hexStrToBuf(deployedBytecode),
+      originalBytecodeSize
+    )
     if (!transpilationResult.succeeded) {
       const errorResult: ErroredTranspilation = transpilationResult as ErroredTranspilation
       return {
@@ -361,7 +368,7 @@ const transpileContract = (
   }
 
   if (!!deployedBytecode) {
-    const transpilationResult = transpiler.transpile(
+    const transpilationResult = transpiler.transpileRawBytecode(
       hexStrToBuf(deployedBytecode)
     )
     if (!transpilationResult.succeeded) {

@@ -1,3 +1,5 @@
+import { bufToHexString, remove0x } from '@pigi/core-utils/build/src'
+
 export interface EVMOpcode {
   name: string
   code: Buffer
@@ -7,9 +9,16 @@ export interface EVMOpcode {
 export interface EVMOpcodeAndBytes {
   opcode: EVMOpcode
   consumedBytes: Buffer
+  tag?: OpcodeTag
 }
 
 export type EVMBytecode = EVMOpcodeAndBytes[]
+
+export interface OpcodeTag {
+  padPUSH: boolean // whether this PUSHN should be turned into a PUSH(N+1) to preempt later changes to consumedBytes in transpilation.
+  reasonTagged: string
+  metadata: Buffer
+}
 
 export class Opcode {
   public static readonly STOP: EVMOpcode = {
@@ -938,5 +947,17 @@ export class Opcode {
     }
 
     return this.codeToOpcode.get(code.toString(16))
+  }
+
+  public static getCodeNumber(opcode: EVMOpcode): number {
+    return parseInt(remove0x(bufToHexString(opcode.code)), 16)
+  }
+
+  public static isPUSHOpcode(opcode: EVMOpcode): boolean {
+    const num: number = Opcode.getCodeNumber(opcode)
+    return (
+      num >= Opcode.getCodeNumber(Opcode.PUSH1) &&
+      num <= Opcode.getCodeNumber(Opcode.PUSH32)
+    )
   }
 }

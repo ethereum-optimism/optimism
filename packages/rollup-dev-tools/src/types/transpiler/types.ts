@@ -1,3 +1,5 @@
+import { EVMBytecode } from '@pigi/rollup-core'
+
 export interface TranspilationError {
   index: number
   error: number
@@ -19,3 +21,14 @@ export interface SuccessfulTranspilation extends TranspilationResultBase {
 }
 
 export type TranspilationResult = ErroredTranspilation | SuccessfulTranspilation
+
+export interface JumpReplacementResult {
+  bytecode: EVMBytecode
+  errors?: TranspilationError[]
+}
+
+export interface TaggedTranspilationResult {
+  succeeded: boolean
+  errors?: TranspilationError[]
+  bytecodeWithTags?: EVMBytecode
+}

@@ -126,7 +126,7 @@ const getSuccessfulTranspilationResult = (
   transpiler: Transpiler,
   bytecode: Buffer
 ): SuccessfulTranspilation => {
-  const result: TranspilationResult = transpiler.transpile(bytecode)
+  const result: TranspilationResult = transpiler.transpileRawBytecode(bytecode)
   result.succeeded.should.equal(true)
   return result as SuccessfulTranspilation
 }
@@ -246,7 +246,9 @@ describe('Transpile - JUMPs', () => {
     ]
     const initialBytecode: Buffer = bytecodeToBuffer(evmBytecode)
 
-    const result: TranspilationResult = transpiler.transpile(initialBytecode)
+    const result: TranspilationResult = transpiler.transpileRawBytecode(
+      initialBytecode
+    )
     result.succeeded.should.equal(
       true,
       'Transpilation should have succeeded but did not!'
