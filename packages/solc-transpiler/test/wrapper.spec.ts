@@ -101,7 +101,7 @@ describe('Wrapper tests', () => {
       wrappedSolcTranspiledDeployedBytecode,
       'Transpiled deployed bytecode mismatch!'
     )
-  })
+  }).timeout(10000)
 
   it('should work for multiple sources', () => {
     const wrappedSolcResult = compile(JSON.stringify(multiConfig))
