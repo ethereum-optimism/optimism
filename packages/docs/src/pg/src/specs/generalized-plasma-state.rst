@@ -1,0 +1,190 @@
+=============================
+Generalized Plasma State Spec
+=============================
+
+- Data Structures
+   - ``stateID: uint`` - the index of unique, non-fungible states in a plasma chain
+   - ``stateObject`` struct:
+      - ``predicate: address`` - the state's predicate ruleset
+      - ``parameters: bytes`` - input parameters to the predicate ruleset
+   - ``stateUpdate`` struct
+      - ``state: stateObject`` - the new state for this range of ``stateID`` s
+      - ``start: uint`` - the start of the range of ``stateID`` s
+      - ``end: uint`` - the end of the range of ``stateID`` s
+      - ``plasmaBlockNumber: uint`` - the plasma block in which a committment was made
+      - ``plasmaContract: address`` - the address of the plasma contract the state update is meant for
+   -  ``stateUpdateWitness`` struct
+         - ``inclusionProof: bytes[]`` - array of sibling nodes forming the Merkle inclusion proof
+   - ``deposit`` struct:
+      - ``state: stateObject`` - the initial state of the deposited coin
+      - ``start: uint`` - the first ``stateID`` of the deposit. The plasma contract stores a mapping from ``depositEnd->deposit``
+      - ``precedingPlasmaBlockNumber: uint`` - the most recent plasma block leading up to the deposit.
+   - ``exitableRange`` struct:
+         - ``start: uint`` - The first ``stateID`` of a still-exitable range. The plasma contract stores a mapping from ``cexitableRangeEnd->exitableableRange``
+         - ``isSet: bool`` - whether or not this value in the mapping has been initialized. Needed because EVM can't differentiate between a mapping set to 0 and an unset mapping.
+   - ``exit`` struct:
+         - ``update: stateUpdate`` - the state being claimed.
+         - ``exitStart`` - the start of the update's subrange claiming to be undeprecated.
+         - ``exitEnd`` - the end of the update's subrange claiming to be undeprecated.
+         - ``ethBlockRedeemable: uint`` - when the ``exit``'s dispute period expires.
+         - ``numChallenges: uint`` - the number of pending challenges preventing a ``exit``'s redemption.
+   - ``challenge`` struct:
+         - ``earlierExitID: uint`` - the earlier undeprecated ``exit`` being used to challenge an invlaid ``exit``.
+         - ``laterExitID: uint`` - the challenged ``exit``.
+- Commitment Contract
+    - Public Variables:
+        - ``operator: public(address)`` - the operator's address.
+        - ``nextPlasmaBlockNumber: public(uint256)`` - what the block number of the next block committment will be.
+        - ``lastPublish: public(uint256)`` - the Ethereum block number of the last plasma block.
+        - ``blockHashes: public(map(uint256, bytes32))`` - the blocks submitted so far.
+    - Methods:
+        - ``setup`` - Used to initiate the contract with collator pubkey
+        - ``commitBlock``: allows the operator to submit sequential blocks
+        - ``verifyUpdate(update: stateUpdate, subject: address, stateUpdateWitness: bytes)``: returns bool whether a given ``commitment`` was made on behalf of a given ``subject`` address (this is the plasma contract for e.g. a specific ERC20), at a the given ``plasmaBlockNumber``, based on a valid ``commitmentWitness``
+    - Block Structure/Proof Validity, as checked by ``verifyUpdate``:
+        - merkle node format: ``[hash: bytes32][subject: address][index: bytes16]``
+        - merkle parent function: ``parent(leftSibling, rightSibling) = [sha256([leftSibling][rightSibling])][rightSibling.subject][rightSibling.index]``
+        - merkle proof format: ``siblingMerkleNodes[]`` - array of the siblings going up the branch
+        - branch validity requires that left ``siblingMerkleNodes`` going up the branch are monotonically decreasin
+        - For a given ``commitment``, ``subject``, and ``commitmentWitness``, where the ``leaf`` is the bottommost node in the ``stateUpdateWitness`` we must have:
+            - ``leaf.subject == subject``
+            - ``stateUpdate.end <= leaf.index``
+            - ``stateUpdate.subject = leaf.subject``
+            - ``stateUpdate.start >= START`` where ``START`` is either the merkle proof's deepest left sibling, or ``0`` if none exist (this is only the case for the ``0``th element in the tree)
+        - leaf nodes are parsed to ``[hash(state)][subject][state.end]``
+            - NOTE: for any nodes in the tree whose sibling has the same ``subject`` address, we may remove the address for efficiency, as long as the above conditions are met as if the ``subject`` is prepended to the index.  This is definitely an optimization to consider down the line!
+
+- Plasma Contract
+     - Public Variables:
+         - ``self.commitmentAddress`` - where the operator is submitting commitments
+         - ``self.tokenAddress`` - the ERC20 contract of for this plasma contract (we'll have one contract per token)
+         - ``self.deposits[end: uint] -> deposit`` - mapping of all deposits to ``deposit`` structs
+         - ``self.exitableRanges[end: uint] -> exitableRange`` - mapping of all the unclaimed ranges ("states still in the plasma chain")
+         - ``self.exits[exitID] -> exit`` - all of the current exits
+         - ``self.challenges[challengeID] -> challenge`` - all of the current challenges on exits
+         - ``self.DISPUTE_PERIOD: uint`` - the minimum dispute period before a claim can be redeemed
+     - Public methods:
+         - ``deposit(amount, state)``
+             - Deposits specify an initial state and the amount of money being deposited into that state
+             - adds to ``self.deposits``
+             - extends ``self.claimableRanges`` so that the state is now claimable
+         - ``exitStateUpdate(exitStart: uint, exitEnd: uint, update: stateUpdate, updateWitness: stateUpdateWitness, initiationWitness: bytes)`` - allows users to submit a claim on a committed state
+             - ``assert verifyUpdate(update, self.address, stateUpdateWitness)``
+             - ``assert exitStart >= update.start``
+             - ``assert exitEnd <= update.end``
+             - ``assert update.state.predicate.can_initiate_exit(update, initiationWitness)``
+             - if so, adds a new exit to ``self.exits``
+             - sets the exit's ``ethBlockRedeemable`` to: ``eth.block + self.CHALLENGE_PERIOD + state.predicateAddress.getAdditionalLockup(update)``
+         - ``exitDeposit(exitStart: uint, exitEnd: uint, depositEnd: uint, claimabilityWitness:bytes)`` - allows users to submit an exit on a deposited state
+             - both of the above store an ``exit`` struct in ``self.exits[self.exitNonce]`` and increment ``self.exitNonce``.
+             - sets the claim's ``ethBlockRedeemable`` to: ``eth.block + self.CHALLENGE_PERIOD + state.predicateAddress.getAdditionalLockup(state)``
+             - In this case, the ``update.plasmaBlockNumber`` comes from the ``deposit.precedingPlasmaBlockNumber``
+         - ``challengeExit(earlierExitID, laterExitID)`` - allows users to challenge a later exit with an earlier undeprecated exit
+             - this is the way we challenge exits if the operator commits some a state with something undprecated in the history. The function checks that:
+                 - ``earlierExitID``'s claimed range intersects that of ``laterExitID``
+                 - ``earlierExitID.update.plasmaBlockNumber < laterExitID.update.plasmaBlockNumber``
+                 - ``eth.block < laterExit.ethBlockRedeemable``
+             - if so, it does the following:
+                 - create a ``challenge`` object in ``self.challenges[challengeNonce]``
+                 - increment ``challengeNonce``
+                 - increase the ``laterExit.ethBlockRedeemable`` to ``earlierExit.ethBlockRedeemable`` if the latter is bigger
+                 - increment ``challengedClaim.numChallenges``
+         - ``cancelDeprecatedExit(stateID: uint, exitID: uint, deprecationWitness: bytes)`` - allows users to cancel an exit by demonstrating a ``deprecationWitness`` for one of the ``state``s in its range
+             - ``exit = self.exits[exitID]``
+             - ``assert exit.update.predicateAddress.verifyDeprecation(stateID, exit.update, deprecationWitness)``
+             - if so, clears the exit, deleting it from the ``self.exits`` mapping
+         - ``removeChallenge(challengeID: uint)`` - allows users to remove a challenge 
+             - checks that the ``self.challenges[challengeID].earlierExit`` has been revoked, i.e. that its key is no longer set to a value in self.exits[]
+             - if so, decrements the ``self.exits[self.challenges[challengeID].laterExitID].numChallenges`` and then clears/deletes ``self.challenges[challengeID]``
+         - ``finalizeExit(exitID, exitableRangeEnds)``
+             - asserts ``exit``'s numChallenges = 0
+             - tries ``isRangeClaimable`` for the various ``claimableRangeEnds``, reverts if none pass the check
+             - asserts the current ``eth.block >= exit.ethBlockRedeemable``
+             - approves the ERC20 claim amount (``=start-end``) to be transferred by the ``exit.update.state.predicateAddress``
+             - calls ``finalizeExit(update)`` on the ``update.state.predicateAddress``
+
+- Predicate interface
+     - Public methods/interface:
+         - ``verifyDeprecation(stateID: uint, update: stateUpdate, deprecationWitness: bytes) -> bool`` - returns true/false whether a given ``deprecationWitness`` is valid (if true the exit may be cancelled)
+         - ``finalizeExit(update: stateUpdate)`` - called once a claim on a state is redeemed on the plasma contract
+             - in principle, this can do anything, but will almost always call the ``ERC20.transferFrom`` function to the tune of ``exit.start - exit.end``, either to itself to initiate an additional dispute period, or to some ultimate beneficiary as devised from the ``exit.update.state.parameters``
+         - ``canInitiateExit(update: stateUpdate, initiationWitness: bytes) -> bool`` - returns true/false whether a claimant is eligible to submit an exit on a given state
+         - ``getAdditionalDisputePeriod(update: stateUpdate)`` - returns an additional number of ETH blocks which must elapse, in addition to the standard ``plasmaContract.DISPUTE_PERIOD``, before the exit may be redeemed
+
+             
+             
+             
+             
+- Predicate Examples
+     - Simple Ownership
+         - ``struct ownershipDeprecationWitness:``
+             - ``newStateUpdate: stateUpdate``
+             - ``newUpdateWitness: stateUpdateWitness``
+             - ``signature: signature``
+         - ``public function verifyDeprecation(stateID: uint, update: stateUpdate, revocationWitness: bytes):``
+                ``assert verifyUpdate(deprecationWitness.newStateUpdate, revocationWitness.newUpdateWitness)``
+                ``assert verifySignature(revocationWitness.newStateUpdate, signature) = update.state.owner``
+         - ``public function finalizeExit(exit: exit):``
+               ``redeemedAmount: uint = exit.end - exit.start #length of sequential stateIDs claimed``
+               ``ERC20.transferFrom(self.address, exit.update.state.owner, )``
+         - ``public function canInitiateExit(update: stateUpdate, initiationWitness: bytes)``:
+              assert tx.sender = commitment.state.parameters.owner``
+     - Multisig
+     - Atomic Swap
+     - Basic Payment Channel
+        - struct ``stateChannelParameters``:
+             - ``participants: address[]`` - array of pubkeys participating in the channel
+             - ``openingUpdatesHash: bytes32`` - a hash of all the ``stateUpdate`` objects which must be made for the channel to be considered successfully "opened"
+             - ``failedOpeningRecipient: address`` - the person to send money to if the opening failed, i.e. the above commitments weren't made
+             - ``onChainChannel: address`` - the on-chain payment channel to send the money to if channel isn't closed out on-chain
+             - ``callData: bytes[]`` - the instantiation data passed to the ``onChainChannel``
+       - struct ``stateChannelDeprecationWitness``
+             - ``closureUpdates: stateUpdate[]`` - array of the states agreed to close on
+             - ``closureUpdateWitnesses: stateUpdateWitness[]`` - array of the proofs that the above updates were made
+             - ``closureApprovals: signature[]`` - array of signatures by each of the ``state.parameters.participants`` on ``hash(closureUpdates)`` agreeing to close
+       - public ``self.successfulOpenings[upeningUpdatesHash] -> bool`` - mapping of whether or not a given ``openingUpdatesHash`` was successfully made
+       - public ``proveOpenings(openingUpdates: commitment[], openingWitnesses: stateUpdateWitness[])``
+             - allows users to prove that a state channel was successfully opened by validating all opening inclusions
+             - asserts that ``verifyUpdate`` for each ``openingUpdate`` state and its witness
+             - if so, sets ``self.successfulOpenings[hash(openingUpdates) = true]
+       - struct ``openingExitStatus`` - the struct used if an open channel is being exited because of an unsuccessful closure
+             - ``totalCoins`` - the total number of coins entered into the payment channel
+             - ``redeemedCoins`` - the total number of coins whose claims have been redeemed so far
+       - public ``self.openingExitsInProgress[upeningUpdatesHash:bytes32] -> openingExitStatus`` - mapping of "in progress" exits on opened channels
+       - ``verifyDeprecation``
+             - asserts that ``self.openingClaimsInProgress[update.parameters.openingUpdatesHash)].redeemedCoins == 0`` -- if any of the opening state has been redeemed, all state must be redeemed from the openings, no revocation is valid.
+             - asserts that ``verifyUpdate`` for each commitment in the revocation witness
+             - asserts that each ``state.parameters.participants`` signed off on ``hash(closureUpdates)``
+       - ``finalizeExit``
+             - checks whether the channel was successfully opened: ``assert self.successfulOpenings[openingUpdatesHash]``
+             - If it was: 
+                 - ``self.openingExitsInProgress[openingUpdatesHash].redeemedCoins += exit.end - exit.start``
+                 - let ``exitInProgress = self.openingExitsInProgress[openingCommitmentsHash]``
+                 - if ``exitInProgress.redeemedCoins == exitInProgress.totalCoins``, then forward the ``totalCoins`` to the ``exit.update.parameters.onChainChannel(exit.update.parameters.callData)`` -- the opening has been fully claimed and the on-chain channel may take over.
+             - Otherwise, not all money in the channel has been redeemed from the plasma contract yet, so we must wait.
+     - L1<>L2 liquidity predicate (swap PETH for ETH)
+         - struct ``tradeParameters``:
+             - ``tradeID: uint`` - a unique ID for the trade
+             - ``seller: address``
+             - ``saleAmount: uint`` - the amount of ETH the coins are being sold for
+         - struct ``trade``
+             - ``ethSender: address``
+             - ``targetPlasmaBlock: uint``
+         - mapping ``self.trades[tradeID][ethRecipient][amount] -> trade`` maps the unique aspects of the trade to the sender and intended block of the new ownership state committment
+         - public method: ``submitTrade(tradeID: bytes32, ethRecipient: address, targetPlasmaBlock: uint)``
+             - assert that the next plasma block is the ``targetPlasmaBlock``
+             - assert that ``self.trades[tradeID: bytes32][ethRecipient: address][tx.value: uint]`` is unset
+             - if not:
+                 - set the value with ``trade.ethSender = tx.Sender`` and ``trade.targetPlasmaBlock = targetPlasmaBlock``
+                 - forward the ETH to ``ethRecipient``
+         - ``verifyDeprecation``
+             - ``deprecationWitness`` consists of:
+                 - a valid ``newStateUpdate``, satisfying:
+                     - ``.start`` and ``.end`` equalling the deprecated ``stateUpdate`` ``.start`` and ``.end``
+                     - the existance of an entry in ``self.trades[stateUpdate.parameters.tradeID][newStateUpdate.parameters.owner][end - start]``
+                         - the ``ethSender`` in that entry being the ``newStateUpdate.parameters.owner``
+                         - the ``newStateUpdate.plasmaBlockNumber == trade.targetPlasmaBlock``
+         - ``finalizeExit``
+             - checks for the existence of an entry in ``self.Trades[exit.state.parameters.tradeID][redeemedState.seller][end - start]``
+                 - if it exists, send to that ``trade.ethSender``
+                 - otherwise, send back to ``redeemedState.parameters.seller``
