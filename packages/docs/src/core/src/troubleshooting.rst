@@ -10,12 +10,12 @@ Limitations
 -----------
 Some features of the Ethereum are not yet implemented, or just don't make sense to have, in the OVM.  Check out our limitations section (link) to get more information to check if this is why you're running into issues.
 
-Log yo' self
-------------
+Logging
+-------
 We use the npm package``debug`` for logging.  To get a better sense of what might be breaking, you can run
 .. code-block::
 
-  env DEBUG="debug:*,info:*,error:*" [test command]
+  env DEBUG="debug:*,error:*" [test command]
 
 in your terminal.
 
