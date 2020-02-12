@@ -13,7 +13,7 @@ Some features of the Ethereum are not yet implemented, or just don't make sense 
 Logging
 -------
 We use the npm package``debug`` for logging.  To get a better sense of what might be breaking, you can run
-.. code-block::
+.. code-block:: none
 
   env DEBUG="debug:*,error:*" [test command]
 
