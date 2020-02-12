@@ -24,6 +24,13 @@ You can find all of our source code here on `our monorepo`_.
    
 .. toctree::
    :maxdepth: 2
-   :caption: Specifications (under construction)
+   :caption: Specifications and Details
+
+   src/spec/overview
+   src/spec/execution-manager
+   src/spec/transpilation-details
+   src/spec/jump-transpilation
+   src/spec/solc-transpiler
+   src/spec/design
 
 _`our monorepo`: https://github.com/ethereum-optimism/optimism-monorepo
