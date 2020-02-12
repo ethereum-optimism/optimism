@@ -2,7 +2,10 @@
 
 ---
 
-[Optimism](hhttps://optimism.io/) is a Public Benefit Corporation dedicated to scaling Ethereum in a way that enshrines fair access to public goods. Optimism is focused on implementing a production-level Optimistic Rollup implementation that integrates with the Optimistic Virtual Machine (OVM) to scale arbitrary Solidity smart contracts.
+[Optimism](https://optimism.io/) is a Public Benefit Corporation dedicated to scaling Ethereum in a way that enshrines fair access to public goods. Optimism is focused on implementing a production-level Optimistic Rollup implementation that integrates with the Optimistic Virtual Machine (OVM) to scale arbitrary Solidity smart contracts.
+
+To get involved, follow us on [Twitter](https://twitter.com/optimismPBC), join our [Discord](https://discordapp.com/invite/jrnFEvq), and try out our [OVM tutorial](https://github.com/ethereum-optimism/ERC20-Example)!
+
 
 `@optimism-monorepo` is the Optimism monorepo.
 All of the core Optimism projects are hosted inside of the [packages](https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages) folder of this repository.
