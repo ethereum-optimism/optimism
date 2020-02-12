@@ -2,26 +2,28 @@
 
 ---
 
-[Optimism](hhttps://optimism.io/) is a Public Benefit Corporation dedicated to scaling Ethereum in a way that enshrines fair access to public goods. Optimism is focused on implementing a production-level Optimistic Rollup implementation that integrates with the Optimistic Virtual Machine (OVM) to scale arbitrary Solidity smart contracts.
+[Optimism](https://optimism.io/) is a Public Benefit Corporation dedicated to scaling Ethereum in a way that enshrines fair access to public goods. Optimism is focused on implementing a production-level Optimistic Rollup implementation that integrates with the Optimistic Virtual Machine (OVM) to scale arbitrary Solidity smart contracts.
 
-`@optipus` is the Optimism monorepo.
-All of the core Optimism projects are hosted inside of the [packages](https://github.com/ethereum-optimism/optipus/tree/master/packages) folder of this repository.
+To get involved, follow us on [Twitter](https://twitter.com/optimismPBC), join our [Discord](https://discordapp.com/invite/jrnFEvq), and try out our [OVM tutorial](https://github.com/ethereum-optimism/ERC20-Example)!
+
+`@optimism-monorepo` is the Optimism monorepo.
+All of the core Optimism projects are hosted inside of the [packages](https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages) folder of this repository.
 
 ## Packages
 
-| Package                                                             | Version                                                                                                                                     | Description                                                                                                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------|
-| [`@optipus/ovm`](/packages/ovm)                                      | [![npm](https://img.shields.io/npm/v/@optipus/ovm.svg)](https://www.npmjs.com/package/@optipus/ovm)                                             | Optimistic Virtual Machine                                                          |
-| [`@optipus/rollup-full-node`](/packages/rollup-full-node)                                      | [![npm](https://img.shields.io/npm/v/@optipus/rollup-full-node.svg)](https://www.npmjs.com/package/@optipus/rollup-full-node)                                             | Fullnode RPC server for the OVM                                                          |
-| [`@optipus/rollup-dev-tools`](/packages/rollup-dev-tools)                                      | [![npm](https://img.shields.io/npm/v/@optipus/rollup-dev-tools.svg)](https://www.npmjs.com/package/@optipus/rollup-dev-tools)                                             | Optimistic Rollup development tooling (includes Transpiler)                                                         |
+| Package                                                        | Version                                                                                                                                 | Description                                                 |
+|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
+| [`@eth-optimism/ovm`](/packages/ovm)                           | [![npm](https://img.shields.io/npm/v/@eth-optimism/ovm.svg)](https://www.npmjs.com/package/@eth-optimism/ovm)                           | Optimistic Virtual Machine                                  |
+| [`@eth-optimism/rollup-full-node`](/packages/rollup-full-node) | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-full-node.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-full-node) | Fullnode RPC server for the OVM                             |
+| [`@eth-optimism/rollup-dev-tools`](/packages/rollup-dev-tools) | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-dev-tools.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-dev-tools) | Optimistic Rollup development tooling (includes Transpiler) |                                                       |
 
 ## Repo Status
-![CI - Build, Test, Lint](https://github.com/ethereum-optimism/optipus/workflows/CI%20-%20Build,%20Test,%20Lint/badge.svg?branch=master) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/05852734abaf4567a864cdd19169d70b)](https://www.codacy.com/gh/ethereum-optimism/optipus?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=ethereum-optimism/optipus&amp;utm_campaign=Badge_Grade)
+![CI - Build, Test, Lint](https://github.com/ethereum-optimism/optimism-monorepo/workflows/CI%20-%20Build,%20Test,%20Lint/badge.svg?branch=master) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/05852734abaf4567a864cdd19169d70b)](https://www.codacy.com/gh/ethereum-optimism/optimism-monorepo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=ethereum-optimism/optimism-monorepo&amp;utm_campaign=Badge_Grade)
 ## Contributing
 Welcome! If you're looking to contribute to the future of Ethereum, you're in the right place.
 
 ### Contributing Guide and Code of Conduct
-Optimism follows a [Contributing Guide and Code of Conduct](https://github.com/ethereum-optimism/optipus/blob/master/.github/CONTRIBUTING.md) adapted slightly from the [Contributor Covenant](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html).
+Optimism follows a [Contributing Guide and Code of Conduct](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/.github/CONTRIBUTING.md) adapted slightly from the [Contributor Covenant](https://www.contributor-covenant.org/version/1/4/code-of-conduct.html).
 All contributors **must** read through this guide before contributing.
 We're here to cultivate a welcoming and inclusive contributing environment, and every new contributor needs to do their part to uphold our community standards.
 
@@ -30,17 +32,17 @@ We're here to cultivate a welcoming and inclusive contributing environment, and 
 Before you start working on an Optimism project, you'll need to clone our GitHub repository:
 
 ```sh
-git clone git@github.com:ethereum-optimism/optipus.git
+git clone git@github.com:ethereum-optimism/optimism-monorepo.git
 ```
 
 Now, enter the repository.
 
 ```sh
-cd optipus
+cd optimism-monorepo
 ```
 
 #### Node.js
-Most of the projects in `@optipus` are [`Node.js`](https://nodejs.org/en/) projects.
+Most of the projects in `optimism-monorepo` are [`Node.js`](https://nodejs.org/en/) projects.
 You'll need to install `Node.js` for your system before continuing.
 All code is only confirmed to work on `Node.js v11.6`, and there are known issues on more recent versions. Please [set your Node.js version to 11.6](https://stackoverflow.com/a/23569481). 
 
@@ -49,7 +51,7 @@ We're using a package manager called [Yarn](https://yarnpkg.com/en/).
 You'll need to [install Yarn](https://yarnpkg.com/en/docs/install) before continuing.
 
 #### Installing Dependencies
-`@optipus` projects make use of several external packages.
+`optimism-monorepo` projects make use of several external packages.
 
 Install all required packages with:
 
@@ -58,7 +60,7 @@ yarn install
 ```
 
 ### Building
-`@optipus` provides convenient tooling for building a package or set of packages.
+`optimism-monorepo` provides convenient tooling for building a package or set of packages.
 
 Build all packages:
 
@@ -104,7 +106,7 @@ PKGS=your,packages,here yarn run fix
 ```
 
 ### Running Tests
-`@optipus` projects usually makes use of a combination of [`Mocha`](https://mochajs.org/) (a testing framework) and [`Chai`](https://www.chaijs.com/) (an assertion library) for testing.
+`optimism-monorepo` projects usually makes use of a combination of [`Mocha`](https://mochajs.org/) (a testing framework) and [`Chai`](https://www.chaijs.com/) (an assertion library) for testing.
 
 Run all tests:
 
