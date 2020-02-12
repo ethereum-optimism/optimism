@@ -13,13 +13,13 @@ Installing
 
 Both `truffle` and `ethereum-waffle` allow you to specify a custom replacement for `solc`.  First, you'll need to install ``@eth-optimism/solc-transpiler``:
 
-.. code-block::
+.. code-block:: none
 
     yarn add @eth-optimism/solc-transpiler && yarn install
 
 or
 
-.. code-block::
+.. code-block:: none
 
     npm install --save @eth-optimism/solc-transpiler
 
@@ -32,7 +32,7 @@ To use the transpiler with ``ethereum-waffle``, set the ``solc.version`` configu
 
 example waffle-config.json:
 
-.. code-block::
+.. code-block:: none
 
   {
     "solcVersion": "@eth-optimism/solc-transpiler",
@@ -47,7 +47,7 @@ To use the transpiler with Truffle, set truffle's ``compilers.solc.version`` con
 
 example truffle-config.json:
 
-.. code-block::
+.. code-block:: none
 
   // Note, will need EXECUTION_MANAGER_ADDRESS environment variable set.
   // Default is "0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"
@@ -62,7 +62,7 @@ example truffle-config.json:
 
 Truffle does not expose compiler options, so the execution manager address must be passed in with an environment variable, called ``EXECUTION_MANAGER_ADDRESS``.  One easy way to do this is run tests with 
 
-.. code-block::
+.. code-block:: none
 
     $   env EXECUTION_MANAGER_ADDRESS="0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA" [test command]
 
@@ -74,20 +74,20 @@ Integrating the OVM Full Node
 
 To use your transpiled contracts, you need to use ``@eth-optimism/rollup-full-node`` as your web3 provider.  To do this, make sure it's installed:
 
-.. code-block::
+.. code-block:: none
 
     yarn add @eth-optimism/rollup-full-node && yarn install
 
 or
 
-.. code-block::
+.. code-block:: none
 
     npm install --save @eth-optimism/rollup-full-node
 
 
 To get your provider and some wallets:
 
-.. code-block::
+.. code-block:: none
 
     const RollupFullNode = require("@eth-optimism/rollup-full-node")
     const provider = RollupFullNode.getMockOVMProvider()
