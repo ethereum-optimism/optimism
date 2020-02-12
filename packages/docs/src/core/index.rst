@@ -1,10 +1,15 @@
 ========================
 @eth-optimism Documentation
 ========================
-Hello and welcome to the documentation for Optimism's ``@eth-optimism``! (link)
-``@eth-optimism`` is the set of core modules that the OVM and our L2 implementations use.
+Hello and welcome to the documentation for Optimism's OVM and Optimistic rollup.
 
-You can find all of our source code here: (link)
+Our ``@eth-optimism`` module is the set of core modules that the OVM and our L2 implementations use.
+
+.. raw:: html
+
+   <img src="../../_static/images/optipus.png" alt="The Optimism Optipus">
+
+You can find all of our source code here on `our monorepo`_.
 
 .. toctree::
    :maxdepth: 2
@@ -21,6 +26,4 @@ You can find all of our source code here: (link)
    :maxdepth: 2
    :caption: Specifications (under construction)
 
-
-
-   
+_`our monorepo`: https://github.com/ethereum-optimism/optimism-monorepo
