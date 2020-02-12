@@ -6,17 +6,16 @@
 
 To get involved, follow us on [Twitter](https://twitter.com/optimismPBC), join our [Discord](https://discordapp.com/invite/jrnFEvq), and try out our [OVM tutorial](https://github.com/ethereum-optimism/ERC20-Example)!
 
-
 `@optimism-monorepo` is the Optimism monorepo.
 All of the core Optimism projects are hosted inside of the [packages](https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages) folder of this repository.
 
 ## Packages
 
-| Package                                                             | Version                                                                                                                                     | Description                                                                                                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------|
-| [`@eth-optimism/ovm`](/packages/ovm)                                      | [![npm](https://img.shields.io/npm/v/@eth-optimism/ovm.svg)](https://www.npmjs.com/package/@eth-optimism/ovm)                                             | Optimistic Virtual Machine                                                          |
-| [`@eth-optimism/rollup-full-node`](/packages/rollup-full-node)                                      | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-full-node.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-full-node)                                             | Fullnode RPC server for the OVM                                                          |
-| [`@eth-optimism/rollup-dev-tools`](/packages/rollup-dev-tools)                                      | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-dev-tools.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-dev-tools)                                             | Optimistic Rollup development tooling (includes Transpiler)                                                         |
+| Package                                                        | Version                                                                                                                                 | Description                                                 |
+|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
+| [`@eth-optimism/ovm`](/packages/ovm)                           | [![npm](https://img.shields.io/npm/v/@eth-optimism/ovm.svg)](https://www.npmjs.com/package/@eth-optimism/ovm)                           | Optimistic Virtual Machine                                  |
+| [`@eth-optimism/rollup-full-node`](/packages/rollup-full-node) | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-full-node.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-full-node) | Fullnode RPC server for the OVM                             |
+| [`@eth-optimism/rollup-dev-tools`](/packages/rollup-dev-tools) | [![npm](https://img.shields.io/npm/v/@eth-optimism/rollup-dev-tools.svg)](https://www.npmjs.com/package/@eth-optimism/rollup-dev-tools) | Optimistic Rollup development tooling (includes Transpiler) |                                                       |
 
 ## Repo Status
 ![CI - Build, Test, Lint](https://github.com/ethereum-optimism/optimism-monorepo/workflows/CI%20-%20Build,%20Test,%20Lint/badge.svg?branch=master) [![Codacy Badge](https://api.codacy.com/project/badge/Grade/05852734abaf4567a864cdd19169d70b)](https://www.codacy.com/gh/ethereum-optimism/optimism-monorepo?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=ethereum-optimism/optimism-monorepo&amp;utm_campaign=Badge_Grade)
