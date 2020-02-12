@@ -12,6 +12,7 @@ import {
 import {
   bufToHexString,
   hexStrToBuf,
+  remove0x,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import * as path from 'path'
@@ -80,8 +81,8 @@ describe('Wrapper tests', () => {
       'Cannot evaluate test because transpiling solc bytecode failed.'
     )
 
-    return bufToHexString(
-      (transpilationResult as SuccessfulTranspilation).bytecode
+    return remove0x(
+      bufToHexString((transpilationResult as SuccessfulTranspilation).bytecode)
     )
   }
 

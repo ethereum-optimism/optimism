@@ -14,6 +14,7 @@ import {
   hexStrToBuf,
   isValidHexAddress,
   Logger,
+  remove0x,
 } from '@eth-optimism/core-utils'
 import * as solc from 'solc'
 
@@ -83,10 +84,13 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
 
       log.debug(`Transpiled output ${JSON.stringify(output)}`)
 
-      res.contracts[filename][contractName].evm.bytecode.object =
+      res.contracts[filename][contractName].evm.bytecode.object = remove0x(
         output.bytecode || ''
-      res.contracts[filename][contractName].evm.deployedBytecode.object =
-        output.deployedBytecode || ''
+      )
+      res.contracts[filename][
+        contractName
+      ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
+
       if (!!output.errors) {
         if (!res.errors) {
           res.errors = []
