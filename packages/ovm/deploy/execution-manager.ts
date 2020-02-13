@@ -6,6 +6,7 @@ import { Wallet } from 'ethers'
 import { deployPurityChecker } from './purity-checker'
 import * as ExecutionManager from '../build/contracts/ExecutionManager.json'
 import { resolve } from 'path'
+import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../src/app'
 
 const executionManagerDeploymentFunction = async (
   wallet: Wallet
@@ -17,8 +18,10 @@ const executionManagerDeploymentFunction = async (
   const executionManager = await deployContract(
     ExecutionManager,
     wallet,
+    OPCODE_WHITELIST_MASK,
     purityCheckerContractAddress,
-    wallet.address
+    GAS_LIMIT,
+    true
   )
 
   console.log(`Execution Manager deployed to ${executionManager.address}!\n\n`)
