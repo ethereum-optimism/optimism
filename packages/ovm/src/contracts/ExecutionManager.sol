@@ -215,25 +215,23 @@ contract ExecutionManager is FullStateManager {
         } else {
             methodId = ovmCallMethodId;
             callSize = _callBytes.length + 32 + 4;
+            // Creates will get incremented, but calls need to be as well!
+            incrementOvmContractNonce(_fromAddress);
         }
 
         assembly {
-          if eq(isCreate, 0) {
-              _callBytes := sub(_callBytes, 4)
-              mstore8(_callBytes, shr(24, methodId))
-              mstore8(add(_callBytes, 1), shr(16, methodId))
-              mstore8(add(_callBytes, 2), shr(8, methodId))
-              mstore8(add(_callBytes, 3), methodId)
-              // And now set the ovmEntrypoint
-              mstore(add(_callBytes, 4), _ovmEntrypoint)
-          }
-          if eq(isCreate, 1) {
-            _callBytes := add(_callBytes, 28)
+            if eq(isCreate, 0) {
+                _callBytes := sub(_callBytes, 4)
+                // And now set the ovmEntrypoint
+                mstore(add(_callBytes, 4), _ovmEntrypoint)
+            }
+            if eq(isCreate, 1) {
+                _callBytes := add(_callBytes, 28)
+            }
             mstore8(_callBytes, shr(24, methodId))
             mstore8(add(_callBytes, 1), shr(16, methodId))
             mstore8(add(_callBytes, 2), shr(8, methodId))
             mstore8(add(_callBytes, 3), methodId)
-          }
         }
 
         address addr = address(this);

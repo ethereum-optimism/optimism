@@ -14,9 +14,11 @@ import {
   OPCODE_WHITELIST_MASK,
 } from '@eth-optimism/ovm'
 
-import { Contract, utils, Wallet } from 'ethers'
+import { Contract, ethers, utils, Wallet } from 'ethers'
 import { Web3Provider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+
+import AsyncLock from 'async-lock'
 
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '.'
@@ -30,9 +32,13 @@ import {
 
 const log = getLogger('web3-handler')
 
+const lockKey: string = 'LOCK'
+
 const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
+  private lock: AsyncLock
+
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * Web3Handler that handles Web3 requests to it.
@@ -59,7 +65,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     private readonly provider: Web3Provider,
     private readonly wallet: Wallet,
     private readonly executionManager: Contract
-  ) {}
+  ) {
+    this.lock = new AsyncLock()
+  }
 
   /**
    * Handles generic Web3 requests.
@@ -71,10 +79,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @throws If the method is not supported or request is improperly formatted.
    */
   public async handleRequest(method: string, params: any[]): Promise<string> {
-    log.debug(`Handling request, method: [${method}], params: [${params}]`)
+    log.debug(
+      `Handling request, method: [${method}], params: [${JSON.stringify(
+        params
+      )}]`
+    )
 
     // Make sure the method is available
-    let response: string
+    let response: any
     let args: any[]
     switch (method) {
       case Web3RpcMethods.blockNumber:
@@ -93,6 +105,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         this.assertParameters(params, 0)
         response = await this.gasPrice()
         break
+      case Web3RpcMethods.getBlockByNumber:
+        args = this.assertParameters(params, 2)
+        response = await this.getBlockByNumber(args[0], args[1])
+        break
       case Web3RpcMethods.getCode:
         args = this.assertParameters(params, 2, latestBlock)
         response = await this.getCode(args[0], args[1])
@@ -100,6 +116,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       case Web3RpcMethods.getExecutionManagerAddress:
         this.assertParameters(params, 0)
         response = await this.getExecutionManagerAddress()
+        break
+      case Web3RpcMethods.getLogs:
+        args = this.assertParameters(params, 1)
+        response = await this.getLogs([0])
         break
       case Web3RpcMethods.getTransactionCount:
         args = this.assertParameters(params, 2, latestBlock)
@@ -118,13 +138,17 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         response = await this.networkVersion()
         break
       default:
-        const msg: string = `Method / params [${method} / ${params}] is not supported by this Web3 handler!`
+        const msg: string = `Method / params [${method} / ${JSON.stringify(
+          params
+        )}] is not supported by this Web3 handler!`
         log.error(msg)
         throw new UnsupportedMethodError(msg)
     }
 
     log.debug(
-      `Request: method [${method}], params: [${params}], got result: [${response}]`
+      `Request: method [${method}], params: [${JSON.stringify(
+        params
+      )}], got result: [${JSON.stringify(response)}]`
     )
     return response
   }
@@ -212,6 +236,23 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return '0x0'
   }
 
+  public async getBlockByNumber(
+    defaultBlock: string,
+    fullObjects: boolean
+  ): Promise<any> {
+    log.debug(`Got request to get block ${defaultBlock}.`)
+    const res: string = await this.provider.send(
+      Web3RpcMethods.getBlockByNumber,
+      [defaultBlock, fullObjects]
+    )
+    log.debug(
+      `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
+        res
+      )}`
+    )
+    return res
+  }
+
   public async getCode(
     address: Address,
     defaultBlock: string
@@ -240,6 +281,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return this.executionManager.address
   }
 
+  public async getLogs(filter: any): Promise<any[]> {
+    log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
+    const res = await this.provider.send(Web3RpcMethods.getLogs, filter)
+    log.debug(`Log result: [${res}], filter: [${JSON.stringify(filter)}].`)
+    return res
+  }
+
   public async getTransactionCount(
     address: Address,
     defaultBlock: string
@@ -265,6 +313,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       Web3RpcMethods.getTransactionReceipt,
       [internalTxHash]
     )
+
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt = await this.internalTxReceiptToOvmTxReceipt(
       internalTxReceipt
@@ -285,31 +334,34 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
-    log.debug('Sending raw transaction with params:', rawOvmTx)
-    // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
-    const internalTx = await this.ovmTxToInternalTx(rawOvmTx)
-    // Now compute the hash of the OVM transaction which we will return
-    const ovmTxHash = await utils.keccak256(rawOvmTx)
-    const internalTxHash = await utils.keccak256(internalTx)
+    // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
+    return this.lock.acquire(lockKey, async () => {
+      log.debug('Sending raw transaction with params:', rawOvmTx)
+      // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
+      const internalTx = await this.ovmTxToInternalTx(rawOvmTx)
+      // Now compute the hash of the OVM transaction which we will return
+      const ovmTxHash = await utils.keccak256(rawOvmTx)
+      const internalTxHash = await utils.keccak256(internalTx)
 
-    // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
-    await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
+      // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
+      await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
 
-    // Then apply our transaction
-    const returnedInternalTxHash = await this.provider.send(
-      Web3RpcMethods.sendRawTransaction,
-      internalTx
-    )
+      // Then apply our transaction
+      const returnedInternalTxHash = await this.provider.send(
+        Web3RpcMethods.sendRawTransaction,
+        internalTx
+      )
 
-    if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
-      const msg: string = `Interal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
-      log.error(msg)
-      throw Error(msg)
-    }
+      if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
+        const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
+        log.error(msg)
+        throw Error(msg)
+      }
 
-    log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
-    // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
-    return ovmTxHash
+      log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
+      // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
+      return ovmTxHash
+    })
   }
 
   /**
@@ -340,7 +392,11 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private async ovmTxToInternalTx(rawOvmTx: string): Promise<string> {
     // Decode the OVM transaction -- this will be used to construct our internal transaction
     const ovmTx = utils.parseTransaction(rawOvmTx)
-    log.debug(`OVM Transaction being parsed ${JSON.stringify(ovmTx)}`)
+    log.debug(
+      `OVM Transaction being parsed ${rawOvmTx}, parsed: ${JSON.stringify(
+        ovmTx
+      )}`
+    )
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
       throw new Error('Sending to Zero Address disallowed')
@@ -372,6 +428,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ovmTx.s
     )
 
+    log.debug(`EOA calldata: [${internalCalldata}]`)
+
     const internalTx = {
       nonce,
       gasLimit: ovmTx.gasLimit,
@@ -379,6 +437,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       to: this.executionManager.address,
       value: 0,
       data: internalCalldata,
+      chainId: 108,
     }
     log.debug('The internal tx:', internalTx)
     return this.wallet.sign(internalTx)
@@ -460,6 +519,11 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
       ovmEntrypoint = ZERO_ADDRESS
     }
+
+    log.debug(
+      `Generating EOA Calldata: v: [${v}], r: [${r}], s: [${s}], nonce: [${nonce}] entrypoint: [${ovmEntrypoint}], callBytes: [${callBytes}]`
+    )
+
     return this.executionManager.interface.functions['executeEOACall'].encode([
       timestamp,
       queueOrigin,

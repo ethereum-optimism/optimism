@@ -90,6 +90,12 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
       res.contracts[filename][
         contractName
       ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
+      res.contracts[filename][contractName].evm.bytecode.object = remove0x(
+        output.bytecode || ''
+      )
+      res.contracts[filename][
+        contractName
+      ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
 
       if (!!output.errors) {
         if (!res.errors) {
