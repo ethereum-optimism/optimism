@@ -13,7 +13,7 @@ import {
 } from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
-import { Provider, TransactionReceipt } from 'ethers/providers'
+import { Provider, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import { Transaction } from 'ethers/utils'
 
 /* Contract Imports */
@@ -26,6 +26,23 @@ export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000
 
 const log = getLogger('helpers', true)
 
+/**
+ * Helper function to ensure GoVM is connected
+ */
+export const ensureGovmIsConnected = async (provider: JsonRpcProvider) => {
+  let connected
+  try {
+    connected = (await provider.send('web3_clientVersion', [])).startsWith(
+      'govm'
+    )
+  } catch {
+    connected = false
+  }
+  connected.should.be.equal(
+    true,
+    'Govm is not connected. Please run govm as described [here](https://github.com/op-optimism/go-ethereum/blob/master/OPTIMISM_README.md)'
+  )
+}
 /**
  * Helper function for generating initcode based on a contract definition & constructor arguments
  */
