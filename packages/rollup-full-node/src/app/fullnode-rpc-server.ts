@@ -27,7 +27,6 @@ export class FullnodeRpcServer extends ExpressHttpServer {
   /**
    * Creates the Fullnode RPC server
    *
-   * @param supportedMethods The JSON RPC methods supported by this server
    * @param fullnodeHandler The fullnodeHandler that will fulfill requests
    * @param port Port to listen on.
    * @param hostname Hostname to listen on.

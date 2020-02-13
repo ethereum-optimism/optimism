@@ -91,6 +91,27 @@ export const add0x = (str: string): string => {
 }
 
 /**
+ * Pads the provided string left with the provided string until it is the provided length.
+ * Note: This function accounts for hex strings padding inside of the 0x prefix.
+ *
+ * @param str The string to pad.
+ * @param length The desired resulting string length (excluding 0x prefix).
+ * @param padString The string to pad with.
+ * @returns The padded string.
+ */
+export const padToLength = (
+  str: string,
+  length: number,
+  padString: string = '0'
+): string => {
+  const base: string = remove0x(str)
+  const repeat: number =
+    (length < base.length ? 0 : length - base.length) / padString.length
+  const padded = padString.repeat(repeat) + base
+  return base === str ? padded : add0x(padded)
+}
+
+/**
  * Checks if something is an Object
  * @param obj Thing that might be an Object.
  * @returns `true` if the thing is a Object, `false` otherwise.
@@ -163,11 +184,16 @@ export const hexStrToBuf = (hexString: string): Buffer => {
 /**
  * Converts the provided buffer into a hex string.
  * @param buff The buffer.
+ * @param prepend0x Whether or not to prepend '0x' to the resulting string.
  * @returns the hex string.
  */
-export const bufToHexString = (buff: Buffer): string => {
+export const bufToHexString = (
+  buff: Buffer,
+  prepend0x: boolean = true
+): string => {
   const bufStr: string = buff.toString('hex')
-  return add0x(bufStr.length % 2 === 0 ? bufStr : `0${bufStr}`)
+  const str: string = bufStr.length % 2 === 0 ? bufStr : `0${bufStr}`
+  return prepend0x ? add0x(str) : str
 }
 
 /**

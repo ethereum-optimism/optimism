@@ -2,7 +2,13 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  padToLength,
+  remove0x,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -136,9 +142,9 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
-        v,
-        r,
-        s
+        padToLength(v, 4),
+        padToLength(r, 64),
+        padToLength(s, 64)
       )
       await provider.waitForTransaction(tx.hash)
     })
@@ -172,9 +178,9 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
-        v,
-        r,
-        s
+        padToLength(v, 4),
+        padToLength(r, 64),
+        padToLength(s, 64)
       )
       await provider.waitForTransaction(tx.hash)
     })

@@ -7,6 +7,7 @@
     "build:truffle": "export EXECUTION_MANAGER_ADDRESS=\"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA\" && truffle compile",
     "build:waffle": "mkdir -p build/waffle && waffle waffle-config.json",
     "build": "yarn build:waffle && yarn build:truffle",
+    "test:truffle": "export EXECUTION_MANAGER_ADDRESS=\"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA\" && truffle test --network fullnode ./truffle-tests/test-erc20.js",
     "all": "yarn clean && yarn build"
   },
   "keywords": [
@@ -27,7 +28,8 @@
     "@eth-optimism/solc-transpiler": "0.0.1-alpha.1",
     "ethereum-waffle": "2.1.0",
     "rimraf": "^2.6.3",
-    "truffle": "^5.1.12"
+    "truffle": "^5.1.12",
+    "truffle-hdwallet-provider": "^1.0.17"
   },
   "publishConfig": {
     "access": "public"
