@@ -2,18 +2,18 @@
 Execution Manager Overview
 ================================
 
-The Execution Manager is technically just a smart contract running in a local EVM (layer 2) and available on Ethereum to evaluate fraud claims (layer 1), but in principle, it is much more. It _is_ the layer 2 EVM, and it allows our Optimistic Rollup implementation to generically support layer 1 smart contracts.
+The Execution Manager is technically just a smart contract running in a local EVM (layer 2) and available on Ethereum to evaluate fraud claims (layer 1), but in principle, it is much more. It *is* the layer 2 EVM, and it allows our Optimistic Rollup implementation to generically support layer 1 smart contracts.
 
 Motivation
 ==========
 
-The `Unipig Demo`_ showed that Optimistic Rollup is possible with custom contract code in both layer 1 and layer 2. 
+The `Unipig Demo <https://unipig.exchange/>`_ showed that Optimistic Rollup is possible with custom contract code in both layer 1 and layer 2.
 Layer 1 contracts each need a custom state transition function that can be given a snapshot of the layer 2 state and a state transition to execute in order to evaluate if the layer 2 state transition was properly executed. A simple state transition function example would be transferring an ERC-20 token. The layer 1 token contract would need a function that takes in pre-state (i.e. address balances, approvals, etc.), evaluates a particular transition (e.g. a transfer), and computes the resulting state (i.e. updated balances). Needless to say, the logic to execute this state transition in layer 2 needed to be created as well.
 
 To support generic smart contracts in layer 1... 
 ------------------------------------------------
 
-We need all state transitions for all possible contracts deployed to layer 2 to be generically calculable by layer 1. The EVM provides this functionality, but layer 1 runs on the EVM -- we need this to run on layer 1 (_on the EVM_). If we can create an EVM that can run _inside_ of the EVM, all standard EVM operations can be executed efficiently in this layer 2 EVM while also being generically verifiable in the case of fraud in layer 1 (by calling the EVM within the layer 1 EVM).
+We need all state transitions for all possible contracts deployed to layer 2 to be generically calculable by layer 1. The EVM provides this functionality, but layer 1 runs on the EVM -- we need this to run on layer 1 (*on the EVM*). If we can create an EVM that can run *inside* of the EVM, all standard EVM operations can be executed efficiently in this layer 2 EVM while also being generically verifiable in the case of fraud in layer 1 (by calling the EVM within the layer 1 EVM).
 
 To support generic smart contracts in layer 2...
 ------------------------------------------------
@@ -41,16 +41,16 @@ As stated above, the Execution Manager is a smart contract that runs in a [sligh
 Transaction Context & Re-implementing Opcodes
 ---------------------------------------------
 
-Transactions that are run in layer 2 will necessarily have a different context than fraud proofs in layer 1. For instance, a fraud proof can only be submitted to layer 1 to dispute a layer 2 transaction some time after it has been executed. As such, opcodes like `TIMESTAMP` will _function_ the same (it'll be the timestamp when the transaction was actually executed), but the actual current time will not _be_ the same when executed in layer 1 vs challenged as fraudulent layer 2.
+Transactions that are run in layer 2 will necessarily have a different context than fraud proofs in layer 1. For instance, a fraud proof can only be submitted to layer 1 to dispute a layer 2 transaction some time after it has been executed. As such, opcodes like `TIMESTAMP` will *function* the same (it'll be the timestamp when the transaction was actually executed), but the actual current time will not *be* the same when executed in layer 1 vs challenged as fraudulent layer 2.
 
 .. raw:: html
 
    <img src="https://i.imgur.com/cOhmFRo.png" alt="The Execution Manager">
 
 
-To handle this, the OVM ExecutionManager Contract implements these opcodes as functions. When a contract executing in layer 2 or a fraud proof executing in layer 1 needs to know the timestamp, it will call the OVM ExecutionManager Contract instead of accessing these layer-1-protocol-level opcodes directly. We have [transpilation tools](https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details) that take compiled layer 1 bytecode and swap out certain opcodes, like `TIMESTAMP`, for calls to our OVM ExecutionManager Contract. All contracts deployed to layer 2 must be transpiled accordingly.
+To handle this, the OVM ExecutionManager Contract implements these opcodes as functions. When a contract executing in layer 2 or a fraud proof executing in layer 1 needs to know the timestamp, it will call the OVM ExecutionManager Contract instead of accessing these layer-1-protocol-level opcodes directly. We have `transpilation tools <https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details>`_ that take compiled layer 1 bytecode and swap out certain opcodes, like `TIMESTAMP`, for calls to our OVM ExecutionManager Contract. All contracts deployed to layer 2 must be transpiled accordingly.
 
-In our example, the sequencer that commits to a layer 2 transaction passes the timestamp at the time of execution to the OVM ExecutionManager Contract with the transaction to evaluate. They also specify the same timestamp in their rollup block that includes the transaction. This way, when the fraud proof is executed, the same timestamp from the rollup block will be set in the OVM ExecutionManager Contract prior to evaluating fraud so that the context that was committed to can be accessed correctly. More on timestamp considerations [here](https://github.com/op-optimism/optimistic-rollup/wiki/MVOVM-State-Specification).
+In our example, the sequencer that commits to a layer 2 transaction passes the timestamp at the time of execution to the OVM ExecutionManager Contract with the transaction to evaluate. They also specify the same timestamp in their rollup block that includes the transaction. This way, when the fraud proof is executed, the same timestamp from the rollup block will be set in the OVM ExecutionManager Contract prior to evaluating fraud so that the context that was committed to can be accessed correctly. More on timestamp considerations `here <https://github.com/op-optimism/optimistic-rollup/wiki/MVOVM-State-Specification>`_.
 
 CALL
 ----
@@ -62,7 +62,7 @@ SSTORE & SLOAD
 
 The last example to highlight is that `SSTORE` and `SLOAD` also need to be transpiled into calls to the OVM ExecutionManager Contract. Recall that one of the requirements is that the OVM ExecutionManager Contract needs to store all layer 2 state. This is so rollup blocks can commit to single pre-state and post-state roots and the fraud proof's pre- and post-state can be verified and executed through the OVM ExecutionManager Contract on layer 1 during fraud proofs.
 
-A list of transpiled opcodes and other transpilation details are available [here](https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details).
+A list of transpiled opcodes and other transpilation details are available `here <https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details>`_.
 
 Example: A user trading ETH for BAT on Uniswap
 ==============================================
@@ -95,7 +95,7 @@ Uniswap / BAT Contract interaction
 9. The OVM ExecutionManager Contract restores the call context such that the `CALLER` is the original caller, the `ADDRESS` is the Uniswap contract, etc.
 10. The OVM ExecutionManager Contract returns the result to the Uniswap contract.
 11. The Uniswap contract then calls the BAT contract, through the OVM ExecutionManager Contract again, to actually execute the transfer of the calculated amount of BAT 
-12. The Uniswap contract makes a final call to the BAT contract, through the OVM ExecutionManager Contract, to transfer the WETH [all ETH in layer 2 is WETH](https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details#eth-native-value).
+12. The Uniswap contract makes a final call to the BAT contract, through the OVM ExecutionManager Contract, to transfer the WETH `all ETH in layer 2 is WETH <https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details#eth-native-value>`_.
 13. The Uniswap returns the number of tokens bought.
 14. The OVM ExecutionManager Contract restores the original call context before the original call to the Uniswap contract and returns the result.
 
@@ -120,5 +120,3 @@ Not mentioned above:
 
 
 *The layer 2 EVM will be run by the Sequencer that submits new layer 2 "blocks" to layer 1, validators who validate these blocks once submitted to layer 1, and any other interested party. Validation entails executing each individual state transition that is claimed to be valid by the Sequencer and ensuring that it is, in fact, valid (i.e. the resulting state from executing the state transition match the post-state claimed by the Sequencer).
-
-.._`Unipig Demo`: https://unipig.exchange/

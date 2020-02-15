@@ -15,7 +15,7 @@ The following opcodes perform stack operations which are constant in terms of L1
 - Arithmetic/pure-math opcodes: 
    - ``ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYT, SHL, SHR, SAAR, SHA3``.
 - "Pure" code execution operations: 
-   - ``PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*``.  \* NOTE: [See section](https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation) which involves ``JUMPDEST``s.
+   - ``PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*``.  \* NOTE: `See section <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ which involves ``JUMPDEST``s.
 - "Pure" memory modifying operations: 
    - ``MLOAD, MSTORE, MSTORE8, MSIZE``.
 - Permitted execution-context-dependent operations: 
@@ -28,19 +28,46 @@ The following opcodes need to be dealt with at transpilation time to work with t
 ### Non-memory-utilizing Opcodes
 These opcodes do not modify memory over the course of execution but do need to be transpiled to be compatible with the Execution Manager.  They all utilize a bytecode replacement function, named ``callContractWithStackElementsAndReturnWordToStack(...)`` in the transpiler, that calls the Execution Manager to fulfill their logic. This function passes any stack elements consumed by the opcode as calldata to the associated Execution Manager function and pushes the result to the stack.
 
-| __Opcode__ | __Description__ | __Num Stack Arguments To Pass__ | __Num Stack Elements Returned__ |
-|-------------|------------|------------|------------|
-| ``ADDRESS``         | Returns the address of the currently execution contract.  Needs to be modified since on L1 this would be the code contract's address, but on L2 it will be an OVM address.     | 0      | 1 |
-| ``CALLER``*         | This is ``msg.sender`` in solidity. Needs to be modified since on L1 this would be the Execution Manager's address, but on L2 it is meant to be an OVM address. | 0     | 1  |
-| ``EXTCODESIZE``         | This gets the size of an external contract's code. Needs to be modified on L2 since it is meant to accept an OVM address which doesn't exist on L1. | 1 (``addr``)     | 1  |
-| ``EXTCODEHASH``         | This gets the size of an external contract's code. Needs to be modified on L2 since it is meant to accept an OVM address which doesn't exist on L1. | 1 (``addr``)     | 1  |
-| ``TIMESTAMP``**         | This gets the timestamp of the current block (in Solidity: ``block.timestamp``).  Needs to be transpiled to the ``ovmTIMESTAMP``. | 0     | 1  |
-| ``SLOAD``         | This gets the value of a storage slot at the first stack input (``key``). Needs to be transpiled to ``ovmSLOAD`` instead. | 1 (``key``)     | 1  |
-| ``SSTORE``         | This gets the value of a storage slot at the first stack input (``key``). Needs to be transpiled to ``ovmSSTORE`` instead. | 2 (``key, value``)     | 0  |
+.. list-table::
+    :widths: 15 65 5 5
+    :header-rows: 1
+
+    * - Opcode
+      - Description
+      - Num Stack Arguments to Pass
+      - Num Stack Elements Returned
+    * - ``ADDRESS``
+      - Returns the address of the currently execution contract.  Needs to be modified since on L1 this would be the code contract's address, but on L2 it will be an OVM address.
+      - 0
+      - 1
+    * - ``CALLER``\*
+      - This is ``msg.sender`` in solidity. Needs to be modified since on L1 this would be the Execution Manager's address, but on L2 it is meant to be an OVM address.
+      - 0
+      - 1
+    * - ``EXTCODESIZE``
+      - This gets the size of an external contract's code. Needs to be modified on L2 since it is meant to accept an OVM address which doesn't exist on L1.
+      - 1 (``addr``)
+      - 1
+    * - ``EXTCODEHASH``
+      - This gets the size of an external contract's code. Needs to be modified on L2 since it is meant to accept an OVM address which doesn't exist on L1.
+      - 1 (``addr``)
+      - 1
+    * - ``TIMESTAMP``\*\*
+      - This gets the timestamp of the current block (in Solidity: ``block.timestamp``).  Needs to be transpiled to the ``ovmTIMESTAMP``.
+      - 0
+      - 1
+    * - ``SLOAD``
+      - This gets the value of a storage slot at the first stack input (``key``). Needs to be transpiled to ``ovmSLOAD`` instead.
+      - 1 (``key``)
+      - 1
+    * - ``SSTORE``
+      - This gets the value of a storage slot at the first stack input (``key``). Needs to be transpiled to ``ovmSSTORE`` instead.
+      - 2 (``key, value``)
+      - 0
 
 \* Note 1: we are currently using metatransactions, having no EOAs, and assuming all transactions are handled with account abstraction.  Because of this, at the initial entry point of a rollup transaction, ``CALLER`` will revert the transaction--unlike the EVM's usual behavior.
 
-\*\* Note 2: The timestamp will correspond to the timestamp of the ORU block, and not any L1 Ethereum block. We will need to properly communicate this to developers. See: the [MVOVM State Specification](https://github.com/op-optimism/optimistic-rollup/wiki/MVOVM-State-Specification) for more details about the ORU timestamp.
+\*\* Note 2: The timestamp will correspond to the timestamp of the ORU block, and not any L1 Ethereum block. We will need to properly communicate this to developers. See: the `MVOVM State Specification <https://github.com/op-optimism/optimistic-rollup/wiki/MVOVM-State-Specification>`_ for more details about the ORU timestamp.
 
 Memory-reading opcodes
 -----------------------
@@ -57,17 +84,24 @@ These opcodes write to, but do not require reading from, the current execution's
 
 To replace Call-type opcodes, we have to pass an existing slice of ``calldata`` at ``argOffset, argLength``, along with the ``methodId`` and ``target`` address.  The typescript function ``getCallTypeReplacement(...)`` handles these replacements, dynamically prepending the ``methodId`` and ``addr`` stack input to the existing ``calldata`` memory, updating the CALL's ``argOffset`` and ``argLength`` as necessary and routing the CALL to the appropriate Execution Manager function.  Because ``STATICCALL`` and ``DELEGATECALL`` do not have a ``value`` stack input, the function accepts as an argument ``stackPositionOfCallArgsMemOffset: number`` to locate the memory parameters.
 
-| Opcode       | ``stackPositionOfCallArgsMemOffset`` |
-|--------------|----------------------------------|
-| CALL         | 3                                |
-| STATICCALL   | 2                                |
-| DELEGATECALL | 2                                |
+.. list-table::
+    :widths: 50 50
+    :header-rows: 1
+
+    * - Opcode
+      - ``stackPositionOfCallArgsMemOffset``
+    * - ``CALL``
+      - 3
+    * - ``STATICCALL``
+      - 2
+    * - ``DELEGATECALL``
+      - 2
 
 Special cases: ``CODECOPY`` and ``JUMP``s
 -----------------------
 
 There are two functions which are "Pure code execution operations" just like ``CODESIZE``, ``REVERT``, etc., however, they are used by the Solidity compiler in ways which the transpilation process affects, and need to be dealt with in the transpiler.
-- Because we are inserting bytecode, we are changing the index of every ``JUMPDEST`` proceeding each insertion operation.  This means our ``JUMP`` and ``JUMPI`` values need to be transpiled or they will fail/go to the wrong place.  We handle this by making all ``JUMP``s go to new bytecode that we append at the end that simply contains a mapping from untranspiled ``JUMPDEST`` bytecode location to transpiled ``JUMPDEST`` bytecode location.  The logic finds the new location and ``JUMP``s to it.  See the ["JUMP Modification" page](https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation) for more details. 
+- Because we are inserting bytecode, we are changing the index of every ``JUMPDEST`` proceeding each insertion operation.  This means our ``JUMP`` and ``JUMPI`` values need to be transpiled or they will fail/go to the wrong place.  We handle this by making all ``JUMP``s go to new bytecode that we append at the end that simply contains a mapping from untranspiled ``JUMPDEST`` bytecode location to transpiled ``JUMPDEST`` bytecode location.  The logic finds the new location and ``JUMP``s to it.  See the `"JUMP Modification" page <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ for more details.
 - The opcode ``CODECOPY`` would work fine, in principle, in our code contracts, and its effect on execution is independent of L1 state.  However, because ``CODECOPY`` is used to retrieve Solidity constants, we'll need to deal with it in the transpiler.  We have not yet implemented this.  If this is the only way in which ``CODECOPY`` is used by solidity, then this will be easy.  If not... we'll cross that bridge then.
 
 Banned Opcodes
@@ -79,8 +113,10 @@ Opcodes which could later be implemented
 -----------------------------------------
 
 These opcodes are banned simply because we don't want to support them currently.
+
 ETH-native Value
 -----------------------------------------
+
 We have made the decision for now not to use native ETH, and instead do everything with wrapped ETH (WETH).  Note: ``CALLVALUE`` is actually able to be whitelisted, because our Purity Checker enforces that all Calls are made with a value of 0. Contracts are welcome to use msg.value, it will just always return 0. This means that the following opcodes are banned, not just transpiled:
 - ``BALANCE`` -- gets ``address(this).balance``
 While not a ban, another note here is that all ``value``-related inputs to other opcodes like ``CREATE`` or ``CALL`` are overridden to ``0`` by their transpiled counterparts.  We do have good inline documentation for how a native ``value`` could be added if needed.  Another option is we could even transpile the native ETH opcodes to use ``WETH`` instead.  TBD.

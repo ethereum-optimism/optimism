@@ -11,7 +11,7 @@ Integrating the OVM Transpiler
 Installing
 -----------
 
-Both `truffle` and `ethereum-waffle` allow you to specify a custom replacement for `solc`.  First, you'll need to install ``@eth-optimism/solc-transpiler``:
+Both ``truffle`` and ``ethereum-waffle`` allow you to specify a custom replacement for ``solc-js``.  First, you'll need to install ``@eth-optimism/solc-transpiler``:
 
 .. code-block:: none
 

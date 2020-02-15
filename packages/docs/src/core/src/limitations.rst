@@ -18,7 +18,7 @@ Our transpiler does not currently support the usage of libraries in solidity -- 
 
 TX.origin
 -------------
-Msg.sender is supported by the OVM, but ``tx.origin`` is not yet.  Staye tuned--it's coming soon!
+Msg.sender is supported by the OVM, but ``tx.origin`` is not yet.  Stay tuned--it's coming soon!
 
 Parent/Child chain communication
 -------------
