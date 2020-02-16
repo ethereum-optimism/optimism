@@ -12,14 +12,15 @@ Pure Opcodes
 ============
 
 The following opcodes perform stack operations which are constant in terms of L1/L2 state, and do not require modification:
+
 - Arithmetic/pure-math opcodes: 
-   - ``ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYT, SHL, SHR, SAAR, SHA3``.
-- "Pure" code execution operations: 
-   - ``PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*``.  \* NOTE: `See section <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ which involves ``JUMPDEST``s.
+    - ``ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYT, SHL, SHR, SAAR, SHA3``.
+- \"Pure\" code execution operations: 
+   - ``PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*``.  \* NOTE: `See section <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ which involves ``JUMPDEST`` s.
 - "Pure" memory modifying operations: 
    - ``MLOAD, MSTORE, MSTORE8, MSIZE``.
 - Permitted execution-context-dependent operations: 
-   - ``CALLVALUE*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY, CODESIZE, RETURNDATASIZE, RETURNDATACOPY``   \*Note: ``CALLVALUE`` will always be 0 because we enforce that all ``CALL``s always pass 0 in our purity checking.
+   - ``CALLVALUE*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY, CODESIZE, RETURNDATASIZE, RETURNDATACOPY``   \*Note: ``CALLVALUE`` will always be 0 because we enforce that all ``CALL`` s always pass 0 in our purity checking.
 
 Replaced Opcodes
 ================
@@ -97,12 +98,13 @@ To replace Call-type opcodes, we have to pass an existing slice of ``calldata`` 
     * - ``DELEGATECALL``
       - 2
 
-Special cases: ``CODECOPY`` and ``JUMP``s
------------------------
+Special cases: ``CODECOPY`` and ``JUMP`` s
+------------------------------------------
 
 There are two functions which are "Pure code execution operations" just like ``CODESIZE``, ``REVERT``, etc., however, they are used by the Solidity compiler in ways which the transpilation process affects, and need to be dealt with in the transpiler.
-- Because we are inserting bytecode, we are changing the index of every ``JUMPDEST`` proceeding each insertion operation.  This means our ``JUMP`` and ``JUMPI`` values need to be transpiled or they will fail/go to the wrong place.  We handle this by making all ``JUMP``s go to new bytecode that we append at the end that simply contains a mapping from untranspiled ``JUMPDEST`` bytecode location to transpiled ``JUMPDEST`` bytecode location.  The logic finds the new location and ``JUMP``s to it.  See the `"JUMP Modification" page <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ for more details.
-- The opcode ``CODECOPY`` would work fine, in principle, in our code contracts, and its effect on execution is independent of L1 state.  However, because ``CODECOPY`` is used to retrieve Solidity constants, we'll need to deal with it in the transpiler.  We have not yet implemented this.  If this is the only way in which ``CODECOPY`` is used by solidity, then this will be easy.  If not... we'll cross that bridge then.
+
+  - Because we are inserting bytecode, we are changing the index of every ``JUMPDEST`` proceeding each insertion operation.  This means our ``JUMP`` and ``JUMPI`` values need to be transpiled or they will fail/go to the wrong place.  We handle this by making all ``JUMP`` s go to new bytecode that we append at the end that simply contains a mapping from untranspiled ``JUMPDEST`` bytecode location to transpiled ``JUMPDEST`` bytecode location.  The logic finds the new location and ``JUMP`` s to it.  See the `"JUMP Modification" page <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ for more details.
+  - The opcode ``CODECOPY`` works fine, in principle, in our code contracts, as its effect on execution is independent of L1 state.  However, because that code itself is modified by transpilation, we need to deal with it in the transpiler.  See our ``CODECOPY`` `section`_ for how we handle these modifications.
 
 Banned Opcodes
 ==============
@@ -138,3 +140,4 @@ Others
 - ``COINBASE`` -- since we don't have inflation in L2
 - ``DIFFICULTY`` -- since there is no sense of difficulty in L2.  An analogous value in L2 is actually the MEVA price, but it's not so analogous that transpiling would make any sense.
 
+.. _`section`: ./codecopy.html

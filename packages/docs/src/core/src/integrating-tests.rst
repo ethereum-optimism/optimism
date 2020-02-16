@@ -5,6 +5,8 @@ If you're interested in testing your contracts running on the OVM, then you're i
 
 There are two steps you need to take to get your contracts running on the ovm: using ``@eth-optimism/solc-transpiler`` in place of ``solc`` so your contracts can be transpiled into OVM-compatible versions, and using ``@eth-optimism/rollup-full-node`` as your web3 provider.
 
+For reference, example integrations for both Truffle and Waffle can be found `in our monorepo`_ .
+
 Integrating the OVM Transpiler
 ==============================
 
@@ -26,7 +28,8 @@ or
 
 ``@eth-optimism/solc-transpiler`` Accepts the same compiler options as as ``solc``, with one additional option, ``executionManagerAddress``.  The Execution Manager is a smart contract implementing the OVM's containerization functionality.  If you are using an unmodified ``rollup-full-node``, the default execution manager address is ``0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA``.  More info on the execution manager can be found here. (link)
 
-*With Waffle:*
+Using With Waffle
+-----------------
 
 To use the transpiler with ``ethereum-waffle``, set the ``solc.version`` configuration to ``""@eth-optimism/solc-transpiler"`` and ``compilerOptions.executionManagerAddress`` to ``"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"``.
 
@@ -41,36 +44,77 @@ example waffle-config.json:
     }
   }
   
-*With Truffle:*
+Using With Truffle
+------------------
 
-To use the transpiler with Truffle, set truffle's ``compilers.solc.version`` configuration to ``@eth-optimism/solc-transpiler``.
+To use the transpiler with Truffle, set truffle's ``compilers.solc.version`` configuration to ``@eth-optimism/solc-transpiler``, and configure the ``EXECUTION_MANAGER_ADDRESS`` environment variable. 
+
+Currently, Truffle does not provide a clean way to use custom chain IDs, so we also need a custom function in Truffle's configuration file.
 
 example truffle-config.json:
 
-.. code-block:: none
+.. code-block:: json
 
-  // Note, will need EXECUTION_MANAGER_ADDRESS environment variable set.
-  // Default is "0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"
+  const HDWalletProvider = require('truffle-hdwallet-provider');
+
+  const mnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat';
+
+  // Set this to the desired Execution Manager Address -- required for the transpiler
+  process.env.EXECUTION_MANAGER_ADDRESS = process.env.EXECUTION_MANAGER_ADDRESS || "0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"
+
   module.exports = {
-    compilers: {
-      solc: {
+  /**
+   * Note: this expects the local fullnode to be running:
+   * // TODO: Run `yarn server:fullnode` in rollup-full-node before executing this test
+   *
+   * To run tests:
+   * $ truffle test ./truffle-tests/test-erc20.js --config truffle-config-ovm.js
+   */
+  networks: {
+    // Note: Requires running the rollup-full-node locally.
+    test: {
+      network_id: 108,
+      provider: function() {
+        const wallet = new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10);
+        const sendAsync = wallet.sendAsync
+
+        wallet.sendAsync = function (...args) {
+          if (args[0].method === 'eth_sendTransaction') {
+            // HACK TO PROPERLY SET CHAIN ID
+            args[0].params[0].chainId = 108
+          }
+          sendAsync.apply(this, args)
+        };
+        return wallet;
+      },
+      gasPrice: 0,
+      gas: 9000000,
+    },
+  },
+
+  // Set default mocha options here, use special reporters etc.
+  mocha: {
+    timeout: 100000
+  },
+
+  compilers: {
+    solc: {
       // Add path to the solc-transpiler
       version: "@eth-optimism/solc-transpiler",
-      }
     }
   }
+}
 
-Truffle does not expose compiler options, so the execution manager address must be passed in with an environment variable, called ``EXECUTION_MANAGER_ADDRESS``.  One easy way to do this is run tests with 
+As you can see in the above comments, you must spin up the rollup full node before running truffle tests:
 
-.. code-block:: none
+.. code-block:: bash
 
-    $   env EXECUTION_MANAGER_ADDRESS="0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA" [test command]
-
+  [TODO insert actual command]
 
 Currently, ``rollup-full-node`` breaks Truffle's ``gasLimit`` and ``blockGasLimit``.  To avoid this, you can set both to ``undefined`` where they are used.
 
 Integrating the OVM Full Node
-------------------------------
+==============================
 
 To use your transpiled contracts, you need to use ``@eth-optimism/rollup-full-node`` as your web3 provider.  To do this, make sure it's installed:
 
@@ -84,11 +128,12 @@ or
 
     npm install --save @eth-optimism/rollup-full-node
 
-
 To get your provider and some wallets:
 
-.. code-block:: none
+.. code-block:: javascript
 
     const RollupFullNode = require("@eth-optimism/rollup-full-node")
-    const provider = RollupFullNode.getMockOVMProvider()
+    const provider = RollupFullNode.getMockProvider()
     const wallets = RollupFullNode.getWallets(provider)
+
+.. _`in our monorepo`: https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/examples
