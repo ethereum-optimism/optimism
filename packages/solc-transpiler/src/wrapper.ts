@@ -1,11 +1,14 @@
 /* Internal Imports */
-import * as packageJson from '../package.json'
 import { compile } from './compiler'
 
+const version = process.env.npm_package_version
+  ? process.env.npm_package_version
+  : 'default.version'
+
 export const wrapper = {
-  version: () => packageJson.version,
-  semver: () => packageJson.version,
-  license: () => packageJson.version,
+  version: () => version,
+  semver: () => version,
+  license: () => version,
   compile,
   compileStandard: compile,
   compileStandardWrapper: compile,
