@@ -6,8 +6,9 @@ The core functionality of the OVM is to run transactions in such a way that they
 
 To accomplish this, there are two critical smart contracts: the Execution Manager, and the Purity Checker.
 
+*****************
 Execution Manager
------------------
+*****************
 
 The execution manager serves as a state and execution container for exeecuting OVM transactions.  To run an OVM transaction, it is sent as calldata an execution manager (running either on or off-chain).  Before passing this transaction to the execution manager, you can set all properties of the OVM state: contract storage, what contracts exist, the timestamp, and so on.  By configuring the execution manager to a particular state before running an OVM transaction through it, we are able to simulate how the transaction *was supposed to behave* given that configured state.  For example, in an optimistic rollup fraud proof, if block ``N+1`` with transaction ``T`` was fraudulent, we are able to configure the execution manager with the previous ``stateN`` (``executionManager.setContext(stateN)``), call ``executionManager.executeTransaction(T)``, and compare the output to the fraudulent ``stateN+1``.
 
@@ -17,9 +18,9 @@ The execution manager interfaces with "code contracts," which are contracts comp
 
    <img src="../../_static/images/execution-manager.png" alt="The Execution Manager">
 
-
+**************
 Purity Checker
---------------
+**************
 
 To ensure that the execution of an OVM transaction is deterministic between L1 and L2, we must enforce that **only** the container interface described above is used.  To accomplish this, we have a "purity checker."  The purity checker analyzes the low-level assembly bytecode of an EVM contract to tell the execution manager whether the code conforms to the OVM interface.  If it does not, then the execution manager does not allow such a contract to be created or used in a fraud proof.
 
@@ -28,7 +29,8 @@ To ensure that the execution of an OVM transaction is deterministic between L1 a
    <img src="../../_static/images/purity-checker.png" alt="The Execution Manager">
 
 
+**********
 Transpiler
-----------
+**********
 
 Because smart contracts are not normally compiled to comply with any containerization interface, we have a transpiler which takes low-level EVM assembly, detects the usage of any stateful opcodes, and converts them into calls to the relevant Execution Manager method.  There's a lot more that goes into doing that, which you can read about below.
