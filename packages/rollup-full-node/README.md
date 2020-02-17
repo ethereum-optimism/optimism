@@ -18,8 +18,11 @@ Overrides will be read from environment variables with the same key.
 
 `/config/parity/local-chain-config.json` configures the local parity chain. This should not normally need modification.
 
-# Running the Server
-Run `yarn server` to run the aggregator server.
+# Running the Aggregator Server
+Run `yarn server:aggregator` to run the aggregator server.
+
+# Running the Fullnode Server
+Run `yarn server:fullnode` to run the fullnode server.
 
 # Running a Persistent Chain
 Run `./exec/startChain.sh` to start a local persistent blockchain.
