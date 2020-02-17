@@ -29,7 +29,7 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/solc-transpiler": "0.0.1-alpha.7",
+    "@eth-optimism/solc-transpiler": "~0.0.1-alpha.7",
     "ethereum-waffle": "2.1.0",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12",
