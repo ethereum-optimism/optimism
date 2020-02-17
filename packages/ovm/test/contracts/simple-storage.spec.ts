@@ -19,12 +19,7 @@ import {
   executeUnsignedEOACall,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
-import {
-  convertInternalLogsToOvmLogs,
-  CHAIN_ID,
-  GAS_LIMIT,
-  OPCODE_WHITELIST_MASK,
-} from '../../src/app'
+import { CHAIN_ID, GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
 const log = getLogger('simple-storage', true)
 

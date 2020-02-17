@@ -3,7 +3,10 @@ const HDWalletProvider = require('truffle-hdwallet-provider');
 const mnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat';
 
 // Set this to the desired Execution Manager Address -- required for the transpiler
-process.env.EXECUTION_MANAGER_ADDRESS = process.env.EXECUTION_MANAGER_ADDRESS || "0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"
+process.env.EXECUTION_MANAGER_ADDRESS = process.env.EXECUTION_MANAGER_ADDRESS || "0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA";
+const gasPrice = process.env.OVM_DEFAULT_GAS_PRICE || 0;
+const gas = process.env.OVM_DEFAULT_GAS || 9000000;
+const chainId = process.env.OVM_CHAIN_ID || 108;
 
 module.exports = {
   /**
@@ -24,14 +27,14 @@ module.exports = {
         wallet.sendAsync = function (...args) {
           if (args[0].method === 'eth_sendTransaction') {
             // HACK TO PROPERLY SET CHAIN ID
-            args[0].params[0].chainId = 108
+            args[0].params[0].chainId = chainId
           }
           sendAsync.apply(this, args)
         };
         return wallet;
       },
-      gasPrice: 0,
-      gas: 9000000,
+      gasPrice: gasPrice,
+      gas: gas,
     },
   },
 

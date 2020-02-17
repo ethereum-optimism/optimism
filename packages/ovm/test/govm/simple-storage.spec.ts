@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { getWallets } from 'ethereum-waffle'
 import { getLogger, add0x } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
@@ -18,14 +18,8 @@ import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
   executeUnsignedEOACall,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
-import {
-  convertInternalLogsToOvmLogs,
-  CHAIN_ID,
-  GAS_LIMIT,
-  OPCODE_WHITELIST_MASK,
-} from '../../src/app'
+import { CHAIN_ID, GAS_LIMIT } from '../../src/app'
 
 const log = getLogger('simple-storage', true)
 

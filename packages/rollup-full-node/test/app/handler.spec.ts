@@ -11,7 +11,6 @@ import {
 } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
 import { ethers, ContractFactory } from 'ethers'
-import { getWallets } from 'ethereum-waffle'
 import { FullnodeHandler } from '../../src/types'
 
 const log = getLogger('ethnode-proxy', true)

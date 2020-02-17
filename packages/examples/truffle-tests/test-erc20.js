@@ -47,4 +47,22 @@ contract('TestERC20', accounts => {
         const account2Balance = await erc20.balanceOf.call(account2);
         assert.equal(account2Balance, 0, 'Account balance mismatch after transfer!');
     });
+
+    it('cannot transfer without sufficient balance', async () => {
+        let threw = false;
+        try {
+            await erc20.transfer(account, transferValue, {from: account2});
+        } catch (e) {
+            threw = true;
+        }
+        assert.equal(threw, true, "This should have thrown because account 2 doesn't have sufficient funds!")
+    });
+
+    it('has correct nonce after failure -- send from 1 to 2', async () => {
+        try {
+            await erc20.transfer(account2, transferValue, {from: account});
+        } catch (e) {
+            assert.fail('This transaction should not fail.')
+        }
+    });
 });

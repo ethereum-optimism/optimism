@@ -1,14 +1,5 @@
 /* External Imports */
-import {
-  AxiosHttpClient,
-  JsonRpcClient,
-  JsonRpcRequest,
-  JsonRpcResponse,
-  JsonRpcSuccessResponse,
-  RpcClient,
-  SimpleClient,
-  getLogger,
-} from '@eth-optimism/core-utils/build/src'
+import { AxiosHttpClient, getLogger } from '@eth-optimism/core-utils/build/src'
 import { AxiosResponse } from 'axios'
 
 /* Internal Imports */

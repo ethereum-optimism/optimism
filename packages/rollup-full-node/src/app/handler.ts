@@ -3,6 +3,7 @@ import { Address } from '@eth-optimism/rollup-core'
 import {
   add0x,
   getLogger,
+  logError,
   remove0x,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
@@ -12,6 +13,8 @@ import {
   convertInternalLogsToOvmLogs,
   L2ExecutionManagerContractDefinition,
   OPCODE_WHITELIST_MASK,
+  LogConversionResult,
+  internalTxReceiptToOvmTxReceipt,
 } from '@eth-optimism/ovm'
 
 import { Contract, ethers, utils, Wallet } from 'ethers'
@@ -51,7 +54,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
     })
   ): Promise<DefaultWeb3Handler> {
-    // Initialize a mock fullnode for us to interact with
+    // Initialize a fullnode for us to interact with
     const [wallet] = getWallets(provider)
     const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
       wallet,
@@ -177,15 +180,26 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       txObject['from']
     )
 
-    // Then actually make the call and get the response
-    const response = await this.provider.send(Web3RpcMethods.call, [
-      {
-        from: ZERO_ADDRESS,
-        to: this.executionManager.address,
-        data: internalCalldata,
-      },
-      defaultBlock,
-    ])
+    let response
+    try {
+      // Then actually make the call and get the response
+      response = await this.provider.send(Web3RpcMethods.call, [
+        {
+          from: ZERO_ADDRESS,
+          to: this.executionManager.address,
+          data: internalCalldata,
+        },
+        defaultBlock,
+      ])
+    } catch (e) {
+      log.debug(
+        `Error executing call: ${JSON.stringify(
+          txObject
+        )}, default block: ${defaultBlock}, error: ${JSON.stringify(e)}`
+      )
+      throw e
+    }
+
     // Now just return the response!
     log.debug(
       `eth_call with request: [${JSON.stringify(
@@ -304,7 +318,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return response
   }
 
-  public async getTransactionReceipt(ovmTxHash: string): Promise<string> {
+  public async getTransactionReceipt(ovmTxHash: string): Promise<any> {
     log.debug('Getting tx receipt for ovm tx hash:', ovmTxHash)
     // First convert our ovmTxHash into an internalTxHash
     const internalTxHash = await this.getInternalTxHash(ovmTxHash)
@@ -315,7 +329,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
 
     // Now let's parse the internal transaction reciept
-    const ovmTxReceipt = await this.internalTxReceiptToOvmTxReceipt(
+    const ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
+      this.executionManager,
       internalTxReceipt
     )
     log.debug(
@@ -337,8 +352,17 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
     return this.lock.acquire(lockKey, async () => {
       log.debug('Sending raw transaction with params:', rawOvmTx)
+
+      // Decode the OVM transaction -- this will be used to construct our internal transaction
+      const ovmTx = utils.parseTransaction(rawOvmTx)
+      log.debug(
+        `OVM Transaction being parsed ${rawOvmTx}, parsed: ${JSON.stringify(
+          ovmTx
+        )}`
+      )
+
       // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
-      const internalTx = await this.ovmTxToInternalTx(rawOvmTx)
+      const internalTx = await this.ovmTxToInternalTx(ovmTx)
       // Now compute the hash of the OVM transaction which we will return
       const ovmTxHash = await utils.keccak256(rawOvmTx)
       const internalTxHash = await utils.keccak256(internalTx)
@@ -346,11 +370,25 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
       await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
 
-      // Then apply our transaction
-      const returnedInternalTxHash = await this.provider.send(
-        Web3RpcMethods.sendRawTransaction,
-        internalTx
-      )
+      let returnedInternalTxHash: string
+      try {
+        // Then apply our transaction
+        returnedInternalTxHash = await this.provider.send(
+          Web3RpcMethods.sendRawTransaction,
+          internalTx
+        )
+      } catch (e) {
+        logError(
+          log,
+          `Error executing transaction. Incrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
+          e
+        )
+
+        await this.executionManager.incrementNonce(add0x(ovmTx.from))
+        log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
+
+        return ovmTxHash
+      }
 
       if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
         const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
@@ -376,7 +414,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     ovmTxHash: string,
     internalTxHash: string
   ): Promise<void> {
-    await this.executionManager.mapOvmTransactionHashToInternalTransactionHash(
+    return this.executionManager.mapOvmTransactionHashToInternalTransactionHash(
       add0x(ovmTxHash),
       add0x(internalTxHash)
     )
@@ -389,14 +427,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   /**
    * OVM tx to EVM tx converter
    */
-  private async ovmTxToInternalTx(rawOvmTx: string): Promise<string> {
-    // Decode the OVM transaction -- this will be used to construct our internal transaction
-    const ovmTx = utils.parseTransaction(rawOvmTx)
-    log.debug(
-      `OVM Transaction being parsed ${rawOvmTx}, parsed: ${JSON.stringify(
-        ovmTx
-      )}`
-    )
+  private async ovmTxToInternalTx(ovmTx: any): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
       throw new Error('Sending to Zero Address disallowed')
@@ -441,35 +472,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     }
     log.debug('The internal tx:', internalTx)
     return this.wallet.sign(internalTx)
-  }
-
-  /**
-   * EVM receipt to OVM receipt converter
-   */
-  private async internalTxReceiptToOvmTxReceipt(
-    internalTxReceipt: any
-  ): Promise<any> {
-    const convertedOvmLogs = convertInternalLogsToOvmLogs(
-      this.executionManager,
-      internalTxReceipt.logs
-    )
-    // Construct a new receipt
-    //
-    // Start off with the internalTxReceipt
-    const ovmTxReceipt = internalTxReceipt
-    // Add the converted logs
-    ovmTxReceipt.logs = convertedOvmLogs.ovmLogs
-    // Update the to and from fields
-    ovmTxReceipt.to = convertedOvmLogs.ovmTo
-    // TODO: Update this to use some default account abstraction library potentially.
-    ovmTxReceipt.from = convertedOvmLogs.ovmFrom
-    // Also update the contractAddress in case we deployed a new contract
-    ovmTxReceipt.contractAddress = convertedOvmLogs.ovmCreatedContractAddress
-    log.debug('Ovm parsed logs:', convertedOvmLogs)
-    // TODO: Fix the logsBloom to remove the txs we just removed
-
-    // Return!
-    return ovmTxReceipt
   }
 
   private static async deployExecutionManager(
