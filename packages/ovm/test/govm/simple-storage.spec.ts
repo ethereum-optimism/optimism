@@ -2,10 +2,10 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { getWallets } from 'ethereum-waffle'
 import { getLogger, add0x } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, ethers } from 'ethers'
-import { TransactionReceipt } from 'ethers/providers'
+import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
@@ -14,12 +14,12 @@ import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 /* Internal Imports */
 import {
+  ensureGovmIsConnected,
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
   executeUnsignedEOACall,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
-import { CHAIN_ID, GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { CHAIN_ID, GAS_LIMIT } from '../../src/app'
 
 const log = getLogger('simple-storage', true)
 
@@ -28,22 +28,28 @@ const log = getLogger('simple-storage', true)
  *********/
 
 describe('SimpleStorage', () => {
-  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
+  const provider = new JsonRpcProvider()
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple storage contract
   let executionManager: Contract
   let simpleStorage: ContractFactory
   let simpleStorageOvmAddress: Address
+  const setStorageMethodId: string = ethereumjsAbi
+    .methodID('setStorage', [])
+    .toString('hex')
+  const getStorageMethodId: string = ethereumjsAbi
+    .methodID('getStorage', [])
+    .toString('hex')
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
+    await ensureGovmIsConnected(provider)
     // Before each test let's deploy a fresh ExecutionManager and SimpleStorage
     // Deploy ExecutionManager the normal way
-    executionManager = await deployContract(
-      wallet,
-      ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
-      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
+    executionManager = new ethers.Contract(
+      process.env.EXECUTION_MANAGER_ADDRESS,
+      ExecutionManager.abi,
+      wallet
     )
 
     // Deploy SimpleStorage with the ExecutionManager
@@ -62,10 +68,6 @@ describe('SimpleStorage', () => {
   })
 
   const setStorage = async (slot, value): Promise<TransactionReceipt> => {
-    const setStorageMethodId: string = ethereumjsAbi
-      .methodID('setStorage', [])
-      .toString('hex')
-
     const innerCallData: string = add0x(`${setStorageMethodId}${slot}${value}`)
     return executeUnsignedEOACall(
       executionManager,
@@ -87,15 +89,9 @@ describe('SimpleStorage', () => {
 
   describe('getStorage', async () => {
     it('correctly loads a value after we store it', async () => {
-      // Create the variables we will use for set & get storage
       const slot = '99'.repeat(32)
       const value = '01'.repeat(32)
       const reciept = await setStorage(slot, value)
-
-      const getStorageMethodId: string = ethereumjsAbi
-        .methodID('getStorage', [])
-        .toString('hex')
-
       const innerCallData: string = add0x(`${getStorageMethodId}${slot}`)
       const nonce = await executionManager.getOvmContractNonce(wallet.address)
       const transaction = {

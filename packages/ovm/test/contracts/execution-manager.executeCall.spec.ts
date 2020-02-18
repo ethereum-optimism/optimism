@@ -2,7 +2,13 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  padToLength,
+  remove0x,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -105,8 +111,45 @@ describe('Execution Manager -- Call opcodes', () => {
     })
   })
 
-  describe('executeCall', async () => {
+  describe('executeEOACall', async () => {
     it('properly executes a raw call -- 0 param', async () => {
+      // Create the variables we will use for setStorage
+      const intParam = 0
+      const bytesParam = '0xdeadbeef'
+      // Generate our tx calldata
+      const calldata = getUnsignedTransactionCalldata(
+        dummyContract,
+        'dummyFunction',
+        [intParam, bytesParam]
+      )
+      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const transaction = {
+        nonce,
+        gasLimit: GAS_LIMIT,
+        gasPrice: 0,
+        to: dummyContractAddress,
+        value: 0,
+        data: calldata,
+        chainId: CHAIN_ID,
+      }
+      const signedMessage = await wallet.sign(transaction)
+      const [v, r, s] = ethers.utils.RLP.decode(signedMessage).slice(-3)
+
+      // Call using Ethers
+      const tx = await executionManager.executeEOACall(
+        0,
+        0,
+        transaction.nonce,
+        transaction.to,
+        transaction.data,
+        padToLength(v, 4),
+        padToLength(r, 64),
+        padToLength(s, 64)
+      )
+      await provider.waitForTransaction(tx.hash)
+    })
+
+    it('increments the senders nonce', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
       const bytesParam = '0xdeadbeef'
@@ -141,6 +184,10 @@ describe('Execution Manager -- Call opcodes', () => {
         s
       )
       await provider.waitForTransaction(tx.hash)
+      const nonceAfter = await executionManager.getOvmContractNonce(
+        wallet.address
+      )
+      nonceAfter.should.equal(parseInt(nonce, 10) + 1)
     })
 
     it('properly executes a raw call -- 1 param', async () => {
@@ -172,9 +219,9 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
-        v,
-        r,
-        s
+        padToLength(v, 4),
+        padToLength(r, 64),
+        padToLength(s, 64)
       )
       await provider.waitForTransaction(tx.hash)
     })

@@ -13,18 +13,65 @@ import {
 } from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
-import { Provider, TransactionReceipt } from 'ethers/providers'
+import { Provider, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import { Transaction } from 'ethers/utils'
 
 /* Contract Imports */
 import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
-import { convertInternalLogsToOvmLogs, GAS_LIMIT, CHAIN_ID } from '../src/app'
+import {
+  convertInternalLogsToOvmLogs,
+  GAS_LIMIT,
+  CHAIN_ID,
+  internalTxReceiptToOvmTxReceipt,
+} from '../src/app'
 
 type Signature = [string, string, string]
 
 export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000
 
 const log = getLogger('helpers', true)
+
+/**
+ * Helper function to ensure GoVM is connected
+ */
+export const ensureGovmIsConnected = async (provider: JsonRpcProvider) => {
+  let connected
+  try {
+    connected = (await provider.send('web3_clientVersion', [])).startsWith(
+      'govm'
+    )
+  } catch {
+    connected = false
+  }
+  connected.should.be.equal(
+    true,
+    'Govm is not connected. Please run govm as described [here](https://github.com/op-optimism/go-ethereum/blob/master/OPTIMISM_README.md)'
+  )
+}
+/**
+ * Helper function for generating initcode based on a contract definition & constructor arguments
+ */
+export const manuallyDeployOvmContractReturnReceipt = async (
+  wallet: Wallet,
+  provider: Provider,
+  executionManager: Contract,
+  contractDefinition,
+  constructorArguments: any[]
+): Promise<TransactionReceipt> => {
+  const initCode = new ContractFactory(
+    contractDefinition.abi,
+    contractDefinition.bytecode
+  ).getDeployTransaction(...constructorArguments).data as string
+
+  const receipt: TransactionReceipt = await executeUnsignedEOACall(
+    executionManager,
+    wallet,
+    undefined,
+    initCode
+  )
+
+  return internalTxReceiptToOvmTxReceipt(executionManager, receipt)
+}
 
 /**
  * Helper function for generating initcode based on a contract definition & constructor arguments
@@ -36,25 +83,14 @@ export const manuallyDeployOvmContract = async (
   contractDefinition,
   constructorArguments: any[]
 ): Promise<Address> => {
-  const contract = new ContractFactory(
-    contractDefinition.abi,
-    contractDefinition.bytecode
-  )
-  const initCode = new ContractFactory(
-    contractDefinition.abi,
-    contractDefinition.bytecode
-  ).getDeployTransaction(...constructorArguments).data as string
-  const result = await executeUnsignedEOACall(
-    executionManager,
+  const receipt = await manuallyDeployOvmContractReturnReceipt(
     wallet,
-    undefined,
-    initCode
-  )
-  const convertedLogs = convertInternalLogsToOvmLogs(
+    provider,
     executionManager,
-    result.logs
+    contractDefinition,
+    constructorArguments
   )
-  return convertedLogs.ovmCreatedContractAddress
+  return receipt.contractAddress
 }
 
 export const executeUnsignedEOACall = async (

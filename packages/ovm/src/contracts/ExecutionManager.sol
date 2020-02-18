@@ -50,6 +50,7 @@ contract ExecutionManager is FullStateManager {
         bytes32 _slot,
         bytes32 _value
     );
+    event EOACallRevert();
 
     /**
      * @notice Construct a new ExecutionManager with a specified purity checker & owner.
@@ -77,6 +78,15 @@ contract ExecutionManager is FullStateManager {
 
         // Set our owner
         // TODO
+    }
+
+    /**
+     * @notice Increments the provided address's nonce.
+     * This is only used by the sequencer to correct nonces when transactions fail.
+     * @param addr The address of the nonce to increment.
+     */
+    function incrementNonce(address addr) external {
+        incrementOvmContractNonce(addr);
     }
 
     /**
@@ -215,38 +225,44 @@ contract ExecutionManager is FullStateManager {
         } else {
             methodId = ovmCallMethodId;
             callSize = _callBytes.length + 32 + 4;
+            // Creates will get incremented, but calls need to be as well!
+            incrementOvmContractNonce(_fromAddress);
         }
 
         assembly {
-          if eq(isCreate, 0) {
-              _callBytes := sub(_callBytes, 4)
-              mstore8(_callBytes, shr(24, methodId))
-              mstore8(add(_callBytes, 1), shr(16, methodId))
-              mstore8(add(_callBytes, 2), shr(8, methodId))
-              mstore8(add(_callBytes, 3), methodId)
-              // And now set the ovmEntrypoint
-              mstore(add(_callBytes, 4), _ovmEntrypoint)
-          }
-          if eq(isCreate, 1) {
-            _callBytes := add(_callBytes, 28)
+            if eq(isCreate, 0) {
+                _callBytes := sub(_callBytes, 4)
+                // And now set the ovmEntrypoint
+                mstore(add(_callBytes, 4), _ovmEntrypoint)
+            }
+            if eq(isCreate, 1) {
+                _callBytes := add(_callBytes, 28)
+            }
             mstore8(_callBytes, shr(24, methodId))
             mstore8(add(_callBytes, 1), shr(16, methodId))
             mstore8(add(_callBytes, 2), shr(8, methodId))
             mstore8(add(_callBytes, 3), methodId)
-          }
         }
 
+        bool success = false;
         address addr = address(this);
         assembly {
             let result := mload(0x40)
-            let success := call(gas, addr, 0, _callBytes, callSize, result, 500000)
+            success := call(gas, addr, 0, _callBytes, callSize, result, 500000)
             let size := returndatasize
 
-            if eq(success, 0) {
-                revert(0, 0)
+            if eq(success, 1) {
+                return(result, size)
             }
+        }
 
-            return(result, size)
+        if (!success) {
+            // We need the tx to succeed even on failure so logs, nonce, etc. are preserved.
+            // This is how we indicate that the tx "failed."
+            emit EOACallRevert();
+            assembly {
+                return(0,0)
+            }
         }
     }
 
@@ -672,13 +688,13 @@ contract ExecutionManager is FullStateManager {
             returnData := mload(0x40)
 
             let success := call(
-              gas,
-              codeAddress,
-              0,
-              _callBytes,
-              callSize,
-              returnData,
-              500000
+                gas,
+                codeAddress,
+                0,
+                _callBytes,
+                callSize,
+                returnData,
+                500000
             )
 
             if eq(success, 0) {
@@ -742,13 +758,13 @@ contract ExecutionManager is FullStateManager {
             returnData := mload(0x40)
 
             let success := call(
-            gas,
-            codeAddress,
-            0,
-            _callBytes,
-            callSize,
-            returnData,
-            500000
+                gas,
+                codeAddress,
+                0,
+                _callBytes,
+                callSize,
+                returnData,
+                500000
             )
 
             returnSize := returndatasize
@@ -806,13 +822,13 @@ contract ExecutionManager is FullStateManager {
             let returnData := mload(0x40)
 
             let success := call(
-            gas,
-            codeAddress,
-            0,
-            _callBytes,
-            callSize,
-            returnData,
-            500000
+                gas,
+                codeAddress,
+                0,
+                _callBytes,
+                callSize,
+                returnData,
+                500000
             )
 
             if eq(success, 0) {
@@ -896,7 +912,7 @@ contract ExecutionManager is FullStateManager {
     function ovmEXTCODESIZE() public view {
         bytes32 _targetAddressBytes;
         assembly {
-        // read calldata, ignoring methodID and first 12 bytes of address
+            // read calldata, ignoring methodID and first 12 bytes of address
             _targetAddressBytes := calldataload(16)
         }
 

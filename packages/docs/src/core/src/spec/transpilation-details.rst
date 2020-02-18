@@ -14,9 +14,15 @@ Pure Opcodes
 The following opcodes perform stack operations which are constant in terms of L1/L2 state, and do not require modification:
 
 - Arithmetic/pure-math opcodes: 
+<<<<<<< HEAD
     - ``ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYT, SHL, SHR, SAAR, SHA3``.
 - \"Pure\" code execution operations: 
    - ``PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*``.  \* NOTE: `See section <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ which involves ``JUMPDEST`` s.
+=======
+   - ``ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYT, SHL, SHR, SAAR, SHA3``.
+- "Pure" code execution operations: 
+   - ``PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*``.  \* NOTE: `See section <https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation>`_ which involves ``JUMPDEST``s.
+>>>>>>> newrepo/master
 - "Pure" memory modifying operations: 
    - ``MLOAD, MSTORE, MSTORE8, MSIZE``.
 - Permitted execution-context-dependent operations: 
@@ -88,6 +94,18 @@ To replace Call-type opcodes, we have to pass an existing slice of ``calldata`` 
 .. list-table::
     :widths: 50 50
     :header-rows: 1
+<<<<<<< HEAD
+=======
+
+    * - Opcode
+      - ``stackPositionOfCallArgsMemOffset``
+    * - ``CALL``
+      - 3
+    * - ``STATICCALL``
+      - 2
+    * - ``DELEGATECALL``
+      - 2
+>>>>>>> newrepo/master
 
     * - Opcode
       - ``stackPositionOfCallArgsMemOffset``
