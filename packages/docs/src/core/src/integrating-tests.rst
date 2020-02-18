@@ -105,11 +105,11 @@ example truffle-config.json:
   }
 }
 
-As you can see in the above comments, you must spin up the rollup full node before running truffle tests:
+As you can see in the above comments, you must spin up the rollup full node before running truffle tests.  To do this, with ``@eth-optimism/rollup-full-node`` installed, you can run:
 
 .. code-block:: bash
 
-  [TODO insert actual command]
+  node rollup-full-node/build/src/exec/fullnode.js
 
 Currently, ``rollup-full-node`` breaks Truffle's ``gasLimit`` and ``blockGasLimit``.  To avoid this, you can set both to ``undefined`` where they are used.
 
