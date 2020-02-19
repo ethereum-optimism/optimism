@@ -24,8 +24,10 @@ import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  didCreateSucceed,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { TransactionReceipt } from 'ethers/providers'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -215,9 +217,12 @@ describe('Execution Manager -- Call opcodes', () => {
 
       log.debug(`RESULT: ${result}`)
 
-      result
-        .substr(2)
-        .length.should.equal(64, 'Should have got a bytes32 address back')
+      const address = remove0x(result)
+      address.length.should.equal(64, 'Should have got a bytes32 address back!')
+      address.length.should.not.equal(
+        '00'.repeat(32),
+        'Should not be 0 address!'
+      )
     })
 
     it('properly executes ovmCALL to CREATE2', async () => {
@@ -231,9 +236,12 @@ describe('Execution Manager -- Call opcodes', () => {
 
       log.debug(`RESULT: ${result}`)
 
-      result
-        .substr(2)
-        .length.should.equal(64, 'Should have got a bytes32 address back')
+      const address = remove0x(result)
+      address.length.should.equal(64, 'Should have got a bytes32 address back!')
+      address.length.should.not.equal(
+        '00'.repeat(32),
+        'Should not be 0 address!'
+      )
     })
   })
 
@@ -415,30 +423,38 @@ describe('Execution Manager -- Call opcodes', () => {
       })
     })
 
-    it('fails on ovmSTATICCALL to CREATE', async () => {
+    it('Fails to create on ovmSTATICCALL to CREATE', async () => {
       const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${createMethodIdAndData}`
 
-      await TestUtils.assertThrowsAsync(async () => {
-        // Note: Send transaction vs call so it is persisted
-        await wallet.sendTransaction({
-          to: executionManager.address,
-          data,
-          gasLimit: 6_700_000,
-        })
+      // Note: Send transaction vs call so it is persisted
+      const receipt = await wallet.sendTransaction({
+        to: executionManager.address,
+        data,
+        gasLimit: 6_700_000,
       })
+
+      const creatSucceeded = await didCreateSucceed(
+        executionManager,
+        receipt.hash
+      )
+      creatSucceeded.should.equal(false, 'Create should have failed!')
     })
 
     it('fails on ovmSTATICCALL to CREATE2', async () => {
       const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${create2MethodIdAndData}`
 
-      await TestUtils.assertThrowsAsync(async () => {
-        // Note: Send transaction vs call so it is persisted
-        await wallet.sendTransaction({
-          to: executionManager.address,
-          data,
-          gasLimit: 6_700_000,
-        })
+      // Note: Send transaction vs call so it is persisted
+      const receipt = await wallet.sendTransaction({
+        to: executionManager.address,
+        data,
+        gasLimit: 6_700_000,
       })
+
+      const creatSucceeded = await didCreateSucceed(
+        executionManager,
+        receipt.hash
+      )
+      creatSucceeded.should.equal(false, 'Create should have failed!')
     })
   })
 })

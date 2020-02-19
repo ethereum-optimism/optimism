@@ -272,3 +272,24 @@ export const getTransactionResult = async (
   const receipt = await provider.waitForTransaction(tx.hash)
   return abi.decode([returnType], receipt.logs.pop().data)
 }
+
+/**
+ * Returns whether the provided Create transaction succeeded.
+ *
+ * @param executionManager The ExecutionManager contract.
+ * @param createTxHash The transaction hash in question.
+ * @returns True if there was a successful create in this tx, false otherwise.
+ */
+export const didCreateSucceed = async (
+  executionManager: Contract,
+  createTxHash: string
+): Promise<boolean> => {
+  const receipt = await executionManager.provider.waitForTransaction(
+    createTxHash
+  )
+  return (
+    receipt.logs
+      .map((x) => executionManager.interface.parseLog(x))
+      .filter((x) => x.name === 'CreatedContract').length > 0
+  )
+}

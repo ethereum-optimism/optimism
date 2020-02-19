@@ -9,6 +9,7 @@ import { Contract, ContractFactory } from 'ethers'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
+import * as InvalidOpcodes from '../../build/contracts/InvalidOpcodes.json'
 
 const log = getLogger('execution-manager-create', true)
 
@@ -24,7 +25,9 @@ describe('ExecutionManager -- Create opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
+  let purityCheckedExecutioManager: Contract
   let deployTx
+  let deployInvalidTx
 
   /* Deploy contracts before each test */
   beforeEach(async () => {
@@ -35,17 +38,27 @@ describe('ExecutionManager -- Create opcodes', () => {
       [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
+
     deployTx = new ContractFactory(
       SimpleStorage.abi,
       SimpleStorage.bytecode
     ).getDeployTransaction(executionManager.address)
+
+    purityCheckedExecutioManager = await deployContract(
+      wallet,
+      ExecutionManager, // Note: this is false, so it's purity checked.
+      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
+      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
+    )
+
+    deployInvalidTx = new ContractFactory(
+      InvalidOpcodes.abi,
+      InvalidOpcodes.bytecode
+    ).getDeployTransaction()
   })
 
-  /*
-   * Test CREATE opcode
-   */
   describe('ovmCREATE', async () => {
-    it('does not throw when passed bytecode', async () => {
+    it('returns created address when passed valid bytecode', async () => {
       const methodId: string = ethereumjsAbi
         .methodID('ovmCREATE', [])
         .toString('hex')
@@ -61,15 +74,35 @@ describe('ExecutionManager -- Create opcodes', () => {
 
       log.debug(`Result: [${result}]`)
 
-      result.length.should.be.greaterThan(2, 'Should not just be 0x')
+      const address: string = remove0x(result)
+      address.length.should.equal(64, 'Should be a full word for the address')
+      address.should.not.equal('00'.repeat(32), 'Should not be 0 address')
+    })
+
+    it('returns 0 address when passed invalid bytecode', async () => {
+      const methodId: string = ethereumjsAbi
+        .methodID('ovmCREATE', [])
+        .toString('hex')
+
+      const data = `0x${methodId}${remove0x(deployInvalidTx.data)}`
+
+      // Now actually apply it to our execution manager
+      const result = await executionManager.provider.call({
+        to: purityCheckedExecutioManager.address,
+        data,
+        gasLimit: 6_700_000,
+      })
+
+      log.debug(`Result: [${result}]`)
+
+      const address: string = remove0x(result)
+      address.length.should.equal(64, 'Should be a full word for the address')
+      address.should.equal('00'.repeat(32), 'Should be 0 address')
     })
   })
 
-  /*
-   * Test CREATE2 opcode
-   */
   describe('ovmCREATE2', async () => {
-    it('does not throw when passed salt and bytecode', async () => {
+    it('returns created address when passed salt and bytecode', async () => {
       const methodId: string = ethereumjsAbi
         .methodID('ovmCREATE2', [])
         .toString('hex')
@@ -85,7 +118,32 @@ describe('ExecutionManager -- Create opcodes', () => {
 
       log.debug(`Result: [${result}]`)
 
-      result.length.should.be.greaterThan(2, 'Should not just be 0x')
+      const address: string = remove0x(result)
+      address.length.should.equal(64, 'Should be a full word for the address')
+      address.should.not.equal('00'.repeat(32), 'Should not be 0 address')
+    })
+
+    it('returns 0 address when passed salt and invalid bytecode', async () => {
+      const methodId: string = ethereumjsAbi
+        .methodID('ovmCREATE2', [])
+        .toString('hex')
+
+      const data = `0x${methodId}${'00'.repeat(32)}${remove0x(
+        deployInvalidTx.data
+      )}`
+
+      // Now actually apply it to our execution manager
+      const result = await executionManager.provider.call({
+        to: purityCheckedExecutioManager.address,
+        data,
+        gasLimit: 6_700_000,
+      })
+
+      log.debug(`Result: [${result}]`)
+
+      const address: string = remove0x(result)
+      address.length.should.equal(64, 'Should be a full word for the address')
+      address.should.equal('00'.repeat(32), 'Should be 0 address')
     })
   })
 })

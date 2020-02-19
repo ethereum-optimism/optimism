@@ -28,7 +28,7 @@ describe('Revert Test', () => {
   })
 
   describe('Test that revert will blow away modified state from successful sub-calls', async () => {
-    it.only('reverts sub-call state', async () => {
+    it('reverts sub-call state', async () => {
       await revertTestContract.entryPoint()
 
       const a = await revertTestContract.getA()
