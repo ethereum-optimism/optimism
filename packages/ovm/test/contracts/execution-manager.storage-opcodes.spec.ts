@@ -12,7 +12,7 @@ import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 /* Internal Imports */
 import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+import { DEFAULT_ETHNODE_GAS_LIMIT, gasLimit } from '../helpers'
 
 const log = getLogger('execution-manager-storage', true)
 
@@ -52,7 +52,7 @@ describe('ExecutionManager -- Storage opcodes', () => {
     const tx = await wallet.sendTransaction({
       to: executionManager.address,
       data,
-      gasLimit: 6_700_000,
+      gasLimit,
     })
 
     const reciept = await provider.getTransactionReceipt(tx.hash)
@@ -94,7 +94,7 @@ describe('ExecutionManager -- Storage opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       // It should load the value which we just set

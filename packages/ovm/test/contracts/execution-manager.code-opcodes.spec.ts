@@ -26,6 +26,7 @@ import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  gasLimit,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
@@ -91,7 +92,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       const result: string = await executionManager.provider.call({
         to: add0x(executionManager.address),
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
       log.debug(`Resulting size: [${result}]`)
 
@@ -116,7 +117,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       const codeHash: string = await executionManager.provider.call({
         to: add0x(executionManager.address),
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
       log.debug(`Resulting hash: [${codeHash}]`)
 
@@ -144,7 +145,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       const code: string = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000_000,
+        gasLimit,
       })
       log.debug(`Resulting code: [${code}]`)
 

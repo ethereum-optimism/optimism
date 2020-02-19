@@ -28,7 +28,7 @@ import {
 type Signature = [string, string, string]
 
 export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000
-
+export const gasLimit = 6_700_000
 const log = getLogger('helpers', true)
 
 /**

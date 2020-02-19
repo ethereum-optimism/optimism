@@ -15,7 +15,7 @@ const log = getLogger('execution-manager-create', true)
 
 /* Internal Imports */
 import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+import { DEFAULT_ETHNODE_GAS_LIMIT, gasLimit } from '../helpers'
 
 /*********
  * TESTS *
@@ -69,7 +69,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -90,7 +90,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: purityCheckedExecutioManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -113,7 +113,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -136,7 +136,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: purityCheckedExecutioManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
