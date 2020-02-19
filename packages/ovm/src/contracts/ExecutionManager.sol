@@ -511,10 +511,17 @@ contract ExecutionManager is FullStateManager {
      * calldata: variable-length bytes:
      *       [methodID (bytes4)]
      *       [ovmInitcode (bytes (variable length))]
-     * returndata: [newOvmContractAddress (as bytes32)]
+     * returndata: [newOvmContractAddress (as bytes32)] -- will be all 0s if this create failed.
      */
     function ovmCREATE() public {
-        require(!executionContext.inStaticContext, "Cannot create new contracts from a STATICCALL.");
+        if (executionContext.inStaticContext) {
+            // Cannot create new contracts from a STATICCALL -- return 0 address
+            assembly {
+                let returnData := mload(0x40)
+                mstore(returnData, 0)
+                return(returnData, 0x20)
+            }
+        }
 
         bytes memory _ovmInitcode;
         assembly {
@@ -534,7 +541,14 @@ contract ExecutionManager is FullStateManager {
         uint creatorNonce = getOvmContractNonce(creator);
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
         // Next we need to actually create the contract in our state at that address
-        createNewContract(_newOvmContractAddress, _ovmInitcode);
+        if (!createNewContract(_newOvmContractAddress, _ovmInitcode)) {
+            // Failure: Return 0 address
+            assembly {
+                let returnData := mload(0x40)
+                mstore(returnData, 0)
+                return(returnData, 0x20)
+            }
+        }
         // We also need to increment the contract nonce
         incrementOvmContractNonce(creator);
 
@@ -557,10 +571,17 @@ contract ExecutionManager is FullStateManager {
      *       [methodID (bytes4)]
      *       [salt (bytes32)]
      *       [ovmInitcode (bytes (variable length))]
-     * returndata: [newOvmContractAddress (as bytes32)]
+     * returndata: [newOvmContractAddress (as bytes32)] -- will be all 0s if this create failed.
      */
     function ovmCREATE2() public {
-        require(!executionContext.inStaticContext, "Cannot create new contracts from a STATICCALL.");
+        if (executionContext.inStaticContext) {
+            // Cannot create new contracts from a STATICCALL -- return 0 address
+            assembly {
+                let returnData := mload(0x40)
+                mstore(returnData, 0)
+                return(returnData, 0x20)
+            }
+        }
 
         bytes memory _ovmInitcode;
         bytes32 _salt;
@@ -582,7 +603,14 @@ contract ExecutionManager is FullStateManager {
         address creator = executionContext.ovmActiveContract;
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
         // Next we need to actually create the contract in our state at that address
-        createNewContract(_newOvmContractAddress, _ovmInitcode);
+        if (!createNewContract(_newOvmContractAddress, _ovmInitcode)) {
+            // Failure: Return 0 address
+            assembly {
+                let returnData := mload(0x40)
+                mstore(returnData, 0)
+                return(returnData, 0x20)
+            }
+        }
 
         // Shifting so that it is left-padded, big-endian ('00'x12 + 20 bytes of address)
         bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
@@ -601,10 +629,14 @@ contract ExecutionManager is FullStateManager {
      * @notice Create a new contract at some OVM contract address.
      * @param _newOvmContractAddress The desired OVM contract address for this new contract we will deploy.
      * @param _ovmInitcode The initcode for our new contract
+     * @return True if this succeeded, false otherwise.
      */
-    function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal {
+    function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
         // Purity check the initcode -- unless the overridePurityChecker flag is set to true
-        require(overridePurityChecker || purityChecker.isBytecodePure(_ovmInitcode), "createNewContract: Contract init code is not pure.");
+        if (!overridePurityChecker && !purityChecker.isBytecodePure(_ovmInitcode)) {
+            // Contract init code is not pure.
+            return false;
+        }
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
@@ -612,10 +644,10 @@ contract ExecutionManager is FullStateManager {
         // Get the runtime bytecode
         bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
         // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
-        require(
-            overridePurityChecker || purityChecker.isBytecodePure(codeContractBytecode),
-            "createNewContract: Contract runtime bytecode is not pure."
-        );
+        if (!overridePurityChecker && !purityChecker.isBytecodePure(codeContractBytecode)) {
+            // Contract runtime bytecode is not pure.
+            return false;
+        }
         // Associate the code contract with our ovm contract
         associateCodeContract(_newOvmContractAddress, codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
@@ -624,6 +656,7 @@ contract ExecutionManager is FullStateManager {
         restoreContractContext(oldMsgSender, oldActiveContract);
         // Emit CreatedContract event! We've created a new contract!
         emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
+        return true;
     }
 
     /**

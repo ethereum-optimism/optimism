@@ -25,6 +25,7 @@ import {
   bytes32AddressToAddress,
   addressToBytes32Address,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  gasLimit,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
@@ -119,7 +120,7 @@ describe('Execution Manager -- Context opcodes', () => {
         await executionManager.provider.call({
           to: executionManager.address,
           data,
-          gasLimit: 6_700_000,
+          gasLimit,
         })
       })
     })
@@ -140,7 +141,7 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`CALLER result: ${result}`)
@@ -164,7 +165,7 @@ describe('Execution Manager -- Context opcodes', () => {
         await executionManager.provider.call({
           to: executionManager.address,
           data,
-          gasLimit: 6_700_000,
+          gasLimit,
         })
       })
     })
@@ -185,7 +186,7 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`ADDRESS result: ${result}`)
@@ -213,7 +214,7 @@ describe('Execution Manager -- Context opcodes', () => {
         await executionManager.provider.call({
           to: executionManager.address,
           data,
-          gasLimit: 6_700_000,
+          gasLimit,
         })
       })
     })
@@ -237,7 +238,7 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`TIMESTAMP result: ${result}`)
@@ -264,7 +265,7 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`GASLIMIT result: ${result}`)
@@ -294,7 +295,7 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
@@ -325,7 +326,7 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`QUEUE ORIGIN result: ${result}`)

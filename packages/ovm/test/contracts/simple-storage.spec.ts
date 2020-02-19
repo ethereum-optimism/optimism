@@ -18,6 +18,7 @@ import {
   getUnsignedTransactionCalldata,
   executeUnsignedEOACall,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  gasLimit,
 } from '../helpers'
 import { CHAIN_ID, GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
@@ -118,7 +119,7 @@ describe('SimpleStorage', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data: add0x(callData),
-        gasLimit: 6_700_000,
+        gasLimit,
       })
       result.should.equal(add0x(value))
     })
