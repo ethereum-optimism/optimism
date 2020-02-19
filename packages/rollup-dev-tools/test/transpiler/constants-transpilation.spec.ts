@@ -148,7 +148,7 @@ describe('Solitity contracts should have constants correctly accessible when usi
   const bytesMemoryConstB: Buffer = hexStrToBuf(
     'BBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBB'
   )
-  it('should work for the first bytes memory constant', async () => {
+  it('should work for the second bytes memory constant', async () => {
     const retrievedBytesMemoryBVal: Buffer = await getGetterReturnedVal(
       deployedGetterAddress,
       'getBytesMemoryConstantB',
