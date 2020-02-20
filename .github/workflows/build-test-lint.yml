@@ -104,6 +104,13 @@ jobs:
           path: packages/examples/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/examples/package.json') }}
 
+      - name: Cache ovm-truffle-provider-wrapper deps
+        uses: actions/cache@v1
+        id: cache_ovm-truffle-provider-wrapper
+        with:
+          path: packages/ovm-truffle-provider-wrapper/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/ovm-truffle-provider-wrapper/package.json') }}
+
       # END DEPENDENCY CACHING
 
       - name: Install Dependencies

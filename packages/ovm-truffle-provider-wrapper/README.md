@@ -7,7 +7,7 @@ ChainId defaults to 108 but is configurable by setting the `OVM_CHAIN_ID` enviro
 ## Example Usage in truffle-config.js:
 ```$javascript
 const HDWalletProvider = require('truffle-hdwallet-provider');
-const WrappedProvider = require('@eth-optimism/ovm-truffle-provider-wrapper');
+const wrapProvider = require('@eth-optimism/ovm-truffle-provider-wrapper');
 const mnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat';
 
 module.exports = {
@@ -15,7 +15,7 @@ module.exports = {
     // Note: Requires running the rollup-full-node locally.
     test: {
       provider: function () {
-        return WrappedProvider(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10))
+        return wrapProvider(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
       },
     },
   },
