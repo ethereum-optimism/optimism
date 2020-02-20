@@ -37,6 +37,7 @@ import {
   getCALLERReplacement,
   getEXTCODEHASHReplacement,
   getEXTCODESIZEReplacement,
+  getORIGINReplacement,
   getSLOADReplacement,
   getSSTOREReplacement,
   getTIMESTAMPReplacement,
@@ -172,6 +173,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         )
       case Opcode.EXTCODESIZE:
         return getEXTCODESIZEReplacement(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.ORIGIN:
+        return getORIGINReplacement(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.SLOAD:
