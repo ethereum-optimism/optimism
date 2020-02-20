@@ -4,7 +4,7 @@ import {ExecutionManager} from "../ExecutionManager.sol";
 
 /**
  * @title SimpleTxOrigin
- * @notice A simple contract testing the execution manager's storage.
+ * @notice A simple contract testing the transaction origin opcode.
  */
 contract SimpleTxOrigin {
     address executionManagerAddress;

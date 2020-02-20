@@ -32,7 +32,6 @@ const log = getLogger('simple-storage', true)
 describe('SimpleTxOrigin', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
-  // Create pointers to our execution manager & simple storage contract
   let executionManager: Contract
   let simpleTxOrigin: ContractFactory
   let simpleTxOriginOvmAddress: Address
@@ -92,6 +91,7 @@ describe('SimpleTxOrigin', () => {
         data: add0x(callData),
         gasLimit: 6_700_000,
       })
+
       result.should.equal(addressToBytes32Address(wallet.address))
     })
   })
