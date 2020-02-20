@@ -6,7 +6,16 @@ resource "google_compute_network" "vpc" {
   name                    = "vault-net"
   auto_create_subnetworks = "false"
   routing_mode            = "REGIONAL"
-  #delete_default_routes_on_create = "true"
+}
+
+output "vpc_id" {
+  value       = google_compute_network.vpc.id
+  description = "The identifier of the VPC."
+}
+
+output "vpc_gateway_ipv4" {
+  value       = google_compute_network.gateway_ipv4.id
+  description = "The gateway address for default routing out of the network."
 }
 
 /*
