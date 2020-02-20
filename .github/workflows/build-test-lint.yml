@@ -97,12 +97,12 @@ jobs:
           path: packages/solc-transpiler/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
-      - name: Cache examples deps
+      - name: Cache ovm-truffle-provider-wrapper deps
         uses: actions/cache@v1
-        id: cache_examples
+        id: cache_ovm-truffle-provider-wrapper
         with:
-          path: packages/examples/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/examples/package.json') }}
+          path: packages/ovm-truffle-provider-wrapper/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/ovm-truffle-provider-wrapper/package.json') }}
 
       # END DEPENDENCY CACHING
 

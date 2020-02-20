@@ -24,8 +24,11 @@ import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  didCreateSucceed,
+  gasLimit,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { TransactionReceipt } from 'ethers/providers'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -172,7 +175,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -187,7 +190,7 @@ describe('Execution Manager -- Call opcodes', () => {
       await wallet.sendTransaction({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       const fetchData: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
@@ -195,7 +198,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data: fetchData,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -210,14 +213,17 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`RESULT: ${result}`)
 
-      result
-        .substr(2)
-        .length.should.equal(64, 'Should have got a bytes32 address back')
+      const address = remove0x(result)
+      address.length.should.equal(64, 'Should have got a bytes32 address back!')
+      address.length.should.not.equal(
+        '00'.repeat(32),
+        'Should not be 0 address!'
+      )
     })
 
     it('properly executes ovmCALL to CREATE2', async () => {
@@ -226,14 +232,17 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`RESULT: ${result}`)
 
-      result
-        .substr(2)
-        .length.should.equal(64, 'Should have got a bytes32 address back')
+      const address = remove0x(result)
+      address.length.should.equal(64, 'Should have got a bytes32 address back!')
+      address.length.should.not.equal(
+        '00'.repeat(32),
+        'Should not be 0 address!'
+      )
     })
   })
 
@@ -253,7 +262,7 @@ describe('Execution Manager -- Call opcodes', () => {
       await wallet.sendTransaction({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       // Stored in contract 2 via delegate call but accessed via contract 1
@@ -262,7 +271,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data: fetchData,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -276,7 +285,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const contract2Result = await executionManager.provider.call({
         to: executionManager.address,
         data: contract2FetchData,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${contract2Result}]`)
@@ -296,14 +305,14 @@ describe('Execution Manager -- Call opcodes', () => {
       await wallet.sendTransaction({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       const contract1FetchData: string = `${executeCallToCallContractData}${callMethodId}${callContractAddress32}${sloadMethodIdAndParams}`
       const contract1Result = await executionManager.provider.call({
         to: executionManager.address,
         data: contract1FetchData,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result 1: [${contract1Result}]`)
@@ -318,7 +327,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const contract2Result = await executionManager.provider.call({
         to: executionManager.address,
         data: contract2FetchData,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result 2: [${contract2Result}]`)
@@ -333,7 +342,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const contract3Result = await executionManager.provider.call({
         to: executionManager.address,
         data: contract3FetchData,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result 3: [${contract3Result}]`)
@@ -357,7 +366,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -371,7 +380,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
 
       log.debug(`Result: [${result}]`)
@@ -386,7 +395,7 @@ describe('Execution Manager -- Call opcodes', () => {
       await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit: 6_700_000,
+        gasLimit,
       })
     })
 
@@ -397,7 +406,7 @@ describe('Execution Manager -- Call opcodes', () => {
         const res = await executionManager.provider.call({
           to: executionManager.address,
           data,
-          gasLimit: 6_700_000,
+          gasLimit,
         })
       })
     })
@@ -410,35 +419,69 @@ describe('Execution Manager -- Call opcodes', () => {
         await wallet.sendTransaction({
           to: executionManager.address,
           data,
-          gasLimit: 6_700_000,
+          gasLimit,
         })
       })
     })
 
-    it('fails on ovmSTATICCALL to CREATE', async () => {
+    it('Fails to create on ovmSTATICCALL to CREATE -- tx', async () => {
       const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${createMethodIdAndData}`
 
-      await TestUtils.assertThrowsAsync(async () => {
-        // Note: Send transaction vs call so it is persisted
-        await wallet.sendTransaction({
-          to: executionManager.address,
-          data,
-          gasLimit: 6_700_000,
-        })
+      // Note: Send transaction vs call so it is persisted
+      const receipt = await wallet.sendTransaction({
+        to: executionManager.address,
+        data,
+        gasLimit,
       })
+
+      const createSucceeded = await didCreateSucceed(
+        executionManager,
+        receipt.hash
+      )
+      createSucceeded.should.equal(false, 'Create should have failed!')
     })
 
-    it('fails on ovmSTATICCALL to CREATE2', async () => {
+    it('Fails to create on ovmSTATICCALL to CREATE -- call', async () => {
+      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${createMethodIdAndData}`
+
+      const res = await wallet.provider.call({
+        to: executionManager.address,
+        data,
+        gasLimit,
+      })
+
+      const address = remove0x(res)
+      address.should.equal('00'.repeat(32), 'Should be 0 address!')
+    })
+
+    it('fails on ovmSTATICCALL to CREATE2 -- tx', async () => {
       const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${create2MethodIdAndData}`
 
-      await TestUtils.assertThrowsAsync(async () => {
-        // Note: Send transaction vs call so it is persisted
-        await wallet.sendTransaction({
-          to: executionManager.address,
-          data,
-          gasLimit: 6_700_000,
-        })
+      // Note: Send transaction vs call so it is persisted
+      const receipt = await wallet.sendTransaction({
+        to: executionManager.address,
+        data,
+        gasLimit,
       })
+
+      const createSucceeded = await didCreateSucceed(
+        executionManager,
+        receipt.hash
+      )
+      createSucceeded.should.equal(false, 'Create should have failed!')
+    })
+
+    it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
+      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${create2MethodIdAndData}`
+
+      const res = await wallet.provider.call({
+        to: executionManager.address,
+        data,
+        gasLimit,
+      })
+
+      const address = remove0x(res)
+      address.should.equal('00'.repeat(32), 'Should be 0 address!')
     })
   })
 })

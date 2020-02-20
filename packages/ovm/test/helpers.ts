@@ -28,7 +28,7 @@ import {
 type Signature = [string, string, string]
 
 export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000
-
+export const gasLimit = 6_700_000
 const log = getLogger('helpers', true)
 
 /**
@@ -271,4 +271,25 @@ export const getTransactionResult = async (
 ): Promise<any[]> => {
   const receipt = await provider.waitForTransaction(tx.hash)
   return abi.decode([returnType], receipt.logs.pop().data)
+}
+
+/**
+ * Returns whether the provided Create transaction succeeded.
+ *
+ * @param executionManager The ExecutionManager contract.
+ * @param createTxHash The transaction hash in question.
+ * @returns True if there was a successful create in this tx, false otherwise.
+ */
+export const didCreateSucceed = async (
+  executionManager: Contract,
+  createTxHash: string
+): Promise<boolean> => {
+  const receipt = await executionManager.provider.waitForTransaction(
+    createTxHash
+  )
+  return (
+    receipt.logs
+      .map((x) => executionManager.interface.parseLog(x))
+      .filter((x) => x.name === 'CreatedContract').length > 0
+  )
 }

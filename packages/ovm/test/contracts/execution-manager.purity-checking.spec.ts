@@ -16,6 +16,7 @@ import {
   manuallyDeployOvmContract,
   DEFAULT_ETHNODE_GAS_LIMIT,
   manuallyDeployOvmContractReturnReceipt,
+  didCreateSucceed,
 } from '../helpers'
 import { TransactionReceipt } from 'ethers/providers'
 
@@ -50,28 +51,31 @@ describe('Execution Manager -- Purity Checking', () => {
         DummyContract,
         []
       )
-      receipt.status.should.equal(
-        0,
+      const createSucceeded = await didCreateSucceed(
+        executionManager,
+        receipt.transactionHash
+      )
+
+      createSucceeded.should.equal(
+        false,
         `DummyContract.sol should not have been considered pure because it uses storage in its constructor`
       )
     })
     it('should successfully deploy a pure contract', async () => {
-      let failed = false
-      try {
-        await manuallyDeployOvmContract(
-          wallet,
-          provider,
-          executionManager,
-          AddThree,
-          []
-        )
-      } catch (e) {
-        if (e.message.indexOf('revert') >= 0) {
-          failed = true
-        }
-      }
-      failed.should.equal(
-        false,
+      const receipt = await manuallyDeployOvmContractReturnReceipt(
+        wallet,
+        provider,
+        executionManager,
+        AddThree,
+        []
+      )
+      const createSucceeded = await didCreateSucceed(
+        executionManager,
+        receipt.transactionHash
+      )
+
+      createSucceeded.should.equal(
+        true,
         `AddThree.sol contract should have been considered pure`
       )
     })
