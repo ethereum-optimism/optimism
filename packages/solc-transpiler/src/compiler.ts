@@ -113,9 +113,25 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   return formatOutput(res, json)
 }
 
+/**
+ * Gets the requested version of the solc module.
+ * 
+ * solc-js provides downloadable versions of itself which can be downloaded and
+ * used to compile contracts that require different compiler versions. This
+ * function must be synchronous so it can be used in the compilation process
+ * which is also synchronous. To achieve this we construct a string of
+ * JavaScript which downloads the latest version of solc and run that code using
+ * `execSync`
+ *
+ * @param versionString The requested version of solc
+ * @returns The requested version of the `solc` module or the latest version
+ */
 const getCompiler = (versionString: string): typeof solc => {
-  if (versionString) {
-    const getCompilerString = `
+  if (!versionString) {
+    return solc
+  }
+
+  const getCompilerString = `
     function httpsRequest(params, postData) {
       return new Promise(function(resolve, reject) {
           var req = https.request(params, function(res) {
@@ -150,14 +166,11 @@ const getCompiler = (versionString: string): typeof solc => {
       await process.stdout.write(await getSolcVersion("${versionString}"));
     })();
     `
-    return solc.setupMethods(
-      requireFromString(
-        execSync(`${process.argv[0]} -e '${getCompilerString}'`).toString()
-      )
+  return solc.setupMethods(
+    requireFromString(
+      execSync(`${process.argv[0]} -e '${getCompilerString}'`).toString()
     )
-  } else {
-    return solc
-  }
+  )
 }
 
 const getExecutionManagerAddress = (configObject: any): string => {
