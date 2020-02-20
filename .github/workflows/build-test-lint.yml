@@ -97,13 +97,6 @@ jobs:
           path: packages/solc-transpiler/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
-      - name: Cache examples deps
-        uses: actions/cache@v1
-        id: cache_examples
-        with:
-          path: packages/examples/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/examples/package.json') }}
-
       - name: Cache ovm-truffle-provider-wrapper deps
         uses: actions/cache@v1
         id: cache_ovm-truffle-provider-wrapper
