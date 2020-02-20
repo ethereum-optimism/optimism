@@ -455,19 +455,18 @@ contract ExecutionManager is FullStateManager {
     }
 
     /**
-     * @notice ORIGIN opcode (tx.origin) -- this gets the origin caller of the
-     * currently-running contract.
-     * Note: Calling this requires a an EOACall
+     * @notice ORIGIN opcode (tx.origin) -- this gets the origin address of the
+     * account externall owned account that initiated this transaction.
+     * Note: If we're in a transaction that wasn't initiated by an externally
+     * owned acount this function will revert.
      *
      * This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
      * returndata: 32-byte ORIGIN address containing the left-padded, big-endian encoding of the address.
      */
     function ovmORIGIN() public view {
-        // First make sure the ovmMsgSender was set
         require(executionContext.ovmTxOrigin != ZERO_ADDRESS, "Error: attempting to access non-existent txOrigin.");
 
-        // This is returned as left-padded, big-endian, so pad it left!
         bytes32 addressBytes = bytes32(bytes20(executionContext.ovmTxOrigin)) >> 96;
 
         assembly {
