@@ -183,6 +183,7 @@ contract ExecutionManager is FullStateManager {
         require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
         // Require nonce to be correct
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
+        executionContext.ovmTxOrigin = eoaAddress;
         // Make the EOA call for the account
         executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress);
     }
@@ -450,6 +451,29 @@ contract ExecutionManager is FullStateManager {
             let contextMemory := mload(0x40)
             mstore(contextMemory, staticContext)
             return(contextMemory, 32)
+        }
+    }
+
+    /**
+     * @notice ORIGIN opcode (tx.origin) -- this gets the origin caller of the
+     * currently-running contract.
+     * Note: Calling this requires a an EOACall
+     *
+     * This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * returndata: 32-byte ORIGIN address containing the left-padded, big-endian encoding of the address.
+     */
+    function ovmORIGIN() public view {
+        // First make sure the ovmMsgSender was set
+        require(executionContext.ovmTxOrigin != ZERO_ADDRESS, "Error: attempting to access non-existent txOrigin.");
+
+        // This is returned as left-padded, big-endian, so pad it left!
+        bytes32 addressBytes = bytes32(bytes20(executionContext.ovmTxOrigin)) >> 96;
+
+        assembly {
+            let addressMemory := mload(0x40)
+            mstore(addressMemory, addressBytes)
+            return(addressMemory, 32)
         }
     }
 
