@@ -456,9 +456,9 @@ contract ExecutionManager is FullStateManager {
 
     /**
      * @notice ORIGIN opcode (tx.origin) -- this gets the origin address of the
-     * account externall owned account that initiated this transaction.
-     * Note: If we're in a transaction that wasn't initiated by an externally
-     * owned acount this function will revert.
+     * externally owned account that initiated this transaction.
+     * Note: If we are in a transaction that wasn't initiated by an externally
+     * owned account this function will revert.
      *
      * This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
