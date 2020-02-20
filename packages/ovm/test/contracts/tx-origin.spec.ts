@@ -17,8 +17,9 @@ import {
   addressToBytes32Address,
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
-  executeUnsignedEOACall,
+  signTransation,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  executeEOACall,
 } from '../helpers'
 import { CHAIN_ID, GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
@@ -62,9 +63,8 @@ describe('SimpleTxOrigin', () => {
     )
   })
 
-
   describe('getOrigin', async () => {
-    it.only('correctly gets the origin address', async () => {
+    it('correctly gets the origin address', async () => {
       const getStorageMethodId: string = ethereumjsAbi
         .methodID('getOrigin', [])
         .toString('hex')
@@ -80,8 +80,7 @@ describe('SimpleTxOrigin', () => {
         data: innerCallData,
         chainId: CHAIN_ID,
       }
-      const signedMessage = await wallet.sign(transaction)
-      const [v, r, s] = ethers.utils.RLP.decode(signedMessage).slice(-3)
+      const [v, r, s] = await signTransation(wallet, transaction)
       const callData = getUnsignedTransactionCalldata(
         executionManager,
         'executeEOACall',
