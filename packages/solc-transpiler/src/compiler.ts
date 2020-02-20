@@ -114,14 +114,12 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
 }
 
 /**
- * Gets the requested version of the solc module.
- * 
- * solc-js provides downloadable versions of itself which can be downloaded and
- * used to compile contracts that require different compiler versions. This
- * function must be synchronous so it can be used in the compilation process
- * which is also synchronous. To achieve this we construct a string of
- * JavaScript which downloads the latest version of solc and run that code using
- * `execSync`
+ * Gets the requested version of the solc module. solc-js provides downloadable
+ * versions of itself which can be downloaded and used to compile contracts that
+ * require different compiler versions. This function must be synchronous so it
+ * can be used in the compilation process which is also synchronous. To achieve
+ * this we construct a string of JavaScript which downloads the latest version
+ * of solc and run that code using `execSync`
  *
  * @param versionString The requested version of solc
  * @returns The requested version of the `solc` module or the latest version
