@@ -56,7 +56,7 @@ describe.only(`Various opcodes should be usable in combination with transpiler a
     const returnedAddress: Address = await selfAware.getMyAddress()
     deployedAddress.should.equal(returnedAddress)
   })
-  it.skip('should work for block.timestamp', async () => {
+  it('should work for block.timestamp', async () => {
     // todo, handle timestamp and unskip this test
     const timeGetter = await deployContract(wallet, TimeGetter, [], [])
     console.log(`timegetter bytecode is: \n${formatBytecode(bufferToBytecode(hexStrToBuf(TimeGetter.bytecode)))}`)
@@ -72,12 +72,9 @@ describe.only(`Various opcodes should be usable in combination with transpiler a
     result.should.equal(callerGetter.address)
   })
   it('should work for tx.origin', async () => {
-    const callerReturner = await deployContract(wallet, CallerReturner, [], [])
-    const callerGetter = await deployContract(wallet, CallerGetter, [], [])
-    const result = await callerGetter.getMsgSenderFrom(
-      callerReturner.address
-    )
-    result.should.equal(callerGetter.address)
+    const originGetter = await deployContract(wallet, OriginGetter, [], [])
+    const result = await originGetter.getTxOrigin()
+    result.should.equal(wallet.address)
   })
 
   // SIMPLE STORAGE TEST
