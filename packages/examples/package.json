@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/examples",
-  "version": "0.0.1-alpha.7",
+  "version": "0.0.1-alpha.9",
   "description": "Example of using solc-transpiler & Web3 full node in place of solc-js and other Web3 providers",
   "scripts": {
     "clean": "rimraf build",
@@ -29,8 +29,8 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/solc-transpiler": "~0.0.1-alpha.7",
-    "@eth-optimism/ovm-truffle-provider-wrapper": "~0.0.1-alpha.8",
+    "@eth-optimism/ovm-truffle-provider-wrapper": "0.0.1-alpha.9",
+    "@eth-optimism/solc-transpiler": "0.0.1-alpha.9",
     "ethereum-waffle": "2.1.0",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12",
