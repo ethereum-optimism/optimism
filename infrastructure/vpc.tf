@@ -14,7 +14,7 @@ output "vpc_id" {
 }
 
 output "vpc_gateway_ipv4" {
-  value       = google_compute_network.gateway_ipv4.id
+  value       = google_compute_network.vpc.gateway_ipv4
   description = "The gateway address for default routing out of the network."
 }
 
