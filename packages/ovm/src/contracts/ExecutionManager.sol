@@ -186,6 +186,7 @@ contract ExecutionManager is FullStateManager {
         executionContext.ovmTxOrigin = eoaAddress;
         // Make the EOA call for the account
         executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress);
+        executionContext.ovmTxOrigin = ZERO_ADDRESS;
     }
 
     /**
