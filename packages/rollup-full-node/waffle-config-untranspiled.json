@@ -1,0 +1,12 @@
+{
+  "sourcesPath": "./test/contracts/untranspiled",
+  "targetPath": "./test/contracts/build/untranspiled",
+  "npmPath": "../../node_modules",
+  "compilerOptions": {
+    "outputSelection": {
+      "*": {
+        "*": ["*"]
+      }
+    }
+  }
+}
