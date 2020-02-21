@@ -27,6 +27,9 @@
     "type": "git",
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
+  "dependencies": {
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.10"
+  },
   "devDependencies": {
     "@types/node": "^12.0.7",
     "rimraf": "^2.6.3",
