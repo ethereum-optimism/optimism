@@ -6,6 +6,7 @@ import {
   add0x,
   abi,
   keccak256,
+  strToHexStr,
   remove0x,
   hexStrToBuf,
   bufToHexString,
@@ -13,7 +14,12 @@ import {
 } from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
-import { Provider, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import {
+  Provider,
+  TransactionReceipt,
+  JsonRpcProvider,
+  Log,
+} from 'ethers/providers'
 import { Transaction } from 'ethers/utils'
 
 /* Contract Imports */
@@ -70,7 +76,7 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     initCode
   )
 
-  return internalTxReceiptToOvmTxReceipt(executionManager, receipt)
+  return internalTxReceiptToOvmTxReceipt(receipt)
 }
 
 /**
@@ -292,4 +298,27 @@ export const didCreateSucceed = async (
       .map((x) => executionManager.interface.parseLog(x))
       .filter((x) => x.name === 'CreatedContract').length > 0
   )
+}
+
+/**
+ * Builds a ethers.js Log object from it's respective parts
+ *
+ * @param address The address the logs was sent from
+ * @param event The event identifier
+ * @param data The event data
+ * @returns an ethers.js Log object
+ */
+export const buildLog = (
+  address: string,
+  event: string,
+  data: string[]
+): Log => {
+  const types = event.match(/\((.+)\)/)
+  const encodedData = types ? abi.encode(types[1].split(','), data) : '0x'
+
+  return {
+    address,
+    topics: [add0x(keccak256(strToHexStr(event)))],
+    data: encodedData,
+  }
 }
