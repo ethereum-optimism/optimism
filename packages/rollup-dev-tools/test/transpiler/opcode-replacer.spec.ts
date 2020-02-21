@@ -96,6 +96,10 @@ describe('OpcodeReplacer', () => {
       assertReplaced(replacer, Opcode.EXTCODESIZE)
     })
 
+    it('replaces ORIGIN', async () => {
+      assertReplaced(replacer, Opcode.ORIGIN)
+    })
+
     it('replaces SLOAD', async () => {
       assertReplaced(replacer, Opcode.SLOAD)
     })
