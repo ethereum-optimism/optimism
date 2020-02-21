@@ -185,11 +185,8 @@ contract ExecutionManager is FullStateManager {
         require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
         // Require nonce to be correct
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
-<<<<<<< HEAD
         emit CallingWithEOA(eoaAddress);
-=======
         executionContext.ovmTxOrigin = eoaAddress;
->>>>>>> origin/master
         // Make the EOA call for the account
         executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress);
         executionContext.ovmTxOrigin = ZERO_ADDRESS;
