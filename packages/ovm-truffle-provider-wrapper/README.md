@@ -3,6 +3,7 @@ The OVM uses a specific `chainId`, which Truffle, at the moment, does not allow 
 
 ## Configuration
 ChainId defaults to 108 but is configurable by setting the `OVM_CHAIN_ID` environment variable.
+Note: you will also need to include `@eth-optimism/rollup-full-node` as a dependency if you would like to run a full node locally (or use ``ProviderWrapper.wrapProviderAndStartLocalNode(...)``).
 
 ## Example Usage in truffle-config.js:
 ```$javascript

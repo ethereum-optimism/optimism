@@ -49,7 +49,8 @@ Using With Truffle
 
 To use the transpiler with Truffle, set truffle's ``compilers.solc.version`` configuration to ``@eth-optimism/solc-transpiler``, and configure the ``EXECUTION_MANAGER_ADDRESS`` environment variable. 
 
-Currently, Truffle does not provide a clean way to use custom chain IDs, so we have created the ``@eth-optimism/ovm-truffle-provider-wrapper`` library to seamlessly wrap your provider of choice to handle this.
+Currently, Truffle does not provide a clean way to use custom chain IDs, so we have created the ``@eth-optimism/ovm-truffle-provider-wrapper`` package to seamlessly wrap your provider of choice to handle this.
+Note: you will also need to include ``@eth-optimism/rollup-full-node`` as a dependency if you would like to run a full node locally (or use ``ProviderWrapper.wrapProviderAndStartLocalNode(...)``).
 
 example truffle-config.json:
 
