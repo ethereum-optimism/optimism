@@ -1,4 +1,4 @@
-import {execSync, spawn} from 'child_process'
+import { execSync, spawn } from 'child_process'
 
 /**
  * Starts a local OVM node process for testing. It will be killed when the current process terminates.
@@ -10,13 +10,20 @@ const startLocalNode = () => {
   const sub = spawn(process.argv[0], [`-e`, `${runText}`])
 
   sub.on('error', (e) => {
-    console.error(`Local server could not be started. Error details: ${e.message}, Stack: ${e.stack}`)
+    // tslint:disable-next-line:no-console
+    console.error(
+      `Local server could not be started. Error details: ${e.message}, Stack: ${e.stack}`
+    )
   })
 
   // This reliably stops the local server when the current process exits.
   process.on('exit', () => {
-    try {sub.kill()} catch (e) {/*swallow any errors */}
-  });
+    try {
+      sub.kill()
+    } catch (e) {
+      /*swallow any errors */
+    }
+  })
 
   // TODO: This is hacky. If host / port become configurable, spawn a node process to ping it or something better.
   execSync(`sleep 3`)
@@ -63,5 +70,5 @@ const wrapProviderAndStartLocalNode = (provider: any) => {
 
 module.exports = {
   wrapProvider,
-  wrapProviderAndStartLocalNode
+  wrapProviderAndStartLocalNode,
 }
