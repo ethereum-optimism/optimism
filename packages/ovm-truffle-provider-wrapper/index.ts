@@ -1,5 +1,8 @@
 import {execSync, spawn} from 'child_process'
 
+/**
+ * Starts a local OVM node process for testing. It will be killed when the current process terminates.
+ */
 const startLocalNode = () => {
   const runText = `(async function(){ const {runFullnode} = require('@eth-optimism/rollup-full-node');runFullnode();})();`
 
@@ -19,6 +22,10 @@ const startLocalNode = () => {
   execSync(`sleep 3`)
 }
 
+/**
+ * Wraps the provided Truffle provider so it will work with the OVM.
+ * @returns The wrapped provider.
+ */
 const wrapProvider = (provider: any) => {
   if (typeof provider !== 'object' || !provider['sendAsync']) {
     throw Error(
@@ -40,6 +47,11 @@ const wrapProvider = (provider: any) => {
 }
 
 let nodeStarted = false
+/**
+ * Wraps the provided Truffle provider so it will work with the OVM and starts a
+ * local OVM node for the duration of the current process.
+ * @returns The wrapped provider.
+ */
 const wrapProviderAndStartLocalNode = (provider: any) => {
   if (!nodeStarted) {
     nodeStarted = true
