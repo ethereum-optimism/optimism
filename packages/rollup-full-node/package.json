@@ -9,14 +9,14 @@
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "build": "waffle waffle-config-untranspiled.json && waffle waffle-config-transpiled.json && tsc -p .",
-    "clean": "rimraf build/ && rimraf test/contracts/build",
+    "clean": "rimraf build/ && yarn clean-contracts",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "yarn build-contracts && mocha --require source-map-support/register --require ts-node/register 'test/**/*.spec.ts' --timeout 8000 --exit",
     "server:aggregator": "env DEBUG=\"info:*,error:*\" node ./build/src/exec/aggregator.js",
     "server:fullnode": "env DEBUG=\"info:*,error:*\" node ./build/src/exec/fullnode.js",
     "server:fullnode:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/fullnode.js",
-    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build",
+    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build && mkdir ./test/contracts/build/transpiled && mkdir ./test/contracts/build/untranspiled",
     "build-contracts": "yarn clean-contracts && waffle waffle-config-untranspiled.json && waffle waffle-config-transpiled.json"
   },
   "keywords": [
@@ -38,6 +38,7 @@
     "@eth-optimism/core-utils": "0.0.1-alpha.9",
     "@eth-optimism/ovm": "0.0.1-alpha.9",
     "@eth-optimism/rollup-core": "0.0.1-alpha.9",
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.9",
     "async-lock": "^1.2.2",
     "axios": "^0.19.0",
     "cors": "^2.8.5",

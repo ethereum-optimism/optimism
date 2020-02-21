@@ -12,7 +12,7 @@
     "clean": "rimraf build/ && yarn clean-contracts",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build && mkdir ./test/contracts/build/transpiled && mkdir ./test/contracts/build/untranspiled",
+    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build",
     "build-contracts": "yarn clean-contracts && waffle waffle-config.json",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
     "transpile": "node ./build/src/transpiler/exec/transpiler.js "

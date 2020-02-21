@@ -1,8 +1,15 @@
 import '../../../rollup-dev-tools/test/setup'
 /* External Imports */
-import { getLogger, remove0x, bufToHexString, hexStrToBuf } from '@eth-optimism/core-utils'
 import {
-  Address, formatBytecode, bufferToBytecode
+  getLogger,
+  remove0x,
+  bufToHexString,
+  hexStrToBuf,
+} from '@eth-optimism/core-utils'
+import {
+  Address,
+  formatBytecode,
+  bufferToBytecode,
 } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
@@ -15,11 +22,9 @@ import * as OriginGetter from '../contracts/build/transpiled/OriginGetter.json'
 import * as CallerReturner from '../contracts/build/transpiled/CallerReturner.json'
 import * as TimeGetter from '../contracts/build/transpiled/TimeGetter.json'
 
-import {
-  createMockProvider, getWallets, deployContract
-} from '../../'
+import { createMockProvider, getWallets, deployContract } from '../../'
 
-describe.only(`Various opcodes should be usable in combination with transpiler and full node`, () => {
+describe(`Various opcodes should be usable in combination with transpiler and full node`, () => {
   let provider
   let wallet
 
@@ -34,7 +39,7 @@ describe.only(`Various opcodes should be usable in combination with transpiler a
   })
 
   // TEST BASIC FUNCTIONALITIES
-  
+
   it('should process cross-ovm-contract calls', async () => {
     const simpleStorage = await deployContract(wallet, SimpleStorage, [], [])
     const simpleCaller = await deployContract(wallet, SimpleCaller, [], [])
@@ -56,19 +61,16 @@ describe.only(`Various opcodes should be usable in combination with transpiler a
     const returnedAddress: Address = await selfAware.getMyAddress()
     deployedAddress.should.equal(returnedAddress)
   })
-  it('should work for block.timestamp', async () => {
-    // todo, handle timestamp and unskip this test
+  it.skip('should work for block.timestamp', async () => {
+    // todo, once we handle timestamps, unskip this test
     const timeGetter = await deployContract(wallet, TimeGetter, [], [])
-    console.log(`timegetter bytecode is: \n${formatBytecode(bufferToBytecode(hexStrToBuf(TimeGetter.bytecode)))}`)
     const time = await timeGetter.getTimestamp()
     time._hex.should.equal('???')
   })
   it('should work for msg.sender', async () => {
     const callerReturner = await deployContract(wallet, CallerReturner, [], [])
     const callerGetter = await deployContract(wallet, CallerGetter, [], [])
-    const result = await callerGetter.getMsgSenderFrom(
-      callerReturner.address
-    )
+    const result = await callerGetter.getMsgSenderFrom(callerReturner.address)
     result.should.equal(callerGetter.address)
   })
   it('should work for tx.origin', async () => {
@@ -84,14 +86,10 @@ describe.only(`Various opcodes should be usable in combination with transpiler a
     const storageKey = '0x' + '01'.repeat(32)
     const storageValue = '0x' + '02'.repeat(32)
     // Set storage with our new storage elements
-    await simpleStorage.setStorage(
-      storageKey,
-      storageValue
-    )
+    await simpleStorage.setStorage(storageKey, storageValue)
     // Get the storage
     const res = await simpleStorage.getStorage(storageKey)
     // Verify we got the value!
     res.should.equal(storageValue)
   })
 })
-
