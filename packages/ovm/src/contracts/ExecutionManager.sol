@@ -185,9 +185,14 @@ contract ExecutionManager is FullStateManager {
         require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
         // Require nonce to be correct
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
+<<<<<<< HEAD
         emit CallingWithEOA(eoaAddress);
+=======
+        executionContext.ovmTxOrigin = eoaAddress;
+>>>>>>> origin/master
         // Make the EOA call for the account
         executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress);
+        executionContext.ovmTxOrigin = ZERO_ADDRESS;
     }
 
     /**
@@ -452,6 +457,28 @@ contract ExecutionManager is FullStateManager {
             let contextMemory := mload(0x40)
             mstore(contextMemory, staticContext)
             return(contextMemory, 32)
+        }
+    }
+
+    /**
+     * @notice ORIGIN opcode (tx.origin) -- this gets the origin address of the
+     * externally owned account that initiated this transaction.
+     * Note: If we are in a transaction that wasn't initiated by an externally
+     * owned account this function will revert.
+     *
+     * This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * returndata: 32-byte ORIGIN address containing the left-padded, big-endian encoding of the address.
+     */
+    function ovmORIGIN() public view {
+        require(executionContext.ovmTxOrigin != ZERO_ADDRESS, "Error: attempting to access non-existent txOrigin.");
+
+        bytes32 addressBytes = bytes32(bytes20(executionContext.ovmTxOrigin)) >> 96;
+
+        assembly {
+            let addressMemory := mload(0x40)
+            mstore(addressMemory, addressBytes)
+            return(addressMemory, 32)
         }
     }
 

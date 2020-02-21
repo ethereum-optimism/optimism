@@ -25,5 +25,6 @@ contract DataTypes {
         uint gasLimit;
         address ovmActiveContract;
         address ovmMsgSender;
+        address ovmTxOrigin;
     }
 }

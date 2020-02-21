@@ -21,6 +21,7 @@ export const ovmADDRESSName: string = 'ovmADDRESS'
 export const ovmCALLERName: string = 'ovmCALLER'
 export const ovmEXTCODEHASHName: string = 'ovmEXTCODEHASH'
 export const ovmEXTCODESIZEName: string = 'ovmEXTCODESIZE'
+export const ovmORIGINName: string = 'ovmORIGIN'
 export const ovmSLOADName: string = 'ovmSLOAD'
 export const ovmSSTOREName: string = 'ovmSSTORE'
 export const ovmTIMESTAMPName: string = 'ovmTIMESTAMP'
@@ -69,6 +70,18 @@ export const getEXTCODESIZEReplacement = (
     executionManagerAddress,
     ovmEXTCODESIZEFunctionName,
     1,
+    1
+  )
+}
+
+export const getORIGINReplacement = (
+  executionManagerAddress: Address,
+  ovmORIGINFunctionName: string = ovmORIGINName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmORIGINFunctionName,
+    0,
     1
   )
 }
