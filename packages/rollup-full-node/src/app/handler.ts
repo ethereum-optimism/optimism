@@ -13,7 +13,6 @@ import {
   convertInternalLogsToOvmLogs,
   L2ExecutionManagerContractDefinition,
   OPCODE_WHITELIST_MASK,
-  LogConversionResult,
   internalTxReceiptToOvmTxReceipt,
 } from '@eth-optimism/ovm'
 
@@ -330,7 +329,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
-      this.executionManager,
       internalTxReceipt
     )
     log.debug(
