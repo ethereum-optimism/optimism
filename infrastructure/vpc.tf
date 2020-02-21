@@ -13,11 +13,6 @@ output "vpc_id" {
   description = "The identifier of the VPC."
 }
 
-output "vpc_gateway_ipv4" {
-  value       = google_compute_network.vpc.gateway_ipv4
-  description = "The gateway address for default routing out of the network."
-}
-
 /*
  * Google Compute Subnetwork - https://www.terraform.io/docs/providers/google/r/compute_subnetwork.html
  * Defines regional subnet where Vault infrastructure is provisioned into
