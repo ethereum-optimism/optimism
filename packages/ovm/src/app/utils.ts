@@ -1,11 +1,10 @@
 /* External Imports */
 import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
-import { Contract } from 'ethers'
+import { Contract, ethers } from 'ethers'
 import { Log, TransactionReceipt } from 'ethers/providers'
-
 /* Contract Imports */
 
-const log = getLogger('utils')
+import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 
 /**
  * Contract Definitions!
@@ -29,23 +28,14 @@ export const RLPEncodeContractDefinition = {
   bytecode: RLPEncode.bytecode,
 }
 
-/**
- * OVM Event parsing!
- * Helper function for converting normal EVM logs into OVM logs.
- * This is used to detect if a contract was deployed, or to read logs with the correct
- * OVM addresses.
- */
-const ExecutionManagerEvents = {
-  activeContract: 'ActiveContract',
-  createdContract: 'CreatedContract',
-}
+const executionManager = new ethers.utils.Interface(ExecutionManager.interface)
 
-export interface LogConversionResult {
+const logger = getLogger('utils')
+export interface OvmTransactionMetadata {
   ovmTxSucceeded: boolean
   ovmTo: string
   ovmFrom: string
   ovmCreatedContractAddress: string
-  ovmLogs: Log[]
 }
 
 /**
@@ -54,107 +44,61 @@ export interface LogConversionResult {
  * parse them, and then convert them into logs which look like they would if you were running this tx
  * using an OVM backend.
  *
- * TODO: Add documentation on how the events are parsed
  *
- * @param executionManager an Ethers executionManager object which allows us to parse the event & get
- *                         the execution manager's address.
  * @param logs an array of internal logs which we will parse and then convert.
- * @return LogConversionResult which contains the converted logs & information on entrypoint & created contract address.
+ * @return the converted logs
  */
-export const convertInternalLogsToOvmLogs = (
-  executionManager: Contract,
-  logs: Log[]
-): LogConversionResult => {
-  if (logs.length === 0) {
-    log.error(`Expected logs from ExecutionManager but did not receive any!`)
-    throw new Error('Expected logs from ExecutionManager!')
-  }
-
-  let ovmCreatedContractAddress = null // The address of a newly created contract (NOTE: null is what is returned by Ethers.js)
-  let logCounter = 0 // Counter used to iterate over all the to be converted logs
-  let ovmFrom = ZERO_ADDRESS
-  let ovmTo
-
-  if (executionManager.interface.parseLog(logs[0]).name === 'CallingWithEOA') {
-    // Initiate EOA log parsing
-    ovmFrom = executionManager.interface.parseLog(logs[1]).values[
-      '_activeContract'
-    ]
-    // Check if we are creating a new contract
-    if (
-      executionManager.interface.parseLog(logs[2]).name === 'EOACreatedContract'
-    ) {
-      ovmCreatedContractAddress = executionManager.interface.parseLog(logs[2])
-        .values['_ovmContractAddress']
-      ovmTo = ovmCreatedContractAddress
-    } else {
-      ovmTo = executionManager.interface.parseLog(logs[2]).values[
-        '_activeContract'
-      ]
-    }
-    logCounter += 3
-  } else {
-    ovmTo = executionManager.interface.parseLog(logs[0]).values[
-      '_activeContract'
-    ]
-  }
-
-  const parsedLogsList = []
-  for (const l of logs) {
-    const parsedLog = executionManager.interface.parseLog(l)
-    if (parsedLog.name === 'EOACallRevert') {
-      log.debug(
-        `Found EOACallRevert event in logs. Returning failed logs result. Logs: ${JSON.stringify(
-          logs
-        )}`
-      )
-      return {
-        ovmTo,
-        ovmFrom,
-        ovmCreatedContractAddress: undefined,
-        ovmLogs: [],
-        ovmTxSucceeded: false,
+export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
+  let activeContract = ZERO_ADDRESS
+  const ovmLogs = []
+  logs.forEach((log) => {
+    const executionManagerLog = executionManager.parseLog(log)
+    if (executionManagerLog) {
+      if (executionManagerLog.name === 'ActiveContract') {
+        activeContract = executionManagerLog.values['_activeContract']
       }
+    } else {
+      ovmLogs.push({ ...log, address: activeContract })
     }
-    parsedLogsList.push(parsedLog)
-  }
-  log.debug(
-    `Converting logs! Pre-conversion log list: ${JSON.stringify(
-      parsedLogsList
-    )}`
+  })
+  return ovmLogs
+}
+
+/**
+ * Gets ovm transaction metadata from an internal transaction receipt.
+ *
+ * @param the internal transaction receipt
+ * @return ovm transaction metadata
+ */
+export const getOvmTransactionMetadata = (
+  internalTxReceipt: TransactionReceipt
+): OvmTransactionMetadata => {
+  let ovmTo
+  let ovmFrom
+  let ovmCreatedContractAddress
+  let ovmTxSucceeded
+  const logs = internalTxReceipt.logs
+    .map((log) => executionManager.parseLog(log))
+    .filter((log) => log != null)
+  const callingWithEoaLog = logs.find((log) => log.name === 'CallingWithEOA')
+  const eoaContractCreatedLog = logs.find(
+    (log) => log.name === 'EOACreatedContract'
   )
 
-  let activeContract = ovmTo // A pointer to the current active contract, used for overwriting the internal logs `address` feild.
-  // Now iterate over the remaining logs, converting them and adding them to our ovmLogs list
-  const ovmLogs: Log[] = []
-  for (; logCounter < logs.length; logCounter++) {
-    const internalLog = logs[logCounter]
-    const parsedLog = parsedLogsList[logCounter]
-
-    // Check if this log is emitted by the Execution Manager if so we may need to switch the active contract
-    if (
-      internalLog.address.toLowerCase() ===
-      executionManager.address.toLowerCase()
-    ) {
-      // Check if we've switched context -- this is used to replace the contractAddress
-      if (parsedLog.name === ExecutionManagerEvents.activeContract) {
-        activeContract = parsedLog.values['_activeContract']
-      } else {
-        // Otherwise simply skip the log
-        continue
-      }
-    }
-
-    // Push an ovmLog which is the same as the internal log but with an ovmContract address
-    ovmLogs.push({ ...internalLog, ...{ address: activeContract } })
+  ovmTxSucceeded = !logs.some((log) => log.name === 'EOACallRevert')
+  if (callingWithEoaLog) {
+    ovmFrom = callingWithEoaLog.values._ovmFromAddress
+  }
+  if (eoaContractCreatedLog) {
+    ovmCreatedContractAddress = eoaContractCreatedLog.values._ovmContractAddress
+    ovmTo = ovmCreatedContractAddress
   }
 
   return {
+    ovmTxSucceeded,
     ovmTo,
     ovmFrom,
     ovmCreatedContractAddress,
-    ovmLogs,
-    ovmTxSucceeded: true,
   }
 }
 
@@ -166,29 +110,26 @@ export const convertInternalLogsToOvmLogs = (
  * @returns The converted receipt
  */
 export const internalTxReceiptToOvmTxReceipt = async (
-  executionManager: Contract,
   internalTxReceipt: TransactionReceipt
 ): Promise<TransactionReceipt> => {
-  const convertedOvmLogs: LogConversionResult = convertInternalLogsToOvmLogs(
-    executionManager,
-    internalTxReceipt.logs
-  )
+  const ovmTransactionMetadata = getOvmTransactionMetadata(internalTxReceipt)
   // Construct a new receipt
   //
   // Start off with the internalTxReceipt
   const ovmTxReceipt = internalTxReceipt
   // Add the converted logs
-  ovmTxReceipt.logs = convertedOvmLogs.ovmLogs
+  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(internalTxReceipt.logs)
   // Update the to and from fields
-  ovmTxReceipt.to = convertedOvmLogs.ovmTo
+  ovmTxReceipt.to = ovmTransactionMetadata.ovmTo
   // TODO: Update this to use some default account abstraction library potentially.
-  ovmTxReceipt.from = convertedOvmLogs.ovmFrom
+  ovmTxReceipt.from = ovmTransactionMetadata.ovmFrom
   // Also update the contractAddress in case we deployed a new contract
-  ovmTxReceipt.contractAddress = convertedOvmLogs.ovmCreatedContractAddress
+  ovmTxReceipt.contractAddress =
+    ovmTransactionMetadata.ovmCreatedContractAddress
 
-  ovmTxReceipt.status = convertedOvmLogs.ovmTxSucceeded ? 1 : 0
+  ovmTxReceipt.status = ovmTransactionMetadata.ovmTxSucceeded ? 1 : 0
 
-  log.debug('Ovm parsed logs:', convertedOvmLogs)
+  logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   // TODO: Fix the logsBloom to remove the txs we just removed
 
   // Return!
