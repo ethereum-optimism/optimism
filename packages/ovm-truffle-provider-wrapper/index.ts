@@ -7,7 +7,9 @@ const startLocalNode = () => {
   const runText = `(async function(){ const {runFullnode} = require('@eth-optimism/rollup-full-node');runFullnode();})();`
 
   // Assumes this process was kicked off with node, but that's true for `truffle test` and `yarn ...`
-  const sub = spawn(process.argv[0], [`-e`, `${runText}`])
+  const sub = spawn(process.argv[0], [`-e`, `${runText}`], {
+    stdio: ['ignore', 'ignore', 2],
+  })
 
   sub.on('error', (e) => {
     // tslint:disable-next-line:no-console
