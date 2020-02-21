@@ -37,4 +37,9 @@ export enum Web3RpcMethods {
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',
   sendRawTransaction = 'eth_sendRawTransaction',
+
+  // Test methods:
+  setTimestamp = 'test_setTimestamp',
+  getTimestamp = 'test_getTimestamp',
+  clearTimestamp = 'test_clearTimestamp',
 }
