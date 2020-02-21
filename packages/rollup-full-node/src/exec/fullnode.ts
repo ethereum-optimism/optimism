@@ -19,6 +19,3 @@ export const runFullnode = async (): Promise<void> => {
   const baseUrl = `http://${host}:${port}`
   log.info(`Listening at ${baseUrl}`)
 }
-
-// Start Fullnode
-runFullnode()

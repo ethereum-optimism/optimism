@@ -49,14 +49,15 @@ Using With Truffle
 
 To use the transpiler with Truffle, set truffle's ``compilers.solc.version`` configuration to ``@eth-optimism/solc-transpiler``, and configure the ``EXECUTION_MANAGER_ADDRESS`` environment variable. 
 
-Currently, Truffle does not provide a clean way to use custom chain IDs, so we have created the ``@eth-optimism/ovm-truffle-provider-wrapper`` library to seamlessly wrap your provider of choice to handle this.
+Currently, Truffle does not provide a clean way to use custom chain IDs, so we have created the ``@eth-optimism/ovm-truffle-provider-wrapper`` package to seamlessly wrap your provider of choice to handle this.
+Note: you will also need to include ``@eth-optimism/rollup-full-node`` as a dependency if you would like to run a full node locally (or use ``ProviderWrapper.wrapProviderAndStartLocalNode(...)``).
 
 example truffle-config.json:
 
 .. code-block:: json
 
   const HDWalletProvider = require('truffle-hdwallet-provider');
-  const wrapProvider = require('@eth-optimism/ovm-truffle-provider-wrapper');
+  const ProviderWrapper = require("@eth-optimism/ovm-truffle-provider-wrapper");
   const mnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat';
 
   // Set this to the desired Execution Manager Address -- required for the transpiler
@@ -64,18 +65,23 @@ example truffle-config.json:
 
   module.exports = {
   /**
-   * Note: this expects the local fullnode to be running:
-   * // TODO: Run `yarn server:fullnode` in rollup-full-node before executing this test
+   * Note: this runs the OVM full node for the duration of the tests at `http://127.0.0.1:8545`
    *
    * To run tests:
    * $ truffle test ./truffle-tests/test-erc20.js --config truffle-config-ovm.js
    */
   networks: {
-    // Note: Requires running the rollup-full-node locally.
     test: {
       network_id: 108,
       provider: function() {
-        return wrapProvider(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
+        return ProviderWrapper.wrapProviderAndStartLocalNode(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
+      },
+      gasPrice: 0,
+      gas: 9000000,
+    },
+    live_example: {
+      provider: function () {
+        return ProviderWrapper.wrapProvider(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
       },
       gasPrice: 0,
       gas: 9000000,

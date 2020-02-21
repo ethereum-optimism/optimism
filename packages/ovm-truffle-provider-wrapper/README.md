@@ -3,19 +3,24 @@ The OVM uses a specific `chainId`, which Truffle, at the moment, does not allow 
 
 ## Configuration
 ChainId defaults to 108 but is configurable by setting the `OVM_CHAIN_ID` environment variable.
+Note: you will also need to include `@eth-optimism/rollup-full-node` as a dependency if you would like to run a full node locally (or use ``ProviderWrapper.wrapProviderAndStartLocalNode(...)``).
 
 ## Example Usage in truffle-config.js:
 ```$javascript
 const HDWalletProvider = require('truffle-hdwallet-provider');
-const wrapProvider = require('@eth-optimism/ovm-truffle-provider-wrapper');
+const ProviderWrapper = require("@eth-optimism/ovm-truffle-provider-wrapper");
 const mnemonic = 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat';
 
 module.exports = {
   networks: {
-    // Note: Requires running the rollup-full-node locally.
     test: {
       provider: function () {
-        return wrapProvider(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
+        return ProviderWrapper.wrapProviderAndStartLocalNode(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
+      },
+    },
+    live_example: {
+      provider: function () {
+        return ProviderWrapper.wrapProvider(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
       },
     },
   },
