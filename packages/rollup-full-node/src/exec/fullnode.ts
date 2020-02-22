@@ -1,5 +1,5 @@
 /* External Imports */
-import {ExpressHttpServer, getLogger, Logger} from '@eth-optimism/core-utils'
+import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../app'
