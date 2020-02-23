@@ -8,11 +8,6 @@ resource "google_compute_network" "vpc" {
   routing_mode            = "REGIONAL"
 }
 
-output "vpc_id" {
-  value       = google_compute_network.vpc.id
-  description = "The identifier of the VPC."
-}
-
 /*
  * Google Compute Subnetwork - https://www.terraform.io/docs/providers/google/r/compute_subnetwork.html
  * Defines regional subnet where Vault infrastructure is provisioned into

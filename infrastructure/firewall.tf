@@ -1,19 +1,19 @@
 /*
- * Data Dog IP Ranges - https://www.terraform.io/docs/providers/datadog/d/ip_ranges.html
- * This data source provides the IP ranges required to direct traffic to Data Dog for
+ * Datadog IP Ranges - https://www.terraform.io/docs/providers/datadog/d/ip_ranges.html
+ * This data source provides the IP ranges required to direct traffic to Datadog for
  * logging and monitoring purposes.
  */
 data "datadog_ip_ranges" "ips" {}
 
 /*
  * Google Compute Firewall - https://www.terraform.io/docs/providers/google/r/compute_firewall.html
- * Egrees rule that allows traffic to be directed to Data Dog's network
+ * Egrees rule that allows traffic to be directed to Datadog's network
  */
 resource "google_compute_firewall" "datadog_logs_egress" {
   name    = "datadog-log-egress"
   network = google_compute_network.vpc.name
 
-  # Allowed ports are configured for Data Dog following requirements specified here: 
+  # Allowed ports are configured for Datadog following requirements specified here: 
   # https://docs.datadoghq.com/agent/guide/network/?tab=agentv6v7
 
   allow {
@@ -40,7 +40,7 @@ resource "google_compute_firewall" "datadog_agent_1_egress" {
   name    = "datadog-agent-1-egress"
   network = google_compute_network.vpc.name
 
-  # Allowed ports are configured for Data Dog following requirements specified here: 
+  # Allowed ports are configured for Datadog following requirements specified here: 
   # https://docs.datadoghq.com/agent/guide/network/?tab=agentv6v7
 
   allow {
@@ -67,7 +67,7 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
   name    = "datadog-agent-2-egress"
   network = google_compute_network.vpc.name
 
-  # Allowed ports are configured for Data Dog following requirements specified here: 
+  # Allowed ports are configured for Datadog following requirements specified here: 
   # https://docs.datadoghq.com/agent/guide/network/?tab=agentv6v7
 
   allow {
