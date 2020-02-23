@@ -51,7 +51,7 @@ resource "google_compute_instance" "nat_test" {
 
   metadata_startup_script = <<-EOT
     DD_AGENT_MAJOR_VERSION=7 
-    DD_API_KEY=var.data_dog_api_key
+    DD_API_KEY=var.datadog_api_key
     bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
     sudo apt-get -yq install stress
     stress -c 8 -t 120

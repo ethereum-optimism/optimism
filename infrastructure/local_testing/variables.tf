@@ -1,5 +1,5 @@
-variable "data_dog_api_key" {
-  description = "API key used by Data Dog agent in the instance to authenticate to Data Dog"
+variable "datadog_api_key" {
+  description = "API key used by Datadog agent in the instance to authenticate to Datadog"
 }
 
 variable "ssh_user" {
