@@ -15,4 +15,4 @@ coverage*
 docs/_build
 *.tfstate*
 *.ignore
-local_testing*
+terraform.tfvars
