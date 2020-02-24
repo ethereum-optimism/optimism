@@ -59,3 +59,13 @@ resource "google_compute_router_nat" "nat" {
     filter = "ALL"
   }
 }
+
+/*
+ * Network Peering - https://www.terraform.io/docs/providers/google/r/compute_network_peering.html
+ * Connecting VPC with clients to VPC hosting Vault
+ */
+resource "google_compute_network_peering" "peering" {
+  name         = "peering-to-client-vpc"
+  network      = google_compute_network.vpc.self_link
+  peer_network = var.client_vpc_uri
+}

@@ -22,3 +22,7 @@ variable "datadog_api_key" {
 variable "datadog_app_key" {
   description = "Datadog APP key"
 }
+
+variable "client_vpc_uri" {
+  description = "URI of the client VPC to be peered to the Vault VPC"
+}
