@@ -322,3 +322,35 @@ export const buildLog = (
     data: encodedData,
   }
 }
+
+export const executeOVMCall = async (
+  executionManager: Contract,
+  wallet: Wallet,
+  functionName: string,
+  args: any[]
+): Promise<string> => {
+  const methodId: string = ethereumjsAbi
+    .methodID(`ovm${functionName}`, [])
+    .toString('hex')
+  const encodedArguments = encodeOvmArguments(args)
+  const data: string = add0x(methodId + encodedArguments)
+  return executionManager.provider.call({
+    to: executionManager.address,
+    data,
+    gasLimit,
+  })
+}
+
+export const encodeOvmArguments = (
+  args: any[]
+): string => {
+  return args.map((arg) => {
+    if(Number.isInteger(arg)) {
+      return bufferUtils.numberToBuffer(arg).toString('hex')
+    } else if(arg.startsWith("0x")) {
+      return remove0x(arg)
+    } else {
+      return arg
+    }
+  }).join("")
+}
