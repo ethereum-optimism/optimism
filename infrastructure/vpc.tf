@@ -62,10 +62,10 @@ resource "google_compute_router_nat" "nat" {
 
 /*
  * Network Peering - https://www.terraform.io/docs/providers/google/r/compute_network_peering.html
- * Connecting VPC with clients to VPC hosting Vault
+ * Connecting Omisego VPC
  */
 resource "google_compute_network_peering" "peering" {
-  name         = "peering-to-client-vpc"
+  name         = "peering-to-omisego-vpc"
   network      = google_compute_network.vpc.self_link
-  peer_network = var.client_vpc_uri
+  peer_network = var.omisego_vpc_uri
 }

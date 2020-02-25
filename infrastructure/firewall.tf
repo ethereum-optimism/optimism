@@ -89,3 +89,21 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
 
   source_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 1)
 }
+
+resource "google_compute_firewall" "omisego_vpc_access" {
+  name        = "omisego-vpc-access"
+  network     = google_compute_network.vpc.name
+  description = "Allows access from Omisego VPC"
+
+  allow {
+    protocol = "icmp"
+  }
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8200"]
+  }
+
+  source_ranges = [var.omisego_subnet_cidr]
+  target_tags   = ["vault"]
+}
