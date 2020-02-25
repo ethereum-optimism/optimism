@@ -79,9 +79,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The timestamp.
    */
   protected getTimestamp(): number {
-    return this.timestamp === undefined
-      ? super.getTimestamp()
-      : this.timestamp
+    return this.timestamp === undefined ? super.getTimestamp() : this.timestamp
   }
 
   /**
