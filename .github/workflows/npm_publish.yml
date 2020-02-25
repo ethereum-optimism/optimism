@@ -1,0 +1,116 @@
+name: Run Tests and Publish to NPM
+
+on:
+  push:
+    branches:
+      - published
+
+
+jobs:
+  publish:
+    name: Run CI and Publish to NPM
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v1
+
+      # START DEPENDENCY CACHING
+      - name: Cache root deps
+        uses: actions/cache@v1
+        id: cache_base
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ hashFiles('package.json') }}
+
+      - name: Cache core-db deps
+        uses: actions/cache@v1
+        id: cache_core-db
+        with:
+          path: packages/core-db/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/core-db/package.json') }}
+
+      - name: Cache core-utils deps
+        uses: actions/cache@v1
+        id: cache_core-utils
+        with:
+          path: packages/core-utils/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/core-utils/package.json') }}
+
+      - name: Cache ovm deps
+        uses: actions/cache@v1
+        id: cache_ovm
+        with:
+          path: packages/ovm/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/ovm/package.json') }}
+
+      - name: Cache optimistic-game-semantics deps
+        uses: actions/cache@v1
+        id: cache_optimistic-game-semantics
+        with:
+          path: packages/optimistic-game-semantics/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/optimistic-game-semantics/package.json') }}
+
+      - name: Cache rollup-full-node deps
+        uses: actions/cache@v1
+        id: cache_rollup-full-node
+        with:
+          path: packages/rollup-full-node/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/rollup-full-node/package.json') }}
+
+      - name: Cache rollup-contracts deps
+        uses: actions/cache@v1
+        id: cache_rollup-contracts
+        with:
+          path: packages/rollup-contracts/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/rollup-contracts/package.json') }}
+
+      - name: Cache rollup-core deps
+        uses: actions/cache@v1
+        id: cache_rollup-core
+        with:
+          path: packages/rollup-core/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/rollup-core/package.json') }}
+
+      - name: Cache rollup-dev-tools deps
+        uses: actions/cache@v1
+        id: cache_rollup-dev-tools
+        with:
+          path: packages/rollup-dev-tools/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/rollup-dev-tools/package.json') }}
+
+      - name: Cache solc-transpiler deps
+        uses: actions/cache@v1
+        id: cache_solc-transpiler
+        with:
+          path: packages/solc-transpiler/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
+
+      - name: Cache ovm-truffle-provider-wrapper deps
+        uses: actions/cache@v1
+        id: cache_ovm-truffle-provider-wrapper
+        with:
+          path: packages/ovm-truffle-provider-wrapper/node_modules
+          key: ${{ runner.os }}-${{ hashFiles('packages/ovm-truffle-provider-wrapper/package.json') }}
+
+      # END DEPENDENCY CACHING
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Build
+        run: |
+          yarn clean
+          yarn build
+
+      - name: Test
+        run: yarn test
+
+      - name: Publish
+        run: yarn run release:alpha
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
