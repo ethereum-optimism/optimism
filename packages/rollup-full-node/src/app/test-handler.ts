@@ -79,7 +79,9 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The timestamp.
    */
   protected getTimestamp(): number {
-    return this.timestamp === undefined ? super.getTimestamp() : this.timestamp
+    return this.timestamp === undefined
+      ? super.getTimestamp()
+      : this.timestamp
   }
 
   /**
@@ -89,7 +91,6 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
   private setTimestamp(time: any): void {
     try {
       const timeNumber = parseInt(remove0x(time), 16)
-
       if (timeNumber < 0) {
         throw Error('invalid param')
       }

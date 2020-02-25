@@ -178,6 +178,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       txObject['from']
     )
 
+    log.debug(`calldata: ${internalCalldata}`)
+
     let response
     try {
       // Then actually make the call and get the response
