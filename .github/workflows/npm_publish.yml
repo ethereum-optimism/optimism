@@ -103,7 +103,17 @@ jobs:
           yarn clean
           yarn build
 
+      - name: Configure git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
       - name: Publish
         run: yarn run release:alpha
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
