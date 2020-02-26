@@ -4,7 +4,7 @@ import { execSync, spawn } from 'child_process'
  * Starts a local OVM node process for testing. It will be killed when the current process terminates.
  */
 const startLocalNode = () => {
-  const runText = `(async function(){ const {runFullnode} = require('@eth-optimism/rollup-full-node');runFullnode();})();`
+  const runText = `(async function(){ const {runFullnode} = require('@eth-optimism/rollup-full-node');runFullnode(true);})();`
 
   // Assumes this process was kicked off with node, but that's true for `truffle test` and `yarn ...`
   const sub = spawn(process.argv[0], [`-e`, `${runText}`], {
