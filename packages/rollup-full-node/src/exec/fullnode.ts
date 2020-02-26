@@ -2,8 +2,7 @@
 import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { FullnodeRpcServer, DefaultWeb3Handler } from '../app'
-import { TestWeb3Handler } from '../app/test-handler'
+import { FullnodeRpcServer, DefaultWeb3Handler, TestWeb3Handler } from '../app'
 
 const log: Logger = getLogger('rollup-fullnode')
 

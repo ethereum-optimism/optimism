@@ -8,7 +8,7 @@ import { Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT } from './index'
-import { DefaultWeb3Handler } from './handler'
+import { DefaultWeb3Handler } from './web3-rpc-handler'
 import { UnsupportedMethodError, Web3RpcMethods } from '../types'
 
 const log = getLogger('test-web3-handler')
@@ -19,7 +19,8 @@ const log = getLogger('test-web3-handler')
 export class TestWeb3Handler extends DefaultWeb3Handler {
   public static readonly successString = 'success'
 
-  private timestamp: number
+  private timestampIncreaseSeconds: number = 0
+
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * TestHandler that handles Web3 requests to it.
@@ -54,16 +55,10 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * Override to add some test RPC methods.
    */
   public async handleRequest(method: string, params: any[]): Promise<string> {
-    if (method === Web3RpcMethods.setTimestamp) {
+    if (method === Web3RpcMethods.increaseTimestamp) {
       this.assertParameters(params, 1)
-      this.setTimestamp(params[0])
-      log.debug(`Set timestamp to ${params[0]}.`)
-      return TestWeb3Handler.successString
-    }
-    if (method === Web3RpcMethods.clearTimestamp) {
-      this.assertParameters(params, 0)
-      this.timestamp = undefined
-      log.debug(`Cleared configured timestamp.`)
+      this.increaseTimestamp(params[0])
+      log.debug(`Set increased timestamp by ${params[0]} seconds.`)
       return TestWeb3Handler.successString
     }
     if (method === Web3RpcMethods.getTimestamp) {
@@ -79,22 +74,22 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The timestamp.
    */
   protected getTimestamp(): number {
-    return this.timestamp === undefined ? super.getTimestamp() : this.timestamp
+    return super.getTimestamp() + this.timestampIncreaseSeconds
   }
 
   /**
    * Sets timestamp to use for future transactions.
-   * @param time The time to set as a hex string (string)
+   * @param increaseSeconds The increase in seconds as a hex string
    */
-  private setTimestamp(time: any): void {
+  private increaseTimestamp(increaseSeconds: any): void {
     try {
-      const timeNumber = parseInt(remove0x(time), 16)
-      if (timeNumber < 0) {
+      const increaseNumber = parseInt(remove0x(increaseSeconds), 16)
+      if (increaseNumber < 0) {
         throw Error('invalid param')
       }
-      this.timestamp = timeNumber
+      this.timestampIncreaseSeconds += increaseNumber
     } catch (e) {
-      const msg: string = `Expected parameter for eth_setTimestamp to be a positive number or string of a positive, base-10 number. Received: ${time}`
+      const msg: string = `Expected parameter for ${Web3RpcMethods.increaseTimestamp} to be a positive number or string of a positive, base-10 number. Received: ${increaseSeconds}`
       log.error(msg)
       throw new UnsupportedMethodError(msg)
     }

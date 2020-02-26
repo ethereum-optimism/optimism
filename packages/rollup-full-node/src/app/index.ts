@@ -1,8 +1,8 @@
 export * from './block-builder'
 export * from './block-submitter'
 export * from './fullnode-rpc-server'
-export * from './handler'
-export * from './test-handler'
+export * from './web3-rpc-handler'
+export * from './test-web3-rpc-handler'
 export * from './utils'
 
 // Constant exports
