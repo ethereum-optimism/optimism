@@ -284,20 +284,20 @@ export class TranspilerImpl implements Transpiler {
   }
 
   // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing deployed bytecode which is returned during CREATE/CREATE2.
-  // Tags based on the pattern:
-  // PUSH2 // codecopy's and RETURN's length
-  // DUP1 // DUPed to use twice, for RETURN and CODECOPY both
-  // PUSH2 // codecopy's offset
-  // PUSH1 codecopy's destOffset
-  // CODECOPY // copy
-  // PUSH1 0 // RETURN offset
-  // RETURN // uses above RETURN offset and DUP'ed length above
   // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
   private findAndTagDeployedBytecodeReturner(
     bytecode: EVMBytecode
   ): EVMBytecode {
     for (let index = 0; index < bytecode.length - 6; index++) {
       const op: EVMOpcodeAndBytes = bytecode[index]
+      // Tags based on the pattern used for deploying non-library contracts:
+      // PUSH2 // codecopy's and RETURN's length
+      // DUP1 // DUPed to use twice, for RETURN and CODECOPY both
+      // PUSH2 // codecopy's offset
+      // PUSH1 codecopy's destOffset
+      // CODECOPY // copy
+      // PUSH1 0 // RETURN offset
+      // RETURN // uses above RETURN offset and DUP'ed length above
       if (
         Opcode.isPUSHOpcode(op.opcode) &&
         Opcode.isPUSHOpcode(bytecode[index + 2].opcode) &&
@@ -305,7 +305,7 @@ export class TranspilerImpl implements Transpiler {
         bytecode[index + 6].opcode === Opcode.RETURN
       ) {
         log.debug(
-          `detected a [CODECOPY(deployed bytecode)... RETURN] (CREATE/2 deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
+          `detected a NON-LIBRARY [CODECOPY(deployed bytecode)... RETURN] (CREATE/2 deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
             index,
             bytecode
           ).toString(16)}. Tagging the offset and size...`
@@ -322,6 +322,45 @@ export class TranspilerImpl implements Transpiler {
         bytecode[index + 2] = {
           opcode: bytecode[index + 2].opcode,
           consumedBytes: bytecode[index + 2].consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
+            metadata: undefined,
+          },
+        }
+      }
+      // Tags based on the pattern used for deploying library contracts:
+      // PUSH2: 0x0158  [0x0158] // deployed bytecode length
+      // PUSH2: 0x0026  [0x0026, 0x0158] // deployed bytecode start
+      // PUSH1: 0x0b  [0x0b, 0x0026, 0x0158] // destoffset of code to copy
+      // DUP3   
+      // DUP3 
+      // DUP3  [0x0b, 0x0026, 0x0158, 0x0b, 0x0026, 0x0158]
+      // CODECOPY  [0x0b, 0x0026, 0x0158] 
+      else if (
+        Opcode.isPUSHOpcode(op.opcode) &&
+        Opcode.isPUSHOpcode(bytecode[index + 1].opcode) &&
+        Opcode.isPUSHOpcode(bytecode[index + 2].opcode) &&
+        bytecode[index + 6].opcode === Opcode.CODECOPY
+      ) {
+        log.debug(
+          `detected a LIBRARY [CODECOPY(deployed bytecode)... RETURN] (library deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
+            index,
+            bytecode
+          ).toString(16)}. Tagging the offset and size...`
+        )
+        bytecode[index] = {
+          opcode: op.opcode,
+          consumedBytes: op.consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_DEPLOY_CODE_LENGTH,
+            metadata: undefined,
+          },
+        }
+        bytecode[index + 1] = {
+          opcode: bytecode[index + 1].opcode,
+          consumedBytes: bytecode[index + 1].consumedBytes,
           tag: {
             padPUSH: true,
             reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
