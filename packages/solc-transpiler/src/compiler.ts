@@ -15,10 +15,12 @@ import {
   isValidHexAddress,
   Logger,
   remove0x,
+  objectsEqual,
 } from '@eth-optimism/core-utils'
 import * as solc from 'solc'
 import { execSync } from 'child_process'
 import * as requireFromString from 'require-from-string'
+import { link } from 'fs'
 
 const log: Logger = getLogger('solc-transpiler')
 
@@ -77,6 +79,11 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   for (const [filename, fileJson] of Object.entries(res.contracts)) {
     log.debug(`Transpiling file: ${filename}`)
     for (const [contractName, contractJson] of Object.entries(fileJson)) {
+
+      log.debug(`PRE link replacement json: ${JSON.stringify(contractJson)}`)
+      const originalRefStrings = getOriginalLinkRefStringsAndSubstituteValidHex(contractJson)
+      log.debug(`POST link replacement (valid hex string) json: ${JSON.stringify(contractJson)}`)
+
       log.debug(`Transpiling contract: ${contractName}`)
       const output = transpileContract(
         transpiler,
@@ -99,6 +106,9 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
       res.contracts[filename][
         contractName
       ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
+
+      updateLinkRefsAndSubstituteOriginalStrings(res.contracts[filename][contractName], originalRefStrings)
+      log.debug(`RE-REPLACED invalid string replacement json: ${JSON.stringify(res.contracts[filename][contractName])}`)
 
       if (!!output.errors) {
         if (!res.errors) {
@@ -407,9 +417,6 @@ const transpileContract = (
   filename: string,
   contractName: string
 ): TranspilationOutput => {
-  const originalBytecodeSize: number = hexStrToBuf(
-    contractSolcOutput.evm.bytecode.object
-  ).byteLength
   let bytecode: string = getBytecode(contractSolcOutput, false)
   let deployedBytecode: string = getBytecode(contractSolcOutput, true)
 
@@ -418,6 +425,13 @@ const transpileContract = (
   }
 
   if (!!bytecode) {
+    // log.debug(`replacing (INITIALIZATION) bytecode library linkReferences with valid hex strings... input: \n${contractSolcOutput.evm.bytecode.hex}`)
+    // const placeholders = substituteLinkPlaceholdersForValidBytes(contractSolcOutput.evm.bytecode)
+    // log.debug(`replaced (INITIALIZATION) bytecode library linkReferences with valid hex strings... output: \n${contractSolcOutput.evm.bytecode.hex}`)
+
+    const originalBytecodeSize: number = hexStrToBuf(
+      contractSolcOutput.evm.bytecode.object
+    ).byteLength
     const transpilationResult = transpiler.transpile(
       hexStrToBuf(bytecode),
       hexStrToBuf(deployedBytecode),
@@ -439,6 +453,10 @@ const transpileContract = (
   }
 
   if (!!deployedBytecode) {
+    // log.debug(`replacing (DEPLOYED) bytecode library linkReferences with valid hex strings... input: \n${contractSolcOutput.evm.deployedBytecode.object.hex}`)
+    // const placeholders = substituteLinkPlaceholdersForValidBytes(contractSolcOutput.evm.deployedBytecode.object)
+    // log.debug(`replaced (DEPLOYED) bytecode library linkReferences with valid hex strings... output: \n${contractSolcOutput.evm.deployedBytecode.object.hex}`)
+
     const transpilationResult = transpiler.transpileRawBytecode(
       hexStrToBuf(deployedBytecode)
     )
@@ -462,4 +480,70 @@ const transpileContract = (
     bytecode,
     deployedBytecode,
   }
+}
+
+const updateLinkRefsAndSubstituteOriginalStrings = (solcOutput: any, originalPlaceholderStrings: string[]): void => {
+  log.debug(`putting back into JSON: ${JSON.stringify(solcOutput)}`)
+  let placeholderIndex: number = 0
+  const updatePlaceholderStartAndSubstituteOriginalString = (bytecodeObject: any, linkLocation: any, fileName: string, libraryName: string) => {
+    const replacedHexString: string = getPlaceholderHexString(placeholderIndex)
+    const newPlaceholderStart = bytecodeObject.object.indexOf(replacedHexString)
+    linkLocation.start = newPlaceholderStart / 2 // /2 because we found this from a hex string, but we operate on 
+
+    const placeholderLength = linkLocation.length * 2 // 2x because this is expressed in bytes but we will operate on hex string
+    const newPlaceholderend = newPlaceholderStart + placeholderLength
+    const originalPlaceholderString = originalPlaceholderStrings[placeholderIndex]
+    const prevBytecodeString: string = bytecodeObject.object
+    bytecodeObject.object = 
+      prevBytecodeString.slice(0, newPlaceholderStart) + 
+      originalPlaceholderString + 
+      prevBytecodeString.slice(newPlaceholderend) 
+    placeholderIndex++
+  }
+  executeOnAllLinks(solcOutput.evm.bytecode, updatePlaceholderStartAndSubstituteOriginalString)
+  executeOnAllLinks(solcOutput.evm.deployedBytecode, updatePlaceholderStartAndSubstituteOriginalString)
+  log.debug(`once put back into JSON: ${JSON.stringify(solcOutput)}`)
+
+}
+
+const getOriginalLinkRefStringsAndSubstituteValidHex = (solcOutput: any): string[] => {
+  let originalPlaceholderStrings: string[] = []
+  let placeholderIndex: number = 0
+
+  const pushOriginalPlaceholderAndSubstituteValidHex = (bytecodeObject: any, linkLocation: any, fileName: string, libraryName: string) => {
+    const placeholderStart: number = linkLocation.start * 2 // 2x because this is expressed in bytes but we will operate on hex string
+    const placeholderLength: number = linkLocation.length * 2 // 2x because this is expressed in bytes but we will operate on hex string
+    const placeholderEnd: number = placeholderLength + placeholderStart
+    const prevBytecodeString: string = bytecodeObject.object
+    const originalPlaceholderString: string = prevBytecodeString.slice(placeholderStart, placeholderEnd)
+    log.debug(`Parsed ${placeholderIndex}th link for file ${fileName}, AKA library ${libraryName} with placeholder ${originalPlaceholderString} at elements (${placeholderStart},${placeholderEnd}) bytecode string.`)
+    bytecodeObject.object = 
+      prevBytecodeString.slice(0, placeholderStart) + 
+      getPlaceholderHexString(placeholderIndex) + 
+      prevBytecodeString.slice(placeholderEnd) 
+    originalPlaceholderStrings.push(originalPlaceholderString)
+    placeholderIndex++
+  }
+
+  executeOnAllLinks(solcOutput.evm.bytecode, pushOriginalPlaceholderAndSubstituteValidHex)
+  executeOnAllLinks(solcOutput.evm.deployedBytecode, pushOriginalPlaceholderAndSubstituteValidHex)
+
+  return originalPlaceholderStrings
+}
+
+const executeOnAllLinks = (bytecodeObjectFromSolcOutput: any, callback: (bytecodeObject: any, linkLocation: any, fileName: string, libraryName: string) => void, callbackDescription: string = '(UNSPECIFIED)') => {
+  log.debug(`asked to execute callback performing ${callbackDescription} on all JSON links...`)
+  const linkRefs = bytecodeObjectFromSolcOutput.linkReferences
+  for (const fileName in linkRefs) {
+    const libraryName: string = Object.keys(linkRefs[fileName])[0]
+    log.debug(`Parsing links for ${libraryName}...`)
+    for (const linkLocation of linkRefs[fileName][libraryName]) {
+      callback(bytecodeObjectFromSolcOutput, linkLocation, fileName, libraryName)
+    }
+  }
+}
+
+const getPlaceholderHexString = (index: number, bytelength: number = 20): string => {
+  // TODO: replace with a deterministic source of real randomness
+  return (Buffer.from(`${index}PLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDER`).toString('hex')).slice(0, 2 * bytelength)
 }

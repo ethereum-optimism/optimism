@@ -110,7 +110,7 @@ export async function deployContract(
 ) {
   const factory = new ContractFactory(
     contractJSON.abi,
-    contractJSON.bytecode,
+    contractJSON.bytecode || contractJSON.evm.bytecode,
     wallet
   )
 

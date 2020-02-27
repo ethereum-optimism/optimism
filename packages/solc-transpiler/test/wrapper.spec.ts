@@ -24,8 +24,8 @@ import * as DummyContract from './contracts/build/Dummy.json'
 import * as Dummy2Contract from './contracts/build/Dummy2.json'
 import * as Dummy3Contract from './contracts/build/Dummy3.json'
 
-const dummyPath = path.resolve(__dirname, './contracts/Dummy.sol')
-const dummy2Path = path.resolve(__dirname, './contracts/Dummy2.sol')
+const dummyPath = path.resolve(__dirname, './contracts/dummy/Dummy.sol')
+const dummy2Path = path.resolve(__dirname, './contracts/dummy/Dummy2.sol')
 const config = {
   language: 'Solidity',
   sources: {
