@@ -31,6 +31,7 @@ import {
   addressToBytes32Address,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { fromPairs } from "lodash";
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -85,10 +86,8 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('properly gets contract code size for the contract we expect', async () => {
       const result: string = await executeOVMCall(
         executionManager,
-        "ovmEXTCODESIZE",
-        [
-          addressToBytes32Address(dummyContractAddress),
-        ]
+        'ovmEXTCODESIZE',
+        [addressToBytes32Address(dummyContractAddress)]
       )
       log.debug(`Resulting size: [${result}]`)
 
@@ -104,10 +103,8 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('properly gets contract code hash for the contract we expect', async () => {
       const codeHash: string = await executeOVMCall(
         executionManager,
-        "ovmEXTCODEHASH",
-        [
-          addressToBytes32Address(dummyContractAddress),
-        ]
+        'ovmEXTCODEHASH',
+        [addressToBytes32Address(dummyContractAddress)]
       )
       log.debug(`Resulting hash: [${codeHash}]`)
 
@@ -121,7 +118,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('properly gets all contract code via EXTCODECOPY', async () => {
       const code: string = await executeOVMCall(
         executionManager,
-        "ovmEXTCODECOPY",
+        'ovmEXTCODECOPY',
         [
           addressToBytes32Address(dummyContractAddress),
           0,
@@ -137,7 +134,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('returns zeroed bytes if the range is out of bounds', async () => {
       const code: string = await executeOVMCall(
         executionManager,
-        "ovmEXTCODECOPY",
+        'ovmEXTCODECOPY',
         [
           addressToBytes32Address(dummyContractAddress),
           0,
@@ -147,10 +144,11 @@ describe('Execution Manager -- Code-related opcodes', () => {
       log.debug(`Resulting code: [${code}]`)
 
       const codeBuff: Buffer = hexStrToBuf(code)
-      const bytecodeWithZeroedBytes = Buffer.concat([dummyContractBytecode, Buffer.alloc(3)])
+      const bytecodeWithZeroedBytes = Buffer.concat([
+        dummyContractBytecode,
+        Buffer.alloc(3),
+      ])
       codeBuff.should.eql(bytecodeWithZeroedBytes, 'Incorrect code!')
     })
   })
 })
-
-

@@ -57,6 +57,7 @@
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37",
     "ethlint": "^1.2.5",
+    "lodash": "^4.17.15",
     "mathjs": "^6.6.0",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0"
