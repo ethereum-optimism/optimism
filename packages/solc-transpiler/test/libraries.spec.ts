@@ -15,7 +15,7 @@ import {
   remove0x,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { createMockProvider, getWallets, deployContract } from '@eth-optimism/rollup-full-node'
+import { createMockProvider, getWallets, deployContract,  } from '@eth-optimism/rollup-full-node'
 import { link } from 'ethereum-waffle'
 
 
@@ -24,8 +24,6 @@ import * as fs from 'fs'
 
 /* Internal Imports */
 import { compile } from '../src'
-import * as SafeMathUser from './contracts/build/SafeMathUser.json'
-
 
 const safeMathUserPath = path.resolve(__dirname, './contracts/library/SafeMathUser.sol')
 const simpleSafeMathPath = path.resolve(__dirname, './contracts/library/SimpleSafeMath.sol')
@@ -49,7 +47,7 @@ const config = {
   },
 }
 
-describe.only('Library usage tests', () => {
+describe('Library usage tests', () => {
 //   const transpiler: Transpiler = new TranspilerImpl(
 //     new OpcodeWhitelistImpl(),
 //     new OpcodeReplacerImpl(ZERO_ADDRESS)
@@ -63,6 +61,9 @@ describe.only('Library usage tests', () => {
     provider = await createMockProvider()
     const wallets = getWallets(provider)
     wallet = wallets[0]
+  })
+  afterEach(async () => {
+      provider.closeOVM()
   })
 
 //   const getContractTranspiledBytecode = (
