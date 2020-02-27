@@ -82,11 +82,10 @@ describe('Execution Manager -- Code-related opcodes', () => {
   })
 
   describe('getContractCodeSize', async () => {
-    it.only('properly gets contract code size for the contract we expect', async () => {
+    it('properly gets contract code size for the contract we expect', async () => {
       const result: string = await executeOVMCall(
         executionManager,
-        wallet,
-        "EXTCODESIZE",
+        "ovmEXTCODESIZE",
         [
           addressToBytes32Address(dummyContractAddress),
         ]
@@ -105,8 +104,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('properly gets contract code hash for the contract we expect', async () => {
       const codeHash: string = await executeOVMCall(
         executionManager,
-        wallet,
-        "EXTCODEHASH",
+        "ovmEXTCODEHASH",
         [
           addressToBytes32Address(dummyContractAddress),
         ]
@@ -123,8 +121,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('properly gets all contract code via EXTCODECOPY', async () => {
       const code: string = await executeOVMCall(
         executionManager,
-        wallet,
-        "EXTCODECOPY",
+        "ovmEXTCODECOPY",
         [
           addressToBytes32Address(dummyContractAddress),
           0,
@@ -140,8 +137,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     it('returns zeroed bytes if the range is out of bounds', async () => {
       const code: string = await executeOVMCall(
         executionManager,
-        wallet,
-        "EXTCODECOPY",
+        "ovmEXTCODECOPY",
         [
           addressToBytes32Address(dummyContractAddress),
           0,

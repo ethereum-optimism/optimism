@@ -325,15 +325,11 @@ export const buildLog = (
 
 export const executeOVMCall = async (
   executionManager: Contract,
-  wallet: Wallet,
   functionName: string,
   args: any[]
 ): Promise<string> => {
-  const methodId: string = ethereumjsAbi
-    .methodID(`ovm${functionName}`, [])
-    .toString('hex')
-  const encodedArguments = encodeOvmArguments(args)
-  const data: string = add0x(methodId + encodedArguments)
+  const data: string = add0x(encodeMethodId(functionName) + encodeRawArguments(args))
+
   return executionManager.provider.call({
     to: executionManager.address,
     data,
@@ -341,7 +337,15 @@ export const executeOVMCall = async (
   })
 }
 
-export const encodeOvmArguments = (
+export const encodeMethodId = (
+  functionName: string,
+): string => {
+  return ethereumjsAbi
+    .methodID(functionName, [])
+    .toString('hex')
+}
+
+export const encodeRawArguments = (
   args: any[]
 ): string => {
   return args.map((arg) => {

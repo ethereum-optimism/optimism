@@ -26,6 +26,9 @@ import {
   DEFAULT_ETHNODE_GAS_LIMIT,
   didCreateSucceed,
   gasLimit,
+  executeOVMCall,
+  encodeMethodId,
+  encodeRawArguments,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 import { TransactionReceipt } from 'ethers/providers'
@@ -169,15 +172,22 @@ describe('Execution Manager -- Call opcodes', () => {
       .methodID('makeCall', [])
       .toString('hex')
 
-    it('properly executes ovmCALL to SLOAD', async () => {
-      const data: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
-
+    it.only('properly executes ovmCALL to SLOAD', async () => {
+      const result: string = await executeOVMCall(
+        executionManager,
+        "executeCall",
+        [
+          encodeRawArguments([
+            0,
+            0,
+            addressToBytes32Address(callContractAddress),
+            encodeMethodId("makeCall"),
+            addressToBytes32Address(callContract2Address),
+            encodeMethodId("staticFriendlySLOAD"),
+            sloadKey,
+          ])
+        ]
+      )
       log.debug(`Result: [${result}]`)
 
       remove0x(result).should.equal(unpopultedSLOADResult, 'Result mismatch!')
