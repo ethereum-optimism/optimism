@@ -143,5 +143,23 @@ describe('Execution Manager -- Code-related opcodes', () => {
       ])
       codeBuff.should.eql(bytecodeWithZeroedBytes, 'Incorrect code!')
     })
+
+    it('returns zeroed bytes if the provided address is invalid', async () => {
+      const offset = 0
+      const length = 99
+      const code: string = await executeOVMCall(
+        executionManager,
+        'ovmEXTCODECOPY',
+        [
+          addressToBytes32Address('11'.repeat(20)),
+          0,
+          length,
+        ]
+      )
+      log.debug(`Resulting code: [${code}]`)
+
+      const codeBuff: Buffer = hexStrToBuf(code)
+      codeBuff.should.eql(Buffer.alloc(length), 'Incorrect code!')
+    })
   })
 })
