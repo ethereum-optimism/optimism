@@ -26,36 +26,42 @@ import * as Dummy3Contract from './contracts/build/Dummy3.json'
 
 const dummyPath = path.resolve(__dirname, './contracts/dummy/Dummy.sol')
 const dummy2Path = path.resolve(__dirname, './contracts/dummy/Dummy2.sol')
-const config = {
-  language: 'Solidity',
-  sources: {
-    'Dummy.sol': {
-      content: fs.readFileSync(dummyPath, 'utf8'),
-    },
-  },
-  settings: {
-    outputSelection: {
-      '*': {
-        '*': ['*'],
-      },
-    },
-    executionManagerAddress: ZERO_ADDRESS,
-  },
-}
-
-const multiConfig = { ...config }
-multiConfig.sources['Dummy2.sol'] = {
-  content: fs.readFileSync(dummy2Path, 'utf8'),
-}
-
-const configWithoutLegacyAssembly = { ...config }
-configWithoutLegacyAssembly.settings.outputSelection['*']['*'] = [
-  'abi',
-  'evm.bytecode',
-  'evm.deployedBytecode',
-]
 
 describe('Wrapper tests', () => {
+  let config
+  let configWithoutLegacyAssembly
+  let multiConfig
+  before(() => {
+    config = {
+      language: 'Solidity',
+      sources: {
+        'Dummy.sol': {
+          content: fs.readFileSync(dummyPath, 'utf8'),
+        },
+      },
+      settings: {
+        outputSelection: {
+          '*': {
+            '*': ['*'],
+          },
+        },
+        executionManagerAddress: ZERO_ADDRESS,
+      },
+    }
+
+    multiConfig = { ...config }
+    multiConfig.sources['Dummy2.sol'] = {
+      content: fs.readFileSync(dummy2Path, 'utf8'),
+    }
+
+    configWithoutLegacyAssembly = { ...config }
+    configWithoutLegacyAssembly.settings.outputSelection['*']['*'] = [
+      'abi',
+      'evm.bytecode',
+      'evm.deployedBytecode',
+    ]
+  })
+
   const transpiler: Transpiler = new TranspilerImpl(
     new OpcodeWhitelistImpl(),
     new OpcodeReplacerImpl(ZERO_ADDRESS)

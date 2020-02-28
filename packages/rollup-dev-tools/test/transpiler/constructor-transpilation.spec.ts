@@ -125,12 +125,14 @@ describe.only('Solitity contracts with constructors that take inputs should be c
       transpiler,
       evmUtil
     )
-    const deployedViaInitcode: Buffer = resultsToCompare.deployedViaTranspiledInitcode
-    const manuallyTranspiled: Buffer = resultsToCompare.manuallyTranspiledDeployedBytecode
+    const deployedViaInitcode: Buffer =
+      resultsToCompare.deployedViaTranspiledInitcode
+    const manuallyTranspiled: Buffer =
+      resultsToCompare.manuallyTranspiledDeployedBytecode
     // deployed libraries should have their deployed address subbed in as the first thing being pushed to the stack.
     // copy it over from the deployed version before checking equality
     deployedViaInitcode.copy(manuallyTranspiled, 1, 1, 21)
-    
+
     manuallyTranspiled.should.deep.equal(deployedViaInitcode)
   })
   it(`should work for waffle's counter example`, async () => {
@@ -245,8 +247,10 @@ const assertTranspiledInitcodeDeploysManuallyTranspiledRawDeployedBytecode = asy
     transpiler,
     evmUtil
   )
-  const successfullyDeployedBytecode = resultsToCompare.deployedViaTranspiledInitcode
-  const transpiledDeployedBytecode = resultsToCompare.manuallyTranspiledDeployedBytecode
+  const successfullyDeployedBytecode =
+    resultsToCompare.deployedViaTranspiledInitcode
+  const transpiledDeployedBytecode =
+    resultsToCompare.manuallyTranspiledDeployedBytecode
 
   successfullyDeployedBytecode.should.deep.equal(transpiledDeployedBytecode)
 }
@@ -258,7 +262,7 @@ const getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode = async (
   transpiler: TranspilerImpl,
   evmUtil: EvmIntrospectionUtil
 ): Promise<{
-  deployedViaTranspiledInitcode: Buffer,
+  deployedViaTranspiledInitcode: Buffer
   manuallyTranspiledDeployedBytecode: Buffer
 }> => {
   // ******
@@ -309,6 +313,6 @@ const getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode = async (
 
   return {
     deployedViaTranspiledInitcode: successfullyDeployedBytecode,
-    manuallyTranspiledDeployedBytecode: transpiledDeployedBytecode
+    manuallyTranspiledDeployedBytecode: transpiledDeployedBytecode,
   }
 }

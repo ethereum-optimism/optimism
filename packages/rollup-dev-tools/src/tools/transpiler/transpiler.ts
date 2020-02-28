@@ -333,10 +333,10 @@ export class TranspilerImpl implements Transpiler {
       // PUSH2: 0x0158  [0x0158] // deployed bytecode length
       // PUSH2: 0x0026  [0x0026, 0x0158] // deployed bytecode start
       // PUSH1: 0x0b  [0x0b, 0x0026, 0x0158] // destoffset of code to copy
-      // DUP3   
-      // DUP3 
+      // DUP3
+      // DUP3
       // DUP3  [0x0b, 0x0026, 0x0158, 0x0b, 0x0026, 0x0158]
-      // CODECOPY  [0x0b, 0x0026, 0x0158] 
+      // CODECOPY  [0x0b, 0x0026, 0x0158]
       else if (
         Opcode.isPUSHOpcode(op.opcode) &&
         Opcode.isPUSHOpcode(bytecode[index + 1].opcode) &&
