@@ -10,10 +10,8 @@ import {
 import {
   CHAIN_ID,
   GAS_LIMIT,
-  convertInternalLogsToOvmLogs,
   L2ExecutionManagerContractDefinition,
   OPCODE_WHITELIST_MASK,
-  LogConversionResult,
   internalTxReceiptToOvmTxReceipt,
 } from '@eth-optimism/ovm'
 
@@ -64,7 +62,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return new DefaultWeb3Handler(provider, wallet, executionManager)
   }
 
-  private constructor(
+  protected constructor(
     private readonly provider: Web3Provider,
     private readonly wallet: Wallet,
     private readonly executionManager: Contract
@@ -144,7 +142,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
         )}] is not supported by this Web3 handler!`
-        log.error(msg)
+        log.info(msg)
         throw new UnsupportedMethodError(msg)
     }
 
@@ -173,12 +171,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.generateUnsignedCallCalldata(
-      0,
+      this.getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
       txObject['from']
     )
+
+    log.debug(`calldata: ${internalCalldata}`)
 
     let response
     try {
@@ -220,7 +220,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.generateUnsignedCallCalldata(
-      0,
+      this.getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
@@ -330,9 +330,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
-      this.executionManager,
       internalTxReceipt
     )
+
     log.debug(
       `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${internalTxReceipt}]`
     )
@@ -403,6 +403,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   /**
+   * Gets the current number of seconds since the epoch.
+   *
+   * @returns The seconds since epoch.
+   */
+  protected getTimestamp(): number {
+    return Math.round(Date.now() / 1000)
+  }
+
+  /**
    * Maps the provided OVM transaction hash to the provided internal transaction hash by storing it in our
    * L2 Execution Manager contract.
    *
@@ -449,7 +458,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
     // Construct the raw transaction calldata
     const internalCalldata = this.generateEOACallCalldata(
-      0,
+      this.getTimestamp(),
       0,
       ovmTx.nonce,
       ovmTo,
@@ -474,7 +483,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return this.wallet.sign(internalTx)
   }
 
-  private static async deployExecutionManager(
+  protected static async deployExecutionManager(
     wallet: Wallet,
     opcodeWhitelistMask: string
   ): Promise<Contract> {
@@ -538,7 +547,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     ])
   }
 
-  private assertParameters(
+  protected assertParameters(
     params: any[],
     expected: number,
     defaultLast?: any

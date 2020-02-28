@@ -95,7 +95,7 @@ describe('Execution Manager -- Call opcodes', () => {
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
     })
 
-    const deployTx = new ContractFactory(
+    const deployTx: any = new ContractFactory(
       SimpleCall.abi,
       SimpleCall.bytecode
     ).getDeployTransaction(dummyContract.address)

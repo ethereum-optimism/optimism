@@ -1,19 +1,14 @@
 import '../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { DB, newInMemoryDB } from '@eth-optimism/core-db/'
 
 /* Internal Imports */
-import {
-  FullnodeRpcServer,
-  deployOvmContract,
-  DefaultWeb3Handler,
-} from '../../src/app'
+import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
 import { ethers, ContractFactory } from 'ethers'
 import { FullnodeHandler } from '../../src/types'
 
-const log = getLogger('ethnode-proxy', true)
+const log = getLogger('web3-handler', true)
 
 const host = '0.0.0.0'
 const port = 9999

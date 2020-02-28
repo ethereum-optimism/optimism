@@ -90,7 +90,7 @@ const getSupportedMethods = (parsedConfig: {}): Set<string> => {
   return new Set<string>(parsedConfig[supportedMethodsKey])
 }
 
-const runAggregator = async (): Promise<void> => {
+export const runAggregator = async (): Promise<void> => {
   // TODO: Replace with actual Aggregator when wired up.
   const dummyAggregator: Aggregator = new DummyAggregator()
 
@@ -112,5 +112,3 @@ const runAggregator = async (): Promise<void> => {
 
   log.info(`Listening on ${host}:${port}`)
 }
-
-runAggregator()
