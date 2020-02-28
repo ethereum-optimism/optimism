@@ -62,7 +62,6 @@ describe('Execution Manager -- Call opcodes', () => {
   let callContractAddress: Address
   let callContract2Address: Address
   let callContract3Address: Address
-  const callContractAddress32: string
   let deployTx: any
 
   /* Link libraries before tests */

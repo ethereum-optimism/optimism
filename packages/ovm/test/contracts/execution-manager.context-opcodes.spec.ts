@@ -34,10 +34,13 @@ const log = getLogger('execution-manager-context', true)
 
 const methodIds = fromPairs(
   [
-    'getTIMESTAMP',
     'callThroughExecutionManager',
     'executeCall',
+    'getADDRESS',
     'getCALLER',
+    'getGASLIMIT',
+    'getQueueOrigin',
+    'getTIMESTAMP',
     'ovmADDRESS',
     'ovmCALLER',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
@@ -108,16 +111,16 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmCALLER', async () => {
     it('reverts when CALLER is not set', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executeCall([contractAddress32, encodeMethodId('ovmCALLER')])
+        await executeCall([contractAddress32, methodIds.ovmCALLER])
       })
     })
 
     it('properly retrieves CALLER when caller is set', async () => {
       const result = await executeCall([
         contractAddress32,
-        encodeMethodId('callThroughExecutionManager'),
+        methodIds.callThroughExecutionManager,
         contract2Address32,
-        encodeMethodId('getCALLER'),
+        methodIds.getCALLER,
       ])
       log.debug(`CALLER result: ${result}`)
 
@@ -129,16 +132,16 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmADDRESS', async () => {
     it('reverts when ADDRESS is not set', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executeCall([contractAddress32, encodeMethodId('ovmADDRESS')])
+        await executeCall([contractAddress32, methodIds.ovmADDRESS])
       })
     })
 
     it('properly retrieves ADDRESS when address is set', async () => {
       const result = await executeCall([
         contractAddress32,
-        encodeMethodId('callThroughExecutionManager'),
+        methodIds.callThroughExecutionManager,
         contract2Address32,
-        encodeMethodId('getADDRESS'),
+        methodIds.getADDRESS,
       ])
 
       log.debug(`ADDRESS result: ${result}`)
@@ -153,9 +156,9 @@ describe('Execution Manager -- Context opcodes', () => {
       await TestUtils.assertThrowsAsync(async () => {
         await executeCall([
           contractAddress32,
-          encodeMethodId('callThroughExecutionManager'),
+          methodIds.callThroughExecutionManager,
           contract2Address32,
-          encodeMethodId('getTIMESTAMP'),
+          methodIds.getTIMESTAMP,
         ])
       })
     })
@@ -166,9 +169,9 @@ describe('Execution Manager -- Context opcodes', () => {
         timestamp,
         0,
         contractAddress32,
-        encodeMethodId('callThroughExecutionManager'),
+        methodIds.callThroughExecutionManager,
         contract2Address32,
-        encodeMethodId('getTIMESTAMP'),
+        methodIds.getTIMESTAMP,
       ])
 
       log.debug(`TIMESTAMP result: ${result}`)
@@ -182,9 +185,9 @@ describe('Execution Manager -- Context opcodes', () => {
     it('properly retrieves GASLIMIT', async () => {
       const result = await executeCall([
         contractAddress32,
-        encodeMethodId('callThroughExecutionManager'),
+        methodIds.callThroughExecutionManager,
         contract2Address32,
-        encodeMethodId('getGASLIMIT'),
+        methodIds.getGASLIMIT,
       ])
 
       log.debug(`GASLIMIT result: ${result}`)
@@ -201,9 +204,9 @@ describe('Execution Manager -- Context opcodes', () => {
         0,
         queueOrigin,
         contractAddress32,
-        encodeMethodId('callThroughExecutionManager'),
+        methodIds.callThroughExecutionManager,
         contract2Address32,
-        encodeMethodId('getQueueOrigin'),
+        methodIds.getQueueOrigin,
       ])
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
@@ -218,9 +221,9 @@ describe('Execution Manager -- Context opcodes', () => {
         0,
         queueOrigin,
         contractAddress32,
-        encodeMethodId('callThroughExecutionManager'),
+        methodIds.callThroughExecutionManager,
         contract2Address32,
-        encodeMethodId('getQueueOrigin'),
+        methodIds.getQueueOrigin,
       ])
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
