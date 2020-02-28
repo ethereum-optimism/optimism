@@ -3,7 +3,6 @@ import '../setup'
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory } from 'ethers'
 
 /* Contract Imports */
@@ -72,7 +71,7 @@ describe('ExecutionManager -- Create opcodes', () => {
   })
 
   describe('ovmCREATE', async () => {
-    it.only('returns created address when passed valid bytecode', async () => {
+    it('returns created address when passed valid bytecode', async () => {
       const result = await executeOVMCall(executionManager, 'ovmCREATE', [
         deployTx.data,
       ])

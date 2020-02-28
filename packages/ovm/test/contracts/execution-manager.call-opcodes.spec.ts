@@ -2,13 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import {
-  getLogger,
-  BigNumber,
-  remove0x,
-  add0x,
-  TestUtils,
-} from '@eth-optimism/core-utils'
+import { getLogger, remove0x, add0x, TestUtils } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -30,7 +24,6 @@ import {
   encodeRawArguments,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
-import { TransactionReceipt } from 'ethers/providers'
 import { fromPairs } from 'lodash'
 
 export const abi = new ethers.utils.AbiCoder()
@@ -66,13 +59,10 @@ describe('Execution Manager -- Call opcodes', () => {
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
   let dummyContract: Contract
-  let callContract: ContractFactory
   let callContractAddress: Address
   let callContract2Address: Address
   let callContract3Address: Address
-  let callContractAddress32: string
-  let callContract2Address32: string
-  let callContract3Address32: string
+  const callContractAddress32: string
   let deployTx: any
 
   /* Link libraries before tests */
@@ -125,22 +115,6 @@ describe('Execution Manager -- Call opcodes', () => {
     )
 
     log.debug(`Contract address: [${callContractAddress}]`)
-
-    // Also set our simple copier Ethers contract so we can generate unsigned transactions
-    callContract = new ContractFactory(
-      SimpleCall.abi as any,
-      SimpleCall.bytecode
-    )
-
-    callContractAddress32 = remove0x(
-      addressToBytes32Address(callContractAddress)
-    )
-    callContract2Address32 = remove0x(
-      addressToBytes32Address(callContract2Address)
-    )
-    callContract3Address32 = remove0x(
-      addressToBytes32Address(callContract2Address)
-    )
   })
 
   describe('ovmCALL', async () => {
@@ -411,7 +385,7 @@ describe('Execution Manager -- Call opcodes', () => {
         ])
 
       await TestUtils.assertThrowsAsync(async () => {
-        const res = await executionManager.provider.call({
+        await executionManager.provider.call({
           to: executionManager.address,
           data,
           gasLimit,

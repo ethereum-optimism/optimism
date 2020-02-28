@@ -2,13 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import {
-  add0x,
-  getLogger,
-  padToLength,
-  remove0x,
-  ZERO_ADDRESS,
-} from '@eth-optimism/core-utils'
+import { getLogger, padToLength, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -22,8 +16,6 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
-  getTransactionResult,
-  numberToHexWord,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
 import { GAS_LIMIT, CHAIN_ID, OPCODE_WHITELIST_MASK } from '../../src/app'

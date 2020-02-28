@@ -14,7 +14,6 @@ import {
   StorageElement,
   StorageSlot,
   StorageValue,
-  Transaction,
   TransactionLog,
   TransactionReceipt,
   TransactionResult,

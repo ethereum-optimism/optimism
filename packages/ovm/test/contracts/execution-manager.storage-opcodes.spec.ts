@@ -2,13 +2,11 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { abi, getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
-import * as ethereumjsAbi from 'ethereumjs-abi'
-import { Contract, ContractFactory } from 'ethers'
+import { abi, getLogger, add0x } from '@eth-optimism/core-utils'
+import { Contract } from 'ethers'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 /* Internal Imports */
 import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'

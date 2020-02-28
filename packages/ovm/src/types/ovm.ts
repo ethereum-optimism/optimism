@@ -4,7 +4,6 @@ import {
   Address,
   StorageSlot,
   StorageValue,
-  Transaction,
   TransactionResult,
 } from '@eth-optimism/rollup-core'
 

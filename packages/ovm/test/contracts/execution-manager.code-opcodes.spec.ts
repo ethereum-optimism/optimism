@@ -4,18 +4,14 @@ import '../setup'
 import { Address } from '@eth-optimism/rollup-core'
 import {
   getLogger,
-  add0x,
   BigNumber,
   hexStrToBuf,
   remove0x,
   keccak256,
-  bufferUtils,
-  bufToHexString,
 } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
@@ -24,14 +20,11 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 /* Internal Imports */
 import {
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   DEFAULT_ETHNODE_GAS_LIMIT,
-  gasLimit,
   executeOVMCall,
   addressToBytes32Address,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
-import { fromPairs } from 'lodash'
 
 export const abi = new ethers.utils.AbiCoder()
 

@@ -23,9 +23,7 @@ import {
 import { Transaction } from 'ethers/utils'
 
 /* Contract Imports */
-import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
 import {
-  convertInternalLogsToOvmLogs,
   GAS_LIMIT,
   CHAIN_ID,
   internalTxReceiptToOvmTxReceipt,

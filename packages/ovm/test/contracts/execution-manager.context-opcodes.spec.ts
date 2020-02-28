@@ -3,8 +3,6 @@ import { should } from '../setup'
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
 import {
-  bufferUtils,
-  bufToHexString,
   getLogger,
   hexStrToNumber,
   remove0x,
@@ -13,7 +11,6 @@ import {
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
@@ -22,11 +19,8 @@ import * as ContextContract from '../../build/contracts/ContextContract.json'
 /* Internal Imports */
 import {
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
-  bytes32AddressToAddress,
   addressToBytes32Address,
   DEFAULT_ETHNODE_GAS_LIMIT,
-  gasLimit,
   executeOVMCall,
   encodeRawArguments,
   encodeMethodId,
@@ -56,12 +50,9 @@ const methodIds = fromPairs(
 describe('Execution Manager -- Context opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
-  const defaultTimestampAndQueueOrigin: string = '00'.repeat(64)
 
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
-  let contract: ContractFactory
-  let contract2: ContractFactory
   let contractAddress: Address
   let contract2Address: Address
   let contractAddress32: string
@@ -88,7 +79,7 @@ describe('Execution Manager -- Context opcodes', () => {
     log.debug(`Contract address: [${contractAddress}]`)
 
     // Also set our simple copier Ethers contract so we can generate unsigned transactions
-    contract = new ContractFactory(
+    const contract = new ContractFactory(
       ContextContract.abi as any,
       ContextContract.bytecode
     )
@@ -105,7 +96,7 @@ describe('Execution Manager -- Context opcodes', () => {
     log.debug(`Contract address: [${contractAddress}]`)
 
     // Also set our simple copier Ethers contract so we can generate unsigned transactions
-    contract2 = new ContractFactory(
+    const contract2 = new ContractFactory(
       ContextContract.abi as any,
       ContextContract.bytecode
     )
