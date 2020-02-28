@@ -22,6 +22,7 @@ import { execSync } from 'child_process'
 import * as requireFromString from 'require-from-string'
 import { link } from 'fs'
 import { formatBytecode, bufferToBytecode } from '../../rollup-core/build'
+import { ethers } from 'ethers'
 
 const log: Logger = getLogger('solc-transpiler')
 
@@ -80,14 +81,15 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   for (const [filename, fileJson] of Object.entries(res.contracts)) {
     log.debug(`Transpiling file: ${filename}`)
     for (const [contractName, contractJson] of Object.entries(fileJson)) {
-
       // Library links in bytecode strings have invalid hex: they are of the form __$asdfasdf$__.
       // Because __$ is not a valid hex string, we replace with a valid hex string during transpilation,
       // storing the links re-substituting the __$* strings afterwards
       const originalRefStrings = getOriginalLinkRefStringsAndSubstituteValidHex(
         contractJson
       )
-      log.debug(`Transpiling contract: ${contractName} with valid hex strings for link placeholders.`)
+      log.debug(
+        `Transpiling contract: ${contractName} with valid hex strings for link placeholders.`
+      )
       const output = transpileContract(
         transpiler,
         contractJson,
@@ -109,7 +111,9 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
         contractName
       ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
 
-      log.debug(`Updating links for all libraries by putting back original invalid hex (__$...$__) strings and updating link .start's.`)
+      log.debug(
+        `Updating links for all libraries by putting back original invalid hex (__$...$__) strings and updating link .start's.`
+      )
       updateLinkRefsAndSubstituteOriginalStrings(
         res.contracts[filename][contractName],
         originalRefStrings
@@ -489,7 +493,7 @@ const transpileContract = (
  * Iterates over all library links, replacing the temporary valid hex strings with their original valid hex strings, and updating the new byte locations for the links.
  *
  * @param contractSolcOutput The contract solc output.
- * @param originalPlaceholderStrings A mapping from library name string to __$*$__ string (invalid hex) which was substituted for a different placeholder so that transpilation works. 
+ * @param originalPlaceholderStrings A mapping from library name string to __$*$__ string (invalid hex) which was substituted for a different placeholder so that transpilation works.
  */
 const updateLinkRefsAndSubstituteOriginalStrings = (
   contractSolcOutput: any,
@@ -605,7 +609,8 @@ const executeOnAllLinks = (
     `asked to execute callback performing functionality: [${callbackDescription}] on all JSON links...`
   )
   const linkRefs = bytecodeObjectFromSolcOutput.linkReferences
-  for (const fileName in linkRefs) { // tslint:disable
+  for (const fileName in linkRefs) {
+    // tslint:disable
     const libraryName: string = Object.keys(linkRefs[fileName])[0]
     log.debug(`Parsing links for ${libraryName}...`)
     for (const linkLocation of linkRefs[fileName][libraryName]) {
@@ -629,10 +634,11 @@ const getPlaceholderHexString = (
   libraryName: string,
   bytelength: number = 20
 ): string => {
-  // TODO: replace with a deterministic source of real randomness
-  return Buffer.from(
-    `${libraryName}PLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDER`
+  const randomHexString: string = ethers.utils.keccak256(
+    '0x' +
+      Buffer.from(
+        `${libraryName}PLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDEROPTIMSIMPBC`
+      ).toString('hex')
   )
-    .toString('hex')
-    .slice(0, 2 * bytelength)
+  return remove0x(randomHexString).slice(0, 2 * bytelength)
 }

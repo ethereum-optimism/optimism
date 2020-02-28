@@ -82,12 +82,14 @@ export class TranspilerImpl implements Transpiler {
     )
     const startOfDeployedBytecode: number = bytecode.indexOf(deployedBytecode)
     if (startOfDeployedBytecode === -1) {
-      log.debug(
-        `WARNING: Could not find deployed bytecode (${bufToHexString(
-          deployedBytecode
-        )}) within the original bytecode (${bufToHexString(
-          bytecode
-        )}).  If you are using a custom compiler, this may break.`
+      errors.push(
+        TranspilerImpl.createError(
+          0,
+          TranspilationErrors.MISSING_DEPLOYED_BYTECODE_ERROR,
+          `WARNING: Could not find deployed bytecode (${bufToHexString(
+            deployedBytecode
+          )}) within the original bytecode (${bufToHexString(bytecode)}).`
+        )
       )
     }
 

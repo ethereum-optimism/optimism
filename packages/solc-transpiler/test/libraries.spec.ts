@@ -45,7 +45,7 @@ const simpleUnsafeMathPath = path.resolve(
   './contracts/library/SimpleUnsafeMath.sol'
 )
 
-describe.only('Library usage tests', () => {
+describe('Library usage tests', () => {
   let config
   before(() => {
     config = {
@@ -75,7 +75,8 @@ describe.only('Library usage tests', () => {
   let provider
   let wallet
   let deployedLibUser
-  beforeEach(async () => {
+  beforeEach(async function() {
+    this.timeout(20000)
     // NOTE: if we run this test in isolation on default port, it works, but in multi-package tests it fails.
     // Hypothesis for why this is: multi-package tests are run in parallel, so we need to use a separate port per package.
     provider = await createMockProvider(9998)
@@ -92,7 +93,12 @@ describe.only('Library usage tests', () => {
       wrappedSolcJson['contracts']['SafeMathUser.sol']['SafeMathUser']
 
     // Deploy and link safe math
-    const deployedSafeMath = await deployContract(wallet, simpleSafeMathJSON, [], [])
+    const deployedSafeMath = await deployContract(
+      wallet,
+      simpleSafeMathJSON,
+      [],
+      []
+    )
     log.debug(`deployed SimpleSafeMath to: ${deployedSafeMath.address}`)
     link(
       libUserJSON,
@@ -101,7 +107,12 @@ describe.only('Library usage tests', () => {
     )
 
     // Deoloy and link unsafe math
-    const deployedUnsafeMath = await deployContract(wallet, simpleUnsafeMathJSON, [], [])
+    const deployedUnsafeMath = await deployContract(
+      wallet,
+      simpleUnsafeMathJSON,
+      [],
+      []
+    )
     log.debug(`deployed UnsafeMath to: ${deployedUnsafeMath.address}`)
     log.debug(`before second link: ${JSON.stringify(libUserJSON)}`)
     link(
