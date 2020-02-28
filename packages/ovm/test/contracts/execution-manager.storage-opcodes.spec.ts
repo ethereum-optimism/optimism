@@ -12,9 +12,21 @@ import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 /* Internal Imports */
 import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
-import { DEFAULT_ETHNODE_GAS_LIMIT, gasLimit, encodeMethodId, encodeRawArguments } from '../helpers'
+import {
+  DEFAULT_ETHNODE_GAS_LIMIT,
+  gasLimit,
+  encodeMethodId,
+  encodeRawArguments,
+} from '../helpers'
+import { fromPairs } from 'lodash'
 
 const log = getLogger('execution-manager-storage', true)
+const methodIds = fromPairs(
+  ['ovmSSTORE', 'ovmSLOAD'].map((methodId) => [
+    methodId,
+    encodeMethodId(methodId),
+  ])
+)
 
 /*********
  * TESTS *
@@ -40,7 +52,10 @@ describe('ExecutionManager -- Storage opcodes', () => {
   })
 
   const sstore = async (): Promise<void> => {
-      const data = add0x(encodeMethodId('ovmSSTORE') + encodeRawArguments([ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32]))
+    const data = add0x(
+      encodeMethodId('ovmSSTORE') +
+        encodeRawArguments([ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32])
+    )
     // Now actually apply it to our execution manager
     const tx = await wallet.sendTransaction({
       to: executionManager.address,
@@ -77,7 +92,10 @@ describe('ExecutionManager -- Storage opcodes', () => {
     it('loads a value immediately after it is stored', async () => {
       await sstore()
 
-      const data = add0x(encodeMethodId('ovmSLOAD') + encodeRawArguments([ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32]))
+      const data = add0x(
+        encodeMethodId('ovmSLOAD') +
+          encodeRawArguments([ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({

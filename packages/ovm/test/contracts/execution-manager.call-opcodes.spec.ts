@@ -31,7 +31,7 @@ import {
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 import { TransactionReceipt } from 'ethers/providers'
-import { fromPairs } from "lodash";
+import { fromPairs } from 'lodash'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -41,19 +41,19 @@ const log = getLogger('execution-manager-calls', true)
  * TESTS *
  *********/
 
-const methodIds = fromPairs([
-  'executeCall',
-  'makeCall',
-  'makeStaticCall',
-  'makeStaticCallThenCall',
-  'staticFriendlySLOAD',
-  'notStaticFriendlySSTORE',
-  'notStaticFriendlyCREATE',
-  'notStaticFriendlyCREATE2',
-  'staticFriendlySLOAD',
-  'makeDelegateCall'
-].map((methodId) =>
-  [methodId, encodeMethodId(methodId)])
+const methodIds = fromPairs(
+  [
+    'executeCall',
+    'makeCall',
+    'makeStaticCall',
+    'makeStaticCallThenCall',
+    'staticFriendlySLOAD',
+    'notStaticFriendlySSTORE',
+    'notStaticFriendlyCREATE',
+    'notStaticFriendlyCREATE2',
+    'staticFriendlySLOAD',
+    'makeDelegateCall',
+  ].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
 
 const sloadKey: string = '11'.repeat(32)

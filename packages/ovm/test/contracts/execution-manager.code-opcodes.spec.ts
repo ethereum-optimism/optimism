@@ -31,7 +31,7 @@ import {
   addressToBytes32Address,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
-import { fromPairs } from "lodash";
+import { fromPairs } from 'lodash'
 
 export const abi = new ethers.utils.AbiCoder()
 

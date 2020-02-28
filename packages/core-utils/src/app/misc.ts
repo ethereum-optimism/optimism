@@ -182,9 +182,9 @@ export const hexStrToBuf = (hexString: string): Buffer => {
 }
 
 /**
- * Converts a hex string to a javascript Number
+ * Converts a hex string to a JavaScript Number
  * @param hexString the hex string to be converted
- * @returns the hexString as a javascript Number.
+ * @returns the hexString as a JavaScript Number.
  */
 export const hexStrToNumber = (hexString: string): number => {
   return parseInt(remove0x(hexString), 16)

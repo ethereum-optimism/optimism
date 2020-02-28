@@ -32,18 +32,22 @@ import {
   encodeMethodId,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { fromPairs } from 'lodash'
 
 export const abi = new ethers.utils.AbiCoder()
 
 const log = getLogger('execution-manager-context', true)
 
-const executeCallMethodId: string = ethereumjsAbi
-  .methodID('executeCall', [])
-  .toString('hex')
-
-const callThroughEMMethodId: string = ethereumjsAbi
-  .methodID('callThroughExecutionManager', [])
-  .toString('hex')
+const methodIds = fromPairs(
+  [
+    'getTIMESTAMP',
+    'callThroughExecutionManager',
+    'executeCall',
+    'getCALLER',
+    'ovmADDRESS',
+    'ovmCALLER',
+  ].map((methodId) => [methodId, encodeMethodId(methodId)])
+)
 
 /*********
  * TESTS *
@@ -166,28 +170,9 @@ describe('Execution Manager -- Context opcodes', () => {
     })
 
     it('properly retrieves TIMESTAMP when timestamp is set', async () => {
-      const timestampMethodId: string = ethereumjsAbi
-        .methodID('getTIMESTAMP', [])
-        .toString('hex')
-
-      const internalCall: string = `${callThroughEMMethodId}${remove0x(
-        contractAddress32
-      )}${timestampMethodId}`
-
-      const timestamp: string = '00'.repeat(30) + '1111'
-      const queueOrigin: string = '00'.repeat(32)
-
-      const data = `0x${executeCallMethodId}${timestamp}${queueOrigin}${remove0x(
-        contract2Address32
-      )}${internalCall}`
-
-      // const result = await executionManager.provider.call({
-      //   to: executionManager.address,
-      //   data,
-      //   gasLimit,
-      // })
+      const timestamp: number = 1582890922
       const result = await executeOVMCall(executionManager, 'executeCall', [
-        99,
+        timestamp,
         0,
         contractAddress32,
         encodeMethodId('callThroughExecutionManager'),
@@ -198,24 +183,12 @@ describe('Execution Manager -- Context opcodes', () => {
       log.debug(`TIMESTAMP result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      hexStrToNumber(result).should.equal(99, 'Timestamps do not match.')
+      hexStrToNumber(result).should.equal(timestamp, 'Timestamps do not match.')
     })
   })
 
   describe('ovmGASLIMIT', async () => {
     it('properly retrieves GASLIMIT', async () => {
-      const gasLimitMethodId: string = ethereumjsAbi
-        .methodID('getGASLIMIT', [])
-        .toString('hex')
-
-      const internalCall: string = `${callThroughEMMethodId}${remove0x(
-        contractAddress32
-      )}${gasLimitMethodId}`
-
-      const data = `0x${executeCallMethodId}${defaultTimestampAndQueueOrigin}${remove0x(
-        contract2Address32
-      )}${internalCall}`
-
       const result = await executeCall([
         contractAddress32,
         encodeMethodId('callThroughExecutionManager'),
@@ -232,31 +205,20 @@ describe('Execution Manager -- Context opcodes', () => {
 
   describe('ovmQueueOrigin', async () => {
     it('gets Queue Origin when it is 0', async () => {
-      const timestampMethodId: string = ethereumjsAbi
-        .methodID('getQueueOrigin', [])
-        .toString('hex')
-
-      const internalCall: string = `${callThroughEMMethodId}${remove0x(
-        contract2Address32
-      )}${timestampMethodId}`
-
-      const data = `0x${executeCallMethodId}${defaultTimestampAndQueueOrigin}${remove0x(
-        contractAddress32
-      )}${internalCall}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const queueOrigin: string = '00'.repeat(32)
+      const result = await executeOVMCall(executionManager, 'executeCall', [
+        0,
+        queueOrigin,
+        contractAddress32,
+        encodeMethodId('callThroughExecutionManager'),
+        contract2Address32,
+        encodeMethodId('getQueueOrigin'),
+      ])
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      remove0x(result).should.equal(
-        defaultTimestampAndQueueOrigin.substr(64),
-        'Queue origins do not match.'
-      )
+      remove0x(result).should.equal(queueOrigin, 'Queue origins do not match.')
     })
 
     it('properly retrieves Queue Origin when queue origin is set', async () => {

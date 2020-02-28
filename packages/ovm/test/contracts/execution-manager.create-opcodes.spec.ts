@@ -22,13 +22,13 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../helpers'
-import { fromPairs } from "lodash";
+import { fromPairs } from 'lodash'
 
-const methodIds = fromPairs([
-  'ovmCREATE',
-  'ovmCREATE2',
-].map((methodId) =>
-  [methodId, encodeMethodId(methodId)])
+const methodIds = fromPairs(
+  ['ovmCREATE', 'ovmCREATE2'].map((methodId) => [
+    methodId,
+    encodeMethodId(methodId),
+  ])
 )
 
 /*********
@@ -72,9 +72,9 @@ describe('ExecutionManager -- Create opcodes', () => {
   })
 
   describe('ovmCREATE', async () => {
-    it('returns created address when passed valid bytecode', async () => {
+    it.only('returns created address when passed valid bytecode', async () => {
       const result = await executeOVMCall(executionManager, 'ovmCREATE', [
-        remove0x(deployTx.data)
+        deployTx.data,
       ])
 
       log.debug(`Result: [${result}]`)
@@ -85,7 +85,9 @@ describe('ExecutionManager -- Create opcodes', () => {
     })
 
     it('returns 0 address when passed invalid bytecode', async () => {
-      const data = add0x(methodIds.ovmCREATE + encodeRawArguments([deployInvalidTx.data]))
+      const data = add0x(
+        methodIds.ovmCREATE + encodeRawArguments([deployInvalidTx.data])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
@@ -104,7 +106,9 @@ describe('ExecutionManager -- Create opcodes', () => {
 
   describe('ovmCREATE2', async () => {
     it('returns created address when passed salt and bytecode', async () => {
-      const data = add0x(methodIds.ovmCREATE2 + encodeRawArguments([0, deployTx.data]))
+      const data = add0x(
+        methodIds.ovmCREATE2 + encodeRawArguments([0, deployTx.data])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
@@ -121,7 +125,9 @@ describe('ExecutionManager -- Create opcodes', () => {
     })
 
     it('returns 0 address when passed salt and invalid bytecode', async () => {
-      const data = add0x(methodIds.ovmCREATE2 + encodeRawArguments([0, deployInvalidTx.data]))
+      const data = add0x(
+        methodIds.ovmCREATE2 + encodeRawArguments([0, deployInvalidTx.data])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
