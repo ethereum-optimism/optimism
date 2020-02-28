@@ -150,11 +150,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       const code: string = await executeOVMCall(
         executionManager,
         'ovmEXTCODECOPY',
-        [
-          addressToBytes32Address('11'.repeat(20)),
-          0,
-          length,
-        ]
+        [addressToBytes32Address('11'.repeat(20)), 0, length]
       )
       log.debug(`Resulting code: [${code}]`)
 
