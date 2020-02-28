@@ -43,6 +43,7 @@
     "chai": "^4.2.0",
     "chai-bignumber": "^3.0.0",
     "ethereumjs-abi": "^0.6.8",
+    "lodash": "^4.17.15",
     "memdown": "^5.0.0",
     "mocha": "^6.0.2",
     "rimraf": "^2.6.3",
@@ -57,7 +58,6 @@
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37",
     "ethlint": "^1.2.5",
-    "lodash": "^4.17.15",
     "mathjs": "^6.6.0",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0"
