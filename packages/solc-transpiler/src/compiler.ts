@@ -90,9 +90,11 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
         )}`
       )
 
-      log.debug(`contract ${contractName} PRE-transpiled valid-hex-stringsubstituted formatted bytecode:${
-        formatBytecode(bufferToBytecode(hexStrToBuf(contractJson.evm.bytecode.object)))
-      }`)
+      log.debug(
+        `contract ${contractName} PRE-transpiled valid-hex-stringsubstituted formatted bytecode:${formatBytecode(
+          bufferToBytecode(hexStrToBuf(contractJson.evm.bytecode.object))
+        )}`
+      )
 
       log.debug(`Transpiling contract: ${contractName}`)
       const output = transpileContract(
@@ -102,8 +104,11 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
         contractName
       )
 
-      log.debug(`Transpiled pre-re-substituted bytecode: ${        formatBytecode(bufferToBytecode(hexStrToBuf(output.bytecode)))      }`)
-      
+      log.debug(
+        `Transpiled pre-re-substituted bytecode: ${formatBytecode(
+          bufferToBytecode(hexStrToBuf(output.bytecode))
+        )}`
+      )
 
       res.contracts[filename][contractName].evm.bytecode.object = remove0x(
         output.bytecode || ''
@@ -118,9 +123,11 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
         contractName
       ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
 
-      log.debug(`contract ${contractName} transpiled non-replaced formatted deployed bytecode:${
-        formatBytecode(bufferToBytecode(hexStrToBuf(output.deployedBytecode)))
-      }`)
+      log.debug(
+        `contract ${contractName} transpiled non-replaced formatted deployed bytecode:${formatBytecode(
+          bufferToBytecode(hexStrToBuf(output.deployedBytecode))
+        )}`
+      )
 
       updateLinkRefsAndSubstituteOriginalStrings(
         res.contracts[filename][contractName],
@@ -454,8 +461,14 @@ const transpileContract = (
     const originalBytecodeSize: number = hexStrToBuf(
       contractSolcOutput.evm.bytecode.object
     ).byteLength
-    log.debug(`feeding the following bytecode into the transpiler (raw): \n${bytecode}`)
-    log.debug(`feeding the following bytecode into the transpiler(formatted): \n${formatBytecode(bufferToBytecode(hexStrToBuf(bytecode)))}`)
+    log.debug(
+      `feeding the following bytecode into the transpiler (raw): \n${bytecode}`
+    )
+    log.debug(
+      `feeding the following bytecode into the transpiler(formatted): \n${formatBytecode(
+        bufferToBytecode(hexStrToBuf(bytecode))
+      )}`
+    )
     const transpilationResult = transpiler.transpile(
       hexStrToBuf(bytecode),
       hexStrToBuf(deployedBytecode),
@@ -471,8 +484,18 @@ const transpileContract = (
         ),
       }
     }
-    log.debug(`out of transpile:\n ${bufToHexString((transpilationResult as SuccessfulTranspilation).bytecode)}`)
-    log.debug(`out of transpile (formatted): \n${formatBytecode(bufferToBytecode((transpilationResult as SuccessfulTranspilation).bytecode))}`)
+    log.debug(
+      `out of transpile:\n ${bufToHexString(
+        (transpilationResult as SuccessfulTranspilation).bytecode
+      )}`
+    )
+    log.debug(
+      `out of transpile (formatted): \n${formatBytecode(
+        bufferToBytecode(
+          (transpilationResult as SuccessfulTranspilation).bytecode
+        )
+      )}`
+    )
 
     bytecode = bufToHexString(
       (transpilationResult as SuccessfulTranspilation).bytecode
@@ -527,8 +550,9 @@ const updateLinkRefsAndSubstituteOriginalStrings = (
 
     const placeholderLength = linkLocation.length * 2 // 2x because this is expressed in bytes but we will operate on hex string
     const newPlaceholderEnd = newPlaceholderStart + placeholderLength
-    const originalPlaceholderString =
-      originalPlaceholderStrings.get(libraryName)
+    const originalPlaceholderString = originalPlaceholderStrings.get(
+      libraryName
+    )
     const prevBytecodeString: string = bytecodeObject.object
     log.debug(
       `Rebuilding ${placeholderIndex}th link for file ${fileName}, AKA library ${libraryName} with original placeholder ${originalPlaceholderString} at new location (${newPlaceholderStart},${newPlaceholderEnd}).`
@@ -611,7 +635,7 @@ const executeOnAllLinks = (
     `asked to execute callback performing ${callbackDescription} on all JSON links...`
   )
   const linkRefs = bytecodeObjectFromSolcOutput.linkReferences
-  for (const fileName in linkRefs) {
+  for (const fileName in linkRefs) { // tslint:disable
     const libraryName: string = Object.keys(linkRefs[fileName])[0]
     log.debug(`Parsing links for ${libraryName}...`)
     for (const linkLocation of linkRefs[fileName][libraryName]) {

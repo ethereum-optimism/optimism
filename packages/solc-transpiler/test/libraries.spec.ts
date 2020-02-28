@@ -41,7 +41,7 @@ const simpleSafeMathPath = path.resolve(
   './contracts/library/SimpleSafeMath.sol'
 )
 
-describe.only('Library usage tests', () => {
+describe('Library usage tests', () => {
   let config
   before(() => {
     config = {
@@ -107,27 +107,37 @@ describe.only('Library usage tests', () => {
   it('should allow us to transpile, link, and use libraries', async () => {
     const wrappedSolcResult = compile(JSON.stringify(config))
     const wrappedSolcJson = JSON.parse(wrappedSolcResult)
-    const libraryJSON = wrappedSolcJson['contracts']['SimpleSafeMath.sol']['SimpleSafeMath']
-    const libUserJSON = wrappedSolcJson['contracts']['SafeMathUser.sol']['SafeMathUser']
+    const libraryJSON =
+      wrappedSolcJson['contracts']['SimpleSafeMath.sol']['SimpleSafeMath']
+    const libUserJSON =
+      wrappedSolcJson['contracts']['SafeMathUser.sol']['SafeMathUser']
 
-    log.debug(`compiler output lib user JSON: \n${JSON.stringify(wrappedSolcJson['contracts']['SafeMathUser.sol'])}`)
-
-    const deployedLibrary = await deployContract(
-      wallet,
-      libraryJSON,
-      [],
-      []
+    log.debug(
+      `compiler output lib user JSON: \n${JSON.stringify(
+        wrappedSolcJson['contracts']['SafeMathUser.sol']
+      )}`
     )
+
+    const deployedLibrary = await deployContract(wallet, libraryJSON, [], [])
     log.debug(`deployed library to: ${deployedLibrary.address}`)
     log.debug(`pre link libuser: ${libUserJSON.evm.bytecode.object}`)
-    link(libUserJSON, 'SimpleSafeMath.sol:SimpleSafeMath', deployedLibrary.address)
+    link(
+      libUserJSON,
+      'SimpleSafeMath.sol:SimpleSafeMath',
+      deployedLibrary.address
+    )
     const deployedLibUser = await deployContract(wallet, libUserJSON, [], [])
     log.debug(`deployed library user to: ${deployedLibUser.address}`)
-    log.debug(`raw linked libuser bytecode is: ${libUserJSON.evm.bytecode.object}`)
-    log.debug(`formatted linked libuser bytecode is: ${formatBytecode(bufferToBytecode(hexStrToBuf(libUserJSON.evm.bytecode.object)))}`)
+    log.debug(
+      `raw linked libuser bytecode is: ${libUserJSON.evm.bytecode.object}`
+    )
+    log.debug(
+      `formatted linked libuser bytecode is: ${formatBytecode(
+        bufferToBytecode(hexStrToBuf(libUserJSON.evm.bytecode.object))
+      )}`
+    )
 
     const returnedUsingLib = await deployedLibUser.use()
-    console.log(JSON.stringify(returnedUsingLib))
     returnedUsingLib._hex.should.equal('0x05')
   }).timeout(10000)
 })
