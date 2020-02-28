@@ -40,8 +40,12 @@ const simpleSafeMathPath = path.resolve(
   __dirname,
   './contracts/library/SimpleSafeMath.sol'
 )
+const simpleUnsafeMathPath = path.resolve(
+  __dirname,
+  './contracts/library/SimpleUnsafeMath.sol'
+)
 
-describe('Library usage tests', () => {
+describe.only('Library usage tests', () => {
   let config
   before(() => {
     config = {
@@ -52,6 +56,9 @@ describe('Library usage tests', () => {
         },
         'SimpleSafeMath.sol': {
           content: fs.readFileSync(simpleSafeMathPath, 'utf8'),
+        },
+        'SimpleUnsafeMath.sol': {
+          content: fs.readFileSync(simpleUnsafeMathPath, 'utf8'),
         },
       },
       settings: {
@@ -67,77 +74,57 @@ describe('Library usage tests', () => {
 
   let provider
   let wallet
-
+  let deployedLibUser
   beforeEach(async () => {
     // NOTE: if we run this test in isolation on default port, it works, but in multi-package tests it fails.
     // Hypothesis for why this is: multi-package tests are run in parallel, so we need to use a separate port per package.
     provider = await createMockProvider(9998)
     const wallets = getWallets(provider)
     wallet = wallets[0]
+
+    const wrappedSolcResult = compile(JSON.stringify(config))
+    const wrappedSolcJson = JSON.parse(wrappedSolcResult)
+    const simpleSafeMathJSON =
+      wrappedSolcJson['contracts']['SimpleSafeMath.sol']['SimpleSafeMath']
+    const simpleUnsafeMathJSON =
+      wrappedSolcJson['contracts']['SimpleUnsafeMath.sol']['SimpleUnsafeMath']
+    const libUserJSON =
+      wrappedSolcJson['contracts']['SafeMathUser.sol']['SafeMathUser']
+
+    // Deploy and link safe math
+    const deployedSafeMath = await deployContract(wallet, simpleSafeMathJSON, [], [])
+    log.debug(`deployed SimpleSafeMath to: ${deployedSafeMath.address}`)
+    link(
+      libUserJSON,
+      'SimpleSafeMath.sol:SimpleSafeMath',
+      deployedSafeMath.address
+    )
+
+    // Deoloy and link unsafe math
+    const deployedUnsafeMath = await deployContract(wallet, simpleUnsafeMathJSON, [], [])
+    log.debug(`deployed UnsafeMath to: ${deployedUnsafeMath.address}`)
+    log.debug(`before second link: ${JSON.stringify(libUserJSON)}`)
+    link(
+      libUserJSON,
+      'SimpleUnsafeMath.sol:SimpleUnsafeMath',
+      deployedUnsafeMath.address
+    )
+
+    // Deploy library user
+    deployedLibUser = await deployContract(wallet, libUserJSON, [], [])
+    log.debug(`deployed library user to: ${deployedLibUser.address}`)
   })
   afterEach(async () => {
     await provider.closeOVM()
   })
 
-  //   const getContractTranspiledBytecode = (
-  //     compiledJson: any,
-  //     isDeployedBytecode: boolean = false
-  //   ): string => {
-  //     const auxData = compiledJson.evm.legacyAssembly['.data']['0']['.auxdata']
-  //     const bytecode = isDeployedBytecode
-  //       ? compiledJson.evm.deployedBytecode.object
-  //       : compiledJson.evm.bytecode.object
-
-  //     // Remove the AuxData at the end of the contract bytecode because this may be different even if it's the exact same contract
-  //     const bytecodeWithoutAuxdata: string = bytecode.split(auxData)[0]
-  //     const transpilationResult: TranspilationResult = transpiler.transpileRawBytecode(
-  //       hexStrToBuf(bytecodeWithoutAuxdata)
-  //     )
-
-  //     transpilationResult.succeeded.should.eq(
-  //       true,
-  //       'Cannot evaluate test because transpiling solc bytecode failed.'
-  //     )
-
-  //     return remove0x(
-  //       bufToHexString((transpilationResult as SuccessfulTranspilation).bytecode)
-  //     )
-  //   }
-
-  it('should allow us to transpile, link, and use libraries', async () => {
-    const wrappedSolcResult = compile(JSON.stringify(config))
-    const wrappedSolcJson = JSON.parse(wrappedSolcResult)
-    const libraryJSON =
-      wrappedSolcJson['contracts']['SimpleSafeMath.sol']['SimpleSafeMath']
-    const libUserJSON =
-      wrappedSolcJson['contracts']['SafeMathUser.sol']['SafeMathUser']
-
-    log.debug(
-      `compiler output lib user JSON: \n${JSON.stringify(
-        wrappedSolcJson['contracts']['SafeMathUser.sol']
-      )}`
-    )
-
-    const deployedLibrary = await deployContract(wallet, libraryJSON, [], [])
-    log.debug(`deployed library to: ${deployedLibrary.address}`)
-    log.debug(`pre link libuser: ${libUserJSON.evm.bytecode.object}`)
-    link(
-      libUserJSON,
-      'SimpleSafeMath.sol:SimpleSafeMath',
-      deployedLibrary.address
-    )
-    const deployedLibUser = await deployContract(wallet, libUserJSON, [], [])
-    log.debug(`deployed library user to: ${deployedLibUser.address}`)
-    log.debug(
-      `raw linked libuser bytecode is: ${libUserJSON.evm.bytecode.object}`
-    )
-    log.debug(
-      `formatted linked libuser bytecode is: ${formatBytecode(
-        bufferToBytecode(hexStrToBuf(libUserJSON.evm.bytecode.object))
-      )}`
-    )
-
-    const returnedUsingLib = await deployedLibUser.use()
+  it('should allow us to transpile, link, and query contract methods which use a single library', async () => {
+    const returnedUsingLib = await deployedLibUser.useLib()
     returnedUsingLib._hex.should.equal('0x05')
-  }).timeout(10000)
+  })
+
+  it('should allow us to transpile, link, and query contract methods which use a multiple libraries', async () => {
+    const returnedUsingLib = await deployedLibUser.use2Libs()
+    returnedUsingLib._hex.should.equal('0x06')
+  })
 })
