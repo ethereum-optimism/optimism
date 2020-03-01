@@ -9,7 +9,7 @@ import {
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
 } from '@eth-optimism/rollup-core'
-import { getLogger, bufToHexString, add0x } from '@eth-optimism/core-utils'
+import { getLogger, bufToHexString, add0x, bufferUtils } from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
 
@@ -28,6 +28,7 @@ import {
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
 import { createError } from './util'
+import { format } from 'path'
 
 const log = getLogger('transpiler-impl')
 
@@ -153,6 +154,18 @@ export class TranspilerImpl implements Transpiler {
       errors
     )
 
+
+
+
+
+      // problem is after here?
+      log.debug(`final transpiled deployed bytecode: \n${formatBytecode(finalTranspiledDeployedBytecode)}`)
+
+
+
+
+
+
     // **** DETECT AND TAG USES OF CODECOPY IN CONSTRUCTOR BYTECODE AND TRANSPILE ****
 
     let taggedOriginalConstructorInitLogic: EVMBytecode
@@ -272,7 +285,7 @@ export class TranspilerImpl implements Transpiler {
           newConstantOffset
         ).toBuffer('be', op.opcode.programBytesConsumed)
         log.debug(
-          `fixing CODECOPY(constant) ad PC 0x${getPCOfEVMBytecodeIndex(
+          `fixing CODECOPY(constant) at PC 0x${getPCOfEVMBytecodeIndex(
             index,
             taggedBytecode
           ).toString(16)}.  Setting new index to 0x${bufToHexString(
@@ -538,6 +551,25 @@ export class TranspilerImpl implements Transpiler {
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
 
+    const numCodes = bytecode.length
+    const lastOpcodeAndConsumedBytes = bytecode[numCodes - 1]
+    if (
+      Opcode.isPUSHOpcode(lastOpcodeAndConsumedBytes.opcode) && 
+      lastOpcodeAndConsumedBytes.consumedBytes.byteLength < lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+    ) {
+      // todo: handle with warnings[] separate from errors[]?
+      const message: string = `Final input opcode: ${lastOpcodeAndConsumedBytes.opcode.name} consumes ${
+        lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+      }, but only consumes 0x${bufToHexString(lastOpcodeAndConsumedBytes.consumedBytes)} at the end of input bytecode.  Padding with zeros under the assumption that this arises from a constant at EOF...`
+      log.debug(message)
+      bytecode[numCodes - 1].consumedBytes = bufferUtils.padRight(
+        lastOpcodeAndConsumedBytes.consumedBytes,
+        lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+      )
+    }
+    // todo remove this weak log
+    log.debug(`after padding: ${formatBytecode(bytecode)}`)
+
     const bytecodeBuf: Buffer = bytecodeToBuffer(bytecode)
     // todo remove once confirmed with Kevin?
     let seenJump: boolean = false
@@ -583,16 +615,6 @@ export class TranspilerImpl implements Transpiler {
         if (!this.opcodeWhitelisted(opcode, pc, errors)) {
           pc += opcode.programBytesConsumed
           continue
-        }
-        if (
-          !TranspilerImpl.enoughBytesLeft(
-            opcode,
-            bytecodeBuf.length,
-            pc,
-            errors
-          )
-        ) {
-          break
         }
       }
       if (insideUnreachableCode && !opcode) {
@@ -747,27 +769,17 @@ export class TranspilerImpl implements Transpiler {
    * @param errors The cumulative errors list.
    * @returns True if enough bytes are left for the Opcode to consume, False otherwise.
    */
-  private static enoughBytesLeft(
-    opcode: EVMOpcode,
-    bytecodeLength: number,
-    pc: number,
-    errors: TranspilationError[]
-  ): boolean {
-    if (pc + opcode.programBytesConsumed >= bytecodeLength) {
-      const bytesLeft: number = bytecodeLength - pc - 1
-      const message: string = `Opcode: ${opcode.name} consumes ${
-        opcode.programBytesConsumed
-      }, but ${!!bytesLeft ? 'only ' : ''}${bytesLeft} ${
-        bytesLeft !== 1 ? 'bytes are' : 'byte is'
-      } left in input bytecode.`
-      log.debug(message)
-      errors.push(
-        createError(pc, TranspilationErrors.INVALID_BYTES_CONSUMED, message)
-      )
-      return false
-    }
-    return true
-  }
+  // private static enoughBytesLeft(
+  //   opcode: EVMOpcode,
+  //   bytecodeLength: number,
+  //   pc: number,
+  //   errors: TranspilationError[]
+  // ): boolean {
+  //   if (pc + opcode.programBytesConsumed >= bytecodeLength) {
+  //     return false
+  //   }
+  //   return true
+  // }
 
   /**
    * Util function to create TranspilationErrors.
