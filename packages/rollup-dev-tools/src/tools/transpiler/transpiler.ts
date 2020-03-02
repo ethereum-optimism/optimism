@@ -9,7 +9,12 @@ import {
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
 } from '@eth-optimism/rollup-core'
-import { getLogger, bufToHexString, add0x, bufferUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  bufToHexString,
+  add0x,
+  bufferUtils,
+} from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
 
@@ -154,17 +159,12 @@ export class TranspilerImpl implements Transpiler {
       errors
     )
 
-
-
-
-
-      // problem is after here?
-      log.debug(`final transpiled deployed bytecode: \n${formatBytecode(finalTranspiledDeployedBytecode)}`)
-
-
-
-
-
+    // problem is after here?
+    log.debug(
+      `final transpiled deployed bytecode: \n${formatBytecode(
+        finalTranspiledDeployedBytecode
+      )}`
+    )
 
     // **** DETECT AND TAG USES OF CODECOPY IN CONSTRUCTOR BYTECODE AND TRANSPILE ****
 
@@ -554,13 +554,18 @@ export class TranspilerImpl implements Transpiler {
     const numCodes = bytecode.length
     const lastOpcodeAndConsumedBytes = bytecode[numCodes - 1]
     if (
-      Opcode.isPUSHOpcode(lastOpcodeAndConsumedBytes.opcode) && 
-      lastOpcodeAndConsumedBytes.consumedBytes.byteLength < lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+      Opcode.isPUSHOpcode(lastOpcodeAndConsumedBytes.opcode) &&
+      lastOpcodeAndConsumedBytes.consumedBytes.byteLength <
+        lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
     ) {
       // todo: handle with warnings[] separate from errors[]?
-      const message: string = `Final input opcode: ${lastOpcodeAndConsumedBytes.opcode.name} consumes ${
+      const message: string = `Final input opcode: ${
+        lastOpcodeAndConsumedBytes.opcode.name
+      } consumes ${
         lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
-      }, but only consumes 0x${bufToHexString(lastOpcodeAndConsumedBytes.consumedBytes)} at the end of input bytecode.  Padding with zeros under the assumption that this arises from a constant at EOF...`
+      }, but only consumes 0x${bufToHexString(
+        lastOpcodeAndConsumedBytes.consumedBytes
+      )} at the end of input bytecode.  Padding with zeros under the assumption that this arises from a constant at EOF...`
       log.debug(message)
       bytecode[numCodes - 1].consumedBytes = bufferUtils.padRight(
         lastOpcodeAndConsumedBytes.consumedBytes,
