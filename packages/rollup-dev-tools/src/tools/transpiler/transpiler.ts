@@ -760,28 +760,6 @@ export class TranspilerImpl implements Transpiler {
   }
 
   /**
-   * Returns whether or not there are enough bytes left in the bytecode for the provided Opcode.
-   * If it is not, it creates a new TranpilationError and appends it to the provided list.
-   *
-   * @param opcode The opcode in question.
-   * @param bytecodeLength The length of the bytecode being transpiled.
-   * @param pc The current program counter value.
-   * @param errors The cumulative errors list.
-   * @returns True if enough bytes are left for the Opcode to consume, False otherwise.
-   */
-  // private static enoughBytesLeft(
-  //   opcode: EVMOpcode,
-  //   bytecodeLength: number,
-  //   pc: number,
-  //   errors: TranspilationError[]
-  // ): boolean {
-  //   if (pc + opcode.programBytesConsumed >= bytecodeLength) {
-  //     return false
-  //   }
-  //   return true
-  // }
-
-  /**
    * Util function to create TranspilationErrors.
    *
    * @param index The index of the byte in the input bytecode where the error originates.
