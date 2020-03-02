@@ -13,4 +13,12 @@ contract DummyContract {
         success = testInt != 0;
         output = testBytes;
     }
+
+    function dummyRevert() public {
+        revert("This is a test revert");
+    }
+
+    function dummyFailingRequire() public {
+        require(false, "This is a test revert");
+    }
 }

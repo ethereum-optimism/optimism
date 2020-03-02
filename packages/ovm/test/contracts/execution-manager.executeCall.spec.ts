@@ -22,9 +22,8 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
-  getTransactionResult,
-  numberToHexWord,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  ZERO_UINT,
 } from '../helpers'
 import { GAS_LIMIT, CHAIN_ID, OPCODE_WHITELIST_MASK } from '../../src/app'
 
@@ -36,8 +35,8 @@ const log = getLogger('execution-manager-calls', true)
  * TESTS *
  *********/
 
-const methodId: string = ethereumjsAbi
-  .methodID('executeCall', [])
+const unsignedCallMethodId: string = ethereumjsAbi
+  .methodID('executeUnsignedEOACall', [])
   .toString('hex')
 
 describe('Execution Manager -- Call opcodes', () => {
@@ -224,6 +223,86 @@ describe('Execution Manager -- Call opcodes', () => {
         padToLength(s, 64)
       )
       await provider.waitForTransaction(tx.hash)
+    })
+
+    it('reverts when it makes a call that reverts', async () => {
+      // Generate our tx internalCalldata
+      const internalCalldata = getUnsignedTransactionCalldata(
+        dummyContract,
+        'dummyRevert',
+        []
+      )
+
+      const calldata = getUnsignedTransactionCalldata(
+        executionManager,
+        'executeUnsignedEOACall',
+        [
+          ZERO_UINT,
+          ZERO_UINT,
+          dummyContractAddress,
+          internalCalldata,
+          wallet.address,
+        ]
+      )
+      const nonce = await wallet.getTransactionCount()
+
+      let failed = false
+      try {
+        await wallet.provider.call({
+          nonce,
+          gasLimit: GAS_LIMIT,
+          gasPrice: 0,
+          to: executionManager.address,
+          value: 0,
+          data: calldata,
+          chainId: CHAIN_ID,
+        })
+      } catch (e) {
+        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        failed = true
+      }
+
+      failed.should.equal(true, `This call should have reverted!`)
+    })
+
+    it.only('reverts when it makes a call that fails a require', async () => {
+      // Generate our tx internalCalldata
+      const internalCalldata = getUnsignedTransactionCalldata(
+        dummyContract,
+        'dummyFailingRequire',
+        []
+      )
+
+      const calldata = getUnsignedTransactionCalldata(
+        executionManager,
+        'executeUnsignedEOACall',
+        [
+          ZERO_UINT,
+          ZERO_UINT,
+          dummyContractAddress,
+          internalCalldata,
+          wallet.address,
+        ]
+      )
+      const nonce = await wallet.getTransactionCount()
+
+      let failed = false
+      try {
+        await wallet.provider.call({
+          nonce,
+          gasLimit: GAS_LIMIT,
+          gasPrice: 0,
+          to: executionManager.address,
+          value: 0,
+          data: calldata,
+          chainId: CHAIN_ID,
+        })
+      } catch (e) {
+        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        failed = true
+      }
+
+      failed.should.equal(true, `This call should have reverted!`)
     })
   })
 })
