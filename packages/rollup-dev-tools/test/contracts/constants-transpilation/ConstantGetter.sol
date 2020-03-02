@@ -4,7 +4,7 @@ contract ConstantGetter {
 
     bytes32 public constant bytes32Constant = 0xABCDEF34ABCDEF34ABCDEF34ABCDEF34ABCDEF34ABCDEF34ABCDEF34ABCDEF34;
     bytes public constant bytesMemoryConstantA = hex"AAAdeadbeefAAAAAAdeadbeefAAAAAAdeadbeefAAAAAAdeadbeefAAAAAAdeadbeefAAAAAAdeadbeefAAAAAAdeadbeefAAA";
-    bytes public constant bytesMemoryConstantB = hex"BBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBB";
+    bytes public constant bytesMemoryConstantB = "this should pass but the error message is much longer";
     
     constructor(bytes memory _param) public {
         map[420] = _param;
