@@ -23,9 +23,7 @@ import {
 import { Transaction } from 'ethers/utils'
 
 /* Contract Imports */
-import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
 import {
-  convertInternalLogsToOvmLogs,
   GAS_LIMIT,
   CHAIN_ID,
   internalTxReceiptToOvmTxReceipt,
@@ -321,4 +319,55 @@ export const buildLog = (
     topics: [add0x(keccak256(strToHexStr(event)))],
     data: encodedData,
   }
+}
+
+/**
+ * Executes a call in the OVM
+ * @param The name of the function to call
+ * @param The function arguments
+ * @returns The return value of the function executed
+ */
+export const executeOVMCall = async (
+  executionManager: Contract,
+  functionName: string,
+  args: any[]
+): Promise<string> => {
+  const data: string = add0x(
+    encodeMethodId(functionName) + encodeRawArguments(args)
+  )
+
+  return executionManager.provider.call({
+    to: executionManager.address,
+    data,
+    gasLimit,
+  })
+}
+
+/**
+ * Computes the method id of a function name and encodes it as
+ * a hexidecimal string.
+ * @param The name of the function
+ * @returns The hex-encoded methodId
+ */
+export const encodeMethodId = (functionName: string): string => {
+  return ethereumjsAbi.methodID(functionName, []).toString('hex')
+}
+
+/**
+ * Encodes an array of function arguments into a hex string.
+ * @param any[] An array of arguments
+ * @returns The hex-encoded function arguments
+ */
+export const encodeRawArguments = (args: any[]): string => {
+  return args
+    .map((arg) => {
+      if (Number.isInteger(arg)) {
+        return bufferUtils.numberToBuffer(arg).toString('hex')
+      } else if (arg && arg.startsWith('0x')) {
+        return remove0x(arg)
+      } else {
+        return arg
+      }
+    })
+    .join('')
 }

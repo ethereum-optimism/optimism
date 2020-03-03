@@ -3,7 +3,6 @@ import '../setup'
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger } from '@eth-optimism/core-utils'
-import { Address } from '@eth-optimism/rollup-core'
 import { utils } from 'ethers'
 
 /* Contract Imports */

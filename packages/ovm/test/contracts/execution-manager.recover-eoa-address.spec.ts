@@ -7,7 +7,6 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as DummyContract from '../../build/contracts/DummyContract.json'
 
 /* Internal Imports */
 import { GAS_LIMIT, CHAIN_ID, OPCODE_WHITELIST_MASK } from '../../src/app'

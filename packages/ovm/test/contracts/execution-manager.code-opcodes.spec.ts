@@ -4,18 +4,14 @@ import '../setup'
 import { Address } from '@eth-optimism/rollup-core'
 import {
   getLogger,
-  add0x,
   BigNumber,
   hexStrToBuf,
   remove0x,
   keccak256,
-  bufferUtils,
-  bufToHexString,
 } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
@@ -24,9 +20,9 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 /* Internal Imports */
 import {
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   DEFAULT_ETHNODE_GAS_LIMIT,
-  gasLimit,
+  executeOVMCall,
+  addressToBytes32Address,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
@@ -81,19 +77,11 @@ describe('Execution Manager -- Code-related opcodes', () => {
 
   describe('getContractCodeSize', async () => {
     it('properly gets contract code size for the contract we expect', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmEXTCODESIZE', [])
-        .toString('hex')
-
-      const encodedParams: string =
-        '00'.repeat(12) + remove0x(dummyContractAddress)
-      const data: string = `0x${methodId}${encodedParams}`
-
-      const result: string = await executionManager.provider.call({
-        to: add0x(executionManager.address),
-        data,
-        gasLimit,
-      })
+      const result: string = await executeOVMCall(
+        executionManager,
+        'ovmEXTCODESIZE',
+        [addressToBytes32Address(dummyContractAddress)]
+      )
       log.debug(`Resulting size: [${result}]`)
 
       const codeSize: number = new BigNumber(remove0x(result), 'hex').toNumber()
@@ -106,19 +94,11 @@ describe('Execution Manager -- Code-related opcodes', () => {
 
   describe('getContractCodeHash', async () => {
     it('properly gets contract code hash for the contract we expect', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmEXTCODEHASH', [])
-        .toString('hex')
-
-      const encodedParams: string =
-        '00'.repeat(12) + remove0x(dummyContractAddress)
-      const data: string = `0x${methodId}${encodedParams}`
-
-      const codeHash: string = await executionManager.provider.call({
-        to: add0x(executionManager.address),
-        data,
-        gasLimit,
-      })
+      const codeHash: string = await executeOVMCall(
+        executionManager,
+        'ovmEXTCODEHASH',
+        [addressToBytes32Address(dummyContractAddress)]
+      )
       log.debug(`Resulting hash: [${codeHash}]`)
 
       const hash: string = keccak256(dummyContractBytecode.toString('hex'))
@@ -129,28 +109,53 @@ describe('Execution Manager -- Code-related opcodes', () => {
 
   describe('ovmEXTCODECOPY', async () => {
     it('properly gets all contract code via EXTCODECOPY', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmEXTCODECOPY', [])
-        .toString('hex')
-
-      const address: string = '00'.repeat(12) + remove0x(dummyContractAddress)
-      const index: string = '00'.repeat(32)
-      const length: string = bufferUtils
-        .numberToBuffer(dummyContractBytecode.length)
-        .toString('hex')
-      const encodedParams: string = `${address}${index}${length}`
-
-      const data: string = `0x${methodId}${remove0x(encodedParams)}`
-
-      const code: string = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const code: string = await executeOVMCall(
+        executionManager,
+        'ovmEXTCODECOPY',
+        [
+          addressToBytes32Address(dummyContractAddress),
+          0,
+          dummyContractBytecode.length,
+        ]
+      )
       log.debug(`Resulting code: [${code}]`)
 
       const codeBuff: Buffer = hexStrToBuf(code)
       codeBuff.should.eql(dummyContractBytecode, 'Incorrect code!')
+    })
+
+    it('returns zeroed bytes if the range is out of bounds', async () => {
+      const code: string = await executeOVMCall(
+        executionManager,
+        'ovmEXTCODECOPY',
+        [
+          addressToBytes32Address(dummyContractAddress),
+          0,
+          dummyContractBytecode.length + 3,
+        ]
+      )
+      log.debug(`Resulting code: [${code}]`)
+
+      const codeBuff: Buffer = hexStrToBuf(code)
+      const bytecodeWithZeroedBytes = Buffer.concat([
+        dummyContractBytecode,
+        Buffer.alloc(3),
+      ])
+      codeBuff.should.eql(bytecodeWithZeroedBytes, 'Incorrect code!')
+    })
+
+    it('returns zeroed bytes if the provided address is invalid', async () => {
+      const offset = 0
+      const length = 99
+      const code: string = await executeOVMCall(
+        executionManager,
+        'ovmEXTCODECOPY',
+        [addressToBytes32Address('11'.repeat(20)), 0, length]
+      )
+      log.debug(`Resulting code: [${code}]`)
+
+      const codeBuff: Buffer = hexStrToBuf(code)
+      codeBuff.should.eql(Buffer.alloc(length), 'Incorrect code!')
     })
   })
 })

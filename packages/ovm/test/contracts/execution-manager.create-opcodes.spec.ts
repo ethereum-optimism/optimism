@@ -2,8 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { getLogger, remove0x } from '@eth-optimism/core-utils'
-import * as ethereumjsAbi from 'ethereumjs-abi'
+import { getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory } from 'ethers'
 
 /* Contract Imports */
@@ -15,7 +14,21 @@ const log = getLogger('execution-manager-create', true)
 
 /* Internal Imports */
 import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
-import { DEFAULT_ETHNODE_GAS_LIMIT, gasLimit } from '../helpers'
+import {
+  DEFAULT_ETHNODE_GAS_LIMIT,
+  gasLimit,
+  executeOVMCall,
+  encodeMethodId,
+  encodeRawArguments,
+} from '../helpers'
+import { fromPairs } from 'lodash'
+
+const methodIds = fromPairs(
+  ['ovmCREATE', 'ovmCREATE2'].map((methodId) => [
+    methodId,
+    encodeMethodId(methodId),
+  ])
+)
 
 /*********
  * TESTS *
@@ -59,18 +72,9 @@ describe('ExecutionManager -- Create opcodes', () => {
 
   describe('ovmCREATE', async () => {
     it('returns created address when passed valid bytecode', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmCREATE', [])
-        .toString('hex')
-
-      const data = `0x${methodId}${remove0x(deployTx.data)}`
-
-      // Now actually apply it to our execution manager
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const result = await executeOVMCall(executionManager, 'ovmCREATE', [
+        deployTx.data,
+      ])
 
       log.debug(`Result: [${result}]`)
 
@@ -80,11 +84,9 @@ describe('ExecutionManager -- Create opcodes', () => {
     })
 
     it('returns 0 address when passed invalid bytecode', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmCREATE', [])
-        .toString('hex')
-
-      const data = `0x${methodId}${remove0x(deployInvalidTx.data)}`
+      const data = add0x(
+        methodIds.ovmCREATE + encodeRawArguments([deployInvalidTx.data])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
@@ -103,11 +105,9 @@ describe('ExecutionManager -- Create opcodes', () => {
 
   describe('ovmCREATE2', async () => {
     it('returns created address when passed salt and bytecode', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmCREATE2', [])
-        .toString('hex')
-
-      const data = `0x${methodId}${'00'.repeat(32)}${remove0x(deployTx.data)}`
+      const data = add0x(
+        methodIds.ovmCREATE2 + encodeRawArguments([0, deployTx.data])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
@@ -124,13 +124,9 @@ describe('ExecutionManager -- Create opcodes', () => {
     })
 
     it('returns 0 address when passed salt and invalid bytecode', async () => {
-      const methodId: string = ethereumjsAbi
-        .methodID('ovmCREATE2', [])
-        .toString('hex')
-
-      const data = `0x${methodId}${'00'.repeat(32)}${remove0x(
-        deployInvalidTx.data
-      )}`
+      const data = add0x(
+        methodIds.ovmCREATE2 + encodeRawArguments([0, deployInvalidTx.data])
+      )
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({

@@ -1,6 +1,6 @@
 /* External Imports */
 import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
-import { Contract, ethers } from 'ethers'
+import { ethers } from 'ethers'
 import { Log, TransactionReceipt } from 'ethers/providers'
 /* Contract Imports */
 
