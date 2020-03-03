@@ -265,7 +265,7 @@ describe('Execution Manager -- Call opcodes', () => {
       failed.should.equal(true, `This call should have reverted!`)
     })
 
-    it.only('reverts when it makes a call that fails a require', async () => {
+    it('reverts when it makes a call that fails a require', async () => {
       // Generate our tx internalCalldata
       const internalCalldata = getUnsignedTransactionCalldata(
         dummyContract,
