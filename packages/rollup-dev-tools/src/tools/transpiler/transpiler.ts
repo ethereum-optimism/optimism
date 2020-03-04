@@ -12,8 +12,8 @@ import {
 import {
   getLogger,
   bufToHexString,
-  add0x,
   bufferUtils,
+  add0x,
 } from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
@@ -26,14 +26,11 @@ import {
   TranspilationResult,
   TranspilationError,
   TranspilationErrors,
-  JumpReplacementResult,
-  SuccessfulTranspilation,
   ErroredTranspilation,
   TaggedTranspilationResult,
+  JumpReplacementResult,
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
-import { createError } from './util'
-import { format } from 'path'
 
 const log = getLogger('transpiler-impl')
 
@@ -88,13 +85,15 @@ export class TranspilerImpl implements Transpiler {
     )
     const startOfDeployedBytecode: number = bytecode.indexOf(deployedBytecode)
     if (startOfDeployedBytecode === -1) {
+      const errMsg = `WARNING: Could not find deployed bytecode (${bufToHexString(
+        deployedBytecode
+      )}) within the original bytecode (${bufToHexString(bytecode)}).`
+      log.debug(errMsg)
       errors.push(
         TranspilerImpl.createError(
           0,
           TranspilationErrors.MISSING_DEPLOYED_BYTECODE_ERROR,
-          `WARNING: Could not find deployed bytecode (${bufToHexString(
-            deployedBytecode
-          )}) within the original bytecode (${bufToHexString(bytecode)}).`
+          errMsg
         )
       )
     }
@@ -345,13 +344,13 @@ export class TranspilerImpl implements Transpiler {
         }
       }
       // Tags based on the pattern used for deploying library contracts:
-      // PUSH2: 0x0158  [0x0158] // deployed bytecode length
-      // PUSH2: 0x0026  [0x0026, 0x0158] // deployed bytecode start
-      // PUSH1: 0x0b  [0x0b, 0x0026, 0x0158] // destoffset of code to copy
+      // PUSH2 // deployed bytecode length
+      // PUSH2 // deployed bytecode start
+      // PUSH1: // destoffset of code to copy
       // DUP3
       // DUP3
-      // DUP3  [0x0b, 0x0026, 0x0158, 0x0b, 0x0026, 0x0158]
-      // CODECOPY  [0x0b, 0x0026, 0x0158]
+      // DUP3
+      // CODECOPY
       else if (
         Opcode.isPUSHOpcode(op.opcode) &&
         Opcode.isPUSHOpcode(bytecode[index + 1].opcode) &&
@@ -389,11 +388,11 @@ export class TranspilerImpl implements Transpiler {
 
   // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing constructor params during CREATE/CREATE2.
   // Tags based on the pattern:
-  // PUSH2: 0x01cf // should be initcode.length + deployedbytecode.length
+  // PUSH2 // should be initcode.length + deployedbytecode.length
   // CODESIZE
   // SUB // subtract however big the code is from the amount pushed above to get the length of constructor input
   // DUP1
-  // PUSH2: 0x01cf // should also be initcode.length + deployedbytecode.length
+  // PUSH2 // should also be initcode.length + deployedbytecode.length
   // DUP4
   // CODECOPY
   // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
@@ -551,8 +550,7 @@ export class TranspilerImpl implements Transpiler {
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
 
-    const numCodes = bytecode.length
-    const lastOpcodeAndConsumedBytes = bytecode[numCodes - 1]
+    const [lastOpcodeAndConsumedBytes] = bytecode.slice(-1)
     if (
       Opcode.isPUSHOpcode(lastOpcodeAndConsumedBytes.opcode) &&
       lastOpcodeAndConsumedBytes.consumedBytes.byteLength <
@@ -563,17 +561,15 @@ export class TranspilerImpl implements Transpiler {
         lastOpcodeAndConsumedBytes.opcode.name
       } consumes ${
         lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
-      }, but only consumes 0x${bufToHexString(
+      }, but only has 0x${bufToHexString(
         lastOpcodeAndConsumedBytes.consumedBytes
-      )} at the end of input bytecode.  Padding with zeros under the assumption that this arises from a constant at EOF...`
+      )} following it.  Padding with zeros under the assumption that this arises from a constant at EOF...`
       log.debug(message)
-      bytecode[numCodes - 1].consumedBytes = bufferUtils.padRight(
+      lastOpcodeAndConsumedBytes.consumedBytes = bufferUtils.padRight(
         lastOpcodeAndConsumedBytes.consumedBytes,
         lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
       )
     }
-    // todo remove this weak log
-    log.debug(`after padding: ${formatBytecode(bytecode)}`)
 
     const bytecodeBuf: Buffer = bytecodeToBuffer(bytecode)
     // todo remove once confirmed with Kevin?
@@ -732,7 +728,11 @@ export class TranspilerImpl implements Transpiler {
       )}.${messageExtension}`
       log.debug(message)
       errors.push(
-        createError(pc, TranspilationErrors.UNSUPPORTED_OPCODE, message)
+        TranspilerImpl.createError(
+          pc,
+          TranspilationErrors.UNSUPPORTED_OPCODE,
+          message
+        )
       )
       return false
     }
@@ -757,34 +757,16 @@ export class TranspilerImpl implements Transpiler {
       const message: string = `Opcode [${opcode.name}] is not on the whitelist.`
       log.debug(message)
       errors.push(
-        createError(pc, TranspilationErrors.OPCODE_NOT_WHITELISTED, message)
+        TranspilerImpl.createError(
+          pc,
+          TranspilationErrors.OPCODE_NOT_WHITELISTED,
+          message
+        )
       )
       return false
     }
     return true
   }
-
-  /**
-   * Returns whether or not there are enough bytes left in the bytecode for the provided Opcode.
-   * If it is not, it creates a new TranpilationError and appends it to the provided list.
-   *
-   * @param opcode The opcode in question.
-   * @param bytecodeLength The length of the bytecode being transpiled.
-   * @param pc The current program counter value.
-   * @param errors The cumulative errors list.
-   * @returns True if enough bytes are left for the Opcode to consume, False otherwise.
-   */
-  // private static enoughBytesLeft(
-  //   opcode: EVMOpcode,
-  //   bytecodeLength: number,
-  //   pc: number,
-  //   errors: TranspilationError[]
-  // ): boolean {
-  //   if (pc + opcode.programBytesConsumed >= bytecodeLength) {
-  //     return false
-  //   }
-  //   return true
-  // }
 
   /**
    * Util function to create TranspilationErrors.

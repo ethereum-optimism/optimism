@@ -16,10 +16,6 @@ Solidity libraries
 -------------
 Our transpiler does not currently support the usage of libraries in solidity -- this is one of the next things on our chopping block, so stay tuned!  In the meantime you can convert the libs into a regular smart contract.
 
-TX.origin
--------------
-Msg.sender is supported by the OVM, but ``tx.origin`` is not yet.  Stay tuned--it's coming soon!
-
 Parent/Child chain communication
 -------------
 Communication between L1 and L2, also known as deposits and withdrawals, are not yet implemented in the OVM.  Stay tuned for more on this!

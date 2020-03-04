@@ -9,7 +9,6 @@ const log = getLogger('rlp-encode', true)
 
 /* Contract Imports */
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
-import { Contract, ContractFactory, Wallet, utils } from 'ethers'
 
 /* Begin tests */
 describe('RLP Encoder', () => {

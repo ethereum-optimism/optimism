@@ -145,8 +145,8 @@ describe('Solitity contracts should have constants correctly accessible when usi
     retrievedBytesMemoryAVal.should.deep.equal(encodedBytesMemoryConstA)
   })
 
-  const bytesMemoryConstB: Buffer = hexStrToBuf(
-    'BBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBBBBBbeedfeedBBB'
+  const bytesMemoryConstB: Buffer = Buffer.from(
+    `this should pass but the error message is much longer`
   )
   it('should work for the first bytes memory constant', async () => {
     const retrievedBytesMemoryBVal: Buffer = await getGetterReturnedVal(

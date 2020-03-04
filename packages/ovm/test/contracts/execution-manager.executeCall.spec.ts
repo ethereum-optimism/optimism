@@ -2,13 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import {
-  add0x,
-  getLogger,
-  padToLength,
-  remove0x,
-  ZERO_ADDRESS,
-} from '@eth-optimism/core-utils'
+import { getLogger, padToLength, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'

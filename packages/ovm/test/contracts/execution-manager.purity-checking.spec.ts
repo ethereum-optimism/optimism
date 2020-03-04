@@ -13,7 +13,6 @@ import * as DummyContract from '../../build/contracts/DummyContract.json'
 /* Internal Imports */
 import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
 import {
-  manuallyDeployOvmContract,
   DEFAULT_ETHNODE_GAS_LIMIT,
   manuallyDeployOvmContractReturnReceipt,
   didCreateSucceed,

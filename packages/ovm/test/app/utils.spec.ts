@@ -1,8 +1,6 @@
-import { Contract, ethers } from 'ethers'
-import { add0x, ZERO_ADDRESS, TestUtils } from '@eth-optimism/core-utils'
+import { add0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 /* Contract Imports */
-import { getWallets } from 'ethereum-waffle'
-import { TransactionReceipt, JsonRpcProvider, Log } from 'ethers/providers'
+import { TransactionReceipt } from 'ethers/providers'
 import {
   convertInternalLogsToOvmLogs,
   getOvmTransactionMetadata,
