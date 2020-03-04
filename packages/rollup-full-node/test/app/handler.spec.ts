@@ -3,8 +3,12 @@ import '../setup'
 import { getLogger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
-import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
+import {
+  FullnodeRpcServer,
+  deployOvmContract,
+  DefaultWeb3Handler,
+} from '../../src/app'
+import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import { ethers, ContractFactory } from 'ethers'
 import { FullnodeHandler } from '../../src/types'
 
