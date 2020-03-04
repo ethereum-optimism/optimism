@@ -9,12 +9,7 @@ import {
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
 } from '@eth-optimism/rollup-core'
-import {
-  getLogger,
-  bufToHexString,
-  add0x,
-  bufferUtils,
-} from '@eth-optimism/core-utils'
+import { getLogger, bufToHexString, add0x, bufferUtils } from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
 
@@ -88,13 +83,15 @@ export class TranspilerImpl implements Transpiler {
     )
     const startOfDeployedBytecode: number = bytecode.indexOf(deployedBytecode)
     if (startOfDeployedBytecode === -1) {
+      const errMsg = `WARNING: Could not find deployed bytecode (${bufToHexString(
+        deployedBytecode
+      )}) within the original bytecode (${bufToHexString(bytecode)}).`
+      log.debug(errMsg)
       errors.push(
         TranspilerImpl.createError(
           0,
           TranspilationErrors.MISSING_DEPLOYED_BYTECODE_ERROR,
-          `WARNING: Could not find deployed bytecode (${bufToHexString(
-            deployedBytecode
-          )}) within the original bytecode (${bufToHexString(bytecode)}).`
+          errMsg
         )
       )
     }
@@ -157,13 +154,6 @@ export class TranspilerImpl implements Transpiler {
     const finalTranspiledDeployedBytecode: EVMBytecode = this.fixTaggedConstantOffsets(
       transpiledDeployedBytecode as EVMBytecode,
       errors
-    )
-
-    // problem is after here?
-    log.debug(
-      `final transpiled deployed bytecode: \n${formatBytecode(
-        finalTranspiledDeployedBytecode
-      )}`
     )
 
     // **** DETECT AND TAG USES OF CODECOPY IN CONSTRUCTOR BYTECODE AND TRANSPILE ****
@@ -345,13 +335,13 @@ export class TranspilerImpl implements Transpiler {
         }
       }
       // Tags based on the pattern used for deploying library contracts:
-      // PUSH2: 0x0158  [0x0158] // deployed bytecode length
-      // PUSH2: 0x0026  [0x0026, 0x0158] // deployed bytecode start
-      // PUSH1: 0x0b  [0x0b, 0x0026, 0x0158] // destoffset of code to copy
+      // PUSH2 // deployed bytecode length
+      // PUSH2 // deployed bytecode start
+      // PUSH1: // destoffset of code to copy
       // DUP3
       // DUP3
-      // DUP3  [0x0b, 0x0026, 0x0158, 0x0b, 0x0026, 0x0158]
-      // CODECOPY  [0x0b, 0x0026, 0x0158]
+      // DUP3
+      // CODECOPY
       else if (
         Opcode.isPUSHOpcode(op.opcode) &&
         Opcode.isPUSHOpcode(bytecode[index + 1].opcode) &&
@@ -551,8 +541,7 @@ export class TranspilerImpl implements Transpiler {
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
 
-    const numCodes = bytecode.length
-    const lastOpcodeAndConsumedBytes = bytecode[numCodes - 1]
+    const [lastOpcodeAndConsumedBytes] = bytecode.slice(-1)
     if (
       Opcode.isPUSHOpcode(lastOpcodeAndConsumedBytes.opcode) &&
       lastOpcodeAndConsumedBytes.consumedBytes.byteLength <
@@ -563,17 +552,15 @@ export class TranspilerImpl implements Transpiler {
         lastOpcodeAndConsumedBytes.opcode.name
       } consumes ${
         lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
-      }, but only consumes 0x${bufToHexString(
+      }, but only has 0x${bufToHexString(
         lastOpcodeAndConsumedBytes.consumedBytes
-      )} at the end of input bytecode.  Padding with zeros under the assumption that this arises from a constant at EOF...`
+      )} following it.  Padding with zeros under the assumption that this arises from a constant at EOF...`
       log.debug(message)
-      bytecode[numCodes - 1].consumedBytes = bufferUtils.padRight(
+      lastOpcodeAndConsumedBytes.consumedBytes = bufferUtils.padRight(
         lastOpcodeAndConsumedBytes.consumedBytes,
         lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
       )
     }
-    // todo remove this weak log
-    log.debug(`after padding: ${formatBytecode(bytecode)}`)
 
     const bytecodeBuf: Buffer = bytecodeToBuffer(bytecode)
     // todo remove once confirmed with Kevin?
