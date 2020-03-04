@@ -1,21 +1,7 @@
 import './setup'
 
 /* External Imports */
-import {
-  OpcodeReplacerImpl,
-  OpcodeWhitelistImpl,
-  SuccessfulTranspilation,
-  TranspilationResult,
-  Transpiler,
-  TranspilerImpl,
-} from '@eth-optimism/rollup-dev-tools'
-import {
-  bufToHexString,
-  hexStrToBuf,
-  remove0x,
-  ZERO_ADDRESS,
-  getLogger,
-} from '@eth-optimism/core-utils'
+import { getLogger } from '@eth-optimism/core-utils'
 import {
   createMockProvider,
   getWallets,
@@ -28,7 +14,6 @@ import * as fs from 'fs'
 
 /* Internal Imports */
 import { compile } from '../src'
-import { formatBytecode, bufferToBytecode } from '../../rollup-core/build'
 
 const log = getLogger('library-use-compilation')
 

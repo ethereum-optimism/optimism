@@ -36,6 +36,7 @@
     "solc": "^0.5.12"
   },
   "devDependencies": {
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.9",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.7",
     "@types/node": "^12.0.7",
