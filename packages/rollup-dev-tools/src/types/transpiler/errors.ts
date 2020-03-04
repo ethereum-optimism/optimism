@@ -37,24 +37,6 @@ export class InvalidInitcodeError extends Error {
   }
 }
 
-export class MissingConstantError extends Error {
-  constructor(msg?: string) {
-    super(msg)
-  }
-}
-
-export class DetectedConstantOutOfBoundsError extends Error {
-  constructor(msg?: string) {
-    super(msg)
-  }
-}
-
-export class SubTranspilationError extends Error {
-  constructor(msg?: string) {
-    super(msg)
-  }
-}
-
 export class TranspilationErrors {
   public static readonly UNSUPPORTED_OPCODE: number = 0
   public static readonly OPCODE_NOT_WHITELISTED: number = 1
@@ -63,5 +45,6 @@ export class TranspilationErrors {
   public static readonly INVALID_INITCODE: number = 4
   public static readonly MISSING_CONSTANT_ERROR: number = 5
   public static readonly DETECTED_CONSTANT_OOB: number = 6
-  public static readonly SUB_TRANSPILATION_ERROR: number = 6
+  public static readonly SUB_TRANSPILATION_ERROR: number = 7
+  public static readonly MISSING_DEPLOYED_BYTECODE_ERROR: number = 8
 }

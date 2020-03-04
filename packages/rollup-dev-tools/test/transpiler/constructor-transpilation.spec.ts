@@ -24,6 +24,7 @@ import * as ConstructorUsingConstantWithMultipleParams from '../contracts/build/
 import * as ConstructorStoringParam from '../contracts/build/ConstructorStoringParam.json'
 import * as ConstructorStoringMultipleParams from '../contracts/build/ConstructorStoringMultipleParams.json'
 import * as Counter from '../contracts/build/Counter.json'
+import * as SimpleSafeMath from '../contracts/build/SimpleSafeMath.json'
 
 /* Internal Imports */
 import {
@@ -113,6 +114,26 @@ describe('Solitity contracts with constructors that take inputs should be correc
       transpiler,
       evmUtil
     )
+  })
+  it('should work for a library construction', async () => {
+    const constructorParams = []
+    const constructorParamTypes = []
+    const resultsToCompare = await getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode(
+      SimpleSafeMath,
+      constructorParams,
+      constructorParamTypes,
+      transpiler,
+      evmUtil
+    )
+    const deployedViaInitcode: Buffer =
+      resultsToCompare.deployedViaTranspiledInitcode
+    const manuallyTranspiled: Buffer =
+      resultsToCompare.manuallyTranspiledDeployedBytecode
+    // deployed libraries should have their deployed address subbed in as the first thing being pushed to the stack.
+    // copy it over from the deployed version before checking equality
+    deployedViaInitcode.copy(manuallyTranspiled, 1, 1, 21)
+
+    manuallyTranspiled.should.deep.equal(deployedViaInitcode)
   })
   it(`should work for waffle's counter example`, async () => {
     const constructorParams = [12345]
@@ -219,6 +240,31 @@ const assertTranspiledInitcodeDeploysManuallyTranspiledRawDeployedBytecode = asy
   transpiler: TranspilerImpl,
   evmUtil: EvmIntrospectionUtil
 ): Promise<void> => {
+  const resultsToCompare = await getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode(
+    contractBuildJSON,
+    constructorParams,
+    constructorParamsEncoding,
+    transpiler,
+    evmUtil
+  )
+  const successfullyDeployedBytecode =
+    resultsToCompare.deployedViaTranspiledInitcode
+  const transpiledDeployedBytecode =
+    resultsToCompare.manuallyTranspiledDeployedBytecode
+
+  successfullyDeployedBytecode.should.deep.equal(transpiledDeployedBytecode)
+}
+
+const getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode = async (
+  contractBuildJSON: any,
+  constructorParams: any[],
+  constructorParamsEncoding: string[],
+  transpiler: TranspilerImpl,
+  evmUtil: EvmIntrospectionUtil
+): Promise<{
+  deployedViaTranspiledInitcode: Buffer
+  manuallyTranspiledDeployedBytecode: Buffer
+}> => {
   // ******
   // TRANSPILE AND DEPLOY INITCODE via transpiler.transpile()
   // ******
@@ -265,5 +311,8 @@ const assertTranspiledInitcodeDeploysManuallyTranspiledRawDeployedBytecode = asy
     )}`
   )
 
-  successfullyDeployedBytecode.should.deep.equal(transpiledDeployedBytecode)
+  return {
+    deployedViaTranspiledInitcode: successfullyDeployedBytecode,
+    manuallyTranspiledDeployedBytecode: transpiledDeployedBytecode,
+  }
 }

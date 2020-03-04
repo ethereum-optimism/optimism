@@ -31,10 +31,12 @@
   "dependencies": {
     "@eth-optimism/core-utils": "0.0.1-alpha.12",
     "@eth-optimism/rollup-dev-tools": "0.0.1-alpha.12",
+    "ethers": "^4.0.45",
     "require-from-string": "^2.0.2",
     "solc": "^0.5.12"
   },
   "devDependencies": {
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.9",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.7",
     "@types/node": "^12.0.7",

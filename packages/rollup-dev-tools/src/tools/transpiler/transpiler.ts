@@ -9,7 +9,12 @@ import {
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
 } from '@eth-optimism/rollup-core'
-import { getLogger, bufToHexString, add0x } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  bufToHexString,
+  add0x,
+  bufferUtils,
+} from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
 
@@ -28,6 +33,7 @@ import {
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
 import { createError } from './util'
+import { format } from 'path'
 
 const log = getLogger('transpiler-impl')
 
@@ -82,12 +88,16 @@ export class TranspilerImpl implements Transpiler {
     )
     const startOfDeployedBytecode: number = bytecode.indexOf(deployedBytecode)
     if (startOfDeployedBytecode === -1) {
-      log.debug(
-        `WARNING: Could not find deployed bytecode (${bufToHexString(
-          deployedBytecode
-        )}) within the original bytecode (${bufToHexString(
-          bytecode
-        )}).  If you are using a custom compiler, this may break.`
+      const errMsg = `WARNING: Could not find deployed bytecode (${bufToHexString(
+        deployedBytecode
+      )}) within the original bytecode (${bufToHexString(bytecode)}).`
+      log.debug(errMsg)
+      errors.push(
+        TranspilerImpl.createError(
+          0,
+          TranspilationErrors.MISSING_DEPLOYED_BYTECODE_ERROR,
+          errMsg
+        )
       )
     }
 
@@ -270,7 +280,7 @@ export class TranspilerImpl implements Transpiler {
           newConstantOffset
         ).toBuffer('be', op.opcode.programBytesConsumed)
         log.debug(
-          `fixing CODECOPY(constant) ad PC 0x${getPCOfEVMBytecodeIndex(
+          `fixing CODECOPY(constant) at PC 0x${getPCOfEVMBytecodeIndex(
             index,
             taggedBytecode
           ).toString(16)}.  Setting new index to 0x${bufToHexString(
@@ -284,20 +294,20 @@ export class TranspilerImpl implements Transpiler {
   }
 
   // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing deployed bytecode which is returned during CREATE/CREATE2.
-  // Tags based on the pattern:
-  // PUSH2 // codecopy's and RETURN's length
-  // DUP1 // DUPed to use twice, for RETURN and CODECOPY both
-  // PUSH2 // codecopy's offset
-  // PUSH1 codecopy's destOffset
-  // CODECOPY // copy
-  // PUSH1 0 // RETURN offset
-  // RETURN // uses above RETURN offset and DUP'ed length above
   // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
   private findAndTagDeployedBytecodeReturner(
     bytecode: EVMBytecode
   ): EVMBytecode {
     for (let index = 0; index < bytecode.length - 6; index++) {
       const op: EVMOpcodeAndBytes = bytecode[index]
+      // Tags based on the pattern used for deploying non-library contracts:
+      // PUSH2 // codecopy's and RETURN's length
+      // DUP1 // DUPed to use twice, for RETURN and CODECOPY both
+      // PUSH2 // codecopy's offset
+      // PUSH1 codecopy's destOffset
+      // CODECOPY // copy
+      // PUSH1 0 // RETURN offset
+      // RETURN // uses above RETURN offset and DUP'ed length above
       if (
         Opcode.isPUSHOpcode(op.opcode) &&
         Opcode.isPUSHOpcode(bytecode[index + 2].opcode) &&
@@ -305,7 +315,7 @@ export class TranspilerImpl implements Transpiler {
         bytecode[index + 6].opcode === Opcode.RETURN
       ) {
         log.debug(
-          `detected a [CODECOPY(deployed bytecode)... RETURN] (CREATE/2 deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
+          `detected a NON-LIBRARY [CODECOPY(deployed bytecode)... RETURN] (CREATE/2 deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
             index,
             bytecode
           ).toString(16)}. Tagging the offset and size...`
@@ -322,6 +332,45 @@ export class TranspilerImpl implements Transpiler {
         bytecode[index + 2] = {
           opcode: bytecode[index + 2].opcode,
           consumedBytes: bytecode[index + 2].consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
+            metadata: undefined,
+          },
+        }
+      }
+      // Tags based on the pattern used for deploying library contracts:
+      // PUSH2 // deployed bytecode length
+      // PUSH2 // deployed bytecode start
+      // PUSH1: // destoffset of code to copy
+      // DUP3
+      // DUP3
+      // DUP3
+      // CODECOPY
+      else if (
+        Opcode.isPUSHOpcode(op.opcode) &&
+        Opcode.isPUSHOpcode(bytecode[index + 1].opcode) &&
+        Opcode.isPUSHOpcode(bytecode[index + 2].opcode) &&
+        bytecode[index + 6].opcode === Opcode.CODECOPY
+      ) {
+        log.debug(
+          `detected a LIBRARY [CODECOPY(deployed bytecode)... RETURN] (library deployment logic) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
+            index,
+            bytecode
+          ).toString(16)}. Tagging the offset and size...`
+        )
+        bytecode[index] = {
+          opcode: op.opcode,
+          consumedBytes: op.consumedBytes,
+          tag: {
+            padPUSH: true,
+            reasonTagged: IS_DEPLOY_CODE_LENGTH,
+            metadata: undefined,
+          },
+        }
+        bytecode[index + 1] = {
+          opcode: bytecode[index + 1].opcode,
+          consumedBytes: bytecode[index + 1].consumedBytes,
           tag: {
             padPUSH: true,
             reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
@@ -497,6 +546,27 @@ export class TranspilerImpl implements Transpiler {
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
 
+    const [lastOpcodeAndConsumedBytes] = bytecode.slice(-1)
+    if (
+      Opcode.isPUSHOpcode(lastOpcodeAndConsumedBytes.opcode) &&
+      lastOpcodeAndConsumedBytes.consumedBytes.byteLength <
+        lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+    ) {
+      // todo: handle with warnings[] separate from errors[]?
+      const message: string = `Final input opcode: ${
+        lastOpcodeAndConsumedBytes.opcode.name
+      } consumes ${
+        lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+      }, but only has 0x${bufToHexString(
+        lastOpcodeAndConsumedBytes.consumedBytes
+      )} following it.  Padding with zeros under the assumption that this arises from a constant at EOF...`
+      log.debug(message)
+      lastOpcodeAndConsumedBytes.consumedBytes = bufferUtils.padRight(
+        lastOpcodeAndConsumedBytes.consumedBytes,
+        lastOpcodeAndConsumedBytes.opcode.programBytesConsumed
+      )
+    }
+
     const bytecodeBuf: Buffer = bytecodeToBuffer(bytecode)
     // todo remove once confirmed with Kevin?
     let seenJump: boolean = false
@@ -542,16 +612,6 @@ export class TranspilerImpl implements Transpiler {
         if (!this.opcodeWhitelisted(opcode, pc, errors)) {
           pc += opcode.programBytesConsumed
           continue
-        }
-        if (
-          !TranspilerImpl.enoughBytesLeft(
-            opcode,
-            bytecodeBuf.length,
-            pc,
-            errors
-          )
-        ) {
-          break
         }
       }
       if (insideUnreachableCode && !opcode) {
@@ -690,38 +750,6 @@ export class TranspilerImpl implements Transpiler {
       log.debug(message)
       errors.push(
         createError(pc, TranspilationErrors.OPCODE_NOT_WHITELISTED, message)
-      )
-      return false
-    }
-    return true
-  }
-
-  /**
-   * Returns whether or not there are enough bytes left in the bytecode for the provided Opcode.
-   * If it is not, it creates a new TranpilationError and appends it to the provided list.
-   *
-   * @param opcode The opcode in question.
-   * @param bytecodeLength The length of the bytecode being transpiled.
-   * @param pc The current program counter value.
-   * @param errors The cumulative errors list.
-   * @returns True if enough bytes are left for the Opcode to consume, False otherwise.
-   */
-  private static enoughBytesLeft(
-    opcode: EVMOpcode,
-    bytecodeLength: number,
-    pc: number,
-    errors: TranspilationError[]
-  ): boolean {
-    if (pc + opcode.programBytesConsumed >= bytecodeLength) {
-      const bytesLeft: number = bytecodeLength - pc - 1
-      const message: string = `Opcode: ${opcode.name} consumes ${
-        opcode.programBytesConsumed
-      }, but ${!!bytesLeft ? 'only ' : ''}${bytesLeft} ${
-        bytesLeft !== 1 ? 'bytes are' : 'byte is'
-      } left in input bytecode.`
-      log.debug(message)
-      errors.push(
-        createError(pc, TranspilationErrors.INVALID_BYTES_CONSUMED, message)
       )
       return false
     }

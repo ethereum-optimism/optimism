@@ -147,7 +147,8 @@ describe('Transpile', () => {
   })
 
   describe('Enforces Invalid Bytes Consumed', () => {
-    it('flags invalid bytes consumed', () => {
+    // TODO: Handle this as a warning, since we now pad instead of throwing
+    it.skip('flags invalid bytes consumed', () => {
       const bytecode: Buffer = bytecodeToBuffer(
         invalidBytesConsumedBytecodeNoReturn
       )
@@ -230,16 +231,12 @@ describe('Transpile', () => {
       result.succeeded.should.equal(false)
 
       const error: ErroredTranspilation = result as ErroredTranspilation
-      error.errors.length.should.equal(3)
+      error.errors.length.should.equal(2)
       error.errors[0].index.should.equal(0)
       error.errors[0].error.should.equal(TranspilationErrors.UNSUPPORTED_OPCODE)
       error.errors[1].index.should.equal(bytecode.length - 2)
       error.errors[1].error.should.equal(
         TranspilationErrors.OPCODE_NOT_WHITELISTED
-      )
-      error.errors[2].index.should.equal(bytecode.length - 1)
-      error.errors[2].error.should.equal(
-        TranspilationErrors.INVALID_BYTES_CONSUMED
       )
     })
   })
