@@ -142,21 +142,16 @@ export class TranspilerImpl implements Transpiler {
     const deployedBytecodeTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
       taggedDeployedEVMBytecode
     )
-
+    // todo error handle however above
     if (!deployedBytecodeTranspilationResult.succeeded) {
       errors.push(
         ...(deployedBytecodeTranspilationResult as ErroredTranspilation).errors
       )
-      return {
-        succeeded: false,
-        errors,
-      }
     }
     const transpiledDeployedBytecode: EVMBytecode =
       deployedBytecodeTranspilationResult.bytecodeWithTags
 
-    log.debug(`Fixing the constant indices for transpiled deployed bytecode...`)
-    log.debug(`errors are: ${JSON.stringify(errors)}`)
+    log.debug(`Fixing constant indices for transpiled deployed bytecode...`)
     // Note that fixTaggedConstantOffsets() scrubs all fixed tags, so we do not re-fix when we use finalTranspiledDeployedBytecode to reconstruct the returned initcode
     const finalTranspiledDeployedBytecode: EVMBytecode = this.fixTaggedConstantOffsets(
       transpiledDeployedBytecode as EVMBytecode,
@@ -195,10 +190,6 @@ export class TranspilerImpl implements Transpiler {
         ...(constructorInitLogicTranspilationResult as ErroredTranspilation)
           .errors
       )
-      return {
-        succeeded: false,
-        errors,
-      }
     }
     const transpiledConstructorInitLogic: EVMBytecode =
       constructorInitLogicTranspilationResult.bytecodeWithTags
@@ -264,7 +255,6 @@ export class TranspilerImpl implements Transpiler {
     taggedBytecode: EVMBytecode,
     errors
   ): EVMBytecode {
-    log.debug(`tagged input: ${formatBytecode(taggedBytecode)}`)
     const inputAsBuf: Buffer = bytecodeToBuffer(taggedBytecode)
     const bytecodeToReturn: EVMBytecode = []
     for (const [index, op] of taggedBytecode.entries()) {
