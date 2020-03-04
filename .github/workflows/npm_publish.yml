@@ -1,4 +1,4 @@
-name: Run Tests and Publish to NPM
+name: Build and Publish to NPM
 
 on:
   push:
