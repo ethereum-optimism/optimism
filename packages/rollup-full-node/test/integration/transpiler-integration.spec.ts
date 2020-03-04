@@ -12,7 +12,7 @@ import {
   bufferToBytecode,
 } from '@eth-optimism/rollup-core'
 
-/* Internal Imports */
+/* Contract Imports */
 
 import * as SimpleStorage from '../contracts/build/transpiled/SimpleStorage.json'
 import * as SimpleCaller from '../contracts/build/transpiled/SimpleCaller.json'
