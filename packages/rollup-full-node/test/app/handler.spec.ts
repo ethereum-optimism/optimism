@@ -1,7 +1,6 @@
 import '../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { DB, newInMemoryDB } from '@eth-optimism/core-db/'
 
 /* Internal Imports */
 import {
@@ -13,7 +12,7 @@ import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.js
 import { ethers, ContractFactory } from 'ethers'
 import { FullnodeHandler } from '../../src/types'
 
-const log = getLogger('ethnode-proxy', true)
+const log = getLogger('web3-handler', true)
 
 const host = '0.0.0.0'
 const port = 9999

@@ -6,6 +6,7 @@ import {
   add0x,
   abi,
   keccak256,
+  strToHexStr,
   remove0x,
   hexStrToBuf,
   bufToHexString,
@@ -13,13 +14,16 @@ import {
 } from '@eth-optimism/core-utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
-import { Provider, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import {
+  Provider,
+  TransactionReceipt,
+  JsonRpcProvider,
+  Log,
+} from 'ethers/providers'
 import { Transaction } from 'ethers/utils'
 
 /* Contract Imports */
-import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
 import {
-  convertInternalLogsToOvmLogs,
   GAS_LIMIT,
   CHAIN_ID,
   internalTxReceiptToOvmTxReceipt,
@@ -70,7 +74,7 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     initCode
   )
 
-  return internalTxReceiptToOvmTxReceipt(executionManager, receipt)
+  return internalTxReceiptToOvmTxReceipt(receipt)
 }
 
 /**
@@ -292,4 +296,78 @@ export const didCreateSucceed = async (
       .map((x) => executionManager.interface.parseLog(x))
       .filter((x) => x.name === 'CreatedContract').length > 0
   )
+}
+
+/**
+ * Builds a ethers.js Log object from it's respective parts
+ *
+ * @param address The address the logs was sent from
+ * @param event The event identifier
+ * @param data The event data
+ * @returns an ethers.js Log object
+ */
+export const buildLog = (
+  address: string,
+  event: string,
+  data: string[]
+): Log => {
+  const types = event.match(/\((.+)\)/)
+  const encodedData = types ? abi.encode(types[1].split(','), data) : '0x'
+
+  return {
+    address,
+    topics: [add0x(keccak256(strToHexStr(event)))],
+    data: encodedData,
+  }
+}
+
+/**
+ * Executes a call in the OVM
+ * @param The name of the function to call
+ * @param The function arguments
+ * @returns The return value of the function executed
+ */
+export const executeOVMCall = async (
+  executionManager: Contract,
+  functionName: string,
+  args: any[]
+): Promise<string> => {
+  const data: string = add0x(
+    encodeMethodId(functionName) + encodeRawArguments(args)
+  )
+
+  return executionManager.provider.call({
+    to: executionManager.address,
+    data,
+    gasLimit,
+  })
+}
+
+/**
+ * Computes the method id of a function name and encodes it as
+ * a hexidecimal string.
+ * @param The name of the function
+ * @returns The hex-encoded methodId
+ */
+export const encodeMethodId = (functionName: string): string => {
+  return ethereumjsAbi.methodID(functionName, []).toString('hex')
+}
+
+/**
+ * Encodes an array of function arguments into a hex string.
+ * @param any[] An array of arguments
+ * @returns The hex-encoded function arguments
+ */
+export const encodeRawArguments = (args: any[]): string => {
+  return args
+    .map((arg) => {
+      if (Number.isInteger(arg)) {
+        return bufferUtils.numberToBuffer(arg).toString('hex')
+      } else if (arg && arg.startsWith('0x')) {
+        return remove0x(arg)
+      } else {
+        return arg
+      }
+    })
+    .join('')
 }

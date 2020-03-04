@@ -2,13 +2,11 @@ import '../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
-import { Contract, ContractFactory, Wallet, utils } from 'ethers'
+import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'

@@ -2,17 +2,10 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import {
-  getLogger,
-  BigNumber,
-  remove0x,
-  add0x,
-  TestUtils,
-} from '@eth-optimism/core-utils'
+import { getLogger, remove0x, add0x, TestUtils } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
@@ -26,9 +19,12 @@ import {
   DEFAULT_ETHNODE_GAS_LIMIT,
   didCreateSucceed,
   gasLimit,
+  executeOVMCall,
+  encodeMethodId,
+  encodeRawArguments,
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
-import { TransactionReceipt } from 'ethers/providers'
+import { fromPairs } from 'lodash'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -38,38 +34,24 @@ const log = getLogger('execution-manager-calls', true)
  * TESTS *
  *********/
 
-const executeCallMethodId: string = ethereumjsAbi
-  .methodID('executeCall', [])
-  .toString('hex')
-
-const sstoreMethodId: string = ethereumjsAbi
-  .methodID('notStaticFriendlySSTORE', [])
-  .toString('hex')
-
-const createMethodId: string = ethereumjsAbi
-  .methodID('notStaticFriendlyCREATE', [])
-  .toString('hex')
-
-const create2MethodId: string = ethereumjsAbi
-  .methodID('notStaticFriendlyCREATE2', [])
-  .toString('hex')
-
-const sloadMethodId: string = ethereumjsAbi
-  .methodID('staticFriendlySLOAD', [])
-  .toString('hex')
-
-const staticCallThenCallMethodId: string = ethereumjsAbi
-  .methodID('makeStaticCallThenCall', [])
-  .toString('hex')
+const methodIds = fromPairs(
+  [
+    'executeCall',
+    'makeCall',
+    'makeStaticCall',
+    'makeStaticCallThenCall',
+    'staticFriendlySLOAD',
+    'notStaticFriendlySSTORE',
+    'notStaticFriendlyCREATE',
+    'notStaticFriendlyCREATE2',
+    'staticFriendlySLOAD',
+    'makeDelegateCall',
+  ].map((methodId) => [methodId, encodeMethodId(methodId)])
+)
 
 const sloadKey: string = '11'.repeat(32)
 const unpopultedSLOADResult: string = '00'.repeat(32)
 const populatedSLOADResult: string = '22'.repeat(32)
-
-const sstoreMethodIdAndParams: string = `${sstoreMethodId}${sloadKey}${populatedSLOADResult}`
-const sloadMethodIdAndParams: string = `${sloadMethodId}${sloadKey}`
-
-const timestampAndQueueOrigin: string = '00'.repeat(64)
 
 describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
@@ -77,17 +59,10 @@ describe('Execution Manager -- Call opcodes', () => {
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
   let dummyContract: Contract
-  let callContract: ContractFactory
   let callContractAddress: Address
   let callContract2Address: Address
   let callContract3Address: Address
-  let callContractAddress32: string
-  let callContract2Address32: string
-  let callContract3Address32: string
-  let executeCallToCallContractData: string
-
-  let createMethodIdAndData: string
-  let create2MethodIdAndData: string
+  let deployTx: any
 
   /* Link libraries before tests */
   before(async () => {
@@ -95,15 +70,10 @@ describe('Execution Manager -- Call opcodes', () => {
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
     })
 
-    const deployTx = new ContractFactory(
+    deployTx = new ContractFactory(
       SimpleCall.abi,
       SimpleCall.bytecode
     ).getDeployTransaction(dummyContract.address)
-
-    createMethodIdAndData = `${createMethodId}${remove0x(deployTx.data)}`
-    create2MethodIdAndData = `${create2MethodId}${'00'.repeat(32)}${remove0x(
-      deployTx.data
-    )}`
   })
   beforeEach(async () => {
     // Deploy ExecutionManager the normal way
@@ -144,62 +114,46 @@ describe('Execution Manager -- Call opcodes', () => {
     )
 
     log.debug(`Contract address: [${callContractAddress}]`)
-
-    // Also set our simple copier Ethers contract so we can generate unsigned transactions
-    callContract = new ContractFactory(
-      SimpleCall.abi as any,
-      SimpleCall.bytecode
-    )
-
-    callContractAddress32 = remove0x(
-      addressToBytes32Address(callContractAddress)
-    )
-    callContract2Address32 = remove0x(
-      addressToBytes32Address(callContract2Address)
-    )
-    callContract3Address32 = remove0x(
-      addressToBytes32Address(callContract2Address)
-    )
-    const encodedParams = `${timestampAndQueueOrigin}${callContractAddress32}`
-    executeCallToCallContractData = `0x${executeCallMethodId}${encodedParams}`
   })
 
   describe('ovmCALL', async () => {
-    const callMethodId: string = ethereumjsAbi
-      .methodID('makeCall', [])
-      .toString('hex')
-
     it('properly executes ovmCALL to SLOAD', async () => {
-      const data: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
-
+      const result: string = await executeCall([
+        addressToBytes32Address(callContract2Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
       log.debug(`Result: [${result}]`)
 
       remove0x(result).should.equal(unpopultedSLOADResult, 'Result mismatch!')
     })
 
     it('properly executes ovmCALL to SSTORE', async () => {
-      const data: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
+      const data: string =
+        encodeMethodId('executeCall') +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.notStaticFriendlySSTORE,
+          sloadKey,
+          populatedSLOADResult,
+        ])
 
       // Note: Send transaction vs call so it is persisted
       await wallet.sendTransaction({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
-      const fetchData: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data: fetchData,
-        gasLimit,
-      })
+      const result: string = await executeCall([
+        addressToBytes32Address(callContract2Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result: [${result}]`)
 
@@ -208,13 +162,11 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE', async () => {
-      const data: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${createMethodIdAndData}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const result: string = await executeCall([
+        addressToBytes32Address(callContract2Address),
+        methodIds.notStaticFriendlyCREATE,
+        deployTx.data,
+      ])
 
       log.debug(`RESULT: ${result}`)
 
@@ -227,13 +179,12 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE2', async () => {
-      const data: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${create2MethodIdAndData}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const result: string = await executeCall([
+        addressToBytes32Address(callContract2Address),
+        methodIds.notStaticFriendlyCREATE2,
+        0,
+        deployTx.data,
+      ])
 
       log.debug(`RESULT: ${result}`)
 
@@ -247,32 +198,33 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   describe('ovmDELEGATECALL', async () => {
-    const delegateCallMethodId: string = ethereumjsAbi
-      .methodID('makeDelegateCall', [])
-      .toString('hex')
-
-    const callMethodId: string = ethereumjsAbi
-      .methodID('makeCall', [])
-      .toString('hex')
-
     it('properly executes ovmDELEGATECALL to SSTORE', async () => {
-      const data: string = `${executeCallToCallContractData}${delegateCallMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeDelegateCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.notStaticFriendlySSTORE,
+          sloadKey,
+          populatedSLOADResult,
+        ])
 
       // Note: Send transaction vs call so it is persisted
       await wallet.sendTransaction({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
       // Stored in contract 2 via delegate call but accessed via contract 1
-      const fetchData: string = `${executeCallToCallContractData}${callMethodId}${callContractAddress32}${sloadMethodIdAndParams}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data: fetchData,
-        gasLimit,
-      })
+      const result: string = await executeCall([
+        addressToBytes32Address(callContractAddress),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result: [${result}]`)
       // Should have stored result
@@ -281,12 +233,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored result!'
       )
 
-      const contract2FetchData: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-      const contract2Result = await executionManager.provider.call({
-        to: executionManager.address,
-        data: contract2FetchData,
-        gasLimit,
-      })
+      const contract2Result: string = await executeCall([
+        addressToBytes32Address(callContract2Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result: [${contract2Result}]`)
 
@@ -299,21 +250,33 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('properly executes nested ovmDELEGATECALLs to SSTORE', async () => {
       // contract 1 delegate calls contract 2 delegate calls contract 3
-      const data: string = `${executeCallToCallContractData}${delegateCallMethodId}${callContract2Address32}${delegateCallMethodId}${callContract3Address32}${sstoreMethodIdAndParams}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeDelegateCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.makeDelegateCall,
+          addressToBytes32Address(callContract3Address),
+          methodIds.notStaticFriendlySSTORE,
+          sloadKey,
+          populatedSLOADResult,
+        ])
 
       // Note: Send transaction vs call so it is persisted
       await wallet.sendTransaction({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
-      const contract1FetchData: string = `${executeCallToCallContractData}${callMethodId}${callContractAddress32}${sloadMethodIdAndParams}`
-      const contract1Result = await executionManager.provider.call({
-        to: executionManager.address,
-        data: contract1FetchData,
-        gasLimit,
-      })
+      const contract1Result: string = await executeCall([
+        addressToBytes32Address(callContractAddress),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result 1: [${contract1Result}]`)
 
@@ -323,12 +286,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored data!'
       )
 
-      const contract2FetchData: string = `${executeCallToCallContractData}${callMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-      const contract2Result = await executionManager.provider.call({
-        to: executionManager.address,
-        data: contract2FetchData,
-        gasLimit,
-      })
+      const contract2Result: string = await executeCall([
+        addressToBytes32Address(callContract2Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result 2: [${contract2Result}]`)
 
@@ -338,12 +300,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should not yield any data (0 x 32 bytes)!'
       )
 
-      const contract3FetchData: string = `${executeCallToCallContractData}${callMethodId}${callContract3Address32}${sloadMethodIdAndParams}`
-      const contract3Result = await executionManager.provider.call({
-        to: executionManager.address,
-        data: contract3FetchData,
-        gasLimit,
-      })
+      const contract3Result: string = await executeCall([
+        addressToBytes32Address(callContract3Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result 3: [${contract3Result}]`)
 
@@ -356,18 +317,16 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   describe('ovmSTATICCALL', async () => {
-    const staticCallMethodId: string = ethereumjsAbi
-      .methodID('makeStaticCall', [])
-      .toString('hex')
-
     it('properly executes ovmSTATICCALL to SLOAD', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const result = await executeOVMCall(executionManager, 'executeCall', [
+        0,
+        0,
+        addressToBytes32Address(callContractAddress),
+        methodIds.makeStaticCall,
+        addressToBytes32Address(callContract2Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result: [${result}]`)
 
@@ -375,13 +334,17 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes nested ovmSTATICCALL to SLOAD', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${staticCallMethodId}${callContract2Address32}${sloadMethodIdAndParams}`
-
-      const result = await executionManager.provider.call({
-        to: executionManager.address,
-        data,
-        gasLimit,
-      })
+      const result = await executeOVMCall(executionManager, 'executeCall', [
+        0,
+        0,
+        addressToBytes32Address(callContractAddress),
+        methodIds.makeStaticCall,
+        addressToBytes32Address(callContract2Address),
+        methodIds.makeStaticCall,
+        addressToBytes32Address(callContract2Address),
+        methodIds.staticFriendlySLOAD,
+        sloadKey,
+      ])
 
       log.debug(`Result: [${result}]`)
 
@@ -389,21 +352,39 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('successfully makes static call then call', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallThenCallMethodId}${callContractAddress32}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCallThenCall,
+          addressToBytes32Address(callContractAddress),
+        ])
 
       // Should not throw
       await executionManager.provider.call({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
     })
 
     it('remains in static context when exiting nested static context', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContractAddress32}${staticCallThenCallMethodId}${callContractAddress32}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCallThenCall,
+          addressToBytes32Address(callContractAddress),
+        ])
 
       await TestUtils.assertThrowsAsync(async () => {
-        const res = await executionManager.provider.call({
+        await executionManager.provider.call({
           to: executionManager.address,
           data,
           gasLimit,
@@ -412,7 +393,18 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('fails on ovmSTATICCALL to SSTORE', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${sstoreMethodIdAndParams}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContractAddress),
+          methodIds.notStaticFriendlySSTORE,
+          sloadKey,
+          populatedSLOADResult,
+        ])
 
       await TestUtils.assertThrowsAsync(async () => {
         // Note: Send transaction vs call so it is persisted
@@ -425,12 +417,22 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('Fails to create on ovmSTATICCALL to CREATE -- tx', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${createMethodIdAndData}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContractAddress),
+          methodIds.notStaticFriendlyCREATE,
+          deployTx.data,
+        ])
 
       // Note: Send transaction vs call so it is persisted
       const receipt = await wallet.sendTransaction({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
@@ -442,11 +444,21 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('Fails to create on ovmSTATICCALL to CREATE -- call', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${createMethodIdAndData}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContractAddress),
+          methodIds.notStaticFriendlyCREATE,
+          deployTx.data,
+        ])
 
       const res = await wallet.provider.call({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
@@ -455,12 +467,23 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- tx', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${create2MethodIdAndData}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContractAddress),
+          methodIds.notStaticFriendlyCREATE2,
+          0,
+          deployTx.data,
+        ])
 
       // Note: Send transaction vs call so it is persisted
       const receipt = await wallet.sendTransaction({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
@@ -472,11 +495,22 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
-      const data: string = `${executeCallToCallContractData}${staticCallMethodId}${callContract2Address32}${create2MethodIdAndData}`
+      const data: string =
+        methodIds.executeCall +
+        encodeRawArguments([
+          0,
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContractAddress),
+          methodIds.notStaticFriendlyCREATE2,
+          0,
+          deployTx.data,
+        ])
 
       const res = await wallet.provider.call({
         to: executionManager.address,
-        data,
+        data: add0x(data),
         gasLimit,
       })
 
@@ -484,4 +518,16 @@ describe('Execution Manager -- Call opcodes', () => {
       address.should.equal('00'.repeat(32), 'Should be 0 address!')
     })
   })
+
+  const executeCall = (args: any[]): Promise<string> => {
+    return executeOVMCall(executionManager, 'executeCall', [
+      encodeRawArguments([
+        0,
+        0,
+        addressToBytes32Address(callContractAddress),
+        methodIds.makeCall,
+        ...args,
+      ]),
+    ])
+  }
 })

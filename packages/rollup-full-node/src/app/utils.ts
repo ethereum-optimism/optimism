@@ -7,7 +7,7 @@ import { FullnodeHandler } from '../types'
 import { Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import { DefaultWeb3Handler } from './handler'
+import { DefaultWeb3Handler } from './web3-rpc-handler'
 import { FullnodeRpcServer } from './fullnode-rpc-server'
 
 const log = getLogger('utils')

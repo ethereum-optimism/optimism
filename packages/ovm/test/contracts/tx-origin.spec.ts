@@ -4,8 +4,7 @@ import '../setup'
 import { Address } from '@eth-optimism/rollup-core'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger, add0x } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory, ethers } from 'ethers'
-import { TransactionReceipt } from 'ethers/providers'
+import { Contract, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
@@ -19,7 +18,6 @@ import {
   getUnsignedTransactionCalldata,
   signTransation,
   DEFAULT_ETHNODE_GAS_LIMIT,
-  executeEOACall,
 } from '../helpers'
 import { CHAIN_ID, GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 
