@@ -9,7 +9,12 @@ import {
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
 } from '@eth-optimism/rollup-core'
-import { getLogger, bufToHexString, add0x, bufferUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  bufToHexString,
+  add0x,
+  bufferUtils,
+} from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
 
