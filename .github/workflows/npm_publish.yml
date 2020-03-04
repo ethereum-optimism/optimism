@@ -111,7 +111,7 @@ jobs:
       - name: Publish
         run: yarn run release:alpha
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{secrets.NODE_AUTH_TOKEN}}
 
       - name: Push changes
         uses: ad-m/github-push-action@master
