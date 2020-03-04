@@ -1,6 +1,6 @@
 import '../setup'
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
@@ -79,6 +79,54 @@ describe('Web3Handler', () => {
         storageKey
       )
       // Verify we got the value!
+      res.should.equal(storageValue)
+    })
+  })
+
+  describe.only('snapshot and revert', () => {
+    it('should revert state', async () => {
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const executionManagerAddress = await httpProvider.send(
+        'ovm_getExecutionManagerAddress',
+        []
+      )
+      const privateKey = '0x' + '60'.repeat(32)
+      const wallet = new ethers.Wallet(privateKey, httpProvider)
+      log.debug('Wallet address:', wallet.address)
+      const factory = new ContractFactory(
+        SimpleStorage.abi,
+        SimpleStorage.bytecode,
+        wallet
+      )
+
+      const simpleStorage = await factory.deploy()
+      const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
+        simpleStorage.deployTransaction.hash
+      )
+
+      const storageKey = '0x' + '01'.repeat(32)
+      const storageValue = '0x' + '02'.repeat(32)
+      const storageValue2 = '0x' + '03'.repeat(32)
+      // Set storage with our new storage elements
+      const networkInfo = await httpProvider.getNetwork()
+      const tx = await simpleStorage.setStorage(
+        executionManagerAddress,
+        storageKey,
+        storageValue
+      )
+      const snapShotId = await httpProvider.send('evm_snapshot', [])
+      const tx2 = await simpleStorage.setStorage(
+        executionManagerAddress,
+        storageKey,
+        storageValue2
+      )
+      const receipt = await httpProvider.getTransactionReceipt(tx.hash)
+      const receipt2 = await httpProvider.getTransactionReceipt(tx2.hash)
+      const response2 = await httpProvider.send('evm_revert', [snapShotId])
+      const res = await simpleStorage.getStorage(
+        executionManagerAddress,
+        storageKey
+      )
       res.should.equal(storageValue)
     })
   })

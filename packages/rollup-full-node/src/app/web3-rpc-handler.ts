@@ -138,6 +138,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         this.assertParameters(params, 0)
         response = await this.networkVersion()
         break
+      case Web3RpcMethods.snapshot:
+        this.assertParameters(params, 0)
+        response = await this.snapshot()
+        break
+      case Web3RpcMethods.revert:
+        args = this.assertParameters(params, 1)
+        response = await this.revert(args[0])
+        break
       default:
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
@@ -346,6 +354,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     const response = CHAIN_ID
     log.debug(`Got network version: [${response}]`)
     return response.toString()
+  }
+
+  public async snapshot(): Promise<string> {
+    return this.provider.send(Web3RpcMethods.snapshot, [])
+  }
+
+  public async revert(snapShotId: string): Promise<string> {
+    return this.provider.send(Web3RpcMethods.revert, [snapShotId])
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
