@@ -18,6 +18,7 @@
     "build": "lerna link && wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --stages --exclude-missing build",
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "release": "yarn run build && lerna publish --force-publish --exact -m \"chore(@ethereum-optimism) publish %s release\"",
+    "release:patch": "yarn run build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish -m \"chore(@ethereum-optimism) publish %s release\"",
     "release:rc": "yarn run build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish --npm-tag=rc -m \"chore(@ethereum-optimism) publish %s release\"",
     "release:alpha": "yarn run build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish --dist-tag=alpha -m \"chore(@ethereum-optimism) publish %s release\"",
     "release:beta": "yarn run build && lerna version prerelease --yes && lerna publish from-package --yes --force-publish --dist-tag=beta -m \"chore(@ethereum-optimism) publish %s release\""
