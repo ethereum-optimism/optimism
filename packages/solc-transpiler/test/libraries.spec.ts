@@ -80,5 +80,5 @@ describe('Library usage tests', () => {
     wrappedSolcJson.contracts['SafeMathUser.sol'][
       'SafeMathUser'
     ].should.not.equal(undefined, 'SafeMathUser contract not found!')
-  })
+  }).timeout(10_000)
 })
