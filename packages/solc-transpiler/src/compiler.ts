@@ -20,8 +20,6 @@ import {
 import * as solc from 'solc'
 import { execSync } from 'child_process'
 import * as requireFromString from 'require-from-string'
-import { link } from 'fs'
-import { formatBytecode, bufferToBytecode } from '../../rollup-core/build'
 import { ethers } from 'ethers'
 
 const log: Logger = getLogger('solc-transpiler')

@@ -12,7 +12,6 @@ import {
   bufToHexString,
   bufferUtils,
 } from '@eth-optimism/core-utils'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
 import {
   Provider,
@@ -21,6 +20,7 @@ import {
   Log,
 } from 'ethers/providers'
 import { Transaction } from 'ethers/utils'
+import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import {
@@ -30,6 +30,8 @@ import {
 } from '../src/app'
 
 type Signature = [string, string, string]
+
+export const ZERO_UINT = '00'.repeat(32)
 
 export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000
 export const gasLimit = 6_700_000

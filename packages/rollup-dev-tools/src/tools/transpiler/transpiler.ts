@@ -12,8 +12,8 @@ import {
 import {
   getLogger,
   bufToHexString,
-  add0x,
   bufferUtils,
+  add0x,
 } from '@eth-optimism/core-utils'
 
 import BigNum = require('bn.js')
@@ -26,14 +26,11 @@ import {
   TranspilationResult,
   TranspilationError,
   TranspilationErrors,
-  JumpReplacementResult,
-  SuccessfulTranspilation,
   ErroredTranspilation,
   TaggedTranspilationResult,
+  JumpReplacementResult,
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
-import { createError } from './util'
-import { format } from 'path'
 
 const log = getLogger('transpiler-impl')
 
@@ -164,6 +161,13 @@ export class TranspilerImpl implements Transpiler {
     const finalTranspiledDeployedBytecode: EVMBytecode = this.fixTaggedConstantOffsets(
       transpiledDeployedBytecode as EVMBytecode,
       errors
+    )
+
+    // problem is after here?
+    log.debug(
+      `final transpiled deployed bytecode: \n${formatBytecode(
+        finalTranspiledDeployedBytecode
+      )}`
     )
 
     // **** DETECT AND TAG USES OF CODECOPY IN CONSTRUCTOR BYTECODE AND TRANSPILE ****
@@ -394,11 +398,11 @@ export class TranspilerImpl implements Transpiler {
 
   // Finds and tags the PUSHN's which are detected to be associated with CODECOPYing constructor params during CREATE/CREATE2.
   // Tags based on the pattern:
-  // PUSH2: 0x01cf // should be initcode.length + deployedbytecode.length
+  // PUSH2 // should be initcode.length + deployedbytecode.length
   // CODESIZE
   // SUB // subtract however big the code is from the amount pushed above to get the length of constructor input
   // DUP1
-  // PUSH2: 0x01cf // should also be initcode.length + deployedbytecode.length
+  // PUSH2 // should also be initcode.length + deployedbytecode.length
   // DUP4
   // CODECOPY
   // See https://github.com/ethereum-optimism/optimistic-rollup/wiki/CODECOPYs for more details.
@@ -734,7 +738,11 @@ export class TranspilerImpl implements Transpiler {
       )}.${messageExtension}`
       log.debug(message)
       errors.push(
-        createError(pc, TranspilationErrors.UNSUPPORTED_OPCODE, message)
+        TranspilerImpl.createError(
+          pc,
+          TranspilationErrors.UNSUPPORTED_OPCODE,
+          message
+        )
       )
       return false
     }
@@ -759,7 +767,11 @@ export class TranspilerImpl implements Transpiler {
       const message: string = `Opcode [${opcode.name}] is not on the whitelist.`
       log.debug(message)
       errors.push(
-        createError(pc, TranspilationErrors.OPCODE_NOT_WHITELISTED, message)
+        TranspilerImpl.createError(
+          pc,
+          TranspilationErrors.OPCODE_NOT_WHITELISTED,
+          message
+        )
       )
       return false
     }

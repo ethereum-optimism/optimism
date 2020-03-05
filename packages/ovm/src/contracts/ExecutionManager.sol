@@ -248,6 +248,7 @@ contract ExecutionManager is FullStateManager {
             mstore8(add(_callBytes, 3), methodId)
         }
 
+        bool isCall = executionContext.ovmTxOrigin == ZERO_ADDRESS;
         bool success = false;
         address addr = address(this);
         assembly {
@@ -257,6 +258,9 @@ contract ExecutionManager is FullStateManager {
 
             if eq(success, 1) {
                 return(result, size)
+            }
+            if eq(isCall, 1) {
+                revert(result, size)
             }
         }
 
