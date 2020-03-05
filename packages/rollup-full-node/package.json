@@ -8,11 +8,13 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "build": "waffle waffle-config.json && tsc -p .",
-    "clean": "rimraf build/ && rimraf test/contracts/build",
+    "build": "waffle waffle-config-untranspiled.json && waffle waffle-config-transpiled.json && tsc -p .",
+    "clean": "rimraf build/ && yarn clean-contracts",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "waffle waffle-config.json && mocha --require source-map-support/register --require ts-node/register 'test/**/*.spec.ts' --timeout 8000 --exit",
+    "test": "yarn build-contracts && mocha --require source-map-support/register --require ts-node/register 'test/**/*.spec.ts' --timeout 8000 --exit",
+    "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build && mkdir ./test/contracts/build/transpiled && mkdir ./test/contracts/build/untranspiled",
+    "build-contracts": "yarn clean-contracts && waffle waffle-config-untranspiled.json && waffle waffle-config-transpiled.json",
     "server:aggregator": "env DEBUG=\"info:*,error:*\" node ./exec/aggregator.js",
     "server:fullnode": "env DEBUG=\"info:*,error:*\" node ./exec/fullnode.js",
     "server:fullnode:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./exec/fullnode.js"
@@ -45,6 +47,7 @@
     "fastpriorityqueue": "^0.6.3"
   },
   "devDependencies": {
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.14",
     "@types/abstract-leveldown": "^5.0.1",
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.7",
