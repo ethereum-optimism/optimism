@@ -24,33 +24,30 @@ const simpleUnsafeMathPath = path.resolve(
   './contracts/library/SimpleUnsafeMath.sol'
 )
 
-describe('Library usage tests', () => {
-  let config
-  before(() => {
-    config = {
-      language: 'Solidity',
-      sources: {
-        'SafeMathUser.sol': {
-          content: fs.readFileSync(safeMathUserPath, 'utf8'),
-        },
-        'SimpleSafeMath.sol': {
-          content: fs.readFileSync(simpleSafeMathPath, 'utf8'),
-        },
-        'SimpleUnsafeMath.sol': {
-          content: fs.readFileSync(simpleUnsafeMathPath, 'utf8'),
-        },
+const config = {
+  language: 'Solidity',
+  sources: {
+    'SafeMathUser.sol': {
+      content: fs.readFileSync(safeMathUserPath, 'utf8'),
+    },
+    'SimpleSafeMath.sol': {
+      content: fs.readFileSync(simpleSafeMathPath, 'utf8'),
+    },
+    'SimpleUnsafeMath.sol': {
+      content: fs.readFileSync(simpleUnsafeMathPath, 'utf8'),
+    },
+  },
+  settings: {
+    outputSelection: {
+      '*': {
+        '*': ['*'],
       },
-      settings: {
-        outputSelection: {
-          '*': {
-            '*': ['*'],
-          },
-        },
-        executionManagerAddress: '0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA',
-      },
-    }
-  })
+    },
+    executionManagerAddress: '0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA',
+  },
+}
 
+describe('Library usage tests', () => {
   it('should compile with libraries', async () => {
     const wrappedSolcResult = compile(JSON.stringify(config))
     const wrappedSolcJson = JSON.parse(wrappedSolcResult)
