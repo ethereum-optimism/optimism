@@ -1,4 +1,4 @@
-name: Run Tests and Publish to NPM
+name: Build and Publish to NPM
 
 on:
   push:
@@ -103,7 +103,17 @@ jobs:
           yarn clean
           yarn build
 
+      - name: Configure git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
       - name: Publish
-        run: yarn run release:alpha
+        run: yarn run release:patch
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{secrets.NODE_AUTH_TOKEN}}
+
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
