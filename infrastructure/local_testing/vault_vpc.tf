@@ -57,7 +57,12 @@ resource "google_compute_instance" "nat_test" {
     DD_AGENT_MAJOR_VERSION=7 
     DD_API_KEY=var.datadog_api_key
     bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
-    sudo apt-get -yq install stress
-    stress -c 8 -t 120
+    apt-get update -qq
+    sudo apt-get -yq install stress unzip less
+    wget https://releases.hashicorp.com/vault/1.3.2/vault_1.3.2_linux_amd64.zip
+    unzip vault_1.3.2_linux_amd64.zip
+    mv vault /usr/local/bin/
+    vault server -dev -dev-listen-address="0.0.0.0:8200" &
+    stress -c 8 -t 120 &
     EOT
 }
