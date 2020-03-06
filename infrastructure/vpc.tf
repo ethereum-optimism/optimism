@@ -19,7 +19,7 @@ resource "google_compute_subnetwork" "subnet" {
   network       = google_compute_network.vpc.self_link
 
   # Note: Immutability recommends enabling flow logs for observability, debugging, and incident response.
-  # These would incur in additional cost.
+  # These incur in additional cost.
   log_config {
     aggregation_interval = "INTERVAL_10_MIN"
     flow_sampling        = 1

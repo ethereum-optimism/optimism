@@ -90,10 +90,73 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
   source_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 1)
 }
 
+/*
+ * This firewall rule contains the required access from the omisego VPC to access Vault
+ */
 resource "google_compute_firewall" "omisego_vpc_access" {
   name        = "omisego-vpc-access"
   network     = google_compute_network.vpc.name
   description = "Allows access from Omisego VPC"
+
+  # ICMP is allow in order to test connectivity between networks using ping
+  allow {
+    protocol = "icmp"
+  }
+
+  # Port Vault listens in
+  allow {
+    protocol = "tcp"
+    ports    = ["8200"]
+  }
+
+  source_ranges = [var.omisego_subnet_cidr, var.subnet_cidr]
+  target_tags   = ["vault"]
+}
+
+/*
+ * This firewall rule allows IAP access to the network for SSH
+ * SSH should only be used in emergency situations
+ * https://www.terraform.io/docs/providers/google/r/compute_firewall.html
+ */
+resource "google_compute_firewall" "ssh_iap" {
+  name    = "ssh-iap-access"
+  network = google_compute_network.vpc.name
+
+  source_ranges = ["35.235.240.0/20"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_tags = ["ssh-access"]
+}
+
+/*
+ * This firewall rules for VPN ingress access
+ */
+
+resource "google_compute_firewall" "vpn_internet" {
+  name    = "vpn-internet"
+  network = google_compute_network.vpc.name
+
+  source_ranges = ["0.0.0.0/0"]
+
+  allow {
+    protocol = "udp"
+    ports    = ["1194"]
+  }
+
+  target_tags = ["vpn"]
+}
+
+resource "google_compute_firewall" "vpn_outbound" {
+  name    = "vpn-access"
+  network = google_compute_network.vpc.name
+
+  allow {
+    protocol = "udp"
+  }
 
   allow {
     protocol = "icmp"
@@ -101,9 +164,8 @@ resource "google_compute_firewall" "omisego_vpc_access" {
 
   allow {
     protocol = "tcp"
-    ports    = ["8200"]
   }
 
-  source_ranges = [var.omisego_subnet_cidr]
-  target_tags   = ["vault"]
+  source_tags = ["vault"]
+  target_tags = ["vpn"]
 }
