@@ -1,23 +1,4 @@
 /*
- * This firewall rule allows IAP access to the network for SSH
- * https://cloud.google.com/nat/docs/gce-example?hl=en_US
- * https://www.terraform.io/docs/providers/google/r/compute_firewall.html
- */
-resource "google_compute_firewall" "ssh_iap" {
-  name    = "ssh-access"
-  network = var.vault_vpc_name
-
-  source_ranges = ["35.235.240.0/20"]
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-
-  source_tags = ["ssh-access"]
-}
-
-/*
  * This grants the given user account access to SSH into the instance
  */
 resource "google_iap_tunnel_instance_iam_binding" "editor" {
