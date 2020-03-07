@@ -123,6 +123,6 @@ resource "google_compute_route" "vpn-outbound" {
   network                = google_compute_network.vpc.name
   tags                   = ["vault"]
   next_hop_instance      = google_compute_instance.vpn.self_link
-  next_hop_instance_zone = google_compute_instance.vpn.self_link
+  next_hop_instance_zone = google_compute_instance.vpn.zone
   priority               = 500
 }
