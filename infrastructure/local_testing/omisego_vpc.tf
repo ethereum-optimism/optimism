@@ -80,7 +80,7 @@ resource "google_compute_instance" "omisego_test" {
   provider     = google.omisego
   name         = "omisego-testing"
   machine_type = "f1-micro"
-  zone         = "us-central1-a"
+  zone         = var.gcp_zone
 
   tags = ["ssh-access"]
 

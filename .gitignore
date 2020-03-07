@@ -16,3 +16,4 @@ docs/_build
 *.tfstate*
 *.ignore
 terraform.tfvars
+.variables

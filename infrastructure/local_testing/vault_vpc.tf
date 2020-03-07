@@ -17,7 +17,7 @@ resource "google_iap_tunnel_instance_iam_binding" "editor" {
 resource "google_compute_instance" "nat_test" {
   name         = "nat-testing"
   machine_type = "f1-micro"
-  zone         = "us-central1-a"
+  zone         = var.gcp_zone
 
   tags = [
     "ssh-access",

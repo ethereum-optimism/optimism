@@ -6,6 +6,10 @@ variable "gcp_region" {
   description = "GCP region to provision resources into"
 }
 
+variable "gcp_zone" {
+  description = "GCP zone to provision resources into"
+}
+
 variable "gcp_project_omisego" {
   description = "Name of GCP project used for represent Omisego VPC"
 }
