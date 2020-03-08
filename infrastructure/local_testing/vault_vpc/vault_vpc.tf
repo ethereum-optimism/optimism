@@ -43,7 +43,6 @@ resource "google_compute_instance" "test" {
     wget https://releases.hashicorp.com/vault/1.3.2/vault_1.3.2_linux_amd64.zip
     unzip vault_1.3.2_linux_amd64.zip
     mv vault /usr/local/bin/
-    vault server -dev -dev-listen-address="0.0.0.0:8200" &
-    stress -c 8 -t 120 &
+    vault server -dev -dev-listen-address="0.0.0.0:8200" -dev-root-token-id="totally-secure" -log-level=debug &
     EOT
 }
