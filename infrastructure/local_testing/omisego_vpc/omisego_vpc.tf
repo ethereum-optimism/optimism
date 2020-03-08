@@ -3,7 +3,6 @@
  * Defines VPC where Vault infrastructure is provisioned into
  */
 resource "google_compute_network" "vpc" {
-  provider                = google.omisego
   name                    = "omisego-net"
   auto_create_subnetworks = "false"
   routing_mode            = "REGIONAL"
@@ -14,7 +13,6 @@ resource "google_compute_network" "vpc" {
  * Defines regional subnet where Vault infrastructure is provisioned into
  */
 resource "google_compute_subnetwork" "subnet" {
-  provider      = google.omisego
   name          = "omisego-subnet"
   ip_cidr_range = var.omisego_subnet_cidr
   region        = var.gcp_region
@@ -34,7 +32,6 @@ resource "google_compute_subnetwork" "subnet" {
  * Connecting VPC with clients to VPC hosting Vault
  */
 resource "google_compute_network_peering" "peering" {
-  provider     = google.omisego
   name         = "peering-to-vault-vpc"
   network      = google_compute_network.vpc.self_link
   peer_network = var.vault_vpc_uri
@@ -45,9 +42,8 @@ resource "google_compute_network_peering" "peering" {
  * https://www.terraform.io/docs/providers/google/r/compute_firewall.html
  */
 resource "google_compute_firewall" "omisego_ssh_iap" {
-  provider = google.omisego
-  name     = "ssh-access"
-  network  = google_compute_network.vpc.name
+  name    = "ssh-access"
+  network = google_compute_network.vpc.name
 
   source_ranges = ["35.235.240.0/20"]
 
@@ -63,7 +59,6 @@ resource "google_compute_firewall" "omisego_ssh_iap" {
  * This grants the given user account access to SSH into the instance
  */
 resource "google_iap_tunnel_instance_iam_binding" "omisego_editor" {
-  provider = google.omisego
   project  = google_compute_instance.omisego_test.project
   zone     = google_compute_instance.omisego_test.zone
   instance = google_compute_instance.omisego_test.name
@@ -77,7 +72,6 @@ resource "google_iap_tunnel_instance_iam_binding" "omisego_editor" {
  * Instance used to test connectivity from Omisego VPC
  */
 resource "google_compute_instance" "omisego_test" {
-  provider     = google.omisego
   name         = "omisego-testing"
   machine_type = "f1-micro"
   zone         = var.gcp_zone

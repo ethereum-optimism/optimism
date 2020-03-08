@@ -2,9 +2,9 @@
  * This grants the given user account access to SSH into the instance
  */
 resource "google_iap_tunnel_instance_iam_binding" "editor" {
-  project  = google_compute_instance.nat_test.project
-  zone     = google_compute_instance.nat_test.zone
-  instance = google_compute_instance.nat_test.name
+  project  = google_compute_instance.test.project
+  zone     = google_compute_instance.test.zone
+  instance = google_compute_instance.test.name
   role     = "roles/iap.tunnelResourceAccessor"
   members = [
     "user:${var.ssh_user}"
@@ -14,8 +14,8 @@ resource "google_iap_tunnel_instance_iam_binding" "editor" {
 /*
  * Instance used to test Vault VPC's connectivity
  */
-resource "google_compute_instance" "nat_test" {
-  name         = "nat-testing"
+resource "google_compute_instance" "test" {
+  name         = "test"
   machine_type = "f1-micro"
   zone         = var.gcp_zone
 

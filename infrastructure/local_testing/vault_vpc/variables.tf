@@ -10,10 +10,6 @@ variable "gcp_zone" {
   description = "GCP zone to provision resources into"
 }
 
-variable "gcp_project_omisego" {
-  description = "Name of GCP project used for represent Omisego VPC"
-}
-
 variable "datadog_api_key" {
   description = "API key used by Datadog agent in the instance to authenticate to Datadog"
 }
@@ -32,8 +28,4 @@ variable "vault_vpc_uri" {
 
 variable "vault_vpc_subnet" {
   description = "Vault VPC's subnet"
-}
-
-variable "omisego_subnet_cidr" {
-  description = "CIDR block for Omisego subnet"
 }
