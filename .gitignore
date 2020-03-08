@@ -18,3 +18,5 @@ docs/_build
 terraform.tfvars
 .variables
 *.ovpn
+*.b64
+*.hcl
