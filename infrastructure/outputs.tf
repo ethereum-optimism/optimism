@@ -27,3 +27,8 @@ output "vpn_public_instance_ip" {
   value       = google_compute_address.vpn_address.address
   description = "Public IP address of the VPN instance"
 }
+
+output "bucket_ovpn_command" {
+  value       = "gsutil cp gs://${var.bucket_name}/unsealer.ovpn ."
+  description = "Command to retrieve ovpn file"
+}

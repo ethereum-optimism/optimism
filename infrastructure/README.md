@@ -1,11 +1,11 @@
 # Validating the infrastructure provisioned
 
-Prereq: You'll need 2 separate projects. A project for vault where the vault_vpc and infrastructure is to be provisioned and a project for the infrastructure that's going to represent the omisego network/vpc.
+Prereq: You'll need 2 separate projects. A project for vault where the vault_vpc and infrastructure is to be provisioned and a project for the infrastructure that's going to represent the omisego network/vpc. You will also need a bucket for the `.ovpn` file (e.g., `gsutil mb gs://{BUCKET_NAME}`)
 
 ## Making sure VPN connection is working
 
 1. Execute `terraform apply` on the infrastructure directory. This will create core networking resources. The VPN OpenVPN install script on the VPN instance generates an `.ovpn` VPN file to be used in the unsealer and places it on a bucket.
-2. Get the ovpn file by executing: `gsutil cp gs://${BUCKET_NAME}/unsealer.ovpn`.
+2. Get the ovpn file by executing: `gsutil cp gs://${BUCKET_NAME}/unsealer.ovpn .`
 3. Once downloaded the file can be safely removed form the bucket: `gsutil rm gs://${BUCKET_NAME}/unsealer.ovpn`.
 4. Access VPN from laptop. Using *Tunnelblick*, click on "**VPN Details**" and drag/drop the `unsealer.ovpn` into the "**Configurations**" drop down, then click the "**Connect**" button.
 5. Once connected check your public IP by running: `curl 'https://api.ipify.org?format=json'` The returned value should match the value of the IP of the `vpn_public_instance_ip` terraform output.
@@ -16,7 +16,7 @@ Prereq: You'll need 2 separate projects. A project for vault where the vault_vpc
 2. In the `local_testing/vault_vpc` directory, create `terraform.tfvars` file with values required by the `variables.tf` file.
 3. Execute `terraform apply`.
 4. For future reference, export the IP given in the output: `export VAULT_IP=192.168.10.3`.
-5. SSH to the test instance created by running the command specified in the `vault_vpc_test_instance_ssh_command` terraform output. For example: `gcloud beta compute ssh --zone us-central1-a test --tunnel-through-iap --project omsisego`.
+5. SSH to the test instance created by running the command specified in the `vault_vpc_test_instance_ssh_command` terraform output. For example: `gcloud beta compute ssh --zone us-central1-a test --tunnel-through-iap --project omisego`.
 6. Check connection from instance to the unsealer laptop by running: `curl http://10.8.0.2:8200/v1/sys/health`.
 
 Note: don't delete the instance yet as we'll keep using it for further testing.

@@ -17,3 +17,4 @@ docs/_build
 *.ignore
 terraform.tfvars
 .variables
+*.ovpn
