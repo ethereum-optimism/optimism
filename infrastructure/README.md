@@ -4,10 +4,10 @@ Prereq: You'll need 2 separate projects. A project for vault where the vault_vpc
 
 ## Making sure VPN connection is working
 
-1. Execute `terraform apply` on the infrastructure directory. This will create core networking resources. The VPN OpenVPN install script on the VPN instance generates an .ovpn VPN file to be used in the unsealer and places it on a bucket.
+1. Execute `terraform apply` on the infrastructure directory. This will create core networking resources. The VPN OpenVPN install script on the VPN instance generates an `.ovpn` VPN file to be used in the unsealer and places it on a bucket.
 2. Get the ovpn file by executing: `gsutil cp gs://${BUCKET_NAME}/unsealer.ovpn`.
 3. Once downloaded the file can be safely removed form the bucket: `gsutil rm gs://${BUCKET_NAME}/unsealer.ovpn`.
-4. Access VPN from laptop. Using Tunnelblick, click on "VPN Details" and drag/drop the unsealer.ovpn into the "Configurations" drop down, then click the "Connect" button.
+4. Access VPN from laptop. Using *Tunnelblick*, click on "**VPN Details**" and drag/drop the `unsealer.ovpn` into the "**Configurations**" drop down, then click the "**Connect**" button.
 5. Once connected check your public IP by running: `curl 'https://api.ipify.org?format=json'` The returned value should match the value of the IP of the `vpn_public_instance_ip` terraform output.
 
 ## Validating connection from test instance in Vault VPC to Unsealer laptop
