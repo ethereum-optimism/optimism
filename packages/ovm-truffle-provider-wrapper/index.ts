@@ -1,6 +1,6 @@
 // *Important*: runFullNode import is needed for sub-process
 // noinspection ES6UnusedImports
-import {runFullnode} from "@eth-optimism/rollup-full-node";
+import { runFullnode } from '@eth-optimism/rollup-full-node'
 import { execSync, spawn } from 'child_process'
 
 /**
