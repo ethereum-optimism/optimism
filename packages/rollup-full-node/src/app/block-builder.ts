@@ -149,7 +149,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
       this.tree = await SparseMerkleTreeImpl.create(this.db, treeRoot, 16)
       this.subtrees = new Map<string, SparseMerkleTreeImpl>()
 
-      const promises: Array<Promise<Buffer>> = []
+      const promises: Promise<Buffer>[] = []
       for (let i = 1; i <= transactionCount; i++) {
         promises.push(
           this.db.get(DefaultRollupBlockBuilder.getTransactionKey(i))
@@ -334,7 +334,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
 
     // Update all contract storage slots
     const modifiedContractAddresses: Set<Address> = new Set()
-    const storagePromises: Array<Promise<void>> = []
+    const storagePromises: Promise<void>[] = []
     for (const modifiedStorage of modifiedStorageMap.values()) {
       storagePromises.push(this.updateStorageSlot(modifiedStorage))
       modifiedContractAddresses.add(modifiedStorage.contractAddress)
@@ -348,7 +348,7 @@ export class DefaultRollupBlockBuilder implements RollupBlockBuilder {
     log.debug(`updateStorageSlot promises completed`)
 
     // Update the base contract tree with the roots of all subtrees
-    const blockPromises: Array<Promise<void>> = []
+    const blockPromises: Promise<void>[] = []
     for (const address of modifiedContractAddresses.keys()) {
       blockPromises.push(this.updateContractSlot(address))
     }

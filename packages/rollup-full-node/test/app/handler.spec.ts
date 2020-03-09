@@ -83,7 +83,7 @@ describe('Web3Handler', () => {
     })
   })
 
-  describe.only('snapshot and revert', () => {
+  describe('snapshot and revert', () => {
     it('should revert state', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const executionManagerAddress = await httpProvider.send(
