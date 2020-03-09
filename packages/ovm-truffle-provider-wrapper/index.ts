@@ -1,3 +1,5 @@
+// *Important*: needed for sub-process
+import {runFullnode} from "@eth-optimism/rollup-full-node";
 import { execSync, spawn } from 'child_process'
 
 /**
