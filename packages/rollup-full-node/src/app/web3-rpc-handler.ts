@@ -16,7 +16,7 @@ import {
 } from '@eth-optimism/ovm'
 
 import { Contract, ethers, utils, Wallet } from 'ethers'
-import { Web3Provider } from 'ethers/providers'
+import { TransactionReceipt, Web3Provider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 import AsyncLock from 'async-lock'
@@ -26,6 +26,7 @@ import { DEFAULT_ETHNODE_GAS_LIMIT } from '.'
 import {
   FullnodeHandler,
   InvalidParametersError,
+  RevertError,
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
@@ -63,9 +64,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   protected constructor(
-    private readonly provider: Web3Provider,
-    private readonly wallet: Wallet,
-    private readonly executionManager: Contract
+    protected readonly provider: Web3Provider,
+    protected readonly wallet: Wallet,
+    protected readonly executionManager: Contract
   ) {
     this.lock = new AsyncLock()
   }
@@ -272,7 +273,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     defaultBlock: string
   ): Promise<string> {
     if (defaultBlock !== 'latest') {
-      throw new Error('No support for historical code lookups!')
+      log.info(`No support for historical code lookups! Anything returned from this may be very wrong.`)
+      //throw new Error('No support for historical code lookups!')
     }
     log.debug(
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
@@ -394,6 +396,17 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
         log.error(msg)
         throw Error(msg)
+      }
+
+      const receipt: TransactionReceipt = await this.getTransactionReceipt(
+        ovmTxHash
+      )
+      log.info(
+        `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+      )
+      if (!receipt || !receipt.status) {
+        log.debug(`Transaction reverted: ${rawOvmTx}, ovmTxHash: ${ovmTxHash}`)
+        throw new RevertError()
       }
 
       log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)

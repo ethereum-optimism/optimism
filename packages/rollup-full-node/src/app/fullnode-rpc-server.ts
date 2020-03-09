@@ -13,6 +13,7 @@ import {
 import {
   FullnodeHandler,
   InvalidParametersError,
+  RevertError,
   UnsupportedMethodError,
 } from '../types'
 
@@ -65,6 +66,10 @@ export class FullnodeRpcServer extends ExpressHttpServer {
           result,
         })
       } catch (err) {
+        if (err instanceof RevertError) {
+          log.debug(`Request reverted. Request: ${JSON.stringify(request)}`)
+          return res.json(buildJsonRpcError('REVERT_ERROR', request.id))
+        }
         if (err instanceof UnsupportedMethodError) {
           log.debug(
             `Received request with unsupported method: [${JSON.stringify(

@@ -17,3 +17,9 @@ export class InvalidParametersError extends Error {
     )
   }
 }
+
+export class RevertError extends Error {
+  constructor(message?: string) {
+    super(message || 'Revert: The provided transaction reverted.')
+  }
+}
