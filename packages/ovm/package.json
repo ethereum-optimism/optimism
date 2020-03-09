@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/ovm",
-  "version": "0.0.1-alpha.14",
+  "version": "0.0.1-alpha.15",
   "description": "An optimistic execution-compatible EVM",
   "main": "build/index.js",
   "files": [
@@ -50,9 +50,9 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
-    "@eth-optimism/core-db": "^0.0.1-alpha.14",
-    "@eth-optimism/core-utils": "^0.0.1-alpha.14",
-    "@eth-optimism/rollup-core": "^0.0.1-alpha.14",
+    "@eth-optimism/core-db": "^0.0.1-alpha.15",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.15",
+    "@eth-optimism/rollup-core": "^0.0.1-alpha.15",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",
     "ethereum-waffle": "2.1.0",
