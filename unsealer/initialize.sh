@@ -85,7 +85,7 @@ api_addr = "https://localhost:8200"
 ui = "false"
 
 listener "tcp" {
-  address = "127.0.0.1:8200"
+  address = "0.0.0.0:8200"
 
   tls_cert_file = "$VAULT_DIR/vault.crt"
   tls_client_ca_file = "$VAULT_DIR/root.crt"
@@ -132,7 +132,7 @@ subjectAltName       = @alt_names
 # DNS accordingly.
 [alt_names]
 IP.1  = 127.0.0.1
-IP.5  = 192.168.64.1
+IP.2  = 10.8.0.2
 DNS.1 = localhost
 EOF
 
