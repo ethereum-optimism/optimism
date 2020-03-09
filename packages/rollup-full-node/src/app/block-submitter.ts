@@ -90,7 +90,7 @@ export class DefaultRollupBlockSubmitter implements RollupBlockSubmitter {
       // We need to populate the queue from storage
       if (this.lastConfirmed !== this.lastQueued) {
         let i: number = this.lastConfirmed + 1
-        const promises: Promise<Buffer>[] = []
+        const promises: Array<Promise<Buffer>> = []
         for (; i <= this.lastQueued; i++) {
           promises.push(this.db.get(DefaultRollupBlockSubmitter.getBlockKey(i)))
         }
