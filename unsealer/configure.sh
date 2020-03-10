@@ -41,9 +41,9 @@ function secrets {
     vault secrets enable -version=1 kv
     vault write kv/consul_gossip_key value=$(consul keygen)
     vault write kv/unseal_token value=$(vault token create -field=token -ttl="8760h" -policy=autounseal)
-    vault write kv/vault_cacert value=$(cat $HOME/vault.unsealer/root.crt | base64)
-    vault write kv/vault_key value=$(cat $HOME/vault.unsealer/vault.key | base64)
-    vault write kv/vault_crt value=$(cat $HOME/vault.unsealer/vault.crt | base64)
+    vault write kv/vault_cacert value=$(cat $HOME/etc/vault.unsealer/root.crt | base64)
+    vault write kv/vault_key value=$(cat $HOME/etc/vault.unsealer/vault.key | base64)
+    vault write kv/vault_crt value=$(cat $HOME/etc/vault.unsealer/vault.crt | base64)
     if [ -f "$OVPN_FILE" ]; then
         vault write kv/ovpn_file value=$(cat $OVPN_FILE | base64)
     fi    
