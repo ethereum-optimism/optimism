@@ -84,7 +84,7 @@ describe('Web3Handler', () => {
   })
 
   describe('snapshot and revert', () => {
-    it('should revert state', async () => {
+    it('should  fail (snapshot and revert should only be available in the TestHandler)', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const executionManagerAddress = await httpProvider.send(
         'ovm_getExecutionManagerAddress',
@@ -114,20 +114,27 @@ describe('Web3Handler', () => {
         storageKey,
         storageValue
       )
-      const snapShotId = await httpProvider.send('evm_snapshot', [])
-      const tx2 = await simpleStorage.setStorage(
-        executionManagerAddress,
-        storageKey,
-        storageValue2
-      )
-      const receipt = await httpProvider.getTransactionReceipt(tx.hash)
-      const receipt2 = await httpProvider.getTransactionReceipt(tx2.hash)
-      const response2 = await httpProvider.send('evm_revert', [snapShotId])
-      const res = await simpleStorage.getStorage(
-        executionManagerAddress,
-        storageKey
-      )
-      res.should.equal(storageValue)
+
+      await new Promise((resolve, reject) => {
+        httpProvider.send('evm_snapshot', []).catch((error) => {
+          error.message.should.equal('Method not found')
+          resolve()
+        })
+      })
+
+      await new Promise((resolve, reject) => {
+        httpProvider.send('evm_snapshot', []).catch((error) => {
+          error.message.should.equal('Method not found')
+          resolve()
+        })
+      })
+
+      await new Promise((resolve, reject) => {
+        httpProvider.send('evm_revert', ['0x01']).catch((error) => {
+          error.message.should.equal('Method not found')
+          resolve()
+        })
+      })
     })
   })
 })

@@ -72,7 +72,7 @@ describe('TestHandler', () => {
   })
 
   describe('Snapshot and revert', () => {
-    it.only('should revert state', async () => {
+    it('should revert state', async () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
 
       testRpcServer.listen()
