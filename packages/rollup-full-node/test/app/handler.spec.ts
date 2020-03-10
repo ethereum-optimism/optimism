@@ -85,36 +85,6 @@ describe('Web3Handler', () => {
 
   describe('snapshot and revert', () => {
     it('should  fail (snapshot and revert should only be available in the TestHandler)', async () => {
-      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      const executionManagerAddress = await httpProvider.send(
-        'ovm_getExecutionManagerAddress',
-        []
-      )
-      const privateKey = '0x' + '60'.repeat(32)
-      const wallet = new ethers.Wallet(privateKey, httpProvider)
-      log.debug('Wallet address:', wallet.address)
-      const factory = new ContractFactory(
-        SimpleStorage.abi,
-        SimpleStorage.bytecode,
-        wallet
-      )
-
-      const simpleStorage = await factory.deploy()
-      const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
-        simpleStorage.deployTransaction.hash
-      )
-
-      const storageKey = '0x' + '01'.repeat(32)
-      const storageValue = '0x' + '02'.repeat(32)
-      const storageValue2 = '0x' + '03'.repeat(32)
-      // Set storage with our new storage elements
-      const networkInfo = await httpProvider.getNetwork()
-      const tx = await simpleStorage.setStorage(
-        executionManagerAddress,
-        storageKey,
-        storageValue
-      )
-
       await new Promise((resolve, reject) => {
         httpProvider.send('evm_snapshot', []).catch((error) => {
           error.message.should.equal('Method not found')
