@@ -65,8 +65,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
   protected constructor(
     protected readonly provider: Web3Provider,
-    protected readonly wallet: Wallet,
-    protected readonly executionManager: Contract
+    private readonly wallet: Wallet,
+    private readonly executionManager: Contract
   ) {
     this.lock = new AsyncLock()
   }

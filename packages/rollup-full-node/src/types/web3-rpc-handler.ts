@@ -39,9 +39,9 @@ export enum Web3RpcMethods {
   sendRawTransaction = 'eth_sendRawTransaction',
 
   // Test methods:
-  evmSnapshot = 'evm_snapshot',
-  evmRevert = 'evm_revert',
-  evmMine = 'evm_mine',
+  snapshot = 'evm_snapshot',
+  revert = 'evm_revert',
+  mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
   getTimestamp = 'evm_getTime',
 }
