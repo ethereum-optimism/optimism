@@ -10,7 +10,7 @@ import {
   FullnodeRpcServer,
   DefaultWeb3Handler,
 } from '../../src'
-import * as SimpleStorage from '../../test/contracts/build/SimpleStorage.json'
+import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
 
 const log = getLogger('test-web3-handler', true)
 
