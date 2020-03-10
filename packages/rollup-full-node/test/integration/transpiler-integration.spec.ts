@@ -1,8 +1,6 @@
 import '../setup'
 /* External Imports */
-import {
-  Address,
-} from '@eth-optimism/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 
 /* Contract Imports */
 
