@@ -1,0 +1,39 @@
+{{- if and (not .Values.connectInject.certs.secretName) (or (and (ne (.Values.connectInject.enabled | toString) "-") .Values.connectInject.enabled) (and (eq (.Values.connectInject.enabled | toString) "-") .Values.global.enabled)) }}
+{{- if .Values.global.bootstrapACLs }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "consul.fullname" . }}-connect-injector-authmethod-authdelegator-role-binding
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "system:auth-delegator"
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "consul.fullname" . }}-connect-injector-authmethod-svc-account
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "consul.fullname" . }}-connect-injector-authmethod-serviceaccount-role-binding
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "consul.fullname" . }}-connect-injector-authmethod-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ template "consul.fullname" . }}-connect-injector-authmethod-svc-account
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

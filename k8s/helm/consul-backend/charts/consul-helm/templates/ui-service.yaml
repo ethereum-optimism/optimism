@@ -1,0 +1,39 @@
+# UI Service for Consul Server
+{{- if (and (or (and (ne (.Values.server.enabled | toString) "-") .Values.server.enabled) (and (eq (.Values.server.enabled | toString) "-") .Values.global.enabled)) (or (and (ne (.Values.ui.enabled | toString) "-") .Values.ui.enabled) (and (eq (.Values.ui.enabled | toString) "-") .Values.global.enabled)) (or (and (ne (.Values.ui.service.enabled | toString) "-") .Values.ui.service.enabled) (and (eq (.Values.ui.service.enabled | toString) "-") .Values.global.enabled))) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "consul.fullname" . }}-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  {{- if .Values.ui.service.annotations }}
+  annotations:
+    {{ tpl .Values.ui.service.annotations . | nindent 4 | trim }}
+  {{- end }}
+spec:
+  selector:
+    app: {{ template "consul.name" . }}
+    release: "{{ .Release.Name }}"
+    component: server
+  ports:
+    {{- if (or (not .Values.global.tls.enabled) (not .Values.global.tls.httpsOnly)) }}
+    - name: http
+      port: 80
+      targetPort: 8500
+    {{- end }}
+    {{- if .Values.global.tls.enabled }}
+    - name: https
+      port: 443
+      targetPort: 8501
+    {{- end }}
+  {{- if .Values.ui.service.type }}
+  type: {{ .Values.ui.service.type }}
+  {{- end }}
+  {{- if .Values.ui.service.additionalSpec }}
+  {{ tpl .Values.ui.service.additionalSpec . | nindent 2 | trim }}
+  {{- end }}
+{{- end }}

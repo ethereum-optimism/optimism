@@ -1,0 +1,56 @@
+{{- if (or (and (ne (.Values.server.enabled | toString) "-") .Values.server.enabled) (and (eq (.Values.server.enabled | toString) "-") .Values.global.enabled)) }}
+{{- if .Values.global.bootstrapACLs }}
+{{- /* See reason for this in server-acl-init-job.yaml */ -}}
+{{- if eq (int .Values.server.updatePartition) 0 }}
+# This job deletes the server-acl-init job once it completes successfully.
+# It runs as a helm hook because it only needs to run when the server-acl-init
+# Job gets recreated which only happens during an install or upgrade.
+# We also utilize the helm hook-delete-policy to delete this job itself.
+# We want to delete the server-acl-init job because once it runs successfully
+# it's not needed and also because if it stays around then when users run
+# helm upgrade with values that change the spec of the job, Kubernetes errors
+# because the job spec is immutable. If the job is deleted, then a new job
+# is created and there's no error.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "consul.fullname" . }}-server-acl-init-cleanup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    # If the hook fails then all that happens is we didn't delete the job.
+    # There's no reason for *this* job to stay around in that case so delete
+    # regardless of success.
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
+spec:
+  template:
+    metadata:
+      name: {{ template "consul.fullname" . }}-server-acl-init-cleanup
+      labels:
+        app: {{ template "consul.name" . }}
+        chart: {{ template "consul.chart" . }}
+        release: {{ .Release.Name }}
+        component: server-acl-init-cleanup
+      annotations:
+        "consul.hashicorp.com/connect-inject": "false"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ template "consul.fullname" . }}-server-acl-init-cleanup
+      containers:
+        - name: server-acl-init-cleanup
+          image: {{ .Values.global.imageK8S }}
+          command:
+            - consul-k8s
+          args:
+            - delete-completed-job
+            - -k8s-namespace={{ .Release.Namespace }}
+            - {{ template "consul.fullname" . }}-server-acl-init
+  {{- end }}
+  {{- end }}
+  {{- end }}

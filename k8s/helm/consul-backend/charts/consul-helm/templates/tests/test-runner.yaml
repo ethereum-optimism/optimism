@@ -1,0 +1,54 @@
+{{- if .Values.tests.enabled }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ template "consul.fullname" . }}-test"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  {{- if .Values.global.tls.enabled }}
+  volumes:
+    - name: tls-ca-cert
+      secret:
+        secretName: {{ template "consul.fullname" . }}-ca-cert
+  {{- end }}
+  containers:
+    - name: consul-test
+      image: "{{ .Values.global.image }}"
+      env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        {{- if .Values.global.tls.enabled }}
+        - name: CONSUL_HTTP_ADDR
+          value: https://$(HOST_IP):8501
+        - name: CONSUL_CACERT
+          value: /consul/tls/ca/tls.crt
+        {{- else }}
+        - name: CONSUL_HTTP_ADDR
+          value: http://$(HOST_IP):8500
+        {{- end }}
+      {{- if .Values.global.tls.enabled }}
+      volumeMounts:
+        - name: tls-ca-cert
+          mountPath: /consul/tls/ca
+          readOnly: true
+      {{- end }}
+      command:
+        - "/bin/sh"
+        - "-ec"
+        - |
+            export VALUE="{{ .Release.Name }}"
+            consul kv delete _consul_helm_test
+            consul kv put _consul_helm_test $VALUE
+            [ `consul kv get _consul_helm_test` = "$VALUE" ]
+            consul kv delete _consul_helm_test
+  restartPolicy: Never
+{{- end }}

@@ -1,0 +1,319 @@
+# DaemonSet to run the Consul clients on every node.
+{{- if (or (and (ne (.Values.client.enabled | toString) "-") .Values.client.enabled) (and (eq (.Values.client.enabled | toString) "-") .Values.global.enabled)) }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "consul.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  {{- if .Values.client.updateStrategy }}
+  updateStrategy:
+    {{ tpl .Values.client.updateStrategy . | nindent 4 | trim }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ template "consul.name" . }}
+      chart: {{ template "consul.chart" . }}
+      release: {{ .Release.Name }}
+      component: client
+      hasDNS: "true"
+  template:
+    metadata:
+      labels:
+        app: {{ template "consul.name" . }}
+        chart: {{ template "consul.chart" . }}
+        release: {{ .Release.Name }}
+        component: client
+        hasDNS: "true"
+      annotations:
+        "consul.hashicorp.com/connect-inject": "false"
+        {{- if .Values.client.annotations }}
+          {{- tpl .Values.client.annotations . | nindent 8 }}
+        {{- end }}
+    spec:
+    {{- if .Values.client.affinity }}
+      affinity:
+        {{ tpl .Values.client.affinity . | nindent 8 | trim }}
+    {{- end }}
+    {{- if .Values.client.tolerations }}
+      tolerations:
+        {{ tpl .Values.client.tolerations . | nindent 8 | trim }}
+    {{- end }}
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: {{ template "consul.fullname" . }}-client
+
+      {{- if .Values.client.priorityClassName }}
+      priorityClassName: {{ .Values.client.priorityClassName | quote }}
+      {{- end }}
+
+      {{- if .Values.client.dnsPolicy }}
+      dnsPolicy: {{ .Values.client.dnsPolicy }}
+      {{- end }}
+
+      volumes:
+        - name: data
+        {{- if .Values.client.dataDirectoryHostPath }}
+          hostPath:
+            path: {{ .Values.client.dataDirectoryHostPath }}
+            type: DirectoryOrCreate
+        {{- else }}
+          emptyDir: {}
+        {{- end }}
+        - name: config
+          configMap:
+            name: {{ template "consul.fullname" . }}-client-config
+        {{- if .Values.global.tls.enabled }}
+        - name: tls-ca-cert
+          secret:
+            secretName: {{ template "consul.fullname" . }}-ca-cert
+        - name: tls-ca-key
+          secret:
+            secretName: {{ template "consul.fullname" . }}-ca-key
+        - name: tls-client-cert
+          emptyDir:
+            # We're using tmpfs here so that
+            # client certs are not written to disk
+            medium: "Memory"
+        {{- end }}
+        {{- range .Values.client.extraVolumes }}
+        - name: userconfig-{{ .name }}
+          {{ .type }}:
+            {{- if (eq .type "configMap") }}
+            name: {{ .name }}
+            {{- else if (eq .type "secret") }}
+            secretName: {{ .name }}
+            {{- end }}
+        {{- end }}
+        {{- if .Values.global.bootstrapACLs }}
+        - name: aclconfig
+          emptyDir: {}
+        {{- end }}
+      containers:
+        - name: consul
+          image: "{{ default .Values.global.image .Values.client.image }}"
+          env:
+            - name: ADVERTISE_IP
+              valueFrom:
+                fieldRef:
+                  {{- if not .Values.client.exposeGossipPorts }}
+                  fieldPath: status.podIP
+                  {{- else }}
+                  # Clients will be exposed on their node's hostPort for external-to-k8s communication,
+                  # so they need to advertise their host ip instead of their pod ip.
+                  fieldPath: status.hostIP
+                  {{- end }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- if (and .Values.global.gossipEncryption.secretName .Values.global.gossipEncryption.secretKey) }}
+            - name: GOSSIP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.gossipEncryption.secretName }}
+                  key: {{ .Values.global.gossipEncryption.secretKey }}
+            {{- end }}
+            {{- if .Values.global.tls.enabled }}
+            - name: CONSUL_HTTP_ADDR
+              value: https://localhost:8501
+            - name: CONSUL_CACERT
+              value: /consul/tls/ca/tls.crt
+            {{- end }}
+            {{- include "consul.extraEnvironmentVars" .Values.client | nindent 12 }}
+          command:
+            - "/bin/sh"
+            - "-ec"
+            - |
+              CONSUL_FULLNAME="{{template "consul.fullname" . }}"
+
+              exec /bin/consul agent \
+                -node="${NODE}" \
+                -advertise="${ADVERTISE_IP}" \
+                -bind=0.0.0.0 \
+                -client=0.0.0.0 \
+                -node-meta=pod-name:${HOSTNAME} \
+                -hcl='leave_on_terminate = true' \
+                {{- if .Values.global.tls.enabled }}
+                -hcl='ca_file = "/consul/tls/ca/tls.crt"' \
+                -hcl='cert_file = "/consul/tls/client/tls.crt"' \
+                -hcl='key_file = "/consul/tls/client/tls.key"' \
+                {{- if .Values.global.tls.verify }}
+                -hcl='verify_incoming_rpc = true' \
+                -hcl='verify_outgoing = true' \
+                -hcl='verify_server_hostname = true' \
+                {{- end }}
+                -hcl='ports { https = 8501 }' \
+                {{- if .Values.global.tls.httpsOnly }}
+                -hcl='ports { http = -1 }' \
+                {{- end }}
+                {{- end }}
+                {{- if .Values.client.grpc }}
+                -hcl='ports { grpc = 8502 }' \
+                {{- end }}
+                -config-dir=/consul/config \
+                {{- range .Values.client.extraVolumes }}
+                {{- if .load }}
+                -config-dir=/consul/userconfig/{{ .name }} \
+                {{- end }}
+                {{- end }}
+                {{- if .Values.global.bootstrapACLs}}
+                -config-dir=/consul/aclconfig \
+                {{- end }}
+                -datacenter={{ .Values.global.datacenter }} \
+                -data-dir=/consul/data \
+                {{- if (and .Values.global.gossipEncryption.secretName .Values.global.gossipEncryption.secretKey) }}
+                -encrypt="${GOSSIP_KEY}" \
+                {{- end }}
+                {{- if (.Values.client.join) and (gt (len .Values.client.join) 0) }}
+                {{- range $value := .Values.client.join }}
+                -retry-join="{{ $value }}" \
+                {{- end }}
+                {{- else }}
+                {{- if .Values.server.enabled }}
+                {{- range $index := until (.Values.server.replicas | int) }}
+                -retry-join=${CONSUL_FULLNAME}-server-{{ $index }}.${CONSUL_FULLNAME}-server.${NAMESPACE}.svc \
+                {{- end }}
+                {{- end }}
+                {{- end }}
+                -domain={{ .Values.global.domain }}
+          volumeMounts:
+            - name: data
+              mountPath: /consul/data
+            - name: config
+              mountPath: /consul/config
+            {{- if .Values.global.tls.enabled }}
+            - name: tls-ca-cert
+              mountPath: /consul/tls/ca
+              readOnly: true
+            - name: tls-client-cert
+              mountPath: /consul/tls/client
+              readOnly: true
+            {{- end }}
+            {{- range .Values.client.extraVolumes }}
+            - name: userconfig-{{ .name }}
+              readOnly: true
+              mountPath: /consul/userconfig/{{ .name }}
+            {{- end }}
+            {{- if .Values.global.bootstrapACLs}}
+            - name: aclconfig
+              mountPath: /consul/aclconfig
+            {{- end }}
+          ports:
+            {{- if (or (not .Values.global.tls.enabled) (not .Values.global.tls.httpsOnly)) }}
+            - containerPort: 8500
+              hostPort: 8500
+              name: http
+            {{- end }}
+            {{- if .Values.global.tls.enabled }}
+            - containerPort: 8501
+              hostPort: 8501
+              name: https
+            {{- end }}
+            - containerPort: 8502
+              hostPort: 8502
+              name: grpc
+            - containerPort: 8301
+              {{- if .Values.client.exposeGossipPorts }}
+              hostPort: 8301
+              {{- end }}
+              protocol: "TCP"
+              name: serflan-tcp
+            - containerPort: 8301
+              {{- if .Values.client.exposeGossipPorts }}
+              hostPort: 8301
+              {{- end }}
+              protocol: "UDP"
+              name: serflan-udp
+            - containerPort: 8302
+              name: serfwan
+            - containerPort: 8300
+              name: server
+            - containerPort: 8600
+              name: dns-tcp
+              protocol: "TCP"
+            - containerPort: 8600
+              name: dns-udp
+              protocol: "UDP"
+          readinessProbe:
+            # NOTE(mitchellh): when our HTTP status endpoints support the
+            # proper status codes, we should switch to that. This is temporary.
+            exec:
+              command:
+                - "/bin/sh"
+                - "-ec"
+                - |
+                  {{- if .Values.global.tls.enabled }}
+                  curl \
+                    --cacert /consul/tls/ca/tls.crt \
+                    https://127.0.0.1:8501/v1/status/leader \
+                  {{- else }}
+                  curl http://127.0.0.1:8500/v1/status/leader \
+                  {{- end }}
+                  2>/dev/null | grep -E '".+"'
+          {{- if .Values.client.resources }}
+          resources:
+            {{ tpl .Values.client.resources . | nindent 12 | trim }}
+          {{- end }}
+      {{- if (or .Values.global.bootstrapACLs .Values.global.tls.enabled) }}
+      initContainers:
+      {{- if .Values.global.bootstrapACLs }}
+      - name: client-acl-init
+        image: {{ .Values.global.imageK8S }}
+        command:
+          - "/bin/sh"
+          - "-ec"
+          - |
+            consul-k8s acl-init \
+              -secret-name="{{ template "consul.fullname" . }}-client-acl-token" \
+              -k8s-namespace={{ .Release.Namespace }} \
+              -init-type="client"
+        volumeMounts:
+          - name: aclconfig
+            mountPath: /consul/aclconfig
+      {{- end }}
+      {{- if .Values.global.tls.enabled }}
+      - name: client-tls-init
+        image: "{{ default .Values.global.image .Values.client.image }}"
+        env:
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        command:
+          - "/bin/sh"
+          - "-ec"
+          - |
+            cd /consul/tls/client
+            consul tls cert create -client \
+              -additional-ipaddress=${HOST_IP} \
+              -dc={{ .Values.global.datacenter }} \
+              -domain={{ .Values.global.domain }} \
+              -ca=/consul/tls/ca/cert/tls.crt \
+              -key=/consul/tls/ca/key/tls.key
+            mv {{ .Values.global.datacenter }}-client-{{ .Values.global.domain }}-0.pem tls.crt
+            mv {{ .Values.global.datacenter }}-client-{{ .Values.global.domain }}-0-key.pem tls.key
+        volumeMounts:
+          - name: tls-client-cert
+            mountPath: /consul/tls/client
+          - name: tls-ca-cert
+            mountPath: /consul/tls/ca/cert
+            readOnly: true
+          - name: tls-ca-key
+            mountPath: /consul/tls/ca/key
+            readOnly: true
+      {{- end }}
+      {{- end }}
+      {{- if .Values.client.nodeSelector }}
+      nodeSelector:
+        {{ tpl .Values.client.nodeSelector . | indent 8 | trim }}
+      {{- end }}
+{{- end }}

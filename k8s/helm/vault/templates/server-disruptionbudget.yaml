@@ -1,0 +1,20 @@
+# PodDisruptionBudget to prevent degrading the server cluster through
+# voluntary cluster changes.
+{{- if (and .Values.serverHA.disruptionBudget.enabled (or (and (ne (.Values.serverHA.enabled | toString) "-") .Values.serverHA.enabled) (and (eq (.Values.serverHA.enabled | toString) "-") .Values.global.enabled))) }}
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ template "vault.fullname" . }}-ha-server
+  labels:
+    app: {{ template "vault.name" . }}
+    chart: {{ template "vault.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  maxUnavailable: {{ template "vault.pdb.maxUnavailable" . }}
+  selector:
+    matchLabels:
+      app: {{ template "vault.name" . }}
+      release: "{{ .Release.Name }}"
+      component: server
+{{- end }}

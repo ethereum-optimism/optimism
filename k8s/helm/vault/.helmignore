@@ -1,0 +1,4 @@
+.git/
+.terraform/
+bin/
+test/

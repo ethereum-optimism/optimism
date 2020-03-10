@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ template "vault.fullname" . }}-test-{{ randAlphaNum 5 | lower }}"
+  labels:
+    app: {{ template "vault.name" . }}
+    chart: {{ template "vault.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  {{- range .Values.serverHA.extraVolumes }}
+  volumes:
+    - name: vault-tokens
+      secret:
+        secretName: vault-tokens
+    - name: userconfig-{{ .name }}
+      {{ .type }}:
+        {{- if (eq .type "configMap") }}
+        name: {{ .name }}
+        {{- else if (eq .type "secret") }}
+        secretName: {{ .name }}
+        {{- end }}
+  {{- end }}
+  containers:
+    - name: vault-test
+      image: "{{ .Values.global.image }}"
+      env:
+        - name: VAULT_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: vault-service-config
+              key: endpoint
+      command:
+        - "/bin/sh"
+        - "-ec"
+        - |
+            export VALUE="{{randAlphaNum 24 | lower }}"
+            export VAULT_TOKEN=$(cat /vault/tokens/admin)   
+            export VAULT_CACERT="/vault/userconfig/vault-tls/ca.crt"
+            vault kv delete secret/data/testapp/_vault_helm_test
+            vault kv put secret/data/testapp/_vault_helm_test passcode="$VALUE"
+            [ `vault kv get -field=passcode secret/data/testapp/_vault_helm_test` = "$VALUE" ]
+            vault kv delete secret/data/testapp/_vault_helm_test
+            export VAULT_ROOT_TOKEN=$(cat /vault/tokens/root)   
+            vault token revoke -mode=orphan $VAULT_ROOT_TOKEN
+      {{- range .Values.serverHA.extraVolumes }}
+      volumeMounts:
+        - name: vault-tokens
+          readOnly: true
+          mountPath: /vault/tokens
+        - name: userconfig-{{ .name }}
+          readOnly: true
+          mountPath: /vault/userconfig/{{ .name }}
+      {{- end }}
+  restartPolicy: Never

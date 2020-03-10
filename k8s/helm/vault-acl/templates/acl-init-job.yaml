@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "vault.name" . }}-acl-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "vault.name" . }}-acl-init
+    chart: {{ template "vault.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  template:
+    metadata:
+      name: {{ template "vault.name" . }}-acl-init
+      labels:
+        app: {{ template "vault.name" . }}-acl-init
+        chart: {{ template "vault.chart" . }}
+        release: {{ .Release.Name }}
+        component: vault-acl-init
+      annotations:
+        "consul.hashicorp.com/connect-inject": "false"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ template "vault.fullname" . }}
+      volumes:
+        - name: vault-tokens
+          secret:
+            secretName: vault-tokens
+        - name: config-acl
+          configMap:
+            name: {{ template "vault.fullname" . }}-acl-config
+      {{- range .Values.serverHA.extraVolumes }}
+        - name: userconfig-{{ .name }}
+          {{ .type }}:
+            {{- if (eq .type "configMap") }}
+            name: {{ .name }}
+            {{- else if (eq .type "secret") }}
+            secretName: {{ .name }}
+            {{- end }}
+      {{- end }}
+      containers:
+        - name: vault-init
+          image: "{{ default .Values.global.image .Values.serverHA.image }}"
+          env:
+            - name: VAULT_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: vault-service-config
+                  key: endpoint
+          command:
+            - "/bin/sh"
+            - "-ce"
+            - |
+              export VAULT_TOKEN=$(cat /vault/tokens/root)
+              export VAULT_CACERT="/vault/userconfig/vault-tls/ca.crt"
+              vault secrets enable -path=secret/ kv
+              vault policy write admin-policy /vault/aclconfig/admin-policy.hcl
+              vault token create -policy=admin-policy
+          volumeMounts:
+            - name: vault-tokens
+              readOnly: true
+              mountPath: /vault/tokens
+            - name: config-acl
+              readOnly: true
+              mountPath: /vault/aclconfig
+          {{- range .Values.serverHA.extraVolumes }}
+            - name: userconfig-{{ .name }}
+              readOnly: true
+              mountPath: /vault/userconfig/{{ .name }}
+          {{- end }}

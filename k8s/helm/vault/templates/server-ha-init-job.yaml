@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "vault.name" . }}-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "vault.name" . }}-init
+    chart: {{ template "vault.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "1"
+spec:
+  template:
+    metadata:
+      name: {{ template "vault.name" . }}-init
+      labels:
+        app: {{ template "vault.name" . }}-init
+        chart: {{ template "vault.chart" . }}
+        release: {{ .Release.Name }}
+        component: vault-init
+      annotations:
+        "consul.hashicorp.com/connect-inject": "false"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ template "vault.fullname" . }}-server-ha
+      {{- range .Values.serverHA.extraVolumes }}
+      volumes:
+        - name: userconfig-{{ .name }}
+          {{ .type }}:
+            {{- if (eq .type "configMap") }}
+            name: {{ .name }}
+            {{- else if (eq .type "secret") }}
+            secretName: {{ .name }}
+            {{- end }}
+      {{- end }}
+      containers:
+        - name: vault-init
+          image: "{{ default .Values.global.image .Values.serverHA.image }}"
+          env:
+            - name: VAULT_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ template "vault.fullname" . }}-service-config
+                  key: endpoint
+          command:
+            - "/bin/sh"
+            - "-c"
+            - |   
+              export VAULT_CACERT="/vault/userconfig/vault-tls/ca.crt"
+              vault status
+              RETCODE=$?
+              if [ $RETCODE -eq 2 ]; then 
+                vault operator init
+                exit $?
+              fi
+              exit $RETCODE
+          {{- range .Values.serverHA.extraVolumes }}
+          volumeMounts:
+            - name: userconfig-{{ .name }}
+              readOnly: true
+              mountPath: /vault/userconfig/{{ .name }}
+          {{- end }}

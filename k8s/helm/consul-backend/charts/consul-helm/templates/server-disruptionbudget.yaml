@@ -1,0 +1,21 @@
+# PodDisruptionBudget to prevent degrading the server cluster through
+# voluntary cluster changes.
+{{- if (and .Values.server.disruptionBudget.enabled (or (and (ne (.Values.server.enabled | toString) "-") .Values.server.enabled) (and (eq (.Values.server.enabled | toString) "-") .Values.global.enabled))) }}
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ template "consul.fullname" . }}-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  maxUnavailable: {{ template "consul.pdb.maxUnavailable" . }}
+  selector:
+    matchLabels:
+      app: {{ template "consul.name" . }}
+      release: "{{ .Release.Name }}"
+      component: server
+{{- end }}

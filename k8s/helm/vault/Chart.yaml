@@ -1,0 +1,8 @@
+apiVersion: v1
+name: vault
+version: 0.1.0
+description: Install and configure Vault on Kubernetes.
+home: https://www.vaultproject.io
+sources:
+  - https://github.com/hashicorp/vault
+  - https://github.com/hashicorp/vault-helm

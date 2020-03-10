@@ -1,0 +1,66 @@
+{{- if (and .Values.global.enablePodSecurityPolicies (or (and (ne (.Values.client.enabled | toString) "-") .Values.client.enabled) (and (eq (.Values.client.enabled | toString) "-") .Values.global.enabled))) }}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ template "consul.fullname" . }}-client
+  labels:
+    app: {{ template "consul.name" . }}
+    chart: {{ template "consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  privileged: false
+  # Required to prevent escalations to root.
+  allowPrivilegeEscalation: false
+  # This is redundant with non-root + disallow privilege escalation,
+  # but we can provide it for defense in depth.
+  requiredDropCapabilities:
+    - ALL
+  # Allow core volume types.
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    {{- if .Values.client.dataDirectoryHostPath }}
+    - 'hostPath'
+    {{- end }}
+  hostNetwork: false
+  hostPorts:
+  {{- if (not (and .Values.global.tls.enabled .Values.global.tls.httpsOnly)) }}
+  # HTTP Port
+  - min: 8500
+    max: 8500
+  {{- end }}
+  {{- if .Values.global.tls.enabled }}
+  # HTTPS port
+  - min: 8501
+    max: 8501
+  {{- end }}
+  {{- if .Values.client.grpc }}
+  # gRPC Port
+  - min: 8502
+    max: 8502
+  {{- end }}
+  {{- if .Values.client.exposeGossipPorts }}
+  - min: 8301
+    max: 8301
+  {{- end }}
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: false
+  {{- if .Values.client.dataDirectoryHostPath }}
+  allowedHostPaths:
+  - pathPrefix: {{ .Values.client.dataDirectoryHostPath | quote }}
+    readOnly: false
+  {{- end }}
+{{- end }}

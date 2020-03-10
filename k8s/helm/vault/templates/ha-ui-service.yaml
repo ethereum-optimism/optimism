@@ -1,0 +1,23 @@
+{{- if (and (or (and (ne (.Values.serverHA.enabled | toString) "-") .Values.serverHA.enabled) (and (eq (.Values.serverHA.enabled | toString) "-") .Values.global.enabled)) (or (and (ne (.Values.ui.enabled | toString) "-") .Values.ui.enabled) (and (eq (.Values.ui.enabled | toString) "-") .Values.global.enabled)) (or (and (ne (.Values.ui.service.enabled | toString) "-") .Values.ui.service.enabled) (and (eq (.Values.ui.service.enabled | toString) "-") .Values.global.enabled))) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "vault.fullname" . }}
+  labels:
+    app: {{ template "vault.name" . }}
+    chart: {{ template "vault.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  selector:
+    app: {{ template "vault.name" . }}
+    release: "{{ .Release.Name }}"
+    component: server
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8200
+  {{- if .Values.ui.service.type }}
+  type: {{ .Values.ui.service.type }}
+  {{- end }}
+{{- end }}

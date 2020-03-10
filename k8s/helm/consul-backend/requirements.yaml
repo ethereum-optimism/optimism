@@ -1,0 +1,4 @@
+dependencies:
+  - name: consul
+    repository: file://./charts/consul-helm
+    version: 0.17.0

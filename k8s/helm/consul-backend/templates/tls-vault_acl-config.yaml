@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "backend-consul.name" . }}-tls-vaultacl-config
+  namespace: {{ .Release.Namespace }}
+data:
+  tls.json: |
+    {
+      "verify_incoming": true,
+      "verify_outgoing": true,
+      "verify_server_hostname": true,
+      "ca_file": "/consul/tls/ca/tls.crt",
+      "auto_encrypt": {
+        "tls": true
+      }
+    }
+  vault.hcl: |
+    service "vault" {
+      policy = "write"
+    }
+
+    key_prefix "vault/" {
+      policy = "write"
+    }
+
+    agent_prefix "" {
+      policy = "write"
+    }
+
+    node_prefix "" {
+      policy = "write"
+    }
+
+    session_prefix "" {
+      policy = "write"
+    }
+    

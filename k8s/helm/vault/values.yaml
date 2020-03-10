@@ -1,0 +1,124 @@
+# Available parameters and their default values for the Vault chart.
+
+# Server, when enabled, configures a server cluster to run. This should
+# be disabled if you plan on connecting to a Vault cluster external to
+# the Kube cluster.
+
+global:
+  # enabled is the master enabled switch. Setting this to true or false
+  # will enable or disable all the components within this chart by default.
+  # Each component can be overridden using the component-specific "enabled"
+  # value.
+  enabled: true
+
+  # Domain to register the Vault DNS server to listen for.
+  # TODO: verify for vault (don't think it's needed)
+  domain: vault
+
+  # Image is the name (and tag) of the Vault Docker image for clients and
+  # servers below. This can be overridden per component.
+  #image: "vault:0.11.1"
+  image: "omisego/immutability-vault-ethereum:latest"
+serverHA:
+  enabled: true
+  image: null
+  replicas: 3
+
+  # storage and storageClass are the settings for configuring stateful
+  # storage for the server pods. storage should be set to the disk size of
+  # the attached volume. storageClass is the class of storage which defaults
+  # to null (the Kube cluster will pick the default).
+  storage: 2Gi
+  storageClass: null
+
+  # Resource requests, limits, etc. for the server cluster placement. This
+  # should map directly to the value of the resources field for a PodSpec.
+  # By default no direct resource request is made.
+  resources: {}
+
+  # updatePartition is used to control a careful rolling update of Vault 
+  # servers. This should be done particularly when changing the version
+  # of Vault. Please refer to the documentation for more information.
+  updatePartition: 0
+
+  # config is a raw string of default configuration when using a Stateful
+  # deployment. Default is to use a PersistentVolumeClaim mounted at /vault/data
+  # and store data there. This is only used when using a Replica count of 1, and
+  # using a stateful set
+  # This should be HCL
+  config: |
+    ui = true
+
+    api_addr = "https://RELEASE_NAME.NAMESPACE.svc.cluster.local"
+    cluster_addr = "https://POD_IP:8201"
+
+    listener "tcp" {
+      address     = "127.0.0.1:8200"
+      tls_disable = "true"
+    }
+
+    listener "tcp" {
+      address     = "POD_IP:8200"
+      tls_cert_file = "/vault/userconfig/vault-tls/vault.crt"
+      tls_key_file  = "/vault/userconfig/vault-tls/vault.key"
+      tls_disable_client_certs = true
+    }
+
+    storage "consul" {
+      path = "vault"
+      address = "HOST_IP:8500"
+      token = "CONSUL_ACL_TOKEN"
+    }
+
+    seal "gcpckms" {
+      project     = "GOOGLE_PROJECT"
+      region      = "GOOGLE_REGION"
+      key_ring    = "GOOGLE_KEYRING"
+      crypto_key  = "GOOGLE_CRYPTOKEY"
+    }
+
+  # extraVolumes is a list of extra volumes to mount. These will be exposed
+  # to Vault in the path `/vault/userconfig/<name>/`. The value below is
+  # an array of objects, examples are shown below.
+  extraVolumes:
+    - type: secret
+      name: vault-tls
+      load: false # if true, will add to `-config` to load by Vault
+
+  disruptionBudget:
+    enabled: true
+
+    # maxUnavailable will default to (n/2)-1 where n is the number of
+    # replicas. If you'd like a custom value, you can specify an override here.
+    maxUnavailable: null
+
+  # Affinity Settings
+  # Commenting out or setting as empty the affinity variable, will allow
+  # deployment to single node services such as Minikube
+  affinity: |
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: {{ template "vault.name" . }}
+              release: "{{ .Release.Name }}"
+              component: server
+          topologyKey: kubernetes.io/hostname
+
+ui:
+  # True if you want to enable the Vault UI. The UI will run only
+  # on the server nodes. This makes UI access via the service below (if
+  # enabled) predictable rather than "any node" if you're running Vault
+  # clients as well.
+  #
+  # This value is used for both Single Server and HA mode setups
+  enabled: true
+
+  # True if you want to create a Service entry for the Vault UI.
+  #
+  # serviceType can be used to control the type of service created. For
+  # example, setting this to "LoadBalancer" will create an external load
+  # balancer (for supported K8S installations) to access the UI.
+  service:
+    enabled: true
+    type: ClusterIP

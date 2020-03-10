@@ -1,0 +1,137 @@
+# StatefulSet to run the actual vault server cluster.
+{{- if (or (and (ne (.Values.serverHA.enabled | toString) "-") .Values.serverHA.enabled) (and (eq (.Values.serverHA.enabled | toString) "-") .Values.global.enabled)) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "vault.fullname" . }}-ha-server
+  labels:
+    app: {{ template "vault.name" . }}
+    chart: {{ template "vault.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  serviceName: {{ template "vault.fullname" . }}-ha-server
+  podManagementPolicy: Parallel
+  replicas: {{ .Values.serverHA.replicas }}
+  # TODO: add updatePartition option 
+  {{- if (gt (int .Values.serverHA.updatePartition) 0) }}
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: {{ .Values.serverHA.updatePartition }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ template "vault.name" . }}
+      chart: {{ template "vault.chart" . }}
+      release: {{ .Release.Name }}
+      component: server
+  template:
+    metadata:
+      labels:
+        app: {{ template "vault.name" . }}
+        chart: {{ template "vault.chart" . }}
+        release: {{ .Release.Name }}
+        component: server
+    spec:
+    {{- if .Values.serverHA.affinity }}
+      affinity:
+        {{ tpl .Values.serverHA.affinity . | nindent 8 | trim }}
+    {{- end }}
+      serviceAccountName: {{ template "vault.fullname" . }}-server-ha
+      securityContext:
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: {{ template "vault.fullname" . }}-server-ha-config
+            defaultMode: 0755
+        {{- range .Values.serverHA.extraVolumes }}
+        - name: userconfig-{{ .name }}
+          {{ .type }}:
+            {{- if (eq .type "configMap") }}
+            name: {{ .name }}
+            {{- else if (eq .type "secret") }}
+            secretName: {{ .name }}
+            {{- end }}
+        {{- end }}
+      containers:
+        - name: vault
+          securityContext:
+            privileged: true
+          image: "{{ default .Values.global.image .Values.serverHA.image }}"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CONSUL_ACL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-backend-token
+                  key: token
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: VAULT_ADDR 
+              value: "http://localhost:8200"
+            - name: RELEASE_NAME 
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['release']
+          command:
+            - "/bin/sh"
+            - "-ec"
+            - |
+                export VAULT_CLUSTER_ADDR=http://${POD_IP}:8201
+                sed -E "s/HOST_IP/${HOST_IP}/g" /vault/config/extraconfig-from-values.hcl > storageconfig.hcl
+                sed -Ei "s/POD_IP/${POD_IP}/g" storageconfig.hcl
+                sed -Ei "s/CONSUL_ACL_TOKEN/${CONSUL_ACL_TOKEN}/g" storageconfig.hcl
+                sed -Ei "s/RELEASE_NAME/${RELEASE_NAME}/g" storageconfig.hcl
+                sed -Ei "s/NAMESPACE/${NAMESPACE}/g" storageconfig.hcl
+
+                vault server -config=storageconfig.hcl
+          volumeMounts:
+            - name: config
+              mountPath: /vault/config
+            {{- range .Values.serverHA.extraVolumes }}
+            - name: userconfig-{{ .name }}
+              readOnly: true
+              mountPath: /vault/userconfig/{{ .name }}
+            {{- end }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - vault operator step-down
+          ports:
+            - containerPort: 8200
+              name: http
+          readinessProbe:
+            # Check status; unsealed vault servers return 0
+            # The exit code reflects the seal status:
+            #   0 - unsealed
+            #   1 - error
+            #   2 - sealed
+            exec:
+              command:
+                - "/bin/sh"
+                - "-ec"
+                - |
+                  vault status | if [ $? -ne 1 ]; then exit 0; fi
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+{{- end }}

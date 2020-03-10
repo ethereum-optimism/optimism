@@ -1,0 +1,14 @@
+# Available parameters and their default values for the Vault ACL chart.
+
+# Server, when enabled, configures a server cluster to run. This should
+# be disabled if you plan on connecting to a Vault cluster external to
+# the Kube cluster.
+
+global:
+  image: "vault:1.3.2"
+
+serverHA:
+  extraVolumes:
+    - type: secret
+      name: vault-tls
+      load: false # if true, will add to `-config` to load by Vault
