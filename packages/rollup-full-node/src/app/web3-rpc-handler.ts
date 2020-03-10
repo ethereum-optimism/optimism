@@ -63,7 +63,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   protected constructor(
-    private readonly provider: Web3Provider,
+    protected readonly provider: Web3Provider,
     private readonly wallet: Wallet,
     private readonly executionManager: Contract
   ) {

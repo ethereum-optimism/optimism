@@ -86,4 +86,30 @@ describe('Web3Handler', () => {
       res.should.equal(storageValue)
     })
   })
+
+  describe('snapshot and revert', () => {
+    it('should  fail (snapshot and revert should only be available in the TestHandler)', async () => {
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      await new Promise((resolve, reject) => {
+        httpProvider.send('evm_snapshot', []).catch((error) => {
+          error.message.should.equal('Method not found')
+          resolve()
+        })
+      })
+
+      await new Promise((resolve, reject) => {
+        httpProvider.send('evm_snapshot', []).catch((error) => {
+          error.message.should.equal('Method not found')
+          resolve()
+        })
+      })
+
+      await new Promise((resolve, reject) => {
+        httpProvider.send('evm_revert', ['0x01']).catch((error) => {
+          error.message.should.equal('Method not found')
+          resolve()
+        })
+      })
+    })
+  })
 })

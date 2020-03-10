@@ -55,18 +55,24 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * Override to add some test RPC methods.
    */
   public async handleRequest(method: string, params: any[]): Promise<string> {
-    if (method === Web3RpcMethods.increaseTimestamp) {
-      this.assertParameters(params, 1)
-      this.increaseTimestamp(params[0])
-      log.debug(`Set increased timestamp by ${params[0]} seconds.`)
-      return TestWeb3Handler.successString
+    switch (method) {
+      case Web3RpcMethods.increaseTimestamp:
+        this.assertParameters(params, 1)
+        this.increaseTimestamp(params[0])
+        log.debug(`Set increased timestamp by ${params[0]} seconds.`)
+        return TestWeb3Handler.successString
+      case Web3RpcMethods.getTimestamp:
+        this.assertParameters(params, 0)
+        return add0x(this.getTimestamp().toString(16))
+      case Web3RpcMethods.snapshot:
+        this.assertParameters(params, 0)
+        return this.snapshot()
+      case Web3RpcMethods.revert:
+        this.assertParameters(params, 1)
+        return this.revert(params[0])
+      default:
+        return super.handleRequest(method, params)
     }
-    if (method === Web3RpcMethods.getTimestamp) {
-      this.assertParameters(params, 0)
-      return add0x(this.getTimestamp().toString(16))
-    }
-
-    return super.handleRequest(method, params)
   }
 
   /**
@@ -93,5 +99,21 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       log.error(msg)
       throw new UnsupportedMethodError(msg)
     }
+  }
+
+  /**
+   * Takes a snapshot of the current node state.
+   * @returns The snapshot id that can be used as an parameter of the revert endpoint
+   */
+  private async snapshot(): Promise<string> {
+    return this.provider.send(Web3RpcMethods.snapshot, [])
+  }
+
+  /**
+   * Reverts state to the specified snapshot
+   * @param The snapshot id of the snapshot to restore
+   */
+  private async revert(snapShotId: string): Promise<string> {
+    return this.provider.send(Web3RpcMethods.revert, [snapShotId])
   }
 }
