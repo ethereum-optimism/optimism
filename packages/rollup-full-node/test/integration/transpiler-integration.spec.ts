@@ -1,4 +1,4 @@
-import './setup'
+import '../setup'
 /* External Imports */
 import {
   Address,
