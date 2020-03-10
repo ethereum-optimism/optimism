@@ -2,7 +2,6 @@ import '../setup'
 /* External Imports */
 import { add0x, getLogger, remove0x } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
-// import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
 
 /* Internal Imports */
 import {
@@ -11,6 +10,7 @@ import {
   FullnodeRpcServer,
   DefaultWeb3Handler,
 } from '../../src'
+import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
 
 const log = getLogger('test-web3-handler', true)
 
@@ -72,7 +72,7 @@ describe('TestHandler', () => {
   })
 
   describe('Snapshot and revert', () => {
-    it.skip('should revert state', async () => {
+    it('should revert state', async () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
 
       testRpcServer.listen()
@@ -85,10 +85,8 @@ describe('TestHandler', () => {
       const wallet = new ethers.Wallet(privateKey, httpProvider)
       log.debug('Wallet address:', wallet.address)
       const factory = new ContractFactory(
-        null,
-        null,
-        // SimpleStorage.abi,
-        // SimpleStorage.bytecode,
+        SimpleStorage.abi,
+        SimpleStorage.bytecode,
         wallet
       )
 
