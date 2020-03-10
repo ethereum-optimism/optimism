@@ -5,11 +5,17 @@
 provider "google" {
   project = var.gcp_project
   region  = var.gcp_region
+  batching {
+    enable_batching = false
+  }
 }
 
 provider "google-beta" {
   project = var.gcp_project
   region  = var.gcp_region
+  batching {
+    enable_batching = false
+  }
 }
 
 /*
