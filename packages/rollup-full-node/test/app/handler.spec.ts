@@ -1,6 +1,6 @@
 import '../setup'
 /* External Imports */
-import { getLogger, remove0x } from '@eth-optimism/core-utils'
+import { getLogger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
@@ -85,6 +85,7 @@ describe('Web3Handler', () => {
 
   describe('snapshot and revert', () => {
     it('should  fail (snapshot and revert should only be available in the TestHandler)', async () => {
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       await new Promise((resolve, reject) => {
         httpProvider.send('evm_snapshot', []).catch((error) => {
           error.message.should.equal('Method not found')
