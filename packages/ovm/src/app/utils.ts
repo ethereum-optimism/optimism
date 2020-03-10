@@ -28,7 +28,6 @@ export const RLPEncodeContractDefinition = {
   bytecode: RLPEncode.bytecode,
 }
 
-
 const executionManager = new ethers.utils.Interface(ExecutionManager.interface)
 
 const logger = getLogger('utils')

@@ -273,7 +273,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     defaultBlock: string
   ): Promise<string> {
     if (defaultBlock !== 'latest') {
-      log.info(`No support for historical code lookups! Anything returned from this may be very wrong.`)
+      log.info(
+        `No support for historical code lookups! Anything returned from this may be very wrong.`
+      )
       //throw new Error('No support for historical code lookups!')
     }
     log.debug(
