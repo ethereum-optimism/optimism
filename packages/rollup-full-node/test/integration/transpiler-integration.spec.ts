@@ -1,16 +1,6 @@
-import '../../../rollup-dev-tools/test/setup'
+import '../setup'
 /* External Imports */
-import {
-  getLogger,
-  remove0x,
-  bufToHexString,
-  hexStrToBuf,
-} from '@eth-optimism/core-utils'
-import {
-  Address,
-  formatBytecode,
-  bufferToBytecode,
-} from '@eth-optimism/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 
 /* Contract Imports */
 
