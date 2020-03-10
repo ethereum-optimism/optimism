@@ -20,8 +20,8 @@ set -e
 #   initialize.sh "keybase:kasima" "keybase:kasima,keybase:jake,keybase:bob,keybase:alice,keybase:eve"
 #
 
-KEY_SHARES=3
-KEY_THRESHOLD=2
+KEY_SHARES=5
+KEY_THRESHOLD=3
 
 VAULT_DIR=$HOME/etc/vault.unsealer
 
