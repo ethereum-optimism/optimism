@@ -64,6 +64,8 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       case Web3RpcMethods.getTimestamp:
         this.assertParameters(params, 0)
         return add0x(this.getTimestamp().toString(16))
+      case Web3RpcMethods.mine:
+        return this.provider.send(Web3RpcMethods.mine, params)
       case Web3RpcMethods.snapshot:
         this.assertParameters(params, 0)
         return this.snapshot()

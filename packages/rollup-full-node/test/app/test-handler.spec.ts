@@ -10,7 +10,7 @@ import {
   FullnodeRpcServer,
   DefaultWeb3Handler,
 } from '../../src'
-import * as SimpleStorage from '../contracts/build/SimpleStorage.json'
+import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 
 const log = getLogger('test-web3-handler', true)
 
@@ -18,7 +18,7 @@ const secondsSinceEopch = (): number => {
   return Math.round(Date.now() / 1000)
 }
 const host = '0.0.0.0'
-const port = 9999
+const port = 9998
 const baseUrl = `http://${host}:${port}`
 
 describe('TestHandler', () => {

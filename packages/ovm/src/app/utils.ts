@@ -105,7 +105,6 @@ export const getOvmTransactionMetadata = (
 /**
  * Converts an EVM receipt to an OVM receipt.
  *
- * @param executionManager The EM contract to use to parse th logs.
  * @param internalTxReceipt The EVM tx receipt to convert to an OVM tx receipt
  * @returns The converted receipt
  */

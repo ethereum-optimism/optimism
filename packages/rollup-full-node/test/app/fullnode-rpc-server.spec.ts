@@ -1,10 +1,18 @@
 /* External Imports */
-import { AxiosHttpClient, getLogger } from '@eth-optimism/core-utils/build/src'
+import {
+  AxiosHttpClient,
+  getLogger,
+  JSONRPC_ERRORS,
+} from '@eth-optimism/core-utils/build/src'
 import { AxiosResponse } from 'axios'
 
 /* Internal Imports */
 import { FullnodeRpcServer } from '../../src/app'
-import { FullnodeHandler, UnsupportedMethodError } from '../../src/types'
+import {
+  FullnodeHandler,
+  RevertError,
+  UnsupportedMethodError,
+} from '../../src/types'
 import { should } from '../setup'
 
 const log = getLogger('fullnode-rpc-server', true)
@@ -12,6 +20,7 @@ const log = getLogger('fullnode-rpc-server', true)
 const dummyResponse: string = 'Dummy Response =D'
 
 const unsupportedMethod: string = 'unsupported!'
+const revertMethod: string = 'revert!'
 class DummyFullnodeHandler implements FullnodeHandler {
   public async handleRequest(
     method: string,
@@ -19,6 +28,9 @@ class DummyFullnodeHandler implements FullnodeHandler {
   ): Promise<string> {
     if (method === unsupportedMethod) {
       throw new UnsupportedMethodError()
+    }
+    if (method === revertMethod) {
+      throw new RevertError()
     }
     return dummyResponse
   }
@@ -113,5 +125,27 @@ describe('FullnodeHandler RPC Server', () => {
 
       r.data['jsonrpc'].should.equal('2.0')
     })
+  })
+
+  it('reverts properly', async () => {
+    const result: AxiosResponse = await request(client, {
+      id: 1,
+      jsonrpc: '2.0',
+      method: revertMethod,
+    })
+
+    result.status.should.equal(200)
+
+    result.data.should.haveOwnProperty('id')
+    result.data.should.haveOwnProperty('jsonrpc')
+    result.data.should.haveOwnProperty('error')
+    result.data['error'].should.haveOwnProperty('message')
+    result.data['error'].should.haveOwnProperty('code')
+    result.data['error']['message'].should.equal(
+      JSONRPC_ERRORS.REVERT_ERROR.message
+    )
+    result.data['error']['code'].should.equal(JSONRPC_ERRORS.REVERT_ERROR.code)
+
+    result.data['jsonrpc'].should.equal('2.0')
   })
 })

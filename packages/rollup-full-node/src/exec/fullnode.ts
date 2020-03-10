@@ -17,6 +17,7 @@ export const runFullnode = async (
   const host = '0.0.0.0'
   const port = 8545
 
+  log.info(`Starting fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
   const fullnodeHandler = testFullnode
     ? await TestWeb3Handler.create()
     : await DefaultWeb3Handler.create()

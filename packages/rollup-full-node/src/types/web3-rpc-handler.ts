@@ -37,10 +37,11 @@ export enum Web3RpcMethods {
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',
   sendRawTransaction = 'eth_sendRawTransaction',
-  snapshot = 'evm_snapshot',
-  revert = 'evm_revert',
 
   // Test methods:
+  snapshot = 'evm_snapshot',
+  revert = 'evm_revert',
+  mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
   getTimestamp = 'evm_getTime',
 }
