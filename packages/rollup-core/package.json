@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/rollup-core",
-  "version": "0.0.1-alpha.15",
+  "version": "0.0.1-alpha.16",
   "description": "[Optimism] Optimistic Rollup Core Library",
   "main": "build/index.js",
   "files": [
@@ -29,8 +29,8 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/core-db": "^0.0.1-alpha.15",
-    "@eth-optimism/core-utils": "^0.0.1-alpha.15",
+    "@eth-optimism/core-db": "^0.0.1-alpha.16",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.16",
     "async-lock": "^1.2.2",
     "ethers": "^4.0.39"
   },
