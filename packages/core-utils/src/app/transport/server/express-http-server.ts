@@ -25,7 +25,7 @@ export class ExpressHttpServer implements HttpServer {
     const express = require('express')
     this.app = express()
     // By default use bodyParser
-    this.app.use(bodyParser.json({limit: '50mb'}))
+    this.app.use(bodyParser.json({ limit: '50mb' }))
     // Add any other middleware desired
     if (typeof middleware !== 'undefined') {
       for (const m of middleware) {
