@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import { getLogger, hexStrToBuf, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { Log, TransactionReceipt } from 'ethers/providers'
 /* Contract Imports */
@@ -14,6 +14,8 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
+import { LogDescription } from 'ethers/utils'
+import { OvmTransactionReceipt } from '../types/transactionReceipt'
 // Contract Exports
 export const L2ExecutionManagerContractDefinition = {
   abi: L2ExecutionManager.abi,
@@ -36,6 +38,7 @@ export interface OvmTransactionMetadata {
   ovmTo: string
   ovmFrom: string
   ovmCreatedContractAddress: string
+  revertMessage?: string
 }
 
 /**
@@ -85,7 +88,11 @@ export const getOvmTransactionMetadata = (
     (log) => log.name === 'EOACreatedContract'
   )
 
-  ovmTxSucceeded = !logs.some((log) => log.name === 'EOACallRevert')
+  const revertEvents: LogDescription[] = logs.filter(
+    (x) => x.name === 'EOACallRevert'
+  )
+  ovmTxSucceeded = !revertEvents.length
+
   if (callingWithEoaLog) {
     ovmFrom = callingWithEoaLog.values._ovmFromAddress
   }
@@ -94,12 +101,20 @@ export const getOvmTransactionMetadata = (
     ovmTo = ovmCreatedContractAddress
   }
 
-  return {
+  const metadata: OvmTransactionMetadata = {
     ovmTxSucceeded,
     ovmTo,
     ovmFrom,
     ovmCreatedContractAddress,
   }
+
+  if (!ovmTxSucceeded) {
+    metadata.revertMessage = hexStrToBuf(
+      revertEvents[0].values['_revertMessage']
+    ).toString('utf8')
+  }
+
+  return metadata
 }
 
 /**
@@ -110,12 +125,12 @@ export const getOvmTransactionMetadata = (
  */
 export const internalTxReceiptToOvmTxReceipt = async (
   internalTxReceipt: TransactionReceipt
-): Promise<TransactionReceipt> => {
+): Promise<OvmTransactionReceipt> => {
   const ovmTransactionMetadata = getOvmTransactionMetadata(internalTxReceipt)
   // Construct a new receipt
   //
   // Start off with the internalTxReceipt
-  const ovmTxReceipt = internalTxReceipt
+  const ovmTxReceipt: OvmTransactionReceipt = internalTxReceipt
   // Add the converted logs
   ovmTxReceipt.logs = convertInternalLogsToOvmLogs(internalTxReceipt.logs)
   // Update the to and from fields
@@ -127,6 +142,10 @@ export const internalTxReceiptToOvmTxReceipt = async (
     ovmTransactionMetadata.ovmCreatedContractAddress
 
   ovmTxReceipt.status = ovmTransactionMetadata.ovmTxSucceeded ? 1 : 0
+
+  if (ovmTransactionMetadata.revertMessage !== undefined) {
+    ovmTxReceipt.revertMessage = ovmTransactionMetadata.revertMessage
+  }
 
   logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   // TODO: Fix the logsBloom to remove the txs we just removed

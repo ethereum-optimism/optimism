@@ -13,6 +13,7 @@ import {
   L2ExecutionManagerContractDefinition,
   OPCODE_WHITELIST_MASK,
   internalTxReceiptToOvmTxReceipt,
+  OvmTransactionReceipt,
 } from '@eth-optimism/ovm'
 
 import { Contract, ethers, utils, Wallet } from 'ethers'
@@ -322,7 +323,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return response
   }
 
-  public async getTransactionReceipt(ovmTxHash: string): Promise<any> {
+  public async getTransactionReceipt(
+    ovmTxHash: string,
+    includeRevertMessage: boolean = false
+  ): Promise<any> {
     log.debug('Getting tx receipt for ovm tx hash:', ovmTxHash)
     // First convert our ovmTxHash into an internalTxHash
     const internalTxHash = await this.getInternalTxHash(ovmTxHash)
@@ -333,9 +337,12 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
 
     // Now let's parse the internal transaction reciept
-    const ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
+    const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
       internalTxReceipt
     )
+    if (!!ovmTxReceipt.revertMessage && !includeRevertMessage) {
+      delete ovmTxReceipt.revertMessage
+    }
 
     log.debug(
       `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${internalTxReceipt}]`
@@ -400,15 +407,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         throw Error(msg)
       }
 
-      const receipt: TransactionReceipt = await this.getTransactionReceipt(
-        ovmTxHash
+      const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
+        ovmTxHash,
+        true
       )
       log.info(
         `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
       )
       if (!receipt || !receipt.status) {
         log.debug(`Transaction reverted: ${rawOvmTx}, ovmTxHash: ${ovmTxHash}`)
-        throw new RevertError()
+        throw new RevertError(receipt.revertMessage)
       }
 
       log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)

@@ -52,7 +52,9 @@ contract ExecutionManager is FullStateManager {
         bytes32 _slot,
         bytes32 _value
     );
-    event EOACallRevert();
+    event EOACallRevert(
+        bytes _revertMessage
+    );
 
     /**
      * @notice Construct a new ExecutionManager with a specified purity checker & owner.
@@ -251,23 +253,26 @@ contract ExecutionManager is FullStateManager {
         bool isCall = executionContext.ovmTxOrigin == ZERO_ADDRESS;
         bool success = false;
         address addr = address(this);
+        bytes memory result;
         assembly {
-            let result := mload(0x40)
-            success := call(gas, addr, 0, _callBytes, callSize, result, 500000)
+            result := mload(0x40)
+            success := call(gas, addr, 0, _callBytes, callSize, add(0x20, result), 500000)
             let size := returndatasize
 
             if eq(success, 1) {
-                return(result, size)
+                return(add(0x20, result), size)
             }
             if eq(isCall, 1) {
-                revert(result, size)
+                revert(add(0x20, result), size)
             }
+            mstore(result, size)
+            mstore(0x40, add(result, add(size, 0x20)))
         }
 
         if (!success) {
             // We need the tx to succeed even on failure so logs, nonce, etc. are preserved.
             // This is how we indicate that the tx "failed."
-            emit EOACallRevert();
+            emit EOACallRevert(result);
             assembly {
                 return(0,0)
             }

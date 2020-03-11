@@ -29,6 +29,8 @@ import {
   internalTxReceiptToOvmTxReceipt,
 } from '../src/app'
 
+import { OvmTransactionReceipt } from '../src/types'
+
 type Signature = [string, string, string]
 
 export const ZERO_UINT = '00'.repeat(32)
@@ -63,7 +65,7 @@ export const manuallyDeployOvmContractReturnReceipt = async (
   executionManager: Contract,
   contractDefinition,
   constructorArguments: any[]
-): Promise<TransactionReceipt> => {
+): Promise<OvmTransactionReceipt> => {
   const initCode = new ContractFactory(
     contractDefinition.abi,
     contractDefinition.bytecode
