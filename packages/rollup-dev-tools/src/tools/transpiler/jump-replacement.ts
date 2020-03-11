@@ -111,8 +111,9 @@ export const getJumpiReplacementBytecodeLength = (): number => {
 export const getJumpReplacementBytecode = (
   footerSwitchJumpdestIndex: number
 ): EVMBytecode => {
-  const indexBuffer: Buffer = bufferUtils.numberToBuffer(
-    footerSwitchJumpdestIndex
+  const indexBuffer: Buffer = bufferUtils.numberToBufferPacked(
+    footerSwitchJumpdestIndex,
+    2
   )
   return [
     {
@@ -138,8 +139,9 @@ export const getJumpReplacementBytecode = (
 export const getJumpiReplacementBytecode = (
   footerSwitchJumpdestIndex: number
 ): EVMBytecode => {
-  const indexBuffer: Buffer = bufferUtils.numberToBuffer(
-    footerSwitchJumpdestIndex
+  const indexBuffer: Buffer = bufferUtils.numberToBufferPacked(
+    footerSwitchJumpdestIndex,
+    2
   )
   return [
     {
@@ -197,7 +199,10 @@ export const getJumpIndexSwitchStatementBytecode = (
   jumpdestIndexesAfter: number[],
   indexOfThisBlock: number
 ): EVMBytecode => {
-  const successJumpIndex: Buffer = bufferUtils.numberToBuffer(indexOfThisBlock)
+  const successJumpIndex: Buffer = bufferUtils.numberToBufferPacked(
+    indexOfThisBlock,
+    2
+  )
 
   const footerBytecode: EVMBytecode = [
     ...getJumpIndexSwitchStatementSuccessJumpdestBytecode(),
@@ -211,11 +216,13 @@ export const getJumpIndexSwitchStatementBytecode = (
 
     const beforeIndex: number = jumpdestIndexesBefore[i]
     const afterIndex: number = jumpdestIndexesAfter[i]
-    const beforeBuffer: Buffer = bufferUtils.numberToBuffer(
-      jumpdestIndexesBefore[i]
+    const beforeBuffer: Buffer = bufferUtils.numberToBufferPacked(
+      jumpdestIndexesBefore[i],
+      2
     )
-    const afterBuffer: Buffer = bufferUtils.numberToBuffer(
-      jumpdestIndexesAfter[i]
+    const afterBuffer: Buffer = bufferUtils.numberToBufferPacked(
+      jumpdestIndexesAfter[i],
+      2
     )
 
     footerBytecode.push(

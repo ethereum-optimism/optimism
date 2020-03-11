@@ -31,6 +31,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
   public static async create(
     provider: Web3Provider = createMockProvider({
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+      allowUnlimitedContractSize: true,
     })
   ): Promise<TestWeb3Handler> {
     // Initialize a fullnode for us to interact with

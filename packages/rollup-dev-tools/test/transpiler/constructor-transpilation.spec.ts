@@ -55,7 +55,7 @@ import { transpileAndDeployInitcode, stripAuxData } from '../helpers'
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger(`constructor-transpilation`)
 
-describe.only('Solitity contracts with constructors that take inputs should be correctly deployed', () => {
+describe('Solitity contracts with constructors that take inputs should be correctly deployed', () => {
   let evmUtil: EvmIntrospectionUtil
   const mockReplacer: OpcodeReplacer = {
     replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
