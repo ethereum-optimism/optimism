@@ -1,11 +1,25 @@
-version: "2"
-
+version: "3"
+networks:
+  api_server_default:
+    external: true
 services:
-  web:
-    build: .
-    command: npm run debug
-    volumes:
-      - ./dist:/server/dist
+  rollup-fullnode:
+    depends_on:
+      - geth
+    networks:
+      - api_server_default
+    build:
+      context: packages/rollup-full-node
+      dockerfile: Dockerfile
+    environment:
+      ENV_NAME: dev
     ports:
-      - "3000:3000"
-      - "5858:5858"
+      - 8545:8545
+  geth:
+    volumes:
+       - geth-data:/root/.ethereum
+    build:
+      context: docker/geth
+      dockerfile: Dockerfile
+volumes:
+  geth-data:
