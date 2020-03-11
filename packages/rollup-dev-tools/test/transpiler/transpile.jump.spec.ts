@@ -14,6 +14,7 @@ import {
 
 /* Internal imports */
 import {
+  ErroredTranspilation,
   OpcodeReplacer,
   OpcodeWhitelist,
   SuccessfulTranspilation,
@@ -108,12 +109,15 @@ const validateJumpBytecode = (successResult: SuccessfulTranspilation): void => {
         'Opcode before JUMP should be a PUSH32, pushing the location of the footer JUMP switch!'
       )
       opcodeBeforeJump.consumedBytes.should.eql(
-        bufferUtils.numberToBuffer(switchJumpdestIndex),
+        bufferUtils.numberToBufferPacked(switchJumpdestIndex, 2),
         'JUMP should be equal to index of footer switch JUMPDEST!'
       )
     } else if (index > switchJumpdestIndex) {
       // Make sure that all footer JUMPS go to footer JUMP success jumpdest
-      const dest: number = opcodeBeforeJump.consumedBytes.readInt32BE(28)
+      const dest: number = parseInt(
+        opcodeBeforeJump.consumedBytes.toString('hex'),
+        16
+      )
       dest.should.eq(
         switchSuccessJumpdestIndex,
         'All footer JUMPs should go to success JUMPDEST block'
@@ -127,7 +131,10 @@ const getSuccessfulTranspilationResult = (
   bytecode: Buffer
 ): SuccessfulTranspilation => {
   const result: TranspilationResult = transpiler.transpileRawBytecode(bytecode)
-  result.succeeded.should.equal(true)
+  result.succeeded.should.equal(
+    true,
+    `${JSON.stringify((result as ErroredTranspilation).errors)}`
+  )
   return result as SuccessfulTranspilation
 }
 
@@ -149,7 +156,10 @@ describe('Transpile - JUMPs', () => {
 
   it('handles simple JUMPs properly', async () => {
     const evmBytecode: EVMBytecode = [
-      { opcode: Opcode.PUSH32, consumedBytes: bufferUtils.numberToBuffer(34) },
+      {
+        opcode: Opcode.PUSH2,
+        consumedBytes: bufferUtils.numberToBufferPacked(4, 2),
+      },
       { opcode: Opcode.JUMP, consumedBytes: undefined },
       { opcode: Opcode.JUMPDEST, consumedBytes: undefined },
       { opcode: Opcode.STOP, consumedBytes: undefined },
