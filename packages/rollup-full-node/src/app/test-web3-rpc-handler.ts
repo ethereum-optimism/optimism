@@ -1,5 +1,5 @@
 /* External Imports */
-import { add0x, getLogger, remove0x } from '@eth-optimism/core-utils'
+import { add0x, getLogger, parseHexStringOrNumber } from '@eth-optimism/core-utils'
 import { OPCODE_WHITELIST_MASK } from '@eth-optimism/ovm'
 
 import { createMockProvider, getWallets } from 'ethereum-waffle'
@@ -92,7 +92,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    */
   private increaseTimestamp(increaseSeconds: any): void {
     try {
-      const increaseNumber = parseInt(remove0x(increaseSeconds), 16)
+      const increaseNumber = parseHexStringOrNumber(increaseSeconds)
       if (increaseNumber < 0) {
         throw Error('invalid param')
       }

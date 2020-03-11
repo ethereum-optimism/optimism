@@ -191,6 +191,15 @@ export const hexStrToNumber = (hexString: string): number => {
 }
 
 /**
+ * Parses a hex string or a base 10 number depending on what is given
+ * @param str the String to parse
+ * @returns the parsed number.
+ */
+export const parseHexStringOrNumber = (str: string): number => {
+  return str.startsWith('0x') ? hexStrToNumber(str) : parseInt(str, 10)
+}
+
+/**
  * Converts the provided buffer into a hex string.
  * @param buff The buffer.
  * @param prepend0x Whether or not to prepend '0x' to the resulting string.
