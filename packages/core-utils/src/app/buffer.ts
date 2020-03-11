@@ -104,13 +104,45 @@ const numberToBuffer = (
   bufferBytes: number = 32,
   bigEndian: boolean = true
 ): Buffer => {
-  const buf: Buffer = Buffer.alloc(bufferBytes)
+  const minBytes = Math.max(bufferBytes, numBytes)
+  const buf: Buffer = Buffer.alloc(minBytes)
   if (bigEndian) {
-    buf.writeIntBE(num, bufferBytes - numBytes, numBytes)
+    buf.writeIntBE(num, minBytes - numBytes, numBytes)
   } else {
     buf.writeIntLE(num, 0, numBytes)
   }
   return buf
+}
+
+/**
+ * Converts a number to a packed BigEndian buffer.
+ * @param num The number in question
+ * @param minLength The minimum number of bytes to return
+ * @returns The packed buffer
+ */
+const numberToBufferPacked = (num: number, minLength: number = 1): Buffer => {
+  const buf: Buffer = Buffer.alloc(4)
+  buf.writeInt32BE(num, 0)
+  return removeEmptyBytes(buf, minLength)
+}
+
+/**
+ * Removes the empty bytes at the beginning of a big-endian buffer.
+ * @param buf The buffer in question.
+ * @param minLength The minimum number of bytes to return
+ * @returns The trimmed buffer with the non-empty bytes.
+ */
+const removeEmptyBytes = (buf: Buffer, minLength: number): Buffer => {
+  let firstNonZeroIndex = 0
+  while (firstNonZeroIndex < buf.length && buf[firstNonZeroIndex] === 0) {
+    firstNonZeroIndex++
+  }
+  const startIndex = Math.min(firstNonZeroIndex, buf.length - 1)
+  const index =
+    buf.length - startIndex < minLength ? buf.length - minLength : startIndex
+  return index < 0
+    ? Buffer.concat([Buffer.from('00'.repeat(0 - index), 'hex'), buf])
+    : buf.slice(index)
 }
 
 /**
@@ -155,6 +187,7 @@ export const bufferUtils = {
   padLeft,
   padRight,
   numberToBuffer,
+  numberToBufferPacked,
   numbersEqual,
   bufferToAddress,
 }
