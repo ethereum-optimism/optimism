@@ -40,6 +40,7 @@ export const invalidOpcode: Buffer = Buffer.from('5d', 'hex')
 
 export const whitelistedOpcodes: EVMOpcode[] = [
   Opcode.PUSH1,
+  Opcode.PUSH2,
   Opcode.PUSH4,
   Opcode.PUSH29,
   Opcode.PUSH32,

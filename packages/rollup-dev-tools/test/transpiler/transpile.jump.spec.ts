@@ -14,6 +14,7 @@ import {
 
 /* Internal imports */
 import {
+  ErroredTranspilation,
   OpcodeReplacer,
   OpcodeWhitelist,
   SuccessfulTranspilation,
@@ -130,7 +131,10 @@ const getSuccessfulTranspilationResult = (
   bytecode: Buffer
 ): SuccessfulTranspilation => {
   const result: TranspilationResult = transpiler.transpileRawBytecode(bytecode)
-  result.succeeded.should.equal(true)
+  result.succeeded.should.equal(
+    true,
+    `${JSON.stringify((result as ErroredTranspilation).errors)}`
+  )
   return result as SuccessfulTranspilation
 }
 
@@ -153,8 +157,8 @@ describe('Transpile - JUMPs', () => {
   it('handles simple JUMPs properly', async () => {
     const evmBytecode: EVMBytecode = [
       {
-        opcode: Opcode.PUSH1,
-        consumedBytes: bufferUtils.numberToBufferPacked(3, 2),
+        opcode: Opcode.PUSH2,
+        consumedBytes: bufferUtils.numberToBufferPacked(4, 2),
       },
       { opcode: Opcode.JUMP, consumedBytes: undefined },
       { opcode: Opcode.JUMPDEST, consumedBytes: undefined },
