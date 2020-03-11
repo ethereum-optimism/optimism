@@ -52,7 +52,7 @@ describe('TestHandler', () => {
       const increase: number = 9999
       const setRes: string = await testHandler.handleRequest(
         Web3RpcMethods.increaseTimestamp,
-        [increase.toString()]
+        [increase]
       )
       setRes.should.equal(
         TestWeb3Handler.successString,
