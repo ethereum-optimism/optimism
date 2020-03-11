@@ -120,5 +120,17 @@ describe('TestHandler', () => {
       )
       res.should.equal(storageValue)
     })
+
+    it('should revert changes to the timestamp', async () => {
+      const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+      testRpcServer.listen()
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const startTimestamp = await httpProvider.send('evm_getTime', [])
+      const snapShotId = await httpProvider.send('evm_snapshot', [])
+      await httpProvider.send('evm_increaseTime', [9999])
+      const response2 = await httpProvider.send('evm_revert', [snapShotId])
+      const timestamp = await httpProvider.send('evm_getTime', [])
+      timestamp.should.eq(startTimestamp)
+    })
   })
 })

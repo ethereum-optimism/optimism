@@ -191,12 +191,13 @@ export const hexStrToNumber = (hexString: string): number => {
 }
 
 /**
- * Parses a hex string or a base 10 number depending on what is given
+ * Parses a hex string if one is given otherwise returns the number that was
+ * given
  * @param str the String to parse
  * @returns the parsed number.
  */
-export const parseHexStringOrNumber = (str: string): number => {
-  return str.startsWith('0x') ? hexStrToNumber(str) : parseInt(str, 10)
+export const maybeParseHexString = (stringOrNumber: string | number): number => {
+  return typeof stringOrNumber === 'number' ? stringOrNumber : hexStrToNumber(stringOrNumber)
 }
 
 /**
