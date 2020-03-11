@@ -383,7 +383,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
           internalTx
         )
       } catch (e) {
-        log.info(`hello there`)
         logError(
           log,
           `Error executing transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
@@ -474,13 +473,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
     // Construct the raw transaction calldata
-    // TODO: Check nonce
-    const internalCalldata = this.generateUnsignedCallCalldata(
+    const internalCalldata = this.generateEOACallCalldata(
       this.getTimestamp(),
       0,
+      ovmTx.nonce,
       ovmTo,
       ovmTx.data,
-      ovmTx.from
+      ovmTx.v,
+      ovmTx.r,
+      ovmTx.s
     )
 
     log.debug(`EOA calldata: [${internalCalldata}]`)
