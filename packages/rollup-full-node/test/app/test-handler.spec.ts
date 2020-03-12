@@ -140,7 +140,7 @@ describe('TestHandler', () => {
       await httpProvider.send('evm_increaseTime', [1])
       const response2 = await httpProvider.send('evm_revert', [snapShotId])
       const timestamp = await httpProvider.send('evm_getTime', [])
-      // Time should be reverted to the timestamp when the snapshot is take (timestamp + 1)
+      // Time should be reverted to the timestamp when the snapshot is taken (timestamp + 1)
       castToNumber(timestamp).should.eq(castToNumber(startTimestamp) + 1)
       testRpcServer.close()
     })
