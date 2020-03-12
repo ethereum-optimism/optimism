@@ -5,4 +5,3 @@ RUN chmod +x /bin/entrypoint.sh
 
 EXPOSE 8545
 ENTRYPOINT ["sh", "/bin/entrypoint.sh"]
-# ENTRYPOINT []
