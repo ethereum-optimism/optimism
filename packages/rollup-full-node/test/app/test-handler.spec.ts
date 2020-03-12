@@ -119,6 +119,7 @@ describe('TestHandler', () => {
         storageKey
       )
       res.should.equal(storageValue)
+      testRpcServer.close()
     })
 
     it('should revert changes to the timestamp', async () => {
@@ -136,6 +137,7 @@ describe('TestHandler', () => {
       const timestamp = await httpProvider.send('evm_getTime', [])
       // Time should be reverted to the timestamp when the snapshot is take (timestamp + 1)
       maybeParseHexString(timestamp).should.eq(maybeParseHexString(startTimestamp) + 1)
+      testRpcServer.close()
     })
   })
 })
