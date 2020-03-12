@@ -1,6 +1,6 @@
 import '../setup'
 /* External Imports */
-import { add0x, getLogger, remove0x } from '@eth-optimism/core-utils'
+import { add0x, getLogger, remove0x, maybeParseHexString } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -126,11 +126,16 @@ describe('TestHandler', () => {
       testRpcServer.listen()
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const startTimestamp = await httpProvider.send('evm_getTime', [])
+      // Increase timestamp by 1 second
+      await httpProvider.send('evm_increaseTime', [1])
+      // Take a snapshot at timestamp + 1
       const snapShotId = await httpProvider.send('evm_snapshot', [])
-      await httpProvider.send('evm_increaseTime', [9999])
+      // Increase timestamp by 1 second again
+      await httpProvider.send('evm_increaseTime', [1])
       const response2 = await httpProvider.send('evm_revert', [snapShotId])
       const timestamp = await httpProvider.send('evm_getTime', [])
-      timestamp.should.eq(startTimestamp)
+      // Time should be reverted to the timestamp when the snapshot is take (timestamp + 1)
+      maybeParseHexString(timestamp).should.eq(maybeParseHexString(startTimestamp) + 1)
     })
   })
 })

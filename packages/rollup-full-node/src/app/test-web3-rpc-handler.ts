@@ -20,6 +20,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
   public static readonly successString = 'success'
 
   private timestampIncreaseSeconds: number = 0
+  private timestampIncreaseSnapshots: Object = {}
 
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -109,7 +110,9 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The snapshot id that can be used as an parameter of the revert endpoint
    */
   private async snapshot(): Promise<string> {
-    return this.provider.send(Web3RpcMethods.snapshot, [])
+    const snapShotId  = await this.provider.send(Web3RpcMethods.snapshot, [])
+    this.timestampIncreaseSnapshots[snapShotId] = this.timestampIncreaseSeconds
+    return snapShotId
   }
 
   /**
@@ -117,7 +120,8 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @param The snapshot id of the snapshot to restore
    */
   private async revert(snapShotId: string): Promise<string> {
-    this.timestampIncreaseSeconds = 0
-    return this.provider.send(Web3RpcMethods.revert, [snapShotId])
+    const response = this.provider.send(Web3RpcMethods.revert, [snapShotId])
+    this.timestampIncreaseSeconds = this.timestampIncreaseSnapshots[snapShotId]
+    return response
   }
 }
