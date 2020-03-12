@@ -1,3 +1,3 @@
-const fullnode = require("../build/src/exec/fullnode")
+const fullnode = require("../build/rollup-full-node/src/exec/fullnode")
 
 fullnode.runFullnode()
