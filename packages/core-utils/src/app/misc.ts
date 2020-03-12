@@ -196,7 +196,7 @@ export const hexStrToNumber = (hexString: string): number => {
  * @param str the String to parse
  * @returns the parsed number.
  */
-export const maybeParseHexString = (
+export const castToNumber = (
   stringOrNumber: string | number
 ): number => {
   return typeof stringOrNumber === 'number'
