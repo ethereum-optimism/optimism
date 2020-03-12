@@ -44,3 +44,8 @@ variable "allow_ssh" {
   description = "Boolean indicating if SSH access to VPN instance is configured"
   default     = false
 }
+
+variable "lockdown_egress" {
+  description = "Boolean indicating if egress network access is lockdown to only Datadog IPs"
+  default     = false
+}

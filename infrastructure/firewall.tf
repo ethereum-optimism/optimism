@@ -10,8 +10,11 @@ data "datadog_ip_ranges" "ips" {}
  * Egrees rule that allows traffic to be directed to Datadog's network
  */
 resource "google_compute_firewall" "datadog_logs_egress" {
-  name    = "datadog-log-egress"
-  network = google_compute_network.vpc.name
+  count     = var.lockdown_egress ? 1 : 0
+  name      = "datadog-log-egress"
+  network   = google_compute_network.vpc.name
+  direction = "EGRESS"
+  priority  = "64000"
 
   # Allowed ports are configured for Datadog following requirements specified here: 
   # https://docs.datadoghq.com/agent/guide/network/?tab=agentv6v7
@@ -33,12 +36,15 @@ resource "google_compute_firewall" "datadog_logs_egress" {
     ]
   }
 
-  source_ranges = data.datadog_ip_ranges.ips.logs_ipv4
+  destination_ranges = data.datadog_ip_ranges.ips.logs_ipv4
 }
 
 resource "google_compute_firewall" "datadog_agent_1_egress" {
-  name    = "datadog-agent-1-egress"
-  network = google_compute_network.vpc.name
+  count     = var.lockdown_egress ? 1 : 0
+  name      = "datadog-agent-1-egress"
+  network   = google_compute_network.vpc.name
+  direction = "EGRESS"
+  priority  = "64100"
 
   # Allowed ports are configured for Datadog following requirements specified here: 
   # https://docs.datadoghq.com/agent/guide/network/?tab=agentv6v7
@@ -60,12 +66,15 @@ resource "google_compute_firewall" "datadog_agent_1_egress" {
     ]
   }
 
-  source_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 0)
+  destination_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 0)
 }
 
 resource "google_compute_firewall" "datadog_agent_2_egress" {
-  name    = "datadog-agent-2-egress"
-  network = google_compute_network.vpc.name
+  count     = var.lockdown_egress ? 1 : 0
+  name      = "datadog-agent-2-egress"
+  network   = google_compute_network.vpc.name
+  direction = "EGRESS"
+  priority  = "64200"
 
   # Allowed ports are configured for Datadog following requirements specified here: 
   # https://docs.datadoghq.com/agent/guide/network/?tab=agentv6v7
@@ -87,7 +96,7 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
     ]
   }
 
-  source_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 1)
+  destination_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 1)
 }
 
 /*
@@ -97,6 +106,8 @@ resource "google_compute_firewall" "omisego_vpc_access" {
   name        = "omisego-vpc-access"
   network     = google_compute_network.vpc.name
   description = "Allows access from Omisego VPC"
+  direction   = "INGRESS"
+  priority    = "1000"
 
   # ICMP is allow in order to test connectivity between networks using ping
   allow {
@@ -119,8 +130,10 @@ resource "google_compute_firewall" "omisego_vpc_access" {
  * https://www.terraform.io/docs/providers/google/r/compute_firewall.html
  */
 resource "google_compute_firewall" "ssh_iap" {
-  name    = "ssh-iap-access"
-  network = google_compute_network.vpc.name
+  name      = "ssh-iap-access"
+  network   = google_compute_network.vpc.name
+  direction = "INGRESS"
+  priority  = "1100"
 
   source_ranges = ["35.235.240.0/20"]
 
@@ -137,8 +150,10 @@ resource "google_compute_firewall" "ssh_iap" {
  */
 
 resource "google_compute_firewall" "vpn_internet" {
-  name    = "vpn-internet"
-  network = google_compute_network.vpc.name
+  name      = "vpn-internet"
+  network   = google_compute_network.vpc.name
+  direction = "INGRESS"
+  priority  = "1200"
 
   source_ranges = ["0.0.0.0/0"]
 
@@ -151,8 +166,10 @@ resource "google_compute_firewall" "vpn_internet" {
 }
 
 resource "google_compute_firewall" "vpn_outbound" {
-  name    = "vpn-access"
-  network = google_compute_network.vpc.name
+  name      = "vpn-access"
+  network   = google_compute_network.vpc.name
+  direction = "INGRESS"
+  priority  = "1300"
 
   allow {
     protocol = "udp"
