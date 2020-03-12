@@ -1,6 +1,11 @@
 import '../setup'
 /* External Imports */
-import { add0x, getLogger, remove0x, castToNumber } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  remove0x,
+  castToNumber,
+} from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 
 /* Internal Imports */

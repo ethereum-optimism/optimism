@@ -110,7 +110,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The snapshot id that can be used as an parameter of the revert endpoint
    */
   private async snapshot(): Promise<string> {
-    const snapShotId  = await this.provider.send(Web3RpcMethods.snapshot, [])
+    const snapShotId = await this.provider.send(Web3RpcMethods.snapshot, [])
     this.timestampIncreaseSnapshots[snapShotId] = this.timestampIncreaseSeconds
     return snapShotId
   }
