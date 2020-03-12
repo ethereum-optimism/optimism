@@ -12,20 +12,28 @@ import * as OriginGetter from '../contracts/build/transpiled/OriginGetter.json'
 import * as CallerReturner from '../contracts/build/transpiled/CallerReturner.json'
 import * as TimeGetter from '../contracts/build/transpiled/TimeGetter.json'
 
-import { createMockProvider, getWallets, deployContract } from '../../'
+import {
+  createMockProvider,
+  createProviderForHandler,
+  getWallets,
+  deployContract,
+  TestWeb3Handler,
+} from '../../'
 
 describe(`Various opcodes should be usable in combination with transpiler and full node`, () => {
+  let handler: TestWeb3Handler
   let provider
   let wallet
 
   beforeEach(async () => {
-    provider = await createMockProvider()
+    handler = await TestWeb3Handler.create()
+    provider = createProviderForHandler(handler)
     const wallets = getWallets(provider)
     wallet = wallets[0]
   })
 
   afterEach(() => {
-    provider.closeOVM()
+    // provider.closeOVM()
   })
 
   // TEST BASIC FUNCTIONALITIES
@@ -51,11 +59,11 @@ describe(`Various opcodes should be usable in combination with transpiler and fu
     const returnedAddress: Address = await selfAware.getMyAddress()
     deployedAddress.should.equal(returnedAddress)
   })
-  it.skip('should work for block.timestamp', async () => {
-    // todo, once we handle timestamps, unskip this test
+  it('should work for block.timestamp', async () => {
     const timeGetter = await deployContract(wallet, TimeGetter, [], [])
-    const time = await timeGetter.getTimestamp()
-    time._hex.should.equal('???')
+    const handlerTime = await handler.handleRequest(`evm_getTime`, [])
+    const contractTime = await timeGetter.getTimestamp()
+    contractTime._hex.should.equal(handlerTime)
   })
   it('should work for msg.sender', async () => {
     const callerReturner = await deployContract(wallet, CallerReturner, [], [])
