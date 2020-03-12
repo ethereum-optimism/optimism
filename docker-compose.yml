@@ -11,8 +11,6 @@ services:
     build:
       context: packages/rollup-full-node
       dockerfile: Dockerfile
-    environment:
-      ENV_NAME: dev
     ports:
       - 8545:8545
   geth:
