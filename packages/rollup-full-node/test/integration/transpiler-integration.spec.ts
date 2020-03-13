@@ -32,10 +32,6 @@ describe(`Various opcodes should be usable in combination with transpiler and fu
     wallet = wallets[0]
   })
 
-  afterEach(() => {
-    // provider.closeOVM()
-  })
-
   // TEST BASIC FUNCTIONALITIES
 
   it('should process cross-ovm-contract calls', async () => {
