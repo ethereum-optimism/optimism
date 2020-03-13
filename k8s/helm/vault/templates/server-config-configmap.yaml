@@ -1,0 +1,25 @@
+{{ template "vault.mode" . }}
+{{- if ne .mode "external" }}
+{{- if and (eq (.Values.global.enabled | toString) "true") (ne .mode "dev") -}}
+{{ if or (ne .Values.server.standalone.config "")  (ne .Values.server.ha.config "") -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "vault.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ include "vault.chart" . }}
+    app.kubernetes.io/name: {{ include "vault.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  extraconfig-from-values.hcl: |-
+    disable_mlock = true
+  {{- if eq .mode "standalone" }}
+    {{ tpl .Values.server.standalone.config . | nindent 4 | trim }}
+  {{- else if eq .mode "ha" }}
+    {{ tpl .Values.server.ha.config . | nindent 4 | trim }}
+  {{ end }}
+{{- end }}
+{{- end }}
+{{- end }}

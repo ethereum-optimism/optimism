@@ -1,0 +1,48 @@
+{{ template "vault.mode" . }}
+{{- if ne .mode "external" }}
+{{- if and (eq (.Values.server.service.enabled | toString) "true" ) (eq (.Values.global.enabled | toString) "true") }}
+# Service for Vault cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "vault.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ include "vault.chart" . }}
+    app.kubernetes.io/name: {{ include "vault.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # This must be set in addition to publishNotReadyAddresses due
+    # to an open issue where it may not work:
+    # https://github.com/kubernetes/kubernetes/issues/58662
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+{{- if .Values.server.service.annotations }}
+{{ toYaml .Values.server.service.annotations | indent 4 }}
+{{- end }}
+spec:
+  {{- if .Values.server.service.type}}
+  type: {{ .Values.server.service.type }}
+  {{- end}}
+  {{- if .Values.server.service.clusterIP }}
+  clusterIP: {{ .Values.server.service.clusterIP }}
+  {{- end }}
+  # We want the servers to become available even if they're not ready
+  # since this DNS is also used for join operations.
+  publishNotReadyAddresses: true
+  ports:
+    - name: http
+      port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.service.targetPort }}
+      {{- if and (.Values.server.service.nodePort) (eq (.Values.server.service.type | toString) "NodePort") }}
+      nodePort: {{ .Values.server.service.nodePort }}
+      {{- end }}
+    - name: internal
+      port: 8201
+      targetPort: 8201
+  selector:
+    app.kubernetes.io/name: {{ include "vault.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    component: server
+{{- end }}
+{{- end }}

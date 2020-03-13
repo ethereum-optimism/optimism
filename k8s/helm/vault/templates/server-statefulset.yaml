@@ -1,0 +1,147 @@
+{{ template "vault.mode" . }}
+{{- if ne .mode "external" }}
+{{- if and (ne .mode "") (eq (.Values.global.enabled | toString) "true") }}
+# StatefulSet to run the actual vault server cluster.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ template "vault.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "vault.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  serviceName: {{ template "vault.fullname" . }}
+  podManagementPolicy: Parallel
+  replicas: {{ template "vault.replicas" . }}
+  updateStrategy:
+    type: {{ .Values.server.updateStrategyType }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "vault.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      component: server
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: {{ template "vault.chart" . }}
+        app.kubernetes.io/name: {{ template "vault.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        component: server
+        {{- if  .Values.server.extraLabels -}}
+          {{- toYaml .Values.server.extraLabels | nindent 8 -}}
+        {{- end -}}
+      {{ template "vault.annotations" . }}
+    spec:
+      {{ template "vault.affinity" . }}
+      {{ template "vault.tolerations" . }}
+      {{ template "vault.nodeselector" . }}
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: {{ template "vault.fullname" . }}
+      {{ if  .Values.server.shareProcessNamespace }}
+      shareProcessNamespace: true
+      {{ end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsGroup: {{ .Values.server.gid | default 1000 }}
+        runAsUser: {{ .Values.server.uid | default 100 }}
+        fsGroup: {{ .Values.server.gid | default 1000 }}
+      volumes:
+        {{ template "vault.volumes" . }}
+      containers:
+        - name: vault
+          {{ template "vault.resources" . }}
+          securityContext:
+            capabilities:
+              add: ["IPC_LOCK"]
+          image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default "latest" }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command: {{ template "vault.command" . }}
+          args: {{ template "vault.args" . }}
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VAULT_ADDR
+              value: "{{ include "vault.scheme" . }}://127.0.0.1:8200"
+            - name: VAULT_API_ADDR
+              value: "{{ include "vault.scheme" . }}://$(POD_IP):8200"
+            - name: SKIP_CHOWN
+              value: "true"
+            - name: SKIP_SETCAP
+              value: "true"
+            {{ template "vault.envs" . }}
+            {{- include "vault.extraEnvironmentVars" .Values.server | nindent 12 }}
+            {{- include "vault.extraSecretEnvironmentVars" .Values.server | nindent 12 }}
+          volumeMounts:
+          {{ template "vault.mounts" . }}
+          ports:
+            - containerPort: 8200
+              name: http
+            - containerPort: 8201
+              name: internal
+            - containerPort: 8202
+              name: replication
+          {{- if .Values.server.readinessProbe.enabled }}
+          readinessProbe:
+            {{- if .Values.server.readinessProbe.path }}
+            httpGet:
+              path: {{ .Values.server.readinessProbe.path | quote }}
+              port: 8200
+              scheme: {{ include "vault.scheme" . | upper }}
+            {{- else }}
+            # Check status; unsealed vault servers return 0
+            # The exit code reflects the seal status:
+            #   0 - unsealed
+            #   1 - error
+            #   2 - sealed
+            exec:
+              command: ["/bin/sh", "-ec", "vault status -tls-skip-verify"]
+            {{- end }}
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+          {{- end }}
+          {{- if .Values.server.livenessProbe.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.server.livenessProbe.path | quote }}
+              port: 8200
+              scheme: {{ include "vault.scheme" . | upper }}
+            initialDelaySeconds: {{ .Values.server.livenessProbe.initialDelaySeconds }}
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+          {{- end }}
+          lifecycle:
+            # Vault container doesn't receive SIGTERM from Kubernetes
+            # and after the grace period ends, Kube sends SIGKILL.  This
+            # causes issues with graceful shutdowns such as deregistering itself
+            # from Consul (zombie services).
+            preStop:
+              exec:
+                command: [
+                  "/bin/sh", "-c",
+                  # Adding a sleep here to give the pod eviction a
+                  # chance to propagate, so requests will not be made
+                  # to this pod while it's terminating
+                  "sleep {{ .Values.server.preStopSleepSeconds }} && kill -SIGTERM $(pidof vault)",
+                ]
+        {{- if .Values.server.extraContainers }}
+          {{ toYaml .Values.server.extraContainers | nindent 8}}
+        {{- end }}
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      {{- end }}
+  {{ template "vault.volumeclaims" . }}
+{{ end }}
+{{ end }}
