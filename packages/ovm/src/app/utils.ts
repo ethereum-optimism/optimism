@@ -121,7 +121,10 @@ export const getOvmTransactionMetadata = (
 
   if (!ovmTxSucceeded) {
     try {
-      if (!revertEvents[0].values['_revertMessage'] || revertEvents[0].values['_revertMessage'].length <= 2) {
+      if (
+        !revertEvents[0].values['_revertMessage'] ||
+        revertEvents[0].values['_revertMessage'].length <= 2
+      ) {
         metadata.revertMessage = revertMessagePrefix
       } else {
         const msgBuf: any = abi.decode(
