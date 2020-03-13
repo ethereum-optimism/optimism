@@ -52,7 +52,9 @@ contract ExecutionManager is FullStateManager {
         bytes32 _slot,
         bytes32 _value
     );
-    event EOACallRevert();
+    event EOACallRevert(
+        bytes _revertMessage
+    );
 
     /**
      * @notice Construct a new ExecutionManager with a specified purity checker & owner.
@@ -140,15 +142,15 @@ contract ExecutionManager is FullStateManager {
 
         address addr = address(this);
         assembly {
+            let success := call(gas, addr, 0, callBytes, callSize, 0, 0)
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, callSize, result, 500000)
-            let size := returndatasize
+            returndatacopy(result, 0, returndatasize)
 
             if eq(success, 0) {
-                revert(0, 0)
+                revert(result, returndatasize)
             }
 
-            return(result, size)
+            return(result, returndatasize)
         }
     }
 
@@ -251,23 +253,27 @@ contract ExecutionManager is FullStateManager {
         bool isCall = executionContext.ovmTxOrigin == ZERO_ADDRESS;
         bool success = false;
         address addr = address(this);
+        bytes memory result;
         assembly {
-            let result := mload(0x40)
-            success := call(gas, addr, 0, _callBytes, callSize, result, 500000)
-            let size := returndatasize
+            success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
+            result := mload(0x40)
+            let resultData := add(result, 0x20)
+            returndatacopy(resultData, 0, returndatasize)
 
             if eq(success, 1) {
-                return(result, size)
+                return(resultData, returndatasize)
             }
             if eq(isCall, 1) {
-                revert(result, size)
+                revert(resultData, returndatasize)
             }
+            mstore(result, returndatasize)
+            mstore(0x40, add(resultData, returndatasize))
         }
 
         if (!success) {
             // We need the tx to succeed even on failure so logs, nonce, etc. are preserved.
             // This is how we indicate that the tx "failed."
-            emit EOACallRevert();
+            emit EOACallRevert(result);
             assembly {
                 return(0,0)
             }
@@ -748,20 +754,20 @@ contract ExecutionManager is FullStateManager {
         uint returnSize;
         // make the call
         assembly {
-            returnData := mload(0x40)
-
             let success := call(
                 gas,
                 codeAddress,
                 0,
                 _callBytes,
                 callSize,
-                returnData,
-                500000
+                0,
+                0
             )
+            returnData := mload(0x40)
+            returndatacopy(returnData, 0, returndatasize)
 
             if eq(success, 0) {
-                revert(0, 0)
+                revert(returnData, returndatasize)
             }
 
             returnSize := returndatasize
@@ -818,22 +824,21 @@ contract ExecutionManager is FullStateManager {
         uint returnSize;
         // make the call
         assembly {
-            returnData := mload(0x40)
-
             let success := call(
                 gas,
                 codeAddress,
                 0,
                 _callBytes,
                 callSize,
-                returnData,
-                500000
+                0,
+                0
             )
-
+            returnData := mload(0x40)
+            returndatacopy(returnData, 0, returndatasize)
             returnSize := returndatasize
 
             if eq(success, 0) {
-                revert(0, 0)
+                revert(returnData, returndatasize)
             }
         }
 
@@ -882,20 +887,20 @@ contract ExecutionManager is FullStateManager {
 
         // make the call
         assembly {
-            let returnData := mload(0x40)
-
             let success := call(
                 gas,
                 codeAddress,
                 0,
                 _callBytes,
                 callSize,
-                returnData,
-                500000
+                0,
+                0
             )
+            let returnData := mload(0x40)
+            returndatacopy(returnData, 0, returndatasize)
 
             if eq(success, 0) {
-                revert(0, 0)
+                revert(returnData, returndatasize)
             }
 
             return(returnData, returndatasize)
