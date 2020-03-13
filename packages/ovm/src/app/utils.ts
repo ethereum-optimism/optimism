@@ -1,21 +1,27 @@
 /* External Imports */
-import { getLogger, hexStrToBuf, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import {
+  abi,
+  add0x,
+  getLogger,
+  hexStrToBuf,
+  logError,
+  remove0x,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
+import { LogDescription } from 'ethers/utils'
 import { Log, TransactionReceipt } from 'ethers/providers'
+
 /* Contract Imports */
 
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-
-/**
- * Contract Definitions!
- * Useful if you need to deploy an ExecutionManager from a different package
- */
-// Contract Imports
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
-import { LogDescription } from 'ethers/utils'
-import { OvmTransactionReceipt } from '../types/transactionReceipt'
+
+/* Internal Imports */
+import { OvmTransactionReceipt } from '../types'
+
 // Contract Exports
 export const L2ExecutionManagerContractDefinition = {
   abi: L2ExecutionManager.abi,
@@ -29,6 +35,9 @@ export const RLPEncodeContractDefinition = {
   abi: RLPEncode.abi,
   bytecode: RLPEncode.bytecode,
 }
+
+export const revertMessagePrefix: string =
+  'VM Exception while processing transaction: revert '
 
 const executionManager = new ethers.utils.Interface(ExecutionManager.interface)
 
@@ -70,7 +79,7 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
 /**
  * Gets ovm transaction metadata from an internal transaction receipt.
  *
- * @param the internal transaction receipt
+ * @param internalTxReceipt the internal transaction receipt
  * @return ovm transaction metadata
  */
 export const getOvmTransactionMetadata = (
@@ -108,10 +117,21 @@ export const getOvmTransactionMetadata = (
     ovmCreatedContractAddress,
   }
 
+  // TODO: GET THIS ABI DECODING WORKING!
+
   if (!ovmTxSucceeded) {
-    metadata.revertMessage = hexStrToBuf(
-      revertEvents[0].values['_revertMessage']
-    ).toString('utf8')
+    try {
+      const msgBuf: any = abi.decode(
+        ['bytes'],
+        // Remove the first 4 bytes of the revert message that is a sighash
+        ethers.utils.hexDataSlice(revertEvents[0].values['_revertMessage'], 4)
+      )
+      const revertMsg: string = hexStrToBuf(msgBuf[0]).toString('utf8')
+      metadata.revertMessage = `${revertMessagePrefix}${revertMsg}`
+      logger.debug(`Decoded revert message: [${metadata.revertMessage}]`)
+    } catch (e) {
+      logError(logger, `Error decoding revert event!`, e)
+    }
   }
 
   return metadata

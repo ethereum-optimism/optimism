@@ -147,7 +147,9 @@ contract ExecutionManager is FullStateManager {
             let size := returndatasize
 
             if eq(success, 0) {
-                revert(0, 0)
+                let r := mload(0x40)
+                returndatacopy(r, 0, returndatasize)
+                revert(r, returndatasize)
             }
 
             return(result, size)
@@ -766,7 +768,9 @@ contract ExecutionManager is FullStateManager {
             )
 
             if eq(success, 0) {
-                revert(0, 0)
+                let r := mload(0x40)
+                returndatacopy(r, 0, returndatasize)
+                revert(r, returndatasize)
             }
 
             returnSize := returndatasize
@@ -838,7 +842,9 @@ contract ExecutionManager is FullStateManager {
             returnSize := returndatasize
 
             if eq(success, 0) {
-                revert(0, 0)
+                let r := mload(0x40)
+                returndatacopy(r, 0, returndatasize)
+                revert(r, returndatasize)
             }
         }
 
@@ -900,7 +906,9 @@ contract ExecutionManager is FullStateManager {
             )
 
             if eq(success, 0) {
-                revert(0, 0)
+                let r := mload(0x40)
+                returndatacopy(r, 0, returndatasize)
+                revert(r, returndatasize)
             }
 
             return(returnData, returndatasize)

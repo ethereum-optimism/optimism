@@ -145,7 +145,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
         )}] is not supported by this Web3 handler!`
-        log.info(msg)
+        log.debug(msg)
         throw new UnsupportedMethodError(msg)
     }
 
@@ -275,7 +275,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     defaultBlock: string
   ): Promise<string> {
     if (defaultBlock !== 'latest') {
-      log.info(
+      log.debug(
         `No support for historical code lookups! Anything returned from this may be very wrong.`
       )
       //throw new Error('No support for historical code lookups!')
@@ -341,7 +341,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
       internalTxReceipt
     )
-    if (!!ovmTxReceipt.revertMessage && !includeRevertMessage) {
+    if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
 
@@ -412,7 +412,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         ovmTxHash,
         true
       )
-      log.info(
+      log.debug(
         `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
       )
       if (!receipt || !receipt.status) {
