@@ -117,8 +117,6 @@ export const getOvmTransactionMetadata = (
     ovmCreatedContractAddress,
   }
 
-  // TODO: GET THIS ABI DECODING WORKING!
-
   if (!ovmTxSucceeded) {
     try {
       if (
@@ -127,6 +125,7 @@ export const getOvmTransactionMetadata = (
       ) {
         metadata.revertMessage = revertMessagePrefix
       } else {
+        // decode revert message from event
         const msgBuf: any = abi.decode(
           ['bytes'],
           // Remove the first 4 bytes of the revert message that is a sighash
