@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/rollup-full-node",
-  "version": "0.0.1-alpha.19",
+  "version": "0.0.1-alpha.20",
   "description": "[Optimism] Optimistic Rollup Full Node Library",
   "main": "build/index.js",
   "files": [
@@ -36,7 +36,7 @@
   "dependencies": {
     "@eth-optimism/core-db": "^0.0.1-alpha.19",
     "@eth-optimism/core-utils": "^0.0.1-alpha.19",
-    "@eth-optimism/ovm": "^0.0.1-alpha.19",
+    "@eth-optimism/ovm": "^0.0.1-alpha.20",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.19",
     "async-lock": "^1.2.2",
     "axios": "^0.19.0",
