@@ -142,17 +142,15 @@ contract ExecutionManager is FullStateManager {
 
         address addr = address(this);
         assembly {
+            let success := call(gas, addr, 0, callBytes, callSize, 0, 0)
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, callSize, result, 500000)
-            let size := returndatasize
+            returndatacopy(result, 0, returndatasize)
 
             if eq(success, 0) {
-                let r := mload(0x40)
-                returndatacopy(r, 0, returndatasize)
-                revert(r, returndatasize)
+                revert(result, returndatasize)
             }
 
-            return(result, size)
+            return(result, returndatasize)
         }
     }
 
@@ -257,18 +255,19 @@ contract ExecutionManager is FullStateManager {
         address addr = address(this);
         bytes memory result;
         assembly {
+            success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
             result := mload(0x40)
-            success := call(gas, addr, 0, _callBytes, callSize, add(0x20, result), 500000)
-            let size := returndatasize
+            let resultData := add(result, 0x20)
+            returndatacopy(resultData, 0, returndatasize)
 
             if eq(success, 1) {
-                return(add(0x20, result), size)
+                return(resultData, returndatasize)
             }
             if eq(isCall, 1) {
-                revert(add(0x20, result), size)
+                revert(resultData, returndatasize)
             }
-            mstore(result, size)
-            mstore(0x40, add(result, add(size, 0x20)))
+            mstore(result, returndatasize)
+            mstore(0x40, add(resultData, returndatasize))
         }
 
         if (!success) {
@@ -755,22 +754,20 @@ contract ExecutionManager is FullStateManager {
         uint returnSize;
         // make the call
         assembly {
-            returnData := mload(0x40)
-
             let success := call(
                 gas,
                 codeAddress,
                 0,
                 _callBytes,
                 callSize,
-                returnData,
-                500000
+                0,
+                0
             )
+            returnData := mload(0x40)
+            returndatacopy(returnData, 0, returndatasize)
 
             if eq(success, 0) {
-                let r := mload(0x40)
-                returndatacopy(r, 0, returndatasize)
-                revert(r, returndatasize)
+                revert(returnData, returndatasize)
             }
 
             returnSize := returndatasize
@@ -827,24 +824,21 @@ contract ExecutionManager is FullStateManager {
         uint returnSize;
         // make the call
         assembly {
-            returnData := mload(0x40)
-
             let success := call(
                 gas,
                 codeAddress,
                 0,
                 _callBytes,
                 callSize,
-                returnData,
-                500000
+                0,
+                0
             )
-
+            returnData := mload(0x40)
+            returndatacopy(returnData, 0, returndatasize)
             returnSize := returndatasize
 
             if eq(success, 0) {
-                let r := mload(0x40)
-                returndatacopy(r, 0, returndatasize)
-                revert(r, returndatasize)
+                revert(returnData, returndatasize)
             }
         }
 
@@ -893,22 +887,20 @@ contract ExecutionManager is FullStateManager {
 
         // make the call
         assembly {
-            let returnData := mload(0x40)
-
             let success := call(
                 gas,
                 codeAddress,
                 0,
                 _callBytes,
                 callSize,
-                returnData,
-                500000
+                0,
+                0
             )
+            let returnData := mload(0x40)
+            returndatacopy(returnData, 0, returndatasize)
 
             if eq(success, 0) {
-                let r := mload(0x40)
-                returndatacopy(r, 0, returndatasize)
-                revert(r, returndatasize)
+                revert(returnData, returndatasize)
             }
 
             return(returnData, returndatasize)

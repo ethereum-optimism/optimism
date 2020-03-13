@@ -121,14 +121,18 @@ export const getOvmTransactionMetadata = (
 
   if (!ovmTxSucceeded) {
     try {
-      const msgBuf: any = abi.decode(
-        ['bytes'],
-        // Remove the first 4 bytes of the revert message that is a sighash
-        ethers.utils.hexDataSlice(revertEvents[0].values['_revertMessage'], 4)
-      )
-      const revertMsg: string = hexStrToBuf(msgBuf[0]).toString('utf8')
-      metadata.revertMessage = `${revertMessagePrefix}${revertMsg}`
-      logger.debug(`Decoded revert message: [${metadata.revertMessage}]`)
+      if (!revertEvents[0].values['_revertMessage'] || revertEvents[0].values['_revertMessage'].length <= 2) {
+        metadata.revertMessage = revertMessagePrefix
+      } else {
+        const msgBuf: any = abi.decode(
+          ['bytes'],
+          // Remove the first 4 bytes of the revert message that is a sighash
+          ethers.utils.hexDataSlice(revertEvents[0].values['_revertMessage'], 4)
+        )
+        const revertMsg: string = hexStrToBuf(msgBuf[0]).toString('utf8')
+        metadata.revertMessage = `${revertMessagePrefix}${revertMsg}`
+        logger.debug(`Decoded revert message: [${metadata.revertMessage}]`)
+      }
     } catch (e) {
       logError(logger, `Error decoding revert event!`, e)
     }
