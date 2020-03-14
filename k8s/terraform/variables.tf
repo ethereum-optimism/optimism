@@ -39,3 +39,8 @@ variable "vault_addr" {
   default     = "https://localhost:8200"
   description = "The address to the Vault server for the provider to utilize"
 }
+
+variable "unsealer_vault_addr" {
+  type        = string
+  description = "The address to the Unsealer Vault server"
+}
