@@ -1,7 +1,6 @@
 Example of a Consul config for AWS
 
 ```json
-
 {
     "bootstrap_expect": 5,
     "server": true,
@@ -24,7 +23,5 @@ Example of a Consul config for AWS
         "allow_stale": true
     },
     "enable_local_script_checks": true
-
 }
-
 ```

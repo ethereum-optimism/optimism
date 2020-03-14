@@ -1,3 +1,24 @@
+provider "vault" {
+  address = var.vault_addr
+}
+
+data "vault_generic_secret" "consul_gossip_key" {
+  path = "kv/consul_gossip_key"
+}
+
+data "vault_generic_secret" "unseal_token" {
+  path = "kv/unseal_token"
+}
+
+resource "vault_generic_secret" "consul_bootstrap_token" {
+  path      = "kv/${var.k8s_consul_bootstrap_acl_token_secret_name}"
+  data_json = jsonencode({ "value" = data.kubernetes_secret.bootstrap_acl_token.data.token })
+
+  provisioner "local-exec" {
+    command = "kubectl delete secret ${var.k8s_consul_bootstrap_acl_token_secret_name}"
+  }
+}
+
 # Install the Vault Helm chart with value overrides
 # Depends on the Consul helm chart being install
 # prior to installing the Vault chart
@@ -9,11 +30,10 @@ resource "helm_release" "vault" {
 
   cleanup_on_fail = true
 
-  # FIXME:
-  # set {
-  #   name  = "global.tlsDisabled"
-  #   value = false
-  # }
+  set {
+    name  = "global.tlsDisabled"
+    value = false
+  }
 
   set {
     name  = "injector.enabled"

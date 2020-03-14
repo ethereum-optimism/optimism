@@ -10,11 +10,18 @@ variable "k8s_context_cluster" {
   description = "Name of the context from the Kubernetes configuration file for the cluster to target"
 }
 
+variable "k8s_consul_bootstrap_acl_token_secret_name" {
+  type        = string
+  default     = "consul-backend-consul-bootstrap-acl-token"
+  description = "The name of the Kubernetes secret for storing the bootstrap ACL token"
+}
+
 variable "consul_gossip_key_name" {
   type        = string
   default     = "consul-gossip-encryption-key"
   description = "The name of the secret in Kubernetes to store the Consul gossip key"
 }
+
 
 variable "consul_datacenter" {
   type        = string

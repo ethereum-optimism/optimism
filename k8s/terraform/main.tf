@@ -14,18 +14,6 @@ provider "helm" {
   }
 }
 
-provider "vault" {
-  address = var.vault_addr
-}
-
-data "vault_generic_secret" "consul_gossip_key" {
-  path = "kv/consul_gossip_key"
-}
-
-data "vault_generic_secret" "unseal_token" {
-  path = "kv/unseal_token"
-}
-
 data "kubernetes_secret" "bootstrap_acl_token" {
   depends_on = [helm_release.consul_base]
   metadata {
@@ -40,7 +28,7 @@ resource "kubernetes_secret" "consul_gossip_key" {
   }
 
   data = {
-    key = "${data.vault_generic_secret.consul_gossip_key.data["value"]}"
+    key = data.vault_generic_secret.consul_gossip_key.data["value"]
   }
 
   type = "generic"

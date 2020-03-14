@@ -85,8 +85,4 @@ resource "helm_release" "consul_base" {
     name  = "consul.client.enabled"
     value = true
   }
-
-  provisioner "local-exec" {
-    command = "kubectl delete pods,jobs.batch -l component=consul-vault-acl-init"
-  }
 }
