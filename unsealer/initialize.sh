@@ -20,8 +20,8 @@ set -e
 #   initialize.sh "keybase:kasima" "keybase:kasima,keybase:jake,keybase:bob,keybase:alice,keybase:eve"
 #
 
-KEY_SHARES=3
-KEY_THRESHOLD=2
+KEY_SHARES=5
+KEY_THRESHOLD=3
 
 VAULT_DIR=$HOME/etc/vault.unsealer
 
@@ -133,6 +133,7 @@ subjectAltName       = @alt_names
 [alt_names]
 IP.1  = 127.0.0.1
 IP.2  = 10.8.0.2
+IP.3  = 192.168.64.1
 DNS.1 = localhost
 EOF
 
