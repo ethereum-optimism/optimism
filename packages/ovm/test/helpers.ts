@@ -73,7 +73,8 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     executionManager,
     wallet,
     undefined,
-    initCode
+    initCode,
+    false
   )
 
   return internalTxReceiptToOvmTxReceipt(receipt)
@@ -103,7 +104,8 @@ export const executeUnsignedEOACall = async (
   executionManager: Contract,
   wallet: Wallet,
   to: Address,
-  data: string
+  data: string,
+  allowRevert: boolean
 ): Promise<TransactionReceipt> => {
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
@@ -119,7 +121,8 @@ export const executeUnsignedEOACall = async (
     0,
     ovmTo,
     data,
-    wallet.address
+    wallet.address,
+    allowRevert
   )
   // Return the parsed transaction values
   return executionManager.provider.waitForTransaction(tx.hash)
