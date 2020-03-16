@@ -7,6 +7,7 @@ import {
   ExpressHttpServer,
   Logger,
   JsonRpcRequest,
+  JsonRpcErrorResponse,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -68,7 +69,12 @@ export class FullnodeRpcServer extends ExpressHttpServer {
       } catch (err) {
         if (err instanceof RevertError) {
           log.debug(`Request reverted. Request: ${JSON.stringify(request)}`)
-          return res.json(buildJsonRpcError('REVERT_ERROR', request.id))
+          const errorResponse: JsonRpcErrorResponse = buildJsonRpcError(
+            'REVERT_ERROR',
+            request.id
+          )
+          errorResponse.error.message = err.message
+          return res.json(errorResponse)
         }
         if (err instanceof UnsupportedMethodError) {
           log.debug(

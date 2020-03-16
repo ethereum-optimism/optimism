@@ -10,7 +10,9 @@ import {
 import {
   bufferUtils,
   bufToHexString,
+  getLogger,
   hexStrToBuf,
+  Logger,
   remove0x,
 } from '@eth-optimism/core-utils'
 import * as abi from 'ethereumjs-abi'
@@ -29,6 +31,8 @@ import {
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
 
+const log: Logger = getLogger('helpers')
+
 export const emptyBuffer: Buffer = Buffer.from('', 'hex')
 export const stateManagerAddress: Address =
   '0x0000000000000000000000000000000000000000'
@@ -36,6 +40,7 @@ export const invalidOpcode: Buffer = Buffer.from('5d', 'hex')
 
 export const whitelistedOpcodes: EVMOpcode[] = [
   Opcode.PUSH1,
+  Opcode.PUSH2,
   Opcode.PUSH4,
   Opcode.PUSH29,
   Opcode.PUSH32,
@@ -482,6 +487,10 @@ export const transpileAndDeployInitcode = async (
     remove0x(abiCoder.encode(constructorParamsEncoding, constructorParams)),
     'hex'
   )
+  log.debug(
+    `deploying contract with bytecode: ${transpiledInitcode.toString('hex')}`
+  )
+
   const deployedViaInitcode = await evmUtil.deployContract(
     transpiledInitcode,
     encodedConstructorParams

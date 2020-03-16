@@ -1,0 +1,23 @@
+version: "3"
+networks:
+  api_server_default:
+    external: true
+services:
+  rollup-fullnode:
+    depends_on:
+      - geth
+    networks:
+      - api_server_default
+    build:
+      context: packages/rollup-full-node
+      dockerfile: Dockerfile
+    ports:
+      - 8545:8545
+  geth:
+    volumes:
+       - geth-data:/root/.ethereum
+    build:
+      context: docker/geth
+      dockerfile: Dockerfile
+volumes:
+  geth-data:

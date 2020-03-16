@@ -1,5 +1,5 @@
 /* External Imports */
-import { add0x, getLogger, remove0x } from '@eth-optimism/core-utils'
+import { add0x, getLogger, castToNumber } from '@eth-optimism/core-utils'
 import { OPCODE_WHITELIST_MASK } from '@eth-optimism/ovm'
 
 import { createMockProvider, getWallets } from 'ethereum-waffle'
@@ -20,6 +20,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
   public static readonly successString = 'success'
 
   private timestampIncreaseSeconds: number = 0
+  private timestampIncreaseSnapshots: Object = {}
 
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -92,7 +93,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    */
   private increaseTimestamp(increaseSeconds: any): void {
     try {
-      const increaseNumber = parseInt(remove0x(increaseSeconds), 16)
+      const increaseNumber = castToNumber(increaseSeconds)
       if (increaseNumber < 0) {
         throw Error('invalid param')
       }
@@ -109,7 +110,9 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The snapshot id that can be used as an parameter of the revert endpoint
    */
   private async snapshot(): Promise<string> {
-    return this.provider.send(Web3RpcMethods.snapshot, [])
+    const snapShotId = await this.provider.send(Web3RpcMethods.snapshot, [])
+    this.timestampIncreaseSnapshots[snapShotId] = this.timestampIncreaseSeconds
+    return snapShotId
   }
 
   /**
@@ -117,6 +120,8 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @param The snapshot id of the snapshot to restore
    */
   private async revert(snapShotId: string): Promise<string> {
-    return this.provider.send(Web3RpcMethods.revert, [snapShotId])
+    const response = this.provider.send(Web3RpcMethods.revert, [snapShotId])
+    this.timestampIncreaseSeconds = this.timestampIncreaseSnapshots[snapShotId]
+    return response
   }
 }

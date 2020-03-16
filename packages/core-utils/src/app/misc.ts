@@ -191,6 +191,18 @@ export const hexStrToNumber = (hexString: string): number => {
 }
 
 /**
+ * Parses a hex string if one is given otherwise returns the number that was
+ * given
+ * @param str the String to parse
+ * @returns the parsed number.
+ */
+export const castToNumber = (stringOrNumber: string | number): number => {
+  return typeof stringOrNumber === 'number'
+    ? stringOrNumber
+    : hexStrToNumber(stringOrNumber)
+}
+
+/**
  * Converts the provided buffer into a hex string.
  * @param buff The buffer.
  * @param prepend0x Whether or not to prepend '0x' to the resulting string.
