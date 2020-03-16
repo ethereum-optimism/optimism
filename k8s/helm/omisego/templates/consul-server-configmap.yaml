@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-consul-server-config
+  namespace: {{ .Release.Namespace }}
+data:
+  tls.json: |
+    {
+      {{- if .Values.global.tlsEnabled }}
+      "ca_file": "/consul/tls/ca.crt",
+      "cert_file": "/consul/tls/consul.crt",
+      "key_file": "/consul/tls/consul.key",
+      "verify_incoming": true,
+      "verify_outgoing": true,
+      "verify_server_hostname": true,
+      {{- end }}
+      "ports": {
+        {{- if .Values.global.tlsEnabled }}
+        "https": 8501,
+        {{- end }}
+        "http": 8500
+      },
+      "primary_datacenter":"{{ .Values.consul.datacenter }}",
+      "acl": {
+          "enabled": true,
+          "default_policy": "allow",
+          "down_policy": "extend-cache"
+      }
+    }
+  vault.hcl: |
+    service "vault" {
+      policy = "write"
+    }
+
+    key_prefix "vault/" {
+      policy = "write"
+    }
+
+    agent_prefix "" {
+      policy = "write"
+    }
+
+    node_prefix "" {
+      policy = "write"
+    }
+
+    session_prefix "" {
+      policy = "write"
+    }

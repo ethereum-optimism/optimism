@@ -32,7 +32,7 @@ resource "helm_release" "vault" {
 
   set {
     name  = "global.tlsDisabled"
-    value = false
+    value = true # FIXME:
   }
 
   set {
@@ -87,6 +87,8 @@ resource "helm_release" "vault" {
     name  = "server.ha.config"
     value = <<EOF
       storage "consul" {
+        scheme = "https"
+        tls_ca_file = "/vault/tls/consul-ca.crt"
         address = "127.0.0.1:8500"
         path    = "vault/"
         advertise_addr =  "https://10.1.2.3:8200"
@@ -96,15 +98,16 @@ resource "helm_release" "vault" {
       api_addr =  "https://10.1.2.3:8200"
 
       listener "tcp" {
+        tls_disable = 1
         address     = "https://10.1.2.3:8200"
-        tls_cert_file = "/home/immutability/vault.crt"
-        tls_client_ca_file = "/home/immutability/root.crt"
-        tls_key_file = "/home/immutability/vault.key"
+        # tls_cert_file = "/home/immutability/vault.crt"
+        # tls_client_ca_file = "/home/immutability/root.crt"
+        # tls_key_file = "/home/immutability/vault.key"
       }
 
       seal "transit" {
         address = "https://10.8.0.2:8200"
-        token = "s.CvWxYRt6QRd8QRbGrBr5eTup"
+        token = "${var.unsealer_vault_token}"
         tls_ca_cert = "/home/immutability/root.crt"
         disable_renewal = "true"
         key_name = "autounseal"
