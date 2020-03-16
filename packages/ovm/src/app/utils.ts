@@ -21,7 +21,7 @@ import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
 import { OvmTransactionReceipt } from '../types'
-
+export { deployExecutionManager } from '../../deploy/execution-manager'
 // Contract Exports
 export const L2ExecutionManagerContractDefinition = {
   abi: L2ExecutionManager.abi,
@@ -36,8 +36,14 @@ export const RLPEncodeContractDefinition = {
   bytecode: RLPEncode.bytecode,
 }
 
+export const ExecutionManagerContractDefinition = {
+  abi: ExecutionManager.abi,
+  bytecode: ExecutionManager.bytecode,
+}
+
 export const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '
+
 
 const executionManager = new ethers.utils.Interface(ExecutionManager.interface)
 

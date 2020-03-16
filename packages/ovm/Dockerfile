@@ -6,4 +6,4 @@ COPY . /server
 RUN yarn
 
 EXPOSE 8545
-ENTRYPOINT ["sh", "/server/exec/entrypoint.sh"]
+ENTRYPOINT ["sh", "/server/bin/entrypoint.sh"]

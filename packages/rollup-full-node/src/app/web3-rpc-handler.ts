@@ -17,7 +17,7 @@ import {
 } from '@eth-optimism/ovm'
 
 import { Contract, ethers, utils, Wallet } from 'ethers'
-import { TransactionReceipt, Web3Provider } from 'ethers/providers'
+import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 import AsyncLock from 'async-lock'
@@ -50,7 +50,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: Web3Provider = createMockProvider({
+    provider: JsonRpcProvider = createMockProvider({
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       allowUnlimitedContractSize: true,
     })
@@ -66,7 +66,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   protected constructor(
-    protected readonly provider: Web3Provider,
+    protected readonly provider: JsonRpcProvider,
     private readonly wallet: Wallet,
     private readonly executionManager: Contract
   ) {

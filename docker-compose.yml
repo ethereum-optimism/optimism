@@ -1,5 +1,11 @@
 version: "3"
 services:
+  ovm:
+    depends_on:
+      - geth
+    build:
+      context: packages/ovm
+      dockerfile: Dockerfile
   rollup-fullnode:
     depends_on:
       - geth
