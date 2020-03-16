@@ -6,4 +6,4 @@ COPY . /server
 RUN yarn
 
 EXPOSE 8545
-CMD [ "npm", "run", "server:fullnode" ]
+CMD [ "yarn", "run", "server:fullnode" ]
