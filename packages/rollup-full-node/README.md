@@ -9,6 +9,23 @@ Run `yarn install` to install necessary dependencies.
 # Building
 Run `yarn build` to build the code. Note: `yarn all` may be used to build and run tests.
 
+## Building Docker Image
+Install [docker]()
+Run `docker build -t optimism/rollup-full-node .` to build and tag the fullnode.
+
+### Pushing Image to AWS Registry:
+Make sure the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) is installed and [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html#cli-quick-configuration)
+1) Make sure you're authenticated: 
+```aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node```
+2) Build and tag latest: 
+```docker build -t optimism/rollup-full-node .```
+3) Tag the build: 
+```optimism/rollup-full-node:latest <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest```
+4) Push tag to ECR:
+```docker push <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest```
+   
+
+
 # Testing
 Run `yarn test` to run the unit tests.
 
