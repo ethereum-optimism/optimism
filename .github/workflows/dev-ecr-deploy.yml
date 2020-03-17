@@ -48,3 +48,8 @@ jobs:
       - name: Logout of Amazon ECR
         if: always()
         run: docker logout ${{ steps.login-ecr.outputs.registry }}
+
+      - name: Stop existing dev-rollup-full-node ECS task
+        run: |
+          echo $(aws ecs list-tasks --cluster dev-rollup-full-node --service-name rollup-full-node | grep -m1 arn:) \
+          | read task_arn; aws ecs stop-task --cluster dev-rollup-full-node --task ${task_arn//\"}
