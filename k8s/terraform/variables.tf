@@ -12,13 +12,13 @@ variable "k8s_context_cluster" {
 
 variable "k8s_consul_bootstrap_acl_token_secret_name" {
   type        = string
-  default     = "consul-backend-consul-bootstrap-acl-token"
+  default     = "omisego-consul-bootstrap-acl-token"
   description = "The name of the Kubernetes secret for storing the bootstrap ACL token"
 }
 
-variable "consul_gossip_key_name" {
+variable "k8s_consul_gossip_secret_name" {
   type        = string
-  default     = "consul-gossip-encryption-key"
+  default     = "omisego-consul-gossip-encryption-key"
   description = "The name of the secret in Kubernetes to store the Consul gossip key"
 }
 
@@ -39,12 +39,6 @@ variable "consul_bootstrap_expect" {
   type        = number
   default     = 3
   description = "Number of Consul nodes to expect for bootstrapping the cluster"
-}
-
-variable "vault_addr" {
-  type        = string
-  default     = "https://localhost:8200"
-  description = "The address to the Vault server for the provider to utilize"
 }
 
 variable "unsealer_vault_addr" {

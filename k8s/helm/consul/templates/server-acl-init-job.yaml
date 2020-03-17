@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-acl-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "omisego-consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    metadata:
+      name: {{ .Chart.Name }}-acl-init
+      labels:
+        app: {{ .Chart.Name }}
+        chart: {{ template "omisego-consul.chart" . }}
+        release: {{ .Release.Name }}
+        component: acl-init
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Chart.Name }}
+      {{- if .Values.global.tlsEnabled }}
+      volumes:
+      - name: tls-ca-cert
+        secret:
+          secretName: {{ .Chart.Name }}-ca-cert
+      {{- end }}
+      containers:
+        - name: post-install-job
+          image: {{ .Values.global.imageK8S }}
+          {{- if .Values.global.tlsEnabled }}
+          volumeMounts:
+            - name: tls-ca-cert
+              mountPath: /consul/tls/ca
+              readOnly: true
+           {{- end }}
+          command:
+            - "/bin/sh"
+            - "-ec"
+            - |
+              consul-k8s server-acl-init \
+                -server-label-selector=component=server,app={{ .Chart.Name }},release={{ .Release.Name }} \
+                -resource-prefix={{ .Chart.Name }} \
+                -k8s-namespace={{ .Release.Namespace }} \
+                {{- if .Values.global.tlsEnabled }}
+                -use-https \
+                -consul-ca-cert=/consul/tls/ca/tls.crt \
+                -consul-tls-server-name=server.{{ .Values.global.datacenter }}.{{ .Values.global.domain }} \
+                {{- end }}
+                -expected-replicas={{ .Values.server.replicas }}

@@ -1,0 +1,67 @@
+apiVersion: batch/v1	
+kind: Job	
+metadata:	
+  name: {{ .Chart.Name }}-vault-acl-init
+  namespace: {{ .Release.Namespace }}	
+  labels:	
+    app: {{ .Chart.Name }}	
+    chart: {{ template "omisego-consul.chart" . }}	
+    heritage: {{ .Release.Service }}	
+    release: {{ .Release.Name }}	
+    component: vault-acl-init	
+  annotations:	
+    "helm.sh/hook": post-install	
+    "helm.sh/hook-weight": "2"	
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:	
+  template:	
+    metadata:	
+      name: {{ .Chart.Name }}-vault-acl-init	
+      labels:	
+        app: {{ .Chart.Name }}	
+        chart: {{ template "omisego-consul.chart" . }}	
+        release: {{ .Release.Name }}	
+        component: vault-acl-init
+    spec:	
+      restartPolicy: Never	
+      serviceAccountName: {{ .Chart.Name }}
+      containers:	
+        - name: post-install-job
+          image: {{ .Values.global.image }}	
+          env:
+            - name: CONSUL_SERVER_PORT	
+              value: {{ if .Values.global.tlsEnabled }}"8501"{{ else }}"8500"{{ end }}	
+            {{- if .Values.global.tlsEnabled }}	
+            - name: CONSUL_HTTP_SSL	
+              value: "true"	
+            - name: CONSUL_CACERT	
+              value: /consul/tls/ca/tls.crt	
+            {{- end }}	
+            - name: CONSUL_HTTP_TOKEN	
+              valueFrom:	
+                secretKeyRef:	
+                  name: {{ .Release.Name }}-bootstrap-acl-token	
+                  key: token	
+          command:	
+            - "/bin/sh"	
+            - "-ec"	
+            - |	
+              export CONSUL_HTTP_ADDR="{{ .Chart.Name }}-server:${CONSUL_SERVER_PORT}"	
+              consul acl policy create -name vault-service -rules @/consul/config/vault.hcl -datacenter {{ .Values.global.datacenter }}	
+              consul acl token create -description "Token for Vault" -policy-name vault-service -datacenter {{ .Values.global.datacenter }}	
+          volumeMounts:	
+            {{- if .Values.global.tlsEnabled }}
+            - name: tls-ca-cert	
+              mountPath: /consul/tls/ca	
+            {{- end }}
+            - name: server-config	
+              mountPath: /consul/config	
+      volumes:	
+        {{- if .Values.global.tlsEnabled }}
+        - name: tls-ca-cert
+          secret:
+            secretName: {{ .Release.Name }}-consul-ca-cert
+        {{- end }}
+        - name: server-config	
+          configMap:	
+            name: {{ .Chart.Name }}-server-config

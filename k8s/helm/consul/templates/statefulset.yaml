@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Chart.Name }}-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "omisego-consul.chart" . }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+    component: server
+spec:
+  serviceName: {{ .Chart.Name }}-server
+  podManagementPolicy: Parallel
+  replicas: {{ .Values.server.replicas }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+      chart: {{ template "omisego-consul.chart" . }}
+      release: {{ .Release.Name }}
+      component: server
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+        chart: {{ template "omisego-consul.chart" . }}
+        release: {{ .Release.Name }}
+        component: server
+    spec:
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: {{ .Chart.Name }}
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: consul
+          image: {{ .Values.global.image }}
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: GOSSIP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.gossipEncryption.secretName }}
+                  key: {{ .Values.global.gossipEncryption.secretKey }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- if .Values.global.tlsEnabled }}
+            - name: CONSUL_HTTP_ADDR
+              value: https://localhost:8501
+            - name: CONSUL_CACERT
+              value: /consul/tls/ca.crt
+            {{- end }}
+          command:
+            - "/bin/sh"
+            - "-ec"
+            - |
+              CONSUL_FULLNAME="{{ .Chart.Name }}-server"
+              exec /bin/consul agent \
+                -advertise="${POD_IP}" \
+                -bind=0.0.0.0 \
+                -bootstrap-expect={{ .Values.server.bootstrapExpect }} \
+                {{- range $index := until (.Values.server.replicas | int) }}
+                -retry-join=${CONSUL_FULLNAME}-{{ $index }}.${CONSUL_FULLNAME}.${NAMESPACE}.svc \
+                {{- end }}
+                -client=0.0.0.0 \
+                -config-file=/consul/userconfig/config.json \
+                -datacenter={{ .Values.global.datacenter }} \
+                -data-dir=/consul/data \
+                -domain={{ .Values.global.domain }} \
+                -encrypt="${GOSSIP_KEY}" \
+                -server \
+                -ui \
+                -disable-host-node-id
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - consul leave
+          ports:
+            {{- if not .Values.global.tlsEnabled }}
+            - containerPort: 8500
+              name: http
+            {{- else }}
+            - containerPort: 8501
+              name: https
+            {{- end }}
+            - containerPort: 8301
+              name: serflan
+            - containerPort: 8302
+              name: serfwan
+            - containerPort: 8300
+              name: server
+            - containerPort: 8600
+              name: dns-tcp
+              protocol: "TCP"
+            - containerPort: 8600
+              name: dns-udp
+              protocol: "UDP"
+          readinessProbe:
+            exec:
+              command:
+                - "/bin/sh"
+                - "-ec"
+                - |
+                  {{- if .Values.global.tlsEnabled }}
+                  curl \
+                    --cacert /consul/tls/ca.crt \
+                    https://127.0.0.1:8501/v1/status/leader \
+                  {{- else }}
+                  curl http://127.0.0.1:8500/v1/status/leader \
+                  {{- end }}
+                  2>/dev/null | grep -E '".+"'
+            failureThreshold: 2
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+          volumeMounts:
+            # FIXME:
+            # - name: data-{{ .Release.Namespace }}
+            #   mountPath: /consul/data
+            - name: config
+              mountPath: /consul/userconfig
+            {{- if .Values.global.tlsEnabled }}
+            - name: tls-certs
+              mountPath: /consul/tls
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Chart.Name }}-server-config
+        {{- if .Values.global.tlsEnabled }}
+        - name: tls-certs
+          secret:
+            secretName: {{ .Chart.Name }}-certs
+        {{- end }}

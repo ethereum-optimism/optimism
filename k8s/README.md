@@ -14,15 +14,17 @@ The Helm operations have been abstracted away through Terraform for installation
 
 ### Variables
 
-|           Name            |  Type  |            Default             |
-| :-----------------------: | :----: | :----------------------------: |
-|     `k8s_config_path`     | string |        `~/.kube/config`        |
-|   `k8s_context_cluster`   | string |           `minikube`           |
-| `consul_gossip_key_name`  | string | `consul-gossip-encryption-key` |
-|    `consul_datacenter`    | string |             `dc1`              |
-|     `consul_replicas`     | number |              `5`               |
-| `consul_bootstrap_expect` | number |              `3`               |
-|       `vault_addr`        | string |    `https://localhost:8200`    |
+|                     Name                     |  Type  |                Default                 |
+| :------------------------------------------: | :----: | :------------------------------------: |
+|              `k8s_config_path`               | string |            `~/.kube/config`            |
+|            `k8s_context_cluster`             | string |               `minikube`               |
+| `k8s_consul_bootstrap_acl_token_secret_name` | string |  `omisego-consul-bootstrap-acl-token`  |
+|       `k8s_consul_gossip_secret_name`        | string | `omisego-consul-gossip-encryption-key` |
+|             `consul_datacenter`              | string |                 `dc1`                  |
+|              `consul_replicas`               | number |                  `5`                   |
+|          `consul_bootstrap_expect`           | number |                  `3`                   |
+|            `unsealer_vault_addr`             | string |        `https://localhost:8200`        |
+|            `unsealer_vault_token`            | string |                   -                    |
 
 ### Execution
 
@@ -43,11 +45,11 @@ $ terraform apply
 
 ### Outputs
 
-* `consul_bootstrap_acl_token`: the decoded bootstrap ACL token created and stored as a Kubernetes secret
+> None
 
 
 ## Verify ACL and Snapshot
-
+TODO: Fix this section of docs
 ```sh
 $ export ACL_TOKEN="*****-****-****-*****"
 # Received from the `terraform apply` output

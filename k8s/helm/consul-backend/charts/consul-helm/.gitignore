@@ -1,6 +1,0 @@
-.DS_Store
-.terraform/
-.terraform.tfstate*
-terraform.tfstate*
-terraform.tfvars
-values.dev.yaml

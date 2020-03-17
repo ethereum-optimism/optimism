@@ -1,9 +1,0 @@
-apiVersion: v1
-name: consul
-version: 0.17.0
-description: Install and configure Consul on Kubernetes.
-home: https://www.consul.io
-sources:
-  - https://github.com/hashicorp/consul
-  - https://github.com/hashicorp/consul-helm
-  - https://github.com/hashicorp/consul-k8s
