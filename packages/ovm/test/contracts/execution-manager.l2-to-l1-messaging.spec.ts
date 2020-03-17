@@ -2,7 +2,13 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, remove0x, add0x, TestUtils, bufToHexString } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  remove0x,
+  add0x,
+  TestUtils,
+  bufToHexString,
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -34,10 +40,11 @@ const log = getLogger('l2-to-l1-messaging', true)
  * TESTS *
  *********/
 
-const hardcodedL2ToL1ContractOVMAddress = '0x0000000000000000000000000000000000000420';
+const hardcodedL2ToL1ContractOVMAddress =
+  '0x0000000000000000000000000000000000000420'
 
 describe.only('OVM L2 -> L1 message passer', () => {
-  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,}) // debug: true, logger: console })
+  const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }) // debug: true, logger: console })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
   let callContractAddress: Address
@@ -65,21 +72,20 @@ describe.only('OVM L2 -> L1 message passer', () => {
 
   it(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
     const bytesToSendToL1 = '0x123412341234deadbeef'
-    const passMessageToL1MethodId = bufToHexString(ethereumjsAbi.methodID(
-      'passMessageToL1',
-      ['bytes']
-    ))
+    const passMessageToL1MethodId = bufToHexString(
+      ethereumjsAbi.methodID('passMessageToL1', ['bytes'])
+    )
     const txData: string =
-    encodeMethodId('executeCall') +
-    encodeRawArguments([
-      0,
-      0,
-      addressToBytes32Address(callContractAddress),
-      encodeMethodId('makeCall'),
-      addressToBytes32Address(hardcodedL2ToL1ContractOVMAddress),
-      passMessageToL1MethodId,
-      abi.encode(['bytes'],[bytesToSendToL1])
-    ])
+      encodeMethodId('executeCall') +
+      encodeRawArguments([
+        0,
+        0,
+        addressToBytes32Address(callContractAddress),
+        encodeMethodId('makeCall'),
+        addressToBytes32Address(hardcodedL2ToL1ContractOVMAddress),
+        passMessageToL1MethodId,
+        abi.encode(['bytes'], [bytesToSendToL1]),
+      ])
 
     const txResult = await wallet.sendTransaction({
       to: executionManager.address,
@@ -89,18 +95,13 @@ describe.only('OVM L2 -> L1 message passer', () => {
     const receipt = await provider.getTransactionReceipt(txResult.hash)
     const txLogs = receipt.logs
 
-    const l2ToL1EventTopic = ethers.utils.id('L2ToL1Message(address,bytes)');
-    const crossChainMessageEvent = txLogs.find(
-      (log) => {
-        return log.topics.includes(l2ToL1EventTopic)
-      }
-    )
+    const l2ToL1EventTopic = ethers.utils.id('L2ToL1Message(address,bytes)')
+    const crossChainMessageEvent = txLogs.find((logged) => {
+      return logged.topics.includes(l2ToL1EventTopic)
+    })
 
     crossChainMessageEvent.data.should.equal(
-      abi.encode(
-        ['address','bytes'],
-        [callContractAddress,bytesToSendToL1]
-      )
+      abi.encode(['address', 'bytes'], [callContractAddress, bytesToSendToL1])
     )
   })
 })
