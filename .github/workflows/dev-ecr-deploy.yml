@@ -52,8 +52,8 @@ jobs:
       - name: Stop existing dev-rollup-full-node ECS task
         run: |
           echo $(aws ecs list-tasks --cluster dev-rollup-full-node --service-name rollup-full-node | grep -m1 arn:) \
-          | read dev_fullnode_task; \
-          if [ ! -z "${dev_fullnode_task}" ]; \
-          then aws ecs stop-task --cluster dev-rollup-full-node --task ${dev_fullnode_task//\"}; \
+          | read task_arn; \
+          if [ ! -z "${task_arn}" ]; \
+          then aws ecs stop-task --cluster dev-rollup-full-node --task ${task_arn//\"}; \
           fi \
-          | cat
+          | > /dev/null
