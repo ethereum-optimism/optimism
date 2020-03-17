@@ -43,7 +43,7 @@ const log = getLogger('l2-to-l1-messaging', true)
 const hardcodedL2ToL1ContractOVMAddress =
   '0x0000000000000000000000000000000000000420'
 
-describe.only('OVM L2 -> L1 message passer', () => {
+describe('OVM L2 -> L1 message passer', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }) // debug: true, logger: console })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
