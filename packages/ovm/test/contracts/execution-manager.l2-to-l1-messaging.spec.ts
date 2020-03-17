@@ -31,6 +31,7 @@ import {
 } from '../helpers'
 import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
 import { fromPairs } from 'lodash'
+import { L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app/constants'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -39,9 +40,6 @@ const log = getLogger('l2-to-l1-messaging', true)
 /*********
  * TESTS *
  *********/
-
-const hardcodedL2ToL1ContractOVMAddress =
-  '0x0000000000000000000000000000000000000420'
 
 describe('OVM L2 -> L1 message passer', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }) // debug: true, logger: console })
@@ -82,7 +80,7 @@ describe('OVM L2 -> L1 message passer', () => {
         0,
         addressToBytes32Address(callContractAddress),
         encodeMethodId('makeCall'),
-        addressToBytes32Address(hardcodedL2ToL1ContractOVMAddress),
+        addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
         passMessageToL1MethodId,
         abi.encode(['bytes'], [bytesToSendToL1]),
       ])

@@ -24,7 +24,7 @@ contract ExecutionManager is FullStateManager {
     // creator contract address
     address constant creatorContractAddress = 0x0000000000000000000000000000000000000000;
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-    address constant ovmL2ToL1MessageSenderAddress = 0x0000000000000000000000000000000000000420;
+    address constant l2ToL1MessagePasserOvmAddress = 0x0000000000000000000000000000000000000420;
 
     // Execution storage
     dt.ExecutionContext executionContext;
@@ -81,7 +81,7 @@ contract ExecutionManager is FullStateManager {
 
         // Instantiate L2 -> L1 message passer, associate appropriately
         L2ToL1MessagePasser l1ToL2MessagePasser = new L2ToL1MessagePasser(address(this));
-        associateCodeContract(ovmL2ToL1MessageSenderAddress, address(l1ToL2MessagePasser));
+        associateCodeContract(l2ToL1MessagePasserOvmAddress, address(l1ToL2MessagePasser));
 
         executionContext.gasLimit = _blockGasLimit;
         executionContext.chainId = 108;
