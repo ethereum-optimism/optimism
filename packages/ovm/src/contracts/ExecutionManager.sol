@@ -24,7 +24,7 @@ contract ExecutionManager is FullStateManager {
     // creator contract address
     address constant creatorContractAddress = 0x0000000000000000000000000000000000000000;
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-    address constant l2ToL1MessagePasserOvmAddress = 0x0000000000000000000000000000000000000420;
+    address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
 
     // Execution storage
     dt.ExecutionContext executionContext;
