@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "outDir": "./build",
+    "baseUrl": "./",
+    "resolveJsonModule": true,
+    "module": "commonjs",
+    "target": "es2017",
+    "declaration": true,
+    "noImplicitAny": false,
+    "removeComments": true,
+    "noLib": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "lib": [
+      "es7"
+    ],
+    "typeRoots": [
+      "node_modules/@types"
+    ]
+  }
+}

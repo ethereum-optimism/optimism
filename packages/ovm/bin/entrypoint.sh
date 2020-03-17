@@ -1,6 +1,6 @@
 case $1 in
   deploy_execution_manager)
-    npm run deploy:execution-manager
+    yarn run deploy:execution-manager production
     break
     ;;
   "")

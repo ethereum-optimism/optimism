@@ -1,4 +1,5 @@
 FROM ethereum/client-go
+RUN apk add --no-cache  openssl
 COPY rollup-fullnode.json /etc/
 COPY entrypoint.sh /bin
 RUN chmod +x /bin/entrypoint.sh
