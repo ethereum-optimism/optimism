@@ -4,7 +4,7 @@ on:
   push:
     branches:
       #- master
-      - dockerization
+      - dev_deploy_test
 
 jobs:
   build:
@@ -15,6 +15,14 @@ jobs:
       - uses: actions/checkout@v2
       - name: Setup node
         uses: actions/setup-node@v1
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Build
+        run: |
+          yarn clean
+          yarn build
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -33,6 +41,7 @@ jobs:
           ECR_REPOSITORY: optimism/rollup-full-node
           IMAGE_TAG: latest
         run: |
+          cd packages/rollup-full-node
           docker build -t optimism/rollup-full-node .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
