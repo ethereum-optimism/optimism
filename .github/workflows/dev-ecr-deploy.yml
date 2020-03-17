@@ -4,7 +4,7 @@ on:
   push:
     branches:
       #- master
-      - dev_deploy_test
+      - dockerization
 
 jobs:
   build:
