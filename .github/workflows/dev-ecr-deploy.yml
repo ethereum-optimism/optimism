@@ -3,8 +3,7 @@ name: Build & Tag Container, Push to ECR, Deploy to Dev
 on:
   push:
     branches:
-      #- master
-      - dockerization
+      - master
 
 jobs:
   build:
