@@ -21,9 +21,7 @@ jobs:
 
       - name: Stop existing dev-rollup-full-node ECS task
         run: |
-          echo $(aws ecs list-tasks --cluster dev-rollup-full-node --service-name rollup-full-node | grep -m1 arn:) \
-          | read task_arn; \
-          echo "Arn: [$task_arn]"
+          echo $(aws ecs list-tasks --cluster dev-rollup-full-node --service-name rollup-full-node)
 
 #      - uses: actions/checkout@v2
 #      - name: Setup node
