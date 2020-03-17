@@ -1,0 +1,41 @@
+{
+  "name": "@eth-optimism-test/integration-test-utils",
+  "version": "0.0.1-alpha.21",
+  "description": "Shared utils for the integration tests for the OVM",
+  "main": "index.js",
+  "scripts": {
+    "clean": "rimraf build",
+    "build": "tsc -p .",
+    "all": "yarn clean"
+  },
+  "keywords": [
+    "optimism",
+    "rollup",
+    "optimistic",
+    "ethereum",
+    "virtual",
+    "machine",
+    "OVM",
+    "test",
+    "integration",
+    "utils"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/ovm-integration-tests/utils#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/ovm-integration-tests/utils.git"
+  },
+  "dependencies": {
+    "rimraf": "^2.6.3",
+    "ts-node": "^8.2.0",
+    "typescript": "^3.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^11.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
