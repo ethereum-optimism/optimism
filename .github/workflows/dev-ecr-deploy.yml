@@ -25,7 +25,7 @@ jobs:
 
       - name: Stop existing dev-rollup-full-node ECS task
         run: |
-          ./docker/stop-dev-rollup-node.sh
+          ./docker/stop-dev-rollup-fullnode.sh
 
 #      - uses: actions/checkout@v2
 #      - name: Setup node
