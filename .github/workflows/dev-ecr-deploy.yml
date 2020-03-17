@@ -47,7 +47,6 @@ jobs:
 
       - name: Stop existing dev-rollup-full-node ECS task
         run: |
-          cd ../..
           ./.github/scripts/stop-dev-rollup-fullnode.sh
 
       - name: Logout of Amazon ECR
