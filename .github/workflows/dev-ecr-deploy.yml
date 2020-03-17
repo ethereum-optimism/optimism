@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v1
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -21,14 +25,7 @@ jobs:
 
       - name: Stop existing dev-rollup-full-node ECS task
         run: |
-          echo $(aws ecs list-tasks --cluster dev-rollup-full-node --service-name rollup-full-node) | \
-          awk -F\[ '{print $2}' |\
-          awk -F\" '{print $2}' |\
-          read task_arn; \
-          if [ ! -z "${task_arn}" ]; \
-          then aws ecs stop-task --cluster dev-rollup-full-node --task ${task_arn//\"}; \
-          fi |\
-          > /dev/null
+          ./docker/stop-dev-rollup-node.sh
 
 #      - uses: actions/checkout@v2
 #      - name: Setup node
