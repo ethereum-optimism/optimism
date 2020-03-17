@@ -26,9 +26,8 @@ jobs:
           | awk -F\" '{print $2}' \
           | read task_arn; \
           if [ ! -z "${task_arn}" ]; \
-          then aws ecs stop-task --cluster dev-rollup-full-node --task ${task_arn//\"}; \
-          fi \
-          | > /dev/null
+          then echo $task_arn; \
+          fi
 
 #      - uses: actions/checkout@v2
 #      - name: Setup node
