@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Run CI and Publish to NPM
+    name: Build, Tag & push to ECR, Deploy task
     runs-on: ubuntu-latest
 
     steps:
@@ -52,4 +52,8 @@ jobs:
       - name: Stop existing dev-rollup-full-node ECS task
         run: |
           echo $(aws ecs list-tasks --cluster dev-rollup-full-node --service-name rollup-full-node | grep -m1 arn:) \
-          | read task_arn; aws ecs stop-task --cluster dev-rollup-full-node --task ${task_arn//\"}
+          | read dev_fullnode_task; \
+          if [ ! -z "${dev_fullnode_task}" ]; \
+          then aws ecs stop-task --cluster dev-rollup-full-node --task ${dev_fullnode_task//\"}; \
+          fi \
+          | cat
