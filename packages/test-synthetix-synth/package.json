@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism-test/erc20-full",
   "private": true,
-  "version": "0.0.1-alpha.2",
+  "version": "0.0.1-alpha.3",
   "description": "Example of using solc-transpiler & Web3 full node in place of solc-js and other Web3 providers for a full ERC20",
   "scripts": {
     "clean": "rimraf build",
@@ -33,10 +33,10 @@
     "table": "^5.0.2"
   },
   "dependencies": {
-    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.22",
-    "@eth-optimism/ovm-truffle-provider-wrapper": "^0.0.1-alpha.22",
-    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.22",
-    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.22",
+    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.23",
+    "@eth-optimism/ovm-truffle-provider-wrapper": "^0.0.1-alpha.23",
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.23",
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.23",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12",
     "truffle-hdwallet-provider": "^1.0.17"

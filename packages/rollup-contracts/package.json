@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/rollup-contracts",
-  "version": "0.0.1-alpha.22",
+  "version": "0.0.1-alpha.23",
   "description": "Optimistic Rollup smart contracts",
   "main": "build/index.js",
   "files": [
@@ -43,9 +43,9 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
-    "@eth-optimism/core-db": "^0.0.1-alpha.22",
-    "@eth-optimism/core-utils": "^0.0.1-alpha.22",
-    "@eth-optimism/rollup-core": "^0.0.1-alpha.22",
+    "@eth-optimism/core-db": "^0.0.1-alpha.23",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.23",
+    "@eth-optimism/rollup-core": "^0.0.1-alpha.23",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",
     "ethereum-waffle": "2.1.0",
