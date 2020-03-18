@@ -1,5 +1,6 @@
 {
   "name": "@eth-optimism-test/erc20-full",
+  "private": true,
   "version": "0.0.1-alpha.1",
   "description": "Example of using solc-transpiler & Web3 full node in place of solc-js and other Web3 providers for a full ERC20",
   "scripts": {

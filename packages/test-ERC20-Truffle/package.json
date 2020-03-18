@@ -1,5 +1,6 @@
 {
   "name": "@eth-optimism-test/erc20-truffle",
+  "private": true,
   "version": "0.0.1-alpha.1",
   "description": "Example of using solc-transpiler & Web3 full node with Truffle to run a full ERC20 test suite",
   "scripts": {
