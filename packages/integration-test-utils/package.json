@@ -25,7 +25,7 @@
   "author": "Optimism PBC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ethereum-optimism/ovm-integration-tests/utils.git"
+    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
     "rimraf": "^2.6.3",
