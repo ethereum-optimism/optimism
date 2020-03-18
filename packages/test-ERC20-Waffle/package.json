@@ -18,7 +18,7 @@
     "metacoin",
     "tutorial"
   ],
-  "homepage": "https://github.com/ethereum-optimism/ovm-integration-tests/ERC20-Waffle#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/test-ERC20-Waffle#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
