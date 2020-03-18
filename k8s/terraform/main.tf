@@ -44,38 +44,63 @@ data "vault_generic_secret" "unseal_token" {
 data "kubernetes_secret" "bootstrap_acl_token" {
   depends_on = [helm_release.consul_chart]
   metadata {
-    name = "omisego-consul-bootstrap-acl-token"
+    name = var.k8s_consul_bootstrap_acl_token_name
   }
 }
 
-# Writes the Consul bootstrap ACL token into a new kv/ Vaul path
+# Loads the Consul Vault policy ACL token from the K8S cluster's
+# secrets AFTER the Consul Helm chart has been successfully installed
+data "kubernetes_secret" "vault_acl_token" {
+  depends_on = [helm_release.consul_chart]
+  metadata {
+    name = var.k8s_consul_vault_acl_token_name
+  }
+}
+
+# Writes the Consul bootstrap ACL token into a new kv/ Vault path
 # after the Consul chart is installed and the K8S secret containing the
 # token value is able to be read
 #
-# Once completed, the provisioner deletes the secret from the K8S cluster
-# in order to clean up loose ends for secret management
+# Once completed, the provisioner deletes the bootstrap and client token
+# secrets from the K8S cluster in order to clean up loose ends for secret management
 resource "vault_generic_secret" "consul_bootstrap_token" {
   path      = "kv/consul_bootstrap_token"
   data_json = jsonencode({ "value" = data.kubernetes_secret.bootstrap_acl_token.data.token })
 
   provisioner "local-exec" {
-    command = "kubectl delete secret ${var.k8s_consul_bootstrap_acl_token_secret_name}"
+    command = "kubectl delete secret ${var.k8s_consul_bootstrap_acl_token_name} ${var.k8s_consul_client_acl_token_name}"
   }
 }
+
+# Writes the Consul Vault policy ACL token into a new kv/ Vault path
+# after the Consul chart is installed and the K8S secret containing the
+# token value is able to be read
+#
+# Once completed, the provisioner deletes the Vault policy token secret
+# from the K8S cluster in order to clean up loose ends for secret management
+resource "vault_generic_secret" "consul_vault_token" {
+  path      = "kv/consul_vault_token"
+  data_json = jsonencode({ "value" = data.kubernetes_secret.vault_acl_token.data.token })
+
+  provisioner "local-exec" {
+    command = "kubectl delete secret ${var.k8s_consul_vault_acl_token_name}"
+  }
+}
+
 
 # Injects the Consul gossip encryption key from the unsealer Vault
 # into a K8S secret to be usable by the Consul agents running in
 # the pods for initialization
 resource "kubernetes_secret" "consul_gossip_key" {
   metadata {
-    name = var.k8s_consul_gossip_secret_name
+    name = var.k8s_consul_gossip_key_name
   }
 
   data = {
     key = data.vault_generic_secret.consul_gossip_key.data["value"]
   }
 
-  type = "generic"
+  type = "Opaque"
 }
 
 # Installs the Consul Helm chart with value overrides
@@ -102,7 +127,7 @@ resource "helm_release" "consul_chart" {
 
   set {
     name  = "global.gossipEncryption.secretName"
-    value = var.k8s_consul_gossip_secret_name
+    value = var.k8s_consul_gossip_key_name
   }
 
   set {

@@ -12,7 +12,7 @@ metadata:
   annotations:	
     "helm.sh/hook": post-install	
     "helm.sh/hook-weight": "2"	
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": hook-succeeded,hook-failed
 spec:	
   template:	
     metadata:	
@@ -42,13 +42,25 @@ spec:
                 secretKeyRef:	
                   name: {{ .Release.Name }}-bootstrap-acl-token	
                   key: token	
-          command:	
-            - "/bin/sh"	
+          command:
+            - "/bin/sh"
             - "-ec"	
-            - |	
+            - |
               export CONSUL_HTTP_ADDR="{{ .Chart.Name }}-server:${CONSUL_SERVER_PORT}"	
-              consul acl policy create -name vault-service -rules @/consul/config/vault.hcl -datacenter {{ .Values.global.datacenter }}	
-              consul acl token create -description "Token for Vault" -policy-name vault-service -datacenter {{ .Values.global.datacenter }}	
+              consul acl policy create -name vault-service -rules @/consul/config/vault.hcl -datacenter {{ .Values.global.datacenter }}
+
+              export VAULT_ACL_TOKEN=$(curl -X PUT $CONSUL_HTTP_ADDR/v1/acl/token \
+                -H "Content-Type: application/json" \
+                -H "X-Consul-Token: ${CONSUL_HTTP_TOKEN}" \
+                --data '{ "Description": "Token for Vault", "Policies": [{ "Name": "vault-service" }], "Local": false }] }' \
+                | jq -r '.SecretID')
+
+              curl -X POST https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}/api/v1/namespaces/{{ .Release.Namespace }}/secrets \
+                --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+                -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                --data "{ \"apiVersion\": \"v1\", \"kind\": \"Secret\", \"metadata\": { \"name\": \"{{ .Chart.Name }}-vault-acl-token\", \"namespace\": \"{{ .Release.Namespace }}\" }, \"type\": \"Opaque\", \"data\": { \"token\": \"$(echo $VAULT_ACL_TOKEN | base64 | tr -d '\n')\" } }" > /dev/null
           volumeMounts:	
             {{- if .Values.global.tlsEnabled }}
             - name: tls-ca-cert	
