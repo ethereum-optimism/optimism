@@ -28,7 +28,6 @@
   "dependencies": {
     "@eth-optimism/rollup-full-node": "~0.0.1-alpha.21",
     "@eth-optimism/solc-transpiler": "~0.0.1-alpha.21",
-    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.21",
     "ethereum-waffle": "^2.0.12",
     "mocha": "^7.0.1",
     "rimraf": "^2.6.3"
