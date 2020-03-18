@@ -14,6 +14,8 @@
     "clean": "wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --parallel --exclude-missing clean",
     "clean_modules": "rm -rf node_modules && find ./packages -type d -maxdepth 2 -name \"node_modules\" -exec rm -r {} +",
     "clean_manual": "find ./packages -type d -maxdepth 2 -name \"build\" -exec rm -r {} +",
+    "test:integration": "find ./packages -type d  -maxdepth 1 -name test-* -exec yarn test \\;",
+    "test:core": "find ./packages -type d  -maxdepth 1 ! -name test-* -exec yarn test \\;",
     "test": "wsrun -p $(yarn --silent run pkgparse) --fast-exit --parallel --no-prefix --exclude-missing --timeout 5000 test",
     "build": "lerna link && wsrun -p $(yarn --silent run pkgparse) -r --fast-exit --stages --exclude-missing build",
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
