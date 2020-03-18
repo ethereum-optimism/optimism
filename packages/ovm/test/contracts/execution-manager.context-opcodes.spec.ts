@@ -96,7 +96,7 @@ describe('Execution Manager -- Context opcodes', () => {
       [executionManager.address]
     )
 
-    log.debug(`Contract address: [${contractAddress}]`)
+    log.debug(`Contract 2 address: [${contract2Address}]`)
 
     // Also set our simple copier Ethers contract so we can generate unsigned transactions
     const contract2 = new ContractFactory(

@@ -8,6 +8,7 @@ import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
 import {CreatorContract} from "./CreatorContract.sol";
 import {PurityChecker} from "./PurityChecker.sol";
 import {RLPEncode} from "./RLPEncode.sol";
+import {L2ToL1MessagePasser} from "./L2ToL1MessagePasser.sol";
 
 /**
  * @title ExecutionManager
@@ -23,6 +24,7 @@ contract ExecutionManager is FullStateManager {
     // creator contract address
     address constant creatorContractAddress = 0x0000000000000000000000000000000000000000;
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+    address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
 
     // Execution storage
     dt.ExecutionContext executionContext;
@@ -76,6 +78,10 @@ contract ExecutionManager is FullStateManager {
         for (uint160 i = 1; i < 20; i++) {
             associateCodeContract(address(i), address(i));
         }
+
+        // Instantiate L2 -> L1 message passer, associate appropriately
+        L2ToL1MessagePasser l1ToL2MessagePasser = new L2ToL1MessagePasser(address(this));
+        associateCodeContract(l2ToL1MessagePasserOvmAddress, address(l1ToL2MessagePasser));
 
         executionContext.gasLimit = _blockGasLimit;
         executionContext.chainId = 108;
