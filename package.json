@@ -57,7 +57,6 @@
   "dependencies": {
     "bignumber.js": "^9.0.0",
     "chai-bignumber": "^3.0.0",
-    "level": "^5.0.1",
-    "truffle-hdwallet-provider": "^1.0.17"
+    "level": "^5.0.1"
   }
 }
