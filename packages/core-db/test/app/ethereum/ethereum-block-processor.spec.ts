@@ -3,7 +3,7 @@ import '../../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
 import { Block } from 'ethers/providers'
-import { createMockProvider, getWallets } from 'ethereum-waffle'
+import { MockProvider } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { deployTokenContract, TestListener } from './utils'
@@ -28,8 +28,8 @@ describe('Block Subscription', () => {
   let tokenContract
 
   beforeEach(async () => {
-    provider = createMockProvider()
-    wallets = getWallets(provider)
+    provider = new MockProvider()
+    wallets = provider.getWallets(provider)
     ownerWallet = wallets[0]
     recipientWallet = wallets[1]
 
