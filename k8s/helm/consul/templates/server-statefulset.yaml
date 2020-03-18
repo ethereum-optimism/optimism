@@ -125,9 +125,6 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
           volumeMounts:
-            # FIXME:
-            # - name: data-{{ .Release.Namespace }}
-            #   mountPath: /consul/data
             - name: config
               mountPath: /consul/userconfig
             {{- if .Values.global.tlsEnabled }}

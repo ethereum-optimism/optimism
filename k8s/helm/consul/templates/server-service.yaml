@@ -50,5 +50,6 @@ spec:
       targetPort: 8600
   selector:
     app: {{ .Chart.Name }}
+    chart: {{ template "omisego-consul.chart" . }}
     release: {{ .Release.Name }}
     component: server
