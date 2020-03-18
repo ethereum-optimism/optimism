@@ -1,9 +1,18 @@
-import { add0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import {
+  abi,
+  add0x,
+  bufToHexString,
+  hexStrToBuf,
+  remove0x,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 /* Contract Imports */
 import { TransactionReceipt } from 'ethers/providers'
 import {
   convertInternalLogsToOvmLogs,
   getOvmTransactionMetadata,
+  OvmTransactionMetadata,
+  revertMessagePrefix,
 } from '../../src/app'
 import { buildLog } from '../helpers'
 
@@ -61,15 +70,24 @@ describe('getOvmTransactionMetadata', () => {
   })
 
   it('should return with ovmTxSucceeded equal to false if the transaction reverted', async () => {
+    const revertMessage: string = 'The tx reverted!'
+    const msgHex: string = add0x(
+      Buffer.from(revertMessage, 'utf8').toString('hex')
+    )
+    const encodedMessage: string = abi.encode(['bytes'], [msgHex])
+    // needs 4 bytes of sighash
+    const eventData: string = add0x('ab'.repeat(4) + remove0x(encodedMessage))
     const transactionReceipt: TransactionReceipt = {
       byzantium: true,
-      logs: [[EXECUTION_MANAGER_ADDRESS, 'EOACallRevert()', []]].map((args) =>
-        buildLog.apply(null, args)
-      ),
+      logs: [
+        [EXECUTION_MANAGER_ADDRESS, 'EOACallRevert(bytes)', [eventData]],
+      ].map((args) => buildLog.apply(null, args)),
     }
 
-    getOvmTransactionMetadata(transactionReceipt).ovmTxSucceeded.should.eq(
-      false
+    const metadata: OvmTransactionMetadata = getOvmTransactionMetadata(
+      transactionReceipt
     )
+    metadata.ovmTxSucceeded.should.eq(false)
+    metadata.revertMessage.should.eq(revertMessagePrefix + revertMessage)
   })
 })

@@ -1,6 +1,11 @@
 import '../setup'
 /* External Imports */
-import { add0x, getLogger, remove0x } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  remove0x,
+  castToNumber,
+} from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -52,7 +57,7 @@ describe('TestHandler', () => {
       const increase: number = 9999
       const setRes: string = await testHandler.handleRequest(
         Web3RpcMethods.increaseTimestamp,
-        [add0x(increase.toString(16))]
+        [increase]
       )
       setRes.should.equal(
         TestWeb3Handler.successString,
@@ -119,6 +124,25 @@ describe('TestHandler', () => {
         storageKey
       )
       res.should.equal(storageValue)
+      testRpcServer.close()
+    })
+
+    it('should revert changes to the timestamp', async () => {
+      const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+      testRpcServer.listen()
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const startTimestamp = await httpProvider.send('evm_getTime', [])
+      // Increase timestamp by 1 second
+      await httpProvider.send('evm_increaseTime', [1])
+      // Take a snapshot at timestamp + 1
+      const snapShotId = await httpProvider.send('evm_snapshot', [])
+      // Increase timestamp by 1 second again
+      await httpProvider.send('evm_increaseTime', [1])
+      const response2 = await httpProvider.send('evm_revert', [snapShotId])
+      const timestamp = await httpProvider.send('evm_getTime', [])
+      // Time should be reverted to the timestamp when the snapshot is taken (timestamp + 1)
+      castToNumber(timestamp).should.eq(castToNumber(startTimestamp) + 1)
+      testRpcServer.close()
     })
   })
 })
