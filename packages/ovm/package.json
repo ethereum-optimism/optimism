@@ -61,5 +61,6 @@
     "mathjs": "^6.6.0",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0"
-  }
+  },
+  "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }

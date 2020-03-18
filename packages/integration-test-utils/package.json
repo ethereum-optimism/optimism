@@ -1,5 +1,6 @@
 {
   "name": "@eth-optimism-test/integration-test-utils",
+  "private": true,
   "version": "0.0.1-alpha.22",
   "description": "Shared utils for the integration tests for the OVM",
   "main": "index.js",
@@ -37,5 +38,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }
