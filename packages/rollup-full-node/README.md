@@ -1,6 +1,8 @@
 # Dependencies
 The `/exec/` scripts depend on [parity](https://github.com/paritytech/parity-ethereum/releases/tag/v2.5.13) being installed.
 
+If you'd like to use a containerized version, you'll need to [install docker](https://docs.docker.com/install/).
+
 For other dependencies, please refer to the root README of this repo.
 
 # Setup
@@ -10,7 +12,6 @@ Run `yarn install` to install necessary dependencies.
 Run `yarn build` to build the code. Note: `yarn all` may be used to build and run tests.
 
 ## Building Docker Image
-Install [docker](https://docs.docker.com/install/)
 Run `docker build -t optimism/rollup-full-node .` to build and tag the fullnode.
 
 ### Pushing Image to AWS Registry:
@@ -35,13 +36,11 @@ Make sure the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-cha
     docker push <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
     ``` 
 
-
 # Testing
 Run `yarn test` to run the unit tests.
 
 # Configuration
-`/config/default.json` specifies the default configuration. 
-Overrides will be read from environment variables with the same key.
+`/config/default.json` specifies the default configuration. Overrides will be read from environment variables with the same key.
 
 `/config/parity/local-chain-config.json` configures the local parity chain. This should not normally need modification.
 
@@ -50,6 +49,8 @@ Run `yarn server:aggregator` to run the aggregator server.
 
 # Running the Fullnode Server
 Run `yarn server:fullnode` to run the fullnode server.
+
+To run with docker: `docker run -d optimism/rollup-full-node:latest`
 
 # Running a Persistent Chain
 Run `./exec/startChain.sh` to start a local persistent blockchain.
