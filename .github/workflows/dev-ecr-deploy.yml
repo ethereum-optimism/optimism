@@ -44,7 +44,7 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Stop existing dev-rollup-full-node ECS task
+      - name: Stop existing dev-rollup-full-node ECS task to auto-start task with new image
         run: |
           ./.github/scripts/stop-ecs-task.sh dev-rollup-full-node rollup-full-node
 
