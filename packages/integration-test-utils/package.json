@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism-test/integration-test-utils",
-  "version": "0.0.1-alpha.21",
+  "version": "0.0.1-alpha.22",
   "description": "Shared utils for the integration tests for the OVM",
   "main": "index.js",
   "scripts": {
