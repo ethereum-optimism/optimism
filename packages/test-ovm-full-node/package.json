@@ -19,7 +19,7 @@
     "test",
     "integration"
   ],
-  "homepage": "https://github.com/ethereum-optimism/ovm-integration-tests/ovm-full-node#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/test-ovm-full-node#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
