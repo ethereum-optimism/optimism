@@ -20,7 +20,7 @@
     "integration",
     "utils"
   ],
-  "homepage": "https://github.com/ethereum-optimism/ovm-integration-tests/utils#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/integration-test-utils#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
