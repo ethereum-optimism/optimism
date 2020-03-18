@@ -1,12 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import {
-  createMockProvider,
-  deployContract,
-  getWallets,
-  solidity,
-} from 'ethereum-waffle'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
 import * as L1ToL2MessagePasser from '../../build/L1ToL2MessagePasser.json'

@@ -6,6 +6,11 @@ pragma experimental ABIEncoderV2;
  * @notice TODO
  */
 contract DataTypes {
+    struct L2ToL1Message {
+        address ovmSender;
+        bytes callData;
+    }
+
     struct ElementInclusionProof {
        uint blockIndex; // index in blocks array (first block has blockNumber of 0)
        BlockHeader blockHeader;
