@@ -533,6 +533,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return executionManager
   }
 
+  /**
+   * Get the calldata for an EVM transaction to the ExecutionManager.
+   */
   private getTransactionCalldata(
     timestamp: number,
     queueOrigin: number,

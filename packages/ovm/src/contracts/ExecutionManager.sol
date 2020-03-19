@@ -206,6 +206,7 @@ contract ExecutionManager is FullStateManager {
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
      * @param _fromAddress The address which this call should originate from--the msg.sender.
+     * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
     function executeUnsignedEOACall(
         uint _timestamp,
@@ -501,6 +502,7 @@ contract ExecutionManager is FullStateManager {
      *         NOTE: this zeroing may not technically be needed as the context should always end up as zero at the end of each execution.
      * @param _timestamp The timestamp which should be used for this context.
      * @param _queueOrigin The queue which this context's transaction was sent from.
+     * @param _ovmTxOrigin The tx.origin for the currently executing transaction. It will be ZERO_ADDRESS if it's not an EOA call.
      */
     function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin) internal {
         // First zero out the context for good measure (Note ZERO_ADDRESS is reserved for the genesis contract & initial msgSender)
