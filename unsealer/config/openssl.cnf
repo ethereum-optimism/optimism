@@ -25,7 +25,7 @@ CN = localhost
 basicConstraints     = CA:FALSE
 subjectKeyIdentifier = hash
 keyUsage             = digitalSignature, keyEncipherment
-extendedKeyUsage     = clientAuth, serverAuth
+extendedKeyUsage     = serverAuth
 subjectAltName       = @alt_names
 
 # Alternative names are specified as IP.# and DNS.# for IPs and
