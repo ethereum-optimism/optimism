@@ -27,6 +27,7 @@ export const runFullnode = async (
   log.info(`Starting fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
 
   if (process.env.WEB3_URL) {
+    log.info(`Connecting to web3 URL: ${process.env.WEB3_URL}`)
     provider = new JsonRpcProvider(process.env.WEB3_URL)
   }
 

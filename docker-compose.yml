@@ -1,17 +1,17 @@
 version: "3"
 networks:
-  frontend:
+  external:
     external: true
-  backend:
+  internal:
 services:
   rollup-fullnode:
     volumes:
-       - geth-data:/root/.ethereum
+       - geth-data:/mnt/docker
     depends_on:
       - geth
     networks:
-      - backend
-      - frontend
+      - internal
+      - external
     build:
       context: packages/rollup-full-node
       dockerfile: Dockerfile
@@ -19,13 +19,16 @@ services:
       - 8545:8545
     environment:
       WEB3_URL: http://geth:8545/
+      VOLUME_PATH: /mnt/docker
   geth:
     volumes:
-       - geth-data:/root/.ethereum
+       - geth-data:/mnt/docker
     networks:
-      - backend
+      - internal
     build:
       context: docker/geth
       dockerfile: Dockerfile
+    environment:
+      VOLUME_PATH: /mnt/docker
 volumes:
   geth-data:

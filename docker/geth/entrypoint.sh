@@ -1,10 +1,11 @@
+#!/bin/sh
+
 HOSTNAME='geth'
-CONFIG_DIR='/root/.ethereum'
-KEYSTORE_PATH="${CONFIG_DIR}/keystore"
-SEALER_PRIVATE_KEY_PATH="${CONFIG_DIR}/sealer_private_key.txt"
-PRIVATE_KEY_PATH="${CONFIG_DIR}/private_key.txt"
-ADDRESS_PATH="${CONFIG_DIR}/address.txt"
-SEALER_ADDRESS_PATH="${CONFIG_DIR}/sealer_address.txt"
+KEYSTORE_PATH="${VOLUME_PATH}/keystore"
+SEALER_PRIVATE_KEY_PATH="${VOLUME_PATH}/sealer_private_key.txt"
+PRIVATE_KEY_PATH="${VOLUME_PATH}/private_key.txt"
+ADDRESS_PATH="${VOLUME_PATH}/address.txt"
+SEALER_ADDRESS_PATH="${VOLUME_PATH}/sealer_address.txt"
 INITIAL_BALANCE='0x200000000000000000000000000000000000000000000000000000000000000'
 GENISIS_PATH='etc/rollup-fullnode.json'
 NETWORK_ID=108
@@ -25,7 +26,7 @@ generate_private_key()
 ## Imports a private key into geth and returns the address
 import_private_key()
 {
-  geth account import --password /dev/null $1 2> /dev/null |
+  geth --datadir $VOLUME_PATH account import --password /dev/null $1 2> /dev/null |
     grep -oh "[a-fA-F0-9]\{40\}" | (echo -n "0x" && cat)
 }
 
@@ -58,14 +59,14 @@ case $1 in
     import_private_key $PRIVATE_KEY_PATH > $ADDRESS_PATH
     generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
 
-    geth --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
+    geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
     echo "Setup Complete"
     echo "Sealer Address: 0x`cat $SEALER_PRIVATE_KEY_PATH`"
     echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
     break
     ;;
   "")
-    geth --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=$HOSTNAME --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
+    geth --datadir $VOLUME_PATH --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=$HOSTNAME --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
     break
     ;;
   *)
