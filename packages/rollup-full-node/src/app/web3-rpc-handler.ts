@@ -189,7 +189,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       // Then actually make the call and get the response
       response = await this.provider.send(Web3RpcMethods.call, [
         {
-          from: ZERO_ADDRESS,
+          from: this.wallet.address,
           to: this.executionManager.address,
           data: internalCalldata,
         },
@@ -236,7 +236,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // Then estimate the gas
     const response = await this.provider.send(Web3RpcMethods.estimateGas, [
       {
-        from: ZERO_ADDRESS,
+        from: this.wallet.address,
         to: this.executionManager.address,
         data: internalCalldata,
       },
