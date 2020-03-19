@@ -1,25 +1,66 @@
-{{ template "vault.mode" . }}
-{{- if ne .mode "external" }}
-{{- if and (eq (.Values.global.enabled | toString) "true") (ne .mode "dev") -}}
-{{ if or (ne .Values.server.standalone.config "")  (ne .Values.server.ha.config "") -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ template "vault.fullname" . }}-config
+  name: {{ .Chart.Name }}-server-config
   namespace: {{ .Release.Namespace }}
-  labels:
-    helm.sh/chart: {{ include "vault.chart" . }}
-    app.kubernetes.io/name: {{ include "vault.name" . }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
 data:
-  extraconfig-from-values.hcl: |-
-    disable_mlock = true
-  {{- if eq .mode "standalone" }}
-    {{ tpl .Values.server.standalone.config . | nindent 4 | trim }}
-  {{- else if eq .mode "ha" }}
-    {{ tpl .Values.server.ha.config . | nindent 4 | trim }}
-  {{ end }}
-{{- end }}
-{{- end }}
-{{- end }}
+  vault.hcl: |
+    listener "tcp" {
+      address = "127.0.0.1:8200"
+      {{- if .Values.global.tlsEnabled }}
+      tls_cert_file = "/etc/tls/services.crt"
+      tls_client_ca_file = "/etc/tls/root.crt"
+      tls_disable = 0
+      tls_key_file = "/etc/tls/services.key"
+      {{- else }}
+      tls_disabled = 1
+      {{- end }}
+    }
+
+    seal "transit" {
+      address = "{{ .Values.server.unseal.address }}"
+      disable_renewal = true
+      key_name = "autounseal"
+      mount_path = "transit/"
+      tls_ca_cert = "/etc/tls/root.crt"
+      token = "{{ .Values.server.unseal.token }}"
+    }
+
+    storage "consul" {
+      address = "consul:8500"
+      disable_registration = true
+      has_enabled = true
+      path = "vault/"
+    }
+
+    ui = true
+
+  consul.json: |
+    {
+      {{- if .Values.global.tlsEnabled }}
+      "ca_file": "/etc/tls/root.crt",
+      "cert_file": "/etc/tls/services.crt",
+      "key_file": "/etc/tls/services.key",
+      "verify_incoming": true,
+      "verify_outgoing": true,
+      "verify_server_hostname": true,
+      "auto_encrypt": {
+        "allow_tls": true
+      },
+      {{- end }}
+      "ports": {
+        {{- if .Values.global.tlsEnabled }}
+        "https": 8501
+        {{- else }}
+        "http": 8500
+        {{- end }}
+      },
+      "primary_datacenter":"{{ .Values.global.datacenter }}",
+      "acl": {
+          "enabled": true,
+          "default_policy": "deny",
+          "down_policy": "extend-cache",
+          "enable_token_persistence": true
+      }
+    }
+

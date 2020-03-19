@@ -1,3 +1,27 @@
+variable "consul_bootstrap_expect" {
+  type        = number
+  default     = 3
+  description = "Number of Consul nodes to expect for bootstrapping the cluster"
+}
+
+variable "consul_datacenter" {
+  type        = string
+  default     = "dc1"
+  description = "The datacenter to create in the Consul cluster"
+}
+
+variable "consul_replicas" {
+  type        = number
+  default     = 5
+  description = "The number of Consul servers to create in the cluster"
+}
+
+variable "k8s_certificates_secret_name" {
+  type        = string
+  default     = "omisego-tls-certificates"
+  description = "The name of the secret in Kubernetes storing the certificates for the cluster servers"
+}
+
 variable "k8s_config_path" {
   type        = string
   default     = "~/.kube/config"
@@ -34,22 +58,15 @@ variable "k8s_consul_gossip_key_name" {
   description = "The name of the secret in Kubernetes to store the Consul gossip key"
 }
 
-variable "consul_datacenter" {
+variable "local_certificates_dir" {
   type        = string
-  default     = "dc1"
-  description = "The datacenter to create in the Consul cluster"
+  description = "Absolute path to the directory storing the generated cluster service certificates"
 }
 
-variable "consul_replicas" {
-  type        = number
-  default     = 5
-  description = "The number of Consul servers to create in the cluster"
-}
-
-variable "consul_bootstrap_expect" {
-  type        = number
-  default     = 3
-  description = "Number of Consul nodes to expect for bootstrapping the cluster"
+variable "tls_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable TLS communication within the services"
 }
 
 variable "unsealer_vault_addr" {
@@ -58,7 +75,9 @@ variable "unsealer_vault_addr" {
   description = "The address to the Unsealer Vault server"
 }
 
-variable "unsealer_vault_token" {
-  type        = string
-  description = "The Vault token to be used for unsealing the Vault cluster"
+variable "vault_replicas" {
+  type        = number
+  default     = 3
+  description = "The number of Vault server pods to run in the cluster"
 }
+

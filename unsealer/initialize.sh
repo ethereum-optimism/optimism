@@ -57,7 +57,7 @@ function check {
 }
 
 function initialize {
-	export VAULT_CACERT=$VAULT_DIR/root.crt
+	export VAULT_CACERT=$VAULT_DIR/ca.pem
   	UNSEAL=$(vault operator init -format=json -key-shares=$KEY_SHARES -key-threshold=$KEY_THRESHOLD -root-token-pgp-key=$ADMIN -pgp-keys="$KEYBASE" | jq .)
 	check $? "Unable to initialize Vault"
 	IFS=',' read -ra KEYBASE_IDS <<< "$KEYBASE"
@@ -72,111 +72,34 @@ function initialize {
 }
 
 function genconfig {
-	cat > "$VAULT_DIR/vault.hcl" << EOF
-default_lease_ttl = "24h"
-disable_mlock = "true"
-max_lease_ttl = "43800h"
+	cat > "$VAULT_DIR/vault.hcl" <<-EOF
+		default_lease_ttl = "24h"
+		disable_mlock = "true"
+		max_lease_ttl = "43800h"
 
-backend "file" {
-  path = "$VAULT_DIR/data"
-}
+		backend "file" {
+			path = "$VAULT_DIR/data"
+		}
 
-api_addr = "https://localhost:8200"
-ui = "false"
+		api_addr = "https://localhost:8200"
+		ui = "false"
 
-listener "tcp" {
-  address = "0.0.0.0:8200"
-
-  tls_cert_file = "$VAULT_DIR/vault.crt"
-  tls_client_ca_file = "$VAULT_DIR/root.crt"
-  tls_key_file = "$VAULT_DIR/vault.key"
-}
-
-EOF
+		listener "tcp" {
+			address = "0.0.0.0:8200"
+			tls_cert_file = "$VAULT_DIR/services.pem"
+			tls_client_ca_file = "$VAULT_DIR/ca.pem"
+			tls_key_file = "$VAULT_DIR/services-key.pem"
+		}
+	EOF
 }
 
 function gencerts {
-
-	cat > "$VAULT_DIR/openssl.cnf" << EOF
-[req]
-default_bits = 2048
-encrypt_key  = no
-default_md   = sha256
-prompt       = no
-utf8         = yes
-
-# Specify the DN here so we aren't prompted (along with prompt = no above).
-distinguished_name = req_distinguished_name
-
-# Extensions for SAN IP and SAN DNS
-req_extensions = v3_req
-
-# Be sure to update the subject to match your organization.
-[req_distinguished_name]
-C  = TH
-ST = Bangkok
-L  = Vault
-O  = OmiseGO
-CN = localhost
-
-# Allow client and server auth. You may want to only allow server auth.
-# Link to SAN names.
-[v3_req]
-basicConstraints     = CA:FALSE
-subjectKeyIdentifier = hash
-keyUsage             = digitalSignature, keyEncipherment
-extendedKeyUsage     = clientAuth, serverAuth
-subjectAltName       = @alt_names
-
-# Alternative names are specified as IP.# and DNS.# for IPs and
-# DNS accordingly.
-[alt_names]
-IP.1  = 127.0.0.1
-IP.2  = 10.8.0.2
-IP.3  = 192.168.64.1
-DNS.1 = localhost
-EOF
-
-	openssl req \
-	-new \
-	-sha256 \
-	-newkey rsa:2048 \
-	-days 120 \
-	-nodes \
-	-x509 \
-	-subj "/C=TH/ST=Bangkok/L=OmiseGO/O=Unsealer" \
-	-keyout "$VAULT_DIR/root.key" \
-	-out "$VAULT_DIR/root.crt"
-
-	# Generate the private key for the service. Again, you may want to increase
-	# the bits to 2048.
-	openssl genrsa -out "$VAULT_DIR/vault.key" 2048
-
-	# Generate a CSR using the configuration and the key just generated. We will
-	# give this CSR to our CA to sign.
-	openssl req \
-	-new -key "$VAULT_DIR/vault.key" \
-	-out "$VAULT_DIR/vault.csr" \
-	-config "$VAULT_DIR/openssl.cnf"
-
-	# Sign the CSR with our CA. This will generate a new certificate that is signed
-	# by our CA.
-	openssl x509 \
-	-req \
-	-days 120 \
-	-in "$VAULT_DIR/vault.csr" \
-	-CA "$VAULT_DIR/root.crt" \
-	-CAkey "$VAULT_DIR/root.key" \
-	-CAcreateserial \
-	-sha256 \
-	-extensions v3_req \
-	-extfile "$VAULT_DIR/openssl.cnf" \
-	-out "$VAULT_DIR/vault.crt"
-
-	openssl x509 -in "$VAULT_DIR/vault.crt" -noout -text
-
-	rm "$VAULT_DIR/openssl.cnf"
-  
+	cfssl gencert -initca config/ca-csr.json | cfssljson -bare $VAULT_DIR/ca
+	cfssl gencert \
+		-ca=$VAULT_DIR/ca.pem \
+		-ca-key=$VAULT_DIR/ca-key.pem \
+		-config=config/cfssl.json \
+		config/services-csr.json | cfssljson -bare $VAULT_DIR/services  
 }
 
 mkdir -p $VAULT_DIR
@@ -185,5 +108,6 @@ gencerts
 
 nohup /usr/local/bin/vault server -config $VAULT_DIR/vault.hcl &> /dev/null &
 initialize
+kill $(lsof -ti:8200)
 
 echo "--> Done!"

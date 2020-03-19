@@ -1,5 +1,6 @@
 global:
   tlsEnabled: true
+  certificatesSecretName: ""
 
   image: "consul:1.7.1"
   imageK8S: "hashicorp/consul-k8s:0.12.0"

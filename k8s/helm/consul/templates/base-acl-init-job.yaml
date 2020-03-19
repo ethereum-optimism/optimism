@@ -8,10 +8,10 @@ metadata:
     chart: {{ template "omisego-consul.chart" . }}
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
-  annotations:
-    "helm.sh/hook": post-install
-    "helm.sh/hook-weight": "1"
-    "helm.sh/hook-delete-policy": hook-succeeded
+  # annotations:
+  #   "helm.sh/hook": post-install
+  #   "helm.sh/hook-weight": "1"
+  #   "helm.sh/hook-delete-policy": hook-succeeded
 spec:
   template:
     metadata:
@@ -28,7 +28,7 @@ spec:
       volumes:
       - name: tls-ca-cert
         secret:
-          secretName: {{ .Chart.Name }}-ca-cert
+          secretName: {{ .Values.global.certificatesSecretName }}
       {{- end }}
       containers:
         - name: post-install-job
@@ -36,9 +36,16 @@ spec:
           {{- if .Values.global.tlsEnabled }}
           volumeMounts:
             - name: tls-ca-cert
-              mountPath: /consul/tls/ca
+              mountPath: /etc/tls
               readOnly: true
-           {{- end }}
+          env:
+            - name: CONSUL_CACERT
+              value: /etc/tls/ca.pem
+            - name: CONSUL_CLIENT_CERT
+              value: /etc/tls/services.pem
+            - name: CONSUL_CLIENT_KEY
+              value: /etc/tls/services-key.pem
+          {{- end }}
           command:
             - "/bin/sh"
             - "-ec"
@@ -49,7 +56,7 @@ spec:
                 -k8s-namespace={{ .Release.Namespace }} \
                 {{- if .Values.global.tlsEnabled }}
                 -use-https \
-                -consul-ca-cert=/consul/tls/ca/tls.crt \
+                -consul-ca-cert=/etc/tls/ca.pem \
                 -consul-tls-server-name=server.{{ .Values.global.datacenter }}.{{ .Values.global.domain }} \
                 {{- end }}
                 -expected-replicas={{ .Values.server.replicas }}

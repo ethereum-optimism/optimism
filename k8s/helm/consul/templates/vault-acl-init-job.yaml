@@ -35,7 +35,7 @@ spec:
             - name: CONSUL_HTTP_SSL	
               value: "true"	
             - name: CONSUL_CACERT	
-              value: /consul/tls/ca/tls.crt	
+              value: /etc/tls/ca.pem
             {{- end }}	
             - name: CONSUL_HTTP_TOKEN	
               valueFrom:	
@@ -50,6 +50,9 @@ spec:
               consul acl policy create -name vault-service -rules @/consul/config/vault.hcl -datacenter {{ .Values.global.datacenter }}
 
               export VAULT_ACL_TOKEN=$(curl -X PUT $CONSUL_HTTP_ADDR/v1/acl/token \
+                {{- if .Values.global.tlsEnabled }}
+                --cacert $CONSUL_CACERT \
+                {{- end }}
                 -H "Content-Type: application/json" \
                 -H "X-Consul-Token: ${CONSUL_HTTP_TOKEN}" \
                 --data '{ "Description": "Token for Vault", "Policies": [{ "Name": "vault-service" }], "Local": false }] }' \
@@ -64,7 +67,7 @@ spec:
           volumeMounts:	
             {{- if .Values.global.tlsEnabled }}
             - name: tls-ca-cert	
-              mountPath: /consul/tls/ca	
+              mountPath: /etc/tls
             {{- end }}
             - name: server-config	
               mountPath: /consul/config	
@@ -72,7 +75,7 @@ spec:
         {{- if .Values.global.tlsEnabled }}
         - name: tls-ca-cert
           secret:
-            secretName: {{ .Release.Name }}-consul-ca-cert
+            secretName: {{ .Values.global.certificatesSecretName }}
         {{- end }}
         - name: server-config	
           configMap:	

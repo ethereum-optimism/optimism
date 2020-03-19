@@ -1,0 +1,23 @@
+{
+  "CN": "server.dc1.consul",
+  "hosts": [
+    "127.0.0.1",
+    "localhost",
+    "server.dc1.consul",
+    "omisego-consul-server",
+    "*.omisego-consul-server",
+    "*.omisego-consul-server.default",
+    "*.omisego-consul-server.default.svc"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "ST": "Colorado",
+      "L": "Denver"
+    }
+  ]
+}

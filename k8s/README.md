@@ -16,17 +16,20 @@ The Helm operations have been abstracted away through Terraform for installation
 
 |                  Name                  |  Type  |                Default                 |
 | :------------------------------------: | :----: | :------------------------------------: |
+|       `consul_bootstrap_expect`        | number |                  `3`                   |
+|          `consul_datacenter`           | string |                 `dc1`                  |
+|           `consul_replicas`            | number |                  `5`                   |
+|     `k8s_certificates_secret_name`     | string |       `omisego-tls-certificates`       |
 |           `k8s_config_path`            | string |            `~/.kube/config`            |
 |         `k8s_context_cluster`          | string |               `minikube`               |
 | `k8s_consul_bootstrap_acl_token__name` | string |  `omisego-consul-bootstrap-acl-token`  |
 |   `k8s_consul_client_acl_token_name`   | string |   `omisego-consul-client-acl-token`    |
 |   `k8s_consul_vault_acl_token_name`    | string |    `omisego-consul-vault-acl-token`    |
 |      `k8s_consul_gossip_key_name`      | string | `omisego-consul-gossip-encryption-key` |
-|          `consul_datacenter`           | string |                 `dc1`                  |
-|           `consul_replicas`            | number |                  `5`                   |
-|       `consul_bootstrap_expect`        | number |                  `3`                   |
+|        `local_certificates_dir`        | string |                   -                    |
+|             `tls_enabled`              |  bool  |                `false`                 |
 |         `unsealer_vault_addr`          | string |        `https://localhost:8200`        |
-|         `unsealer_vault_token`         | string |                   -                    |
+|            `vault_replicas`            | number |                  `3`                   |
 
 ### Execution
 

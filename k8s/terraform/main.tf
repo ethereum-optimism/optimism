@@ -42,7 +42,7 @@ data "vault_generic_secret" "unseal_token" {
 # Loads the Consul bootstrap ACL token from the K8S cluster's
 # secrets AFTER the Consul Helm chart has been successfully installed
 data "kubernetes_secret" "bootstrap_acl_token" {
-  depends_on = [helm_release.consul_chart]
+  depends_on = [helm_release.vault_chart]
   metadata {
     name = var.k8s_consul_bootstrap_acl_token_name
   }
@@ -51,7 +51,7 @@ data "kubernetes_secret" "bootstrap_acl_token" {
 # Loads the Consul Vault policy ACL token from the K8S cluster's
 # secrets AFTER the Consul Helm chart has been successfully installed
 data "kubernetes_secret" "vault_acl_token" {
-  depends_on = [helm_release.consul_chart]
+  depends_on = [helm_release.vault_chart]
   metadata {
     name = var.k8s_consul_vault_acl_token_name
   }
@@ -103,6 +103,20 @@ resource "kubernetes_secret" "consul_gossip_key" {
   type = "Opaque"
 }
 
+resource "kubernetes_secret" "tls_certificates" {
+  metadata {
+    name = var.k8s_certificates_secret_name
+  }
+
+  data = {
+    "services.pem"     = file("${var.local_certificates_dir}/services.pem")
+    "services-key.pem" = file("${var.local_certificates_dir}/services-key.pem")
+    "ca.pem"           = file("${var.local_certificates_dir}/ca.pem")
+  }
+
+  type = "Opaque"
+}
+
 # Installs the Consul Helm chart with value overrides
 #
 # This depends on the Consul gossip key existing in K8S secrets
@@ -117,7 +131,12 @@ resource "helm_release" "consul_chart" {
 
   set {
     name  = "global.tlsEnabled"
-    value = false
+    value = var.tls_enabled
+  }
+
+  set {
+    name  = "global.certificatesSecretName"
+    value = var.k8s_certificates_secret_name
   }
 
   set {
@@ -143,5 +162,56 @@ resource "helm_release" "consul_chart" {
   set {
     name  = "server.bootstrapExpect"
     value = var.consul_bootstrap_expect
+  }
+}
+
+# Installs the Vault Helm chart with value overrides
+# This depends on the Consul Helm chart being installed already
+resource "helm_release" "vault_chart" {
+  depends_on = [helm_release.consul_chart]
+
+  name  = "omisego-vault"
+  chart = "../helm/vault"
+
+  cleanup_on_fail = true
+
+  set {
+    name  = "global.tlsEnabled"
+    value = var.tls_enabled
+  }
+
+  set {
+    name  = "global.certificatesSecretName"
+    value = var.k8s_certificates_secret_name
+  }
+
+  set {
+    name  = "server.replicas"
+    value = var.vault_replicas
+  }
+
+  set {
+    name  = "server.unseal.token"
+    value = data.vault_generic_secret.unseal_token.data["value"]
+  }
+
+  set {
+    name  = "consul.datacenter"
+    value = var.consul_datacenter
+  }
+
+  set {
+    name  = "consul.replicas"
+    value = var.consul_replicas
+  }
+
+  set {
+    name  = "consul.gossipEncryption.secretName"
+    value = var.k8s_consul_gossip_key_name
+  }
+
+  set {
+    name  = "consul.gossipEncryption.secretKey"
+    value = "key"
   }
 }

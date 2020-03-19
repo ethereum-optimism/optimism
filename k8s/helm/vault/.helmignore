@@ -1,4 +1,4 @@
 .git/
-.terraform/
-bin/
-test/
+.vscode/
+
+.DS_Store

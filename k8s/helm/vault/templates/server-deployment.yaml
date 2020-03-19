@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ template "omisego-vault.chart" . }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.server.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      component: server
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: {{ template "omisego-vault.chart" . }}
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        component: server
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: vault
+        command: ["vault", "server", "-config", "/vault/config/config.json"]
+        image: {{ .Values.global.vaultImage }}
+        imagePullPolicy: {{ .Values.global.pullPolicy }}
+        securityContext:
+          capabilities:
+            add: ["IPC_LOCK"]
+        volumeMounts:
+          - name: configs
+            mountPath: /vault/config/config.hcl
+            subPath: vault.hcl
+          - name: tls
+            mountPath: /etc/tls
+      - name: consul-agent
+        image: {{ .Values.global.consulImage }}
+        imagePullPolicy: {{ .Values.global.pullPolicy }}
+        env:
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: GOSSIP_ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.consul.gossipEncryption.secretName }}
+                key: {{ .Values.consul.gossipEncryption.secretKey }}
+        command: |
+          agent \
+          {{- range $index := until (.Values.consul.replicas | int) }}
+          -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
+          {{- end }}
+          -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
+          -config-file=/consul/config/config.json \
+          -domain={{ .Values.consul.domain }} \
+          -datacenter={{ .Values.consul.datacenter }} \
+          -disable-host-node-id \
+          -node=vault-1
+        volumeMounts:
+          - name: config
+            mountPath: /consul/config/config.json
+            subPath: consul.json
+          {{- if .Values.global.tlsEnabled }}
+          - name: tls
+            mountPath: /etc/tls
+          {{- end }}
+      volumes:
+        - name: configs
+          configMap:
+            name: {{ .Chart.Name }}-server-config
+        {{- if .Values.global.tlsEnabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.server.certificatesSecretName }}
+        {{- end }}

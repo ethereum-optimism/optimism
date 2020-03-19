@@ -1,0 +1,18 @@
+{
+  "CN": "consul",
+  "hosts": [
+    "consul",
+    "dc1.consul"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "ST": "Colorado",
+      "L": "Denver"
+    }
+  ]
+}

@@ -55,7 +55,11 @@ spec:
             - name: CONSUL_HTTP_ADDR
               value: https://localhost:8501
             - name: CONSUL_CACERT
-              value: /consul/tls/ca.crt
+              value: /etc/tls/ca.pem
+            - name: CONSUL_CLIENT_CERT
+              value: /etc/tls/services.pem
+            - name: CONSUL_CLIENT_KEY
+              value: /etc/tls/services-key.pem
             {{- end }}
           command:
             - "/bin/sh"
@@ -113,7 +117,7 @@ spec:
                 - |
                   {{- if .Values.global.tlsEnabled }}
                   curl \
-                    --cacert /consul/tls/ca.crt \
+                    --cacert /etc/tls/ca.pem \
                     https://127.0.0.1:8501/v1/status/leader \
                   {{- else }}
                   curl http://127.0.0.1:8500/v1/status/leader \
@@ -129,7 +133,7 @@ spec:
               mountPath: /consul/userconfig
             {{- if .Values.global.tlsEnabled }}
             - name: tls-certs
-              mountPath: /consul/tls
+              mountPath: /etc/tls
               readOnly: true
             {{- end }}
       volumes:
@@ -139,5 +143,5 @@ spec:
         {{- if .Values.global.tlsEnabled }}
         - name: tls-certs
           secret:
-            secretName: {{ .Chart.Name }}-certs
+            secretName: {{ .Values.global.certificatesSecretName }}
         {{- end }}
