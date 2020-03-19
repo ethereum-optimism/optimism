@@ -4,7 +4,7 @@ metadata:
   name: {{ .Chart.Name }}-server-config
   namespace: {{ .Release.Namespace }}
 data:
-  config.hcl: |
+  server.hcl: |
     listener "tcp" {
       address = "127.0.0.1:8200"
       {{- if .Values.global.tlsEnabled }}
@@ -27,19 +27,30 @@ data:
     }
 
     storage "consul" {
-      {{- if .Values.global.tlsEnabled }}
-      scheme = "https"
-      address = "omisego-consul-server:8501"
-      tls_ca_file = "/etc/tls/ca.pem"
-      tls_cert_file = "/etc/tls/services.pem"
-      tls_key_file = "/etc/tls/services-key.pem"
-      {{- else }}
-      address = "omisego-consul-server:8500"
-      {{- end }}
+      scheme = "http"
+      address = "127.0.0.1:8500"
       path = "vault/"
+      service = "vault"
       disable_registration = "true"
-      ha_enabled = "true"
       token = "{{ .Values.server.acl.token }}"
     }
 
-    ui = "true"
+    ui = true
+
+  sidecar.json: |
+    {
+      {{- if .Values.global.tlsEnabled }}
+      "ca_file": "/etc/tls/ca.pem",
+      "cert_file": "/etc/tls/services.pem",
+      "key_file": "/etc/tls/services-key.pem",
+      {{- end }}
+      "ports": {
+        "http": 8500
+      },
+      "primary_datacenter":"{{ .Values.global.datacenter }}",
+      "acl": {
+          "enabled": true,
+          "default_policy": "deny",
+          "down_policy": "extend-cache"
+      }
+    }

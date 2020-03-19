@@ -26,7 +26,7 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: vault
-        command: ["vault", "server", "-config", "/vault/config/config.hcl"]
+        command: ["vault", "server", "-config", "/vault/config/server.hcl"]
         image: {{ .Values.server.image }}
         imagePullPolicy: {{ .Values.global.pullPolicy }}
         securityContext:
@@ -34,12 +34,13 @@ spec:
             add: ["IPC_LOCK"]
         volumeMounts:
           - name: vault-config
-            mountPath: /vault/config
-        {{- if .Values.global.tlsEnabled }}
+            mountPath: /vault/config/server.hcl
+            subPath: server.hcl
+          {{- if .Values.global.tlsEnabled }}
           - name: tls
             mountPath: /etc/tls
             readOnly: true
-        {{- end }}
+          {{- end }}
       - name: consul-sidecar
         image: {{ .Values.consul.image }}
         imagePullPolicy: {{ .Values.global.pullPolicy }}
@@ -54,20 +55,24 @@ spec:
                 name: {{ .Values.consul.gossipEncryption.secretName }}
                 key: {{ .Values.consul.gossipEncryption.secretKey }}
         command: 
+          - "/bin/sh"
+          - "-ec"
           - |
-            agent \
-            {{- range $index := until (.Values.consul.replicas | int) }}
-            -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
-            {{- end }}
-            -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
-            -config-file=/consul/config/config.json \
-            -domain={{ .Values.consul.domain }} \
-            -datacenter={{ .Values.consul.datacenter }} \
-            -disable-host-node-id \
-            -node=vault-1
+            exec /bin/consul agent \
+              {{- range $index := until (.Values.consul.replicas | int) }}
+              -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
+              {{- end }}
+              -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
+              -config-file=/consul/config/sidecar.json \
+              -domain={{ .Values.consul.domain }} \
+              -datacenter={{ .Values.consul.datacenter }} \
+              -data-dir=/consul/data \
+              -disable-host-node-id \
+              -node=vault-1
         volumeMounts:
-          - name: consul-config
-            mountPath: /consul/config
+          - name: vault-config
+            mountPath: /consul/config/sidecar.json
+            subPath: sidecar.json
           {{- if .Values.global.tlsEnabled }}
           - name: tls
             mountPath: /etc/tls
@@ -77,9 +82,9 @@ spec:
         - name: vault-config
           configMap:
             name: {{ .Chart.Name }}-server-config
-        - name: consul-config
-          configMap:
-            name: omisego-consul-server-config
+        # - name: consul-config
+        #   configMap:
+        #     name: omisego-consul-server-config
         {{- if .Values.global.tlsEnabled }}
         - name: tls
           secret:
