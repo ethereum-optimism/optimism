@@ -43,7 +43,6 @@ generate_geneisis()
   mv $tmp $GENISIS_PATH
   jq --arg extraData $EXTRA_DATA '.extraData = $extraData' $GENISIS_PATH > $tmp
   mv $tmp $GENISIS_PATH
-  cp $GENISIS_PATH $CONFIG_DIR
 }
 
 

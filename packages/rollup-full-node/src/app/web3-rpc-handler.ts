@@ -18,7 +18,7 @@ import {
 
 import { Contract, ethers, utils, Wallet } from 'ethers'
 import { promisify } from 'util'
-import { readFile as readFileAsync } from 'fs';
+import { readFile as readFileAsync } from 'fs'
 import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { homedir } from 'os'
@@ -36,7 +36,7 @@ import {
   Web3RpcMethods,
 } from '../types'
 
-const readFile = promisify(readFileAsync);
+const readFile = promisify(readFileAsync)
 const log = getLogger('web3-handler')
 
 const lockKey: string = 'LOCK'
@@ -64,12 +64,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     // If we're provided a web3 URL derive our wallet from a private key
     // otherwise get our wallet from the provider.
-    if(process.env.WEB3_URL) {
-      const privateKey = await readFile(`${homedir()}/.ethereum/private_key.txt`);
+    if (process.env.WEB3_URL) {
+      const privateKey = await readFile(
+        `${homedir()}/.ethereum/private_key.txt`
+      )
       wallet = new Wallet(`0x${privateKey}`, provider)
-     } else {
-      [wallet] = getWallets(provider)
-     }
+    } else {
+      ;[wallet] = getWallets(provider)
+    }
 
     const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
       wallet,
