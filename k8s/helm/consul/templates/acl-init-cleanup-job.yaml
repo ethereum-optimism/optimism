@@ -18,7 +18,7 @@ spec:
       name: {{ .Chart.Name }}-acl-init-cleanup
       labels:
         app: {{ .Chart.Name }}
-        chart: {{ template "consul.chart" . }}
+        chart: {{ template "omisego-consul.chart" . }}
         release: {{ .Release.Name }}
         component: acl-init-cleanup
     spec:
