@@ -21,6 +21,7 @@ import { promisify } from 'util'
 import { readFile as readFileAsync } from 'fs';
 import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { homedir } from 'os'
 
 import AsyncLock from 'async-lock'
 
@@ -58,14 +59,18 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       allowUnlimitedContractSize: true,
     })
   ): Promise<DefaultWeb3Handler> {
-    const privateKey = await readFile("/root/.ethereum/private_key.txt");
     // Initialize a fullnode for us to interact with
     let wallet
-    if(privateKey) {
+
+    // If we're provided a web3 URL derive our wallet from a private key
+    // otherwise get our wallet from the provider.
+    if(process.env.WEB3_URL) {
+      const privateKey = await readFile(`${homedir()}/.ethereum/private_key.txt`);
       wallet = new Wallet(`0x${privateKey}`, provider)
      } else {
       [wallet] = getWallets(provider)
      }
+
     const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
       wallet,
       OPCODE_WHITELIST_MASK
