@@ -10,8 +10,8 @@ GENISIS_PATH='etc/rollup-fullnode.json'
 NETWORK_ID=108
 PORT=8545
 
-## Generates a private key provided a path
-# https://gist.github.com/miguelmota/3793b160992b4ea0b616497b8e5aee2f
+## Generates an Ethereum private key
+# Source: https://gist.github.com/miguelmota/3793b160992b4ea0b616497b8e5aee2f
 generate_private_key()
 {
   openssl ecparam -name secp256k1 -genkey -noout 2> /dev/null |
@@ -29,8 +29,8 @@ import_private_key()
     grep -oh "[a-fA-F0-9]\{40\}" | (echo -n "0x" && cat)
 }
 
-## Generates a geneneis file with a single
-## prefunded account
+## Generates a geneneis file with one authrorized sealer and
+## one prefunded account.
 generate_geneisis()
 {
   SEALER_ADDRESS=$1
