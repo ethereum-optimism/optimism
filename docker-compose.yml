@@ -1,10 +1,17 @@
 version: "3"
+networks:
+  frontend:
+    external: true
+  backend:
 services:
   rollup-fullnode:
     volumes:
        - geth-data:/root/.ethereum
     depends_on:
       - geth
+    networks:
+      - backend
+      - frontend
     build:
       context: packages/rollup-full-node
       dockerfile: Dockerfile
@@ -15,6 +22,8 @@ services:
   geth:
     volumes:
        - geth-data:/root/.ethereum
+    networks:
+      - backend
     build:
       context: docker/geth
       dockerfile: Dockerfile
