@@ -20,8 +20,8 @@ set -e
 #   initialize.sh "keybase:kasima" "keybase:kasima,keybase:jake,keybase:bob,keybase:alice,keybase:eve"
 #
 
-KEY_SHARES=5
-KEY_THRESHOLD=3
+KEY_SHARES=1
+KEY_THRESHOLD=1
 
 VAULT_DIR=$HOME/etc/vault.unsealer
 
@@ -94,12 +94,49 @@ function genconfig {
 }
 
 function gencerts {
-	cfssl gencert -initca config/ca-csr.json | cfssljson -bare $VAULT_DIR/ca
-	cfssl gencert \
-		-ca=$VAULT_DIR/ca.pem \
-		-ca-key=$VAULT_DIR/ca-key.pem \
-		-config=config/cfssl.json \
-		config/services-csr.json | cfssljson -bare $VAULT_DIR/services  
+	openssl req \
+			-new \
+			-sha256 \
+			-newkey rsa:2048 \
+			-days 120 \
+			-nodes \
+			-x509 \
+			-subj "/C=TH/ST=Bangkok/L=OmiseGO/O=Unsealer" \
+			-keyout "$VAULT_DIR/ca-key.pem" \
+			-out "$VAULT_DIR/ca.pem"
+
+	# Generate the private key for the service. 
+	openssl genrsa -out "$VAULT_DIR/services-key.pem" 2048
+
+	# Generate a CSR using the configuration and the key just generated. We will
+	# give this CSR to our CA to sign.
+	openssl req \
+			-new -key "$VAULT_DIR/services-key.pem" \
+			-out "$VAULT_DIR/services.csr" \
+			-config "config/openssl.cnf"
+
+	# Sign the CSR with our CA. This will generate a new certificate that is signed
+	# by our CA.
+	openssl x509 \
+			-req \
+			-days 120 \
+			-in "$VAULT_DIR/services.csr" \
+			-CA "$VAULT_DIR/ca.pem" \
+			-CAkey "$VAULT_DIR/ca-key.pem" \
+			-CAcreateserial \
+			-sha256 \
+			-extensions v3_req \
+			-extfile "config/openssl.cnf" \
+			-out "$VAULT_DIR/services.pem"
+
+	openssl x509 -in "$VAULT_DIR/services.pem" -noout -text
+	# cfssl gencert -initca config/ca-csr.json | cfssljson -bare $VAULT_DIR/ca
+	# cfssl gencert \
+	# 	-ca=$VAULT_DIR/ca.pem \
+	# 	-ca-key=$VAULT_DIR/ca-key.pem \
+	# 	-config=config/cfssl.json \
+	# 	config/services-csr.json | cfssljson -bare $VAULT_DIR/services  
+
 }
 
 mkdir -p $VAULT_DIR

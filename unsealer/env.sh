@@ -16,6 +16,6 @@ if [ -z "$KEYBASE" ]; then
   exit 1
 fi
 
-export VAULT_CACERT=$HOME/etc/vault.unsealer/root.crt
+export VAULT_CACERT=$HOME/etc/vault.unsealer/ca.pem
 export VAULT_TOKEN=$(cat keybase.$KEYBASE.root.b64 | base64 --decode | keybase pgp decrypt)
 export VAULT_ADDR=https://localhost:8200
