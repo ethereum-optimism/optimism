@@ -1,0 +1,42 @@
+[req]
+default_bits = 2048
+encrypt_key  = no
+default_md   = sha256
+prompt       = no
+utf8         = yes
+
+# Specify the DN here so we aren't prompted (along with prompt = no above).
+distinguished_name = req_distinguished_name
+
+# Extensions for SAN IP and SAN DNS
+req_extensions = v3_req
+
+# Be sure to update the subject to match your organization.
+[req_distinguished_name]
+C  = TH
+ST = Bangkok
+L  = Vault
+O  = OmiseGO
+CN = localhost
+
+# Allow client and server auth. You may want to only allow server auth.
+# Link to SAN names.
+[v3_req]
+basicConstraints     = CA:FALSE
+subjectKeyIdentifier = hash
+keyUsage             = digitalSignature, keyEncipherment
+extendedKeyUsage     = clientAuth, serverAuth
+subjectAltName       = @alt_names
+
+# Alternative names are specified as IP.# and DNS.# for IPs and
+# DNS accordingly.
+[alt_names]
+IP.1  = 127.0.0.1
+IP.2  = 10.8.0.2
+IP.3  = 192.168.64.1
+DNS.1 = localhost
+DNS.2 = server.dc1.consul
+DNS.3 = omisego-consul-server
+DNS.4 = *.omisego-consul-server
+DNS.5 = *.omisego-consul-server.default
+DNS.6 = *.omisego-consul-server.default.svc
