@@ -144,7 +144,7 @@ contract ExecutionManager is FullStateManager {
         }
 
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin);
+        initializeContext(_timestamp, _queueOrigin, ZERO_ADDRESS);
 
         address addr = address(this);
         assembly {
@@ -194,10 +194,8 @@ contract ExecutionManager is FullStateManager {
         // Require nonce to be correct
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
         emit CallingWithEOA(eoaAddress);
-        executionContext.ovmTxOrigin = eoaAddress;
         // Make the EOA call for the account
-        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress);
-        executionContext.ovmTxOrigin = ZERO_ADDRESS;
+        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, false);
     }
 
     /**
@@ -208,17 +206,19 @@ contract ExecutionManager is FullStateManager {
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
      * @param _fromAddress The address which this call should originate from--the msg.sender.
+     * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
     function executeUnsignedEOACall(
         uint _timestamp,
         uint _queueOrigin,
         address _ovmEntrypoint,
         bytes memory _callBytes,
-        address _fromAddress
+        address _fromAddress,
+        bool _allowRevert
     ) public {
         uint _nonce = getOvmContractNonce(_fromAddress);
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin);
+        initializeContext(_timestamp, _queueOrigin, _fromAddress);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
@@ -256,7 +256,6 @@ contract ExecutionManager is FullStateManager {
             mstore8(add(_callBytes, 3), methodId)
         }
 
-        bool isCall = executionContext.ovmTxOrigin == ZERO_ADDRESS;
         bool success = false;
         address addr = address(this);
         bytes memory result;
@@ -269,7 +268,7 @@ contract ExecutionManager is FullStateManager {
             if eq(success, 1) {
                 return(resultData, returndatasize)
             }
-            if eq(isCall, 1) {
+            if eq(_allowRevert, 1) {
                 revert(resultData, returndatasize)
             }
             mstore(result, returndatasize)
@@ -503,13 +502,15 @@ contract ExecutionManager is FullStateManager {
      *         NOTE: this zeroing may not technically be needed as the context should always end up as zero at the end of each execution.
      * @param _timestamp The timestamp which should be used for this context.
      * @param _queueOrigin The queue which this context's transaction was sent from.
+     * @param _ovmTxOrigin The tx.origin for the currently executing transaction. It will be ZERO_ADDRESS if it's not an EOA call.
      */
-    function initializeContext(uint _timestamp, uint _queueOrigin) internal {
+    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin) internal {
         // First zero out the context for good measure (Note ZERO_ADDRESS is reserved for the genesis contract & initial msgSender)
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
-        // And finally set the timestamp & queue origin
+        // And finally set the timestamp, queue origin, & tx origin
         executionContext.timestamp = _timestamp;
         executionContext.queueOrigin = _queueOrigin;
+        executionContext.ovmTxOrigin = _ovmTxOrigin;
     }
 
     /**

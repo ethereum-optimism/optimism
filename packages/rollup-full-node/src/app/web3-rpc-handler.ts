@@ -173,12 +173,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )}], defaultBlock: [${defaultBlock}]`
     )
     // First generate the internalTx calldata
-    const internalCalldata = this.generateUnsignedCallCalldata(
+    const internalCalldata = this.getTransactionCalldata(
       this.getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
-      txObject['from']
+      txObject['from'],
+      true
     )
 
     log.debug(`calldata: ${internalCalldata}`)
@@ -188,7 +189,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       // Then actually make the call and get the response
       response = await this.provider.send(Web3RpcMethods.call, [
         {
-          from: ZERO_ADDRESS,
+          from: this.wallet.address,
           to: this.executionManager.address,
           data: internalCalldata,
         },
@@ -222,19 +223,20 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )}], defaultBlock: [${defaultBlock}]`
     )
     // First generate the internalTx calldata
-    const internalCalldata = this.generateUnsignedCallCalldata(
+    const internalCalldata = this.getTransactionCalldata(
       this.getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
-      txObject['from']
+      txObject['from'],
+      true
     )
 
     log.debug(internalCalldata)
     // Then estimate the gas
     const response = await this.provider.send(Web3RpcMethods.estimateGas, [
       {
-        from: ZERO_ADDRESS,
+        from: this.wallet.address,
         to: this.executionManager.address,
         data: internalCalldata,
       },
@@ -480,16 +482,23 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
+    // Check the nonce
+    const expectedNonce = (
+      await this.executionManager.getOvmContractNonce(ovmTx.from)
+    ).toNumber()
+    if (expectedNonce !== ovmTx.nonce) {
+      throw new Error(
+        `Incorrect nonce! Expected nonce: ${expectedNonce} but received nonce: ${ovmTx.nonce}`
+      )
+    }
     // Construct the raw transaction calldata
-    const internalCalldata = this.generateEOACallCalldata(
+    const internalCalldata = this.getTransactionCalldata(
       this.getTimestamp(),
       0,
-      ovmTx.nonce,
       ovmTo,
       ovmTx.data,
-      ovmTx.v,
-      ovmTx.r,
-      ovmTx.s
+      ovmTx.from,
+      false
     )
 
     log.debug(`EOA calldata: [${internalCalldata}]`)
@@ -524,12 +533,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return executionManager
   }
 
-  private generateUnsignedCallCalldata(
+  /**
+   * Get the calldata for an EVM transaction to the ExecutionManager.
+   */
+  private getTransactionCalldata(
     timestamp: number,
     queueOrigin: number,
     ovmEntrypoint: string,
     callBytes: string,
-    fromAddress: string
+    fromAddress: string,
+    allowRevert: boolean
   ): string {
     // Update the ovmEntrypoint to be the ZERO_ADDRESS if this is a contract creation
     if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
@@ -537,37 +550,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     }
     return this.executionManager.interface.functions[
       'executeUnsignedEOACall'
-    ].encode([timestamp, queueOrigin, ovmEntrypoint, callBytes, fromAddress])
-  }
-
-  private generateEOACallCalldata(
-    timestamp: number,
-    queueOrigin: number,
-    nonce: number,
-    ovmEntrypoint: string,
-    callBytes: string,
-    v: number,
-    r: string,
-    s: string
-  ): string {
-    // Update the ovmEntrypoint to be the ZERO_ADDRESS if this is a contract creation
-    if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
-      ovmEntrypoint = ZERO_ADDRESS
-    }
-
-    log.debug(
-      `Generating EOA Calldata: v: [${v}], r: [${r}], s: [${s}], nonce: [${nonce}] entrypoint: [${ovmEntrypoint}], callBytes: [${callBytes}]`
-    )
-
-    return this.executionManager.interface.functions['executeEOACall'].encode([
+    ].encode([
       timestamp,
       queueOrigin,
-      nonce,
       ovmEntrypoint,
       callBytes,
-      v,
-      r,
-      s,
+      fromAddress,
+      allowRevert,
     ])
   }
 
