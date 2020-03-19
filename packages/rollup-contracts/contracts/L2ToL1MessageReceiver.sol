@@ -42,7 +42,7 @@ contract L2ToL1MessageReceiver {
     }
 
     function verifyL2ToL1Message(dt.L2ToL1Message memory _message, uint _nonce) public view returns (bool) {
-        // The enqueued message at the given nonce must match the _message being verified
+        // The enqueued message for the given nonce must match the _message being verified
         bytes32 givenMessageHash = getMessageHash(_message);
         bytes32 storedMessageHash = getMessageHash(messages[_nonce].message);
         bool messageWasEnqueued = (storedMessageHash == givenMessageHash);
