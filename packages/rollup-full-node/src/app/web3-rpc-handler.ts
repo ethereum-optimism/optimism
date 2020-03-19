@@ -173,7 +173,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )}], defaultBlock: [${defaultBlock}]`
     )
     // First generate the internalTx calldata
-    const internalCalldata = this.generateUnsignedCallCalldata(
+    const internalCalldata = this.getTransactionCalldata(
       this.getTimestamp(),
       0,
       txObject['to'],
@@ -223,7 +223,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )}], defaultBlock: [${defaultBlock}]`
     )
     // First generate the internalTx calldata
-    const internalCalldata = this.generateUnsignedCallCalldata(
+    const internalCalldata = this.getTransactionCalldata(
       this.getTimestamp(),
       0,
       txObject['to'],
@@ -492,7 +492,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )
     }
     // Construct the raw transaction calldata
-    const internalCalldata = this.generateUnsignedCallCalldata(
+    const internalCalldata = this.getTransactionCalldata(
       this.getTimestamp(),
       0,
       ovmTo,
@@ -533,7 +533,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return executionManager
   }
 
-  private generateUnsignedCallCalldata(
+  private getTransactionCalldata(
     timestamp: number,
     queueOrigin: number,
     ovmEntrypoint: string,
