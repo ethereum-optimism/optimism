@@ -13,41 +13,41 @@ contract L2ToL1MessageReceiver {
 
     struct EnqueuedL2ToL1Message {
         dt.L2ToL1Message message;
-        uint blockEnqueued;
+        uint l1BlockEnqueued;
     }
     
-    address public trustedSequencer;
-    uint public messageDelay;
+    address public sequencer;
+    uint public messageDelayInBlocks;
     uint messageNonce = 0;
     mapping (uint => EnqueuedL2ToL1Message) public messages;
 
-    constructor(address _trustedSequencer, uint _messageDelay) public {
-        trustedSequencer = _trustedSequencer;
-        messageDelay = _messageDelay;
+    constructor(address _sequencer, uint _messageDelay) public {
+        sequencer = _sequencer;
+        messageDelayInBlocks = _messageDelay;
     }
 
     function enqueueL2ToL1Message(dt.L2ToL1Message memory _message) public {
-        require(msg.sender == trustedSequencer, "For now, only our trusted sequencer can enqueue messages to be verified on L1");
+        require(msg.sender == sequencer, "For now, only our trusted sequencer can enqueue messages to be verified on L1");
         uint blockNum = block.number;
         messages[messageNonce] = EnqueuedL2ToL1Message({
             message: _message,
-            blockEnqueued: blockNum
+            l1BlockEnqueued: blockNum
         });
-        messageNonce += 1;
         emit L2ToL1MessageEnqueued(
             _message.ovmSender,
             _message.callData,
-            blockNum
+            messageNonce
         );
+        messageNonce += 1;
     }
 
     function verifyL2ToL1Message(dt.L2ToL1Message memory _message, uint _nonce) public view returns (bool) {
-        // The enqueued message at the given nonce mudt match the _message being verified
+        // The enqueued message at the given nonce must match the _message being verified
         bytes32 givenMessageHash = getMessageHash(_message);
         bytes32 storedMessageHash = getMessageHash(messages[_nonce].message);
         bool messageWasEnqueued = (storedMessageHash == givenMessageHash);
         // Message must be finalized on L1
-        bool messageIsFinalized = (block.number >= messages[_nonce].blockEnqueued + messageDelay);
+        bool messageIsFinalized = (block.number >= messages[_nonce].l1BlockEnqueued + messageDelayInBlocks);
         
         return messageWasEnqueued && messageIsFinalized;
     }
