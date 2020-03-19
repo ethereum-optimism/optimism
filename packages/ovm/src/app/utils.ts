@@ -21,7 +21,7 @@ import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
 import { OvmTransactionReceipt } from '../types'
-export { deployExecutionManager } from '../../deploy/execution-manager'
+
 // Contract Exports
 export const L2ExecutionManagerContractDefinition = {
   abi: L2ExecutionManager.abi,
@@ -34,11 +34,6 @@ export const ContractAddressGeneratorContractDefinition = {
 export const RLPEncodeContractDefinition = {
   abi: RLPEncode.abi,
   bytecode: RLPEncode.bytecode,
-}
-
-export const ExecutionManagerContractDefinition = {
-  abi: ExecutionManager.abi,
-  bytecode: ExecutionManager.bytecode,
 }
 
 export const revertMessagePrefix: string =

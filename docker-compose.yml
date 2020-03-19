@@ -10,6 +10,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - 8545:8545
+    environment:
+      WEB3_URL: http://geth:8545/
   geth:
     volumes:
        - geth-data:/root/.ethereum

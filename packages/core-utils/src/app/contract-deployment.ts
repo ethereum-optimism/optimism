@@ -25,13 +25,6 @@ const checkParamsAndLoadConfig = (configDirectoryPath: string) => {
     process.exit(0)
   }
 
-  if (!(process.env.DEPLOY_MNEMONIC || process.env.DEPLOY_PRIVATE_KEY)) {
-    console.log(
-      `Error: No DEPLOY_MNEMONIC or DEPLOY_PRIVATE_KEY env var set. Please add it to .<environment>.env file and try again. See .env.example for more info.\n`
-    )
-    process.exit(0)
-  }
-
   // Get the environment and read the appropriate environment file
   const environment = process.argv[process.argv.length - 1]
   config({ path: `${configDirectoryPath}/.${environment}.env` })
@@ -83,6 +76,15 @@ export const deploy = async (
   if (rootContract) {
     console.log(`\n\n********** STARTING DEPLOYMENT ***********\n\n`)
   }
+  // Make sure mnemonic exists
+  const deployMnemonic = process.env.DEPLOY_MNEMONIC
+  if (!deployMnemonic) {
+    console.log(
+      `Error: No DEPLOY_MNEMONIC env var set. Please add it to .<environment>.env file it and try again. See .env.example for more info.\n`
+    )
+    return
+  }
+
   // Connect provider
   let provider: Provider
   const network = process.env.DEPLOY_NETWORK
@@ -95,10 +97,7 @@ export const deploy = async (
   }
 
   // Create wallet
-  const wallet = process.env.DEPLOY_MNEMONIC
-    ? Wallet.fromMnemonic(process.env.DEPLOY_MNEMONIC)
-    : new Wallet(process.env.DEPLOY_MNEMONIC)
-  wallet.connect(provider)
+  const wallet = Wallet.fromMnemonic(deployMnemonic).connect(provider)
 
   if (rootContract) {
     console.log(
