@@ -199,5 +199,28 @@ describe('FullnodeHandler RPC Server', () => {
         r['jsonrpc'].should.equal('2.0')
       })
     })
+    it('should not allow batches of batches', async () => {
+      const batchOfBatches = Array.from(
+        defaultSupportedMethods
+      ).map((method, id) => [{ jsonrpc: '2.0', id, method }])
+      const result: AxiosResponse = await request(client, batchOfBatches)
+
+      result.status.should.equal(200)
+      const results = result.data
+
+      results.forEach((r) => {
+        r.should.haveOwnProperty('id')
+        r.should.haveOwnProperty('jsonrpc')
+        r.should.haveOwnProperty('error')
+        r['error'].should.haveOwnProperty('message')
+        r['error'].should.haveOwnProperty('code')
+        r['error']['message'].should.equal(
+          JSONRPC_ERRORS.INVALID_REQUEST.message
+        )
+        r['error']['code'].should.equal(JSONRPC_ERRORS.INVALID_REQUEST.code)
+
+        r['jsonrpc'].should.equal('2.0')
+      })
+    })
   })
 })

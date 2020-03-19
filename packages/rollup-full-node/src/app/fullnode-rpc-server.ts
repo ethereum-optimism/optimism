@@ -8,6 +8,7 @@ import {
   Logger,
   JsonRpcRequest,
   JsonRpcErrorResponse,
+  JsonRpcResponse,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -53,19 +54,34 @@ export class FullnodeRpcServer extends ExpressHttpServer {
     })
   }
 
-  protected async handleRequest(req: any): Promise<any> {
+  /**
+   * Handles the provided request, returning the appropriate response object
+   * @param req The request to handle
+   * @param inBatchRequest Whether or not this is being called within the context of handling a batch requset
+   * @returns The JSON-stringifiable response object.
+   */
+  protected async handleRequest(
+    req: any,
+    inBatchRequest: boolean = false
+  ): Promise<JsonRpcResponse | JsonRpcResponse[]> {
     let request: JsonRpcRequest
     try {
       request = req.body
-      if (Array.isArray(request)) {
+      if (Array.isArray(request) && !inBatchRequest) {
+        log.debug(`Received batch request: [${JSON.stringify(request)}]`)
         const requestArray: any[] = request as any[]
         return Promise.all(
-          requestArray.map((x) => this.handleRequest({ body: x }))
+          requestArray.map(
+            (x) =>
+              this.handleRequest({ body: x }, true) as Promise<JsonRpcResponse>
+          )
         )
       }
 
       if (!isJsonRpcRequest(request)) {
-        log.debug(`Received request of unsupported format: [${request}]`)
+        log.debug(
+          `Received request of unsupported format: [${JSON.stringify(request)}]`
+        )
         return buildJsonRpcError('INVALID_REQUEST', null)
       }
 
@@ -104,7 +120,10 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         return buildJsonRpcError('INVALID_PARAMS', request.id)
       }
       logError(log, `Uncaught exception at endpoint-level`, err)
-      return buildJsonRpcError('INTERNAL_ERROR', request.id)
+      return buildJsonRpcError(
+        'INTERNAL_ERROR',
+        request && request.id ? request.id : null
+      )
     }
   }
 }
