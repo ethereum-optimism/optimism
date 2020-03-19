@@ -1,5 +1,6 @@
 HOSTNAME='geth'
 CONFIG_DIR='/root/.ethereum'
+KEYSTORE_PATH="${CONFIG_DIR}/keystore"
 SEALER_PRIVATE_KEY_PATH="${CONFIG_DIR}/sealer_private_key.txt"
 PRIVATE_KEY_PATH="${CONFIG_DIR}/private_key.txt"
 ADDRESS_PATH="${CONFIG_DIR}/address.txt"
@@ -13,15 +14,23 @@ PORT=8545
 # https://gist.github.com/miguelmota/3793b160992b4ea0b616497b8e5aee2f
 generate_private_key()
 {
-  openssl ecparam -name secp256k1 -genkey -noout |
-    openssl ec -text -noout  |
+  openssl ecparam -name secp256k1 -genkey -noout 2> /dev/null |
+    openssl ec -text -noout 2> /dev/null |
       grep priv -A 3 |
         tail -n +2 |
           tr -d '\n[:space:]:' |
             sed 's/^00//'
 }
 
-## Generates a geneneis file with a prefunded account
+## Imports a private key into geth and returns the address
+import_private_key()
+{
+  geth account import --password /dev/null $1 2> /dev/null |
+    grep -oh "[a-fA-F0-9]\{40\}" | (echo -n "0x" && cat)
+}
+
+## Generates a geneneis file with a single
+## prefunded account
 generate_geneisis()
 {
   SEALER_ADDRESS=$1
@@ -40,24 +49,20 @@ generate_geneisis()
 
 case $1 in
   setup)
+    if test -d "$KEYSTORE_PATH"; then
+      echo "Setup has already been run"
+      exit 1
+    fi
     generate_private_key > $SEALER_PRIVATE_KEY_PATH
-    geth account import --password /dev/null $SEALER_PRIVATE_KEY_PATH |
-      grep -oh "[a-fA-F0-9]\{40\}" | (echo -n "0x" && cat)  > $SEALER_ADDRESS_PATH;
+    import_private_key $SEALER_PRIVATE_KEY_PATH > $SEALER_ADDRESS_PATH
     generate_private_key > $PRIVATE_KEY_PATH
-    geth account import --password /dev/null $PRIVATE_KEY_PATH | grep -oh "[a-fA-F0-9]\{40\}" | (echo -n "0x" && cat) > $ADDRESS_PATH;
-#(echo -n "0x" && cat) |
+    import_private_key $PRIVATE_KEY_PATH > $ADDRESS_PATH
     generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
-    echo "Miner address: `cat $SEALER_ADDRESS_PATH`"
-    echo "User address: `cat $ADDRESS_PATH`"
 
-    # If geth is initialized with the mounted volume
-    # it fails with the following error:
-    # Fatal: Failed to open database: resource temporarily unavailable
-    # Instead we initialize it in a temporary directory and copy th results
-    mkdir -p /root/tmp
-    geth --datadir /root/tmp --nousb --verbosity 0 init $GENISIS_PATH;
-    rm -rf /root/.ethereum/geth
-    mv /root/tmp/geth /root/.ethereum
+    geth --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
+    echo "Setup Complete"
+    echo "Sealer Address: 0x`cat $SEALER_PRIVATE_KEY_PATH`"
+    echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
     break
     ;;
   "")
