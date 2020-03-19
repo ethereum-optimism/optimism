@@ -72,7 +72,8 @@ describe('SimpleStorage', () => {
       executionManager,
       wallet,
       simpleStorageOvmAddress,
-      innerCallData
+      innerCallData,
+      true
     )
   }
 

@@ -98,7 +98,8 @@ describe('Execution Manager -- Call opcodes', () => {
         0,
         transaction.to,
         transaction.data,
-        ZERO_ADDRESS
+        ZERO_ADDRESS,
+        true
       )
       await provider.waitForTransaction(tx.hash)
     })
@@ -236,6 +237,7 @@ describe('Execution Manager -- Call opcodes', () => {
           dummyContractAddress,
           internalCalldata,
           wallet.address,
+          true,
         ]
       )
       const nonce = await wallet.getTransactionCount()
@@ -276,6 +278,7 @@ describe('Execution Manager -- Call opcodes', () => {
           dummyContractAddress,
           internalCalldata,
           wallet.address,
+          true,
         ]
       )
       const nonce = await wallet.getTransactionCount()
