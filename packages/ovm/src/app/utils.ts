@@ -44,7 +44,6 @@ export const ExecutionManagerContractDefinition = {
 export const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '
 
-
 const executionManager = new ethers.utils.Interface(ExecutionManager.interface)
 
 const logger = getLogger('utils')

@@ -9,6 +9,8 @@ services:
       context: packages/ovm
       dockerfile: Dockerfile
   rollup-fullnode:
+    volumes:
+       - geth-data:/root/.ethereum
     depends_on:
       - geth
     build:

@@ -17,6 +17,8 @@ import {
 } from '@eth-optimism/ovm'
 
 import { Contract, ethers, utils, Wallet } from 'ethers'
+import { promisify } from 'util'
+import { readFile as readFileAsync } from 'fs';
 import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
@@ -33,6 +35,7 @@ import {
   Web3RpcMethods,
 } from '../types'
 
+const readFile = promisify(readFileAsync);
 const log = getLogger('web3-handler')
 
 const lockKey: string = 'LOCK'
@@ -55,8 +58,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       allowUnlimitedContractSize: true,
     })
   ): Promise<DefaultWeb3Handler> {
+    const privateKey = await readFile("/root/.ethereum/private_key.txt");
     // Initialize a fullnode for us to interact with
-    const [wallet] = getWallets(provider)
+    let wallet
+    if(privateKey) {
+      wallet = new Wallet(`0x${privateKey}`, provider)
+     } else {
+      [wallet] = getWallets(provider)
+     }
     const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
       wallet,
       OPCODE_WHITELIST_MASK
