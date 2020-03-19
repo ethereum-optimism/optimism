@@ -2,12 +2,17 @@
   "CN": "server.dc1.consul",
   "hosts": [
     "127.0.0.1",
+    "10.8.0.2",
+    "192.168.64.1",
     "localhost",
     "server.dc1.consul",
     "omisego-consul-server",
     "*.omisego-consul-server",
     "*.omisego-consul-server.default",
-    "*.omisego-consul-server.default.svc"
+    "*.omisego-consul-server.default.svc",
+    "omisego-vault-server",
+    "*.omisego-vault-server",
+    "*.omisego-vault-server.default"
   ],
   "key": {
     "algo": "rsa",

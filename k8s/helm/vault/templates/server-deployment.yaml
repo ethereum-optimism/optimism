@@ -51,17 +51,18 @@ spec:
               secretKeyRef:
                 name: {{ .Values.consul.gossipEncryption.secretName }}
                 key: {{ .Values.consul.gossipEncryption.secretKey }}
-        command: |
-          agent \
-          {{- range $index := until (.Values.consul.replicas | int) }}
-          -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
-          {{- end }}
-          -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
-          -config-file=/consul/config/config.json \
-          -domain={{ .Values.consul.domain }} \
-          -datacenter={{ .Values.consul.datacenter }} \
-          -disable-host-node-id \
-          -node=vault-1
+        command: 
+          - |
+            agent \
+            {{- range $index := until (.Values.consul.replicas | int) }}
+            -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
+            {{- end }}
+            -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
+            -config-file=/consul/config/config.json \
+            -domain={{ .Values.consul.domain }} \
+            -datacenter={{ .Values.consul.datacenter }} \
+            -disable-host-node-id \
+            -node=vault-1
         volumeMounts:
           - name: config
             mountPath: /consul/config/config.json
