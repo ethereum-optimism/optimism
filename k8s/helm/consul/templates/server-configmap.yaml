@@ -10,12 +10,9 @@ data:
       "ca_file": "/etc/tls/ca.pem",
       "cert_file": "/etc/tls/services.pem",
       "key_file": "/etc/tls/services-key.pem",
-      "verify_incoming": true,
+      "verify_incoming_rpc": true,
       "verify_outgoing": true,
       "verify_server_hostname": true,
-      "auto_encrypt": {
-        "allow_tls": true
-      },
       {{- end }}
       "ports": {
         {{- if .Values.global.tlsEnabled }}
@@ -29,8 +26,7 @@ data:
       "acl": {
           "enabled": true,
           "default_policy": "deny",
-          "down_policy": "extend-cache",
-          "enable_token_persistence": true
+          "down_policy": "extend-cache"
       }
     }
   vault.hcl: |

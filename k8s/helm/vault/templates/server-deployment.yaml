@@ -26,20 +26,22 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: vault
-        command: ["vault", "server", "-config", "/vault/config/config.json"]
-        image: {{ .Values.global.vaultImage }}
+        command: ["vault", "server", "-config", "/vault/config/config.hcl"]
+        image: {{ .Values.server.image }}
         imagePullPolicy: {{ .Values.global.pullPolicy }}
         securityContext:
           capabilities:
             add: ["IPC_LOCK"]
         volumeMounts:
-          - name: configs
-            mountPath: /vault/config/config.hcl
-            subPath: vault.hcl
+          - name: vault-config
+            mountPath: /vault/config
+        {{- if .Values.global.tlsEnabled }}
           - name: tls
             mountPath: /etc/tls
-      - name: consul-agent
-        image: {{ .Values.global.consulImage }}
+            readOnly: true
+        {{- end }}
+      - name: consul-sidecar
+        image: {{ .Values.consul.image }}
         imagePullPolicy: {{ .Values.global.pullPolicy }}
         env:
           - name: NAMESPACE
@@ -64,19 +66,22 @@ spec:
             -disable-host-node-id \
             -node=vault-1
         volumeMounts:
-          - name: config
-            mountPath: /consul/config/config.json
-            subPath: consul.json
+          - name: consul-config
+            mountPath: /consul/config
           {{- if .Values.global.tlsEnabled }}
           - name: tls
             mountPath: /etc/tls
+            readOnly: true
           {{- end }}
       volumes:
-        - name: configs
+        - name: vault-config
           configMap:
             name: {{ .Chart.Name }}-server-config
+        - name: consul-config
+          configMap:
+            name: omisego-consul-server-config
         {{- if .Values.global.tlsEnabled }}
         - name: tls
           secret:
-            secretName: {{ .Values.server.certificatesSecretName }}
+            secretName: {{ .Values.global.certificatesSecretName }}
         {{- end }}

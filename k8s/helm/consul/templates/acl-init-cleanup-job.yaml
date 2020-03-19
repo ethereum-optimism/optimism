@@ -23,7 +23,7 @@ spec:
         component: acl-init-cleanup
     spec:
       restartPolicy: Never
-      serviceAccountName: {{ .Chart.Name }}-acl-init-cleanup
+      serviceAccountName: {{ .Chart.Name }}
       containers:
         - name: acl-init-cleanup
           image: {{ .Values.global.imageK8S }}

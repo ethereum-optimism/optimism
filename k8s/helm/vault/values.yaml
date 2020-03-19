@@ -1,15 +1,16 @@
 global:
   tlsEnabled: true
   certificatesSecretName: ""
-  
-  vaultImage: "vault:1.3.2"
   pullPolicy: IfNotPresent
 
 server:
   replicas: 3
+  image: "vault:1.3.2"
+  acl: 
+    token: ""
   unseal:
     token: ""
-    address: "https://192.168.64.1:8200"
+    address: ""
 
 consul:
   image: "consul:1.7.1"

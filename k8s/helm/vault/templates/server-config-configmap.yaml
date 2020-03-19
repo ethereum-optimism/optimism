@@ -4,14 +4,14 @@ metadata:
   name: {{ .Chart.Name }}-server-config
   namespace: {{ .Release.Namespace }}
 data:
-  vault.hcl: |
+  config.hcl: |
     listener "tcp" {
       address = "127.0.0.1:8200"
       {{- if .Values.global.tlsEnabled }}
-      tls_cert_file = "/etc/tls/services.crt"
-      tls_client_ca_file = "/etc/tls/root.crt"
       tls_disable = 0
-      tls_key_file = "/etc/tls/services.key"
+      tls_cert_file = "/etc/tls/services.pem"
+      tls_client_ca_file = "/etc/tls/ca.pem"
+      tls_key_file = "/etc/tls/services-key.pem"
       {{- else }}
       tls_disabled = 1
       {{- end }}
@@ -19,48 +19,27 @@ data:
 
     seal "transit" {
       address = "{{ .Values.server.unseal.address }}"
-      disable_renewal = true
+      disable_renewal = "true"
       key_name = "autounseal"
       mount_path = "transit/"
-      tls_ca_cert = "/etc/tls/root.crt"
+      tls_ca_cert = "/etc/tls/ca.pem"
       token = "{{ .Values.server.unseal.token }}"
     }
 
     storage "consul" {
-      address = "consul:8500"
-      disable_registration = true
-      has_enabled = true
-      path = "vault/"
-    }
-
-    ui = true
-
-  consul.json: |
-    {
       {{- if .Values.global.tlsEnabled }}
-      "ca_file": "/etc/tls/root.crt",
-      "cert_file": "/etc/tls/services.crt",
-      "key_file": "/etc/tls/services.key",
-      "verify_incoming": true,
-      "verify_outgoing": true,
-      "verify_server_hostname": true,
-      "auto_encrypt": {
-        "allow_tls": true
-      },
+      scheme = "https"
+      address = "omisego-consul-server:8501"
+      tls_ca_file = "/etc/tls/ca.pem"
+      tls_cert_file = "/etc/tls/services.pem"
+      tls_key_file = "/etc/tls/services-key.pem"
+      {{- else }}
+      address = "omisego-consul-server:8500"
       {{- end }}
-      "ports": {
-        {{- if .Values.global.tlsEnabled }}
-        "https": 8501
-        {{- else }}
-        "http": 8500
-        {{- end }}
-      },
-      "primary_datacenter":"{{ .Values.global.datacenter }}",
-      "acl": {
-          "enabled": true,
-          "default_policy": "deny",
-          "down_policy": "extend-cache",
-          "enable_token_persistence": true
-      }
+      path = "vault/"
+      disable_registration = "true"
+      ha_enabled = "true"
+      token = "{{ .Values.server.acl.token }}"
     }
 
+    ui = "true"

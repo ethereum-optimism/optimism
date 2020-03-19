@@ -51,7 +51,7 @@ data "kubernetes_secret" "bootstrap_acl_token" {
 # Loads the Consul Vault policy ACL token from the K8S cluster's
 # secrets AFTER the Consul Helm chart has been successfully installed
 data "kubernetes_secret" "vault_acl_token" {
-  depends_on = [helm_release.vault_chart]
+  depends_on = [helm_release.consul_chart]
   metadata {
     name = var.k8s_consul_vault_acl_token_name
   }
@@ -79,8 +79,9 @@ resource "vault_generic_secret" "consul_bootstrap_token" {
 # Once completed, the provisioner deletes the Vault policy token secret
 # from the K8S cluster in order to clean up loose ends for secret management
 resource "vault_generic_secret" "consul_vault_token" {
-  path      = "kv/consul_vault_token"
-  data_json = jsonencode({ "value" = data.kubernetes_secret.vault_acl_token.data.token })
+  depends_on = [helm_release.vault_chart]
+  path       = "kv/consul_vault_token"
+  data_json  = jsonencode({ "value" = data.kubernetes_secret.vault_acl_token.data.token })
 
   provisioner "local-exec" {
     command = "kubectl delete secret ${var.k8s_consul_vault_acl_token_name}"
@@ -168,7 +169,7 @@ resource "helm_release" "consul_chart" {
 # Installs the Vault Helm chart with value overrides
 # This depends on the Consul Helm chart being installed already
 resource "helm_release" "vault_chart" {
-  depends_on = [helm_release.consul_chart]
+  depends_on = [data.kubernetes_secret.vault_acl_token]
 
   name  = "omisego-vault"
   chart = "../helm/vault"
@@ -186,8 +187,18 @@ resource "helm_release" "vault_chart" {
   }
 
   set {
+    name  = "server.acl.token"
+    value = data.kubernetes_secret.vault_acl_token.data.token
+  }
+
+  set {
     name  = "server.replicas"
     value = var.vault_replicas
+  }
+
+  set {
+    name  = "server.unseal.address"
+    value = "https://192.168.64.1:8200"
   }
 
   set {
