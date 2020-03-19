@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.0.1-alpha.21",
+  "version": "0.0.1-alpha.23",
   "description": "Optimism Core Utils",
   "main": "build/index.js",
   "files": [
@@ -59,5 +59,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }
