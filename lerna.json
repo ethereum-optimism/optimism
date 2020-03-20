@@ -10,7 +10,7 @@
     "packages/rollup-core/*",
     "packages/rollup-dev-tools/*",
     "packages/rollup-full-node/*",
-    "packages/solc-transpiler/*",
+    "packages/solc-transpiler/*"
   ],
   "command": {
     "publish": {
