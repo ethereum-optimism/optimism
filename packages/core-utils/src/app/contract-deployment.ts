@@ -121,7 +121,7 @@ export const deploy = async (
 export const getFirstDeployedContractAddress = async (
   provider: Provider,
   address: string
-): Promise<string | null> => {
+): Promise<string | undefined> => {
   const nonce = 0
 
   const contractAddress = getAddress(
@@ -130,9 +130,7 @@ export const getFirstDeployedContractAddress = async (
     ).substring(26)
   )
 
-  if ((await provider.getCode(contractAddress)) === '0x') {
-    return null
-  } else {
+  if ((await provider.getCode(contractAddress)) !== '0x') {
     return contractAddress
   }
 }
