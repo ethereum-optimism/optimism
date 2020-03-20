@@ -26,7 +26,7 @@ describe('Contract deployment', () => {
     wallet = getWallets(provider)[0]
   })
 
-  describe.only('getFirstDeployedContractAddress', () => {
+  describe('getFirstDeployedContractAddress', () => {
     it('should return the first deployed contract if one has been deployed', async () => {
       const factory = dummyContractFactory(wallet);
       const contract = await factory.deploy()
