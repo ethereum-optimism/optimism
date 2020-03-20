@@ -28,7 +28,7 @@ The Helm operations have been abstracted away through Terraform for installation
 |      `k8s_consul_gossip_key_name`      | string | `omisego-consul-gossip-encryption-key` |
 |        `local_certificates_dir`        | string |                   -                    |
 |             `tls_enabled`              |  bool  |                `false`                 |
-|         `unsealer_vault_addr`          | string |        `https://localhost:8200`        |
+|         `unsealer_vault_addr`          | string |        `https://127.0.0.1:8200`        |
 |            `vault_replicas`            | number |                  `3`                   |
 
 ### Execution
@@ -36,7 +36,7 @@ The Helm operations have been abstracted away through Terraform for installation
 Prior to execution, you must have installed, initialized and configured the Unsealer Vault. Terraform will need to have access to keys that are stored in the Unsealer Vault, so the following environment variables must be set:
 
 ```sh
-export VAULT_CACERT=$HOME/etc/vault.unsealer/root.crt
+export VAULT_CACERT=$HOME/etc/vault.unsealer/ca.pem
 export VAULT_TOKEN=$(cat keybase.name-of-admin.root.b64 | base64 --decode | keybase pgp decrypt)
 export VAULT_ADDR=https://localhost:8200
 ```

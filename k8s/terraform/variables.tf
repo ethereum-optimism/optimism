@@ -71,7 +71,7 @@ variable "tls_enabled" {
 
 variable "unsealer_vault_addr" {
   type        = string
-  default     = "https://localhost:8200"
+  default     = "https://127.0.0.1:8200"
   description = "The address to the Unsealer Vault server"
 }
 

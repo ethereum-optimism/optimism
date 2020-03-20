@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: {{ .Chart.Name }}-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ template "omisego-vault.chart" . }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  backend:
+    serviceName: {{ .Chart.Name }}-server
+    servicePort: 8200

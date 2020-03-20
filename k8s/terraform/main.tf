@@ -207,6 +207,11 @@ resource "helm_release" "vault_chart" {
   }
 
   set {
+    name  = "consul.acl.token"
+    value = var.k8s_consul_client_acl_token_name
+  }
+
+  set {
     name  = "consul.datacenter"
     value = var.consul_datacenter
   }

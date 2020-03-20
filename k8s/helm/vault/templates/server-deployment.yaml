@@ -54,6 +54,11 @@ spec:
               secretKeyRef:
                 name: {{ .Values.consul.gossipEncryption.secretName }}
                 key: {{ .Values.consul.gossipEncryption.secretKey }}
+          - name: CONSUL_CLIENT_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.consul.acl.token }}
+                key: token
         command: 
           - "/bin/sh"
           - "-ec"
@@ -62,6 +67,8 @@ spec:
               {{- range $index := until (.Values.consul.replicas | int) }}
               -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
               {{- end }}
+              -log-level=debug \
+              -hcl='acl { tokens = { default = "${CONSUL_CLIENT_TOKEN}" } }' \
               -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
               -config-file=/consul/config/sidecar.json \
               -domain={{ .Values.consul.domain }} \
@@ -78,13 +85,29 @@ spec:
             mountPath: /etc/tls
             readOnly: true
           {{- end }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - consul leave
+        readinessProbe:
+          exec:
+            command:
+              - /bin/sh
+              - -ec
+              - |
+                curl http://127.0.0.1:8500/v1/status/leader 2>/dev/null | grep -E '".+"'
+          failureThreshold: 2
+          initialDelaySeconds: 5
+          periodSeconds: 3
+          successThreshold: 1
+          timeoutSeconds: 5
       volumes:
         - name: vault-config
           configMap:
             name: {{ .Chart.Name }}-server-config
-        # - name: consul-config
-        #   configMap:
-        #     name: omisego-consul-server-config
         {{- if .Values.global.tlsEnabled }}
         - name: tls
           secret:

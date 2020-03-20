@@ -17,6 +17,8 @@ consul:
   replicas: 5
   datacenter: dc1
   domain: consul
+  acl:
+    token: ""
   gossipEncryption:
     secretName: ""
     secretKey: ""
