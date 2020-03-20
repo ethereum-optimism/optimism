@@ -73,10 +73,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ;[wallet] = getWallets(provider)
     }
 
-    const executionManagerAddress = await getFirstDeployedContractAddress(provider, wallet.address)
+    const executionManagerAddress = await getFirstDeployedContractAddress(
+      provider,
+      wallet.address
+    )
 
-    if(executionManagerAddress) {
-      log.info(`Using existing ExecutionManager deployed at ${executionManagerAddress}`)
+    if (executionManagerAddress) {
+      log.info(
+        `Using existing ExecutionManager deployed at ${executionManagerAddress}`
+      )
       executionManager = new Contract(
         executionManagerAddress,
         L2ExecutionManagerContractDefinition.abi,
