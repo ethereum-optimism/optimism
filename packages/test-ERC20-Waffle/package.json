@@ -27,8 +27,8 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.24",
-    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.24",
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.23",
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.23",
     "ethereum-waffle": "2.1.0",
     "mocha": "^7.0.1",
     "rimraf": "^2.6.3"

@@ -33,10 +33,10 @@
     "table": "^5.0.2"
   },
   "dependencies": {
-    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.24",
-    "@eth-optimism/ovm-truffle-provider-wrapper": "^0.0.1-alpha.24",
-    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.24",
-    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.24",
+    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.23",
+    "@eth-optimism/ovm-truffle-provider-wrapper": "^0.0.1-alpha.23",
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.23",
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.23",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12",
     "truffle-hdwallet-provider": "^1.0.17"

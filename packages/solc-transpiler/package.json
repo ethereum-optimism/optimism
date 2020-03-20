@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/solc-transpiler",
-  "version": "0.0.1-alpha.24",
+  "version": "0.0.1-alpha.23",
   "description": "Optimism Transpiler Solc Compiler Wrapper",
   "main": "build/index.js",
   "files": [
@@ -29,8 +29,8 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.0.1-alpha.24",
-    "@eth-optimism/rollup-dev-tools": "^0.0.1-alpha.24",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.23",
+    "@eth-optimism/rollup-dev-tools": "^0.0.1-alpha.23",
     "ethers": "^4.0.45",
     "require-from-string": "^2.0.2",
     "solc": "^0.5.12"
