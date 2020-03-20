@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism-test/erc20-truffle",
   "private": true,
-  "version": "0.0.1-alpha.3",
+  "version": "0.0.1-alpha.5",
   "description": "Example of using solc-transpiler & Web3 full node with Truffle to run a full ERC20 test suite",
   "scripts": {
     "clean": "rimraf build",
@@ -28,9 +28,9 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.23",
-    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.23",
-    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.23",
+    "@eth-optimism-test/integration-test-utils": "^0.0.1-alpha.24",
+    "@eth-optimism/rollup-full-node": "^0.0.1-alpha.24",
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.24",
     "ethereum-waffle": "2.1.0",
     "rimraf": "^2.6.3",
     "truffle": "^5.1.12",
