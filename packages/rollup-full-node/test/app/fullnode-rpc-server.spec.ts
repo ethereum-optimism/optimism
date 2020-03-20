@@ -53,6 +53,31 @@ const request = async (
   })
 }
 
+const getBadPayloads = () => {
+  return [
+    {
+      jsonrpc: '2.0',
+      method: defaultSupportedMethods[0],
+    },
+    {
+      id: '1',
+      jsonrpc: '2.0',
+      method: defaultSupportedMethods[0],
+    },
+    {
+      id: 1,
+      method: defaultSupportedMethods[0],
+    },
+    {
+      id: 1,
+      jsonrpc: 2.0,
+      method: defaultSupportedMethods[0],
+    },
+    { id: 1, jsonrpc: '2.0' },
+    { id: 1, jsonrpc: '2.0', method: unsupportedMethod },
+  ]
+}
+
 const host = '0.0.0.0'
 const port = 9999
 
@@ -77,75 +102,125 @@ describe('FullnodeHandler RPC Server', () => {
     }
   })
 
-  it('should work for valid requests & methods', async () => {
-    const results: AxiosResponse[] = await Promise.all(
-      Array.from(defaultSupportedMethods).map((x) =>
-        request(client, { id: 1, jsonrpc: '2.0', method: x })
+  describe('single requests', () => {
+    it('should work for valid requests & methods', async () => {
+      const results: AxiosResponse[] = await Promise.all(
+        Array.from(defaultSupportedMethods).map((x) =>
+          request(client, { id: 1, jsonrpc: '2.0', method: x })
+        )
       )
-    )
 
-    results.forEach((r) => {
-      r.status.should.equal(200)
+      results.forEach((r) => {
+        r.status.should.equal(200)
 
-      r.data.should.haveOwnProperty('id')
-      r.data['id'].should.equal(1)
+        r.data.should.haveOwnProperty('id')
+        r.data['id'].should.equal(1)
 
-      r.data.should.haveOwnProperty('jsonrpc')
-      r.data['jsonrpc'].should.equal('2.0')
+        r.data.should.haveOwnProperty('jsonrpc')
+        r.data['jsonrpc'].should.equal('2.0')
 
-      r.data.should.haveOwnProperty('result')
-      r.data['result'].should.equal(dummyResponse)
+        r.data.should.haveOwnProperty('result')
+        r.data['result'].should.equal(dummyResponse)
+      })
     })
-  })
 
-  it('fails on bad format or method', async () => {
-    const results: AxiosResponse[] = await Promise.all([
-      request(client, { jsonrpc: '2.0', method: defaultSupportedMethods[0] }),
-      request(client, {
-        id: '1',
-        jsonrpc: '2.0',
-        method: defaultSupportedMethods[0],
-      }),
-      request(client, { id: 1, method: defaultSupportedMethods[0] }),
-      request(client, {
+    it('fails on bad format or method', async () => {
+      const results: AxiosResponse[] = await Promise.all(
+        getBadPayloads().map((x) => request(client, x))
+      )
+      results.forEach((r) => {
+        r.status.should.equal(200)
+
+        r.data.should.haveOwnProperty('id')
+        r.data.should.haveOwnProperty('jsonrpc')
+        r.data.should.haveOwnProperty('error')
+
+        r.data['jsonrpc'].should.equal('2.0')
+      })
+    })
+
+    it('reverts properly', async () => {
+      const result: AxiosResponse = await request(client, {
         id: 1,
-        jsonrpc: 2.0,
-        method: defaultSupportedMethods[0],
-      }),
-      request(client, { id: 1, jsonrpc: '2.0' }),
-      request(client, { id: 1, jsonrpc: '2.0', method: unsupportedMethod }),
-    ])
+        jsonrpc: '2.0',
+        method: revertMethod,
+      })
 
-    results.forEach((r) => {
-      r.status.should.equal(200)
+      result.status.should.equal(200)
 
-      r.data.should.haveOwnProperty('id')
-      r.data.should.haveOwnProperty('jsonrpc')
-      r.data.should.haveOwnProperty('error')
+      result.data.should.haveOwnProperty('id')
+      result.data.should.haveOwnProperty('jsonrpc')
+      result.data.should.haveOwnProperty('error')
+      result.data['error'].should.haveOwnProperty('message')
+      result.data['error'].should.haveOwnProperty('code')
+      result.data['error']['message'].should.equal(
+        JSONRPC_ERRORS.REVERT_ERROR.message
+      )
+      result.data['error']['code'].should.equal(
+        JSONRPC_ERRORS.REVERT_ERROR.code
+      )
 
-      r.data['jsonrpc'].should.equal('2.0')
+      result.data['jsonrpc'].should.equal('2.0')
     })
   })
 
-  it('reverts properly', async () => {
-    const result: AxiosResponse = await request(client, {
-      id: 1,
-      jsonrpc: '2.0',
-      method: revertMethod,
+  describe('batch requests', () => {
+    it('should work for valid requests & methods', async () => {
+      const batchRequest = Array.from(
+        defaultSupportedMethods
+      ).map((method, id) => ({ jsonrpc: '2.0', id, method }))
+      const result: AxiosResponse = await request(client, batchRequest)
+
+      result.status.should.equal(200)
+      const results = result.data
+
+      results.forEach((r, id) => {
+        r.should.haveOwnProperty('id')
+        r['id'].should.equal(id)
+
+        r.should.haveOwnProperty('jsonrpc')
+        r['jsonrpc'].should.equal('2.0')
+
+        r.should.haveOwnProperty('result')
+        r['result'].should.equal(dummyResponse)
+      })
     })
+    it('should fail on bad format or for valid requests & methods', async () => {
+      const result: AxiosResponse = await request(client, getBadPayloads())
 
-    result.status.should.equal(200)
+      result.status.should.equal(200)
+      const results = result.data
 
-    result.data.should.haveOwnProperty('id')
-    result.data.should.haveOwnProperty('jsonrpc')
-    result.data.should.haveOwnProperty('error')
-    result.data['error'].should.haveOwnProperty('message')
-    result.data['error'].should.haveOwnProperty('code')
-    result.data['error']['message'].should.equal(
-      JSONRPC_ERRORS.REVERT_ERROR.message
-    )
-    result.data['error']['code'].should.equal(JSONRPC_ERRORS.REVERT_ERROR.code)
+      results.forEach((r) => {
+        r.should.haveOwnProperty('id')
+        r.should.haveOwnProperty('jsonrpc')
+        r.should.haveOwnProperty('error')
 
-    result.data['jsonrpc'].should.equal('2.0')
+        r['jsonrpc'].should.equal('2.0')
+      })
+    })
+    it('should not allow batches of batches', async () => {
+      const batchOfBatches = Array.from(
+        defaultSupportedMethods
+      ).map((method, id) => [{ jsonrpc: '2.0', id, method }])
+      const result: AxiosResponse = await request(client, batchOfBatches)
+
+      result.status.should.equal(200)
+      const results = result.data
+
+      results.forEach((r) => {
+        r.should.haveOwnProperty('id')
+        r.should.haveOwnProperty('jsonrpc')
+        r.should.haveOwnProperty('error')
+        r['error'].should.haveOwnProperty('message')
+        r['error'].should.haveOwnProperty('code')
+        r['error']['message'].should.equal(
+          JSONRPC_ERRORS.INVALID_REQUEST.message
+        )
+        r['error']['code'].should.equal(JSONRPC_ERRORS.INVALID_REQUEST.code)
+
+        r['jsonrpc'].should.equal('2.0')
+      })
+    })
   })
 })
