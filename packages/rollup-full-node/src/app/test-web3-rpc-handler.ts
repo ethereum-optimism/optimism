@@ -4,7 +4,7 @@ import { OPCODE_WHITELIST_MASK } from '@eth-optimism/ovm'
 
 import { createMockProvider, getWallets } from 'ethereum-waffle'
 import { Contract, Wallet } from 'ethers'
-import { Web3Provider } from 'ethers/providers'
+import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT } from './index'
@@ -30,7 +30,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: Web3Provider = createMockProvider({
+    provider: JsonRpcProvider = createMockProvider({
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       allowUnlimitedContractSize: true,
     })
@@ -46,7 +46,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
   }
 
   protected constructor(
-    provider: Web3Provider,
+    provider: JsonRpcProvider,
     wallet: Wallet,
     executionManager: Contract
   ) {
