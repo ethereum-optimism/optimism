@@ -124,7 +124,7 @@ export const deploy = async (
  * @param addresss The address that is being delpoyed from
  * @returns contractAddress The address of the first deployed contract or null if one hasn't been deployed yet 
  */
-export const firstDeployedContract = async (
+export const getFirstDeployedContractAddress = async (
   provider: Provider,
   address: string,
 ): Promise<string | null> => {
