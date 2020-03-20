@@ -26,7 +26,7 @@ describe('Contract deployment', () => {
     wallet = getWallets(provider)[0]
   })
 
-  describe('getFirstDeployedContractAddress', () => {
+  describe.only('getFirstDeployedContractAddress', () => {
     it('should return the first deployed contract if one has been deployed', async () => {
       const factory = dummyContractFactory(wallet);
       const contract = await factory.deploy()
@@ -35,7 +35,7 @@ describe('Contract deployment', () => {
       result.should.eq(contract.address)
     })
 
-    it('should return null if the address hasn\'t yet deployed a contract', async () => {
+    it('should return null if the address has not yet deployed a contract', async () => {
       const factory = dummyContractFactory(wallet);
       const result = await getFirstDeployedContractAddress(provider, wallet.address)
       should.not.exist(result)

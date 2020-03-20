@@ -2,11 +2,12 @@
 
 /* External Imports */
 import { config } from 'dotenv'
-import { Contract, ContractFactory, ethers, Wallet, utils } from 'ethers'
+import { Contract, ContractFactory, ethers, Wallet } from 'ethers'
 import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import { ContractDeploymentFunction } from '../types'
+import { add0x } from '../app'
 import { sleep } from './misc'
 
 const {
@@ -120,9 +121,9 @@ export const deploy = async (
 /**
  * Returns an address's first deployed contract or `null` if that address hasn't
  * created a contract yet. This is useful when creating a contract when a service
- * is initiallized and connecting to that contract on subsequent runs
- * @param addresss The address that is being delpoyed from
- * @returns contractAddress The address of the first deployed contract or null if one hasn't been deployed yet 
+ * is initialized and using that contract on subsequent runs.
+ * @param addresss The address that is being deployed from
+ * @returns contractAddress The address of the first deployed contract or `null` if one hasn't been deployed yet 
  */
 export const getFirstDeployedContractAddress = async (
   provider: Provider,
@@ -130,10 +131,10 @@ export const getFirstDeployedContractAddress = async (
 ): Promise<string | null> => {
   const nonce = 0
 
-  const contractAddress = getAddress('0x' + keccak256(RLP.encode([
+  const contractAddress = getAddress(add0x(keccak256(RLP.encode([
     getAddress(address),
     stripZeros(hexlify(nonce))
-  ])).substring(26));
+  ]))).substring(26));
 
   if(await provider.getCode(contractAddress) === "0x") {
     return null
