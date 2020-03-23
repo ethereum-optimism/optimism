@@ -20,7 +20,7 @@ import {
 import { Contract, ethers, utils, Wallet } from 'ethers'
 import { promisify } from 'util'
 import { readFile as readFileAsync } from 'fs'
-import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import { JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 import AsyncLock from 'async-lock'

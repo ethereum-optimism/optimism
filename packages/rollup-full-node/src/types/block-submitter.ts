@@ -1,5 +1,5 @@
 /* External Imports */
-import {L2ToL1Message, RollupBlock} from '@eth-optimism/rollup-core'
+import { L2ToL1Message, RollupBlock } from '@eth-optimism/rollup-core'
 
 /**
  * Handles all rollup block queueing, submission, and monitoring.

@@ -5,11 +5,18 @@ import {
   abiEncodeL2ToL1Message,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
-import {add0x, BigNumber, getLogger, logError, ONE, ZERO} from '@eth-optimism/core-utils'
+import {
+  add0x,
+  BigNumber,
+  getLogger,
+  logError,
+  ONE,
+  ZERO,
+} from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 
-import {L2ToL1MessageSubmitter} from '../types'
-import {TransactionReceipt} from 'ethers/providers/abstract-provider'
+import { L2ToL1MessageSubmitter } from '../types'
+import { TransactionReceipt } from 'ethers/providers/abstract-provider'
 
 const log = getLogger('rollup-message-submitter')
 
@@ -32,9 +39,12 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
 
   public static async create(
     db: DB,
-    rollupContract: Contract
+    messageReceiverContract: Contract
   ): Promise<DefaultL2ToL1MessageSubmitter> {
-    const submitter = new DefaultL2ToL1MessageSubmitter(db, rollupContract)
+    const submitter = new DefaultL2ToL1MessageSubmitter(
+      db,
+      messageReceiverContract
+    )
 
     await submitter.init()
 
@@ -93,7 +103,9 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
         let i: BigNumber = this.lastConfirmed.add(ONE)
         const promises: Array<Promise<Buffer>> = []
         for (; i.lte(this.lastQueued); i = i.add(ONE)) {
-          promises.push(this.db.get(DefaultL2ToL1MessageSubmitter.getMessageKey(i)))
+          promises.push(
+            this.db.get(DefaultL2ToL1MessageSubmitter.getMessageKey(i))
+          )
         }
 
         const messages: Buffer[] = await Promise.all(promises)
@@ -104,7 +116,11 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
 
       await this.trySubmitNextMessage()
       log.info(
-        `Initialized Message submitter. Last Submitted: [${this.lastSubmitted.toString('hex')}], Last Confirmed: [${this.lastConfirmed.toString('hex')}], Last Queued: [${this.lastQueued.toString('hex')}]`
+        `Initialized Message submitter. Last Submitted: [${this.lastSubmitted.toString(
+          'hex'
+        )}], Last Confirmed: [${this.lastConfirmed.toString(
+          'hex'
+        )}], Last Queued: [${this.lastQueued.toString('hex')}]`
       )
     } catch (e) {
       logError(log, `Error initializing Message Submitter!`, e)
@@ -126,7 +142,9 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
     this.messageQueue.push(rollupMessage)
     await this.db.put(
       DefaultL2ToL1MessageSubmitter.getMessageKey(rollupMessage.nonce),
-      DefaultL2ToL1MessageSubmitter.serializeRollupMessageForStorage(rollupMessage)
+      DefaultL2ToL1MessageSubmitter.serializeRollupMessageForStorage(
+        rollupMessage
+      )
     )
 
     this.lastQueued = rollupMessage.nonce
@@ -169,7 +187,9 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
     let receipt
     try {
       receipt = await this.messageReceiverContract.enqueueL2ToL1Message(
-        DefaultL2ToL1MessageSubmitter.serializeRollupMessageForSubmission(message)
+        DefaultL2ToL1MessageSubmitter.serializeRollupMessageForSubmission(
+          message
+        )
       )
       // TODO: do something with receipt?
     } catch (e) {
@@ -187,28 +207,36 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
       this.lastSubmitted.toBuffer()
     )
 
-    this.messageReceiverContract.provider.waitForTransaction(receipt).then((txReceipt: TransactionReceipt) => {
-      log.debug(`L2 -> L1 Message with nonce ${message.nonce.toString('hex')} was confirmed on L1!`)
-    }).catch(error => {
-      logError(log, 'Error submitting L2 -> L1 message transaction', error)
-    }).finally(async () => {
-      this.lastConfirmed = message.nonce
-      await this.db.put(
-        DefaultL2ToL1MessageSubmitter.LAST_CONFIRMED_KEY,
-        this.lastConfirmed.toBuffer()
-      )
-
-      // If we failed after submission but before storing submitted, update lastSubmitted
-      if (this.lastSubmitted.lt(this.lastConfirmed)) {
-        this.lastSubmitted = message.nonce
-        await this.db.put(
-          DefaultL2ToL1MessageSubmitter.LAST_SUBMITTED_KEY,
-          this.lastSubmitted.toBuffer()
+    this.messageReceiverContract.provider
+      .waitForTransaction(receipt)
+      .then((txReceipt: TransactionReceipt) => {
+        log.debug(
+          `L2 -> L1 Message with nonce ${message.nonce.toString(
+            'hex'
+          )} was confirmed on L1!`
         )
-      }
-      // purposefully don't await
-      this.trySubmitNextMessage()
-    })
+      })
+      .catch((error) => {
+        logError(log, 'Error submitting L2 -> L1 message transaction', error)
+      })
+      .finally(async () => {
+        this.lastConfirmed = message.nonce
+        await this.db.put(
+          DefaultL2ToL1MessageSubmitter.LAST_CONFIRMED_KEY,
+          this.lastConfirmed.toBuffer()
+        )
+
+        // If we failed after submission but before storing submitted, update lastSubmitted
+        if (this.lastSubmitted.lt(this.lastConfirmed)) {
+          this.lastSubmitted = message.nonce
+          await this.db.put(
+            DefaultL2ToL1MessageSubmitter.LAST_SUBMITTED_KEY,
+            this.lastSubmitted.toBuffer()
+          )
+        }
+        // purposefully don't await
+        this.trySubmitNextMessage()
+      })
   }
 
   public static serializeRollupMessageForSubmission(

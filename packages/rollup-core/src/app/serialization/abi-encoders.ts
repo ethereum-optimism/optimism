@@ -1,9 +1,9 @@
 /* External Imports */
-import {add0x, getLogger} from '@eth-optimism/core-utils'
+import { add0x, getLogger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import {L2ToL1Message, RollupBlock, Transaction} from '../../types'
-import {abi} from './common'
+import { L2ToL1Message, RollupBlock, Transaction } from '../../types'
+import { abi } from './common'
 
 const log = getLogger('abiEncoders')
 
@@ -17,11 +17,13 @@ export const abiEncodeTransaction = (transaction: Transaction): string => {
   return ''
 }
 
-
 export const abiEncodeL2ToL1Message = (message: L2ToL1Message): string => {
-  return abi.encode(['uint','address', 'bytes'], [
-    add0x(message.nonce.toString('hex')),
-    add0x(message.ovmSender),
-    add0x(message.callData),
-  ])
+  return abi.encode(
+    ['uint', 'address', 'bytes'],
+    [
+      add0x(message.nonce.toString('hex')),
+      add0x(message.ovmSender),
+      add0x(message.callData),
+    ]
+  )
 }

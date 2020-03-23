@@ -17,6 +17,7 @@ import { Log, TransactionReceipt } from 'ethers/providers'
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
+import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
@@ -34,6 +35,11 @@ export const ContractAddressGeneratorContractDefinition = {
 export const RLPEncodeContractDefinition = {
   abi: RLPEncode.abi,
   bytecode: RLPEncode.bytecode,
+}
+
+export const L2ToL1MessageReceiverContractDefinition = {
+  abi: L2ToL1MessageReceiver.abi,
+  bytecode: L2ToL1MessageReceiver.bytecode,
 }
 
 export const revertMessagePrefix: string =

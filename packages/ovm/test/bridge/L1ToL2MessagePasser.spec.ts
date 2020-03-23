@@ -4,7 +4,7 @@ import '../setup'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
-import * as L1ToL2MessagePasser from '../../build/L1ToL2MessagePasser.json'
+import * as L1ToL2MessagePasser from '../../build/contracts/L1ToL2MessagePasser.json'
 
 describe('L1 -> L2 Message Passer', () => {
   let provider

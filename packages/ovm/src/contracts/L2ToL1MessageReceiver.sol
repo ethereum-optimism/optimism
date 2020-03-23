@@ -15,7 +15,7 @@ contract L2ToL1MessageReceiver {
         dt.L2ToL1Message message;
         uint l1BlockEnqueued;
     }
-    
+
     address public sequencer;
     uint public blocksUntilFinal;
     uint messageNonce = 0;
@@ -48,7 +48,6 @@ contract L2ToL1MessageReceiver {
         bool messageWasEnqueued = (storedMessageHash == givenMessageHash);
         // Message must be finalized on L1
         bool messageIsFinalized = (block.number >= messages[_nonce].l1BlockEnqueued + blocksUntilFinal);
-        
         return messageWasEnqueued && messageIsFinalized;
     }
 

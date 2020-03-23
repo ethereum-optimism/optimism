@@ -68,7 +68,7 @@ describe('OVM L2 -> L1 message passer', () => {
     )
   })
 
-  it(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
+  it.only(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
     const bytesToSendToL1 = '0x123412341234deadbeef'
     const passMessageToL1MethodId = bufToHexString(
       ethereumjsAbi.methodID('passMessageToL1', ['bytes'])
@@ -93,13 +93,18 @@ describe('OVM L2 -> L1 message passer', () => {
     const receipt = await provider.getTransactionReceipt(txResult.hash)
     const txLogs = receipt.logs
 
-    const l2ToL1EventTopic = ethers.utils.id('L2ToL1Message(address,bytes)')
+    const l2ToL1EventTopic = ethers.utils.id(
+      'L2ToL1Message(uint256,address,bytes)'
+    )
     const crossChainMessageEvent = txLogs.find((logged) => {
       return logged.topics.includes(l2ToL1EventTopic)
     })
 
     crossChainMessageEvent.data.should.equal(
-      abi.encode(['address', 'bytes'], [callContractAddress, bytesToSendToL1])
+      abi.encode(
+        ['uint', 'address', 'bytes'],
+        [0, callContractAddress, bytesToSendToL1]
+      )
     )
   })
 })

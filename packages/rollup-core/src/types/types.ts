@@ -15,7 +15,7 @@ export interface RollupBlock {
 export interface L2ToL1Message {
   nonce: BigNumber
   ovmSender: Address
-  callData: string,
+  callData: string
 }
 
 /* Types */
