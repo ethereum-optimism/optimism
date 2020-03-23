@@ -1,6 +1,4 @@
 #!/usr/bin/env sh
-set -e
-
 #
 # Sets the Unsealer Vault environment variables
 #
