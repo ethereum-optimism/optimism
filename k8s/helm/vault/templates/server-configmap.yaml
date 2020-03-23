@@ -9,9 +9,9 @@ data:
       address = "127.0.0.1:8200"
       {{- if .Values.global.tlsEnabled }}
       tls_disable = 0
-      tls_cert_file = "/etc/tls/services.pem"
-      tls_client_ca_file = "/etc/tls/ca.pem"
-      tls_key_file = "/etc/tls/services-key.pem"
+      tls_cert_file = "/etc/tls/service/tls.crt"
+      tls_client_ca_file = "/etc/tls/ca/tls.crt"
+      tls_key_file = "/etc/tls/service/tls.key"
       {{- else }}
       tls_disabled = 1
       {{- end }}
@@ -22,7 +22,7 @@ data:
       disable_renewal = "true"
       key_name = "autounseal"
       mount_path = "transit/"
-      tls_ca_cert = "/etc/tls/ca.pem"
+      tls_ca_cert = "/etc/tls/ca/tls.crt"
       token = "{{ .Values.server.unseal.token }}"
     }
 
@@ -40,9 +40,9 @@ data:
   sidecar.json: |
     {
       {{- if .Values.global.tlsEnabled }}
-      "ca_file": "/etc/tls/ca.pem",
-      "cert_file": "/etc/tls/services.pem",
-      "key_file": "/etc/tls/services-key.pem",
+      "ca_file": "/etc/tls/ca/tls.crt",
+      "cert_file": "/etc/tls/service/tls.crt",
+      "key_file": "/etc/tls/service/tls.key",
       {{- end }}
       "ports": {
         "http": 8500

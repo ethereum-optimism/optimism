@@ -1,6 +1,6 @@
 global:
   tlsEnabled: true
-  certificatesSecretName: ""
+  certificatesSecretNamePrefix: ""
   pullPolicy: IfNotPresent
 
 server:

@@ -104,18 +104,38 @@ resource "kubernetes_secret" "consul_gossip_key" {
   type = "Opaque"
 }
 
-resource "kubernetes_secret" "tls_certificates" {
+# Injects the CA certificate and key file into Kubernetes secrets
+# for the service pods to use for TLS
+resource "kubernetes_secret" "ca_certificates" {
+  count = var.tls_enabled ? 1 : 0
+
   metadata {
-    name = var.k8s_certificates_secret_name
+    name = "${var.k8s_certificates_secret_name_prefix}-ca"
   }
 
   data = {
-    "services.pem"     = file("${var.local_certificates_dir}/services.pem")
-    "services-key.pem" = file("${var.local_certificates_dir}/services-key.pem")
-    "ca.pem"           = file("${var.local_certificates_dir}/ca.pem")
+    "tls.crt" = file("${var.local_certificates_dir}/ca.pem")
+    "tls.key" = file("${var.local_certificates_dir}/ca-key.pem")
   }
 
-  type = "Opaque"
+  type = "kubernetes.io/tls"
+}
+
+# Injects the services' certificate and key file into Kubernetes secrets
+# for the service pods to use for TLS
+resource "kubernetes_secret" "services_certificates" {
+  count = var.tls_enabled ? 1 : 0
+
+  metadata {
+    name = "${var.k8s_certificates_secret_name_prefix}-services"
+  }
+
+  data = {
+    "tls.crt" = file("${var.local_certificates_dir}/services.pem")
+    "tls.key" = file("${var.local_certificates_dir}/services-key.pem")
+  }
+
+  type = "kubernetes.io/tls"
 }
 
 # Installs the Consul Helm chart with value overrides
@@ -136,8 +156,8 @@ resource "helm_release" "consul_chart" {
   }
 
   set {
-    name  = "global.certificatesSecretName"
-    value = var.k8s_certificates_secret_name
+    name  = "global.certificatesSecretNamePrefix"
+    value = var.k8s_certificates_secret_name_prefix
   }
 
   set {
@@ -182,8 +202,8 @@ resource "helm_release" "vault_chart" {
   }
 
   set {
-    name  = "global.certificatesSecretName"
-    value = var.k8s_certificates_secret_name
+    name  = "global.certificatesSecretNamePrefix"
+    value = var.k8s_certificates_secret_name_prefix
   }
 
   set {

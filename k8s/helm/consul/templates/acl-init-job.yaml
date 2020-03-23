@@ -8,10 +8,6 @@ metadata:
     chart: {{ template "omisego-consul.chart" . }}
     heritage: {{ .Release.Service }}
     release: {{ .Release.Name }}
-  # annotations:
-  #   "helm.sh/hook": post-install
-  #   "helm.sh/hook-weight": "1"
-  #   "helm.sh/hook-delete-policy": hook-succeeded
 spec:
   template:
     metadata:
@@ -26,25 +22,31 @@ spec:
       serviceAccountName: {{ .Chart.Name }}
       {{- if .Values.global.tlsEnabled }}
       volumes:
-      - name: tls-ca-cert
-        secret:
-          secretName: {{ .Values.global.certificatesSecretName }}
+        - name: ca-certs
+          secret:
+            secretName: {{ .Values.global.certificatesSecretNamePrefix }}-ca
+        - name: service-certs
+          secret:
+            secretName: {{ .Values.global.certificatesSecretNamePrefix }}-services
       {{- end }}
       containers:
         - name: post-install-job
           image: {{ .Values.global.imageK8S }}
           {{- if .Values.global.tlsEnabled }}
           volumeMounts:
-            - name: tls-ca-cert
-              mountPath: /etc/tls
+            - name: ca-certs
+              mountPath: /etc/tls/ca
+              readOnly: true
+            - name: service-certs
+              mountPath: /etc/tls/service
               readOnly: true
           env:
             - name: CONSUL_CACERT
-              value: /etc/tls/ca.pem
+              value: /etc/tls/ca/tls.crt
             - name: CONSUL_CLIENT_CERT
-              value: /etc/tls/services.pem
+              value: /etc/tls/service/tls.crt
             - name: CONSUL_CLIENT_KEY
-              value: /etc/tls/services-key.pem
+              value: /etc/tls/service/tls.key
           {{- end }}
           command:
             - "/bin/sh"
@@ -56,7 +58,7 @@ spec:
                 -k8s-namespace={{ .Release.Namespace }} \
                 {{- if .Values.global.tlsEnabled }}
                 -use-https \
-                -consul-ca-cert=/etc/tls/ca.pem \
+                -consul-ca-cert=/etc/tls/ca/tls.crt \
                 -consul-tls-server-name=server.{{ .Values.global.datacenter }}.{{ .Values.global.domain }} \
                 {{- end }}
                 -expected-replicas={{ .Values.server.replicas }}

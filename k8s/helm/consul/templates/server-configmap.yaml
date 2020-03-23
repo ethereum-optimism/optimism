@@ -7,9 +7,9 @@ data:
   config.json: |
     {
       {{- if .Values.global.tlsEnabled }}
-      "ca_file": "/etc/tls/ca.pem",
-      "cert_file": "/etc/tls/services.pem",
-      "key_file": "/etc/tls/services-key.pem",
+      "ca_file": "/etc/tls/ca/tls.crt",
+      "cert_file": "/etc/tls/service/tls.crt",
+      "key_file": "/etc/tls/service/tls.key",
       "verify_incoming_rpc": true,
       "verify_outgoing": true,
       "verify_server_hostname": true,
@@ -33,15 +33,19 @@ data:
     service "vault" {
       policy = "write"
     }
+
     key_prefix "vault/" {
       policy = "write"
     }
+
     agent_prefix "" {
       policy = "write"
     }
+
     node_prefix "" {
       policy = "write"
     }
+    
     session_prefix "" {
       policy = "write"
     }

@@ -39,7 +39,7 @@ spec:
             - name: CONSUL_HTTP_SSL	
               value: "true"	
             - name: CONSUL_CACERT	
-              value: /etc/tls/ca.pem
+              value: /etc/tls/ca/tls.crt
             {{- end }}	
             - name: CONSUL_HTTP_TOKEN	
               valueFrom:	
@@ -70,16 +70,17 @@ spec:
                 --data "{ \"apiVersion\": \"v1\", \"kind\": \"Secret\", \"metadata\": { \"name\": \"{{ .Chart.Name }}-vault-acl-token\", \"namespace\": \"{{ .Release.Namespace }}\" }, \"type\": \"Opaque\", \"data\": { \"token\": \"$(echo $VAULT_ACL_TOKEN | tr -d '\n' | base64 | tr -d '\n')\" } }" > /dev/null
           volumeMounts:	
             {{- if .Values.global.tlsEnabled }}
-            - name: tls-ca-cert	
-              mountPath: /etc/tls
+            - name: ca-certs
+              mountPath: /etc/tls/ca
+              readOnly: true
             {{- end }}
             - name: server-config	
               mountPath: /consul/config	
       volumes:	
         {{- if .Values.global.tlsEnabled }}
-        - name: tls-ca-cert
+        - name: ca-certs
           secret:
-            secretName: {{ .Values.global.certificatesSecretName }}
+            secretName: {{ .Values.global.certificatesSecretNamePrefix }}-ca
         {{- end }}
         - name: server-config	
           configMap:	

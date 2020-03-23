@@ -16,9 +16,9 @@ variable "consul_replicas" {
   description = "The number of Consul servers to create in the cluster"
 }
 
-variable "k8s_certificates_secret_name" {
+variable "k8s_certificates_secret_name_prefix" {
   type        = string
-  default     = "omisego-tls-certificates"
+  default     = "omisego-certificates"
   description = "The name of the secret in Kubernetes storing the certificates for the cluster servers"
 }
 

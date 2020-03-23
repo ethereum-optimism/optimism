@@ -37,8 +37,11 @@ spec:
             mountPath: /vault/config/server.hcl
             subPath: server.hcl
           {{- if .Values.global.tlsEnabled }}
-          - name: tls
-            mountPath: /etc/tls
+          - name: ca-certs
+            mountPath: /etc/tls/ca
+            readOnly: true
+          - name: service-certs
+            mountPath: /etc/tls/service
             readOnly: true
           {{- end }}
       - name: consul-sidecar
@@ -81,8 +84,11 @@ spec:
             mountPath: /consul/config/sidecar.json
             subPath: sidecar.json
           {{- if .Values.global.tlsEnabled }}
-          - name: tls
-            mountPath: /etc/tls
+          - name: ca-certs
+            mountPath: /etc/tls/ca
+            readOnly: true
+          - name: service-certs
+            mountPath: /etc/tls/service
             readOnly: true
           {{- end }}
         lifecycle:
@@ -109,7 +115,10 @@ spec:
           configMap:
             name: {{ .Chart.Name }}-server-config
         {{- if .Values.global.tlsEnabled }}
-        - name: tls
+        - name: ca-certs
           secret:
-            secretName: {{ .Values.global.certificatesSecretName }}
+            secretName: {{ .Values.global.certificatesSecretNamePrefix }}-ca
+        - name: service-certs
+          secret:
+            secretName: {{ .Values.global.certificatesSecretNamePrefix }}-services
         {{- end }}
