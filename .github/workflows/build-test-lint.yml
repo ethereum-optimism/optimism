@@ -118,4 +118,4 @@ jobs:
           yarn build
 
       - name: Test
-        run: docker-compose run rollup-fullnode yarn test
+        run: docker-compose run optimism yarn test
