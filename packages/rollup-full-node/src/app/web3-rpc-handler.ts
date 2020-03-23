@@ -6,6 +6,7 @@ import {
   logError,
   remove0x,
   ZERO_ADDRESS,
+  getFirstDeployedContractAddress,
 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
@@ -60,6 +61,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   ): Promise<DefaultWeb3Handler> {
     // Initialize a fullnode for us to interact with
     let wallet
+    let executionManager: Contract
 
     // If we're provided a web3 URL derive our wallet from a private key
     // otherwise get our wallet from the provider.
@@ -72,10 +74,26 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ;[wallet] = getWallets(provider)
     }
 
-    const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
-      wallet,
-      OPCODE_WHITELIST_MASK
+    const executionManagerAddress = await getFirstDeployedContractAddress(
+      provider,
+      wallet.address
     )
+
+    if (executionManagerAddress) {
+      log.info(
+        `Using existing ExecutionManager deployed at ${executionManagerAddress}`
+      )
+      executionManager = new Contract(
+        executionManagerAddress,
+        L2ExecutionManagerContractDefinition.abi,
+        wallet
+      )
+    } else {
+      executionManager = await DefaultWeb3Handler.deployExecutionManager(
+        wallet,
+        OPCODE_WHITELIST_MASK
+      )
+    }
 
     return new DefaultWeb3Handler(provider, wallet, executionManager)
   }
