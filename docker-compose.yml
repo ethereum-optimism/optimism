@@ -4,7 +4,7 @@ networks:
     external: true
   internal:
 services:
-  rollup-fullnode:
+  optimism:
     volumes:
        - geth-data:/mnt/docker
     depends_on:

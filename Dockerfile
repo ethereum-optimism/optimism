@@ -7,4 +7,4 @@ RUN yarn
 WORKDIR /server/packages/rollup-full-node
 
 EXPOSE 8545
-ENTRYPOINT [ "yarn", "run", "server:fullnode" ]
+ENTRYPOINT [ "docker/rollup-fullnode/entrypoint.sh" ]
