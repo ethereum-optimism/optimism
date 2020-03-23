@@ -6,6 +6,7 @@ import {
   logError,
   remove0x,
   ZERO_ADDRESS,
+  getFirstDeployedContractAddress
 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
