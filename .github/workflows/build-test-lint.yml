@@ -118,4 +118,7 @@ jobs:
           yarn build
 
       - name: Test
-        run: docker-compose run optimism yarn test
+        run: |
+          docker network create external
+          docker network create internal
+          docker-compose run optimism yarn test
