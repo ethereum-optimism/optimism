@@ -236,6 +236,15 @@ export const hexStrToString = (str: string): string => {
 }
 
 /**
+ * Determine if a hex string is empty or undefined
+ * @param str The hex string.
+ * @returns boolean `true` if the string is empty or undefined, otherwise `false`
+ */
+export const isHexStringEmptyOrUndefined = (str: string): boolean => {
+  return str === '0x' || str === undefined
+}
+
+/**
  * Creates a new version of a list with all instances of a specific element
  * removed.
  * @param list List to remove elements from.
