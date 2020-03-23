@@ -7,28 +7,29 @@ import {
   FullnodeRpcServer,
   DefaultWeb3Handler,
   TestWeb3Handler,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../app'
+import {L2ToL1MessageSubmitter} from '../types'
 
 const log: Logger = getLogger('rollup-fullnode')
 
 /**
  * Runs a fullnode.
  * @param testFullnode Whether or not this is a test.
+ * @returns The array of fullnode instance, L2ToL1MessageSubmitter
  */
 export const runFullnode = async (
   testFullnode: boolean = false
-): Promise<ExpressHttpServer> => {
+): Promise<[ExpressHttpServer, L2ToL1MessageSubmitter]> => {
   let provider: JsonRpcProvider
   // TODO Get these from config
   const host = '0.0.0.0'
   const port = 8545
 
-  log.info(`Starting fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
+  log.info(`Starting L2 fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
 
-  if (process.env.WEB3_URL) {
-    log.info(`Connecting to web3 URL: ${process.env.WEB3_URL}`)
-    provider = new JsonRpcProvider(process.env.WEB3_URL)
+  if (process.env.L2_WEB3_URL) {
+    log.info(`Connecting to L2 web3 URL: ${process.env.L2_WEB3_URL}`)
+    provider = new JsonRpcProvider(process.env.L2_WEB3_URL)
   }
 
   const fullnodeHandler = testFullnode
@@ -41,5 +42,12 @@ export const runFullnode = async (
   const baseUrl = `http://${host}:${port}`
   log.info(`Listening at ${baseUrl}`)
 
-  return fullnodeRpcServer
+  const messageSubmitter: L2ToL1MessageSubmitter = await runMessageSubmitter()
+
+  return [fullnodeRpcServer, messageSubmitter]
+}
+
+
+const runMessageSubmitter = async (): Promise<L2ToL1MessageSubmitter> => {
+  return undefined
 }

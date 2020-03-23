@@ -63,7 +63,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     // If we're provided a web3 URL derive our wallet from a private key
     // otherwise get our wallet from the provider.
-    if (process.env.WEB3_URL) {
+    if (process.env.L2_WEB3_URL) {
       const privateKey = await readFile(
         `${process.env.VOLUME_PATH}/private_key.txt`
       )

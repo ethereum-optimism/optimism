@@ -18,7 +18,7 @@ services:
     ports:
       - 8545:8545
     environment:
-      WEB3_URL: http://geth:8545/
+      L2_WEB3_URL: http://geth:8545/
       VOLUME_PATH: /mnt/docker
   geth:
     volumes:
