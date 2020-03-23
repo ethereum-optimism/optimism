@@ -124,7 +124,6 @@ export const getFirstDeployedContractAddress = async (
   address: string
 ): Promise<string | undefined> => {
   const nonce = 0
-
   const contractAddress = generateAddress(address, nonce)
 
   if (!isHexStringEmptyOrUndefined(await provider.getCode(contractAddress))) {
