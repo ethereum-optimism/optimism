@@ -40,7 +40,6 @@ jobs:
           ECR_REPOSITORY: optimism/rollup-full-node
           IMAGE_TAG: latest
         run: |
-          cd packages/rollup-full-node
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 

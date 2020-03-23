@@ -13,7 +13,7 @@ services:
       - internal
       - external
     build:
-      context: packages/rollup-full-node
+      context: .
       dockerfile: Dockerfile
     ports:
       - 8545:8545
