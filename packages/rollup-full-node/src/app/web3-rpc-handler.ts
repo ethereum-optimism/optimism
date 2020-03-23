@@ -2,11 +2,14 @@
 import { Address } from '@eth-optimism/rollup-core'
 import {
   add0x,
+  buildJsonRpcError,
   getLogger,
+  numberToHexString,
   logError,
   remove0x,
   ZERO_ADDRESS,
   getFirstDeployedContractAddress,
+  JsonRpcResponse
 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
@@ -309,11 +312,12 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     address: Address,
     defaultBlock: string
   ): Promise<string> {
-    if (defaultBlock !== 'latest') {
+    const curentBlockNumber = await this.provider.getBlockNumber()
+    if (!['latest', numberToHexString(curentBlockNumber)].includes(defaultBlock)) {
       log.debug(
         `No support for historical code lookups! Anything returned from this may be very wrong.`
       )
-      //throw new Error('No support for historical code lookups!')
+      throw new Error('No support for historical code lookups!')
     }
     log.debug(
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`

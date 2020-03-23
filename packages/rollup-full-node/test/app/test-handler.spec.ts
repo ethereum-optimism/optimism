@@ -5,8 +5,11 @@ import {
   getLogger,
   remove0x,
   castToNumber,
+  hexStrToBuf,
+  TestUtils,
 } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
+import { getWallets, deployContract } from 'ethereum-waffle'
 
 /* Internal Imports */
 import {
@@ -16,6 +19,7 @@ import {
   DefaultWeb3Handler,
 } from '../../src'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
+import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.json'
 
 const log = getLogger('test-web3-handler', true)
 
@@ -145,4 +149,46 @@ describe('TestHandler', () => {
       testRpcServer.close()
     })
   })
+
+  describe('getCode endpoint', () => {
+    it.only('should be successful if the default block parameter is "latest"', async () => {
+        const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+        testRpcServer.listen()
+        const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+        const [wallet] = getWallets(httpProvider)
+        const factory = new ethers.ContractFactory(EmptyContract.abi, EmptyContract.bytecode, wallet);
+        const emptyContract = await deployContract(wallet, EmptyContract, [])
+        const code = await httpProvider.getCode(emptyContract.address, "latest")
+        hexStrToBuf(code).byteLength.should.be.greaterThan(0)
+        testRpcServer.close()
+      })
+
+    it.only('should be successful if the default block parameter is set to the latest block number', async () => {
+        const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+
+        testRpcServer.listen()
+        const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+        const [wallet] = getWallets(httpProvider)
+        const factory = new ethers.ContractFactory(EmptyContract.abi, EmptyContract.bytecode, wallet);
+        const emptyContract = await deployContract(wallet, EmptyContract, [])
+        const curentBlockNumber = await httpProvider.getBlockNumber()
+        const code = await httpProvider.getCode(emptyContract.address, curentBlockNumber)
+        hexStrToBuf(code).byteLength.should.be.greaterThan(0)
+        testRpcServer.close()
+      })
+
+    it.only('should be fail if the default block parameter is set to a block number before the current one', async () => {
+        const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+
+        testRpcServer.listen()
+        const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+        const [wallet] = getWallets(httpProvider)
+        const factory = new ethers.ContractFactory(EmptyContract.abi, EmptyContract.bytecode, wallet);
+        const emptyContract = await deployContract(wallet, EmptyContract, [])
+        const curentBlockNumber = await httpProvider.getBlockNumber()
+        TestUtils.assertThrowsAsync(async () =>
+          httpProvider.getCode(emptyContract.address, curentBlockNumber-1)
+        )
+      })
+    })
 })
