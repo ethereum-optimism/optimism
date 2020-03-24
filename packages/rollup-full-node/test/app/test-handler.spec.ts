@@ -161,7 +161,7 @@ describe('TestHandler', () => {
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       wallet = getWallets(httpProvider)[0]
     })
-    
+
     afterEach(async () => {
       await testRpcServer.close()
     })
