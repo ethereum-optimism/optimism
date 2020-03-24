@@ -1,12 +1,11 @@
 /* External Imports */
 import { BigNumber, ZERO } from '@eth-optimism/core-utils'
 import debug from 'debug'
-import level = require('level')
 import MemDown from 'memdown'
 
 /* Internal Imports */
 import { dbRootPath } from '../setup'
-import { BaseDB, RangeEntry, RangeBucket } from '../../src'
+import {BaseDB, RangeEntry, RangeBucket, getLevelInstance} from '../../src'
 
 const log = debug('test:info:range-db')
 
@@ -73,10 +72,7 @@ const compareResult = (res: any, expectedResult: any): void => {
 }
 
 describe('RangeDB', () => {
-  const db = level(dbRootPath + 'rangeTest', {
-    keyEncoding: 'binary',
-    valueEncoding: 'binary',
-  })
+  const db = getLevelInstance(dbRootPath + 'rangeTest')
   let prefixCounter = 0
   let rangeDB
 

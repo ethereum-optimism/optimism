@@ -12,6 +12,8 @@ import {
   ZERO,
 } from '@eth-optimism/core-utils'
 import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
+import Level = require('level')
+
 
 import MemDown from 'memdown'
 
@@ -48,6 +50,23 @@ const isNotFound = (err: any): boolean => {
     err.type === 'NotFoundError' ||
     /not\s*found/i.test(err.message)
   )
+}
+
+let memId: BigNumber = ZERO
+export const newInMemoryDB = (prefixLength: number = 256, options?: {}): DB => {
+  memId = memId.add(ONE)
+  return new BaseDB(
+    new MemDown(`newInMemoryDB/${memId.toString()}`) as any,
+    prefixLength
+  )
+}
+
+export const defaultLevelOptions = {
+  keyEncoding: 'binary',
+  valueEncoding: 'binary',
+}
+export const getLevelInstance = (path: string, options = defaultLevelOptions): AbstractLevelDOWN => {
+  return new Level(path, options)
 }
 
 /**
@@ -239,13 +258,4 @@ export class BaseDB implements DB {
       bufferUtils.padLeft(prefix, this.prefixLength)
     )
   }
-}
-
-let memId: BigNumber = ZERO
-export const newInMemoryDB = (prefixLength: number = 256, options?: {}): DB => {
-  memId = memId.add(ONE)
-  return new BaseDB(
-    new MemDown(`newInMemoryDB/${memId.toString()}`) as any,
-    prefixLength
-  )
 }

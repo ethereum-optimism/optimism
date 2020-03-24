@@ -35,6 +35,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
+import { getLevelInstance } from '@eth-optimism/core-db/build/src'
 
 const readFile = promisify(readFileAsync)
 const log = getLogger('web3-handler')
@@ -43,9 +44,10 @@ const lockKey: string = 'LOCK'
 
 const latestBlock: string = 'latest'
 
+const persistedL2GanacheDbPath = process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
+
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private lock: AsyncLock
-
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * Web3Handler that handles Web3 requests to it.
@@ -54,11 +56,20 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: JsonRpcProvider = createMockProvider({
-      gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
-      allowUnlimitedContractSize: true,
-    })
+    provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
+    if (!provider) {
+      const opts = {
+        gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+        allowUnlimitedContractSize: true,
+      }
+      if (!!persistedL2GanacheDbPath) {
+        opts['db'] = getLevelInstance(persistedL2GanacheDbPath)
+        opts['network_id'] = 999999
+      }
+      provider = createMockProvider(opts)
+    }
+
     // Initialize a fullnode for us to interact with
     let wallet
     let executionManager: Contract
