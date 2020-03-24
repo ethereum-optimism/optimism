@@ -318,14 +318,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       !['latest', numberToHexString(curentBlockNumber)].includes(defaultBlock)
     ) {
       log.debug(
-        `Requested block ${hexStrToNumber(
+        `Historical code lookups aren't supported. Requested Block: ${hexStrToNumber(
           defaultBlock
-        )} but the current block is ${curentBlockNumber}. Historical code lookups aren't supported.`
+        )} Current Block:${curentBlockNumber}`
       )
       throw new Error(
-        `Requested block ${hexStrToNumber(
+        `Historical code lookups aren't supported. Requested Block: ${hexStrToNumber(
           defaultBlock
-        )} but the current block is ${curentBlockNumber}. Historical code lookups aren't supported.`
+        )} Current Block:${curentBlockNumber}`
       )
     }
     log.debug(
