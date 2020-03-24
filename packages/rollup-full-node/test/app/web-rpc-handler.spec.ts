@@ -22,7 +22,7 @@ const tmpFilePath = resolve(__dirname, `./.test_db`)
  * TESTS *
  *********/
 
-describe.only('Web3Handler', () => {
+describe('Web3Handler', () => {
   let fullnodeHandler: FullnodeHandler
   let fullnodeRpcServer: FullnodeRpcServer
   let baseUrl: string
