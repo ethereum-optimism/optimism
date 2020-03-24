@@ -4,7 +4,7 @@ import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
 import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/ovm'
 
 import Level from 'level'
-import { JsonRpcProvider, Provider } from 'ethers/providers'
+import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import {
@@ -39,6 +39,8 @@ export const runFullnode = async (
   // TODO Get these from config
   const port = parseInt(rollupNodePort, 10)
 
+  const messageSubmitter: L2ToL1MessageSubmitter = await runMessageSubmitter()
+
   log.info(`Starting L2 fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
 
   if (layer2Web3Url) {
@@ -47,8 +49,8 @@ export const runFullnode = async (
   }
 
   const fullnodeHandler = testFullnode
-    ? await TestWeb3Handler.create(provider)
-    : await DefaultWeb3Handler.create(provider)
+    ? await TestWeb3Handler.create(messageSubmitter, provider)
+    : await DefaultWeb3Handler.create(messageSubmitter, provider)
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
     rollupNodeHost,
@@ -59,8 +61,6 @@ export const runFullnode = async (
 
   const baseUrl = `http://${rollupNodeHost}:${port}`
   log.info(`Listening at ${baseUrl}`)
-
-  const messageSubmitter: L2ToL1MessageSubmitter = await runMessageSubmitter()
 
   return [fullnodeRpcServer, messageSubmitter]
 }

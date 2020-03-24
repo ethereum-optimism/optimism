@@ -20,6 +20,17 @@ import { TransactionReceipt } from 'ethers/providers/abstract-provider'
 
 const log = getLogger('rollup-message-submitter')
 
+export class NoOpL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
+  public async submitMessage(l2ToL1Message: L2ToL1Message): Promise<void> {
+    log.debug(
+      `L2ToL1Message received by NoOpL2ToL1MessageSubmitter: ${JSON.stringify(
+        NoOpL2ToL1MessageSubmitter
+      )}`
+    )
+    return
+  }
+}
+
 /**
  *  Default Message Submitter implementation. This will be deprecated when message submission works properly.
  */

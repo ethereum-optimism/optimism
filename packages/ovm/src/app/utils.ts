@@ -18,34 +18,28 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
+import * as L2ToL1MessagePasser from '../../build/contracts/L2ToL1MessagePasser.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
 import { OvmTransactionReceipt } from '../types'
 
 // Contract Exports
-export const L2ExecutionManagerContractDefinition = {
-  abi: L2ExecutionManager.abi,
-  bytecode: L2ExecutionManager.bytecode,
-}
-export const ContractAddressGeneratorContractDefinition = {
-  abi: ContractAddressGenerator.abi,
-  bytecode: ContractAddressGenerator.bytecode,
-}
-export const RLPEncodeContractDefinition = {
-  abi: RLPEncode.abi,
-  bytecode: RLPEncode.bytecode,
-}
-
-export const L2ToL1MessageReceiverContractDefinition = {
-  abi: L2ToL1MessageReceiver.abi,
-  bytecode: L2ToL1MessageReceiver.bytecode,
-}
+export const L2ExecutionManagerContractDefinition = L2ExecutionManager
+export const ContractAddressGeneratorContractDefinition = ContractAddressGenerator
+export const RLPEncodeContractDefinition = RLPEncode
+export const L2ToL1MessageReceiverContractDefinition = L2ToL1MessageReceiver
+export const L2ToL1MessagePasserContractDefinition = L2ToL1MessagePasser
 
 export const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '
 
-const executionManager = new ethers.utils.Interface(ExecutionManager.interface)
+export const executionManagerInterface = new ethers.utils.Interface(
+  ExecutionManager.interface
+)
+export const l2ToL1MessagePasserInterface = new ethers.utils.Interface(
+  L2ToL1MessagePasser.interface
+)
 
 const logger = getLogger('utils')
 export interface OvmTransactionMetadata {
@@ -70,7 +64,7 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
   let activeContract = ZERO_ADDRESS
   const ovmLogs = []
   logs.forEach((log) => {
-    const executionManagerLog = executionManager.parseLog(log)
+    const executionManagerLog = executionManagerInterface.parseLog(log)
     if (executionManagerLog) {
       if (executionManagerLog.name === 'ActiveContract') {
         activeContract = executionManagerLog.values['_activeContract']
@@ -96,7 +90,7 @@ export const getOvmTransactionMetadata = (
   let ovmCreatedContractAddress
   let ovmTxSucceeded
   const logs = internalTxReceipt.logs
-    .map((log) => executionManager.parseLog(log))
+    .map((log) => executionManagerInterface.parseLog(log))
     .filter((log) => log != null)
   const callingWithEoaLog = logs.find((log) => log.name === 'CallingWithEOA')
   const eoaContractCreatedLog = logs.find(

@@ -6,7 +6,7 @@ import { Wallet } from 'ethers'
 import { deployPurityChecker } from './purity-checker'
 import * as ExecutionManager from '../build/contracts/ExecutionManager.json'
 import { resolve } from 'path'
-import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../src/app'
+import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../src/app'
 
 const executionManagerDeploymentFunction = async (
   wallet: Wallet
@@ -18,7 +18,7 @@ const executionManagerDeploymentFunction = async (
   const executionManager = await deployContract(
     ExecutionManager,
     wallet,
-    OPCODE_WHITELIST_MASK,
+    DEFAULT_OPCODE_WHITELIST_MASK,
     purityCheckerContractAddress,
     GAS_LIMIT,
     true

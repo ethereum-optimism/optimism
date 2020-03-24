@@ -9,7 +9,11 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 
 /* Internal Imports */
-import { GAS_LIMIT, CHAIN_ID, OPCODE_WHITELIST_MASK } from '../../src/app'
+import {
+  GAS_LIMIT,
+  CHAIN_ID,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+} from '../../src/app'
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 export const abi = new ethers.utils.AbiCoder()
@@ -33,7 +37,7 @@ describe('Execution Manager -- Recover EOA Address', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

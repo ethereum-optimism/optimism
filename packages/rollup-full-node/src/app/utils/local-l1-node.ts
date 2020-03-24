@@ -5,7 +5,7 @@ import { Contract, ethers, providers, Wallet } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from './index'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../index'
 
 const mnemonic: string =
   process.env.LOCAL_L1_MNEMONIC || ethers.Wallet.createRandom().mnemonic

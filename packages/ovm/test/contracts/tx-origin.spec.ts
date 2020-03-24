@@ -19,7 +19,11 @@ import {
   signTransation,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
-import { CHAIN_ID, GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import {
+  CHAIN_ID,
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+} from '../../src/app'
 
 const log = getLogger('simple-storage', true)
 
@@ -41,7 +45,7 @@ describe('SimpleTxOrigin', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 

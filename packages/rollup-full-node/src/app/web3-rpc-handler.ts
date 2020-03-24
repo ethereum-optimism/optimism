@@ -1,42 +1,38 @@
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
+import { Address, L2ToL1Message } from '@eth-optimism/rollup-core'
 import {
   add0x,
   getLogger,
   logError,
   remove0x,
   ZERO_ADDRESS,
-  getFirstDeployedContractAddress,
 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
   GAS_LIMIT,
-  L2ExecutionManagerContractDefinition,
-  OPCODE_WHITELIST_MASK,
   internalTxReceiptToOvmTxReceipt,
+  l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
 } from '@eth-optimism/ovm'
 
-import { Contract, ethers, utils, Wallet } from 'ethers'
-import { promisify } from 'util'
-import { readFile as readFileAsync } from 'fs'
-import { JsonRpcProvider } from 'ethers/providers'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { Contract, utils, Wallet } from 'ethers'
+import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 
 import AsyncLock from 'async-lock'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '.'
 import {
   FullnodeHandler,
   InvalidParametersError,
+  L2ToL1MessageSubmitter,
   RevertError,
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
+import { initializeL2Node, L2NodeContext } from './utils'
+import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
-const readFile = promisify(readFileAsync)
 const log = getLogger('web3-handler')
 
 const lockKey: string = 'LOCK'
@@ -50,58 +46,22 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * Web3Handler that handles Web3 requests to it.
    *
-   * @param provider (optional) The web3 provider to use.
+   * @param messageSubmitter The messageSubmitter to use to pass messages to L1. Will be replaced by block submitter.
+   * @param web3Provider (optional) The web3 provider to use.
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: JsonRpcProvider = createMockProvider({
-      gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
-      allowUnlimitedContractSize: true,
-    })
+    messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
+    web3Provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
-    // Initialize a fullnode for us to interact with
-    let wallet
-    let executionManager: Contract
+    const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
 
-    // If we're provided a web3 URL derive our wallet from a private key
-    // otherwise get our wallet from the provider.
-    if (process.env.L2_WEB3_URL) {
-      const privateKey = await readFile(
-        `${process.env.VOLUME_PATH}/private_key.txt`
-      )
-      wallet = new Wallet(`0x${privateKey}`, provider)
-    } else {
-      ;[wallet] = getWallets(provider)
-    }
-
-    const executionManagerAddress = await getFirstDeployedContractAddress(
-      provider,
-      wallet.address
-    )
-
-    if (executionManagerAddress) {
-      log.info(
-        `Using existing ExecutionManager deployed at ${executionManagerAddress}`
-      )
-      executionManager = new Contract(
-        executionManagerAddress,
-        L2ExecutionManagerContractDefinition.abi,
-        wallet
-      )
-    } else {
-      executionManager = await DefaultWeb3Handler.deployExecutionManager(
-        wallet,
-        OPCODE_WHITELIST_MASK
-      )
-    }
-
-    return new DefaultWeb3Handler(provider, wallet, executionManager)
+    return new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
   }
 
   protected constructor(
-    protected readonly provider: JsonRpcProvider,
-    private readonly wallet: Wallet,
-    private readonly executionManager: Contract
+    protected readonly messageSubmitter: L2ToL1MessageSubmitter,
+    protected readonly context: L2NodeContext
   ) {
     this.lock = new AsyncLock()
   }
@@ -192,7 +152,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
   public async blockNumber(): Promise<string> {
     log.debug(`Requesting block number.`)
-    const response = await this.provider.send(Web3RpcMethods.blockNumber, [])
+    const response = await this.context.provider.send(
+      Web3RpcMethods.blockNumber,
+      []
+    )
     // For now we will just use the internal node's blocknumber.
     // TODO: Add rollup block tracking
     log.debug(`Received block number [${response}].`)
@@ -220,10 +183,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     let response
     try {
       // Then actually make the call and get the response
-      response = await this.provider.send(Web3RpcMethods.call, [
+      response = await this.context.provider.send(Web3RpcMethods.call, [
         {
-          from: this.wallet.address,
-          to: this.executionManager.address,
+          from: this.context.wallet.address,
+          to: this.context.executionManager.address,
           data: internalCalldata,
         },
         defaultBlock,
@@ -267,13 +230,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     log.debug(internalCalldata)
     // Then estimate the gas
-    const response = await this.provider.send(Web3RpcMethods.estimateGas, [
-      {
-        from: this.wallet.address,
-        to: this.executionManager.address,
-        data: internalCalldata,
-      },
-    ])
+    const response = await this.context.provider.send(
+      Web3RpcMethods.estimateGas,
+      [
+        {
+          from: this.context.wallet.address,
+          to: this.context.executionManager.address,
+          data: internalCalldata,
+        },
+      ]
+    )
     // TODO: Make sure gas limit is below max
     log.debug(
       `Estimated gas: request: [${JSON.stringify(
@@ -293,7 +259,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     fullObjects: boolean
   ): Promise<any> {
     log.debug(`Got request to get block ${defaultBlock}.`)
-    const res: string = await this.provider.send(
+    const res: string = await this.context.provider.send(
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
@@ -319,10 +285,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
     )
     // First get the code contract address at the requested OVM address
-    const codeContractAddress = await this.executionManager.getCodeContractAddress(
+    const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
       address
     )
-    const response = await this.provider.send(Web3RpcMethods.getCode, [
+    const response = await this.context.provider.send(Web3RpcMethods.getCode, [
       codeContractAddress,
       'latest',
     ])
@@ -333,12 +299,12 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async getExecutionManagerAddress(): Promise<Address> {
-    return this.executionManager.address
+    return this.context.executionManager.address
   }
 
   public async getLogs(filter: any): Promise<any[]> {
     log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-    const res = await this.provider.send(Web3RpcMethods.getLogs, filter)
+    const res = await this.context.provider.send(Web3RpcMethods.getLogs, filter)
     log.debug(`Log result: [${res}], filter: [${JSON.stringify(filter)}].`)
     return res
   }
@@ -351,7 +317,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
     )
     const response = add0x(
-      (await this.executionManager.getOvmContractNonce(address)).toString(16)
+      (
+        await this.context.executionManager.getOvmContractNonce(address)
+      ).toString(16)
     )
     log.debug(
       `Received transaction count for Address [${address}], block: [${defaultBlock}]: [${response}].`
@@ -367,7 +335,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // First convert our ovmTxHash into an internalTxHash
     const internalTxHash = await this.getInternalTxHash(ovmTxHash)
 
-    const internalTxReceipt = await this.provider.send(
+    const internalTxReceipt = await this.context.provider.send(
       Web3RpcMethods.getTransactionReceipt,
       [internalTxHash]
     )
@@ -420,7 +388,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       let returnedInternalTxHash: string
       try {
         // Then apply our transaction
-        returnedInternalTxHash = await this.provider.send(
+        returnedInternalTxHash = await this.context.provider.send(
           Web3RpcMethods.sendRawTransaction,
           internalTx
         )
@@ -431,7 +399,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
           e
         )
 
-        await this.executionManager.incrementNonce(add0x(ovmTx.from))
+        await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
         log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
 
         return ovmTxHash
@@ -455,6 +423,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         throw new RevertError(receipt.revertMessage)
       }
 
+      await this.processTransactionEvents(receipt)
+
       log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
       // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
       return ovmTxHash
@@ -470,6 +440,35 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     return Math.round(Date.now() / 1000)
   }
 
+  private async processTransactionEvents(
+    receipt: OvmTransactionReceipt
+  ): Promise<void> {
+    const messagePromises: Array<Promise<void>> = []
+    for (const logEntry of receipt.logs.filter(
+      (x) => x.address === this.context.l2ToL1MessagePasser.address
+    )) {
+      const parsedLog = l2ToL1MessagePasserInterface.parseLog(logEntry)
+      if (!parsedLog || parsedLog.name !== 'L2ToL1Message') {
+        continue
+      }
+
+      const nonce = parsedLog.values['_nonce']
+      const ovmSender = parsedLog.values['_ovmSender']
+      const callData = parsedLog.values['_callData']
+      const message: L2ToL1Message = {
+        nonce,
+        ovmSender,
+        callData,
+      }
+      log.debug(`Submitting L2 to L1 Message: ${JSON.stringify(message)}`)
+      messagePromises.push(this.messageSubmitter.submitMessage(message))
+    }
+
+    if (!!messagePromises.length) {
+      await Promise.all(messagePromises)
+    }
+  }
+
   /**
    * Maps the provided OVM transaction hash to the provided internal transaction hash by storing it in our
    * L2 Execution Manager contract.
@@ -482,14 +481,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     ovmTxHash: string,
     internalTxHash: string
   ): Promise<void> {
-    return this.executionManager.mapOvmTransactionHashToInternalTransactionHash(
+    return this.context.executionManager.mapOvmTransactionHashToInternalTransactionHash(
       add0x(ovmTxHash),
       add0x(internalTxHash)
     )
   }
 
   private async getInternalTxHash(ovmTxHash: string): Promise<string> {
-    return this.executionManager.getInternalTransactionHash(add0x(ovmTxHash))
+    return this.context.executionManager.getInternalTransactionHash(
+      add0x(ovmTxHash)
+    )
   }
 
   /**
@@ -511,13 +512,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       throw new Error('Non-EOA transaction detected')
     }
     // TODO: Make sure we lock this function with this nonce so we don't send to txs with the same nonce
-    const nonce = (await this.wallet.getTransactionCount()) + 1
+    const nonce = (await this.context.wallet.getTransactionCount()) + 1
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
     // Check the nonce
     const expectedNonce = (
-      await this.executionManager.getOvmContractNonce(ovmTx.from)
+      await this.context.executionManager.getOvmContractNonce(ovmTx.from)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
       throw new Error(
@@ -540,30 +541,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       nonce,
       gasLimit: ovmTx.gasLimit,
       gasPrice: 0,
-      to: this.executionManager.address,
+      to: this.context.executionManager.address,
       value: 0,
       data: internalCalldata,
       chainId: 108,
     }
     log.debug('The internal tx:', internalTx)
-    return this.wallet.sign(internalTx)
-  }
-
-  protected static async deployExecutionManager(
-    wallet: Wallet,
-    opcodeWhitelistMask: string
-  ): Promise<Contract> {
-    // Now deploy the execution manager!
-    const executionManager: Contract = await deployContract(
-      wallet,
-      L2ExecutionManagerContractDefinition,
-      [opcodeWhitelistMask, wallet.address, GAS_LIMIT, true],
-      { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
-    )
-
-    log.info('Deployed execution manager to address:', executionManager.address)
-
-    return executionManager
+    return this.context.wallet.sign(internalTx)
   }
 
   /**
@@ -581,7 +565,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
       ovmEntrypoint = ZERO_ADDRESS
     }
-    return this.executionManager.interface.functions[
+    return this.context.executionManager.interface.functions[
       'executeUnsignedEOACall'
     ].encode([
       timestamp,

@@ -24,7 +24,7 @@ import {
   executeOVMCall,
   addressToBytes32Address,
 } from '../helpers'
-import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -53,7 +53,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 

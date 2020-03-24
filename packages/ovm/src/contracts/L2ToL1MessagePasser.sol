@@ -4,9 +4,9 @@ pragma experimental ABIEncoderV2;
 
 contract L2ToL1MessagePasser {
     event L2ToL1Message(
-       uint nonce,
-       address ovmSender,
-       bytes callData
+       uint _nonce,
+       address _ovmSender,
+       bytes _callData
     );
 
     uint nonce;
