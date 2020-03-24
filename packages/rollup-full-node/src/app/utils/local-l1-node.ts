@@ -24,12 +24,14 @@ export const startLocalL1Node = async (
   })
 
   const wallet = getWallets(provider)[0]
-  await deployL2ToL1MessagePasser(wallet)
+  await deployL2ToL1MessageReceiver(wallet)
 
   return provider
 }
 
-const deployL2ToL1MessagePasser = async (wallet: Wallet): Promise<Contract> => {
+export const deployL2ToL1MessageReceiver = async (
+  wallet: Wallet
+): Promise<Contract> => {
   const contract = await deployContract(
     wallet,
     L2ToL1MessageReceiverContractDefinition,

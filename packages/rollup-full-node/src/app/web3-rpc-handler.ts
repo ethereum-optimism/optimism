@@ -3,7 +3,9 @@ import { Address, L2ToL1Message } from '@eth-optimism/rollup-core'
 import {
   add0x,
   getLogger,
+  hexStrToNumber,
   logError,
+  numberToHexString,
   remove0x,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
@@ -15,8 +17,8 @@ import {
   OvmTransactionReceipt,
 } from '@eth-optimism/ovm'
 
-import { Contract, utils, Wallet } from 'ethers'
-import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
+import { utils } from 'ethers'
+import { JsonRpcProvider } from 'ethers/providers'
 
 import AsyncLock from 'async-lock'
 
@@ -275,11 +277,20 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     address: Address,
     defaultBlock: string
   ): Promise<string> {
-    if (defaultBlock !== 'latest') {
+    const curentBlockNumber = await this.context.provider.getBlockNumber()
+    if (
+      !['latest', numberToHexString(curentBlockNumber)].includes(defaultBlock)
+    ) {
       log.debug(
-        `No support for historical code lookups! Anything returned from this may be very wrong.`
+        `Historical code lookups aren't supported. defaultBlock: [${hexStrToNumber(
+          defaultBlock
+        )}] curentBlockNumber:[${curentBlockNumber}]`
       )
-      //throw new Error('No support for historical code lookups!')
+      throw new Error(
+        `Historical code lookups aren't supported. Requested Block: ${hexStrToNumber(
+          defaultBlock
+        )} Current Block: ${curentBlockNumber}`
+      )
     }
     log.debug(
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
@@ -544,7 +555,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       to: this.context.executionManager.address,
       value: 0,
       data: internalCalldata,
-      chainId: 108,
+      chainId: CHAIN_ID,
     }
     log.debug('The internal tx:', internalTx)
     return this.context.wallet.sign(internalTx)

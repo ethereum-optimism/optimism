@@ -150,6 +150,15 @@ export const bnToHexString = (bn: BigNumber): string => {
 }
 
 /**
+ * Converts a JavaScript number to a hex string.
+ * @param number the JavaScript number to be converted.
+ * @returns the JavaScript number as a string.
+ */
+export const numberToHexString = (bn: number): string => {
+  return add0x(bn.toString(16))
+}
+
+/**
  * Converts either a big number or buffer to hex string
  * @param value the big number or buffer to be converted
  * @returns the value as a string.
