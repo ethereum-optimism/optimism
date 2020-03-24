@@ -68,7 +68,7 @@ describe('OVM L2 -> L1 message passer', () => {
     )
   })
 
-  it.only(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
+  it(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
     const bytesToSendToL1 = '0x123412341234deadbeef'
     const passMessageToL1MethodId = bufToHexString(
       ethereumjsAbi.methodID('passMessageToL1', ['bytes'])
