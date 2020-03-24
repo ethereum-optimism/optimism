@@ -24,7 +24,7 @@ import {
 import { Contract, ethers, utils, Wallet } from 'ethers'
 import { promisify } from 'util'
 import { readFile as readFileAsync } from 'fs'
-import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import { JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 import AsyncLock from 'async-lock'
@@ -47,9 +47,11 @@ const lockKey: string = 'LOCK'
 
 const latestBlock: string = 'latest'
 
+const getPersistedL2GanacheDbPath = () =>
+  process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
+
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private lock: AsyncLock
-
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * Web3Handler that handles Web3 requests to it.
@@ -58,11 +60,21 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: JsonRpcProvider = createMockProvider({
-      gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
-      allowUnlimitedContractSize: true,
-    })
+    provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
+    if (!provider) {
+      const opts = {
+        gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+        allowUnlimitedContractSize: true,
+      }
+      const persistedGanacheDbPath = getPersistedL2GanacheDbPath()
+      if (!!persistedGanacheDbPath) {
+        opts['db_path'] = persistedGanacheDbPath
+        opts['network_id'] = CHAIN_ID
+      }
+      provider = createMockProvider(opts)
+    }
+
     // Initialize a fullnode for us to interact with
     let wallet
     let executionManager: Contract
@@ -556,7 +568,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       to: this.executionManager.address,
       value: 0,
       data: internalCalldata,
-      chainId: 108,
+      chainId: CHAIN_ID,
     }
     log.debug('The internal tx:', internalTx)
     return this.wallet.sign(internalTx)
