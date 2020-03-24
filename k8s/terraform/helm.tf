@@ -1,13 +1,17 @@
-# Installs the Consul Helm chart with value overrides
-#
-# This depends on the Consul gossip key existing in K8S secrets
-# prior to attempting to install the Helm chart
+/*
+ * Helm Release - https://www.terraform.io/docs/providers/helm/r/release.html
+ * Installs the Consul Helm chart with value overrides
+ * This depends on the Consul gossip key existing in K8S secrets
+ * prior to attempting to install the Helm chart
+ */
 resource "helm_release" "consul_chart" {
   depends_on = [kubernetes_secret.consul_gossip_key]
 
-  name  = "omisego-consul"
-  chart = "../helm/consul"
+  name      = "omisego-consul"
+  chart     = "../helm/consul"
+  namespace = var.k8s_namespace
 
+  atomic          = true
   cleanup_on_fail = true
 
   set {
@@ -46,14 +50,19 @@ resource "helm_release" "consul_chart" {
   }
 }
 
-# Installs the Vault Helm chart with value overrides
-# This depends on the Consul Helm chart being installed already
+/*
+ * Helm Release - https://www.terraform.io/docs/providers/helm/r/release.html
+ * Installs the Vault Helm chart with value overrides
+ * This depends on the Consul Helm chart being installed already
+ */
 resource "helm_release" "vault_chart" {
   depends_on = [data.kubernetes_secret.vault_acl_token]
 
-  name  = "omisego-vault"
-  chart = "../helm/vault"
+  name      = "omisego-vault"
+  chart     = "../helm/vault"
+  namespace = var.k8s_namespace
 
+  atomic          = true
   cleanup_on_fail = true
 
   set {

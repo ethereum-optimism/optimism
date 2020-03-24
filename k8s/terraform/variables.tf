@@ -58,6 +58,12 @@ variable "k8s_consul_gossip_key_name" {
   description = "The name of the secret in Kubernetes to store the Consul gossip key"
 }
 
+variable "k8s_namespace" {
+  type        = string
+  default     = "default"
+  description = "Kubernetes namespace to install the Helm charts into"
+}
+
 variable "local_certificates_dir" {
   type        = string
   description = "Absolute path to the directory storing the generated cluster service certificates"

@@ -1,5 +1,8 @@
-# Loads the Consul bootstrap ACL token from the K8S cluster's
-# secrets AFTER the Consul Helm chart has been successfully installed
+/*
+ * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/d/secret.html
+ * Loads the Consul bootstrap ACL token from the K8S cluster's
+ * secrets AFTER the Consul Helm chart has been successfully installed
+ */
 data "kubernetes_secret" "bootstrap_acl_token" {
   depends_on = [helm_release.vault_chart]
   metadata {
@@ -7,8 +10,11 @@ data "kubernetes_secret" "bootstrap_acl_token" {
   }
 }
 
-# Loads the Consul Vault policy ACL token from the K8S cluster's
-# secrets AFTER the Consul Helm chart has been successfully installed
+/*
+ * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/d/secret.html
+ * Loads the Consul Vault policy ACL token from the K8S cluster's
+ * secrets AFTER the Consul Helm chart has been successfully installed
+ */
 data "kubernetes_secret" "vault_acl_token" {
   depends_on = [helm_release.consul_chart]
   metadata {
@@ -16,10 +22,25 @@ data "kubernetes_secret" "vault_acl_token" {
   }
 }
 
+/*
+ * Kubernetes Service - https://www.terraform.io/docs/providers/kubernetes/d/service.html
+ * Retrieves the attributes for the K8S service exposing the Vault server pods
+ * Depends on the Vault Helm chart being successfully installed
+ */
+data "kubernetes_service" "vault" {
+  depends_on = [helm_release.vault_chart]
+  metadata {
+    name      = "omisego-vault-server"
+    namespace = var.k8s_namespace
+  }
+}
 
-# Injects the Consul gossip encryption key from the unsealer Vault
-# into a K8S secret to be usable by the Consul agents running in
-# the pods for initialization
+/*
+ * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/r/secret.html
+ * Injects the Consul gossip encryption key from the unsealer Vault
+ * into a K8S secret to be usable by the Consul agents running in
+ * the pods for initialization
+ */
 resource "kubernetes_secret" "consul_gossip_key" {
   metadata {
     name = var.k8s_consul_gossip_key_name
@@ -32,8 +53,11 @@ resource "kubernetes_secret" "consul_gossip_key" {
   type = "Opaque"
 }
 
-# Injects the CA certificate and key file into Kubernetes secrets
-# for the service pods to use for TLS
+/*
+ * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/r/secret.html
+ * Injects the CA certificate and key file into Kubernetes secrets
+ * for the service pods to use for TLS
+ */
 resource "kubernetes_secret" "ca_certificates" {
   count = var.tls_enabled ? 1 : 0
 
@@ -49,8 +73,11 @@ resource "kubernetes_secret" "ca_certificates" {
   type = "kubernetes.io/tls"
 }
 
-# Injects the services' certificate and key file into Kubernetes secrets
-# for the service pods to use for TLS
+/*
+ * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/r/secret.html
+ * Injects the services' certificate and key file into Kubernetes secrets
+ * for the service pods to use for TLS
+ */
 resource "kubernetes_secret" "services_certificates" {
   count = var.tls_enabled ? 1 : 0
 

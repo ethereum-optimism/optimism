@@ -26,6 +26,7 @@ The Helm operations have been abstracted away through Terraform for installation
 |   `k8s_consul_client_acl_token_name`   | string |   `omisego-consul-client-acl-token`    |
 |   `k8s_consul_vault_acl_token_name`    | string |    `omisego-consul-vault-acl-token`    |
 |      `k8s_consul_gossip_key_name`      | string | `omisego-consul-gossip-encryption-key` |
+|            `k8s_namespace`             | string |               `default`                |
 |        `local_certificates_dir`        | string |                   -                    |
 |             `tls_enabled`              |  bool  |                `false`                 |
 |         `unsealer_vault_addr`          | string |        `https://127.0.0.1:8200`        |

@@ -49,3 +49,12 @@ variable "lockdown_egress" {
   description = "Boolean indicating if egress network access is lockdown to only Datadog IPs"
   default     = false
 }
+
+variable "gke_cluster_name" {
+  description = "Name of the GKE Kubernetes cluster to create"
+}
+
+variable "gke_node_count" {
+  description = "The number of nodes to create in the GKE node pool"
+  default     = 1
+}
