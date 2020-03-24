@@ -70,7 +70,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       const persistedGanacheDbPath = getPersistedL2GanacheDbPath()
       if (!!persistedGanacheDbPath) {
         opts['db_path'] = persistedGanacheDbPath
-        opts['network_id'] = 999999
+        opts['network_id'] = CHAIN_ID
       }
       provider = createMockProvider(opts)
     }
@@ -568,7 +568,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       to: this.executionManager.address,
       value: 0,
       data: internalCalldata,
-      chainId: 108,
+      chainId: CHAIN_ID,
     }
     log.debug('The internal tx:', internalTx)
     return this.wallet.sign(internalTx)
