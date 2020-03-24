@@ -1,19 +1,15 @@
 import '../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import {ethers, ContractFactory, Wallet, Contract} from 'ethers'
+import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
 import { resolve } from 'path'
+import * as rimraf from 'rimraf'
 import * as fs from 'fs'
 
 /* Internal Imports */
-import {
-  FullnodeRpcServer,
-  deployOvmContract,
-  DefaultWeb3Handler,
-} from '../../src/app'
+import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import { FullnodeHandler } from '../../src/types'
-import {Provider} from 'ethers/providers'
 
 const log = getLogger('web3-handler', true)
 
@@ -127,22 +123,17 @@ describe.only('Web3Handler', () => {
     let httpProvider
 
     before(() => {
-      if (fs.existsSync(tmpFilePath)) {
-        fs.rmdirSync(tmpFilePath)
-      }
+      rimraf.sync(tmpFilePath)
+      fs.mkdirSync(tmpFilePath)
+      process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH = tmpFilePath
     })
     after(() => {
-      if (fs.existsSync(tmpFilePath)) {
-        fs.rmdirSync(tmpFilePath)
-      }
+      rimraf.sync(tmpFilePath)
     })
 
-    it('deploys the contracts', async () => {
+    it('1/2 deploys the contracts', async () => {
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      emAddress = await httpProvider.send(
-        'ovm_getExecutionManagerAddress',
-        []
-      )
+      emAddress = await httpProvider.send('ovm_getExecutionManagerAddress', [])
       const privateKey = '0x' + '60'.repeat(32)
       wallet = new ethers.Wallet(privateKey, httpProvider)
       log.debug('Wallet address:', wallet.address)
@@ -162,7 +153,7 @@ describe.only('Web3Handler', () => {
       deploymentTxReceipt.contractAddress.should.equal(simpleStorage.address)
     })
 
-    it('uses previously deployed contract', async () => {
+    it('2/2 uses previously deployed contract', async () => {
       // Create some constants we will use for storage
       const storageKey = '0x' + '01'.repeat(32)
       const storageValue = '0x' + '02'.repeat(32)
@@ -173,10 +164,7 @@ describe.only('Web3Handler', () => {
         storageValue
       )
       // Get the storage
-      const res = await simpleStorage.getStorage(
-        emAddress,
-        storageKey
-      )
+      const res = await simpleStorage.getStorage(emAddress, storageKey)
       // Verify we got the value!
       res.should.equal(storageValue)
     })

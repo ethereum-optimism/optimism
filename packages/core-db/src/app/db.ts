@@ -12,8 +12,7 @@ import {
   ZERO,
 } from '@eth-optimism/core-utils'
 import { AbstractOpenOptions, AbstractLevelDOWN } from 'abstract-leveldown'
-import Level = require('level')
-
+const level = require('level')
 
 import MemDown from 'memdown'
 
@@ -65,8 +64,11 @@ export const defaultLevelOptions = {
   keyEncoding: 'binary',
   valueEncoding: 'binary',
 }
-export const getLevelInstance = (path: string, options = defaultLevelOptions): AbstractLevelDOWN => {
-  return new Level(path, options)
+export const getLevelInstance = (
+  path: string,
+  options = defaultLevelOptions
+): AbstractLevelDOWN => {
+  return level(path, options)
 }
 
 /**

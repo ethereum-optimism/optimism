@@ -4,8 +4,7 @@ import debug from 'debug'
 import MemDown from 'memdown'
 
 /* Internal Imports */
-import { dbRootPath } from '../setup'
-import {BaseDB, RangeEntry, RangeBucket, getLevelInstance} from '../../src'
+import { BaseDB, RangeEntry, RangeBucket } from '../../src'
 
 const log = debug('test:info:range-db')
 
@@ -72,7 +71,6 @@ const compareResult = (res: any, expectedResult: any): void => {
 }
 
 describe('RangeDB', () => {
-  const db = getLevelInstance(dbRootPath + 'rangeTest')
   let prefixCounter = 0
   let rangeDB
 

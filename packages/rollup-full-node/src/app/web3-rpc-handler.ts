@@ -20,7 +20,7 @@ import {
 import { Contract, ethers, utils, Wallet } from 'ethers'
 import { promisify } from 'util'
 import { readFile as readFileAsync } from 'fs'
-import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import { JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 import AsyncLock from 'async-lock'
@@ -35,7 +35,6 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { getLevelInstance } from '@eth-optimism/core-db/build/src'
 
 const readFile = promisify(readFileAsync)
 const log = getLogger('web3-handler')
@@ -44,7 +43,8 @@ const lockKey: string = 'LOCK'
 
 const latestBlock: string = 'latest'
 
-const persistedL2GanacheDbPath = process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
+const getPersistedL2GanacheDbPath = () =>
+  process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
 
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private lock: AsyncLock
@@ -63,8 +63,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
         allowUnlimitedContractSize: true,
       }
-      if (!!persistedL2GanacheDbPath) {
-        opts['db'] = getLevelInstance(persistedL2GanacheDbPath)
+      const persistedGanacheDbPath = getPersistedL2GanacheDbPath()
+      if (!!persistedGanacheDbPath) {
+        opts['db_path'] = persistedGanacheDbPath
         opts['network_id'] = 999999
       }
       provider = createMockProvider(opts)
