@@ -26,12 +26,12 @@ export const createProviderForHandler = (
 
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   provider.send = async (method: string, params: any) => {
-    log.info('Sending -- Method:', method, 'Params:', params)
+    log.debug('Sending -- Method:', method, 'Params:', params)
 
     // Convert the message or response if we need to
     const response = await fullnodeHandler.handleRequest(method, params)
 
-    log.info('Received Response --', response)
+    log.debug('Received Response --', response)
     return response
   }
 

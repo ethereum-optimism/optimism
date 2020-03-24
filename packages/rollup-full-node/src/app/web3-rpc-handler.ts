@@ -67,6 +67,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     this.lock = new AsyncLock()
   }
 
+  public getL2ToL1MessagePasserAddress(): Address {
+    return this.context.l2ToL1MessagePasser.address
+  }
+
   /**
    * Handles generic Web3 requests.
    *

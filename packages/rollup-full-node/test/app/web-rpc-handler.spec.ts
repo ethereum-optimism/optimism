@@ -9,7 +9,7 @@ import * as fs from 'fs'
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
-import { FullnodeHandler } from '../../src/types'
+import {FullnodeHandler} from '../../src/types'
 
 const log = getLogger('web3-handler', true)
 
@@ -17,6 +17,53 @@ const host = '0.0.0.0'
 const port = 9999
 
 const tmpFilePath = resolve(__dirname, `./.test_db`)
+
+const getWallet = (httpProvider) => {
+  const privateKey = '0x' + '60'.repeat(32)
+  const wallet = new ethers.Wallet(privateKey, httpProvider)
+  log.debug('Wallet address:', wallet.address)
+  return wallet
+}
+
+const deploySimpleStorage = async (wallet: Wallet): Promise<Contract> =>  {
+  const factory = new ContractFactory(
+    SimpleStorage.abi,
+    SimpleStorage.bytecode,
+    wallet
+  )
+
+  // Deploy tx normally
+  const simpleStorage = await factory.deploy()
+  // Get the deployment tx receipt
+  const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
+    simpleStorage.deployTransaction.hash
+  )
+  // Verify that the contract which was deployed is correct
+  deploymentTxReceipt.contractAddress.should.equal(simpleStorage.address)
+
+  return simpleStorage
+}
+
+const setAndGetStorage = async (simpleStorage: Contract, httpProvider, executionManagerAddress): Promise<void> => {
+  // Create some constants we will use for storage
+  const storageKey = '0x' + '01'.repeat(32)
+  const storageValue = '0x' + '02'.repeat(32)
+  // Set storage with our new storage elements
+  const networkInfo = await httpProvider.getNetwork()
+  const tx = await simpleStorage.setStorage(
+    executionManagerAddress,
+    storageKey,
+    storageValue
+  )
+  // Get the storage
+  const receipt = await httpProvider.getTransactionReceipt(tx.hash)
+  const res = await simpleStorage.getStorage(
+    executionManagerAddress,
+    storageKey
+  )
+  // Verify we got the value!
+  res.should.equal(storageValue)
+}
 
 /*********
  * TESTS *
@@ -46,46 +93,12 @@ describe('Web3Handler', () => {
     describe('SimpleStorage integration test', () => {
       it('should set storage & retrieve the value', async () => {
         const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-        const executionManagerAddress = await httpProvider.send(
-          'ovm_getExecutionManagerAddress',
-          []
-        )
-        const privateKey = '0x' + '60'.repeat(32)
-        const wallet = new ethers.Wallet(privateKey, httpProvider)
-        log.debug('Wallet address:', wallet.address)
-        const factory = new ContractFactory(
-          SimpleStorage.abi,
-          SimpleStorage.bytecode,
-          wallet
-        )
+        const executionManagerAddress = await httpProvider.send('ovm_getExecutionManagerAddress', [])
 
-        // Deploy tx normally
-        const simpleStorage = await factory.deploy()
-        // Get the deployment tx receipt
-        const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
-          simpleStorage.deployTransaction.hash
-        )
-        // Verify that the contract which was deployed is correct
-        deploymentTxReceipt.contractAddress.should.equal(simpleStorage.address)
+        const wallet = getWallet(httpProvider)
+        const simpleStorage = await deploySimpleStorage(wallet)
 
-        // Create some constants we will use for storage
-        const storageKey = '0x' + '01'.repeat(32)
-        const storageValue = '0x' + '02'.repeat(32)
-        // Set storage with our new storage elements
-        const networkInfo = await httpProvider.getNetwork()
-        const tx = await simpleStorage.setStorage(
-          executionManagerAddress,
-          storageKey,
-          storageValue
-        )
-        // Get the storage
-        const receipt = await httpProvider.getTransactionReceipt(tx.hash)
-        const res = await simpleStorage.getStorage(
-          executionManagerAddress,
-          storageKey
-        )
-        // Verify we got the value!
-        res.should.equal(storageValue)
+        await setAndGetStorage(simpleStorage, httpProvider, executionManagerAddress)
       })
     })
 
@@ -135,39 +148,13 @@ describe('Web3Handler', () => {
     it('1/2 deploys the contracts', async () => {
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       emAddress = await httpProvider.send('ovm_getExecutionManagerAddress', [])
-      const privateKey = '0x' + '60'.repeat(32)
-      wallet = new ethers.Wallet(privateKey, httpProvider)
-      log.debug('Wallet address:', wallet.address)
-      const factory = new ContractFactory(
-        SimpleStorage.abi,
-        SimpleStorage.bytecode,
-        wallet
-      )
+      wallet = getWallet(httpProvider)
 
-      // Deploy tx normally
-      simpleStorage = await factory.deploy()
-      // Get the deployment tx receipt
-      const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
-        simpleStorage.deployTransaction.hash
-      )
-      // Verify that the contract which was deployed is correct
-      deploymentTxReceipt.contractAddress.should.equal(simpleStorage.address)
+      simpleStorage = await deploySimpleStorage(wallet)
     })
 
     it('2/2 uses previously deployed contract', async () => {
-      // Create some constants we will use for storage
-      const storageKey = '0x' + '01'.repeat(32)
-      const storageValue = '0x' + '02'.repeat(32)
-      // Set storage with our new storage elements
-      const tx = await simpleStorage.setStorage(
-        emAddress,
-        storageKey,
-        storageValue
-      )
-      // Get the storage
-      const res = await simpleStorage.getStorage(emAddress, storageKey)
-      // Verify we got the value!
-      res.should.equal(storageValue)
+      await setAndGetStorage(simpleStorage, httpProvider, emAddress)
     })
   })
 })

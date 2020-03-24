@@ -4,9 +4,7 @@ import '../setup'
 import { Address } from '@eth-optimism/rollup-core'
 import {
   getLogger,
-  remove0x,
   add0x,
-  TestUtils,
   bufToHexString,
 } from '@eth-optimism/core-utils'
 
@@ -23,15 +21,11 @@ import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
   DEFAULT_ETHNODE_GAS_LIMIT,
-  didCreateSucceed,
   gasLimit,
-  executeOVMCall,
   encodeMethodId,
   encodeRawArguments,
 } from '../helpers'
-import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
-import { fromPairs } from 'lodash'
-import { L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app/constants'
+import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK, L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app'
 
 export const abi = new ethers.utils.AbiCoder()
 

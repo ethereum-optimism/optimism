@@ -9,7 +9,7 @@ import {
   L2ExecutionManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  CHAIN_ID,
+  CHAIN_ID, L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '@eth-optimism/ovm'
 import { Address } from '@eth-optimism/rollup-core'
 
@@ -92,26 +92,14 @@ export async function initializeL2Node(
     executionManager = await deployExecutionManager(wallet)
   }
 
-  const messagePasserAddress: Address = await getDeployedContractAddress(
-    nonce++,
-    provider,
-    wallet.address
+  log.info(
+    `Using existing L2ToL1MessagePasser deployed at ${L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS}`
   )
-  if (!messagePasserAddress) {
-    l2ToL1MessagePasser = await deployL2ToL1MessagePasser(
-      wallet,
-      executionManager.address
-    )
-  } else {
-    log.info(
-      `Using existing L2ToL1MessagePasser deployed at ${messagePasserAddress}`
-    )
-    l2ToL1MessagePasser = new Contract(
-      messagePasserAddress,
-      L2ToL1MessagePasserContractDefinition.abi,
-      wallet
-    )
-  }
+  l2ToL1MessagePasser = new Contract(
+    L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+    L2ToL1MessagePasserContractDefinition.abi,
+    wallet
+  )
 
   return {
     wallet,
@@ -143,33 +131,4 @@ export async function deployExecutionManager(
   log.info('Deployed execution manager to address:', executionManager.address)
 
   return executionManager
-}
-
-/**
- * Deploys the L2ToL1MessagePasser contract with the provided wallet and EM address,
- * returning the resulting Contract.
- *
- * @param wallet The wallet to be used, containing all connection info.
- * @param executionManagerAddress The EM address param to the L2ToL1MessagePasser.
- * @returns The deployed Contract.
- */
-export async function deployL2ToL1MessagePasser(
-  wallet: Wallet,
-  executionManagerAddress: Address
-): Promise<Contract> {
-  log.debug('Deploying L2ToL1MessagePasser contract...')
-
-  const l2ToL1MessagePasser: Contract = await deployContract(
-    wallet,
-    L2ToL1MessagePasserContractDefinition,
-    [executionManagerAddress],
-    { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
-  )
-
-  log.info(
-    'Deployed L2ToL1MessagePasser to address:',
-    l2ToL1MessagePasser.address
-  )
-
-  return l2ToL1MessagePasser
 }
