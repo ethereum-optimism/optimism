@@ -1,15 +1,16 @@
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
 import {
+  JsonRpcResponse,
+  ZERO_ADDRESS,
   add0x,
   buildJsonRpcError,
-  getLogger,
-  numberToHexString,
-  logError,
-  remove0x,
-  ZERO_ADDRESS,
   getFirstDeployedContractAddress,
-  JsonRpcResponse,
+  getLogger,
+  hexStrToNumber,
+  logError,
+  numberToHexString,
+  remove0x,
 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
@@ -317,9 +318,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       !['latest', numberToHexString(curentBlockNumber)].includes(defaultBlock)
     ) {
       log.debug(
-        `No support for historical code lookups! Anything returned from this may be very wrong.`
+        `Requested block ${hexStrToNumber(
+          defaultBlock
+        )} but the current block is ${curentBlockNumber}. Historical code lookups aren't supported.`
       )
-      throw new Error('No support for historical code lookups!')
+      throw new Error(
+        `Requested block ${hexStrToNumber(
+          defaultBlock
+        )} but the current block is ${curentBlockNumber}. Historical code lookups aren't supported.`
+      )
     }
     log.debug(
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
