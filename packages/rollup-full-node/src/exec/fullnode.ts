@@ -95,5 +95,5 @@ const runMessageSubmitter = async (): Promise<L2ToL1MessageSubmitter> => {
     provider
   )
 
-  return DefaultL2ToL1MessageSubmitter.create(db, messageReceiverContract)
+  return DefaultL2ToL1MessageSubmitter.create(messageReceiverContract)
 }

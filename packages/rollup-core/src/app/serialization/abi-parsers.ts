@@ -18,7 +18,7 @@ export const abiDecodeRollupBlock = (abiEncoded: string): RollupBlock => {
 
 export const abiDecodeL2ToL1Message = (abiEncoded: string): L2ToL1Message => {
   const [nonce, ovmSender, callData] = abi.decode(
-    ['address', 'bytes'],
+    ['uint', 'address', 'bytes'],
     abiEncoded
   )
 

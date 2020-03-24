@@ -9,6 +9,7 @@ import {
   L2ExecutionManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
   DEFAULT_OPCODE_WHITELIST_MASK,
+  CHAIN_ID,
 } from '@eth-optimism/ovm'
 import { Address } from '@eth-optimism/rollup-core'
 
@@ -38,15 +39,24 @@ export interface L2NodeContext {
   l2ToL1MessagePasser: Contract
 }
 
+export const getPersistedL2GanacheDbPath = () =>
+  process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
+
 export async function initializeL2Node(
   web3Provider?: JsonRpcProvider
 ): Promise<L2NodeContext> {
   let provider: JsonRpcProvider = web3Provider
   if (!web3Provider) {
-    provider = createMockProvider({
+    const opts = {
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       allowUnlimitedContractSize: true,
-    })
+    }
+    const persistedGanacheDbPath = getPersistedL2GanacheDbPath()
+    if (!!persistedGanacheDbPath) {
+      opts['db_path'] = persistedGanacheDbPath
+      opts['network_id'] = CHAIN_ID
+    }
+    provider = createMockProvider(opts)
   }
 
   // Initialize a fullnode for us to interact with

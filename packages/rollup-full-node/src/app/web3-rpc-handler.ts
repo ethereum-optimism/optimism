@@ -43,7 +43,6 @@ const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private lock: AsyncLock
-
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * Web3Handler that handles Web3 requests to it.
