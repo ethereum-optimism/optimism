@@ -22,7 +22,9 @@ data:
       disable_renewal = "true"
       key_name = "autounseal"
       mount_path = "transit/"
+      {{- if .Values.global.tlsEnabled }}
       tls_ca_cert = "/etc/tls/ca/tls.crt"
+      {{- end }}
       token = "{{ .Values.server.unseal.token }}"
     }
 
