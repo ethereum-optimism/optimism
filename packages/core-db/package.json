@@ -36,7 +36,7 @@
     "chai-as-promised": "^7.1.1",
     "debug": "^4.1.1",
     "ethers": "^4.0.39",
-    "level": "^5.0.1",
+    "level": "^6.0.0",
     "memdown": "^4.0.0"
   },
   "devDependencies": {
