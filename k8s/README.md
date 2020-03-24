@@ -28,7 +28,7 @@ The Helm operations have been abstracted away through Terraform for installation
 |      `k8s_consul_gossip_key_name`      | string | `omisego-consul-gossip-encryption-key` |
 |            `k8s_namespace`             | string |               `default`                |
 |        `local_certificates_dir`        | string |                   -                    |
-|             `tls_enabled`              |  bool  |                `false`                 |
+|             `tls_enabled`              |  bool  |                 `true`                 |
 |         `unsealer_vault_addr`          | string |        `https://127.0.0.1:8200`        |
 |            `vault_replicas`            | number |                  `3`                   |
 

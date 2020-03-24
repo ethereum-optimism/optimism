@@ -87,7 +87,7 @@ resource "helm_release" "vault_chart" {
 
   set {
     name  = "server.unseal.address"
-    value = "https://192.168.64.1:8200"
+    value = var.unsealer_vault_addr
   }
 
   set {

@@ -71,13 +71,13 @@ variable "local_certificates_dir" {
 
 variable "tls_enabled" {
   type        = bool
-  default     = false
+  default     = true
   description = "Whether to enable TLS communication within the services"
 }
 
 variable "unsealer_vault_addr" {
   type        = string
-  default     = "https://127.0.0.1:8200"
+  default     = "https://192.168.64.1:8200"
   description = "The address to the Unsealer Vault server"
 }
 
