@@ -150,12 +150,23 @@ describe('TestHandler', () => {
     })
   })
 
-  describe('getCode endpoint', () => {
-    it('should be successful if the default block parameter is "latest"', async () => {
-      const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+  describe('the getCode endpoint', () => {
+    let testRpcServer
+    let httpProvider
+    let wallet
+
+    beforeEach(async () => {
+      testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
-      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      const [wallet] = getWallets(httpProvider)
+      httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      wallet = getWallets(httpProvider)[0]
+    })
+    
+    afterEach(async () => {
+      await testRpcServer.close()
+    })
+
+    it('should be successful if the default block parameter is "latest"', async () => {
       const factory = new ethers.ContractFactory(
         EmptyContract.abi,
         EmptyContract.bytecode,
@@ -164,15 +175,9 @@ describe('TestHandler', () => {
       const emptyContract = await deployContract(wallet, EmptyContract, [])
       const code = await httpProvider.getCode(emptyContract.address, 'latest')
       hexStrToBuf(code).byteLength.should.be.greaterThan(0)
-      testRpcServer.close()
     })
 
     it('should be successful if the default block parameter is set to the latest block number', async () => {
-      const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
-
-      testRpcServer.listen()
-      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      const [wallet] = getWallets(httpProvider)
       const factory = new ethers.ContractFactory(
         EmptyContract.abi,
         EmptyContract.bytecode,
@@ -185,15 +190,9 @@ describe('TestHandler', () => {
         curentBlockNumber
       )
       hexStrToBuf(code).byteLength.should.be.greaterThan(0)
-      testRpcServer.close()
     })
 
     it('should be fail if the default block parameter is set to a block number before the current one', async () => {
-      const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
-
-      testRpcServer.listen()
-      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      const [wallet] = getWallets(httpProvider)
       const factory = new ethers.ContractFactory(
         EmptyContract.abi,
         EmptyContract.bytecode,
