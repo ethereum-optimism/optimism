@@ -9,7 +9,7 @@ import {
   remove0x,
   ZERO_ADDRESS,
   getFirstDeployedContractAddress,
-  JsonRpcResponse
+  JsonRpcResponse,
 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
@@ -313,7 +313,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     defaultBlock: string
   ): Promise<string> {
     const curentBlockNumber = await this.provider.getBlockNumber()
-    if (!['latest', numberToHexString(curentBlockNumber)].includes(defaultBlock)) {
+    if (
+      !['latest', numberToHexString(curentBlockNumber)].includes(defaultBlock)
+    ) {
       log.debug(
         `No support for historical code lookups! Anything returned from this may be very wrong.`
       )
