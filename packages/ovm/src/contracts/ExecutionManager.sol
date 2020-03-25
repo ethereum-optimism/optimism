@@ -16,6 +16,9 @@ import {L2ToL1MessagePasser} from "./L2ToL1MessagePasser.sol";
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is FullStateManager {
+    // expected queue origin for calls from L1
+    uint constant L1_QUEUE_ORIGIN = 1;
+
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
     bytes32 constant ovmCreateMethodId = keccak256("ovmCREATE()") >> 224;
@@ -144,7 +147,7 @@ contract ExecutionManager is FullStateManager {
         }
 
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, ZERO_ADDRESS);
+        initializeContext(_timestamp, _queueOrigin, ZERO_ADDRESS, ZERO_ADDRESS);
 
         address addr = address(this);
         assembly {
@@ -195,7 +198,7 @@ contract ExecutionManager is FullStateManager {
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
         emit CallingWithEOA(eoaAddress);
         // Make the EOA call for the account
-        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, false);
+        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
     }
 
     /**
@@ -214,11 +217,12 @@ contract ExecutionManager is FullStateManager {
         address _ovmEntrypoint,
         bytes memory _callBytes,
         address _fromAddress,
+        address _l1TxSenderAddress,
         bool _allowRevert
     ) public {
         uint _nonce = getOvmContractNonce(_fromAddress);
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress);
+        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1TxSenderAddress);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
@@ -456,6 +460,28 @@ contract ExecutionManager is FullStateManager {
     }
 
     /**
+     * @notice Gets the L1 transaction sender if there is one & this is the first contract call of the tx.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: [l1TxSenderAddress (as bytes32)] or revert if not the first contract called by an L1 transaction.
+     */
+    function ovmL1TxSender() public view {
+        // First make sure the ovmMsgSender was NOT set -- this indicates it's the first contract call
+        require(executionContext.queueOrigin == L1_QUEUE_ORIGIN, "Error: attempting to access L1TxSender inside of a non-L1 transaction.");
+        require(executionContext.ovmActiveContract == ZERO_ADDRESS, "Error: attempting to access L1TxSender outside of transaction entrypoint.");
+
+        // This is returned as left-padded, big-endian, so pad it left!
+        bytes32 addressBytes = bytes32(bytes20(executionContext.l1TxSender)) >> 96;
+
+        assembly {
+            let addressMemory := mload(0x40)
+            mstore(addressMemory, addressBytes)
+            return(addressMemory, 32)
+        }
+    }
+
+    /**
      * @notice This gets whether or not this contract is currently in a static call context.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
@@ -504,13 +530,14 @@ contract ExecutionManager is FullStateManager {
      * @param _queueOrigin The queue which this context's transaction was sent from.
      * @param _ovmTxOrigin The tx.origin for the currently executing transaction. It will be ZERO_ADDRESS if it's not an EOA call.
      */
-    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin) internal {
+    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin, address _l1TxSender) internal {
         // First zero out the context for good measure (Note ZERO_ADDRESS is reserved for the genesis contract & initial msgSender)
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
-        // And finally set the timestamp, queue origin, & tx origin
+        // And finally set the timestamp, queue origin, tx origin, and l1TxSender
         executionContext.timestamp = _timestamp;
         executionContext.queueOrigin = _queueOrigin;
         executionContext.ovmTxOrigin = _ovmTxOrigin;
+        executionContext.l1TxSender = _l1TxSender;
     }
 
     /**

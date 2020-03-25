@@ -194,6 +194,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       txObject['to'],
       txObject['data'],
       txObject['from'],
+      ZERO_ADDRESS,
       true
     )
 
@@ -244,6 +245,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       txObject['to'],
       txObject['data'],
       txObject['from'],
+      ZERO_ADDRESS,
       true
     )
 
@@ -513,6 +515,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ovmTo,
       ovmTx.data,
       ovmTx.from,
+      ZERO_ADDRESS,
       false
     )
 
@@ -557,6 +560,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     ovmEntrypoint: string,
     callBytes: string,
     fromAddress: string,
+    l1TxSenderAddress: string,
     allowRevert: boolean
   ): string {
     // Update the ovmEntrypoint to be the ZERO_ADDRESS if this is a contract creation
@@ -571,6 +575,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ovmEntrypoint,
       callBytes,
       fromAddress,
+      l1TxSenderAddress,
       allowRevert,
     ])
   }

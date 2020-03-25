@@ -26,5 +26,6 @@ contract DataTypes {
         address ovmActiveContract;
         address ovmMsgSender;
         address ovmTxOrigin;
+        address l1TxSender;
     }
 }
