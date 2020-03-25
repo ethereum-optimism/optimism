@@ -9,7 +9,7 @@ import * as fs from 'fs'
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
-import {FullnodeHandler} from '../../src/types'
+import { FullnodeHandler } from '../../src/types'
 
 const log = getLogger('web3-handler', true)
 
@@ -25,7 +25,7 @@ const getWallet = (httpProvider) => {
   return wallet
 }
 
-const deploySimpleStorage = async (wallet: Wallet): Promise<Contract> =>  {
+const deploySimpleStorage = async (wallet: Wallet): Promise<Contract> => {
   const factory = new ContractFactory(
     SimpleStorage.abi,
     SimpleStorage.bytecode,
@@ -44,7 +44,11 @@ const deploySimpleStorage = async (wallet: Wallet): Promise<Contract> =>  {
   return simpleStorage
 }
 
-const setAndGetStorage = async (simpleStorage: Contract, httpProvider, executionManagerAddress): Promise<void> => {
+const setAndGetStorage = async (
+  simpleStorage: Contract,
+  httpProvider,
+  executionManagerAddress
+): Promise<void> => {
   // Create some constants we will use for storage
   const storageKey = '0x' + '01'.repeat(32)
   const storageValue = '0x' + '02'.repeat(32)
@@ -93,12 +97,19 @@ describe('Web3Handler', () => {
     describe('SimpleStorage integration test', () => {
       it('should set storage & retrieve the value', async () => {
         const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-        const executionManagerAddress = await httpProvider.send('ovm_getExecutionManagerAddress', [])
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
 
         const wallet = getWallet(httpProvider)
         const simpleStorage = await deploySimpleStorage(wallet)
 
-        await setAndGetStorage(simpleStorage, httpProvider, executionManagerAddress)
+        await setAndGetStorage(
+          simpleStorage,
+          httpProvider,
+          executionManagerAddress
+        )
       })
     })
 

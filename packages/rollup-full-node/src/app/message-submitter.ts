@@ -65,7 +65,7 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
       .then((txReceipt: TransactionReceipt) => {
         log.debug(
           `L2ToL1Message with nonce ${message.nonce.toString(
-            'hex'
+            16
           )} was confirmed on L1!`
         )
       })

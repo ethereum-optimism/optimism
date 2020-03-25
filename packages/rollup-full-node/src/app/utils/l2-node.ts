@@ -9,7 +9,8 @@ import {
   L2ExecutionManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  CHAIN_ID, L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+  CHAIN_ID,
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '@eth-optimism/ovm'
 import { Address } from '@eth-optimism/rollup-core'
 

@@ -459,16 +459,19 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   ): Promise<void> {
     const messagePromises: Array<Promise<void>> = []
     for (const logEntry of receipt.logs.filter(
-      (x) => x.address === this.context.l2ToL1MessagePasser.address
+      (x) =>
+        remove0x(x.address) ===
+        remove0x(this.context.l2ToL1MessagePasser.address)
     )) {
       const parsedLog = l2ToL1MessagePasserInterface.parseLog(logEntry)
+      log.debug(`parsed log: ${JSON.stringify(parsedLog)}.`)
       if (!parsedLog || parsedLog.name !== 'L2ToL1Message') {
         continue
       }
 
-      const nonce = parsedLog.values['_nonce']
-      const ovmSender = parsedLog.values['_ovmSender']
-      const callData = parsedLog.values['_callData']
+      const nonce: number = parsedLog.values['_nonce'].toNumber()
+      const ovmSender: string = parsedLog.values['_ovmSender']
+      const callData: string = parsedLog.values['_callData']
       const message: L2ToL1Message = {
         nonce,
         ovmSender,

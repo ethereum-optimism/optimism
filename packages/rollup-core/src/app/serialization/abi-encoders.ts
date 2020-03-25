@@ -21,7 +21,7 @@ export const abiEncodeL2ToL1Message = (message: L2ToL1Message): string => {
   return abi.encode(
     ['uint', 'address', 'bytes'],
     [
-      add0x(message.nonce.toString('hex')),
+      add0x(message.nonce.toString(16)),
       add0x(message.ovmSender),
       add0x(message.callData),
     ]

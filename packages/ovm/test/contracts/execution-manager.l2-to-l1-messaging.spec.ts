@@ -2,11 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import {
-  getLogger,
-  add0x,
-  bufToHexString,
-} from '@eth-optimism/core-utils'
+import { getLogger, add0x, bufToHexString } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -25,7 +21,11 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../helpers'
-import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK, L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app'
+import {
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+} from '../../src/app'
 
 export const abi = new ethers.utils.AbiCoder()
 

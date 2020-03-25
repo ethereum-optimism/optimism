@@ -23,7 +23,7 @@ export const abiDecodeL2ToL1Message = (abiEncoded: string): L2ToL1Message => {
   )
 
   return {
-    nonce: new BigNumber(nonce),
+    nonce: nonce.toNumber(),
     ovmSender,
     callData,
   }
