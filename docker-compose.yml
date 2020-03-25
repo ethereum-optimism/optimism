@@ -6,9 +6,10 @@ networks:
 services:
   rollup-fullnode:
     volumes:
-       - geth-data:/mnt/docker
+       - geth-data:/mnt/geth/l2
     depends_on:
-      - geth
+      - geth_l2
+      - geth_l1
     networks:
       - internal
       - external
@@ -18,17 +19,29 @@ services:
     ports:
       - 8545:8545
     environment:
-      WEB3_URL: http://geth:8545/
-      VOLUME_PATH: /mnt/docker
-  geth:
+      L1_WEB3_URL: http://geth_l1:8545/
+      L2_WEB3_URL: http://geth_l2:8545/
+      VOLUME_PATH: /mnt/geth/l2
+  geth_l2:
     volumes:
-       - geth-data:/mnt/docker
+       - geth-l2-data:/mnt/geth/l2
     networks:
       - internal
     build:
       context: docker/geth
       dockerfile: Dockerfile
     environment:
-      VOLUME_PATH: /mnt/docker
+      VOLUME_PATH: /mnt/geth/l2
+  geth_l1:
+    volumes:
+      - geth-l1-data:/mnt/geth/l1
+    networks:
+      - internal
+    build:
+      context: docker/geth
+      dockerfile: Dockerfile
+    environment:
+      VOLUME_PATH: /mnt/geth/l1
 volumes:
-  geth-data:
+  - geth-l2-data:
+  - geth-l1-data:

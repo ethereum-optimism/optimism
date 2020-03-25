@@ -9,7 +9,7 @@ import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import { Contract } from 'ethers'
 
 /* Internal Imports */
-import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
+import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 const log = getLogger('state-manager', true)
@@ -26,7 +26,7 @@ describe('ExecutionManager', () => {
     executionManager = await deployContract(
       wallet1,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

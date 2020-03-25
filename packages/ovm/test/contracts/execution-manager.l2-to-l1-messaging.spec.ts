@@ -2,13 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import {
-  getLogger,
-  remove0x,
-  add0x,
-  TestUtils,
-  bufToHexString,
-} from '@eth-optimism/core-utils'
+import { getLogger, add0x, bufToHexString } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -23,15 +17,15 @@ import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
   DEFAULT_ETHNODE_GAS_LIMIT,
-  didCreateSucceed,
   gasLimit,
-  executeOVMCall,
   encodeMethodId,
   encodeRawArguments,
 } from '../helpers'
-import { GAS_LIMIT, OPCODE_WHITELIST_MASK } from '../../src/app'
-import { fromPairs } from 'lodash'
-import { L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app/constants'
+import {
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+} from '../../src/app'
 
 export const abi = new ethers.utils.AbiCoder()
 
@@ -52,7 +46,7 @@ describe('OVM L2 -> L1 message passer', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       {
         gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       }
@@ -93,13 +87,18 @@ describe('OVM L2 -> L1 message passer', () => {
     const receipt = await provider.getTransactionReceipt(txResult.hash)
     const txLogs = receipt.logs
 
-    const l2ToL1EventTopic = ethers.utils.id('L2ToL1Message(address,bytes)')
+    const l2ToL1EventTopic = ethers.utils.id(
+      'L2ToL1Message(uint256,address,bytes)'
+    )
     const crossChainMessageEvent = txLogs.find((logged) => {
       return logged.topics.includes(l2ToL1EventTopic)
     })
 
     crossChainMessageEvent.data.should.equal(
-      abi.encode(['address', 'bytes'], [callContractAddress, bytesToSendToL1])
+      abi.encode(
+        ['uint', 'address', 'bytes'],
+        [0, callContractAddress, bytesToSendToL1]
+      )
     )
   })
 })

@@ -1,6 +1,6 @@
 /* Internal Imports */
 import '../setup'
-import { OPCODE_WHITELIST_MASK } from '../../src/app'
+import { DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
 import { EVMOpcode, Opcode } from '@eth-optimism/rollup-core'
@@ -62,7 +62,7 @@ describe('Purity Checker', () => {
     purityChecker = await deployContract(
       wallet,
       PurityChecker,
-      [OPCODE_WHITELIST_MASK, executionManagerAddress],
+      [DEFAULT_OPCODE_WHITELIST_MASK, executionManagerAddress],
       { gasLimit: 6700000 }
     )
   })

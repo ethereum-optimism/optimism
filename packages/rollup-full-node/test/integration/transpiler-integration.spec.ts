@@ -32,7 +32,7 @@ describe(`Various opcodes should be usable in combination with transpiler and fu
     wallet = wallets[0]
   })
 
-  // TEST BASIC FUNCTIONALITIES
+  // TEST BASIC FUNCTIONALITY
 
   it('should process cross-ovm-contract calls', async () => {
     const simpleStorage = await deployContract(wallet, SimpleStorage, [], [])

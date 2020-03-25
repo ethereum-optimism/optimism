@@ -38,13 +38,15 @@
     "@eth-optimism/core-utils": "^0.0.1-alpha.24",
     "@eth-optimism/ovm": "^0.0.1-alpha.24",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.24",
+    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.24",
     "async-lock": "^1.2.2",
     "axios": "^0.19.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.39",
-    "fastpriorityqueue": "^0.6.3"
+    "fastpriorityqueue": "^0.6.3",
+    "level": "^6.0.1"
   },
   "devDependencies": {
     "@eth-optimism/solc-transpiler": "^0.0.1-alpha.24",

@@ -11,7 +11,7 @@ import * as AddThree from '../../build/contracts/AddThree.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
 
 /* Internal Imports */
-import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
+import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
 import {
   DEFAULT_ETHNODE_GAS_LIMIT,
   manuallyDeployOvmContractReturnReceipt,
@@ -36,7 +36,7 @@ describe('Execution Manager -- Purity Checking', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

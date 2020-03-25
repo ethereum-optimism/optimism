@@ -4,7 +4,7 @@ import '../setup'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
-import * as L2ToL1MessageReceiver from '../../build/L2ToL1MessageReceiver.json'
+import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
 
 describe('L2 -> L1 Message Receiver', () => {
   let provider
@@ -12,9 +12,11 @@ describe('L2 -> L1 Message Receiver', () => {
   let l2ToL1MessageReciever
   const finalizationTime = 55
 
+  const nonce = 0
   const callData = '0xdeadbeefee5555'
   const randomSender = '0x1234123412341234123412341234123412341234'
   const randomMessage = {
+    nonce,
     ovmSender: randomSender,
     callData,
   }
@@ -59,6 +61,7 @@ describe('L2 -> L1 Message Receiver', () => {
       await provider.send('evm_mine', [])
     }
     const wrongMessage = {
+      nonce,
       ovmSender: randomSender,
       callData: '0x0101011010',
     }

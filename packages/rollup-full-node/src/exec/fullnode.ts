@@ -1,45 +1,101 @@
 /* External Imports */
+import {
+  BaseDB,
+  DB,
+  getLevelInstance,
+  newInMemoryDB,
+} from '@eth-optimism/core-db'
 import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
-import { JsonRpcProvider } from 'ethers/providers'
+import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/ovm'
+
+import Level from 'level'
+import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import {
   FullnodeRpcServer,
   DefaultWeb3Handler,
   TestWeb3Handler,
-  DEFAULT_ETHNODE_GAS_LIMIT,
+  startLocalL1Node,
 } from '../app'
+import { L2ToL1MessageSubmitter } from '../types'
+import { Contract, ethers, Wallet } from 'ethers'
+import { DefaultL2ToL1MessageSubmitter } from '../app/message-submitter'
 
 const log: Logger = getLogger('rollup-fullnode')
+
+const rollupNodeHost: string = process.env.ROLLUP_NODE_HOST || '0.0.0.0'
+const rollupNodePort: string = process.env.ROLLUP_NODE_PORT || '8545'
+const localL1NodePort: string = process.env.DEFAULT_L1_NODE_PORT || '7545'
+const layer1Web3Url: string = process.env.L1_WEB3_URL
+const layer2Web3Url: string = process.env.L2_WEB3_URL
+const l1MessageSubmitterMnemonic: string =
+  process.env.LOCAL_L1_MNEMONIC || ethers.Wallet.createRandom().mnemonic
 
 /**
  * Runs a fullnode.
  * @param testFullnode Whether or not this is a test.
+ * @returns The array of fullnode instance, L2ToL1MessageSubmitter
  */
 export const runFullnode = async (
   testFullnode: boolean = false
-): Promise<ExpressHttpServer> => {
+): Promise<[ExpressHttpServer, L2ToL1MessageSubmitter]> => {
   let provider: JsonRpcProvider
   // TODO Get these from config
-  const host = '0.0.0.0'
-  const port = 8545
+  const port = parseInt(rollupNodePort, 10)
 
-  log.info(`Starting fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
+  const messageSubmitter: L2ToL1MessageSubmitter = await runMessageSubmitter()
 
-  if (process.env.WEB3_URL) {
-    log.info(`Connecting to web3 URL: ${process.env.WEB3_URL}`)
-    provider = new JsonRpcProvider(process.env.WEB3_URL)
+  log.info(`Starting L2 fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
+
+  if (layer2Web3Url) {
+    log.info(`Connecting to L2 web3 URL: ${layer2Web3Url}`)
+    provider = new JsonRpcProvider(layer2Web3Url)
   }
 
   const fullnodeHandler = testFullnode
-    ? await TestWeb3Handler.create(provider)
-    : await DefaultWeb3Handler.create(provider)
-  const fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
+    ? await TestWeb3Handler.create(messageSubmitter, provider)
+    : await DefaultWeb3Handler.create(messageSubmitter, provider)
+  const fullnodeRpcServer = new FullnodeRpcServer(
+    fullnodeHandler,
+    rollupNodeHost,
+    port
+  )
 
   fullnodeRpcServer.listen()
 
-  const baseUrl = `http://${host}:${port}`
+  const baseUrl = `http://${rollupNodeHost}:${port}`
   log.info(`Listening at ${baseUrl}`)
 
-  return fullnodeRpcServer
+  return [fullnodeRpcServer, messageSubmitter]
+}
+
+const runMessageSubmitter = async (): Promise<L2ToL1MessageSubmitter> => {
+  log.info(`Connecting to L1 fullnode.`)
+
+  let provider: JsonRpcProvider
+  if (layer1Web3Url) {
+    log.info(`Connecting to L1 web3 URL: ${layer1Web3Url}`)
+    provider = new JsonRpcProvider(layer1Web3Url)
+  } else {
+    log.info(`Deploying local L1 node on port ${localL1NodePort}`)
+    provider = await startLocalL1Node(
+      l1MessageSubmitterMnemonic,
+      parseInt(localL1NodePort, 10)
+    )
+  }
+
+  const wallet = Wallet.fromMnemonic(l1MessageSubmitterMnemonic).connect(
+    provider
+  )
+
+  const messageReceiverContractAddress: string =
+    process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
+  const messageReceiverContract = new Contract(
+    messageReceiverContractAddress,
+    L2ToL1MessageReceiverContractDefinition.abi,
+    provider
+  )
+
+  return DefaultL2ToL1MessageSubmitter.create(wallet, messageReceiverContract)
 }

@@ -12,6 +12,12 @@ export interface RollupBlock {
   transactions: string[]
 }
 
+export interface L2ToL1Message {
+  nonce: number
+  ovmSender: Address
+  callData: string
+}
+
 /* Types */
 export type Address = string
 export type StorageSlot = string

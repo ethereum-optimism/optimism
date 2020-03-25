@@ -4,10 +4,12 @@ pragma experimental ABIEncoderV2;
 
 contract L2ToL1MessagePasser {
     event L2ToL1Message(
-       address ovmSender,
-       bytes callData
+       uint _nonce,
+       address _ovmSender,
+       bytes _callData
     );
 
+    uint nonce;
     address executionManagerAddress;
     constructor(address _executionManagerAddress) public {
         executionManagerAddress = _executionManagerAddress;
@@ -17,6 +19,7 @@ contract L2ToL1MessagePasser {
         // for now, to be trustfully relayed by sequencer to L1, so just emit an event for the sequencer to pick up.
         address ovmMsgSender = getCALLER();
         emit L2ToL1Message(
+            nonce++,
             ovmMsgSender,
             messageData
         );

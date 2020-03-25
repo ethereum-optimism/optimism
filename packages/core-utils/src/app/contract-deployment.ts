@@ -113,17 +113,19 @@ export const deploy = async (
 }
 
 /**
- * Returns an address's first deployed contract or `null` if that address hasn't
- * created a contract yet. This is useful when creating a contract when a service
- * is initialized and using that contract on subsequent runs.
- * @param addresss The address that is being deployed from
+ * Gets the address the of a deployed contract, assuming it is deployed from the
+ * provided address with the provided nonce through the given provider.
+ *
+ * @param nonce The nonce from which the deployed address should be derived.
+ * @param provider The provider used to deploy the contract
+ * @param address The address from which the contract will be deployed
  * @returns contractAddress The address of the first deployed contract or `null` if one hasn't been deployed yet
  */
-export const getFirstDeployedContractAddress = async (
+export const getDeployedContractAddress = async (
+  nonce: number,
   provider: Provider,
   address: string
 ): Promise<string | undefined> => {
-  const nonce = 0
   const contractAddress = generateAddress(address, nonce)
 
   if (!isHexStringEmptyOrUndefined(await provider.getCode(contractAddress))) {

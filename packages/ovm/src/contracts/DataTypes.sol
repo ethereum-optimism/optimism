@@ -6,6 +6,11 @@ pragma experimental ABIEncoderV2;
  * @notice Main data structures which to be used in rollup smart contracts.
  */
 contract DataTypes {
+    struct L2ToL1Message {
+        address ovmSender;
+        bytes callData;
+    }
+
     struct Transaction {
         address ovmEntrypoint;
         bytes ovmCalldata;
