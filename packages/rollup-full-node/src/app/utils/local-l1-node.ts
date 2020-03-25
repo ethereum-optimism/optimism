@@ -12,8 +12,9 @@ import { L1NodeContext } from '../../types'
  * Starts a local node on the provided port, using the provided mnemonic to
  * deploy the necessary contracts for bootstrapping.
  *
- * @param mnemonic
- * @param port
+ * @param sequencerMnemonic The mnemonic to use for the Sequencer in contracts that need Sequencer ownership or reference.
+ * @param port The port the node should be reachable at.
+ * @returns The L1 node context with all info necessary to use the L1 node.
  */
 export const startLocalL1Node = async (
   mnemonic: string,
