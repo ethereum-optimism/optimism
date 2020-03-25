@@ -11,8 +11,8 @@ export class Environment {
   ): string {
     return process.env.OPCODE_WHITELIST_MASK || defaultValue
   }
-  public static persistedL2GanacheDbPath(defaultValue?: string) {
-    return process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH || defaultValue
+  public static localL2NodePersistentDbPath(defaultValue?: string) {
+    return process.env.LOCAL_L2_NODE_PERSISTENT_DB_PATH || defaultValue
   }
   public static l2ToL1MessageFinalityDelayInBlocks(
     defaultValue: number = 0
@@ -21,8 +21,8 @@ export class Environment {
       ? parseInt(process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS, 10)
       : defaultValue
   }
-  public static l1NodeLevelDBPath(defaultValue?: string): string {
-    return process.env.L1_NODE_LEVELDB_PATH || defaultValue
+  public static localL1NodePersistentDbPath(defaultValue?: string): string {
+    return process.env.LOCAL_L1_NODE_PERSISTENT_DB_PATH || defaultValue
   }
 
   // L2 Config

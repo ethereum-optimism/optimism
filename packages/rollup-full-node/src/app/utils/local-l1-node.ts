@@ -26,8 +26,8 @@ export const startLocalL1Node = async (
     port,
     mnemonic,
   }
-  if (!!Environment.l1NodeLevelDBPath()) {
-    opts['db_path'] = Environment.l1NodeLevelDBPath()
+  if (!!Environment.localL1NodePersistentDbPath()) {
+    opts['db_path'] = Environment.localL1NodePersistentDbPath()
   }
   const provider: providers.Web3Provider = createMockProvider(opts)
 

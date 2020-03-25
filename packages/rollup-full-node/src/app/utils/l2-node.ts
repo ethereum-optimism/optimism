@@ -43,7 +43,7 @@ export async function initializeL2Node(
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       allowUnlimitedContractSize: true,
     }
-    const persistedGanacheDbPath = Environment.persistedL2GanacheDbPath()
+    const persistedGanacheDbPath = Environment.localL2NodePersistentDbPath()
     if (!!persistedGanacheDbPath) {
       opts['db_path'] = persistedGanacheDbPath
       opts['network_id'] = CHAIN_ID
