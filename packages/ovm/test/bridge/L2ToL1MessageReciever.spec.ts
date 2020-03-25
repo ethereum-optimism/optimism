@@ -12,9 +12,11 @@ describe('L2 -> L1 Message Receiver', () => {
   let l2ToL1MessageReciever
   const finalizationTime = 55
 
+  const nonce = 0
   const callData = '0xdeadbeefee5555'
   const randomSender = '0x1234123412341234123412341234123412341234'
   const randomMessage = {
+    nonce,
     ovmSender: randomSender,
     callData,
   }
@@ -59,6 +61,7 @@ describe('L2 -> L1 Message Receiver', () => {
       await provider.send('evm_mine', [])
     }
     const wrongMessage = {
+      nonce,
       ovmSender: randomSender,
       callData: '0x0101011010',
     }

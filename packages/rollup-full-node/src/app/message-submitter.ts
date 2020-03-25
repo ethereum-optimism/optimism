@@ -4,7 +4,7 @@ import {
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
 import { getLogger, logError } from '@eth-optimism/core-utils'
-import { Contract } from 'ethers'
+import { Contract, Wallet } from 'ethers'
 
 import { L2ToL1MessageSubmitter } from '../types'
 import { TransactionReceipt } from 'ethers/providers/abstract-provider'
@@ -26,13 +26,23 @@ export class NoOpL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
  *  Default Message Submitter implementation. This will be deprecated when message submission works properly.
  */
 export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
+  private highestNonceSubmitted: number
+  private highestNonceConfirmed: number
+
   public static async create(
+    wallet: Wallet,
     messageReceiverContract: Contract
   ): Promise<DefaultL2ToL1MessageSubmitter> {
-    return new DefaultL2ToL1MessageSubmitter(messageReceiverContract)
+    return new DefaultL2ToL1MessageSubmitter(wallet, messageReceiverContract)
   }
 
-  private constructor(private readonly messageReceiverContract: Contract) {}
+  private constructor(
+    private readonly wallet: Wallet,
+    private readonly messageReceiverContract: Contract
+  ) {
+    this.highestNonceSubmitted = -1
+    this.highestNonceConfirmed = -1
+  }
 
   public async submitMessage(message: L2ToL1Message): Promise<void> {
     log.info(
@@ -41,11 +51,14 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
 
     let receipt
     try {
-      receipt = await this.messageReceiverContract.enqueueL2ToL1Message(
-        DefaultL2ToL1MessageSubmitter.serializeRollupMessageForSubmission(
-          message
-        )
+      const callData = this.messageReceiverContract.interface.functions.enqueueL2ToL1Message.encode(
+        [message]
       )
+      receipt = await this.wallet.sendTransaction({
+        to: this.messageReceiverContract.address,
+        data: callData,
+      })
+
       log.debug(
         `Receipt for message ${JSON.stringify(message)}: ${JSON.stringify(
           receipt
@@ -60,13 +73,22 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
       throw e
     }
 
+    this.highestNonceSubmitted = Math.max(
+      this.highestNonceSubmitted,
+      message.nonce
+    )
+
     this.messageReceiverContract.provider
-      .waitForTransaction(receipt)
+      .waitForTransaction(receipt.hash)
       .then((txReceipt: TransactionReceipt) => {
         log.debug(
           `L2ToL1Message with nonce ${message.nonce.toString(
             16
           )} was confirmed on L1!`
+        )
+        this.highestNonceConfirmed = Math.max(
+          this.highestNonceConfirmed,
+          message.nonce
         )
       })
       .catch((error) => {
@@ -74,9 +96,11 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
       })
   }
 
-  public static serializeRollupMessageForSubmission(
-    rollupMessage: L2ToL1Message
-  ): string {
-    return abiEncodeL2ToL1Message(rollupMessage)
+  public getHighestNonceSubmitted(): number {
+    return this.highestNonceSubmitted
+  }
+
+  public getHighestNonceConfirmed(): number {
+    return this.highestNonceConfirmed
   }
 }

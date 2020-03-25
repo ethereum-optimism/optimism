@@ -7,21 +7,24 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../index'
 
-const mnemonic: string =
-  process.env.LOCAL_L1_MNEMONIC || ethers.Wallet.createRandom().mnemonic
 const finalityDelayInBlocks: string =
   process.env.FINALITY_DELAY_IN_BLOCKS || '0'
-
+const l1NodeLevelDBPath: string = process.env.L1_NODE_LEVELDB_PATH
 export const startLocalL1Node = async (
+  mnemonic: string,
   port: number
 ): Promise<providers.Web3Provider> => {
-  const provider: providers.Web3Provider = createMockProvider({
+  const opts = {
     gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
     allowUnlimitedContractSize: true,
     locked: false,
     port,
     mnemonic,
-  })
+  }
+  if (!!l1NodeLevelDBPath) {
+    opts['db_path'] = l1NodeLevelDBPath
+  }
+  const provider: providers.Web3Provider = createMockProvider(opts)
 
   const wallet = getWallets(provider)[0]
   await deployL2ToL1MessageReceiver(wallet)
