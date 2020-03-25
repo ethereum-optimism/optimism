@@ -5,15 +5,20 @@ import { Contract, ethers, providers, Wallet } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../index'
+import { DEFAULT_ETHNODE_GAS_LIMIT, Environment } from '../index'
+import { L1NodeContext } from '../../types'
 
-const finalityDelayInBlocks: string =
-  process.env.FINALITY_DELAY_IN_BLOCKS || '0'
-const l1NodeLevelDBPath: string = process.env.L1_NODE_LEVELDB_PATH
+/**
+ * Starts a local node on the provided port, using the provided mnemonic to
+ * deploy the necessary contracts for bootstrapping.
+ *
+ * @param mnemonic
+ * @param port
+ */
 export const startLocalL1Node = async (
   mnemonic: string,
   port: number
-): Promise<providers.Web3Provider> => {
+): Promise<L1NodeContext> => {
   const opts = {
     gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
     allowUnlimitedContractSize: true,
@@ -21,15 +26,21 @@ export const startLocalL1Node = async (
     port,
     mnemonic,
   }
-  if (!!l1NodeLevelDBPath) {
-    opts['db_path'] = l1NodeLevelDBPath
+  if (!!Environment.l1NodeLevelDBPath()) {
+    opts['db_path'] = Environment.l1NodeLevelDBPath()
   }
   const provider: providers.Web3Provider = createMockProvider(opts)
 
-  const wallet = getWallets(provider)[0]
-  await deployL2ToL1MessageReceiver(wallet)
+  const sequencerWallet = getWallets(provider)[0]
+  const l2ToL1MessageReceiver = await deployL2ToL1MessageReceiver(
+    sequencerWallet
+  )
 
-  return provider
+  return {
+    provider,
+    sequencerWallet,
+    l2ToL1MessageReceiver,
+  }
 }
 
 export const deployL2ToL1MessageReceiver = async (
@@ -38,7 +49,7 @@ export const deployL2ToL1MessageReceiver = async (
   const contract = await deployContract(
     wallet,
     L2ToL1MessageReceiverContractDefinition,
-    [wallet.address, parseInt(finalityDelayInBlocks, 10)]
+    [wallet.address, Environment.l2ToL1MessageFinalityDelayInBlocks()]
   )
 
   process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS = contract.address

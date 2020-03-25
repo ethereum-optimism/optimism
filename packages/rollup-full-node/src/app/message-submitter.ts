@@ -1,8 +1,5 @@
 /* External Imports */
-import {
-  abiEncodeL2ToL1Message,
-  L2ToL1Message,
-} from '@eth-optimism/rollup-core'
+import { L2ToL1Message } from '@eth-optimism/rollup-core'
 import { getLogger, logError } from '@eth-optimism/core-utils'
 import { Contract, Wallet } from 'ethers'
 
@@ -30,14 +27,17 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
   private highestNonceConfirmed: number
 
   public static async create(
-    wallet: Wallet,
+    sequencerWallet: Wallet,
     messageReceiverContract: Contract
   ): Promise<DefaultL2ToL1MessageSubmitter> {
-    return new DefaultL2ToL1MessageSubmitter(wallet, messageReceiverContract)
+    return new DefaultL2ToL1MessageSubmitter(
+      sequencerWallet,
+      messageReceiverContract
+    )
   }
 
   private constructor(
-    private readonly wallet: Wallet,
+    private readonly sequencerWallet: Wallet,
     private readonly messageReceiverContract: Contract
   ) {
     this.highestNonceSubmitted = -1
@@ -54,7 +54,7 @@ export class DefaultL2ToL1MessageSubmitter implements L2ToL1MessageSubmitter {
       const callData = this.messageReceiverContract.interface.functions.enqueueL2ToL1Message.encode(
         [message]
       )
-      receipt = await this.wallet.sendTransaction({
+      receipt = await this.sequencerWallet.sendTransaction({
         to: this.messageReceiverContract.address,
         data: callData,
       })

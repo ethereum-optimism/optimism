@@ -1,14 +1,9 @@
 /* Externals Import */
-import {
-  add0x,
-  getDeployedContractAddress,
-  getLogger,
-} from '@eth-optimism/core-utils'
+import { getDeployedContractAddress, getLogger } from '@eth-optimism/core-utils'
 import {
   GAS_LIMIT,
   L2ExecutionManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   CHAIN_ID,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '@eth-optimism/ovm'
@@ -16,33 +11,29 @@ import { Address } from '@eth-optimism/rollup-core'
 
 import { Contract, Wallet } from 'ethers'
 import { createMockProvider, getWallets } from 'ethereum-waffle'
-import { readFile } from 'fs'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT, deployContract } from '../index'
+import {
+  DEFAULT_ETHNODE_GAS_LIMIT,
+  deployContract,
+  Environment,
+} from '../index'
 import { JsonRpcProvider } from 'ethers/providers'
-import { promisify } from 'util'
+import { L2NodeContext } from '../../types'
 
-const readFileAsync = promisify(readFile)
 const log = getLogger('l2-node')
 
 /* Configuration */
-const opcodeWhitelistMask: string =
-  process.env.OPCODE_WHITELIST_MASK || DEFAULT_OPCODE_WHITELIST_MASK
-const volumePath: string = process.env.VOLUME_PATH || '/'
-const privateKeyFilePath: string =
-  process.env.PRIVATE_KEY_FILE_PATH || volumePath + '/private_key.txt'
 
-export interface L2NodeContext {
-  provider: JsonRpcProvider
-  wallet: Wallet
-  executionManager: Contract
-  l2ToL1MessagePasser: Contract
-}
-
-export const getPersistedL2GanacheDbPath = () =>
-  process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
-
+/**
+ * Initializes the L2 Node, which entails:
+ * - Creating a local instance if the given provider is undefined.
+ * - Creating a wallet to use to interact with it.
+ * - Deploying the ExecutionManager if it does not already exist.
+ *
+ * @param web3Provider (optional) The JsonRpcProvider to use to connect to a remote node.
+ * @returns The L2NodeContext necessary to interact with the L2 Node.
+ */
 export async function initializeL2Node(
   web3Provider?: JsonRpcProvider
 ): Promise<L2NodeContext> {
@@ -52,7 +43,7 @@ export async function initializeL2Node(
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       allowUnlimitedContractSize: true,
     }
-    const persistedGanacheDbPath = getPersistedL2GanacheDbPath()
+    const persistedGanacheDbPath = Environment.persistedL2GanacheDbPath()
     if (!!persistedGanacheDbPath) {
       opts['db_path'] = persistedGanacheDbPath
       opts['network_id'] = CHAIN_ID
@@ -61,12 +52,15 @@ export async function initializeL2Node(
   }
 
   // Initialize a fullnode for us to interact with
-  let wallet
+  let wallet: Wallet
 
   // If we're given a provider, our wallet must be configured from a private key file
   if (web3Provider) {
-    const privateKey: string = await readFileAsync(privateKeyFilePath, 'utf8')
-    wallet = new Wallet(add0x(privateKey), provider)
+    wallet = !!Environment.l2WalletMnemonic()
+      ? Wallet.fromMnemonic(Environment.l2WalletMnemonic())
+      : Wallet.createRandom()
+
+    wallet.connect(provider)
   } else {
     ;[wallet] = getWallets(provider)
   }
@@ -125,7 +119,7 @@ export async function deployExecutionManager(
   const executionManager: Contract = await deployContract(
     wallet,
     L2ExecutionManagerContractDefinition,
-    [opcodeWhitelistMask, wallet.address, GAS_LIMIT, true],
+    [Environment.opcodeWhitelistMask(), wallet.address, GAS_LIMIT, true],
     { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
   )
 

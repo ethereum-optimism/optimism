@@ -19,9 +19,18 @@ services:
     ports:
       - 8545:8545
     environment:
-      L1_WEB3_URL: http://geth_l1:8545/
-      L2_WEB3_URL: http://geth_l2:8545/
-      VOLUME_PATH: /mnt/geth/l2
+      - OPCODE_WHITELIST_MASK
+      - L1_NODE_LEVELDB_PATH
+      - LOCAL_L1_NODE_PORT
+      - L1_SEQUENCER_MNEMONIC
+      - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
+      - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT
+      - L2_WALLET_MNEMONIC
+      - PERSISTED_L2_GANACHE_DB_FILE_PATH
+      - L1_NODE_WEB3_URL: http://geth_l1:8545/
+      - L2_NODE_WEB3_URL: http://geth_l2:8545/
   geth_l2:
     volumes:
        - geth-l2-data:/mnt/geth/l2
