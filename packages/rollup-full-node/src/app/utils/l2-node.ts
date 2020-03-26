@@ -38,31 +38,40 @@ export async function initializeL2Node(
   web3Provider?: JsonRpcProvider
 ): Promise<L2NodeContext> {
   let provider: JsonRpcProvider = web3Provider
+
   if (!web3Provider) {
     const opts = {
+      port: 9876,
       gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       allowUnlimitedContractSize: true,
     }
     const persistedGanacheDbPath = Environment.localL2NodePersistentDbPath()
     if (!!persistedGanacheDbPath) {
+      log.info(
+        `Found configuration for L1 Node DB Path: ${persistedGanacheDbPath}`
+      )
       opts['db_path'] = persistedGanacheDbPath
       opts['network_id'] = CHAIN_ID
     }
+    log.info(`Creating Local L2 Node with config: ${JSON.stringify(opts)}`)
     provider = createMockProvider(opts)
+    log.info(`Local L2 Node created!`)
   }
 
-  // Initialize a fullnode for us to interact with
   let wallet: Wallet
-
-  // If we're given a provider, our wallet must be configured from a private key file
-  if (web3Provider) {
-    wallet = !!Environment.l2WalletMnemonic()
-      ? Wallet.fromMnemonic(Environment.l2WalletMnemonic())
-      : Wallet.createRandom()
-
+  if (web3Provider && !!Environment.l2WalletMnemonic()) {
+    wallet = Wallet.fromMnemonic(Environment.l2WalletMnemonic())
     wallet.connect(provider)
   } else {
-    ;[wallet] = getWallets(provider)
+    wallet = getWallets(provider)[0]
+  }
+
+  if (!wallet) {
+    const msg: string = `Wallet not created! Specify the L2_WALLET_MNEMONIC environment variable to set one!`
+    log.error(msg)
+    throw Error(msg)
+  } else {
+    log.info(`L2 wallet created. Address: ${wallet.address}`)
   }
 
   let nonce: number = 0
@@ -84,7 +93,11 @@ export async function initializeL2Node(
       wallet
     )
   } else {
+    log.info(`Deploying execution manager!`)
     executionManager = await deployExecutionManager(wallet)
+    log.info(
+      `Execution Manager deployed at address ${executionManager.address}`
+    )
   }
 
   log.info(
