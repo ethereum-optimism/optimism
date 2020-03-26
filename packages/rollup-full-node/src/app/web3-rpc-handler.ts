@@ -265,18 +265,40 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     fullObjects: boolean
   ): Promise<any> {
     log.debug(`Got request to get block ${defaultBlock}.`)
-    const res: string = await this.context.provider.send(
+    const res: object = await this.context.provider.send(
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
+    const block = this.parseInternalBlock(res)
+
     log.debug(
-      `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
+      `Returning block: ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
+        JSON.stringify(block)
+      )}`
+    )
+
+    return block
+  }
+
+  public async parseInternalBlock(
+    block: object,
+  ): Promise<object> {
+    log.debug(
+      `Parsing block #${block.number} (fullObj: ${fullObjects}): ${JSON.stringify(
         res
       )}`
     )
-    return res
-  }
 
+    block["timestamp"] = this.getTimestamp()
+    block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
+      transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
+
+      return transaction
+    }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
+
+
+    return block
+  }
   public async getCode(
     address: Address,
     defaultBlock: string
@@ -451,7 +473,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The seconds since epoch.
    */
   protected getTimestamp(): number {
-    return Math.round(Date.now() / 1000)
+    return 0
   }
 
   private async processTransactionEvents(

@@ -1,13 +1,16 @@
 import '../setup'
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  hexStrToNumber,
+} from '@eth-optimism/core-utils'
 import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
 
 /* Internal Imports */
-import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
+import { FullnodeRpcServer, DefaultWeb3Handler, TestWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import { FullnodeHandler } from '../../src/types'
 
@@ -79,7 +82,7 @@ describe('Web3Handler', () => {
   let baseUrl: string
 
   beforeEach(async () => {
-    fullnodeHandler = await DefaultWeb3Handler.create()
+    fullnodeHandler = await TestWeb3Handler.create()
     fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
 
     fullnodeRpcServer.listen()
@@ -93,6 +96,23 @@ describe('Web3Handler', () => {
     }
   })
 
+  describe('the getBlockByNumber endpoint', () => {
+    it('should return a block with the correct timestamp', async () => {
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const timestampBefore = await httpProvider.send('evm_getTime', [])
+      httpProvider.send('evm_increaseTime', [999])
+      const block = await httpProvider.getBlock('latest')
+
+      block.timestamp.should.eq(hexStrToNumber(timestampBefore) + 999)
+    })
+
+    it.only('should strip the execution manager deployment transaction from the transactions object', async () => {
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const block = await httpProvider.getBlock(1, true)
+
+      block["transactions"].should.be.empty
+    })
+  })
   describe('ephemeral node', () => {
     describe('SimpleStorage integration test', () => {
       it('should set storage & retrieve the value', async () => {
