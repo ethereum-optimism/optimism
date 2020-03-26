@@ -284,14 +284,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     block: object,
   ): Promise<object> {
     log.debug(
-      `Parsing block #${block.number} (fullObj: ${fullObjects}): ${JSON.stringify(
-        res
+      `Parsing block #${block["number"]}: ${JSON.stringify(
+        block
       )}`
     )
 
     block["timestamp"] = this.getTimestamp()
     block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
-      transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
+      if(transaction["hash"]) {
+        transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
+      }
 
       return transaction
     }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)

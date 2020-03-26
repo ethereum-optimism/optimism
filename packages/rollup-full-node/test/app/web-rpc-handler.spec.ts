@@ -96,7 +96,7 @@ describe('Web3Handler', () => {
     }
   })
 
-  describe('the getBlockByNumber endpoint', () => {
+  describe.only('the getBlockByNumber endpoint', () => {
     it('should return a block with the correct timestamp', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const timestampBefore = await httpProvider.send('evm_getTime', [])
@@ -106,7 +106,7 @@ describe('Web3Handler', () => {
       block.timestamp.should.eq(hexStrToNumber(timestampBefore) + 999)
     })
 
-    it.only('should strip the execution manager deployment transaction from the transactions object', async () => {
+    it('should strip the execution manager deployment transaction from the transactions object', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const block = await httpProvider.getBlock(1, true)
 
