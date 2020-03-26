@@ -331,11 +331,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     log.debug(
       `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
     )
-    const response = add0x(
-      (
-        await this.context.executionManager.getOvmContractNonce(address)
-      ).toString(16)
+    const ovmContractNonce = await this.context.executionManager.getOvmContractNonce(
+      address
     )
+    const response = add0x(ovmContractNonce.toNumber().toString(16))
     log.debug(
       `Received transaction count for Address [${address}], block: [${defaultBlock}]: [${response}].`
     )
