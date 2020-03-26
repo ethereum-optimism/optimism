@@ -30,7 +30,7 @@ describe('L2 to L1 Message Submitter', () => {
     )
   })
 
-  it.only('Submits messages to L1', async () => {
+  it('Submits messages to L1', async () => {
     const l1ToL2Message: L2ToL1Message = {
       nonce: 0,
       ovmSender: Wallet.createRandom().address,

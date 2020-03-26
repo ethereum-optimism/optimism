@@ -26,17 +26,17 @@ services:
       - LOCAL_L1_NODE_PORT
       - LOCAL_L1_NODE_PERSISTENT_DB_PATH=/volume/l1-node
       - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/volume/l2-node
-#      - L1_NODE_WEB3_URL="http://geth_l1:8545/"
-#      - L2_NODE_WEB3_URL="http://geth_l2:8545/"
-
+#      - L1_NODE_WEB3_URL=http://geth_l1:8545/
+#      - L2_NODE_WEB3_URL=http://geth_l2:8545/
+#
 #  geth_l2:
 #    volumes:
-#       - l2-node-data:/mnt/geth/l2
+#       - l2-node-data:/mnt/geth/l2:rw
 #    build:
 #      context: docker/geth
 #      dockerfile: Dockerfile
 #    environment:
-#      - VOLUME_PATH="/mnt/geth/l2"
+#      - VOLUME_PATH=/mnt/geth/l2
 #    expose:
 #      - "8545"
 #
@@ -47,7 +47,7 @@ services:
 #      context: docker/geth
 #      dockerfile: Dockerfile
 #    environment:
-#      - VOLUME_PATH="/mnt/geth/l1"
+#      - VOLUME_PATH=/mnt/geth/l1
 #    expose:
 #      - "8545"
 

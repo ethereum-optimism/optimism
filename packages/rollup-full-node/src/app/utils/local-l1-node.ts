@@ -1,5 +1,9 @@
 /* External Imports */
-import { getLogger, logError } from '@eth-optimism/core-utils'
+import {
+  getDeployedContractAddress,
+  getLogger,
+  logError,
+} from '@eth-optimism/core-utils'
 import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/ovm'
 
 import { Contract, ethers, providers, Wallet } from 'ethers'
@@ -41,9 +45,26 @@ export const startLocalL1Node = async (
   log.info(`Local L1 node created with config: ${JSON.stringify(opts)}`)
 
   const sequencerWallet = getWallets(provider)[0]
-  const l2ToL1MessageReceiver = await deployL2ToL1MessageReceiver(
-    sequencerWallet
+
+  const receiverAddress: string = await getDeployedContractAddress(
+    0,
+    provider,
+    sequencerWallet.address
   )
+
+  let l2ToL1MessageReceiver: Contract
+  if (!receiverAddress) {
+    l2ToL1MessageReceiver = await deployL2ToL1MessageReceiver(sequencerWallet)
+  } else {
+    log.info(
+      `Found deployed L2ToL1MessageReceiver contract at address: ${receiverAddress}`
+    )
+    l2ToL1MessageReceiver = new Contract(
+      receiverAddress,
+      L2ToL1MessageReceiverContractDefinition.interface,
+      provider
+    )
+  }
 
   return {
     provider,
