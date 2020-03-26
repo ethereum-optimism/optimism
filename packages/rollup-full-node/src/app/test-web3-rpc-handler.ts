@@ -3,9 +3,10 @@ import { add0x, getLogger, castToNumber } from '@eth-optimism/core-utils'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import { initializeL2Node, L2NodeContext } from './index'
+import { initializeL2Node } from './index'
 import { DefaultWeb3Handler } from './web3-rpc-handler'
 import {
+  L2NodeContext,
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3RpcMethods,

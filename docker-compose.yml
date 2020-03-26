@@ -1,47 +1,57 @@
 version: "3"
-networks:
-  external:
-    external: true
-  internal:
+
 services:
-  rollup-fullnode:
+
+  rollup-full-node:
     volumes:
-       - geth-data:/mnt/geth/l2
-    depends_on:
-      - geth_l2
-      - geth_l1
-    networks:
-      - internal
-      - external
+       - full-node-data:/volume/full-node:rw
+       - l1-node-data:/volume/l1-node:rw
+       - l2-node-data:/volume/l2-node:rw
+#    depends_on:
+#      - geth_l2
+#      - geth_l1
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - 8545:8545
     environment:
-      L1_WEB3_URL: http://geth_l1:8545/
-      L2_WEB3_URL: http://geth_l2:8545/
-      VOLUME_PATH: /mnt/geth/l2
-  geth_l2:
-    volumes:
-       - geth-l2-data:/mnt/geth/l2
-    networks:
-      - internal
-    build:
-      context: docker/geth
-      dockerfile: Dockerfile
-    environment:
-      VOLUME_PATH: /mnt/geth/l2
-  geth_l1:
-    volumes:
-      - geth-l1-data:/mnt/geth/l1
-    networks:
-      - internal
-    build:
-      context: docker/geth
-      dockerfile: Dockerfile
-    environment:
-      VOLUME_PATH: /mnt/geth/l1
+      - OPCODE_WHITELIST_MASK
+      - L1_SEQUENCER_MNEMONIC
+      - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
+      - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT
+      - L2_WALLET_MNEMONIC
+      - LOCAL_L1_NODE_PORT
+      - LOCAL_L1_NODE_PERSISTENT_DB_PATH=/volume/l1-node
+      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/volume/l2-node
+#      - L1_NODE_WEB3_URL="http://geth_l1:8545/"
+#      - L2_NODE_WEB3_URL="http://geth_l2:8545/"
+
+#  geth_l2:
+#    volumes:
+#       - l2-node-data:/mnt/geth/l2
+#    build:
+#      context: docker/geth
+#      dockerfile: Dockerfile
+#    environment:
+#      - VOLUME_PATH="/mnt/geth/l2"
+#    expose:
+#      - "8545"
+#
+#  geth_l1:
+#    volumes:
+#      - l1-node-data:/mnt/geth/l1
+#    build:
+#      context: docker/geth
+#      dockerfile: Dockerfile
+#    environment:
+#      - VOLUME_PATH="/mnt/geth/l1"
+#    expose:
+#      - "8545"
+
 volumes:
-  - geth-l2-data:
-  - geth-l1-data:
+  full-node-data:
+  l1-node-data:
+  l2-node-data:

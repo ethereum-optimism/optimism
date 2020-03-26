@@ -149,11 +149,11 @@ describe('Web3Handler', () => {
     before(() => {
       rimraf.sync(tmpFilePath)
       fs.mkdirSync(tmpFilePath)
-      process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH = tmpFilePath
+      process.env.LOCAL_L2_NODE_PERSISTENT_DB_PATH = tmpFilePath
     })
     after(() => {
       rimraf.sync(tmpFilePath)
-      delete process.env.PERSISTED_L2_GANACHE_DB_FILE_PATH
+      delete process.env.LOCAL_L2_NODE_PERSISTENT_DB_PATH
     })
 
     it('1/2 deploys the contracts', async () => {

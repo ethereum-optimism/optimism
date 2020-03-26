@@ -1,15 +1,8 @@
 /* External Imports */
-import {
-  BaseDB,
-  DB,
-  getLevelInstance,
-  newInMemoryDB,
-} from '@eth-optimism/core-db'
 import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
 import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/ovm'
 
-import Level from 'level'
-import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
+import { JsonRpcProvider, Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import {
@@ -17,20 +10,13 @@ import {
   DefaultWeb3Handler,
   TestWeb3Handler,
   startLocalL1Node,
+  Environment,
 } from '../app'
-import { L2ToL1MessageSubmitter } from '../types'
+import { L1NodeContext, L2ToL1MessageSubmitter } from '../types'
 import { Contract, ethers, Wallet } from 'ethers'
 import { DefaultL2ToL1MessageSubmitter } from '../app/message-submitter'
 
 const log: Logger = getLogger('rollup-fullnode')
-
-const rollupNodeHost: string = process.env.ROLLUP_NODE_HOST || '0.0.0.0'
-const rollupNodePort: string = process.env.ROLLUP_NODE_PORT || '8545'
-const localL1NodePort: string = process.env.DEFAULT_L1_NODE_PORT || '7545'
-const layer1Web3Url: string = process.env.L1_WEB3_URL
-const layer2Web3Url: string = process.env.L2_WEB3_URL
-const l1MessageSubmitterMnemonic: string =
-  process.env.LOCAL_L1_MNEMONIC || ethers.Wallet.createRandom().mnemonic
 
 /**
  * Runs a fullnode.
@@ -42,15 +28,15 @@ export const runFullnode = async (
 ): Promise<[ExpressHttpServer, L2ToL1MessageSubmitter]> => {
   let provider: JsonRpcProvider
   // TODO Get these from config
-  const port = parseInt(rollupNodePort, 10)
+  const port: number = Environment.l2RpcServerPort()
 
   const messageSubmitter: L2ToL1MessageSubmitter = await runMessageSubmitter()
 
   log.info(`Starting L2 fullnode in ${testFullnode ? 'TEST' : 'LIVE'} mode`)
 
-  if (layer2Web3Url) {
-    log.info(`Connecting to L2 web3 URL: ${layer2Web3Url}`)
-    provider = new JsonRpcProvider(layer2Web3Url)
+  if (Environment.l2NodeWeb3Url()) {
+    log.info(`Connecting to L2 web3 URL: ${Environment.l2NodeWeb3Url()}`)
+    provider = new JsonRpcProvider(Environment.l2NodeWeb3Url())
   }
 
   const fullnodeHandler = testFullnode
@@ -58,13 +44,13 @@ export const runFullnode = async (
     : await DefaultWeb3Handler.create(messageSubmitter, provider)
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
-    rollupNodeHost,
+    Environment.l2RpcServerHost(),
     port
   )
 
   fullnodeRpcServer.listen()
 
-  const baseUrl = `http://${rollupNodeHost}:${port}`
+  const baseUrl = `http://${Environment.l2RpcServerHost()}:${port}`
   log.info(`Listening at ${baseUrl}`)
 
   return [fullnodeRpcServer, messageSubmitter]
@@ -73,29 +59,46 @@ export const runFullnode = async (
 const runMessageSubmitter = async (): Promise<L2ToL1MessageSubmitter> => {
   log.info(`Connecting to L1 fullnode.`)
 
-  let provider: JsonRpcProvider
-  if (layer1Web3Url) {
-    log.info(`Connecting to L1 web3 URL: ${layer1Web3Url}`)
-    provider = new JsonRpcProvider(layer1Web3Url)
+  let l1NodeContext: L1NodeContext
+  if (Environment.l1NodeWeb3Url()) {
+    if (!Environment.sequencerMnemonic()) {
+      const msg: string = `No L1 Sequencer Mnemonic Provided! Set the L1_SEQUENCER_MNEMONIC env var!.`
+      log.error(msg)
+      throw Error(msg)
+    }
+    if (!Environment.l2ToL1MessageReceiverAddress()) {
+      const msg: string = `No L2 to L1 Sequencer Mnemonic Provided! Set the L2_TO_L1_MESSAGE_RECEIVER_ADDRESS env var!.`
+      log.error(msg)
+      throw Error(msg)
+    }
+
+    log.info(`Connecting to L1 web3 URL: ${Environment.l1NodeWeb3Url()}`)
+    const provider: Provider = new JsonRpcProvider(Environment.l1NodeWeb3Url())
+
+    l1NodeContext = {
+      provider,
+      sequencerWallet: Wallet.fromMnemonic(
+        Environment.sequencerMnemonic()
+      ).connect(provider),
+      l2ToL1MessageReceiver: new Contract(
+        Environment.l2ToL1MessageReceiverAddress(),
+        L2ToL1MessageReceiverContractDefinition.interface,
+        provider
+      ),
+    }
   } else {
-    log.info(`Deploying local L1 node on port ${localL1NodePort}`)
-    provider = await startLocalL1Node(
-      l1MessageSubmitterMnemonic,
-      parseInt(localL1NodePort, 10)
+    log.info(`Deploying local L1 node on port ${Environment.localL1NodePort()}`)
+    const sequencerMnemonic = Environment.sequencerMnemonic(
+      Wallet.createRandom().mnemonic
+    )
+    l1NodeContext = await startLocalL1Node(
+      sequencerMnemonic,
+      Environment.localL1NodePort()
     )
   }
 
-  const wallet = Wallet.fromMnemonic(l1MessageSubmitterMnemonic).connect(
-    provider
+  return DefaultL2ToL1MessageSubmitter.create(
+    l1NodeContext.sequencerWallet,
+    l1NodeContext.l2ToL1MessageReceiver
   )
-
-  const messageReceiverContractAddress: string =
-    process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
-  const messageReceiverContract = new Contract(
-    messageReceiverContractAddress,
-    L2ToL1MessageReceiverContractDefinition.abi,
-    provider
-  )
-
-  return DefaultL2ToL1MessageSubmitter.create(wallet, messageReceiverContract)
 }

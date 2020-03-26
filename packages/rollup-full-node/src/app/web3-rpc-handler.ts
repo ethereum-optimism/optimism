@@ -26,13 +26,14 @@ import AsyncLock from 'async-lock'
 import {
   FullnodeHandler,
   InvalidParametersError,
+  L2NodeContext,
   L2ToL1MessageSubmitter,
   RevertError,
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node, L2NodeContext } from './utils'
+import { initializeL2Node } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
