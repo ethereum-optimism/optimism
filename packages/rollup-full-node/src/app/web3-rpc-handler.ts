@@ -43,6 +43,7 @@ const lockKey: string = 'LOCK'
 const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
+  private blockTimestamps: Object = {}
   private lock: AsyncLock
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -269,7 +270,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
-    const block = this.parseInternalBlock(res)
+    const block = this.parseInternalBlock(res, fullObjects)
 
     log.debug(
       `Returning block: ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
@@ -282,6 +283,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
   public async parseInternalBlock(
     block: object,
+    fullObjects: boolean
   ): Promise<object> {
     log.debug(
       `Parsing block #${block["number"]}: ${JSON.stringify(
@@ -289,14 +291,18 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )}`
     )
 
-    block["timestamp"] = this.getTimestamp()
-    block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
-      if(transaction["hash"]) {
-        transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
-      }
+    // console.log(block["number"])
+    // console.log(this.blockTimestamps)
+    block["timestamp"] = this.blockTimestamps[block["number"]]
 
-      return transaction
-    }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
+    if(fullObjects) {
+      block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
+        transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
+
+        return transaction
+      // Filter transactions that aren't included in the execution manager
+      }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
+    }
 
 
     return block
@@ -402,6 +408,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
+    const timestamp = this.getTimestamp()
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
     return this.lock.acquire(lockKey, async () => {
       log.debug('Sending raw transaction with params:', rawOvmTx)
@@ -415,7 +422,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )
 
       // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
-      const internalTx = await this.ovmTxToInternalTx(ovmTx)
+      const internalTx = await this.ovmTxToInternalTx(ovmTx, timestamp)
       // Now compute the hash of the OVM transaction which we will return
       const ovmTxHash = await utils.keccak256(rawOvmTx)
       const internalTxHash = await utils.keccak256(internalTx)
@@ -463,6 +470,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
       await this.processTransactionEvents(receipt)
 
+      this.blockTimestamps[receipt.blockNumber] = timestamp
       log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
       // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
       return ovmTxHash
@@ -475,7 +483,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The seconds since epoch.
    */
   protected getTimestamp(): number {
-    return 0
+    return Math.round(new Date().getTime() / 1000)
   }
 
   private async processTransactionEvents(
@@ -537,7 +545,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   /**
    * OVM tx to EVM tx converter
    */
-  private async ovmTxToInternalTx(ovmTx: any): Promise<string> {
+  private async ovmTxToInternalTx(ovmTx: any, timestamp: number): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
       throw new Error('Sending to Zero Address disallowed')
@@ -568,7 +576,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     }
     // Construct the raw transaction calldata
     const internalCalldata = this.getTransactionCalldata(
-      this.getTimestamp(),
+      timestamp,
       0,
       ovmTo,
       ovmTx.data,

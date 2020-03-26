@@ -96,7 +96,7 @@ describe('Web3Handler', () => {
     }
   })
 
-  describe.only('the getBlockByNumber endpoint', () => {
+  describe('the getBlockByNumber endpoint', () => {
     it('should return a block with the correct timestamp', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const timestampBefore = await httpProvider.send('evm_getTime', [])
@@ -112,6 +112,26 @@ describe('Web3Handler', () => {
 
       block["transactions"].should.be.empty
     })
+
+    it.only('should update timestamp', async () => {
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const executionManagerAddress = await httpProvider.send(
+        'ovm_getExecutionManagerAddress',
+        []
+      )
+
+      const timestampBefore = await httpProvider.send('evm_getTime', [])
+      const wallet = getWallet(httpProvider)
+      const simpleStorage = await deploySimpleStorage(wallet)
+
+      await setAndGetStorage(
+        simpleStorage,
+        httpProvider,
+        executionManagerAddress
+      )
+      const block = await httpProvider.getBlock('latest')
+      block.timestamp.should.be.gt(hexStrToNumber(timestampBefore))
+    })
   })
   describe('ephemeral node', () => {
     describe('SimpleStorage integration test', () => {
@@ -123,6 +143,7 @@ describe('Web3Handler', () => {
         )
 
         const wallet = getWallet(httpProvider)
+        const timestampBefore = await httpProvider.send('evm_getTime', [])
         const simpleStorage = await deploySimpleStorage(wallet)
 
         await setAndGetStorage(
