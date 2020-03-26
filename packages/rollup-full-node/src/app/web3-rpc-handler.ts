@@ -33,7 +33,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node } from './utils'
+import { initializeL2Node, L2NodeContext, getTimestamp } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
@@ -43,7 +43,7 @@ const lockKey: string = 'LOCK'
 const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
-  private blockTimestamps: Object = {}
+  protected blockTimestamps: Object = {}
   private lock: AsyncLock
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -57,9 +57,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     web3Provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
+    const timestamp = getTimestamp()
     const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
 
-    return new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
+    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
+    const blockNumber = await l2NodeContext.provider.getBlockNumber()
+    handler.blockTimestamps[blockNumber] = timestamp
+    return handler
   }
 
   protected constructor(
@@ -177,7 +181,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      this.getTimestamp(),
+      getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
@@ -227,7 +231,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      this.getTimestamp(),
+      getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
@@ -293,16 +297,17 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     // console.log(block["number"])
     // console.log(this.blockTimestamps)
-    block["timestamp"] = this.blockTimestamps[block["number"]]
-
-    if(fullObjects) {
-      block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
-        transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
-
-        return transaction
-      // Filter transactions that aren't included in the execution manager
-      }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
-    }
+    // block["timestamp"] = this.blockTimestamps[block["number"]]
+    // console.log(this.blockTimestamps)
+    //
+    // if(fullObjects) {
+    //   block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
+    //     transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
+    //
+    //     return transaction
+    //   // Filter transactions that aren't included in the execution manager
+    //   }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
+    // }
 
 
     return block
@@ -408,7 +413,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
-    const timestamp = this.getTimestamp()
+    const timestamp = getTimestamp()
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
     return this.lock.acquire(lockKey, async () => {
       log.debug('Sending raw transaction with params:', rawOvmTx)
@@ -475,15 +480,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
       return ovmTxHash
     })
-  }
-
-  /**
-   * Gets the current number of seconds since the epoch.
-   *
-   * @returns The seconds since epoch.
-   */
-  protected getTimestamp(): number {
-    return Math.round(new Date().getTime() / 1000)
   }
 
   private async processTransactionEvents(
