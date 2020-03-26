@@ -1,6 +1,8 @@
 #!/bin/sh
 
-HOSTNAME='geth'
+# PASSED IN FROM ENV
+#HOSTNAME=
+
 KEYSTORE_PATH="${VOLUME_PATH}/keystore"
 SEALER_PRIVATE_KEY_PATH="${VOLUME_PATH}/sealer_private_key.txt"
 PRIVATE_KEY_PATH="${VOLUME_PATH}/private_key.txt"

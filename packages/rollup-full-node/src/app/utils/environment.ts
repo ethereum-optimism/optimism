@@ -40,6 +40,9 @@ export class Environment {
   public static l2WalletMnemonic(defaultValue?: string): string {
     return process.env.L2_WALLET_MNEMONIC || defaultValue
   }
+  public static l2WalletPrivateKeyPath(defaultValue?: string): string {
+    return process.env.L2_WALLET_PRIVATE_KEY_PATH || defaultValue
+  }
 
   // L1 Config
   public static l1NodeWeb3Url(defaultValue?: string): string {
