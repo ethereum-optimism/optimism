@@ -19,7 +19,7 @@ wait_for_server_to_be_reachable()
         echo "Timeout waiting for server at $1"
         exit 1
       fi
-      COUNT=$($COUNT+1)
+      COUNT=$(($COUNT+1))
     done
   fi
 
