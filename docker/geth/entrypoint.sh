@@ -1,6 +1,8 @@
 #!/bin/sh
 
-HOSTNAME='geth'
+## Passed in from environment variables:
+# HOSTNAME=
+
 KEYSTORE_PATH="${VOLUME_PATH}/keystore"
 SEALER_PRIVATE_KEY_PATH="${VOLUME_PATH}/sealer_private_key.txt"
 PRIVATE_KEY_PATH="${VOLUME_PATH}/private_key.txt"
@@ -10,6 +12,8 @@ INITIAL_BALANCE='0x2000000000000000000000000000000000000000000000000000000000000
 GENISIS_PATH='etc/rollup-fullnode.json'
 NETWORK_ID=108
 PORT=8545
+
+SETUP_RUN_PATH="${VOLUME_PATH}/setup_run.txt"
 
 ## Generates an Ethereum private key
 # Source: https://gist.github.com/miguelmota/3793b160992b4ea0b616497b8e5aee2f
@@ -46,13 +50,8 @@ generate_geneisis()
   mv $tmp $GENISIS_PATH
 }
 
-
-case $1 in
-  setup)
-    if test -d "$KEYSTORE_PATH"; then
-      echo "Setup has already been run"
-      exit 1
-    fi
+## One-time configuration to be run only on first startup
+if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
     generate_private_key > $SEALER_PRIVATE_KEY_PATH
     import_private_key $SEALER_PRIVATE_KEY_PATH > $SEALER_ADDRESS_PATH
     generate_private_key > $PRIVATE_KEY_PATH
@@ -60,17 +59,13 @@ case $1 in
     generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
 
     geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
+    echo "Ran Setup" > $SETUP_RUN_PATH
+
     echo "Setup Complete"
     echo "Sealer Address: 0x`cat $SEALER_PRIVATE_KEY_PATH`"
     echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
-    break
-    ;;
-  "")
-    geth --datadir $VOLUME_PATH --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=$HOSTNAME --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
-    break
-    ;;
-  *)
-    $1
-    ;;
-esac
+fi
+
+## Command to kick off geth
+geth --datadir $VOLUME_PATH --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=$HOSTNAME --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
 
