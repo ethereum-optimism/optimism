@@ -96,7 +96,7 @@ describe('Web3Handler', () => {
     }
   })
 
-  describe.only('the getBlockByNumber endpoint', () => {
+  describe('the getBlockByNumber endpoint', () => {
     it('should return a block with the correct timestamp', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const timestampBefore = await httpProvider.send('evm_getTime', [])

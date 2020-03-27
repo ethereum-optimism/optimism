@@ -295,19 +295,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )}`
     )
 
-    // console.log(block["number"])
-    // console.log(this.blockTimestamps)
-    // block["timestamp"] = this.blockTimestamps[block["number"]]
-    // console.log(this.blockTimestamps)
-    //
-    // if(fullObjects) {
-    //   block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
-    //     transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
-    //
-    //     return transaction
-    //   // Filter transactions that aren't included in the execution manager
-    //   }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
-    // }
+    block["timestamp"] = this.blockTimestamps[block["number"]]
+    if(fullObjects) {
+      block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
+        transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
+
+        return transaction
+      // Filter transactions that aren't included in the execution manager
+      }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
+    }
 
 
     return block
