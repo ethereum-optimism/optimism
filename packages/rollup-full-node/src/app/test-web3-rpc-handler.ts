@@ -1,5 +1,10 @@
 /* External Imports */
-import { add0x, getLogger, numberToHexString, castToNumber } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  numberToHexString,
+  castToNumber,
+} from '@eth-optimism/core-utils'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
@@ -84,7 +89,10 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    */
   protected async getTimestamp(): Promise<number> {
     const blockNumber = await this.context.provider.getBlockNumber()
-    return this.blockTimestamps[numberToHexString(blockNumber)] + this.timestampIncreaseSeconds
+    return (
+      this.blockTimestamps[numberToHexString(blockNumber)] +
+      this.timestampIncreaseSeconds
+    )
   }
 
   /**

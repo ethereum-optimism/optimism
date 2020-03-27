@@ -289,22 +289,28 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     block: object,
     fullObjects: boolean
   ): Promise<object> {
+    log.debug(`Parsing block #${block['number']}: ${JSON.stringify(block)}`)
+
+    block['timestamp'] = this.blockTimestamps[block['number']]
+    if (fullObjects) {
+      block['transactions'] = (
+        await Promise.all(
+          block['transactions'].map(async (transaction) => {
+            transaction['hash'] = await this.getInternalTxHash(
+              transaction['hash']
+            )
+            return transaction
+            // Filter transactions that aren't included in the execution manager
+          })
+        )
+      ).filter((transaction) => transaction['hash'] === ZERO_ADDRESS)
+    }
+
     log.debug(
-      `Parsing block #${block["number"]}: ${JSON.stringify(
+      `Transforming block #${block['number']} complete: ${JSON.stringify(
         block
       )}`
     )
-
-    block["timestamp"] = this.blockTimestamps[block["number"]]
-    if(fullObjects) {
-      block["transactions"]= (await Promise.all(block["transactions"].map(async (transaction) => {
-        transaction["hash"] = await this.getInternalTxHash(transaction["hash"])
-
-        return transaction
-      // Filter transactions that aren't included in the execution manager
-      }))).filter((transaction) => transaction["hash"] === ZERO_ADDRESS)
-    }
-
 
     return block
   }
@@ -537,7 +543,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   /**
    * OVM tx to EVM tx converter
    */
-  private async ovmTxToInternalTx(ovmTx: any, timestamp: number): Promise<string> {
+  private async ovmTxToInternalTx(
+    ovmTx: any,
+    timestamp: number
+  ): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
       throw new Error('Sending to Zero Address disallowed')

@@ -1,16 +1,17 @@
 import '../setup'
 /* External Imports */
-import {
-  getLogger,
-  hexStrToNumber,
-} from '@eth-optimism/core-utils'
+import { getLogger, hexStrToNumber } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
 
 /* Internal Imports */
-import { FullnodeRpcServer, DefaultWeb3Handler, TestWeb3Handler } from '../../src/app'
+import {
+  FullnodeRpcServer,
+  DefaultWeb3Handler,
+  TestWeb3Handler,
+} from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import { FullnodeHandler } from '../../src/types'
 
@@ -99,39 +100,39 @@ describe('Web3Handler', () => {
   describe('the getBlockByNumber endpoint', () => {
     it('should return a block with the correct timestamp', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      const timestampBefore = await httpProvider.send('evm_getTime', [])
+      const timestamp = await httpProvider.send('evm_getTime', [])
       const block = await httpProvider.getBlock('latest')
-      
-      block.timestamp.should.eq(hexStrToNumber(timestampBefore))
+
+      block.timestamp.should.eq(hexStrToNumber(timestamp))
     })
 
     it('should strip the execution manager deployment transaction from the transactions object', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const block = await httpProvider.getBlock(1, true)
 
-      block["transactions"].should.be.empty
+      block['transactions'].should.be.empty
     })
 
-    it('should update timestamp', async () => {
+    it('should increase the timestamp when blocks are created', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const executionManagerAddress = await httpProvider.send(
         'ovm_getExecutionManagerAddress',
         []
       )
-
-      const timestampBefore = await httpProvider.send('evm_getTime', [])
+      const timestamp = await httpProvider.send('evm_getTime', [])
       const wallet = getWallet(httpProvider)
       const simpleStorage = await deploySimpleStorage(wallet)
-
       await setAndGetStorage(
         simpleStorage,
         httpProvider,
         executionManagerAddress
       )
+
       const block = await httpProvider.getBlock('latest')
-      block.timestamp.should.be.gt(hexStrToNumber(timestampBefore))
+      block.timestamp.should.be.gt(hexStrToNumber(timestamp))
     })
   })
+
   describe('ephemeral node', () => {
     describe('SimpleStorage integration test', () => {
       it('should set storage & retrieve the value', async () => {
@@ -142,7 +143,6 @@ describe('Web3Handler', () => {
         )
 
         const wallet = getWallet(httpProvider)
-        const timestampBefore = await httpProvider.send('evm_getTime', [])
         const simpleStorage = await deploySimpleStorage(wallet)
 
         await setAndGetStorage(
