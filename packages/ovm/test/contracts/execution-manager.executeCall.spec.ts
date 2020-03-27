@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, padToLength, ZERO_ADDRESS } from '@eth-optimism/core-utils'
+import { getLogger, padToLength, ZERO_ADDRESS, TestUtils, getCurrentTime } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -75,6 +75,44 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   describe('executeNonEOACall', async () => {
+    it('fails if the provided timestamp is 0', async () => {
+      // Create the variables we will use for setStorage
+      const intParam = 0
+      const bytesParam = '0xdeadbeef'
+      // Generate our tx calldata
+      const calldata = getUnsignedTransactionCalldata(
+        dummyContract,
+        'dummyFunction',
+        [intParam, bytesParam]
+      )
+      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const transaction = {
+        nonce,
+        gasLimit: GAS_LIMIT,
+        gasPrice: 0,
+        to: dummyContractAddress,
+        value: 0,
+        data: calldata,
+        chainId: CHAIN_ID,
+      }
+      const signedMessage = await wallet.sign(transaction)
+      const [v, r, s] = ethers.utils.RLP.decode(signedMessage).slice(-3)
+
+      await TestUtils.assertThrowsAsync(async () => {
+        // Call using Ethers
+        const tx = await executionManager.executeEOACall(
+          0,
+          0,
+          transaction.nonce,
+          transaction.to,
+          transaction.data,
+          padToLength(v, 4),
+          padToLength(r, 64),
+          padToLength(s, 64)
+        )
+        await provider.waitForTransaction(tx.hash)
+      })
+    })
     it('properly executes a raw call -- 0 param', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
@@ -98,7 +136,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
       // Call using Ethers
       const tx = await executionManager.executeUnsignedEOACall(
-        0,
+        getCurrentTime(),
         0,
         transaction.to,
         transaction.data,
@@ -136,7 +174,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
       // Call using Ethers
       const tx = await executionManager.executeEOACall(
-        0,
+        getCurrentTime(),
         0,
         transaction.nonce,
         transaction.to,
@@ -173,7 +211,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
       // Call using Ethers
       const tx = await executionManager.executeEOACall(
-        0,
+        getCurrentTime(),
         0,
         transaction.nonce,
         transaction.to,
@@ -213,7 +251,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
       // Call using Ethers
       const tx = await executionManager.executeEOACall(
-        0,
+        getCurrentTime(),
         0,
         transaction.nonce,
         transaction.to,

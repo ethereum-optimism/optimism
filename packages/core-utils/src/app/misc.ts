@@ -280,3 +280,12 @@ export const runInDomain = async (
   const domainToUse: domain.Domain = !!d ? d : domain.create()
   return domainToUse.run(func)
 }
+
+/**
+ * Gets the current number of seconds since the epoch.
+ *
+ * @returns The seconds since epoch.
+ */
+export const getCurrentTime = (): number => {
+  return Math.round(Date.now() / 1000)
+}

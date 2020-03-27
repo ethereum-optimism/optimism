@@ -7,6 +7,7 @@ import {
   hexStrToNumber,
   remove0x,
   TestUtils,
+  getCurrentTime,
 } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
@@ -152,18 +153,7 @@ describe('Execution Manager -- Context opcodes', () => {
   })
 
   describe('ovmTIMESTAMP', async () => {
-    it('reverts when TIMESTAMP is not set', async () => {
-      await TestUtils.assertThrowsAsync(async () => {
-        await executeCall([
-          contractAddress32,
-          methodIds.callThroughExecutionManager,
-          contract2Address32,
-          methodIds.getTIMESTAMP,
-        ])
-      })
-    })
-
-    it('properly retrieves TIMESTAMP when timestamp is set', async () => {
+    it('properly retrieves TIMESTAMP', async () => {
       const timestamp: number = 1582890922
       const result = await executeOVMCall(executionManager, 'executeCall', [
         timestamp,
@@ -201,7 +191,7 @@ describe('Execution Manager -- Context opcodes', () => {
     it('gets Queue Origin when it is 0', async () => {
       const queueOrigin: string = '00'.repeat(32)
       const result = await executeOVMCall(executionManager, 'executeCall', [
-        0,
+        getCurrentTime(),
         queueOrigin,
         contractAddress32,
         methodIds.callThroughExecutionManager,
@@ -218,7 +208,7 @@ describe('Execution Manager -- Context opcodes', () => {
     it('properly retrieves Queue Origin when queue origin is set', async () => {
       const queueOrigin: string = '00'.repeat(30) + '1111'
       const result = await executeOVMCall(executionManager, 'executeCall', [
-        0,
+        getCurrentTime(),
         queueOrigin,
         contractAddress32,
         methodIds.callThroughExecutionManager,
@@ -235,7 +225,7 @@ describe('Execution Manager -- Context opcodes', () => {
 
   const executeCall = (args: any[]): Promise<string> => {
     return executeOVMCall(executionManager, 'executeCall', [
-      encodeRawArguments([0, 0, ...args]),
+      encodeRawArguments([getCurrentTime(), 0, ...args]),
     ])
   }
 })
