@@ -9,8 +9,8 @@ TIMEOUT=10
 
 wait_for_server_to_be_reachable()
 {
-  COUNT=1
   if [ -n "$1" ]; then
+    COUNT=1
     until $(curl --output /dev/null --silent --fail -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "id": 9999999, "method": "net_version"}' $1); do
       sleep 1
       echo "Slept $COUNT times for $1 to be up..."

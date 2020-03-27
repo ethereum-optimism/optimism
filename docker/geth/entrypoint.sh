@@ -57,9 +57,10 @@ if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
     generate_private_key > $PRIVATE_KEY_PATH
     import_private_key $PRIVATE_KEY_PATH > $ADDRESS_PATH
     generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
-    echo "Ran Setup" > $SETUP_RUN_PATH
 
     geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
+    echo "Ran Setup" > $SETUP_RUN_PATH
+
     echo "Setup Complete"
     echo "Sealer Address: 0x`cat $SEALER_PRIVATE_KEY_PATH`"
     echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
