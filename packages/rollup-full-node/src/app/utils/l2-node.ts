@@ -2,7 +2,8 @@
 import {
   getDeployedContractAddress,
   getLogger,
-  logError, remove0x,
+  logError,
+  remove0x,
 } from '@eth-optimism/core-utils'
 import {
   GAS_LIMIT,
@@ -99,7 +100,9 @@ function getL2Wallet(provider: JsonRpcProvider): Wallet {
     wallet.connect(provider)
   } else if (!!Environment.l2WalletPrivateKeyPath()) {
     try {
-      const pk: string = fs.readFileSync(Environment.l2WalletPrivateKeyPath(), {encoding: 'utf-8'})
+      const pk: string = fs.readFileSync(Environment.l2WalletPrivateKeyPath(), {
+        encoding: 'utf-8',
+      })
       wallet = new Wallet(pk, provider)
     } catch (e) {
       logError(
