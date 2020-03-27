@@ -39,6 +39,16 @@ services:
     environment:
       - VOLUME_PATH=/mnt/l2-node/l2
       - HOSTNAME=geth_l2
+      - PORT=8545
+      - NETWORK_ID=108
+      - KEYSTORE_PATH_SUFFIX=/keystore
+      - SEALER_PRIVATE_KEY_PATH_SUFFIX=/sealer_private_key.txt
+      - PRIVATE_KEY_PATH_SUFFIX=/private_key.txt
+      - ADDRESS_PATH_SUFFIX=/address.txt
+      - SEALER_ADDRESS_PATH_SUFFIX=/sealer_address.txt
+      - INITIAL_BALANCE=0x200000000000000000000000000000000000000000000000000000000000000
+      - GENISIS_PATH=etc/rollup-fullnode.json
+      - SETUP_RUN_PATH_SUFFIX=/setup_run.txt
     expose:
       - "8545"
 #
