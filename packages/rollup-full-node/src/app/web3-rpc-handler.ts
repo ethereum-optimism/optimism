@@ -33,7 +33,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node, L2NodeContext, getTimestamp } from './utils'
+import { initializeL2Node, getTimestamp } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
