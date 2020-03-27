@@ -113,7 +113,7 @@ describe('Web3Handler', () => {
       block['transactions'].should.be.empty
     })
 
-    it('should increase the timestamp when blocks are created', async () => {
+    it.only('should increase the timestamp when blocks are created', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const executionManagerAddress = await httpProvider.send(
         'ovm_getExecutionManagerAddress',
@@ -128,7 +128,7 @@ describe('Web3Handler', () => {
         executionManagerAddress
       )
 
-      const block = await httpProvider.getBlock('latest')
+      const block = await httpProvider.getBlock('latest', true)
       block.timestamp.should.be.gt(hexStrToNumber(timestamp))
     })
   })

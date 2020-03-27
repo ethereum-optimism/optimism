@@ -300,9 +300,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
               transaction['hash']
             )
             return transaction
-            // Filter transactions that aren't included in the execution manager
           })
         )
+        // Filter transactions that aren't included in the execution manager
       ).filter((transaction) => transaction['hash'] === ZERO_ADDRESS)
     }
 
