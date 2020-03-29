@@ -5,10 +5,10 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
-import {CreatorContract} from "./CreatorContract.sol";
 import {PurityChecker} from "./PurityChecker.sol";
 import {RLPEncode} from "./RLPEncode.sol";
-import {L2ToL1MessagePasser} from "./L2ToL1MessagePasser.sol";
+import {L2ToL1MessagePasser} from "./precompiles/L2ToL1MessagePasser.sol";
+import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
 
 /**
  * @title ExecutionManager
@@ -16,6 +16,8 @@ import {L2ToL1MessagePasser} from "./L2ToL1MessagePasser.sol";
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is FullStateManager {
+    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+
     // expected queue origin for calls from L1
     uint constant L1_QUEUE_ORIGIN = 1;
 
@@ -24,10 +26,9 @@ contract ExecutionManager is FullStateManager {
     bytes32 constant ovmCreateMethodId = keccak256("ovmCREATE()") >> 224;
     bytes32 constant executeCallMethodId = keccak256("executeCall()") >> 224;
 
-    // creator contract address
-    address constant creatorContractAddress = 0x0000000000000000000000000000000000000000;
-    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+    // Precompile addresses
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
+    address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
 
     // Execution storage
     dt.ExecutionContext executionContext;
@@ -77,14 +78,16 @@ contract ExecutionManager is FullStateManager {
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
 
-        // Associate all precompiles
+        // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
             associateCodeContract(address(i), address(i));
         }
 
-        // Instantiate L2 -> L1 message passer, associate appropriately
+        // Deploy custom precompiles
         L2ToL1MessagePasser l1ToL2MessagePasser = new L2ToL1MessagePasser(address(this));
         associateCodeContract(l2ToL1MessagePasserOvmAddress, address(l1ToL2MessagePasser));
+        L1MessageSender l1MessageSender = new L1MessageSender(address(this));
+        associateCodeContract(l1MsgSenderAddress, address(l1MessageSender));
 
         executionContext.gasLimit = _blockGasLimit;
         executionContext.chainId = 108;
@@ -217,12 +220,12 @@ contract ExecutionManager is FullStateManager {
         address _ovmEntrypoint,
         bytes memory _callBytes,
         address _fromAddress,
-        address _l1TxSenderAddress,
+        address _l1MsgSenderAddress,
         bool _allowRevert
     ) public {
         uint _nonce = getOvmContractNonce(_fromAddress);
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1TxSenderAddress);
+        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
@@ -460,28 +463,6 @@ contract ExecutionManager is FullStateManager {
     }
 
     /**
-     * @notice Gets the L1 transaction sender if there is one & this is the first contract call of the tx.
-     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
-     * Below format of the bytes expected as input and written as output:
-     * calldata: 4 bytes: [methodID (bytes4)]
-     * returndata: [l1TxSenderAddress (as bytes32)] or revert if not the first contract called by an L1 transaction.
-     */
-    function ovmL1TxSender() public view {
-        // First make sure the ovmMsgSender was NOT set -- this indicates it's the first contract call
-        require(executionContext.queueOrigin == L1_QUEUE_ORIGIN, "Error: attempting to access L1TxSender inside of a non-L1 transaction.");
-        require(executionContext.ovmActiveContract == ZERO_ADDRESS, "Error: attempting to access L1TxSender outside of transaction entrypoint.");
-
-        // This is returned as left-padded, big-endian, so pad it left!
-        bytes32 addressBytes = bytes32(bytes20(executionContext.l1TxSender)) >> 96;
-
-        assembly {
-            let addressMemory := mload(0x40)
-            mstore(addressMemory, addressBytes)
-            return(addressMemory, 32)
-        }
-    }
-
-    /**
      * @notice This gets whether or not this contract is currently in a static call context.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
@@ -519,56 +500,6 @@ contract ExecutionManager is FullStateManager {
             return(addressMemory, 32)
         }
     }
-
-    /********* Utils *********/
-
-    /**
-     * @notice Initialize a new context, setting the timestamp, queue origin, and gasLimit as well as zeroing out the
-     *         msgSender of the previous context.
-     *         NOTE: this zeroing may not technically be needed as the context should always end up as zero at the end of each execution.
-     * @param _timestamp The timestamp which should be used for this context.
-     * @param _queueOrigin The queue which this context's transaction was sent from.
-     * @param _ovmTxOrigin The tx.origin for the currently executing transaction. It will be ZERO_ADDRESS if it's not an EOA call.
-     */
-    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin, address _l1TxSender) internal {
-        // First zero out the context for good measure (Note ZERO_ADDRESS is reserved for the genesis contract & initial msgSender)
-        restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
-        // And finally set the timestamp, queue origin, tx origin, and l1TxSender
-        executionContext.timestamp = _timestamp;
-        executionContext.queueOrigin = _queueOrigin;
-        executionContext.ovmTxOrigin = _ovmTxOrigin;
-        executionContext.l1TxSender = _l1TxSender;
-    }
-
-    /**
-     * @notice Change the active contract to be something new. This is used when a new contract is called.
-     * @param _newActiveContract The new active contract
-     * @return The old msgSender and activeContract. This will be used when we restore the old active contract.
-     */
-    function switchActiveContract(address _newActiveContract) internal returns(address _oldMsgSender, address _oldActiveContract) {
-        // Store references to the old context
-        _oldActiveContract = executionContext.ovmActiveContract;
-        _oldMsgSender = executionContext.ovmMsgSender;
-        // Set our new context
-        executionContext.ovmActiveContract = _newActiveContract;
-        executionContext.ovmMsgSender = _oldActiveContract;
-        // Emit an event so we can track the active contract. This is used in order to parse transaction receipts in the fullnode
-        emit ActiveContract(_newActiveContract);
-        // Return old context so we can later revert to it
-        return (_oldMsgSender, _oldActiveContract);
-    }
-
-    /**
-     * @notice Restore the contract context to some old values.
-     * @param _msgSender The msgSender to be restored.
-     * @param _activeContract The activeContract to be restored.
-     */
-    function restoreContractContext(address _msgSender, address _activeContract) internal {
-        // Revert back to the old context
-        executionContext.ovmActiveContract = _activeContract;
-        executionContext.ovmMsgSender = _msgSender;
-    }
-
 
     /***************************
     * Contract Creation Opcode *
@@ -1090,5 +1021,66 @@ contract ExecutionManager is FullStateManager {
             // write code to returndata
             return(codeContractBytecode, _length)
         }
+    }
+
+    /********
+    * Utils *
+    ********/
+
+    /**
+     * @notice Initialize a new context, setting the timestamp, queue origin, and gasLimit as well as zeroing out the
+     *         msgSender of the previous context.
+     *         NOTE: this zeroing may not technically be needed as the context should always end up as zero at the end of each execution.
+     * @param _timestamp The timestamp which should be used for this context.
+     * @param _queueOrigin The queue which this context's transaction was sent from.
+     * @param _ovmTxOrigin The tx.origin for the currently executing transaction. It will be ZERO_ADDRESS if it's not an EOA call.
+     */
+    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin, address _l1MsgSender) internal {
+        // First zero out the context for good measure (Note ZERO_ADDRESS is reserved for the genesis contract & initial msgSender)
+        restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
+        // And finally set the timestamp, queue origin, tx origin, and l1MessageSender
+        executionContext.timestamp = _timestamp;
+        executionContext.queueOrigin = _queueOrigin;
+        executionContext.ovmTxOrigin = _ovmTxOrigin;
+        executionContext.l1MessageSender = _l1MsgSender;
+    }
+
+    /**
+     * @notice Change the active contract to be something new. This is used when a new contract is called.
+     * @param _newActiveContract The new active contract
+     * @return The old msgSender and activeContract. This will be used when we restore the old active contract.
+     */
+    function switchActiveContract(address _newActiveContract) internal returns(address _oldMsgSender, address _oldActiveContract) {
+        // Store references to the old context
+        _oldActiveContract = executionContext.ovmActiveContract;
+        _oldMsgSender = executionContext.ovmMsgSender;
+        // Set our new context
+        executionContext.ovmActiveContract = _newActiveContract;
+        executionContext.ovmMsgSender = _oldActiveContract;
+        // Emit an event so we can track the active contract. This is used in order to parse transaction receipts in the fullnode
+        emit ActiveContract(_newActiveContract);
+        // Return old context so we can later revert to it
+        return (_oldMsgSender, _oldActiveContract);
+    }
+
+    /**
+     * @notice Restore the contract context to some old values.
+     * @param _msgSender The msgSender to be restored.
+     * @param _activeContract The activeContract to be restored.
+     */
+    function restoreContractContext(address _msgSender, address _activeContract) internal {
+        // Revert back to the old context
+        executionContext.ovmActiveContract = _activeContract;
+        executionContext.ovmMsgSender = _msgSender;
+    }
+
+    /**
+     * @notice Getter for the execution context's L1MessageSender. Used by the L1MessageSender precompile.
+     * @return The L1MessageSender in our current execution context.
+     */
+    function getL1MessageSender() public returns(address) {
+        require(executionContext.l1MessageSender != ZERO_ADDRESS, "L1MessageSender not set!");
+        require(executionContext.ovmMsgSender == ZERO_ADDRESS, "L1MessageSender only accessible in entrypoint contract!");
+        return executionContext.l1MessageSender;
     }
 }
