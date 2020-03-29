@@ -8,7 +8,7 @@ contract L1ToL2MessagePasser {
     event L1ToL2Message(
         address _sender,
         address _target,
-        bytes callData
+        bytes _callData
     );
 
     function passMessageToL2(address ovmEntrypoint, bytes memory ovmCalldata) public {

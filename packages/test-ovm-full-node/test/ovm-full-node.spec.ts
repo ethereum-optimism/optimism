@@ -18,7 +18,7 @@ describe('Timestamp Checker', () => {
   let fullnodeServer
 
   before(async () => {
-    fullnodeServer = await runFullnode(true)
+    ;[fullnodeServer] = await runFullnode(true)
   })
 
   after(async () => {

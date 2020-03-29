@@ -1,14 +1,15 @@
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger } from '@eth-optimism/core-utils/build/index'
 
 import { providers, ContractFactory, Wallet, Contract } from 'ethers'
 import * as waffle from 'ethereum-waffle'
-import { FullnodeHandler } from '../types'
+import { FullnodeHandler, L2ToL1MessageSubmitter } from '../../types'
 import { Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import { DefaultWeb3Handler } from './web3-rpc-handler'
-import { FullnodeRpcServer } from './fullnode-rpc-server'
+import { DefaultWeb3Handler } from '../web3-rpc-handler'
+import { FullnodeRpcServer } from '../fullnode-rpc-server'
+import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('utils')
 /**
@@ -25,12 +26,12 @@ export const createProviderForHandler = (
 
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   provider.send = async (method: string, params: any) => {
-    log.info('Sending -- Method:', method, 'Params:', params)
+    log.debug('Sending -- Method:', method, 'Params:', params)
 
     // Convert the message or response if we need to
     const response = await fullnodeHandler.handleRequest(method, params)
 
-    log.info('Received Response --', response)
+    log.debug('Received Response --', response)
     return response
   }
 
@@ -76,9 +77,12 @@ export async function deployOvmContract(
   )
 }
 
-export async function createMockProvider(port: number = 9999) {
+export async function createMockProvider(
+  port: number = 9999,
+  messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
+) {
   const host = '0.0.0.0'
-  const fullnodeHandler = await DefaultWeb3Handler.create()
+  const fullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
   const fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
   fullnodeRpcServer.listen()
   const baseUrl = `http://${host}:${port}`

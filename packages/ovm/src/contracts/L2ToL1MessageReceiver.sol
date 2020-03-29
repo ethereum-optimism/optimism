@@ -15,15 +15,15 @@ contract L2ToL1MessageReceiver {
         dt.L2ToL1Message message;
         uint l1BlockEnqueued;
     }
-    
+
     address public sequencer;
-    uint public messageDelayInBlocks;
+    uint public blocksUntilFinal;
     uint messageNonce = 0;
     mapping (uint => EnqueuedL2ToL1Message) public messages;
 
-    constructor(address _sequencer, uint _messageDelay) public {
+    constructor(address _sequencer, uint _blocksUntilFinal) public {
         sequencer = _sequencer;
-        messageDelayInBlocks = _messageDelay;
+        blocksUntilFinal = _blocksUntilFinal;
     }
 
     function enqueueL2ToL1Message(dt.L2ToL1Message memory _message) public {
@@ -47,8 +47,7 @@ contract L2ToL1MessageReceiver {
         bytes32 storedMessageHash = getMessageHash(messages[_nonce].message);
         bool messageWasEnqueued = (storedMessageHash == givenMessageHash);
         // Message must be finalized on L1
-        bool messageIsFinalized = (block.number >= messages[_nonce].l1BlockEnqueued + messageDelayInBlocks);
-        
+        bool messageIsFinalized = (block.number >= messages[_nonce].l1BlockEnqueued + blocksUntilFinal);
         return messageWasEnqueued && messageIsFinalized;
     }
 

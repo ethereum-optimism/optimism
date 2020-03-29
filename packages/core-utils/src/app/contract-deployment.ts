@@ -3,11 +3,14 @@
 /* External Imports */
 import { config } from 'dotenv'
 import { Contract, ContractFactory, ethers, Wallet } from 'ethers'
+import { stripZeros, hexlify, RLP, getAddress } from 'ethers/utils'
 import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import { ContractDeploymentFunction } from '../types'
-import { sleep } from './misc'
+import { add0x } from '../app'
+import { sleep, isHexStringEmptyOrUndefined } from './misc'
+import { keccak256 } from './crypto'
 
 /**
  * Makes sure the necessary environment parameters are defined and loads environment config.
@@ -107,4 +110,39 @@ export const deploy = async (
   }
 
   return deployContractFunction(wallet)
+}
+
+/**
+ * Gets the address the of a deployed contract, assuming it is deployed from the
+ * provided address with the provided nonce through the given provider.
+ *
+ * @param nonce The nonce from which the deployed address should be derived.
+ * @param provider The provider used to deploy the contract
+ * @param address The address from which the contract will be deployed
+ * @returns contractAddress The address of the first deployed contract or `null` if one hasn't been deployed yet
+ */
+export const getDeployedContractAddress = async (
+  nonce: number,
+  provider: Provider,
+  address: string
+): Promise<string | undefined> => {
+  const contractAddress = generateAddress(address, nonce)
+
+  if (!isHexStringEmptyOrUndefined(await provider.getCode(contractAddress))) {
+    return contractAddress
+  }
+}
+
+/**
+ * Generates a contract address based on an account address and nonce
+ * @param addresss The account address
+ * @param nonce The nonce
+ * @returns contractAddress The address
+ */
+export const generateAddress = async (address: string, nonce: number) => {
+  return getAddress(
+    add0x(
+      keccak256(RLP.encode([getAddress(address), stripZeros(hexlify(nonce))]))
+    ).substring(26)
+  )
 }

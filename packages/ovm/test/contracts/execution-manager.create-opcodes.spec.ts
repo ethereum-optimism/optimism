@@ -13,7 +13,7 @@ import * as InvalidOpcodes from '../../build/contracts/InvalidOpcodes.json'
 const log = getLogger('execution-manager-create', true)
 
 /* Internal Imports */
-import { OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
+import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
 import {
   DEFAULT_ETHNODE_GAS_LIMIT,
   gasLimit,
@@ -48,7 +48,7 @@ describe('ExecutionManager -- Create opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 
@@ -60,7 +60,7 @@ describe('ExecutionManager -- Create opcodes', () => {
     purityCheckedExecutioManager = await deployContract(
       wallet,
       ExecutionManager, // Note: this is false, so it's purity checked.
-      [OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 

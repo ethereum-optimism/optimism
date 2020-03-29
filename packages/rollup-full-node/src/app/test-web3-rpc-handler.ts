@@ -1,15 +1,17 @@
 /* External Imports */
 import { add0x, getLogger, castToNumber } from '@eth-optimism/core-utils'
-import { OPCODE_WHITELIST_MASK } from '@eth-optimism/ovm'
-
-import { createMockProvider, getWallets } from 'ethereum-waffle'
-import { Contract, Wallet } from 'ethers'
-import { JsonRpcProvider } from 'ethers/providers'
+import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from './index'
+import { initializeL2Node } from './index'
 import { DefaultWeb3Handler } from './web3-rpc-handler'
-import { UnsupportedMethodError, Web3RpcMethods } from '../types'
+import {
+  L2NodeContext,
+  L2ToL1MessageSubmitter,
+  UnsupportedMethodError,
+  Web3RpcMethods,
+} from '../types'
+import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('test-web3-handler')
 
@@ -26,31 +28,23 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * TestHandler that handles Web3 requests to it.
    *
+   * @param messageSubmitter (optional) The L2MessageSubmitter to use.
    * @param provider (optional) The web3 provider to use.
    * @returns The constructed Web3 handler.
    */
   public static async create(
-    provider: JsonRpcProvider = createMockProvider({
-      gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
-      allowUnlimitedContractSize: true,
-    })
+    messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
+    provider?: JsonRpcProvider
   ): Promise<TestWeb3Handler> {
-    // Initialize a fullnode for us to interact with
-    const [wallet] = getWallets(provider)
-    const executionManager: Contract = await DefaultWeb3Handler.deployExecutionManager(
-      wallet,
-      OPCODE_WHITELIST_MASK
-    )
-
-    return new TestWeb3Handler(provider, wallet, executionManager)
+    const context: L2NodeContext = await initializeL2Node(provider)
+    return new TestWeb3Handler(messageSubmitter, context)
   }
 
   protected constructor(
-    provider: JsonRpcProvider,
-    wallet: Wallet,
-    executionManager: Contract
+    messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
+    context: L2NodeContext
   ) {
-    super(provider, wallet, executionManager)
+    super(messageSubmitter, context)
   }
 
   /**
@@ -67,7 +61,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
         this.assertParameters(params, 0)
         return add0x(this.getTimestamp().toString(16))
       case Web3RpcMethods.mine:
-        return this.provider.send(Web3RpcMethods.mine, params)
+        return this.context.provider.send(Web3RpcMethods.mine, params)
       case Web3RpcMethods.snapshot:
         this.assertParameters(params, 0)
         return this.snapshot()
@@ -110,7 +104,10 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The snapshot id that can be used as an parameter of the revert endpoint
    */
   private async snapshot(): Promise<string> {
-    const snapShotId = await this.provider.send(Web3RpcMethods.snapshot, [])
+    const snapShotId = await this.context.provider.send(
+      Web3RpcMethods.snapshot,
+      []
+    )
     this.timestampIncreaseSnapshots[snapShotId] = this.timestampIncreaseSeconds
     return snapShotId
   }
@@ -120,7 +117,9 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @param The snapshot id of the snapshot to restore
    */
   private async revert(snapShotId: string): Promise<string> {
-    const response = this.provider.send(Web3RpcMethods.revert, [snapShotId])
+    const response = this.context.provider.send(Web3RpcMethods.revert, [
+      snapShotId,
+    ])
     this.timestampIncreaseSeconds = this.timestampIncreaseSnapshots[snapShotId]
     return response
   }
