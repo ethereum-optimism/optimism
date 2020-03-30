@@ -142,13 +142,18 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       const receipt = await provider.getTransactionReceipt(txResult.hash)
       const txLogs = receipt.logs
 
-      const l2ToL1EventTopic = ethers.utils.id('L2ToL1Message(address,bytes)')
+      const l2ToL1EventTopic = ethers.utils.id(
+        'L2ToL1Message(uint256,address,bytes)'
+      )
       const crossChainMessageEvent = txLogs.find((logged) => {
         return logged.topics.includes(l2ToL1EventTopic)
       })
 
       crossChainMessageEvent.data.should.equal(
-        abi.encode(['address', 'bytes'], [callContractAddress, bytesToSendToL1])
+        abi.encode(
+          ['uint', 'address', 'bytes'],
+          [0, callContractAddress, bytesToSendToL1]
+        )
       )
     })
   })
