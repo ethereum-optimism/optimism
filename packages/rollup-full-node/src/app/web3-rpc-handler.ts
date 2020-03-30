@@ -57,14 +57,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     web3Provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
-    // const timestamp = getCurrentTime()
-    // const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
-    //
-    // const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
-    // const blockNumber = await l2NodeContext.provider.getBlockNumber()
-    // handler.blockTimestamps[blockNumber] = timestamp
-    // return handler
+    const timestamp = getCurrentTime()
     const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
+
+    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
+    const blockNumber = await l2NodeContext.provider.getBlockNumber()
+    handler.blockTimestamps[blockNumber] = timestamp
+    return handler
+    // const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
     return new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
   }
 

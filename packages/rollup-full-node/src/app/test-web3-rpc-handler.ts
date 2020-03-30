@@ -42,14 +42,14 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     provider?: JsonRpcProvider
   ): Promise<TestWeb3Handler> {
-    // const timestamp = getCurrentTime()
-    // const context: L2NodeContext = await initializeL2Node(provider)
-    // const blockNumber = await context.provider.getBlockNumber()
-    // const handler = new TestWeb3Handler(messageSubmitter, context)
-    // handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp
-    // return handler
+    const timestamp = getCurrentTime()
     const context: L2NodeContext = await initializeL2Node(provider)
-    return new TestWeb3Handler(messageSubmitter, context)
+    const blockNumber = await context.provider.getBlockNumber()
+    const handler = new TestWeb3Handler(messageSubmitter, context)
+    handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp
+    return handler
+    // const context: L2NodeContext = await initializeL2Node(provider)
+    // return new TestWeb3Handler(messageSubmitter, context)
   }
 
   protected constructor(
