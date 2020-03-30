@@ -104,7 +104,9 @@ describe('Execution Manager -- Call opcodes', () => {
       const signedMessage = await wallet.sign(transaction)
       const [v, r, s] = ethers.utils.RLP.decode(signedMessage).slice(-3)
 
-      await TestUtils.assertThrowsAsync(async () => {
+      await TestUtils.assertRevertsAsync(
+        "Timestamp must be greater than 0",
+      async () => {
         // Call using Ethers
         const tx = await executionManager.executeEOACall(
           0,
@@ -119,6 +121,7 @@ describe('Execution Manager -- Call opcodes', () => {
         await provider.waitForTransaction(tx.hash)
       })
     })
+
     it('properly executes a raw call -- 0 param', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
