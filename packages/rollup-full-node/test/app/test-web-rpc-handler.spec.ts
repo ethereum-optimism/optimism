@@ -43,7 +43,7 @@ describe('TestHandler', () => {
       const currentTime = secondsSinceEpoch()
       const latestBlock = await testHandler.handleRequest(
         Web3RpcMethods.getBlockByNumber,
-        ["latest", false]
+        ['latest', false]
       )
       const timeAfter = secondsSinceEpoch()
 
@@ -55,7 +55,7 @@ describe('TestHandler', () => {
     it('should increase timestamp', async () => {
       let latestBlock = await testHandler.handleRequest(
         Web3RpcMethods.getBlockByNumber,
-        ["latest", false]
+        ['latest', false]
       )
       const previousTimestamp: number = hexStrToNumber(latestBlock['timestamp'])
 
@@ -71,7 +71,7 @@ describe('TestHandler', () => {
 
       latestBlock = await testHandler.handleRequest(
         Web3RpcMethods.getBlockByNumber,
-        ["latest", false]
+        ['latest', false]
       )
       const fetchedTimestamp: number = hexStrToNumber(latestBlock['timestamp'])
       fetchedTimestamp.should.be.lte(
@@ -136,8 +136,8 @@ describe('TestHandler', () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      let latestBlock = await httpProvider.getBlock("latest", false)
-      const startTimestamp = await latestBlock["timestamp"]
+      let latestBlock = await httpProvider.getBlock('latest', false)
+      const startTimestamp = await latestBlock['timestamp']
       // Increase timestamp by 1 second
       await httpProvider.send('evm_increaseTime', [1])
       // Take a snapshot at timestamp + 1
@@ -145,8 +145,8 @@ describe('TestHandler', () => {
       // Increase timestamp by 1 second again
       await httpProvider.send('evm_increaseTime', [1])
       const response2 = await httpProvider.send('evm_revert', [snapShotId])
-      latestBlock = await httpProvider.getBlock("latest", false)
-      const timestamp = await latestBlock["timestamp"]
+      latestBlock = await httpProvider.getBlock('latest', false)
+      const timestamp = await latestBlock['timestamp']
 
       castToNumber(timestamp).should.eq(startTimestamp)
       testRpcServer.close()
