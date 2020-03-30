@@ -97,7 +97,7 @@ describe('Web3Handler', () => {
     }
   })
 
-  describe('the getBlockByNumber endpoint', () => {
+  describe.skip('the getBlockByNumber endpoint', () => {
     it('should return a block with the correct timestamp', async () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const block = await httpProvider.getBlock('latest')
