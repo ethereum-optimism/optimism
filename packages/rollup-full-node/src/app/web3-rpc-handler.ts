@@ -298,7 +298,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     log.debug(`Parsing block #${block['number']}: ${JSON.stringify(block)}`)
 
-    block['timestamp'] = numberToHexString(this.blockTimestamps[block['number']])
+    block['timestamp'] = numberToHexString(
+      this.blockTimestamps[block['number']]
+    )
     if (fullObjects) {
       block['transactions'] = (
         await Promise.all(
