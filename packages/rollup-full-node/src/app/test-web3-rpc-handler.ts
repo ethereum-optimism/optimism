@@ -80,7 +80,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     }
   }
 
- /**
+  /**
    * Gets the current number of seconds since the epoch.
    *
    * @returns The seconds since epoch.

@@ -119,7 +119,7 @@ describe('Web3Handler', () => {
         'ovm_getExecutionManagerAddress',
         []
       )
-      const { timestamp } = await httpProvider.getBlock("latest")
+      const { timestamp } = await httpProvider.getBlock('latest')
       const wallet = getWallet(httpProvider)
       const simpleStorage = await deploySimpleStorage(wallet)
       await setAndGetStorage(

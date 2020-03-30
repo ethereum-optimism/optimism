@@ -46,7 +46,7 @@ describe('TestHandler', () => {
       )
       const timeAfter = secondsSinceEpoch()
 
-      const timestamp: number = latestBlock["timestamp"]
+      const timestamp: number = latestBlock['timestamp']
       timestamp.should.be.gte(currentTime, 'Timestamp out of range')
       timestamp.should.be.lte(timeAfter, 'Timestamp out of range')
     })
@@ -56,7 +56,7 @@ describe('TestHandler', () => {
         Web3RpcMethods.getBlockByNumber,
         []
       )
-      const previousTimestamp: string = latestBlock["timestamp"]
+      const previousTimestamp: string = latestBlock['timestamp']
 
       const increase: number = 9999
       const setRes: string = await testHandler.handleRequest(
@@ -72,7 +72,7 @@ describe('TestHandler', () => {
         Web3RpcMethods.getBlockByNumber,
         []
       )
-      const fetchedTimestamp: string = latestBlock["timestamp"]
+      const fetchedTimestamp: string = latestBlock['timestamp']
       fetchedTimestamp.should.be.gte(
         previousTimestamp + increase,
         'Timestamp was not increased properly!'

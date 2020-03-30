@@ -289,7 +289,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     block: object,
     fullObjects: boolean
   ): Promise<object> {
-    if(!block) {
+    if (!block) {
       return block
     }
 
@@ -489,7 +489,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     })
   }
 
- /**
+  /**
    * Gets the current number of seconds since the epoch.
    *
    * @returns The seconds since epoch.
