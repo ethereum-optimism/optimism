@@ -41,7 +41,7 @@ export class TestUtils {
 
   public static async assertRevertsAsync(
     revertMessage: string,
-    func: () => Promise<any>,
+    func: () => Promise<any>
   ): Promise<void> {
     let succeeded = true
     try {
@@ -49,7 +49,10 @@ export class TestUtils {
       succeeded = false
     } catch (e) {
       if (e instanceof Error) {
-        assert.equal(e.message, `VM Exception while processing transaction: revert ${revertMessage}`)
+        assert.equal(
+          e.message,
+          `VM Exception while processing transaction: revert ${revertMessage}`
+        )
       } else {
         succeeded = false
       }
@@ -59,6 +62,5 @@ export class TestUtils {
       succeeded,
       "Function didn't throw as expected or threw the wrong error."
     )
-
   }
 }
