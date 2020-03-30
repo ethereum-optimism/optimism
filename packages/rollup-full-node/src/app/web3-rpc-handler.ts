@@ -270,20 +270,20 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     fullObjects: boolean
   ): Promise<any> {
     log.debug(`Got request to get block ${defaultBlock}.`)
-    const res: object = await this.context.provider.send(
+    const res: string = await this.context.provider.send(
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
     // const block = this.parseInternalBlock(res, fullObjects)
-    const block = res
+    // const block = res
 
     log.debug(
-      `Returning block: ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
-        JSON.stringify(block)
+      `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
+        res
       )}`
     )
 
-    return block
+    return res
   }
 
   public async parseInternalBlock(
