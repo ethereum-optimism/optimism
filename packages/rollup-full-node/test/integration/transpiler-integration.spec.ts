@@ -57,9 +57,8 @@ describe(`Various opcodes should be usable in combination with transpiler and fu
   })
   it('should work for block.timestamp', async () => {
     const timeGetter = await deployContract(wallet, TimeGetter, [], [])
-    const handlerTime = await handler.handleRequest(`evm_getTime`, [])
     const contractTime = await timeGetter.getTimestamp()
-    contractTime._hex.should.equal(handlerTime)
+    contractTime.toNumber().should.be.gt(0)
   })
   it('should work for msg.sender', async () => {
     const callerReturner = await deployContract(wallet, CallerReturner, [], [])

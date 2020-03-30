@@ -33,7 +33,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node } from './utils'
+import { initializeL2Node, getCurrentTime } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
@@ -43,6 +43,7 @@ const lockKey: string = 'LOCK'
 const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
+  protected blockTimestamps: Object = {}
   private lock: AsyncLock
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -56,9 +57,13 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     web3Provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
+    const timestamp = getCurrentTime()
     const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
 
-    return new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
+    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
+    const blockNumber = await l2NodeContext.provider.getBlockNumber()
+    handler.blockTimestamps[blockNumber] = timestamp
+    return handler
   }
 
   protected constructor(
@@ -267,18 +272,59 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     fullObjects: boolean
   ): Promise<any> {
     log.debug(`Got request to get block ${defaultBlock}.`)
-    const res: string = await this.context.provider.send(
+    const res: object = await this.context.provider.send(
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
+    const block = this.parseInternalBlock(res, fullObjects)
+
     log.debug(
       `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
-        res
+        block
       )}`
     )
-    return res
+
+    return block
   }
 
+  public async parseInternalBlock(
+    block: object,
+    fullObjects: boolean
+  ): Promise<object> {
+    if (!block) {
+      return block
+    }
+
+    log.debug(`Parsing block #${block['number']}: ${JSON.stringify(block)}`)
+
+    if (this.blockTimestamps[block['number']]) {
+      block['timestamp'] = numberToHexString(
+        this.blockTimestamps[block['number']]
+      )
+    }
+    if (fullObjects) {
+      block['transactions'] = (
+        await Promise.all(
+          block['transactions'].map(async (transaction) => {
+            transaction['hash'] = await this.getInternalTxHash(
+              transaction['hash']
+            )
+            return transaction
+          })
+        )
+      )
+        // Filter transactions that aren't included in the execution manager
+        .filter((transaction) => transaction['hash'] === ZERO_ADDRESS)
+    }
+
+    log.debug(
+      `Transforming block #${block['number']} complete: ${JSON.stringify(
+        block
+      )}`
+    )
+
+    return block
+  }
   public async getCode(
     address: Address,
     defaultBlock: string
@@ -380,6 +426,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
+    const timestamp = this.getTimestamp()
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
     return this.lock.acquire(lockKey, async () => {
       log.debug('Sending raw transaction with params:', rawOvmTx)
@@ -441,6 +488,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
       await this.processTransactionEvents(receipt)
 
+      this.blockTimestamps[receipt.blockNumber] = timestamp
       log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
       // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
       return ovmTxHash
@@ -453,7 +501,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @returns The seconds since epoch.
    */
   protected getTimestamp(): number {
-    return Math.round(Date.now() / 1000)
+    return getCurrentTime()
   }
 
   private async processTransactionEvents(

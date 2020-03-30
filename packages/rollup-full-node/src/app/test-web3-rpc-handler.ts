@@ -1,5 +1,10 @@
 /* External Imports */
-import { add0x, getLogger, castToNumber } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  numberToHexString,
+  castToNumber,
+} from '@eth-optimism/core-utils'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
@@ -11,6 +16,7 @@ import {
   UnsupportedMethodError,
   Web3RpcMethods,
 } from '../types'
+import { getCurrentTime } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('test-web3-handler')
@@ -36,8 +42,12 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     provider?: JsonRpcProvider
   ): Promise<TestWeb3Handler> {
+    const timestamp = getCurrentTime()
     const context: L2NodeContext = await initializeL2Node(provider)
-    return new TestWeb3Handler(messageSubmitter, context)
+    const blockNumber = await context.provider.getBlockNumber()
+    const handler = new TestWeb3Handler(messageSubmitter, context)
+    handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp
+    return handler
   }
 
   protected constructor(
@@ -57,9 +67,6 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
         this.increaseTimestamp(params[0])
         log.debug(`Set increased timestamp by ${params[0]} seconds.`)
         return TestWeb3Handler.successString
-      case Web3RpcMethods.getTimestamp:
-        this.assertParameters(params, 0)
-        return add0x(this.getTimestamp().toString(16))
       case Web3RpcMethods.mine:
         return this.context.provider.send(Web3RpcMethods.mine, params)
       case Web3RpcMethods.snapshot:
