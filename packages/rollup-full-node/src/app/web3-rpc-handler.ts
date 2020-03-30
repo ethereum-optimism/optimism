@@ -592,7 +592,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     }
     // Construct the raw transaction calldata
     const internalCalldata = this.getTransactionCalldata(
-      0,
+      this.getTimestamp(),
       0,
       ovmTo,
       ovmTx.data,
