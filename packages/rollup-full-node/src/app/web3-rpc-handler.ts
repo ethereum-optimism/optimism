@@ -33,7 +33,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node, getTimestamp } from './utils'
+import { initializeL2Node, getCurrentTime } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
@@ -57,7 +57,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     web3Provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
-    const timestamp = getTimestamp()
+    const timestamp = getCurrentTime()
     const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
 
     const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
@@ -181,7 +181,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      getTimestamp(),
+      getCurrentTime(),
       0,
       txObject['to'],
       txObject['data'],
@@ -231,7 +231,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      getTimestamp(),
+      getCurrentTime(),
       0,
       txObject['to'],
       txObject['data'],
@@ -416,7 +416,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
-    const timestamp = getTimestamp()
+    const timestamp = getCurrentTime()
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
     return this.lock.acquire(lockKey, async () => {
       log.debug('Sending raw transaction with params:', rawOvmTx)

@@ -16,7 +16,7 @@ import {
   UnsupportedMethodError,
   Web3RpcMethods,
 } from '../types'
-import { getTimestamp } from './utils'
+import { getCurrentTime } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('test-web3-handler')
@@ -42,7 +42,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     provider?: JsonRpcProvider
   ): Promise<TestWeb3Handler> {
-    const timestamp = getTimestamp()
+    const timestamp = getCurrentTime()
     const context: L2NodeContext = await initializeL2Node(provider)
     const blockNumber = await context.provider.getBlockNumber()
     const handler = new TestWeb3Handler(messageSubmitter, context)
@@ -69,7 +69,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
         return TestWeb3Handler.successString
       case Web3RpcMethods.getTimestamp:
         this.assertParameters(params, 0)
-        return add0x((await this.getTimestamp()).toString(16))
+        return add0x((await this.getCurrentTime()).toString(16))
       case Web3RpcMethods.mine:
         return this.context.provider.send(Web3RpcMethods.mine, params)
       case Web3RpcMethods.snapshot:
@@ -87,7 +87,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * Returns the configured timestamp if there is one, else standard timestamp calculation.
    * @returns The timestamp.
    */
-  protected async getTimestamp(): Promise<number> {
+  protected async getCurrentTime(): Promise<number> {
     const blockNumber = await this.context.provider.getBlockNumber()
     return (
       this.blockTimestamps[numberToHexString(blockNumber)] +

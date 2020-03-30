@@ -127,6 +127,6 @@ export async function deployContract(
  *
  * @returns The seconds since epoch.
  */
-export function getTimestamp(): number {
+export function getCurrentTime(): number {
   return Math.round(new Date().getTime() / 1000)
 }
