@@ -118,7 +118,16 @@ describe('SimpleStorage', () => {
       const callData = getUnsignedTransactionCalldata(
         executionManager,
         'executeEOACall',
-        [getCurrentTime(), 0, transaction.nonce, transaction.to, transaction.data, v, r, s]
+        [
+          getCurrentTime(),
+          0,
+          transaction.nonce,
+          transaction.to,
+          transaction.data,
+          v,
+          r,
+          s,
+        ]
       )
 
       const result = await executionManager.provider.call({
