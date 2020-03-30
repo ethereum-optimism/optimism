@@ -19,6 +19,7 @@ The Helm operations have been abstracted away through Terraform for installation
 |       `consul_bootstrap_expect`        | number |                  `3`                   |
 |          `consul_datacenter`           | string |                 `dc1`                  |
 |           `consul_replicas`            | number |                  `5`                   |
+|         `docker_registry_addr`         | string |          `192.168.64.1:5000`           |
 | `k8s_certificates_secret_name_prefix`  | string |         `omisego-certificates`         |
 |           `k8s_config_path`            | string |            `~/.kube/config`            |
 |         `k8s_context_cluster`          | string |               `minikube`               |

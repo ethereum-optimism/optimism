@@ -16,6 +16,12 @@ variable "consul_replicas" {
   description = "The number of Consul servers to create in the cluster"
 }
 
+variable "docker_registry_addr" {
+  type        = string
+  default     = "192.168.64.1:5000"
+  description = "The address of the Docker registry to use for pulling pod images (blank if using global registry)"
+}
+
 variable "k8s_certificates_secret_name_prefix" {
   type        = string
   default     = "omisego-certificates"

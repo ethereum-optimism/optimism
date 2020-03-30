@@ -33,3 +33,19 @@ provider "helm" {
 provider "vault" {
   address = var.unsealer_vault_addr
 }
+
+/*
+ * Setup local variables to leverage in the rest of the scripts
+ */
+locals {
+  base_imgs = {
+    consul       = "consul:1.7.1"
+    consul_k8s   = "hashicorp/consul-k8s:0.12.0"
+    vault        = "vault:1.3.2"
+    custom_vault = "omisego/immutability-vault-ethereum:1.0.0"
+  }
+
+  consul_img     = var.docker_registry_addr == "" ? local.base_imgs.consul : "${var.docker_registry_addr}/${local.base_imgs.consul}"
+  consul_k8s_img = var.docker_registry_addr == "" ? local.base_imgs.consul_k8s : "${var.docker_registry_addr}/${local.base_imgs.consul_k8s}"
+  vault_img      = var.docker_registry_addr == "" ? local.base_imgs.vault : "${var.docker_registry_addr}/${local.base_imgs.custom_vault}"
+}

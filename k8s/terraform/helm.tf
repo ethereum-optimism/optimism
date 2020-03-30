@@ -25,6 +25,16 @@ resource "helm_release" "consul_chart" {
   }
 
   set {
+    name  = "global.image"
+    value = local.consul_img
+  }
+
+  set {
+    name  = "global.imageK8S"
+    value = local.consul_k8s_img
+  }
+
+  set {
     name  = "global.datacenter"
     value = var.consul_datacenter
   }
@@ -76,6 +86,11 @@ resource "helm_release" "vault_chart" {
   }
 
   set {
+    name  = "server.image"
+    value = local.vault_img
+  }
+
+  set {
     name  = "server.acl.token"
     value = data.kubernetes_secret.vault_acl_token.data.token
   }
@@ -98,6 +113,11 @@ resource "helm_release" "vault_chart" {
   set {
     name  = "server.unseal.token"
     value = data.vault_generic_secret.unseal_token.data["value"]
+  }
+
+  set {
+    name  = "consul.image"
+    value = local.consul_img
   }
 
   set {
