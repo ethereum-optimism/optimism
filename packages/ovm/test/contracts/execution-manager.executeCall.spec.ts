@@ -102,6 +102,7 @@ describe('Execution Manager -- Call opcodes', () => {
         0,
         transaction.to,
         transaction.data,
+        wallet.address,
         ZERO_ADDRESS,
         true
       )
@@ -241,6 +242,7 @@ describe('Execution Manager -- Call opcodes', () => {
           dummyContractAddress,
           internalCalldata,
           wallet.address,
+          ZERO_ADDRESS,
           true,
         ]
       )
@@ -282,6 +284,7 @@ describe('Execution Manager -- Call opcodes', () => {
           dummyContractAddress,
           internalCalldata,
           wallet.address,
+          ZERO_ADDRESS,
           true,
         ]
       )

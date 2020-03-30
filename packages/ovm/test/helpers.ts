@@ -124,6 +124,7 @@ export const executeUnsignedEOACall = async (
     ovmTo,
     data,
     wallet.address,
+    ZERO_ADDRESS,
     allowRevert
   )
   // Return the parsed transaction values
