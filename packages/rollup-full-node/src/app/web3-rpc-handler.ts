@@ -275,7 +275,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       [defaultBlock, fullObjects]
     )
     const block = this.parseInternalBlock(res, fullObjects)
-    // const block = res
 
     log.debug(
       `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
