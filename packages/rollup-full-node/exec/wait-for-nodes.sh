@@ -5,8 +5,6 @@ set -e
 
 cmd="$@"
 
-TIMEOUT=10
-
 wait_for_server_to_be_reachable()
 {
   if [ -n "$1" ]; then
@@ -15,7 +13,7 @@ wait_for_server_to_be_reachable()
       sleep 1
       echo "Slept $COUNT times for $1 to be up..."
 
-      if [ "$COUNT" -ge "$TIMEOUT" ]; then
+      if [ "$COUNT" -ge "$STARTUP_WAIT_TIMEOUT" ]; then
         echo "Timeout waiting for server at $1"
         exit 1
       fi
