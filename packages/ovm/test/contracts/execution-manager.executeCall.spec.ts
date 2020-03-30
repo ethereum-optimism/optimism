@@ -105,21 +105,22 @@ describe('Execution Manager -- Call opcodes', () => {
       const [v, r, s] = ethers.utils.RLP.decode(signedMessage).slice(-3)
 
       await TestUtils.assertRevertsAsync(
-        "Timestamp must be greater than 0",
-      async () => {
-        // Call using Ethers
-        const tx = await executionManager.executeEOACall(
-          0,
-          0,
-          transaction.nonce,
-          transaction.to,
-          transaction.data,
-          padToLength(v, 4),
-          padToLength(r, 64),
-          padToLength(s, 64)
-        )
-        await provider.waitForTransaction(tx.hash)
-      })
+        'Timestamp must be greater than 0',
+        async () => {
+          // Call using Ethers
+          const tx = await executionManager.executeEOACall(
+            0,
+            0,
+            transaction.nonce,
+            transaction.to,
+            transaction.data,
+            padToLength(v, 4),
+            padToLength(r, 64),
+            padToLength(s, 64)
+          )
+          await provider.waitForTransaction(tx.hash)
+        }
+      )
     })
 
     it('properly executes a raw call -- 0 param', async () => {
