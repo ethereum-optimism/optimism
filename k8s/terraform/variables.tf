@@ -58,12 +58,6 @@ variable "k8s_consul_vault_acl_token_name" {
   description = "The name of the Kubernetes secret that will have the Consul Vault ACL token to clean"
 }
 
-variable "k8s_consul_gossip_key_name" {
-  type        = string
-  default     = "omisego-consul-gossip-encryption-key"
-  description = "The name of the secret in Kubernetes to store the Consul gossip key"
-}
-
 variable "k8s_namespace" {
   type        = string
   default     = "default"

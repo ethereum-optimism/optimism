@@ -5,8 +5,6 @@
  * prior to attempting to install the Helm chart
  */
 resource "helm_release" "consul_chart" {
-  depends_on = [kubernetes_secret.consul_gossip_key]
-
   name      = "omisego-consul"
   chart     = "../helm/consul"
   namespace = var.k8s_namespace
@@ -40,13 +38,8 @@ resource "helm_release" "consul_chart" {
   }
 
   set {
-    name  = "global.gossipEncryption.secretName"
-    value = var.k8s_consul_gossip_key_name
-  }
-
-  set {
-    name  = "global.gossipEncryption.secretKey"
-    value = "key"
+    name  = "global.gossipKey"
+    value = data.vault_generic_secret.consul_gossip_key.data["value"]
   }
 
   set {
@@ -66,11 +59,10 @@ resource "helm_release" "consul_chart" {
  * This depends on the Consul Helm chart being installed already
  */
 resource "helm_release" "vault_chart" {
-  depends_on = [data.kubernetes_secret.vault_acl_token]
-
-  name      = "omisego-vault"
-  chart     = "../helm/vault"
-  namespace = var.k8s_namespace
+  depends_on = [helm_release.consul_chart]
+  name       = "omisego-vault"
+  chart      = "../helm/vault"
+  namespace  = var.k8s_namespace
 
   atomic          = true
   cleanup_on_fail = true
@@ -122,7 +114,7 @@ resource "helm_release" "vault_chart" {
 
   set {
     name  = "consul.acl.token"
-    value = var.k8s_consul_client_acl_token_name
+    value = data.kubernetes_secret.client_acl_token.data.token
   }
 
   set {
@@ -131,17 +123,7 @@ resource "helm_release" "vault_chart" {
   }
 
   set {
-    name  = "consul.replicas"
-    value = var.consul_replicas
-  }
-
-  set {
-    name  = "consul.gossipEncryption.secretName"
-    value = var.k8s_consul_gossip_key_name
-  }
-
-  set {
-    name  = "consul.gossipEncryption.secretKey"
-    value = "key"
+    name  = "consul.gossipKey"
+    value = data.vault_generic_secret.consul_gossip_key.data["value"]
   }
 }

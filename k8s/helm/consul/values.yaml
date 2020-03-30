@@ -4,16 +4,12 @@ global:
 
   image: "consul:1.7.1"
   imageK8S: "hashicorp/consul-k8s:0.12.0"
-  # image: "192.168.64.1:5000/consul:1.7.1"
-  # imageK8S: "192.168.64.1:5000/hashicorp/consul-k8s:0.12.0"
   pullPolicy: IfNotPresent
 
   domain: consul
   datacenter: dc1
 
-  gossipEncryption:
-    secretName: ""
-    secretKey: ""
+  gossipKey: ""
 
 server:
   replicas: 3

@@ -4,9 +4,21 @@
  * secrets AFTER the Consul Helm chart has been successfully installed
  */
 data "kubernetes_secret" "bootstrap_acl_token" {
-  depends_on = [helm_release.vault_chart]
+  depends_on = [helm_release.consul_chart]
   metadata {
     name = var.k8s_consul_bootstrap_acl_token_name
+  }
+}
+
+/*
+ * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/d/secret.html
+ * Loads the Consul client ACL token from the K8S cluster's
+ * secrets AFTER the Consul Helm chart has been successfully installed
+ */
+data "kubernetes_secret" "client_acl_token" {
+  depends_on = [helm_release.consul_chart]
+  metadata {
+    name = var.k8s_consul_client_acl_token_name
   }
 }
 
@@ -20,37 +32,6 @@ data "kubernetes_secret" "vault_acl_token" {
   metadata {
     name = var.k8s_consul_vault_acl_token_name
   }
-}
-
-/*
- * Kubernetes Service - https://www.terraform.io/docs/providers/kubernetes/d/service.html
- * Retrieves the attributes for the K8S service exposing the Vault server pods
- * Depends on the Vault Helm chart being successfully installed
- */
-data "kubernetes_service" "vault" {
-  depends_on = [helm_release.vault_chart]
-  metadata {
-    name      = "omisego-vault-server"
-    namespace = var.k8s_namespace
-  }
-}
-
-/*
- * Kubernetes Secret - https://www.terraform.io/docs/providers/kubernetes/r/secret.html
- * Injects the Consul gossip encryption key from the unsealer Vault
- * into a K8S secret to be usable by the Consul agents running in
- * the pods for initialization
- */
-resource "kubernetes_secret" "consul_gossip_key" {
-  metadata {
-    name = var.k8s_consul_gossip_key_name
-  }
-
-  data = {
-    key = data.vault_generic_secret.consul_gossip_key.data["value"]
-  }
-
-  type = "Opaque"
 }
 
 /*

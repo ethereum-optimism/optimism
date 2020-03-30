@@ -13,8 +13,6 @@ spec:
   serviceName: {{ .Chart.Name }}-server
   podManagementPolicy: Parallel
   replicas: {{ .Values.server.replicas }}
-  updateStrategy:
-    type: RollingUpdate
   selector:
     matchLabels:
       app: {{ .Chart.Name }}
@@ -42,15 +40,6 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            - name: GOSSIP_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.global.gossipEncryption.secretName }}
-                  key: {{ .Values.global.gossipEncryption.secretKey }}
-            - name: NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
             {{- if .Values.global.tlsEnabled }}
             - name: CONSUL_HTTP_ADDR
               value: https://localhost:8501
@@ -70,15 +59,13 @@ spec:
                 -advertise="${POD_IP}" \
                 -bind=0.0.0.0 \
                 -bootstrap-expect={{ .Values.server.bootstrapExpect }} \
-                {{- range $index := until (.Values.server.replicas | int) }}
-                -retry-join=${CONSUL_FULLNAME}-{{ $index }}.${CONSUL_FULLNAME}.${NAMESPACE}.svc \
-                {{- end }}
+                -retry-join='provider=k8s label_selector="app={{ .Chart.Name }},component=server"'
                 -client=0.0.0.0 \
                 -config-file=/consul/userconfig/config.json \
                 -datacenter={{ .Values.global.datacenter }} \
                 -data-dir=/consul/data \
                 -domain={{ .Values.global.domain }} \
-                -encrypt="${GOSSIP_KEY}" \
+                -encrypt="{{ .Values.global.gossipKey }}" \
                 -server \
                 -ui \
                 -disable-host-node-id

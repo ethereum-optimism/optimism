@@ -52,27 +52,14 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          - name: GOSSIP_ENCRYPTION_KEY
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.consul.gossipEncryption.secretName }}
-                key: {{ .Values.consul.gossipEncryption.secretKey }}
-          - name: CONSUL_CLIENT_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.consul.acl.token }}
-                key: token
         command: 
           - "/bin/sh"
           - "-ec"
           - |
             exec /bin/consul agent \
-              {{- range $index := until (.Values.consul.replicas | int) }}
-              -retry-join=omisego-consul-server-{{ $index }}.omisego-consul-server.${NAMESPACE}.svc \
-              {{- end }}
-              -log-level=debug \
-              -hcl='acl { tokens = { default = "${CONSUL_CLIENT_TOKEN}" } }' \
-              -encrypt=$(GOSSIP_ENCRYPTION_KEY) \
+              -retry-join='provider=k8s label_selector="app=omisego-consul,component=server"'
+              -hcl='acl { tokens = { default = "{{ .Values.consul.acl.token }}" } }' \
+              -encrypt="{{ .Values.consul.gossipKey }}" \
               -config-file=/consul/config/sidecar.json \
               -domain={{ .Values.consul.domain }} \
               -datacenter={{ .Values.consul.datacenter }} \
