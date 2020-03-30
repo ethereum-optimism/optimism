@@ -272,20 +272,20 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     fullObjects: boolean
   ): Promise<any> {
     log.debug(`Got request to get block ${defaultBlock}.`)
-    const res: string = await this.context.provider.send(
+    const res: object = await this.context.provider.send(
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
-    // const block = this.parseInternalBlock(res, fullObjects)
+    const block = this.parseInternalBlock(res, fullObjects)
     // const block = res
 
     log.debug(
       `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
-        res
+        block
       )}`
     )
 
-    return res
+    return block
   }
 
   public async parseInternalBlock(
@@ -298,7 +298,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     log.debug(`Parsing block #${block['number']}: ${JSON.stringify(block)}`)
 
-    block['timestamp'] = this.blockTimestamps[block['number']]
+    block['timestamp'] = numberToHexString(this.blockTimestamps[block['number']])
     if (fullObjects) {
       block['transactions'] = (
         await Promise.all(
