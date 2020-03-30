@@ -23,7 +23,7 @@ import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.js
 
 const log = getLogger('test-web3-handler', true)
 
-const secondsSinceEpoch = (): number => {
+const secondsSinceEopch = (): number => {
   return Math.round(Date.now() / 1000)
 }
 const host = '0.0.0.0'
@@ -39,24 +39,24 @@ describe('TestHandler', () => {
 
   describe('Timestamps', () => {
     it('should get timestamp', async () => {
-      const currentTime = secondsSinceEpoch()
-      const latestBlock = await testHandler.handleRequest(
-        Web3RpcMethods.getBlockByNumber,
+      const currentTime = secondsSinceEopch()
+      const res: string = await testHandler.handleRequest(
+        Web3RpcMethods.getTimestamp,
         []
       )
-      const timeAfter = secondsSinceEpoch()
+      const timeAfter = secondsSinceEopch()
 
-      const timestamp: number = latestBlock['timestamp']
+      const timestamp: number = parseInt(remove0x(res), 16)
       timestamp.should.be.gte(currentTime, 'Timestamp out of range')
       timestamp.should.be.lte(timeAfter, 'Timestamp out of range')
     })
 
     it('should increase timestamp', async () => {
-      let latestBlock = await testHandler.handleRequest(
-        Web3RpcMethods.getBlockByNumber,
+      const previous: string = await testHandler.handleRequest(
+        Web3RpcMethods.getTimestamp,
         []
       )
-      const previousTimestamp: string = latestBlock['timestamp']
+      const previousTimestamp: number = parseInt(remove0x(previous), 16)
 
       const increase: number = 9999
       const setRes: string = await testHandler.handleRequest(
@@ -68,11 +68,11 @@ describe('TestHandler', () => {
         'Should increase timestamp!'
       )
 
-      latestBlock = await testHandler.handleRequest(
-        Web3RpcMethods.getBlockByNumber,
+      const fetched: string = await testHandler.handleRequest(
+        Web3RpcMethods.getTimestamp,
         []
       )
-      const fetchedTimestamp: string = latestBlock['timestamp']
+      const fetchedTimestamp: number = parseInt(remove0x(fetched), 16)
       fetchedTimestamp.should.be.gte(
         previousTimestamp + increase,
         'Timestamp was not increased properly!'

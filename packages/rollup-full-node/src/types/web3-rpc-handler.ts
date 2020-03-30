@@ -43,4 +43,5 @@ export enum Web3RpcMethods {
   revert = 'evm_revert',
   mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
+  getTimestamp = 'evm_getTime',
 }

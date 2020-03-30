@@ -562,7 +562,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    */
   private async ovmTxToInternalTx(
     ovmTx: any,
-    timestamp: number
   ): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
@@ -594,7 +593,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     }
     // Construct the raw transaction calldata
     const internalCalldata = this.getTransactionCalldata(
-      timestamp,
+      0,
       0,
       ovmTo,
       ovmTx.data,

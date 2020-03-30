@@ -83,7 +83,7 @@ describe('Web3Handler', () => {
   let baseUrl: string
 
   beforeEach(async () => {
-    fullnodeHandler = await TestWeb3Handler.create()
+    fullnodeHandler = await DefaultWeb3Handler.create()
     fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
 
     fullnodeRpcServer.listen()
