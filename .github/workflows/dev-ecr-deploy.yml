@@ -45,7 +45,11 @@ jobs:
 
       - name: Stop existing dev-rollup-full-node ECS task to auto-start task with new image
         run: |
+        # TODO: REMOVE WHEN EPHEMERAL DEV IS COMPLETELY REPLACED BY SHARED DEV
           ./.github/scripts/stop-ecs-task.sh dev-rollup-full-node rollup-full-node
+        # THIS ONE WILL STAY BECAUSE IT IS FOR SHARED DEV
+          ./.github/scripts/stop-ecs-task.sh dev-full-node full-node
+
 
       - name: Logout of Amazon ECR
         if: always()
