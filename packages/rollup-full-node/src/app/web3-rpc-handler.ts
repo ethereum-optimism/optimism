@@ -181,7 +181,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      getCurrentTime(),
+      this.getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
@@ -231,7 +231,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     )
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      getCurrentTime(),
+      this.getTimestamp(),
       0,
       txObject['to'],
       txObject['data'],
@@ -420,7 +420,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
-    const timestamp = getCurrentTime()
+    const timestamp = this.getTimestamp()
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
     return this.lock.acquire(lockKey, async () => {
       log.debug('Sending raw transaction with params:', rawOvmTx)
@@ -487,6 +487,15 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
       return ovmTxHash
     })
+  }
+
+ /**
+   * Gets the current number of seconds since the epoch.
+   *
+   * @returns The seconds since epoch.
+   */
+  protected getTimestamp(): number {
+    return getCurrentTime()
   }
 
   private async processTransactionEvents(

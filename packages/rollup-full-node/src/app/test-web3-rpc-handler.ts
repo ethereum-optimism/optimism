@@ -83,16 +83,13 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     }
   }
 
-  /**
-   * Returns the configured timestamp if there is one, else standard timestamp calculation.
-   * @returns The timestamp.
+ /**
+   * Gets the current number of seconds since the epoch.
+   *
+   * @returns The seconds since epoch.
    */
-  protected async getCurrentTime(): Promise<number> {
-    const blockNumber = await this.context.provider.getBlockNumber()
-    return (
-      this.blockTimestamps[numberToHexString(blockNumber)] +
-      this.timestampIncreaseSeconds
-    )
+  protected getTimestamp(): number {
+    return getCurrentTime() + this.timestampIncreaseSeconds
   }
 
   /**
