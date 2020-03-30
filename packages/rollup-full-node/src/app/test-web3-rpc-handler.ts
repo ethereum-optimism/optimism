@@ -69,6 +69,9 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
         this.increaseTimestamp(params[0])
         log.debug(`Set increased timestamp by ${params[0]} seconds.`)
         return TestWeb3Handler.successString
+      case Web3RpcMethods.getTimestamp:
+        this.assertParameters(params, 0)
+        return add0x(this.getTimestamp().toString(16))
       case Web3RpcMethods.mine:
         return this.context.provider.send(Web3RpcMethods.mine, params)
       case Web3RpcMethods.snapshot:
@@ -88,7 +91,8 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @returns The seconds since epoch.
    */
   protected getTimestamp(): number {
-    return getCurrentTime() + this.timestampIncreaseSeconds
+    // return getCurrentTime() + this.timestampIncreaseSeconds
+    return super.getTimestamp() + this.timestampIncreaseSeconds
   }
 
   /**
