@@ -7,6 +7,7 @@ import {
   castToNumber,
   hexStrToBuf,
   TestUtils,
+  hexStrToNumber,
 } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 import { getWallets, deployContract } from 'ethereum-waffle'
@@ -23,7 +24,7 @@ import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.js
 
 const log = getLogger('test-web3-handler', true)
 
-const secondsSinceEopch = (): number => {
+const secondsSinceEpoch = (): number => {
   return Math.round(Date.now() / 1000)
 }
 const host = '0.0.0.0'
@@ -39,24 +40,24 @@ describe('TestHandler', () => {
 
   describe('Timestamps', () => {
     it('should get timestamp', async () => {
-      const currentTime = secondsSinceEopch()
-      const res: string = await testHandler.handleRequest(
-        Web3RpcMethods.getTimestamp,
-        []
+      const currentTime = secondsSinceEpoch()
+      const latestBlock = await testHandler.handleRequest(
+        Web3RpcMethods.getBlockByNumber,
+        ["latest", false]
       )
-      const timeAfter = secondsSinceEopch()
+      const timeAfter = secondsSinceEpoch()
 
-      const timestamp: number = parseInt(remove0x(res), 16)
-      timestamp.should.be.gte(currentTime, 'Timestamp out of range')
+      const timestamp: number = hexStrToNumber(latestBlock['timestamp'])
+      timestamp.should.be.lte(currentTime, 'Timestamp out of range')
       timestamp.should.be.lte(timeAfter, 'Timestamp out of range')
     })
 
     it('should increase timestamp', async () => {
-      const previous: string = await testHandler.handleRequest(
-        Web3RpcMethods.getTimestamp,
-        []
+      let latestBlock = await testHandler.handleRequest(
+        Web3RpcMethods.getBlockByNumber,
+        ["latest", false]
       )
-      const previousTimestamp: number = parseInt(remove0x(previous), 16)
+      const previousTimestamp: number = hexStrToNumber(latestBlock['timestamp'])
 
       const increase: number = 9999
       const setRes: string = await testHandler.handleRequest(
@@ -68,12 +69,12 @@ describe('TestHandler', () => {
         'Should increase timestamp!'
       )
 
-      const fetched: string = await testHandler.handleRequest(
-        Web3RpcMethods.getTimestamp,
-        []
+      latestBlock = await testHandler.handleRequest(
+        Web3RpcMethods.getBlockByNumber,
+        ["latest", false]
       )
-      const fetchedTimestamp: number = parseInt(remove0x(fetched), 16)
-      fetchedTimestamp.should.be.gte(
+      const fetchedTimestamp: number = hexStrToNumber(latestBlock['timestamp'])
+      fetchedTimestamp.should.be.lte(
         previousTimestamp + increase,
         'Timestamp was not increased properly!'
       )
@@ -135,7 +136,8 @@ describe('TestHandler', () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
-      const startTimestamp = await httpProvider.send('evm_getTime', [])
+      let latestBlock = await httpProvider.getBlock("latest", false)
+      const startTimestamp = await latestBlock["timestamp"]
       // Increase timestamp by 1 second
       await httpProvider.send('evm_increaseTime', [1])
       // Take a snapshot at timestamp + 1
@@ -143,9 +145,10 @@ describe('TestHandler', () => {
       // Increase timestamp by 1 second again
       await httpProvider.send('evm_increaseTime', [1])
       const response2 = await httpProvider.send('evm_revert', [snapShotId])
-      const timestamp = await httpProvider.send('evm_getTime', [])
-      // Time should be reverted to the timestamp when the snapshot is taken (timestamp + 1)
-      castToNumber(timestamp).should.eq(castToNumber(startTimestamp) + 1)
+      latestBlock = await httpProvider.getBlock("latest", false)
+      const timestamp = await latestBlock["timestamp"]
+
+      castToNumber(timestamp).should.eq(startTimestamp)
       testRpcServer.close()
     })
   })
