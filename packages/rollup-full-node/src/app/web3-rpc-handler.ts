@@ -289,6 +289,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     block: object,
     fullObjects: boolean
   ): Promise<object> {
+    if(!block) {
+      return block
+    }
+
     log.debug(`Parsing block #${block['number']}: ${JSON.stringify(block)}`)
 
     block['timestamp'] = this.blockTimestamps[block['number']]
