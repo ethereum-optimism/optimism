@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   server.hcl: |
+    disable_mlock = "{{ .Values.server.mlockDisabled }}"
     listener "tcp" {
       address = "127.0.0.1:8200"
       {{- if .Values.global.tlsEnabled }}

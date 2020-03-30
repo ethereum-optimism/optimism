@@ -86,6 +86,11 @@ resource "helm_release" "vault_chart" {
   }
 
   set {
+    name  = "server.mlockDisabled"
+    value = var.mlock_disabled
+  }
+
+  set {
     name  = "server.unseal.address"
     value = var.unsealer_vault_addr
   }
