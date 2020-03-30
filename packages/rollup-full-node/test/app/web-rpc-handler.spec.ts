@@ -128,7 +128,7 @@ describe('Web3Handler', () => {
       )
 
       const block = await httpProvider.getBlock('latest', true)
-      block.timestamp.should.be.gt(timestamp)
+      block.timestamp.should.be.gte(timestamp)
     })
   })
 
