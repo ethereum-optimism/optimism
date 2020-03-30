@@ -48,6 +48,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     // const handler = new TestWeb3Handler(messageSubmitter, context)
     // handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp
     // return handler
+    const context: L2NodeContext = await initializeL2Node(provider)
     return new TestWeb3Handler(messageSubmitter, context)
   }
 

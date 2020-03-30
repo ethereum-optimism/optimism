@@ -64,6 +64,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     // const blockNumber = await l2NodeContext.provider.getBlockNumber()
     // handler.blockTimestamps[blockNumber] = timestamp
     // return handler
+    const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
     return new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
   }
 
