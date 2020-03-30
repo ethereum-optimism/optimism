@@ -12,6 +12,8 @@ Run `yarn install` to install necessary dependencies.
 Run `yarn build` to build the code. Note: `yarn all` may be used to build and run tests.
 
 ## Building Docker Image
+_Make sure you're in the base directory_ (`cd ../..`)
+
 Run `docker build -t optimism/rollup-full-node .` to build and tag the fullnode.
 
 ### Pushing Image to AWS Registry:
@@ -36,6 +38,25 @@ Make sure the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-cha
     docker push <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
     ``` 
 
+## Running in Docker
+_Make sure you're in the base directory_ (`cd ../..`)
+
+Run `docker-compose up --build` to build and run. If you don't need to build the full node or geth, omit the `--build`
+
+When the containers are up, you should see the following output:
+```
+rollup-full-node_1  | <timestamp> info:rollup-fullnode Listening at http://0.0.0.0:8545
+```
+
+You can run a simple connectivity test against the rollup node by running:
+```
+curl -H "Content-Type: application/json" -d '{"jsonrpc": "2.0", "id": 9999999, "method": "net_version"}' http://0.0.0.0:8545
+```
+which should yield the response:
+```
+{"id":9999999,"jsonrpc":"2.0","result":"108"}
+```
+
 # Testing
 Run `yarn test` to run the unit tests.
 
@@ -49,8 +70,6 @@ Run `yarn server:aggregator` to run the aggregator server.
 
 # Running the Fullnode Server
 Run `yarn server:fullnode` to run the fullnode server.
-
-To run with docker: `docker run -d optimism/rollup-full-node:latest`
 
 # Running a Persistent Chain
 Run `./exec/startChain.sh` to start a local persistent blockchain.
