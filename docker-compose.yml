@@ -16,6 +16,7 @@ services:
     ports:
       - 8545:8545
     environment:
+      - STARTUP_WAIT_TIMEOUT=30
       - OPCODE_WHITELIST_MASK
       - L1_SEQUENCER_MNEMONIC
       - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
@@ -26,7 +27,7 @@ services:
       - L2_WALLET_PRIVATE_KEY_PATH=/mnt/l2-node/private_key.txt
       - LOCAL_L1_NODE_PORT
       - LOCAL_L1_NODE_PERSISTENT_DB_PATH=/mnt/l1-node
-      - L2_NODE_WEB3_URL=http://geth_l2:8545/
+      - L2_NODE_WEB3_URL=http://geth_l2:9545/
 #      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/mnt/l2-node/
 #      - L1_NODE_WEB3_URL=http://geth_l1:8545/
 
@@ -39,8 +40,18 @@ services:
     environment:
       - VOLUME_PATH=/mnt/l2-node/l2
       - HOSTNAME=geth_l2
+      - PORT=9545
+      - NETWORK_ID=108
+      - KEYSTORE_PATH_SUFFIX=/keystore
+      - SEALER_PRIVATE_KEY_PATH_SUFFIX=/sealer_private_key.txt
+      - PRIVATE_KEY_PATH_SUFFIX=/private_key.txt
+      - ADDRESS_PATH_SUFFIX=/address.txt
+      - SEALER_ADDRESS_PATH_SUFFIX=/sealer_address.txt
+      - INITIAL_BALANCE=0x200000000000000000000000000000000000000000000000000000000000000
+      - GENISIS_PATH=etc/rollup-fullnode.json
+      - SETUP_RUN_PATH_SUFFIX=/setup_run.txt
     expose:
-      - "8545"
+      - "9545"
 #
 #  geth_l1:
 #    volumes:
