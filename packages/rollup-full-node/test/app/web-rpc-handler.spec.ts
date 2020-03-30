@@ -102,7 +102,7 @@ describe('Web3Handler', () => {
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const block = await httpProvider.getBlock('latest')
 
-      block.timestamp.should.gt(0)
+      block.timestamp.should.be.gt(0)
     })
 
     it('should strip the execution manager deployment transaction from the transactions object', async () => {
