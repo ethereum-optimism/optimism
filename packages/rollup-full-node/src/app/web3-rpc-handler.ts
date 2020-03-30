@@ -437,7 +437,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )
 
       // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
-      const internalTx = await this.ovmTxToInternalTx(ovmTx, timestamp)
+      const internalTx = await this.ovmTxToInternalTx(ovmTx)
       // Now compute the hash of the OVM transaction which we will return
       const ovmTxHash = await utils.keccak256(rawOvmTx)
       const internalTxHash = await utils.keccak256(internalTx)
