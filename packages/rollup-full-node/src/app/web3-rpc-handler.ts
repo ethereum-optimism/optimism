@@ -276,8 +276,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       Web3RpcMethods.getBlockByNumber,
       [defaultBlock, fullObjects]
     )
-    // const block = this.parseInternalBlock(res, fullObjects)
-    const block = res
+    const block = this.parseInternalBlock(res, fullObjects)
+    // const block = res
 
     log.debug(
       `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
@@ -298,9 +298,11 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     log.debug(`Parsing block #${block['number']}: ${JSON.stringify(block)}`)
 
-    block['timestamp'] = numberToHexString(
-      this.blockTimestamps[block['number']]
-    )
+    if (this.blockTimestamps[block['number']]) {
+      block['timestamp'] = numberToHexString(
+        this.blockTimestamps[block['number']]
+      )
+    }
     if (fullObjects) {
       block['transactions'] = (
         await Promise.all(
