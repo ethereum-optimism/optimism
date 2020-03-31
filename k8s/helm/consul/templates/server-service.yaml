@@ -14,15 +14,9 @@ spec:
   clusterIP: None
   publishNotReadyAddresses: true
   ports:
-    {{- if not .Values.global.tlsEnabled }}
-    - name: http
-      port: 8500
-      targetPort: 8500
-    {{- else }}
     - name: https
       port: 8501
       targetPort: 8501
-    {{- end }}
     - name: rpc
       port: 8400
       targetPort: 8400

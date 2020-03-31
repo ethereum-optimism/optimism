@@ -24,7 +24,6 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: {{ .Chart.Name }}
-      {{- if .Values.global.tlsEnabled }}
       volumes:
         - name: ca-certs
           secret:
@@ -32,11 +31,9 @@ spec:
         - name: service-certs
           secret:
             secretName: {{ .Values.global.certificatesSecretNamePrefix }}-services
-      {{- end }}
       containers:
         - name: post-install-job
           image: {{ .Values.global.imageK8S }}
-          {{- if .Values.global.tlsEnabled }}
           volumeMounts:
             - name: ca-certs
               mountPath: /etc/tls/ca
@@ -51,7 +48,6 @@ spec:
               value: /etc/tls/service/tls.crt
             - name: CONSUL_CLIENT_KEY
               value: /etc/tls/service/tls.key
-          {{- end }}
           command:
             - "/bin/sh"
             - "-ec"
@@ -60,9 +56,7 @@ spec:
                 -server-label-selector=component=server,app={{ .Chart.Name }},release={{ .Release.Name }} \
                 -resource-prefix={{ .Chart.Name }} \
                 -k8s-namespace={{ .Release.Namespace }} \
-                {{- if .Values.global.tlsEnabled }}
                 -use-https \
                 -consul-ca-cert=/etc/tls/ca/tls.crt \
                 -consul-tls-server-name=server.{{ .Values.global.datacenter }}.{{ .Values.global.domain }} \
-                {{- end }}
                 -expected-replicas={{ .Values.server.replicas }}

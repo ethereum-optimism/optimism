@@ -1,5 +1,4 @@
 global:
-  tlsEnabled: true
   certificatesSecretNamePrefix: ""
   pullPolicy: IfNotPresent
 

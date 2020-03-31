@@ -69,12 +69,6 @@ variable "local_certificates_dir" {
   description = "Absolute path to the directory storing the generated cluster service certificates"
 }
 
-variable "tls_enabled" {
-  type        = bool
-  default     = true
-  description = "Whether to enable TLS communication within the services"
-}
-
 variable "unsealer_vault_addr" {
   type        = string
   default     = "https://192.168.64.1:8200"

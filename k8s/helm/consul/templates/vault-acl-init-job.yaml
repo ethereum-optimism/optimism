@@ -30,17 +30,11 @@ spec:
           image: {{ .Values.global.image }}	
           env:
             - name: CONSUL_HTTP_ADDR
-              {{- if .Values.global.tlsEnabled }}
               value: "https://{{ .Chart.Name }}-server:8501"
-              {{- else }}
-              value: "http://{{ .Chart.Name }}-server:8500"
-              {{- end }}
-            {{- if .Values.global.tlsEnabled }}	
             - name: CONSUL_HTTP_SSL	
               value: "true"	
             - name: CONSUL_CACERT	
               value: /etc/tls/ca/tls.crt
-            {{- end }}	
             - name: CONSUL_HTTP_TOKEN	
               valueFrom:	
                 secretKeyRef:	
@@ -53,9 +47,7 @@ spec:
               consul acl policy create -name vault-service -rules @/consul/config/vault.hcl -datacenter {{ .Values.global.datacenter }}
 
               export VAULT_ACL_TOKEN=$(curl -X PUT $CONSUL_HTTP_ADDR/v1/acl/token \
-                {{- if .Values.global.tlsEnabled }}
                 --cacert $CONSUL_CACERT \
-                {{- end }}
                 -H "Content-Type: application/json" \
                 -H "X-Consul-Token: ${CONSUL_HTTP_TOKEN}" \
                 --data '{ "Description": "Token for Vault", "Policies": [{ "Name": "vault-service" }], "Local": false }] }' \
@@ -69,19 +61,15 @@ spec:
                 -H "Accept: application/json" \
                 --data "{ \"apiVersion\": \"v1\", \"kind\": \"Secret\", \"metadata\": { \"name\": \"{{ .Chart.Name }}-vault-acl-token\", \"namespace\": \"{{ .Release.Namespace }}\" }, \"type\": \"Opaque\", \"data\": { \"token\": \"$(echo $VAULT_ACL_TOKEN | tr -d '\n' | base64 | tr -d '\n')\" } }" > /dev/null
           volumeMounts:	
-            {{- if .Values.global.tlsEnabled }}
             - name: ca-certs
               mountPath: /etc/tls/ca
               readOnly: true
-            {{- end }}
             - name: server-config	
               mountPath: /consul/config	
       volumes:	
-        {{- if .Values.global.tlsEnabled }}
         - name: ca-certs
           secret:
             secretName: {{ .Values.global.certificatesSecretNamePrefix }}-ca
-        {{- end }}
         - name: server-config	
           configMap:	
             name: {{ .Chart.Name }}-server-config

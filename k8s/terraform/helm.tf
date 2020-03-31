@@ -13,11 +13,6 @@ resource "helm_release" "consul_chart" {
   cleanup_on_fail = true
 
   set {
-    name  = "global.tlsEnabled"
-    value = var.tls_enabled
-  }
-
-  set {
     name  = "global.certificatesSecretNamePrefix"
     value = var.k8s_certificates_secret_name_prefix
   }
@@ -66,11 +61,6 @@ resource "helm_release" "vault_chart" {
 
   atomic          = true
   cleanup_on_fail = true
-
-  set {
-    name  = "global.tlsEnabled"
-    value = var.tls_enabled
-  }
 
   set {
     name  = "global.certificatesSecretNamePrefix"

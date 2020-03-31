@@ -8,14 +8,10 @@ data:
     disable_mlock = "{{ .Values.server.mlockDisabled }}"
     listener "tcp" {
       address = "127.0.0.1:8200"
-      {{- if .Values.global.tlsEnabled }}
       tls_disable = 0
       tls_cert_file = "/etc/tls/service/tls.crt"
       tls_client_ca_file = "/etc/tls/ca/tls.crt"
       tls_key_file = "/etc/tls/service/tls.key"
-      {{- else }}
-      tls_disabled = 1
-      {{- end }}
     }
 
     seal "transit" {
@@ -23,9 +19,7 @@ data:
       disable_renewal = "true"
       key_name = "autounseal"
       mount_path = "transit/"
-      {{- if .Values.global.tlsEnabled }}
       tls_ca_cert = "/etc/tls/ca/tls.crt"
-      {{- end }}
       token = "{{ .Values.server.unseal.token }}"
     }
 
@@ -42,11 +36,9 @@ data:
 
   sidecar.json: |
     {
-      {{- if .Values.global.tlsEnabled }}
       "ca_file": "/etc/tls/ca/tls.crt",
       "cert_file": "/etc/tls/service/tls.crt",
       "key_file": "/etc/tls/service/tls.key",
-      {{- end }}
       "ports": {
         "http": 8500
       },

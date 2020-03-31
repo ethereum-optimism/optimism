@@ -24,6 +24,7 @@ spec:
         component: server
     spec:
       terminationGracePeriodSeconds: 10
+      serviceAccountName: {{ .Chart.Name }}
       containers:
       - name: vault
         command: ["vault", "server", "-config", "/vault/config/server.hcl"]
@@ -36,14 +37,12 @@ spec:
           - name: vault-config
             mountPath: /vault/config/server.hcl
             subPath: server.hcl
-          {{- if .Values.global.tlsEnabled }}
           - name: ca-certs
             mountPath: /etc/tls/ca
             readOnly: true
           - name: service-certs
             mountPath: /etc/tls/service
             readOnly: true
-          {{- end }}
       - name: consul-sidecar
         image: {{ .Values.consul.image }}
         imagePullPolicy: {{ .Values.global.pullPolicy }}
@@ -57,7 +56,7 @@ spec:
           - "-ec"
           - |
             exec /bin/consul agent \
-              -retry-join='provider=k8s label_selector="app=omisego-consul,component=server"' \
+              -retry-join='provider=k8s namespace="{{ .Release.Namespace }}" label_selector="app=omisego-consul,component=server"' \
               -hcl='acl { tokens = { default = "{{ .Values.consul.acl.token }}" } }' \
               -encrypt="{{ .Values.consul.gossipKey }}" \
               -config-file=/consul/config/sidecar.json \
@@ -70,14 +69,12 @@ spec:
           - name: vault-config
             mountPath: /consul/config/sidecar.json
             subPath: sidecar.json
-          {{- if .Values.global.tlsEnabled }}
           - name: ca-certs
             mountPath: /etc/tls/ca
             readOnly: true
           - name: service-certs
             mountPath: /etc/tls/service
             readOnly: true
-          {{- end }}
         lifecycle:
           preStop:
             exec:
@@ -101,11 +98,9 @@ spec:
         - name: vault-config
           configMap:
             name: {{ .Chart.Name }}-server-config
-        {{- if .Values.global.tlsEnabled }}
         - name: ca-certs
           secret:
             secretName: {{ .Values.global.certificatesSecretNamePrefix }}-ca
         - name: service-certs
           secret:
             secretName: {{ .Values.global.certificatesSecretNamePrefix }}-services
-        {{- end }}

@@ -40,8 +40,6 @@ data "kubernetes_secret" "vault_acl_token" {
  * for the service pods to use for TLS
  */
 resource "kubernetes_secret" "ca_certificates" {
-  count = var.tls_enabled ? 1 : 0
-
   metadata {
     name = "${var.k8s_certificates_secret_name_prefix}-ca"
   }
@@ -60,8 +58,6 @@ resource "kubernetes_secret" "ca_certificates" {
  * for the service pods to use for TLS
  */
 resource "kubernetes_secret" "services_certificates" {
-  count = var.tls_enabled ? 1 : 0
-
   metadata {
     name = "${var.k8s_certificates_secret_name_prefix}-services"
   }

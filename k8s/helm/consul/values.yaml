@@ -1,5 +1,4 @@
 global:
-  tlsEnabled: true
   certificatesSecretNamePrefix: ""
 
   image: "consul:1.7.1"

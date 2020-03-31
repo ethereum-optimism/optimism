@@ -6,21 +6,15 @@ metadata:
 data:
   config.json: |
     {
-      {{- if .Values.global.tlsEnabled }}
       "ca_file": "/etc/tls/ca/tls.crt",
       "cert_file": "/etc/tls/service/tls.crt",
       "key_file": "/etc/tls/service/tls.key",
       "verify_incoming_rpc": true,
       "verify_outgoing": true,
       "verify_server_hostname": true,
-      {{- end }}
       "ports": {
-        {{- if .Values.global.tlsEnabled }}
         "http": -1,
         "https": 8501
-        {{- else }}
-        "http": 8500
-        {{- end }}
       },
       "primary_datacenter":"{{ .Values.global.datacenter }}",
       "acl": {

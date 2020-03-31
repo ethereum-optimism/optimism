@@ -40,7 +40,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-            {{- if .Values.global.tlsEnabled }}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: CONSUL_HTTP_ADDR
               value: https://localhost:8501
             - name: CONSUL_CACERT
@@ -49,7 +52,6 @@ spec:
               value: /etc/tls/service/tls.crt
             - name: CONSUL_CLIENT_KEY
               value: /etc/tls/service/tls.key
-            {{- end }}
           command:
             - "/bin/sh"
             - "-ec"
@@ -59,7 +61,9 @@ spec:
                 -advertise="${POD_IP}" \
                 -bind=0.0.0.0 \
                 -bootstrap-expect={{ .Values.server.bootstrapExpect }} \
-                -retry-join='provider=k8s label_selector="app={{ .Chart.Name }},component=server"' \
+                {{- range $index := until (.Values.server.replicas | int) }}
+                -retry-join=${CONSUL_FULLNAME}-{{ $index }}.${CONSUL_FULLNAME}.${NAMESPACE}.svc \
+                {{- end }}
                 -client=0.0.0.0 \
                 -config-file=/consul/userconfig/config.json \
                 -datacenter={{ .Values.global.datacenter }} \
@@ -77,13 +81,8 @@ spec:
                   - -c
                   - consul leave
           ports:
-            {{- if not .Values.global.tlsEnabled }}
-            - containerPort: 8500
-              name: http
-            {{- else }}
             - containerPort: 8501
               name: https
-            {{- end }}
             - containerPort: 8301
               name: serflan
             - containerPort: 8302
@@ -102,13 +101,9 @@ spec:
                 - "/bin/sh"
                 - "-ec"
                 - |
-                  {{- if .Values.global.tlsEnabled }}
                   curl \
                     --cacert /etc/tls/ca/tls.crt \
                     https://127.0.0.1:8501/v1/status/leader \
-                  {{- else }}
-                  curl http://127.0.0.1:8500/v1/status/leader \
-                  {{- end }}
                   2>/dev/null | grep -E '".+"'
             failureThreshold: 2
             initialDelaySeconds: 5
@@ -118,23 +113,19 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /consul/userconfig
-            {{- if .Values.global.tlsEnabled }}
             - name: ca-certs
               mountPath: /etc/tls/ca
               readOnly: true
             - name: service-certs
               mountPath: /etc/tls/service
               readOnly: true
-            {{- end }}
       volumes:
         - name: config
           configMap:
             name: {{ .Chart.Name }}-server-config
-        {{- if .Values.global.tlsEnabled }}
         - name: ca-certs
           secret:
             secretName: {{ .Values.global.certificatesSecretNamePrefix }}-ca
         - name: service-certs
           secret:
             secretName: {{ .Values.global.certificatesSecretNamePrefix }}-services
-        {{- end }}
