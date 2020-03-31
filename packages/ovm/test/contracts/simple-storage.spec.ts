@@ -16,7 +16,7 @@ import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
-  executeUnsignedEOACall,
+  executeTransaction,
   DEFAULT_ETHNODE_GAS_LIMIT,
   gasLimit,
 } from '../helpers'
@@ -72,7 +72,7 @@ describe('SimpleStorage', () => {
       .toString('hex')
 
     const innerCallData: string = add0x(`${setStorageMethodId}${slot}${value}`)
-    return executeUnsignedEOACall(
+    return executeTransaction(
       executionManager,
       wallet,
       simpleStorageOvmAddress,

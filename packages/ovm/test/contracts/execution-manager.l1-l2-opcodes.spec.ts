@@ -63,9 +63,9 @@ function overrideAbiFunctionData(
 }
 
 /**
- * Use executeUnsignedEOACall with `eth_call`.
+ * Use executeTransaction with `eth_call`.
  * @param {ethers.Contract} an ExecutionManager contract instance used for it's address & provider.
- * @param {Array} an array of parameters which should be fed into `executeUnsignedEOACall(...)`.
+ * @param {Array} an array of parameters which should be fed into `executeTransaction(...)`.
  * @param {OutputTypes} an array ABI types which should be used to decode the output of the call.
  */
 function callExecutionManagerExecuteUnsignedEOACall(
@@ -74,7 +74,7 @@ function callExecutionManagerExecuteUnsignedEOACall(
   outputTypes: any[]
 ): Promise<any[]> {
   const modifiedAbi = cloneDeep(ExecutionManager.abi)
-  overrideAbiFunctionData(modifiedAbi, 'executeUnsignedEOACall', {
+  overrideAbiFunctionData(modifiedAbi, 'executeTransaction', {
     constant: true,
     outputs: outputTypes,
   })
@@ -83,7 +83,7 @@ function callExecutionManagerExecuteUnsignedEOACall(
     modifiedAbi,
     executionManager.provider
   )
-  return callableExecutionManager.executeUnsignedEOACall.apply(null, parameters)
+  return callableExecutionManager.executeTransaction.apply(null, parameters)
 }
 
 /*********

@@ -123,7 +123,7 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   describe('ovmCALL', async () => {
-    it.only('properly executes ovmCALL to SLOAD', async () => {
+    it('properly executes ovmCALL to SLOAD', async () => {
       const result: string = await executeCall([
         addressToBytes32Address(callContract2Address),
         methodIds.staticFriendlySLOAD,
@@ -531,7 +531,7 @@ describe('Execution Manager -- Call opcodes', () => {
     )
 
     const internalCalldata = executionManager.interface.functions[
-      'executeUnsignedEOACall'
+      'executeTransaction'
     ].encode([
       getCurrentTime(),
       0,

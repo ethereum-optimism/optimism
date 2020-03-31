@@ -72,7 +72,7 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     contractDefinition.bytecode
   ).getDeployTransaction(...constructorArguments).data as string
 
-  const receipt: TransactionReceipt = await executeUnsignedEOACall(
+  const receipt: TransactionReceipt = await executeTransaction(
     executionManager,
     wallet,
     undefined,
@@ -103,7 +103,7 @@ export const manuallyDeployOvmContract = async (
   return receipt.contractAddress
 }
 
-export const executeUnsignedEOACall = async (
+export const executeTransaction = async (
   executionManager: Contract,
   wallet: Wallet,
   to: Address,
@@ -119,7 +119,7 @@ export const executeUnsignedEOACall = async (
   const ovmTo = to === null || to === undefined ? ZERO_ADDRESS : to
 
   // Actually make the call
-  const tx = await executionManager.executeUnsignedEOACall(
+  const tx = await executionManager.executeTransaction(
     getCurrentTime(),
     0,
     ovmTo,

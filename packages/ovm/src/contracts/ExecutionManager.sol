@@ -201,7 +201,7 @@ contract ExecutionManager is FullStateManager {
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
         emit CallingWithEOA(eoaAddress);
         // Make the EOA call for the account
-        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
+        executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
     }
 
     /**
@@ -214,7 +214,7 @@ contract ExecutionManager is FullStateManager {
      * @param _fromAddress The address which this call should originate from--the msg.sender.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
-    function executeUnsignedEOACall(
+    function executeTransaction(
         uint _timestamp,
         uint _queueOrigin,
         address _ovmEntrypoint,
