@@ -4,6 +4,7 @@ import '../setup'
 import { Address } from '@eth-optimism/rollup-core'
 import {
   getLogger,
+  getCurrentTime,
   remove0x,
   add0x,
   TestUtils,
@@ -163,7 +164,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       ethereumjsAbi.methodID('getL1MessageSender', [])
     )
 
-    it('should return the l1 message sender provided', async () => {
+    it.only('should return the l1 message sender provided', async () => {
       const l1MessageSenderPrecompileAddr =
         '0x4200000000000000000000000000000000000001'
       const testL1MsgSenderAddress = '0x' + '01'.repeat(20)
@@ -171,7 +172,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       const callResult = await callExecutionManagerExecuteUnsignedEOACall(
         executionManager,
         [
-          0,
+          getCurrentTime(),
           0,
           l1MessageSenderPrecompileAddr,
           getL1MessageSenderMethodId,

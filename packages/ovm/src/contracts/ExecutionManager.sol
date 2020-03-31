@@ -223,6 +223,7 @@ contract ExecutionManager is FullStateManager {
         address _l1MsgSenderAddress,
         bool _allowRevert
     ) public {
+        require(_timestamp > 0, "Timestamp must be greater than 0");
         uint _nonce = getOvmContractNonce(_fromAddress);
         // Initialize our context
         initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
@@ -397,9 +398,6 @@ contract ExecutionManager is FullStateManager {
      * returndata: uint256 representing the current timestamp.
      */
     function ovmTIMESTAMP() public view {
-        // First make sure the timestamp was set
-        require(executionContext.timestamp != 0, "Error: attempting to access non-existent timestamp.");
-
         uint t = executionContext.timestamp;
 
         assembly {
