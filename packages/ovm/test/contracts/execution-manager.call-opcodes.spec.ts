@@ -131,7 +131,7 @@ describe('Execution Manager -- Call opcodes', () => {
       ])
       log.debug(`Result: [${result}]`)
 
-      // remove0x(result).should.equal(unpopultedSLOADResult, 'Result mismatch!')
+      remove0x(result).should.equal(unpopultedSLOADResult, 'Result mismatch!')
     })
 
     it('properly executes ovmCALL to SSTORE', async () => {
@@ -525,9 +525,9 @@ describe('Execution Manager -- Call opcodes', () => {
     })
   })
 
-  const executeCall = (args: any[]): Promise<string> => {
+  const executeCall = async (args: any[]): Promise<string> => {
     const ovmCalldata: string = add0x(
-      encodeMethodId(methodIds.makeCall) + encodeRawArguments(args)
+      methodIds.makeCall + encodeRawArguments(args)
     )
 
     const internalCalldata = executionManager.interface.functions[
@@ -538,23 +538,23 @@ describe('Execution Manager -- Call opcodes', () => {
       callContractAddress,
       ovmCalldata,
       '0x' + '01'.repeat(20),
+      '0x' + '01'.repeat(20),
       true,
     ])
-
-    return executionManager.provider.call({
+    const result = executionManager.provider.call({
       to: executionManager.address,
       data: internalCalldata,
       gasLimit: 10_000_000,
     })
 
-    // return executeOVMCall(executionManager, 'executeCall', [
-    //   encodeRawArguments([
-    //     0,
-    //     0,
-    //     addressToBytes32Address(callContractAddress),
-    //     methodIds.makeCall,
-    //     ...args,
-    //   ]),
-    // ])
+    return executeOVMCall(executionManager, 'executeCall', [
+      encodeRawArguments([
+        0,
+        0,
+        addressToBytes32Address(callContractAddress),
+        methodIds.makeCall,
+        ...args,
+      ]),
+    ])
   }
 })
