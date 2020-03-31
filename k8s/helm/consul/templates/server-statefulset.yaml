@@ -59,7 +59,7 @@ spec:
                 -advertise="${POD_IP}" \
                 -bind=0.0.0.0 \
                 -bootstrap-expect={{ .Values.server.bootstrapExpect }} \
-                -retry-join='provider=k8s label_selector="app={{ .Chart.Name }},component=server"'
+                -retry-join='provider=k8s label_selector="app={{ .Chart.Name }},component=server"' \
                 -client=0.0.0.0 \
                 -config-file=/consul/userconfig/config.json \
                 -datacenter={{ .Values.global.datacenter }} \

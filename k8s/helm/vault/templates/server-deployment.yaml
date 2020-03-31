@@ -57,7 +57,7 @@ spec:
           - "-ec"
           - |
             exec /bin/consul agent \
-              -retry-join='provider=k8s label_selector="app=omisego-consul,component=server"'
+              -retry-join='provider=k8s label_selector="app=omisego-consul,component=server"' \
               -hcl='acl { tokens = { default = "{{ .Values.consul.acl.token }}" } }' \
               -encrypt="{{ .Values.consul.gossipKey }}" \
               -config-file=/consul/config/sidecar.json \
