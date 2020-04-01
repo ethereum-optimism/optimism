@@ -97,6 +97,11 @@ export const getOvmTransactionMetadata = (
   let ovmFrom
   let ovmCreatedContractAddress
   let ovmTxSucceeded
+
+  if (!internalTxReceipt) {
+    return undefined
+  }
+
   const logs = internalTxReceipt.logs
     .map((log) => executionManagerInterface.parseLog(log))
     .filter((log) => log != null)
