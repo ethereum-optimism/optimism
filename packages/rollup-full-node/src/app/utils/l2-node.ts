@@ -1,9 +1,9 @@
 /* Externals Import */
 import {
+  add0x,
   getDeployedContractAddress,
   getLogger,
   logError,
-  remove0x,
 } from '@eth-optimism/core-utils'
 import {
   GAS_LIMIT,
@@ -95,15 +95,20 @@ function deployLocalL2Node(): JsonRpcProvider {
  */
 function getL2Wallet(provider: JsonRpcProvider): Wallet {
   let wallet: Wallet
-  if (!!Environment.l2WalletMnemonic()) {
+  if (!!Environment.l2WalletPrivateKey()) {
+    wallet = new Wallet(add0x(Environment.l2WalletPrivateKey()), provider)
+    log.info(`Initialized wallet from private key. Address: ${wallet.address}`)
+  } else if (!!Environment.l2WalletMnemonic()) {
     wallet = Wallet.fromMnemonic(Environment.l2WalletMnemonic())
     wallet.connect(provider)
+    log.info(`Initialized wallet from mnemonic. Address: ${wallet.address}`)
   } else if (!!Environment.l2WalletPrivateKeyPath()) {
     try {
       const pk: string = fs.readFileSync(Environment.l2WalletPrivateKeyPath(), {
         encoding: 'utf-8',
       })
-      wallet = new Wallet(pk, provider)
+      wallet = new Wallet(add0x(pk.trim()), provider)
+      log.info(`Found wallet from PK file. Address: ${wallet.address}`)
     } catch (e) {
       logError(
         log,
@@ -114,6 +119,9 @@ function getL2Wallet(provider: JsonRpcProvider): Wallet {
     }
   } else {
     wallet = getWallets(provider)[0]
+    log.info(
+      `Getting wallet from provider. First wallet private key: [${wallet.privateKey}`
+    )
   }
 
   if (!wallet) {

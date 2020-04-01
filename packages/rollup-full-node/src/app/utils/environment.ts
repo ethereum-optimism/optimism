@@ -37,6 +37,9 @@ export class Environment {
   public static l2NodeWeb3Url(defaultValue?: string): string {
     return process.env.L2_NODE_WEB3_URL || defaultValue
   }
+  public static l2WalletPrivateKey(defaultValue?: string): string {
+    return process.env.L2_WALLET_PRIVATE_KEY || defaultValue
+  }
   public static l2WalletMnemonic(defaultValue?: string): string {
     return process.env.L2_WALLET_MNEMONIC || defaultValue
   }

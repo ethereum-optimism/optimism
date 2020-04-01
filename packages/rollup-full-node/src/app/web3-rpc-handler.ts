@@ -57,6 +57,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
     web3Provider?: JsonRpcProvider
   ): Promise<DefaultWeb3Handler> {
+    log.info(
+      `Creating Web3 Handler with provider: ${
+        !!web3Provider
+          ? web3Provider.connection.url
+          : 'undefined -- will create.'
+      }`
+    )
+
     const timestamp = getCurrentTime()
     const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
 
@@ -411,7 +419,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     }
 
     log.debug(
-      `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${internalTxReceipt}]`
+      `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${JSON.stringify(
+        internalTxReceipt
+      )}]`
     )
     return ovmTxReceipt
   }
@@ -445,6 +455,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       const ovmTxHash = await utils.keccak256(rawOvmTx)
       const internalTxHash = await utils.keccak256(internalTx)
 
+      log.debug(`\n\n\nSIGNED INTERNAL TX: ${JSON.stringify(internalTx)}\n\n\n`)
+
       // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
       await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
 
@@ -453,7 +465,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         // Then apply our transaction
         returnedInternalTxHash = await this.context.provider.send(
           Web3RpcMethods.sendRawTransaction,
-          internalTx
+          [internalTx]
         )
       } catch (e) {
         logError(

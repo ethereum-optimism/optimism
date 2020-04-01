@@ -48,10 +48,19 @@ generate_geneisis()
 
 ## One-time configuration to be run only on first startup
 if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
-    generate_private_key > $SEALER_PRIVATE_KEY_PATH
+     generate_private_key > $SEALER_PRIVATE_KEY_PATH
     import_private_key $SEALER_PRIVATE_KEY_PATH > $SEALER_ADDRESS_PATH
-    generate_private_key > $PRIVATE_KEY_PATH
+
+    if [ -z "$PRIVATE_KEY" ]; then
+      echo "\nGENERATING PRIVATE KEY!! We most likely don't want to do this.\n"
+      generate_private_key > $PRIVATE_KEY_PATH
+    else
+      echo "Reading private key from env"
+      echo "$PRIVATE_KEY" | sed 's/^0x//' > $PRIVATE_KEY_PATH
+    fi
+
     import_private_key $PRIVATE_KEY_PATH > $ADDRESS_PATH
+
     generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
 
     geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
