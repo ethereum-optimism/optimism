@@ -410,6 +410,12 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       [internalTxHash]
     )
 
+    if (!internalTxReceipt) {
+      log.debug(`No tx receipt found for ovm tx hash [${ovmTxHash}]`)
+      return undefined
+    }
+
+
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
       internalTxReceipt
