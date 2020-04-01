@@ -125,6 +125,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         args = this.assertParameters(params, 2)
         response = await this.getBlockByNumber(args[0], args[1])
         break
+      case Web3RpcMethods.getBlockByHash:
+        args = this.assertParameters(params, 2)
+        response = await this.getBlockByHash(args[0], args[1])
+        break
       case Web3RpcMethods.getCode:
         args = this.assertParameters(params, 2, latestBlock)
         response = await this.getCode(args[0], args[1])
@@ -288,6 +292,26 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
     log.debug(
       `Returning block ${defaultBlock} (fullObj: ${fullObjects}): ${JSON.stringify(
+        block
+      )}`
+    )
+
+    return block
+  }
+
+  public async getBlockByHash(
+    blockHash: string,
+    fullObjects: boolean
+  ): Promise<any> {
+    log.debug(`Got request to get block ${blockHash}.`)
+    const res: object = await this.context.provider.send(
+      Web3RpcMethods.getBlockByHash,
+      [blockHash, fullObjects]
+    )
+    const block = this.parseInternalBlock(res, fullObjects)
+
+    log.debug(
+      `Returning block ${blockHash} (fullObj: ${fullObjects}): ${JSON.stringify(
         block
       )}`
     )

@@ -14,6 +14,7 @@ export interface Web3Handler {
   estimateGas(txObject: {}, defaultBlock: string): Promise<string>
   gasPrice(): Promise<string>
   getBlockByNumber(defaultBlock: string, fullObjects: boolean): Promise<any>
+  getBlockByHash(blockHash: string, fullObjects: boolean): Promise<any>
   getCode(address: Address, defaultBlock: string): Promise<string>
   getExecutionManagerAddress()
   getLogs(filter: any): Promise<any[]>
@@ -30,6 +31,7 @@ export enum Web3RpcMethods {
   estimateGas = 'eth_estimateGas',
   gasPrice = 'eth_gasPrice',
   getBlockByNumber = 'eth_getBlockByNumber',
+  getBlockByHash = 'eth_getBlockByHash',
   getCode = 'eth_getCode',
   getExecutionManagerAddress = 'ovm_getExecutionManagerAddress',
   getLogs = 'eth_getLogs',
