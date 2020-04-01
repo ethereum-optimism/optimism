@@ -415,7 +415,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       return undefined
     }
 
-
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
       internalTxReceipt

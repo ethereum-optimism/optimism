@@ -101,7 +101,7 @@ export const getOvmTransactionMetadata = (
   if (!internalTxReceipt) {
     return undefined
   }
-  
+
   const logs = internalTxReceipt.logs
     .map((log) => executionManagerInterface.parseLog(log))
     .filter((log) => log != null)
