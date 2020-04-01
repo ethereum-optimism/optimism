@@ -124,11 +124,11 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmCALL', async () => {
     it('properly executes ovmCALL to SLOAD', async () => {
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeCall(
+        callContractAddress,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
       log.debug(`Result: [${result}]`)
 
       remove0x(result).should.equal(unpopultedSLOADResult, 'Result mismatch!')
@@ -155,11 +155,11 @@ describe('Execution Manager -- Call opcodes', () => {
         gasLimit,
       })
 
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeCall(
+        callContract2Address,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result: [${result}]`)
 
@@ -168,11 +168,11 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE', async () => {
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeCall(
+        callContract2Address,
         methodIds.notStaticFriendlyCREATE,
-        deployTx.data,
-      ])
+        [deployTx.data]
+      )
 
       log.debug(`RESULT: ${result}`)
 
@@ -185,12 +185,11 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE2', async () => {
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeCall(
+        callContract2Address,
         methodIds.notStaticFriendlyCREATE2,
-        0,
-        deployTx.data,
-      ])
+        [0, deployTx.data]
+      )
 
       log.debug(`RESULT: ${result}`)
 
@@ -226,11 +225,11 @@ describe('Execution Manager -- Call opcodes', () => {
       })
 
       // Stored in contract 2 via delegate call but accessed via contract 1
-      const result: string = await executeCall([
-        addressToBytes32Address(callContractAddress),
+      const result: string = await executeCall(
+        callContractAddress,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result: [${result}]`)
       // Should have stored result
@@ -239,11 +238,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored result!'
       )
 
-      const contract2Result: string = await executeCall([
+      const contract2Result: string = await executeCall(
         addressToBytes32Address(callContract2Address),
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result: [${contract2Result}]`)
 
@@ -278,11 +277,11 @@ describe('Execution Manager -- Call opcodes', () => {
         gasLimit,
       })
 
-      const contract1Result: string = await executeCall([
-        addressToBytes32Address(callContractAddress),
+      const contract1Result: string = await executeCall(
+        callContractAddress,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result 1: [${contract1Result}]`)
 
@@ -292,11 +291,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored data!'
       )
 
-      const contract2Result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const contract2Result: string = await executeCall(
+        callContract2Address,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result 2: [${contract2Result}]`)
 
@@ -306,11 +305,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should not yield any data (0 x 32 bytes)!'
       )
 
-      const contract3Result: string = await executeCall([
-        addressToBytes32Address(callContract3Address),
+      const contract3Result: string = await executeCall(
+        callContract3Address,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result 3: [${contract3Result}]`)
 
@@ -525,34 +524,17 @@ describe('Execution Manager -- Call opcodes', () => {
     })
   })
 
-  const executeCall = async (args: any[]): Promise<string> => {
-    const ovmCalldata: string = add0x(
-      methodIds.makeCall + encodeRawArguments(args)
-    )
-
-    const internalCalldata = executionManager.interface.functions[
-      'executeTransaction'
-    ].encode([
-      getCurrentTime(),
-      0,
-      callContractAddress,
-      ovmCalldata,
-      '0x' + '01'.repeat(20),
-      '0x' + '01'.repeat(20),
-      true,
-    ])
-    const result = executionManager.provider.call({
-      to: executionManager.address,
-      data: internalCalldata,
-      gasLimit: 10_000_000,
-    })
-
+  const executeCall = async (
+    contractAddress: string,
+    methodId: string,
+    args: any[]
+  ): Promise<string> => {
     return executeOVMCall(executionManager, 'executeCall', [
       encodeRawArguments([
+        getCurrentTime(),
         0,
-        0,
-        addressToBytes32Address(callContractAddress),
-        methodIds.makeCall,
+        addressToBytes32Address(contractAddress),
+        methodId,
         ...args,
       ]),
     ])
