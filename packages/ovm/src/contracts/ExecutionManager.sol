@@ -123,7 +123,10 @@ contract ExecutionManager is FullStateManager {
         uint _queueOrigin;
         uint callSize;
         bytes memory callBytes;
+        bytes memory callBytes2;
+        bytes memory callBytes3;
         bytes32 methodId = ovmCallMethodId;
+        address _ovmEntrypoint;
         assembly {
             // Revert if we don't have methodId, timestamp, queueOrigin, and ovmEntrypointAddress.
             if lt(calldatasize, 100) {
@@ -147,7 +150,35 @@ contract ExecutionManager is FullStateManager {
             mstore8(add(callBytes, 1), shr(16, methodId))
             mstore8(add(callBytes, 2), shr(8, methodId))
             mstore8(add(callBytes, 3), methodId)
+            callBytes2 := mload(0x40)
+            mstore(callBytes2, callSize)
+            calldatacopy(add(callBytes2, 32), 0x44, sub(callSize, 4))
+            /* mstore(0, callBytes2) */
+            /* calldatacopy(_ovmEntrypoint, 0, 32) */
+            _ovmEntrypoint := calldataload(0x40)
+            calldatacopy(add(callBytes3, 32), 100, sub(callSize, 4))
+            mstore(callBytes3, sub(callSize, 36))
+            
+            
+            /* mstore(0, _ovmEntrypoint) */
+            /* return(add(callBytes3, 32), sub(callSize,36)) */
+            
         }
+        
+/*         uint callSize3 = callBytes3.length; */
+/* assembly{ */
+/*             mstore(0, callSize3) */
+/*             return(0, 32) */
+/*         } */
+        return executeTransaction2(
+          _timestamp,
+          _queueOrigin,
+          _ovmEntrypoint,
+          callBytes3,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          true
+    );
 
         // Initialize our context
         initializeContext(_timestamp, _queueOrigin, ZERO_ADDRESS, ZERO_ADDRESS);
@@ -214,6 +245,106 @@ contract ExecutionManager is FullStateManager {
      * @param _fromAddress The address which this call should originate from--the msg.sender.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
+    function executeTransaction2(
+        uint _timestamp,
+        uint _queueOrigin,
+        address _ovmEntrypoint,
+        bytes memory _callBytes,
+        address _fromAddress,
+        address _l1MsgSenderAddress,
+        bool _allowRevert
+    ) public {
+      uint256 callSize2;
+        uint256 callSize;
+        bool isCreate = _ovmEntrypoint == ZERO_ADDRESS;
+        if (isCreate) {
+            callSize = _callBytes.length;
+        } else {
+            callSize = _callBytes.length + 32;
+        }
+        // Set methodId based on whether we're creating a contract
+        bytes32 methodId;
+        /* uint256 callSize; */
+        // Check if we're creating -- ovmEntrypoint == ZERO_ADDRESS
+        if (isCreate) {
+            methodId = ovmCreateMethodId;
+            /* callSize = _callBytes.length + 4; */
+            uint _nonce = getOvmContractNonce(_fromAddress);
+            // Emit event that we are creating a contract with an EOA
+            address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
+            emit EOACreatedContract(_newOvmContractAddress);
+        } else {
+            methodId = ovmCallMethodId;
+            /* callSize = _callBytes.length + 32 + 4; */
+            // Creates will get incremented, but calls need to be as well!
+            incrementOvmContractNonce(_fromAddress);
+        }
+
+        assembly {
+            if eq(isCreate, 0) {
+                _callBytes := sub(_callBytes, 4)
+                // And now set the ovmEntrypoint
+                mstore(add(_callBytes, 4), _ovmEntrypoint)
+                // assembly {
+                //}
+            }
+            if eq(isCreate, 1) {
+                _callBytes := add(_callBytes, 28)
+            }
+            mstore8(_callBytes, shr(24, methodId))
+            mstore8(add(_callBytes, 1), shr(16, methodId))
+            mstore8(add(_callBytes, 2), shr(8, methodId))
+            mstore8(add(_callBytes, 3), methodId)
+        }
+        // Initialize our context
+        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
+
+        // Set the active contract to be our EOA address
+        assembly {
+            return(_callBytes, callSize)
+        }
+        switchActiveContract(_fromAddress);
+        assembly {
+            if eq(isCreate, 0) {
+                // And now set the ovmEntrypoint
+                mstore(add(_callBytes, 4), _ovmEntrypoint)
+            }
+        }
+
+
+        bool success = false;
+        address addr = address(this);
+        bytes memory result;
+        assembly {
+            /* return(_callBytes, callSize) */
+      /* assembly { */
+      /*   mstore(0, _ovmEntrypoint) */
+          /* return(_callBytes, callSize) */
+        /* } */
+            success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
+            result := mload(0x40)
+            let resultData := add(result, 0x20)
+            returndatacopy(resultData, 0, returndatasize)
+
+            if eq(success, 1) {
+                return(resultData, returndatasize)
+            }
+            if eq(_allowRevert, 1) {
+                revert(resultData, returndatasize)
+            }
+            mstore(result, returndatasize)
+            mstore(0x40, add(resultData, returndatasize))
+        }
+
+        if (!success) {
+            // We need the tx to succeed even on failure so logs, nonce, etc. are preserved.
+            // This is how we indicate that the tx "failed."
+            emit EOACallRevert(result);
+            assembly {
+                return(0,0)
+            }
+        }
+    }
     function executeTransaction(
         uint _timestamp,
         uint _queueOrigin,

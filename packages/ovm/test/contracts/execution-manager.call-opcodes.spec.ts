@@ -123,7 +123,7 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   describe('ovmCALL', async () => {
-    it('properly executes ovmCALL to SLOAD', async () => {
+    it.only('properly executes ovmCALL to SLOAD', async () => {
       const result: string = await executeCall(
         callContractAddress,
         methodIds.staticFriendlySLOAD,
@@ -529,6 +529,8 @@ describe('Execution Manager -- Call opcodes', () => {
     methodId: string,
     args: any[]
   ): Promise<string> => {
+    console.log(contractAddress)
+    console.log(methodId)
     return executeOVMCall(executionManager, 'executeCall', [
       encodeRawArguments([
         getCurrentTime(),
