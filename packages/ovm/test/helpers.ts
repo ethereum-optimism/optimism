@@ -5,6 +5,7 @@ import {
   getLogger,
   add0x,
   abi,
+  getCurrentTime,
   keccak256,
   strToHexStr,
   remove0x,
@@ -119,11 +120,12 @@ export const executeUnsignedEOACall = async (
 
   // Actually make the call
   const tx = await executionManager.executeUnsignedEOACall(
-    0,
+    getCurrentTime(),
     0,
     ovmTo,
     data,
     wallet.address,
+    ZERO_ADDRESS,
     allowRevert
   )
   // Return the parsed transaction values

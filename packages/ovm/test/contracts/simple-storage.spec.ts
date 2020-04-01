@@ -3,7 +3,7 @@ import '../setup'
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { getLogger, add0x } from '@eth-optimism/core-utils'
+import { getLogger, add0x, getCurrentTime } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { TransactionReceipt } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
@@ -118,7 +118,16 @@ describe('SimpleStorage', () => {
       const callData = getUnsignedTransactionCalldata(
         executionManager,
         'executeEOACall',
-        [0, 0, transaction.nonce, transaction.to, transaction.data, v, r, s]
+        [
+          getCurrentTime(),
+          0,
+          transaction.nonce,
+          transaction.to,
+          transaction.data,
+          v,
+          r,
+          s,
+        ]
       )
 
       const result = await executionManager.provider.call({

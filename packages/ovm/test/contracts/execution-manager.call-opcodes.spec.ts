@@ -2,7 +2,13 @@ import '../setup'
 
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, remove0x, add0x, TestUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  remove0x,
+  add0x,
+  TestUtils,
+  getCurrentTime,
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -132,7 +138,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         encodeMethodId('executeCall') +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeCall,
@@ -202,7 +208,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeDelegateCall,
@@ -253,7 +259,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeDelegateCall,
@@ -355,7 +361,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCallThenCall,
@@ -374,7 +380,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCall,
@@ -396,7 +402,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCall,
@@ -420,7 +426,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCall,
@@ -447,7 +453,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCall,
@@ -470,7 +476,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCall,
@@ -498,7 +504,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const data: string =
         methodIds.executeCall +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           methodIds.makeStaticCall,
@@ -522,7 +528,7 @@ describe('Execution Manager -- Call opcodes', () => {
   const executeCall = (args: any[]): Promise<string> => {
     return executeOVMCall(executionManager, 'executeCall', [
       encodeRawArguments([
-        0,
+        getCurrentTime(),
         0,
         addressToBytes32Address(callContractAddress),
         methodIds.makeCall,

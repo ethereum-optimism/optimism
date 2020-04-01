@@ -71,9 +71,9 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
         activeContract = executionManagerLog.values['_activeContract']
       } else {
         logger.debug(
-          `${
-            executionManagerLog.name
-          }, values: ${JSON.stringify(executionManagerLog.values)}`
+          `${executionManagerLog.name}, values: ${JSON.stringify(
+            executionManagerLog.values
+          )}`
         )
       }
     } else {

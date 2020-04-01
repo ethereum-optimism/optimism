@@ -121,3 +121,12 @@ export async function deployContract(
   await contract.deployed()
   return contract
 }
+
+/**
+ * Gets the current number of seconds since the epoch.
+ *
+ * @returns The seconds since epoch.
+ */
+export function getCurrentTime(): number {
+  return Math.round(new Date().getTime() / 1000)
+}

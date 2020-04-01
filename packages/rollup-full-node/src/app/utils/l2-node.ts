@@ -119,7 +119,9 @@ function getL2Wallet(provider: JsonRpcProvider): Wallet {
     }
   } else {
     wallet = getWallets(provider)[0]
-    log.info(`Getting wallet from provider. First wallet private key: [${wallet.privateKey}`)
+    log.info(
+      `Getting wallet from provider. First wallet private key: [${wallet.privateKey}`
+    )
   }
 
   if (!wallet) {
