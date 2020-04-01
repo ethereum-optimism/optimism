@@ -42,6 +42,7 @@ export const l2ToL1MessagePasserInterface = new ethers.utils.Interface(
 )
 
 const logger = getLogger('utils')
+
 export interface OvmTransactionMetadata {
   ovmTxSucceeded: boolean
   ovmTo: string
@@ -68,8 +69,15 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
     if (executionManagerLog) {
       if (executionManagerLog.name === 'ActiveContract') {
         activeContract = executionManagerLog.values['_activeContract']
+      } else {
+        logger.debug(
+          `${
+            executionManagerLog.name
+          }, values: ${JSON.stringify(executionManagerLog.values)}`
+        )
       }
     } else {
+      logger.debug(`Non-EM log: ${JSON.stringify(log)}`)
       ovmLogs.push({ ...log, address: activeContract })
     }
   })
