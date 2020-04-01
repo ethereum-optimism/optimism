@@ -299,16 +299,15 @@ contract ExecutionManager is FullStateManager {
         bytes memory result;
         assembly {
             success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
-            mstore(0, success)
-            return(0, 32)
             result := mload(0x40)
             let resultData := add(result, 0x20)
-            returndatacopy(resultData, 0, returndatasize)
 
             if eq(success, 1) {
-                return(resultData, returndatasize)
+                returndatacopy(0, 0, returndatasize)
+                return(0, returndatasize)
             }
             if eq(_allowRevert, 1) {
+                returndatacopy(resultData, 0, returndatasize)
                 revert(resultData, returndatasize)
             }
             mstore(result, returndatasize)

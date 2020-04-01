@@ -59,7 +59,7 @@ const sloadKey: string = '11'.repeat(32)
 const unpopultedSLOADResult: string = '00'.repeat(32)
 const populatedSLOADResult: string = '22'.repeat(32)
 
-describe('Execution Manager -- Call opcodes', () => {
+describe.only('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
@@ -123,7 +123,7 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   describe('ovmCALL', async () => {
-    it.only('properly executes ovmCALL to SLOAD', async () => {
+    it('properly executes ovmCALL to SLOAD', async () => {
       const result: string = await executeCall(
         callContractAddress,
         methodIds.staticFriendlySLOAD,
@@ -529,8 +529,6 @@ describe('Execution Manager -- Call opcodes', () => {
     methodId: string,
     args: any[]
   ): Promise<string> => {
-    console.log(contractAddress)
-    console.log(methodId)
     return executeOVMCall(executionManager, 'executeCall', [
       encodeRawArguments([
         getCurrentTime(),
