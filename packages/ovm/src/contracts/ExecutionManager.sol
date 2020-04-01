@@ -155,7 +155,7 @@ contract ExecutionManager is FullStateManager {
             calldatacopy(add(callBytes2, 32), 0x44, sub(callSize, 4))
             /* mstore(0, callBytes2) */
             /* calldatacopy(_ovmEntrypoint, 0, 32) */
-            _ovmEntrypoint := calldataload(0x40)
+            _ovmEntrypoint := calldataload(68)
             calldatacopy(add(callBytes3, 32), 100, sub(callSize, 4))
             mstore(callBytes3, sub(callSize, 36))
             
@@ -167,8 +167,8 @@ contract ExecutionManager is FullStateManager {
         
 /*         uint callSize3 = callBytes3.length; */
 /* assembly{ */
-/*             mstore(0, callSize3) */
-/*             return(0, 32) */
+/*             mstore(0, _ovmEntrypoint) */
+/*             return(0, 20) */
 /*         } */
         return executeTransaction2(
           _timestamp,
@@ -254,28 +254,27 @@ contract ExecutionManager is FullStateManager {
         address _l1MsgSenderAddress,
         bool _allowRevert
     ) public {
-      uint256 callSize2;
-        uint256 callSize;
-        bool isCreate = _ovmEntrypoint == ZERO_ADDRESS;
-        if (isCreate) {
-            callSize = _callBytes.length;
-        } else {
-            callSize = _callBytes.length + 32;
-        }
+        uint _nonce = getOvmContractNonce(_fromAddress);
+        // Initialize our context
+        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
+
+        // Set the active contract to be our EOA address
+        switchActiveContract(_fromAddress);
+
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
-        /* uint256 callSize; */
+        uint256 callSize;
+        bool isCreate = _ovmEntrypoint == ZERO_ADDRESS;
         // Check if we're creating -- ovmEntrypoint == ZERO_ADDRESS
         if (isCreate) {
             methodId = ovmCreateMethodId;
-            /* callSize = _callBytes.length + 4; */
-            uint _nonce = getOvmContractNonce(_fromAddress);
+            callSize = _callBytes.length + 4;
             // Emit event that we are creating a contract with an EOA
             address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
             emit EOACreatedContract(_newOvmContractAddress);
         } else {
             methodId = ovmCallMethodId;
-            /* callSize = _callBytes.length + 32 + 4; */
+            callSize = _callBytes.length + 32 + 4;
             // Creates will get incremented, but calls need to be as well!
             incrementOvmContractNonce(_fromAddress);
         }
@@ -285,8 +284,6 @@ contract ExecutionManager is FullStateManager {
                 _callBytes := sub(_callBytes, 4)
                 // And now set the ovmEntrypoint
                 mstore(add(_callBytes, 4), _ovmEntrypoint)
-                // assembly {
-                //}
             }
             if eq(isCreate, 1) {
                 _callBytes := add(_callBytes, 28)
@@ -296,32 +293,14 @@ contract ExecutionManager is FullStateManager {
             mstore8(add(_callBytes, 2), shr(8, methodId))
             mstore8(add(_callBytes, 3), methodId)
         }
-        // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
-
-        // Set the active contract to be our EOA address
-        assembly {
-            return(_callBytes, callSize)
-        }
-        switchActiveContract(_fromAddress);
-        assembly {
-            if eq(isCreate, 0) {
-                // And now set the ovmEntrypoint
-                mstore(add(_callBytes, 4), _ovmEntrypoint)
-            }
-        }
-
 
         bool success = false;
         address addr = address(this);
         bytes memory result;
         assembly {
-            /* return(_callBytes, callSize) */
-      /* assembly { */
-      /*   mstore(0, _ovmEntrypoint) */
-          /* return(_callBytes, callSize) */
-        /* } */
             success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
+            mstore(0, success)
+            return(0, 32)
             result := mload(0x40)
             let resultData := add(result, 0x20)
             returndatacopy(resultData, 0, returndatasize)
