@@ -59,7 +59,7 @@ const sloadKey: string = '11'.repeat(32)
 const unpopultedSLOADResult: string = '00'.repeat(32)
 const populatedSLOADResult: string = '22'.repeat(32)
 
-describe.only('Execution Manager -- Call opcodes', () => {
+describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract

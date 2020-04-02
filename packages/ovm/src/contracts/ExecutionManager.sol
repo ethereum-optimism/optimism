@@ -170,7 +170,7 @@ contract ExecutionManager is FullStateManager {
 /*             mstore(0, _ovmEntrypoint) */
 /*             return(0, 20) */
 /*         } */
-        return executeTransaction2(
+        return executeTransaction(
           _timestamp,
           _queueOrigin,
           _ovmEntrypoint,
@@ -245,7 +245,7 @@ contract ExecutionManager is FullStateManager {
      * @param _fromAddress The address which this call should originate from--the msg.sender.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
-    function executeTransaction2(
+    function executeTransaction(
         uint _timestamp,
         uint _queueOrigin,
         address _ovmEntrypoint,
@@ -323,6 +323,7 @@ contract ExecutionManager is FullStateManager {
             }
         }
     }
+
     function executeTransaction(
         uint _timestamp,
         uint _queueOrigin,
