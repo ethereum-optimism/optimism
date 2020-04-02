@@ -42,7 +42,7 @@ const log = getLogger('execution-manager-calls', true)
 
 const methodIds = fromPairs(
   [
-    'executeCall',
+    'executeTransactionRaw',
     'makeCall',
     'makeStaticCall',
     'makeStaticCallThenCall',
@@ -124,11 +124,11 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmCALL', async () => {
     it('properly executes ovmCALL to SLOAD', async () => {
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeTransaction(
+        callContractAddress,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
       log.debug(`Result: [${result}]`)
 
       remove0x(result).should.equal(unpopultedSLOADResult, 'Result mismatch!')
@@ -136,7 +136,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('properly executes ovmCALL to SSTORE', async () => {
       const data: string =
-        encodeMethodId('executeCall') +
+        encodeMethodId('executeTransactionRaw') +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -155,11 +155,11 @@ describe('Execution Manager -- Call opcodes', () => {
         gasLimit,
       })
 
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeTransaction(
+        callContract2Address,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result: [${result}]`)
 
@@ -168,11 +168,11 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE', async () => {
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeTransaction(
+        callContract2Address,
         methodIds.notStaticFriendlyCREATE,
-        deployTx.data,
-      ])
+        [deployTx.data]
+      )
 
       log.debug(`RESULT: ${result}`)
 
@@ -185,12 +185,11 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE2', async () => {
-      const result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const result: string = await executeTransaction(
+        callContract2Address,
         methodIds.notStaticFriendlyCREATE2,
-        0,
-        deployTx.data,
-      ])
+        [0, deployTx.data]
+      )
 
       log.debug(`RESULT: ${result}`)
 
@@ -206,7 +205,7 @@ describe('Execution Manager -- Call opcodes', () => {
   describe('ovmDELEGATECALL', async () => {
     it('properly executes ovmDELEGATECALL to SSTORE', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -226,11 +225,11 @@ describe('Execution Manager -- Call opcodes', () => {
       })
 
       // Stored in contract 2 via delegate call but accessed via contract 1
-      const result: string = await executeCall([
-        addressToBytes32Address(callContractAddress),
+      const result: string = await executeTransaction(
+        callContractAddress,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result: [${result}]`)
       // Should have stored result
@@ -239,11 +238,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored result!'
       )
 
-      const contract2Result: string = await executeCall([
+      const contract2Result: string = await executeTransaction(
         addressToBytes32Address(callContract2Address),
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result: [${contract2Result}]`)
 
@@ -257,7 +256,7 @@ describe('Execution Manager -- Call opcodes', () => {
     it('properly executes nested ovmDELEGATECALLs to SSTORE', async () => {
       // contract 1 delegate calls contract 2 delegate calls contract 3
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -278,11 +277,11 @@ describe('Execution Manager -- Call opcodes', () => {
         gasLimit,
       })
 
-      const contract1Result: string = await executeCall([
-        addressToBytes32Address(callContractAddress),
+      const contract1Result: string = await executeTransaction(
+        callContractAddress,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result 1: [${contract1Result}]`)
 
@@ -292,11 +291,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored data!'
       )
 
-      const contract2Result: string = await executeCall([
-        addressToBytes32Address(callContract2Address),
+      const contract2Result: string = await executeTransaction(
+        callContract2Address,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result 2: [${contract2Result}]`)
 
@@ -306,11 +305,11 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should not yield any data (0 x 32 bytes)!'
       )
 
-      const contract3Result: string = await executeCall([
-        addressToBytes32Address(callContract3Address),
+      const contract3Result: string = await executeTransaction(
+        callContract3Address,
         methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+        [sloadKey]
+      )
 
       log.debug(`Result 3: [${contract3Result}]`)
 
@@ -324,15 +323,19 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmSTATICCALL', async () => {
     it('properly executes ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeOVMCall(executionManager, 'executeCall', [
-        0,
-        0,
-        addressToBytes32Address(callContractAddress),
-        methodIds.makeStaticCall,
-        addressToBytes32Address(callContract2Address),
-        methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          getCurrentTime(),
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.staticFriendlySLOAD,
+          sloadKey,
+        ]
+      )
 
       log.debug(`Result: [${result}]`)
 
@@ -340,17 +343,21 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes nested ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeOVMCall(executionManager, 'executeCall', [
-        0,
-        0,
-        addressToBytes32Address(callContractAddress),
-        methodIds.makeStaticCall,
-        addressToBytes32Address(callContract2Address),
-        methodIds.makeStaticCall,
-        addressToBytes32Address(callContract2Address),
-        methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          getCurrentTime(),
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.staticFriendlySLOAD,
+          sloadKey,
+        ]
+      )
 
       log.debug(`Result: [${result}]`)
 
@@ -359,7 +366,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('successfully makes static call then call', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -378,7 +385,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('remains in static context when exiting nested static context', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -400,7 +407,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('fails on ovmSTATICCALL to SSTORE', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -424,7 +431,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('Fails to create on ovmSTATICCALL to CREATE -- tx', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -451,7 +458,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('Fails to create on ovmSTATICCALL to CREATE -- call', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -474,7 +481,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('fails on ovmSTATICCALL to CREATE2 -- tx', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -502,7 +509,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
       const data: string =
-        methodIds.executeCall +
+        methodIds.executeTransactionRaw +
         encodeRawArguments([
           getCurrentTime(),
           0,
@@ -525,13 +532,17 @@ describe('Execution Manager -- Call opcodes', () => {
     })
   })
 
-  const executeCall = (args: any[]): Promise<string> => {
-    return executeOVMCall(executionManager, 'executeCall', [
+  const executeTransaction = async (
+    contractAddress: string,
+    methodId: string,
+    args: any[]
+  ): Promise<string> => {
+    return executeOVMCall(executionManager, 'executeTransactionRaw', [
       encodeRawArguments([
         getCurrentTime(),
         0,
-        addressToBytes32Address(callContractAddress),
-        methodIds.makeCall,
+        addressToBytes32Address(contractAddress),
+        methodId,
         ...args,
       ]),
     ])

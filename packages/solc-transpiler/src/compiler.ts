@@ -79,6 +79,14 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   for (const [filename, fileJson] of Object.entries(res.contracts)) {
     log.debug(`Transpiling file: ${filename}`)
     for (const [contractName, contractJson] of Object.entries(fileJson)) {
+      if (
+        !contractJson ||
+        !contractJson.evm ||
+        !contractJson.evm.bytecode ||
+        !contractJson.evm.deployedBytecode
+      ) {
+        continue
+      }
       // Library links in bytecode strings have invalid hex: they are of the form __$asdfasdf$__.
       // Because __$ is not a valid hex string, we replace with a valid hex string during transpilation,
       // storing the links re-substituting the __$* strings afterwards
