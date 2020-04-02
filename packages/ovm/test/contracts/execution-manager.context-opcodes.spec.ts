@@ -155,14 +155,18 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmTIMESTAMP', async () => {
     it('properly retrieves TIMESTAMP', async () => {
       const timestamp: number = 1582890922
-      const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        timestamp,
-        0,
-        contractAddress32,
-        methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getTIMESTAMP,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          timestamp,
+          0,
+          contractAddress32,
+          methodIds.callThroughExecutionManager,
+          contract2Address32,
+          methodIds.getTIMESTAMP,
+        ]
+      )
 
       log.debug(`TIMESTAMP result: ${result}`)
 
@@ -190,14 +194,18 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmQueueOrigin', async () => {
     it('gets Queue Origin when it is 0', async () => {
       const queueOrigin: string = '00'.repeat(32)
-      const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        getCurrentTime(),
-        queueOrigin,
-        contractAddress32,
-        methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getQueueOrigin,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          getCurrentTime(),
+          queueOrigin,
+          contractAddress32,
+          methodIds.callThroughExecutionManager,
+          contract2Address32,
+          methodIds.getQueueOrigin,
+        ]
+      )
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
 
@@ -207,14 +215,18 @@ describe('Execution Manager -- Context opcodes', () => {
 
     it('properly retrieves Queue Origin when queue origin is set', async () => {
       const queueOrigin: string = '00'.repeat(30) + '1111'
-      const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        getCurrentTime(),
-        queueOrigin,
-        contractAddress32,
-        methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getQueueOrigin,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          getCurrentTime(),
+          queueOrigin,
+          contractAddress32,
+          methodIds.callThroughExecutionManager,
+          contract2Address32,
+          methodIds.getQueueOrigin,
+        ]
+      )
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
 

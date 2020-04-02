@@ -323,15 +323,19 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmSTATICCALL', async () => {
     it('properly executes ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        getCurrentTime(),
-        0,
-        addressToBytes32Address(callContractAddress),
-        methodIds.makeStaticCall,
-        addressToBytes32Address(callContract2Address),
-        methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          getCurrentTime(),
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.staticFriendlySLOAD,
+          sloadKey,
+        ]
+      )
 
       log.debug(`Result: [${result}]`)
 
@@ -339,17 +343,21 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes nested ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        getCurrentTime(),
-        0,
-        addressToBytes32Address(callContractAddress),
-        methodIds.makeStaticCall,
-        addressToBytes32Address(callContract2Address),
-        methodIds.makeStaticCall,
-        addressToBytes32Address(callContract2Address),
-        methodIds.staticFriendlySLOAD,
-        sloadKey,
-      ])
+      const result = await executeOVMCall(
+        executionManager,
+        'executeTransactionRaw',
+        [
+          getCurrentTime(),
+          0,
+          addressToBytes32Address(callContractAddress),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.makeStaticCall,
+          addressToBytes32Address(callContract2Address),
+          methodIds.staticFriendlySLOAD,
+          sloadKey,
+        ]
+      )
 
       log.debug(`Result: [${result}]`)
 
