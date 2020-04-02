@@ -68,7 +68,7 @@ function overrideAbiFunctionData(
  * @param {Array} an array of parameters which should be fed into `executeTransaction(...)`.
  * @param {OutputTypes} an array ABI types which should be used to decode the output of the call.
  */
-function callExecutionManagerExecuteUnsignedEOACall(
+function callExecutionManagerExecuteTransaction(
   executionManager: Contract,
   parameters: any[],
   outputTypes: any[]
@@ -169,7 +169,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         '0x4200000000000000000000000000000000000001'
       const testL1MsgSenderAddress = '0x' + '01'.repeat(20)
 
-      const callResult = await callExecutionManagerExecuteUnsignedEOACall(
+      const callResult = await callExecutionManagerExecuteTransaction(
         executionManager,
         [
           getCurrentTime(),
@@ -195,7 +195,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
 
       let failed = false
       try {
-        const callResult = await callExecutionManagerExecuteUnsignedEOACall(
+        const callResult = await callExecutionManagerExecuteTransaction(
           executionManager,
           [
             0,
@@ -222,7 +222,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
 
       let failed = false
       try {
-        const callResult = await callExecutionManagerExecuteUnsignedEOACall(
+        const callResult = await callExecutionManagerExecuteTransaction(
           executionManager,
           [
             0,
