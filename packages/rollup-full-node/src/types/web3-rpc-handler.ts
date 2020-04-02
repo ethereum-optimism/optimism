@@ -21,6 +21,7 @@ export interface Web3Handler {
   getTransactionReceipt(txHash: string): Promise<string>
   networkVersion(): Promise<string>
   sendRawTransaction(signedTx: string): Promise<string>
+  chainId(): Promise<string>
 }
 
 // Enum of supported web3 rpc methods
@@ -37,6 +38,7 @@ export enum Web3RpcMethods {
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',
   sendRawTransaction = 'eth_sendRawTransaction',
+  chainId = 'eth_chainId',
 
   // Test methods:
   snapshot = 'evm_snapshot',
