@@ -105,7 +105,7 @@ contract ExecutionManager is FullStateManager {
     }
 
     /**
-     * @notice Execute a call which will return the result of the call instead of the updated storage.
+     * @notice Execute a transaction which will return the result of the call instead of the updated storage.
      *         Note: This should only be used with a Web3 `call` operation, otherwise you may accidentally save changes to the state.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
      * Below format of the bytes expected as input and written as output:
@@ -189,7 +189,7 @@ contract ExecutionManager is FullStateManager {
     }
 
     /**
-     * @notice Execute an unsigned EOA call. Note that unsigned EOA calls are unauthenticated.
+     * @notice Execute an unsigned EOA transaction. Note that unsigned EOA calls are unauthenticated.
      *         This means that they should not be allowed for normal execution.
      * @param _timestamp The timestamp which should be used for this call's context.
      * @param _queueOrigin The parent-chain queue from which this call originated.
