@@ -1,4 +1,5 @@
 export * from './errors'
+export * from './l1-to-l2-transaction-receiver'
 export * from './opcodes'
 export * from './state-machine'
 export * from './types'
