@@ -121,29 +121,29 @@ contract ExecutionManager is FullStateManager {
         uint _timestamp;
         uint _queueOrigin;
         uint _callSize;
-        bytes memory _callBytes;
+        bytes memory callBytes;
         address _ovmEntrypoint;
         assembly {
             // populate timestamp and queue origin from calldata
-            _timestamp := calldataload(4)
+            _timestamp := calldataload(0x04)
             // skip method ID (bytes4) and timestamp (bytes32)
-            _queueOrigin := calldataload(add(4, 32))
+            _queueOrigin := calldataload(0x24)
 
-            _callBytes := mload(0x40)
+            callBytes := mload(0x40)
             // set callsize: total param size minus 2 uints (methodId bytes are repurposed)
             _callSize := sub(calldatasize, 0x40)
-            mstore(0x40, add(_callBytes, _callSize))
+            mstore(0x40, add(callBytes, _callSize))
 
-            _ovmEntrypoint := calldataload(68)
-            calldatacopy(add(_callBytes, 32), 100, sub(_callSize, 4))
-            mstore(_callBytes, sub(_callSize, 36))
+            _ovmEntrypoint := calldataload(0x44)
+            calldatacopy(add(callBytes, 0x20), 0x64, sub(_callSize, 0x04))
+            mstore(callBytes, sub(_callSize, 0x20))
         }
  
         return executeTransaction(
             _timestamp,
             _queueOrigin,
             _ovmEntrypoint,
-            _callBytes,
+            callBytes,
             ZERO_ADDRESS,
             ZERO_ADDRESS,
             true
