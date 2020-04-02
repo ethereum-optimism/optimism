@@ -79,50 +79,52 @@ export const compile = (configJsonString: string, callbacks?: any): string => {
   for (const [filename, fileJson] of Object.entries(res.contracts)) {
     log.debug(`Transpiling file: ${filename}`)
     for (const [contractName, contractJson] of Object.entries(fileJson)) {
-      // Library links in bytecode strings have invalid hex: they are of the form __$asdfasdf$__.
-      // Because __$ is not a valid hex string, we replace with a valid hex string during transpilation,
-      // storing the links re-substituting the __$* strings afterwards
-      const originalRefStrings = getOriginalLinkRefStringsAndSubstituteValidHex(
-        contractJson
-      )
-      log.debug(
-        `Transpiling contract: ${contractName} with valid hex strings for link placeholders.`
-      )
-      const output = transpileContract(
-        transpiler,
-        contractJson,
-        filename,
-        contractName
-      )
-      log.debug(`Transpiled contract ${contractName}.`)
+      if (!!contractJson && !!contractJson.evm && !!contractJson.evm.bytecode && !!contractJson.evm.deployedBytecode) {
+        // Library links in bytecode strings have invalid hex: they are of the form __$asdfasdf$__.
+        // Because __$ is not a valid hex string, we replace with a valid hex string during transpilation,
+        // storing the links re-substituting the __$* strings afterwards
+        const originalRefStrings = getOriginalLinkRefStringsAndSubstituteValidHex(
+          contractJson
+        )
+        log.debug(
+          `Transpiling contract: ${contractName} with valid hex strings for link placeholders.`
+        )
+        const output = transpileContract(
+          transpiler,
+          contractJson,
+          filename,
+          contractName
+        )
+        log.debug(`Transpiled contract ${contractName}.`)
 
-      res.contracts[filename][contractName].evm.bytecode.object = remove0x(
-        output.bytecode || ''
-      )
-      res.contracts[filename][
-        contractName
-      ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
-      res.contracts[filename][contractName].evm.bytecode.object = remove0x(
-        output.bytecode || ''
-      )
-      res.contracts[filename][
-        contractName
-      ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
+        res.contracts[filename][contractName].evm.bytecode.object = remove0x(
+          output.bytecode || ''
+        )
+        res.contracts[filename][
+          contractName
+        ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
+        res.contracts[filename][contractName].evm.bytecode.object = remove0x(
+          output.bytecode || ''
+        )
+        res.contracts[filename][
+          contractName
+        ].evm.deployedBytecode.object = remove0x(output.deployedBytecode || '')
 
-      log.debug(
-        `Updating links for all libraries by putting back original invalid hex (__$...$__) strings and updating link .start's.`
-      )
-      updateLinkRefsAndSubstituteOriginalStrings(
-        res.contracts[filename][contractName],
-        originalRefStrings
-      )
+        log.debug(
+          `Updating links for all libraries by putting back original invalid hex (__$...$__) strings and updating link .start's.`
+        )
+        updateLinkRefsAndSubstituteOriginalStrings(
+          res.contracts[filename][contractName],
+          originalRefStrings
+        )
 
-      if (!!output.errors) {
-        if (!res.errors) {
-          res.errors = []
+        if (!!output.errors) {
+          if (!res.errors) {
+            res.errors = []
+          }
+
+          res.errors.push(...output.errors)
         }
-
-        res.errors.push(...output.errors)
       }
     }
   }
