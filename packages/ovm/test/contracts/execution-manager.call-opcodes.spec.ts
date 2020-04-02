@@ -142,7 +142,7 @@ describe.only('Execution Manager -- Call opcodes', () => {
           addressToBytes32Address(callContract2Address),
           methodIds.notStaticFriendlySSTORE,
           sloadKey,
-          populatedSLOADResult
+          populatedSLOADResult,
         ]
       )
 
@@ -375,75 +375,46 @@ describe.only('Execution Manager -- Call opcodes', () => {
     })
 
     it('remains in static context when exiting nested static context', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCallThenCall,
-          addressToBytes32Address(callContractAddress),
-        ])
-
       await TestUtils.assertThrowsAsync(async () => {
-        await executionManager.provider.call({
-          to: executionManager.address,
-          data,
-          gasLimit,
-        })
+        await executePersistedTransaction(
+          callContractAddress,
+          methodIds.makeStaticCall,
+          [
+            addressToBytes32Address(callContractAddress),
+            methodIds.makeStaticCallThenCall,
+            addressToBytes32Address(callContractAddress),
+          ]
+        )
       })
     })
 
     it('fails on ovmSTATICCALL to SSTORE', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
-          addressToBytes32Address(callContractAddress),
-          methodIds.notStaticFriendlySSTORE,
-          sloadKey,
-          populatedSLOADResult,
-        ])
-
       await TestUtils.assertThrowsAsync(async () => {
-        // Note: Send transaction vs call so it is persisted
-        await wallet.sendTransaction({
-          to: executionManager.address,
-          data,
-          gasLimit,
-        })
+        await executePersistedTransaction(
+          callContractAddress,
+          methodIds.makeStaticCall,
+          [
+            addressToBytes32Address(callContractAddress),
+            methodIds.notStaticFriendlySSTORE,
+            sloadKey,
+            populatedSLOADResult,
+          ]
+        )
       })
     })
 
     it('Fails to create on ovmSTATICCALL to CREATE -- tx', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
+      const hash = await executePersistedTransaction(
+        callContractAddress,
+        methodIds.makeStaticCall,
+        [
           addressToBytes32Address(callContractAddress),
           methodIds.notStaticFriendlyCREATE,
           deployTx.data,
-        ])
-
-      // Note: Send transaction vs call so it is persisted
-      const receipt = await wallet.sendTransaction({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
-
-      const createSucceeded = await didCreateSucceed(
-        executionManager,
-        receipt.hash
+        ]
       )
+      const createSucceeded = await didCreateSucceed(executionManager, hash)
+
       createSucceeded.should.equal(false, 'Create should have failed!')
     })
 
@@ -458,7 +429,10 @@ describe.only('Execution Manager -- Call opcodes', () => {
         ]
       )
 
-      address.should.equal(addressToBytes32Address(ZERO_ADDRESS), 'Should be 0 address!')
+      address.should.equal(
+        addressToBytes32Address(ZERO_ADDRESS),
+        'Should be 0 address!'
+      )
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- tx', async () => {
@@ -473,26 +447,26 @@ describe.only('Execution Manager -- Call opcodes', () => {
         ]
       )
 
-      const createSucceeded = await didCreateSucceed(
-        executionManager,
-        hash
-      )
+      const createSucceeded = await didCreateSucceed(executionManager, hash)
       createSucceeded.should.equal(false, 'Create should have failed!')
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
       const res = await executeTransaction(
-          callContractAddress,
-          methodIds.makeStaticCall,
-          [
-            addressToBytes32Address(callContractAddress),
-            methodIds.notStaticFriendlyCREATE2,
-            0,
-            deployTx.data,
-          ]
+        callContractAddress,
+        methodIds.makeStaticCall,
+        [
+          addressToBytes32Address(callContractAddress),
+          methodIds.notStaticFriendlyCREATE2,
+          0,
+          deployTx.data,
+        ]
       )
-      
-      res.should.equal(addressToBytes32Address(ZERO_ADDRESS), 'Should be 0 address!')
+
+      res.should.equal(
+        addressToBytes32Address(ZERO_ADDRESS),
+        'Should be 0 address!'
+      )
     })
   })
 
@@ -501,27 +475,26 @@ describe.only('Execution Manager -- Call opcodes', () => {
     methodId: string,
     args: any[]
   ): Promise<string> => {
-      const callBytes = add0x(
-        methodId + encodeRawArguments(args)
-      )
-      const data = executionManager.interface.functions['executeTransaction'].encode(
-        [
-          getCurrentTime(),
-          0,
-          callContractAddress,
-          callBytes,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          false 
-        ])
+    const callBytes = add0x(methodId + encodeRawArguments(args))
+    const data = executionManager.interface.functions[
+      'executeTransaction'
+    ].encode([
+      getCurrentTime(),
+      0,
+      callContractAddress,
+      callBytes,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
+      true,
+    ])
 
-      const receipt = await wallet.sendTransaction({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
+    const receipt = await wallet.sendTransaction({
+      to: executionManager.address,
+      data: add0x(data),
+      gasLimit,
+    })
 
-      return receipt.hash
+    return receipt.hash
   }
 
   const executeTransaction = async (
@@ -529,19 +502,18 @@ describe.only('Execution Manager -- Call opcodes', () => {
     methodId: string,
     args: any[]
   ): Promise<string> => {
-    const callBytes = add0x(
-      methodId + encodeRawArguments(args)
-    )
-    const data = executionManager.interface.functions['executeTransaction'].encode(
-      [
-        getCurrentTime(),
-        0,
-        contractAddress,
-        callBytes,
-        ZERO_ADDRESS,
-        ZERO_ADDRESS,
-        false 
-      ])
+    const callBytes = add0x(methodId + encodeRawArguments(args))
+    const data = executionManager.interface.functions[
+      'executeTransaction'
+    ].encode([
+      getCurrentTime(),
+      0,
+      contractAddress,
+      callBytes,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
+      true,
+    ])
     return executionManager.provider.call({
       to: executionManager.address,
       data,
