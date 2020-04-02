@@ -8,6 +8,7 @@ import {
   add0x,
   TestUtils,
   getCurrentTime,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, ethers } from 'ethers'
@@ -50,7 +51,6 @@ const methodIds = fromPairs(
     'notStaticFriendlySSTORE',
     'notStaticFriendlyCREATE',
     'notStaticFriendlyCREATE2',
-    'staticFriendlySLOAD',
     'makeDelegateCall',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
@@ -59,7 +59,7 @@ const sloadKey: string = '11'.repeat(32)
 const unpopultedSLOADResult: string = '00'.repeat(32)
 const populatedSLOADResult: string = '22'.repeat(32)
 
-describe('Execution Manager -- Call opcodes', () => {
+describe.only('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
@@ -135,25 +135,16 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to SSTORE', async () => {
-      const data: string =
-        encodeMethodId('executeTransactionRaw') +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeCall,
+      await executePersistedTransaction(
+        callContractAddress,
+        methodIds.makeCall,
+        [
           addressToBytes32Address(callContract2Address),
           methodIds.notStaticFriendlySSTORE,
           sloadKey,
-          populatedSLOADResult,
-        ])
-
-      // Note: Send transaction vs call so it is persisted
-      await wallet.sendTransaction({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
+          populatedSLOADResult
+        ]
+      )
 
       const result: string = await executeTransaction(
         callContract2Address,
@@ -457,94 +448,104 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('Fails to create on ovmSTATICCALL to CREATE -- call', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
+      const address = await executeTransaction(
+        callContractAddress,
+        methodIds.makeStaticCall,
+        [
           addressToBytes32Address(callContractAddress),
           methodIds.notStaticFriendlyCREATE,
           deployTx.data,
-        ])
+        ]
+      )
 
-      const res = await wallet.provider.call({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
-
-      const address = remove0x(res)
-      address.should.equal('00'.repeat(32), 'Should be 0 address!')
+      address.should.equal(addressToBytes32Address(ZERO_ADDRESS), 'Should be 0 address!')
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- tx', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
+      const hash = await executePersistedTransaction(
+        callContractAddress,
+        methodIds.makeStaticCall,
+        [
           addressToBytes32Address(callContractAddress),
           methodIds.notStaticFriendlyCREATE2,
           0,
           deployTx.data,
+        ]
+      )
+
+      const createSucceeded = await didCreateSucceed(
+        executionManager,
+        hash
+      )
+      createSucceeded.should.equal(false, 'Create should have failed!')
+    })
+
+    it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
+      const res = await executeTransaction(
+          callContractAddress,
+          methodIds.makeStaticCall,
+          [
+            addressToBytes32Address(callContractAddress),
+            methodIds.notStaticFriendlyCREATE2,
+            0,
+            deployTx.data,
+          ]
+      )
+      
+      res.should.equal(addressToBytes32Address(ZERO_ADDRESS), 'Should be 0 address!')
+    })
+  })
+
+  const executePersistedTransaction = async (
+    contractAddress: string,
+    methodId: string,
+    args: any[]
+  ): Promise<string> => {
+      const callBytes = add0x(
+        methodId + encodeRawArguments(args)
+      )
+      const data = executionManager.interface.functions['executeTransaction'].encode(
+        [
+          getCurrentTime(),
+          0,
+          callContractAddress,
+          callBytes,
+          ZERO_ADDRESS,
+          ZERO_ADDRESS,
+          false 
         ])
 
-      // Note: Send transaction vs call so it is persisted
       const receipt = await wallet.sendTransaction({
         to: executionManager.address,
         data: add0x(data),
         gasLimit,
       })
 
-      const createSucceeded = await didCreateSucceed(
-        executionManager,
-        receipt.hash
-      )
-      createSucceeded.should.equal(false, 'Create should have failed!')
-    })
-
-    it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
-          addressToBytes32Address(callContractAddress),
-          methodIds.notStaticFriendlyCREATE2,
-          0,
-          deployTx.data,
-        ])
-
-      const res = await wallet.provider.call({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
-
-      const address = remove0x(res)
-      address.should.equal('00'.repeat(32), 'Should be 0 address!')
-    })
-  })
+      return receipt.hash
+  }
 
   const executeTransaction = async (
     contractAddress: string,
     methodId: string,
     args: any[]
   ): Promise<string> => {
-    return executeOVMCall(executionManager, 'executeTransactionRaw', [
-      encodeRawArguments([
+    const callBytes = add0x(
+      methodId + encodeRawArguments(args)
+    )
+    const data = executionManager.interface.functions['executeTransaction'].encode(
+      [
         getCurrentTime(),
         0,
-        addressToBytes32Address(contractAddress),
-        methodId,
-        ...args,
-      ]),
-    ])
+        contractAddress,
+        callBytes,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        false 
+      ])
+    return executionManager.provider.call({
+      to: executionManager.address,
+      data,
+      gasLimit,
+    })
   }
 })
