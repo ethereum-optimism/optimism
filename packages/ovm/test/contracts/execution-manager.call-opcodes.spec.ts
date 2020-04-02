@@ -324,7 +324,7 @@ describe('Execution Manager -- Call opcodes', () => {
   describe('ovmSTATICCALL', async () => {
     it('properly executes ovmSTATICCALL to SLOAD', async () => {
       const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        0,
+        getCurrentTime(),
         0,
         addressToBytes32Address(callContractAddress),
         methodIds.makeStaticCall,
@@ -340,7 +340,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('properly executes nested ovmSTATICCALL to SLOAD', async () => {
       const result = await executeOVMCall(executionManager, 'executeTransactionRaw', [
-        0,
+        getCurrentTime(),
         0,
         addressToBytes32Address(callContractAddress),
         methodIds.makeStaticCall,

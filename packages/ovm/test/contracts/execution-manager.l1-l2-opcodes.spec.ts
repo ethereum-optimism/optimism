@@ -126,7 +126,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       const txData: string =
         encodeMethodId('executeTransactionRaw') +
         encodeRawArguments([
-          0,
+          getCurrentTime(),
           0,
           addressToBytes32Address(callContractAddress),
           encodeMethodId('makeCall'),
@@ -164,7 +164,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       ethereumjsAbi.methodID('getL1MessageSender', [])
     )
 
-    it.only('should return the l1 message sender provided', async () => {
+    it('should return the l1 message sender provided', async () => {
       const l1MessageSenderPrecompileAddr =
         '0x4200000000000000000000000000000000000001'
       const testL1MsgSenderAddress = '0x' + '01'.repeat(20)
