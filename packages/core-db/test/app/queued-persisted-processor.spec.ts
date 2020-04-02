@@ -49,7 +49,6 @@ describe.only('Queued Persisted Processor', () => {
   })
 
   describe('Fresh start', () => {
-
     it('handles items in order', async () => {
       const item = 'Number 0!'
       await processor.add(0, item)
@@ -136,15 +135,102 @@ describe.only('Queued Persisted Processor', () => {
 
   describe('Start with existing state', () => {
     it('restarts with existing state (empty)', async () => {
-      const secondProc = await DummyQueuedPersistedProcessor.create(db, persistenceKey)
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        db,
+        persistenceKey
+      )
       await sleep(10)
-      secondProc.handledQueue.length.should.equal(0, `No items should be processed!`)
+      secondProc.handledQueue.length.should.equal(
+        0,
+        `No items should be processed!`
+      )
 
       const item = '0000'
       await secondProc.add(0, item)
       await sleep(10)
-      secondProc.handledQueue.length.should.equal(1, `Item should have been processed`)
+      secondProc.handledQueue.length.should.equal(
+        1,
+        `Item should have been processed`
+      )
       secondProc.handledQueue[0].should.equal(item, `Incorrect item processed`)
+    })
+
+    it('restarts with existing state (1 added but not acknowledged)', async () => {
+      const item: string = 'Number 0!'
+      await processor.add(0, item)
+      await sleep(10)
+      processor.handledQueue.length.should.equal(
+        1,
+        `One item should be processed!`
+      )
+      processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
+
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        db,
+        persistenceKey
+      )
+      await sleep(10)
+      secondProc.handledQueue.length.should.equal(
+        1,
+        `One item should be processed!`
+      )
+      secondProc.handledQueue[0].should.equal(item, `Incorrect item processed`)
+    })
+
+    it('restarts with existing state (1 added and acknowledged)', async () => {
+      const item: string = 'Number 0!'
+      await processor.add(0, item)
+      await sleep(10)
+      processor.handledQueue.length.should.equal(
+        1,
+        `One item should be processed!`
+      )
+      processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
+
+      await processor.markProcessed(0)
+
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        db,
+        persistenceKey
+      )
+      await sleep(10)
+      secondProc.handledQueue.length.should.equal(
+        0,
+        `No items should be processed!`
+      )
+    })
+
+    it('restarts with existing state and processed new item', async () => {
+      const item: string = 'Number 0!'
+      await processor.add(0, item)
+      await sleep(10)
+      processor.handledQueue.length.should.equal(
+        1,
+        `One item should be processed!`
+      )
+      processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
+
+      await processor.markProcessed(0)
+
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        db,
+        persistenceKey
+      )
+      await sleep(10)
+      secondProc.handledQueue.length.should.equal(
+        0,
+        `No items should be processed!`
+      )
+
+      const item2: string = '111111'
+      await secondProc.add(1, item2)
+      await sleep(10)
+
+      secondProc.handledQueue.length.should.equal(
+        1,
+        `Second item should be processed!`
+      )
+      secondProc.handledQueue[0].should.equal(item2, `Incorrect item processed`)
     })
   })
 })

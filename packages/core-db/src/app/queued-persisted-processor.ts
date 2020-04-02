@@ -140,10 +140,16 @@ export abstract class BaseQueuedPersistedProcessor<T>
       this.lastIndexProcessed = BaseQueuedPersistedProcessor.deserializeNumber(
         lastProcessedBuf
       )
+      this.log(
+        `Found last processed in the DB. Setting lastIndexProcessed to ${this.lastIndexProcessed}`
+      )
     }
     if (!!nextToProcessBuf) {
-      this.lastIndexProcessed = BaseQueuedPersistedProcessor.deserializeNumber(
-        lastProcessedBuf
+      this.nextIndexToProcess = BaseQueuedPersistedProcessor.deserializeNumber(
+        nextToProcessBuf
+      )
+      this.log(
+        `Found last processed in the DB. Setting lastIndexProcessed to ${this.lastIndexProcessed}`
       )
     }
 
