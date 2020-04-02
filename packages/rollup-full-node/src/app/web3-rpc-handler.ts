@@ -635,7 +635,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ovmEntrypoint = ZERO_ADDRESS
     }
     return this.context.executionManager.interface.functions[
-      'executeUnsignedEOACall'
+      'executeTransaction'
     ].encode([
       timestamp,
       queueOrigin,
