@@ -195,25 +195,16 @@ describe.only('Execution Manager -- Call opcodes', () => {
 
   describe('ovmDELEGATECALL', async () => {
     it('properly executes ovmDELEGATECALL to SSTORE', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeDelegateCall,
+      await executePersistedTransaction(
+        callContractAddress,
+        methodIds.makeDelegateCall,
+        [
           addressToBytes32Address(callContract2Address),
           methodIds.notStaticFriendlySSTORE,
           sloadKey,
           populatedSLOADResult,
-        ])
-
-      // Note: Send transaction vs call so it is persisted
-      await wallet.sendTransaction({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
+        ]
+      )
 
       // Stored in contract 2 via delegate call but accessed via contract 1
       const result: string = await executeTransaction(
@@ -230,7 +221,7 @@ describe.only('Execution Manager -- Call opcodes', () => {
       )
 
       const contract2Result: string = await executeTransaction(
-        addressToBytes32Address(callContract2Address),
+        callContract2Address,
         methodIds.staticFriendlySLOAD,
         [sloadKey]
       )
@@ -246,27 +237,18 @@ describe.only('Execution Manager -- Call opcodes', () => {
 
     it('properly executes nested ovmDELEGATECALLs to SSTORE', async () => {
       // contract 1 delegate calls contract 2 delegate calls contract 3
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeDelegateCall,
+      const result = await executePersistedTransaction(
+        callContractAddress,
+        methodIds.makeDelegateCall,
+        [
           addressToBytes32Address(callContract2Address),
           methodIds.makeDelegateCall,
           addressToBytes32Address(callContract3Address),
           methodIds.notStaticFriendlySSTORE,
           sloadKey,
           populatedSLOADResult,
-        ])
-
-      // Note: Send transaction vs call so it is persisted
-      await wallet.sendTransaction({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
+        ]
+      )
 
       const contract1Result: string = await executeTransaction(
         callContractAddress,
@@ -314,14 +296,10 @@ describe.only('Execution Manager -- Call opcodes', () => {
 
   describe('ovmSTATICCALL', async () => {
     it('properly executes ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeOVMCall(
-        executionManager,
-        'executeTransactionRaw',
+      const result = await executeTransaction(
+        callContractAddress,
+        methodIds.makeStaticCall,
         [
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
           addressToBytes32Address(callContract2Address),
           methodIds.staticFriendlySLOAD,
           sloadKey,
@@ -334,14 +312,10 @@ describe.only('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes nested ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeOVMCall(
-        executionManager,
-        'executeTransactionRaw',
+      const result = await executeTransaction(
+        callContractAddress,
+        methodIds.makeStaticCall,
         [
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCall,
           addressToBytes32Address(callContract2Address),
           methodIds.makeStaticCall,
           addressToBytes32Address(callContract2Address),
@@ -356,22 +330,14 @@ describe.only('Execution Manager -- Call opcodes', () => {
     })
 
     it('successfully makes static call then call', async () => {
-      const data: string =
-        methodIds.executeTransactionRaw +
-        encodeRawArguments([
-          getCurrentTime(),
-          0,
-          addressToBytes32Address(callContractAddress),
-          methodIds.makeStaticCallThenCall,
-          addressToBytes32Address(callContractAddress),
-        ])
-
       // Should not throw
-      await executionManager.provider.call({
-        to: executionManager.address,
-        data: add0x(data),
-        gasLimit,
-      })
+      await executeTransaction(
+        callContractAddress,
+        methodIds.makeStaticCallThenCall,
+        [
+          addressToBytes32Address(callContractAddress),
+        ]
+      )
     })
 
     it('remains in static context when exiting nested static context', async () => {
