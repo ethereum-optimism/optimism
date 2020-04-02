@@ -117,7 +117,7 @@ contract ExecutionManager is FullStateManager {
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
-    function executeCall() external {
+    function executeTransactionRaw() external {
         uint _timestamp;
         uint _queueOrigin;
         uint _callSize;

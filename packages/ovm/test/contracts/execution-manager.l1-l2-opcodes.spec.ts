@@ -124,7 +124,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         ethereumjsAbi.methodID('passMessageToL1', ['bytes'])
       )
       const txData: string =
-        encodeMethodId('executeCall') +
+        encodeMethodId('executeTransactionRaw') +
         encodeRawArguments([
           0,
           0,
