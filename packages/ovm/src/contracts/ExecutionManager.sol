@@ -24,7 +24,6 @@ contract ExecutionManager is FullStateManager {
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
     bytes32 constant ovmCreateMethodId = keccak256("ovmCREATE()") >> 224;
-    bytes32 constant executeCallMethodId = keccak256("executeCall()") >> 224;
 
     // Precompile addresses
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
@@ -121,80 +120,34 @@ contract ExecutionManager is FullStateManager {
     function executeCall() external {
         uint _timestamp;
         uint _queueOrigin;
-        uint callSize;
-        bytes memory callBytes;
-        bytes memory callBytes2;
-        bytes memory callBytes3;
-        bytes32 methodId = ovmCallMethodId;
+        uint _callSize;
+        bytes memory _callBytes;
         address _ovmEntrypoint;
         assembly {
-            // Revert if we don't have methodId, timestamp, queueOrigin, and ovmEntrypointAddress.
-            if lt(calldatasize, 100) {
-                revert(0,0)
-            }
-
             // populate timestamp and queue origin from calldata
             _timestamp := calldataload(4)
             // skip method ID (bytes4) and timestamp (bytes32)
-            _queueOrigin := calldataload(0x24)
+            _queueOrigin := calldataload(add(4, 32))
 
-            callBytes := mload(0x40)
+            _callBytes := mload(0x40)
             // set callsize: total param size minus 2 uints (methodId bytes are repurposed)
-            callSize := sub(calldatasize, 0x40)
-            mstore(0x40, add(callBytes, callSize))
+            _callSize := sub(calldatasize, 0x40)
+            mstore(0x40, add(_callBytes, _callSize))
 
-            // leave room for method ID, skip ahead in calldata methodID(4), timestamp(32), queueOrigin(32)
-            calldatacopy(add(callBytes, 4), 0x44, sub(callSize, 4))
-
-            mstore8(callBytes, shr(24, methodId))
-            mstore8(add(callBytes, 1), shr(16, methodId))
-            mstore8(add(callBytes, 2), shr(8, methodId))
-            mstore8(add(callBytes, 3), methodId)
-            callBytes2 := mload(0x40)
-            mstore(callBytes2, callSize)
-            calldatacopy(add(callBytes2, 32), 0x44, sub(callSize, 4))
-            /* mstore(0, callBytes2) */
-            /* calldatacopy(_ovmEntrypoint, 0, 32) */
             _ovmEntrypoint := calldataload(68)
-            calldatacopy(add(callBytes3, 32), 100, sub(callSize, 4))
-            mstore(callBytes3, sub(callSize, 36))
-            
-            
-            /* mstore(0, _ovmEntrypoint) */
-            /* return(add(callBytes3, 32), sub(callSize,36)) */
-            
+            calldatacopy(add(_callBytes, 32), 100, sub(_callSize, 4))
+            mstore(_callBytes, sub(_callSize, 36))
         }
-        
-/*         uint callSize3 = callBytes3.length; */
-/* assembly{ */
-/*             mstore(0, _ovmEntrypoint) */
-/*             return(0, 20) */
-/*         } */
+ 
         return executeTransaction(
-          _timestamp,
-          _queueOrigin,
-          _ovmEntrypoint,
-          callBytes3,
-          ZERO_ADDRESS,
-          ZERO_ADDRESS,
-          true
-    );
-
-        // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, ZERO_ADDRESS, ZERO_ADDRESS);
-
-        address addr = address(this);
-        assembly {
-            let success := call(gas, addr, 0, callBytes, callSize, 0, 0)
-            let result := mload(0x40)
-            returndatacopy(result, 0, returndatasize)
-
-            if eq(success, 0) {
-                revert(result, returndatasize)
-            }
-
-            return(result, returndatasize)
-        }
+            _timestamp,
+            _queueOrigin,
+            _ovmEntrypoint,
+            _callBytes,
+            ZERO_ADDRESS,
+            ZERO_ADDRESS,
+            true
+        );
     }
 
     /********************
