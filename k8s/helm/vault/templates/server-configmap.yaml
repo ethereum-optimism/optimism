@@ -31,8 +31,8 @@ data:
       disable_registration = "true"
       token = "{{ .Values.server.acl.token }}"
     }
-
-    ui = true
+    plugin_directory = "/home/vault/plugins"
+    ui = false
 
   sidecar.json: |
     {
