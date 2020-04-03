@@ -5,6 +5,19 @@ import { DEFAULT_OPCODE_WHITELIST_MASK } from '@eth-optimism/ovm'
  * to consolidate access / updates and default values.
  */
 export class Environment {
+  // L2 Rpc Server Config
+  public static l2RpcServerPersistentDbPath(defaultValue?: string) {
+    return process.env.L2_RPC_SERVER_PERSISTENT_DB_PATH || defaultValue
+  }
+  public static l2RpcServerHost(defaultValue: string = '0.0.0.0'): string {
+    return process.env.L2_RPC_SERVER_HOST || defaultValue
+  }
+  public static l2RpcServerPort(defaultValue: number = 8545): number {
+    return process.env.L2_RPC_SERVER_PORT
+      ? parseInt(process.env.L2_RPC_SERVER_PORT, 10)
+      : defaultValue
+  }
+
   // Local Node Config
   public static opcodeWhitelistMask(
     defaultValue: string = DEFAULT_OPCODE_WHITELIST_MASK
@@ -26,14 +39,6 @@ export class Environment {
   }
 
   // L2 Config
-  public static l2RpcServerHost(defaultValue: string = '0.0.0.0'): string {
-    return process.env.L2_RPC_SERVER_HOST || defaultValue
-  }
-  public static l2RpcServerPort(defaultValue: number = 8545): number {
-    return process.env.L2_RPC_SERVER_PORT
-      ? parseInt(process.env.L2_RPC_SERVER_PORT, 10)
-      : defaultValue
-  }
   public static l2NodeWeb3Url(defaultValue?: string): string {
     return process.env.L2_NODE_WEB3_URL || defaultValue
   }
@@ -56,8 +61,14 @@ export class Environment {
       ? parseInt(process.env.LOCAL_L1_NODE_PORT, 10)
       : defaultValue
   }
-  public static sequencerMnemonic(defaultValue?: string): string {
+  // TODO: remove default when this matters
+  public static sequencerMnemonic(
+    defaultValue: string = 'rebel talent argue catalog maple duty file taxi dust hire funny steak'
+  ): string {
     return process.env.L1_SEQUENCER_MNEMONIC || defaultValue
+  }
+  public static sequencerPrivateKey(defaultValue?: string): string {
+    return process.env.L1_SEQUENCER_PRIVATE_KEY || defaultValue
   }
   public static l2ToL1MessageReceiverAddress(defaultValue?: string): string {
     return process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS || defaultValue

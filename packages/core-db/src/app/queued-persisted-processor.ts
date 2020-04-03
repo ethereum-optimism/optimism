@@ -2,7 +2,8 @@
 import {
   bufToHexString,
   getLogger,
-  hexStrToBuf, logError,
+  hexStrToBuf,
+  logError,
   Logger,
 } from '@eth-optimism/core-utils'
 

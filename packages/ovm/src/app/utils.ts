@@ -19,6 +19,7 @@ import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.js
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
 import * as L2ToL1MessagePasser from '../../build/contracts/L2ToL1MessagePasser.json'
+import * as L1ToL2MessagePasser from '../../build/contracts/L1ToL2MessagePasser.json'
 import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Internal Imports */
@@ -30,6 +31,7 @@ export const ContractAddressGeneratorContractDefinition = ContractAddressGenerat
 export const RLPEncodeContractDefinition = RLPEncode
 export const L2ToL1MessageReceiverContractDefinition = L2ToL1MessageReceiver
 export const L2ToL1MessagePasserContractDefinition = L2ToL1MessagePasser
+export const L1ToL2MessagePasserContractDefinition = L1ToL2MessagePasser
 
 export const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '

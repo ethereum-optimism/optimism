@@ -1,6 +1,12 @@
 import './setup'
 
-import {runFullnode, deployContract, Web3RpcMethods, TestWeb3Handler } from '@eth-optimism/rollup-full-node'
+import {
+  runFullnode,
+  deployContract,
+  Web3RpcMethods,
+  TestWeb3Handler,
+  FullnodeContext
+} from '@eth-optimism/rollup-full-node'
 import {Contract, Wallet} from 'ethers'
 import {JsonRpcProvider, Provider} from 'ethers/providers'
 
@@ -15,15 +21,15 @@ describe('Timestamp Checker', () => {
   let wallet: Wallet
   let timestampChecker: Contract
   let provider: JsonRpcProvider
-  let fullnodeServer
+  let rollupFullnodeContext: FullnodeContext
 
   before(async () => {
-    ;[fullnodeServer] = await runFullnode(true)
+    rollupFullnodeContext = await runFullnode(true)
   })
 
   after(async () => {
     try {
-      await fullnodeServer.close()
+      await rollupFullnodeContext.fullnodeRpcServer.close()
     } catch (e) {
       // don't do anything
     }

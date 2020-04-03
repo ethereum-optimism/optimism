@@ -1,4 +1,4 @@
-import {L1ToL2Transaction} from './types'
+import { L1ToL2Transaction } from './types'
 
 /**
  * Defines the event handler interface for L1-to-L2 Transactions.

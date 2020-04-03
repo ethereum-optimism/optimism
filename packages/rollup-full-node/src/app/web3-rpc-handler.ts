@@ -1,5 +1,10 @@
 /* External Imports */
-import {Address, L1ToL2Transaction, L1ToL2TransactionListener, L2ToL1Message} from '@eth-optimism/rollup-core'
+import {
+  Address,
+  L1ToL2Transaction,
+  L1ToL2TransactionListener,
+  L2ToL1Message,
+} from '@eth-optimism/rollup-core'
 import {
   add0x,
   getLogger,
@@ -18,7 +23,7 @@ import {
 } from '@eth-optimism/ovm'
 
 import { utils } from 'ethers'
-import {JsonRpcProvider, TransactionReceipt} from 'ethers/providers'
+import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 import AsyncLock from 'async-lock'
 
@@ -42,7 +47,8 @@ const lockKey: string = 'LOCK'
 
 const latestBlock: string = 'latest'
 
-export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
+export class DefaultWeb3Handler
+  implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
   protected blockTimestamps: Object = {}
   private lock: AsyncLock
   /**
@@ -515,7 +521,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler, L1ToL2T
   /**
    * @inheritDoc
    */
-  public async handleL1ToL2Transaction(transaction: L1ToL2Transaction): Promise<void> {
+  public async handleL1ToL2Transaction(
+    transaction: L1ToL2Transaction
+  ): Promise<void> {
     log.debug(`Executing L1 to L2 Transaction ${JSON.stringify(transaction)}`)
 
     // Need to lock to make sure we don't mess up this.context.wallet nonce. Can we use a different wallet?
@@ -530,12 +538,22 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler, L1ToL2T
         false
       )
 
-      log.debug(`L1 to L2 Transaction submitted. Tx hash: ${txHash}. Tx: ${JSON.stringify(transaction)}`)
+      log.debug(
+        `L1 to L2 Transaction submitted. Tx hash: ${txHash}. Tx: ${JSON.stringify(
+          transaction
+        )}`
+      )
       let txReceipt: TransactionReceipt
       try {
         txReceipt = await this.context.provider.waitForTransaction(txHash)
       } catch (e) {
-        logError(log, `Error submitting L1 to L2 transaction to L2 node. Tx Hash: ${txHash}, Tx: ${JSON.stringify(transaction)}`, e)
+        logError(
+          log,
+          `Error submitting L1 to L2 transaction to L2 node. Tx Hash: ${txHash}, Tx: ${JSON.stringify(
+            transaction
+          )}`,
+          e
+        )
         throw e
       }
       log.debug(`L1 to L2 Transaction mined. Tx hash: ${txHash}`)
@@ -546,9 +564,14 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler, L1ToL2T
         )
         await this.processTransactionEvents(ovmTxReceipt)
       } catch (e) {
-        logError(log, `Error processing L1 to L2 transaction events. Tx Hash: ${txHash}, Tx: ${JSON.stringify(transaction)}`, e)
+        logError(
+          log,
+          `Error processing L1 to L2 transaction events. Tx Hash: ${txHash}, Tx: ${JSON.stringify(
+            transaction
+          )}`,
+          e
+        )
       }
-
     })
   }
 
