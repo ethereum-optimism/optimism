@@ -7,12 +7,11 @@ import {
 } from '@eth-optimism/core-utils'
 import {
   L1ToL2MessagePasserContractDefinition,
-  L2ExecutionManagerContractDefinition,
   L2ToL1MessageReceiverContractDefinition,
 } from '@eth-optimism/ovm'
 
-import { Contract, ethers, providers, Wallet } from 'ethers'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { Contract, providers, Wallet } from 'ethers'
+import { createMockProvider, deployContract } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT, Environment } from '../index'
@@ -22,6 +21,11 @@ import { Address } from '@eth-optimism/rollup-core/build/src'
 
 const log = getLogger('local-l1-node')
 
+/**
+ * Initializes the L1 node based on configuration, returning the L1NodeContext.
+ *
+ * @returns The L1NodeContext object with all necessary L1 node info.
+ */
 export const initializeL1Node = async (): Promise<L1NodeContext> => {
   const wallet: Wallet = getSequencerWallet()
   const provider: Provider = getProvider(wallet)
@@ -46,6 +50,11 @@ export const initializeL1Node = async (): Promise<L1NodeContext> => {
   }
 }
 
+/**
+ * Gets the wallet for the sequencer based on configuration in environment variables.
+ *
+ * @returns The sequencer Wallet.
+ */
 const getSequencerWallet = (): Wallet => {
   let sequencerWallet: Wallet
   if (Environment.sequencerPrivateKey()) {
@@ -67,18 +76,21 @@ const getSequencerWallet = (): Wallet => {
   return sequencerWallet
 }
 
+/**
+ * Gets the provider for the L1 node based on configuration. If no existing L1 node
+ * URL is configured, this will deploy a local node.
+ *
+ * @param wallet The wallet to initialize with a sufficiently large balance if deploying a test node.
+ * @returns The provider to use.
+ */
 const getProvider = (wallet: Wallet): Provider => {
   if (Environment.l1NodeWeb3Url()) {
-    return connectToExistingNode()
+    log.info(`Connecting to L1 web3 URL: ${Environment.l1NodeWeb3Url()}`)
+    return new JsonRpcProvider(Environment.l1NodeWeb3Url())
   } else {
     log.info(`Deploying local L1 node on port ${Environment.localL1NodePort()}`)
     return startLocalL1Node(wallet, Environment.localL1NodePort())
   }
-}
-
-const connectToExistingNode = (): Provider => {
-  log.info(`Connecting to L1 web3 URL: ${Environment.l1NodeWeb3Url()}`)
-  return new JsonRpcProvider(Environment.l1NodeWeb3Url())
 }
 
 /**
@@ -155,6 +167,12 @@ const getL2ToL1MessageReceiverContract = async (
   return l2ToL1MessageReceiver
 }
 
+/**
+ * Deploys the L2ToL1MessageReceiver contract using the provided Wallet.
+ *
+ * @param wallet The wallet to use for the deployment
+ * @returns The resulting Contract.
+ */
 const deployL2ToL1MessageReceiver = async (
   wallet: Wallet
 ): Promise<Contract> => {
@@ -219,6 +237,12 @@ const getL1ToL2MessagePasserContract = async (
   return l2ToL1MessagePasser
 }
 
+/**
+ * Deploys the L1ToL2MessagePasser contract using the provided Wallet.
+ *
+ * @param wallet The wallet to use for the deployment
+ * @returns The resulting Contract.
+ */
 const deployL1ToL2MessagePasser = async (wallet: Wallet): Promise<Contract> => {
   log.info(`Deploying L2ToL1MessageReceiver to local L1 Node`)
 
