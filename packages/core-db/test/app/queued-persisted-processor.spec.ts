@@ -38,7 +38,7 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   }
 }
 
-describe.only('Queued Persisted Processor', () => {
+describe('Queued Persisted Processor', () => {
   let db: DB
   let processor: DummyQueuedPersistedProcessor
   const persistenceKey: string = 'derp'
