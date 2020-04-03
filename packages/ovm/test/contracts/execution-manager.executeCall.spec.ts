@@ -40,7 +40,7 @@ const log = getLogger('execution-manager-calls', true)
  *********/
 
 const unsignedCallMethodId: string = ethereumjsAbi
-  .methodID('executeUnsignedEOACall', [])
+  .methodID('executeTransaction', [])
   .toString('hex')
 
 describe('Execution Manager -- Call opcodes', () => {
@@ -145,7 +145,7 @@ describe('Execution Manager -- Call opcodes', () => {
       }
 
       // Call using Ethers
-      const tx = await executionManager.executeUnsignedEOACall(
+      const tx = await executionManager.executeTransaction(
         getCurrentTime(),
         0,
         transaction.to,
@@ -283,7 +283,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
       const calldata = getUnsignedTransactionCalldata(
         executionManager,
-        'executeUnsignedEOACall',
+        'executeTransaction',
         [
           ZERO_UINT,
           ZERO_UINT,
@@ -325,7 +325,7 @@ describe('Execution Manager -- Call opcodes', () => {
 
       const calldata = getUnsignedTransactionCalldata(
         executionManager,
-        'executeUnsignedEOACall',
+        'executeTransaction',
         [
           ZERO_UINT,
           ZERO_UINT,
