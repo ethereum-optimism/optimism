@@ -21,6 +21,6 @@ describe('L1 -> L2 Message Passer', () => {
     await l1ToL2MessagePasser
       .passMessageToL2(entryPoint, callData)
       .should.emit(l1ToL2MessagePasser, 'L1ToL2Message')
-      .withArgs(wallet.address, entryPoint, callData)
+      .withArgs(0, wallet.address, entryPoint, callData)
   })
 })

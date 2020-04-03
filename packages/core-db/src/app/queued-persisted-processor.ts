@@ -2,7 +2,7 @@
 import {
   bufToHexString,
   getLogger,
-  hexStrToBuf,
+  hexStrToBuf, logError,
   Logger,
 } from '@eth-optimism/core-utils'
 
@@ -18,6 +18,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
   public static readonly LAST_INDEX_PROCESSED: string = 'INDEX_BEING_PROCESSED'
   public static readonly ITEM_STORAGE_KEY_PREFIX: string = 'ITEM_'
 
+  private initialized: boolean
   private lastIndexProcessed: number
   private nextIndexToProcess: number
 
@@ -26,6 +27,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
     private readonly persistenceKey: string,
     startIndex: number = 0
   ) {
+    this.initialized = false
     this.nextIndexToProcess = startIndex
     this.lastIndexProcessed = startIndex - 1
   }
@@ -123,6 +125,10 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * Initializes the processor based on any previously-stored state.
    */
   protected async init(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+
     let lastProcessedBuf
     let nextToProcessBuf
     ;[lastProcessedBuf, nextToProcessBuf] = await Promise.all([
@@ -158,6 +164,36 @@ export abstract class BaseQueuedPersistedProcessor<T>
       // purposefully not awaiting response
       this.handleIfReady(this.lastIndexProcessed + 1, item, true)
     }
+
+    this.initialized = true
+  }
+
+  /**
+   * Log utility that prepends logs with this specific instance's persistence key.
+   *
+   * @param msg The message to log.
+   * @param error Whether or not this should be logged to error.
+   */
+  protected log(msg: string, error: boolean = false, e?: Error): void {
+    const message: string = `[${this.persistenceKey}] ${msg}`
+    if (error) {
+      if (!!e) {
+        logError(log, message, e)
+      } else {
+        log.error(message)
+      }
+    } else {
+      log.debug(message)
+    }
+  }
+
+  /**
+   * Log utility for logging errors.
+   *
+   * @param msg The message to log.
+   */
+  protected logError(msg: string, e?: Error): void {
+    this.log(msg, true, e)
   }
 
   /**
@@ -214,30 +250,6 @@ export abstract class BaseQueuedPersistedProcessor<T>
       return undefined
     }
     return this.deserializeItem(itemBuffer)
-  }
-
-  /**
-   * Log utility that prepends logs with this specific instance's persistence key.
-   *
-   * @param msg The message to log.
-   * @param error Whether or not this should be logged to error.
-   */
-  private log(msg: string, error: boolean = false): void {
-    const message: string = `[${this.persistenceKey}] ${msg}`
-    if (error) {
-      log.error(message)
-    } else {
-      log.debug(message)
-    }
-  }
-
-  /**
-   * Log utility for logging errors.
-   *
-   * @param msg The message to log.
-   */
-  private logError(msg: string): void {
-    this.log(msg, true)
   }
 
   /**

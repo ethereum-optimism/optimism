@@ -20,8 +20,8 @@ export interface L2ToL1Message {
 
 export interface L1ToL2Transaction {
   nonce: number
-  ovmSender: Address
-  ovmEntrypoint: Address
+  sender: Address
+  target: Address
   callData: string
 }
 
