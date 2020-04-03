@@ -9,6 +9,7 @@ import {
   L1ToL2MessagePasserContractDefinition,
   L2ToL1MessageReceiverContractDefinition,
 } from '@eth-optimism/ovm'
+import { Address } from '@eth-optimism/rollup-core'
 
 import { Contract, providers, Wallet } from 'ethers'
 import { createMockProvider, deployContract } from 'ethereum-waffle'
@@ -17,7 +18,6 @@ import { createMockProvider, deployContract } from 'ethereum-waffle'
 import { DEFAULT_ETHNODE_GAS_LIMIT, Environment } from '../index'
 import { L1NodeContext } from '../../types'
 import { JsonRpcProvider, Provider } from 'ethers/providers'
-import { Address } from '@eth-optimism/rollup-core/build/src'
 
 const log = getLogger('local-l1-node')
 
