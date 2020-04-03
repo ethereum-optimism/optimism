@@ -1,6 +1,7 @@
 global:
   certificatesSecretNamePrefix: ""
   pullPolicy: IfNotPresent
+  loadBalancer: false
 
 server:
   replicas: 3

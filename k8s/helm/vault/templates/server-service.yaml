@@ -10,8 +10,15 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
   annotations:
     service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+    {{- if .Values.global.loadBalancer }}
+    cloud.google.com/load-balancer-type: "Internal"
+    {{- end }}
 spec:
+  {{- if .Values.global.loadBalancer }}
+  type: LoadBalancer
+  {{- else }}
   type: ClusterIP
+  {{- end }}
   publishNotReadyAddresses: true
   ports:
     - port: 8200
