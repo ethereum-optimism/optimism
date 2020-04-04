@@ -5,7 +5,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   server.hcl: |
-    disable_mlock = "{{ .Values.server.mlockDisabled }}"
     listener "tcp" {
       address = "127.0.0.1:8200"
       tls_disable = 0
@@ -31,7 +30,9 @@ data:
       disable_registration = "true"
       token = "{{ .Values.server.acl.token }}"
     }
+    
     plugin_directory = "/home/vault/plugins"
+    disable_mlock = {{ .Values.server.mlockDisabled }}
     ui = false
 
   sidecar.json: |

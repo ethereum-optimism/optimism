@@ -95,7 +95,7 @@ resource "helm_release" "vault_chart" {
 
   set {
     name  = "server.mlockDisabled"
-    value = var.mlock_disabled
+    value = var.k8s_context_cluster == "minikube"
   }
 
   set {

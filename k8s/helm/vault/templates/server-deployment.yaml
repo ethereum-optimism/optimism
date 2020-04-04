@@ -21,18 +21,18 @@ spec:
         helm.sh/chart: {{ template "omisego-vault.chart" . }}
         app.kubernetes.io/name: {{ .Chart.Name }}
         app.kubernetes.io/instance: {{ .Release.Name }}
-        component: server
+        component: server  
     spec:
       terminationGracePeriodSeconds: 10
       serviceAccountName: {{ .Chart.Name }}
       containers:
       - name: vault
-        command: ["vault", "server", "-config", "/vault/config/server.hcl"]
         image: {{ .Values.server.image }}
         imagePullPolicy: {{ .Values.global.pullPolicy }}
         securityContext:
           capabilities:
             add: ["IPC_LOCK"]
+        command: ["vault", "server", "-config", "/vault/config/server.hcl"]
         volumeMounts:
           - name: vault-config
             mountPath: /vault/config/server.hcl
@@ -63,8 +63,7 @@ spec:
               -domain={{ .Values.consul.domain }} \
               -datacenter={{ .Values.consul.datacenter }} \
               -data-dir=/consul/data \
-              -disable-host-node-id \
-              -node=vault-1
+              -disable-host-node-id
         volumeMounts:
           - name: vault-config
             mountPath: /consul/config/sidecar.json

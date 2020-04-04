@@ -6,6 +6,7 @@ global:
 server:
   replicas: 3
   image: "vault:1.3.2"
+  mlockDisabled: false
   acl: 
     token: ""
   unseal:

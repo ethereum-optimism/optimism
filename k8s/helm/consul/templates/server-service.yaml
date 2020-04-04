@@ -14,12 +14,17 @@ spec:
   clusterIP: None
   publishNotReadyAddresses: true
   ports:
+    - name: ui-dns-tcp
+      protocol: "TCP"
+      port: 53
+      targetPort: dns-tcp
+    - name: ui-dns-udp
+      protocol: "UDP"
+      port: 53
+      targetPort: dns-udp
     - name: https
       port: 8501
       targetPort: 8501
-    - name: rpc
-      port: 8400
-      targetPort: 8400
     - name: serflan-tcp
       protocol: "TCP"
       port: 8301
@@ -39,9 +44,14 @@ spec:
     - name: server
       port: 8300
       targetPort: 8300
-    - name: consuldns
+    - name: dns-tcp
+      protocol: "TCP"
       port: 8600
-      targetPort: 8600
+      targetPort: dns-tcp
+    - name: dns-udp
+      protocol: "UDP"
+      port: 8600
+      targetPort: dns-udp
   selector:
     app: {{ .Chart.Name }}
     chart: {{ template "omisego-consul.chart" . }}

@@ -80,9 +80,3 @@ variable "vault_replicas" {
   default     = 3
   description = "The number of Vault server pods to run in the cluster"
 }
-
-variable "mlock_disabled" {
-  type        = string
-  default     = "true"
-  description = "Typically set to true during testing"
-}

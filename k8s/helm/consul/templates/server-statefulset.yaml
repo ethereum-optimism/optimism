@@ -19,6 +19,7 @@ spec:
       chart: {{ template "omisego-consul.chart" . }}
       release: {{ .Release.Name }}
       component: server
+      hasDNS: "true"
   template:
     metadata:
       labels:
@@ -26,9 +27,12 @@ spec:
         chart: {{ template "omisego-consul.chart" . }}
         release: {{ .Release.Name }}
         component: server
+        hasDNS: "true"
+      annotations:
+        "consul.hashicorp.com/connect-inject": "false"
     spec:
-      terminationGracePeriodSeconds: 10
       serviceAccountName: {{ .Chart.Name }}
+      terminationGracePeriodSeconds: 30
       securityContext:
         fsGroup: 1000
       containers:
@@ -48,10 +52,6 @@ spec:
               value: https://localhost:8501
             - name: CONSUL_CACERT
               value: /etc/tls/ca/tls.crt
-            - name: CONSUL_CLIENT_CERT
-              value: /etc/tls/service/tls.crt
-            - name: CONSUL_CLIENT_KEY
-              value: /etc/tls/service/tls.key
           command:
             - "/bin/sh"
             - "-ec"
@@ -67,12 +67,10 @@ spec:
                 -client=0.0.0.0 \
                 -config-file=/consul/userconfig/config.json \
                 -datacenter={{ .Values.global.datacenter }} \
-                -data-dir=/consul/data \
                 -domain={{ .Values.global.domain }} \
                 -encrypt="{{ .Values.global.gossipKey }}" \
                 -server \
-                -ui \
-                -disable-host-node-id
+                -ui
           lifecycle:
             preStop:
               exec:
