@@ -17,7 +17,7 @@ export type EVMBytecode = EVMOpcodeAndBytes[]
 export interface OpcodeTag {
   padPUSH: boolean // whether this PUSHN should be turned into a PUSH(N+1) to preempt later changes to consumedBytes in transpilation.
   reasonTagged: string
-  metadata: Buffer
+  metadata: any
 }
 
 export class Opcode {
