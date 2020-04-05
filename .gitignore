@@ -20,3 +20,4 @@ terraform.tfvars
 *.ovpn
 *.b64
 *.hcl
+unsealer/backup.snap

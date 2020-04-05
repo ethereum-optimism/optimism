@@ -80,3 +80,9 @@ variable "vault_replicas" {
   default     = 3
   description = "The number of Vault server pods to run in the cluster"
 }
+
+variable "recovery" {
+  type = bool
+  default = false
+  description = "Recovering from a disaster."
+}

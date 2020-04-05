@@ -10,6 +10,15 @@ data "vault_generic_secret" "consul_gossip_key" {
 
 /*
  * Vault Secret - https://www.terraform.io/docs/providers/vault/d/generic_secret.html
+ * Loads the Consul acl token that Vault uses for storage
+ */
+data "vault_generic_secret" "consul_vault_token" {
+  path = "kv/consul_vault_token"
+}
+
+
+/*
+ * Vault Secret - https://www.terraform.io/docs/providers/vault/d/generic_secret.html
  * Loads the unseal Vault token from the running Vault node
  * to be injected into the K8S Vault configuration to unseal
  * themselves once them come online and are ready
@@ -48,5 +57,5 @@ resource "vault_generic_secret" "consul_client_token" {
  */
 resource "vault_generic_secret" "consul_vault_token" {
   path      = "kv/consul_vault_token"
-  data_json = jsonencode({ "value" = data.kubernetes_secret.vault_acl_token.data.token })
+  data_json = jsonencode({ "value" = var.recovery ? data.vault_generic_secret.consul_vault_token.data["value"] : data.kubernetes_secret.vault_acl_token.data.token })
 }
