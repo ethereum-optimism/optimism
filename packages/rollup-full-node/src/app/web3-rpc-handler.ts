@@ -528,7 +528,7 @@ export class DefaultWeb3Handler
 
     // Need to lock to make sure we don't mess up this.context.wallet nonce. Can we use a different wallet?
     return this.lock.acquire(lockKey, async () => {
-      const txHash = await this.context.executionManager.executeTransaction(
+      const receipt = await this.context.executionManager.executeTransaction(
         this.getTimestamp(),
         0,
         transaction.target,
@@ -539,24 +539,24 @@ export class DefaultWeb3Handler
       )
 
       log.debug(
-        `L1 to L2 Transaction submitted. Tx hash: ${txHash}. Tx: ${JSON.stringify(
-          transaction
-        )}`
+        `L1 to L2 Transaction submitted. Tx hash: ${
+          receipt.hash
+        }. Tx: ${JSON.stringify(transaction)}`
       )
       let txReceipt: TransactionReceipt
       try {
-        txReceipt = await this.context.provider.waitForTransaction(txHash)
+        txReceipt = await this.context.provider.waitForTransaction(receipt.hash)
       } catch (e) {
         logError(
           log,
-          `Error submitting L1 to L2 transaction to L2 node. Tx Hash: ${txHash}, Tx: ${JSON.stringify(
-            transaction
-          )}`,
+          `Error submitting L1 to L2 transaction to L2 node. Tx Hash: ${
+            receipt.hash
+          }, Tx: ${JSON.stringify(transaction)}`,
           e
         )
         throw e
       }
-      log.debug(`L1 to L2 Transaction mined. Tx hash: ${txHash}`)
+      log.debug(`L1 to L2 Transaction mined. Tx hash: ${receipt.hash}`)
 
       try {
         const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
@@ -566,9 +566,9 @@ export class DefaultWeb3Handler
       } catch (e) {
         logError(
           log,
-          `Error processing L1 to L2 transaction events. Tx Hash: ${txHash}, Tx: ${JSON.stringify(
-            transaction
-          )}`,
+          `Error processing L1 to L2 transaction events. Tx Hash: ${
+            receipt.hash
+          }, Tx: ${JSON.stringify(transaction)}`,
           e
         )
       }
