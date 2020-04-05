@@ -254,12 +254,12 @@ const deployL1ToL2MessagePasser = async (wallet: Wallet): Promise<Contract> => {
       []
     )
   } catch (e) {
-    logError(log, 'Error Deploying L2ToL1MessageReceiver', e)
+    logError(log, 'Error Deploying L1ToL2MessagePasser', e)
     throw e
   }
 
   log.info(
-    `L2ToL1MessageReceiver deployed to local L1 Node at address ${contract.address}`
+    `L1ToL2MessagePasser deployed to local L1 Node at address ${contract.address}`
   )
   return contract
 }

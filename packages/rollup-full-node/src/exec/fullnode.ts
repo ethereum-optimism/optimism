@@ -1,12 +1,16 @@
 /* External Imports */
 import {
   BaseDB,
-  DB, EthereumEventProcessor,
+  DB,
+  EthereumEventProcessor,
   getLevelInstance,
   newInMemoryDB,
 } from '@eth-optimism/core-db'
 import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
-import {L1ToL2TransactionEventName, L1ToL2TransactionProcessor} from '@eth-optimism/rollup-core'
+import {
+  L1ToL2TransactionEventName,
+  L1ToL2TransactionProcessor,
+} from '@eth-optimism/rollup-core'
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
@@ -81,7 +85,11 @@ export const runFullnode = async (
 
   // TODO: Figure out earliest block # when necessary
   const eventProcessor = new EthereumEventProcessor(db)
-  await eventProcessor.subscribe(l1NodeContext.l1ToL2MessagePasser, L1ToL2TransactionEventName, l1ToL2TransactionProcessor)
+  await eventProcessor.subscribe(
+    l1NodeContext.l1ToL2MessagePasser,
+    L1ToL2TransactionEventName,
+    l1ToL2TransactionProcessor
+  )
 
   fullnodeRpcServer.listen()
 

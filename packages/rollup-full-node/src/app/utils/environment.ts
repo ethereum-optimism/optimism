@@ -73,4 +73,7 @@ export class Environment {
   public static l2ToL1MessageReceiverAddress(defaultValue?: string): string {
     return process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS || defaultValue
   }
+  public static l1ToL2TransactionPasserAddress(defaultValue?: string): string {
+    return process.env.L1_TO_L2_TRANSACTION_PASSER_ADDRESS || defaultValue
+  }
 }
