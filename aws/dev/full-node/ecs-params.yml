@@ -10,15 +10,15 @@ task_definition:
   # This is all local for now -- eventually will change
   ecs_network_mode: host
   docker_volumes:
-      - name: l1-node-data-3
+      - name: l1-node-data
         scope: shared
         autoprovision: true
         driver: 'local'
-      - name: l2-node-data-3
+      - name: l2-node-data
         scope: shared
         autoprovision: true       
         driver: 'local'
-      - name: full-node-data-3
+      - name: full-node-data
         scope: shared
         autoprovision: true       
         driver: 'local'
