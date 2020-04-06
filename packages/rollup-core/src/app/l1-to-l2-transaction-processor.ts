@@ -5,11 +5,12 @@ import {
   EthereumEvent,
   EthereumListener,
 } from '@eth-optimism/core-db'
-import { BigNumber } from '@eth-optimism/core-utils'
+import { BigNumber, getLogger, Logger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { L1ToL2Transaction, L1ToL2TransactionListener } from '../types'
-import { L1ToL2TransactionEventId } from './constants'
+
+const log: Logger = getLogger('l1-to-l2-transaction-processor')
 
 export class L1ToL2TransactionProcessor
   extends BaseQueuedPersistedProcessor<L1ToL2Transaction>
@@ -18,11 +19,13 @@ export class L1ToL2TransactionProcessor
 
   public static async create(
     db: DB,
+    l1ToL2EventId: string,
     listeners: L1ToL2TransactionListener[],
     persistenceKey: string = L1ToL2TransactionProcessor.persistenceKey
   ): Promise<L1ToL2TransactionProcessor> {
     const processor = new L1ToL2TransactionProcessor(
       db,
+      l1ToL2EventId,
       listeners,
       persistenceKey
     )
@@ -32,6 +35,7 @@ export class L1ToL2TransactionProcessor
 
   private constructor(
     db: DB,
+    private readonly l1ToL2EventId: string,
     private readonly listeners: L1ToL2TransactionListener[],
     persistenceKey: string = L1ToL2TransactionProcessor.persistenceKey
   ) {
@@ -42,12 +46,17 @@ export class L1ToL2TransactionProcessor
    * @inheritDoc
    */
   public async handle(event: EthereumEvent): Promise<void> {
-    if (event.eventID !== L1ToL2TransactionEventId || !event.values) {
+    if (event.eventID !== this.l1ToL2EventId || !event.values) {
+      log.debug(
+        `Received event of wrong ID or with incorrect values. Ignoring event: [${JSON.stringify(
+          event
+        )}]`
+      )
       return
     }
 
     const transaction: L1ToL2Transaction = {
-      nonce: new BigNumber(event.values['_nonce']).toNumber(),
+      nonce: event.values['_nonce'].toNumber(),
       sender: event.values['_sender'],
       target: event.values['_target'],
       callData: event.values['_callData'],

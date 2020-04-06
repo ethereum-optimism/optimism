@@ -1,5 +1,6 @@
 import './setup'
 
+/* External Imports */
 import {
   runFullnode,
   deployContract,
@@ -8,10 +9,10 @@ import {
   FullnodeContext
 } from '@eth-optimism/rollup-full-node'
 import {Contract, Wallet} from 'ethers'
-import {JsonRpcProvider, Provider} from 'ethers/providers'
+import {JsonRpcProvider} from 'ethers/providers'
 
-
-const TimestampCheckerContract = require('../build/TimestampChecker.json')
+/* Contract Imports */
+import * as TimestampCheckerContract from '../build/TimestampChecker.json'
 
 const secondsSinceEopch = (): number => {
   return Math.round(Date.now() / 1000)

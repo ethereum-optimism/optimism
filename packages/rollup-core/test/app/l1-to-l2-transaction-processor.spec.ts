@@ -6,7 +6,6 @@ import * as BigNumber from 'bn.js'
 /* Internal Imports */
 import { L1ToL2Transaction, L1ToL2TransactionListener } from '../../src/types'
 import {
-  L1ToL2TransactionEventId,
   L1ToL2TransactionEventName,
   L1ToL2TransactionProcessor,
 } from '../../src/app'
@@ -26,6 +25,8 @@ describe('L1 to L2 Transaction Processor', () => {
   let l1ToL2TransactionProcessor: L1ToL2TransactionProcessor
   let db
   let listener: DummyListener
+  const eventID: string = 'test event id'
+
   const _nonce: BigNumber = new BigNumber(0)
   const _sender: string = Wallet.createRandom().address
   const _target: string = Wallet.createRandom().address
@@ -39,14 +40,16 @@ describe('L1 to L2 Transaction Processor', () => {
   beforeEach(async () => {
     db = newInMemoryDB()
     listener = new DummyListener()
-    l1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(db, [
-      listener,
-    ])
+    l1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(
+      db,
+      eventID,
+      [listener]
+    )
   })
 
   it('should handle transaction properly', async () => {
     await l1ToL2TransactionProcessor.handle({
-      eventID: L1ToL2TransactionEventId,
+      eventID,
       name: L1ToL2TransactionEventName,
       signature: keccak256(Buffer.from('some random stuff').toString('hex')),
       values: {
@@ -83,7 +86,7 @@ describe('L1 to L2 Transaction Processor', () => {
 
   it('should handle multiple transactions properly', async () => {
     await l1ToL2TransactionProcessor.handle({
-      eventID: L1ToL2TransactionEventId,
+      eventID,
       name: L1ToL2TransactionEventName,
       signature: keccak256(Buffer.from('some random stuff').toString('hex')),
       values: {
@@ -95,7 +98,7 @@ describe('L1 to L2 Transaction Processor', () => {
     })
 
     await l1ToL2TransactionProcessor.handle({
-      eventID: L1ToL2TransactionEventId,
+      eventID,
       name: L1ToL2TransactionEventName,
       signature: keccak256(Buffer.from('some random stuff').toString('hex')),
       values: {
@@ -149,7 +152,7 @@ describe('L1 to L2 Transaction Processor', () => {
 
   it('should handle multiple out-of-order transactions properly', async () => {
     await l1ToL2TransactionProcessor.handle({
-      eventID: L1ToL2TransactionEventId,
+      eventID,
       name: L1ToL2TransactionEventName,
       signature: keccak256(Buffer.from('some random stuff').toString('hex')),
       values: {
@@ -161,7 +164,7 @@ describe('L1 to L2 Transaction Processor', () => {
     })
 
     await l1ToL2TransactionProcessor.handle({
-      eventID: L1ToL2TransactionEventId,
+      eventID,
       name: L1ToL2TransactionEventName,
       signature: keccak256(Buffer.from('some random stuff').toString('hex')),
       values: {

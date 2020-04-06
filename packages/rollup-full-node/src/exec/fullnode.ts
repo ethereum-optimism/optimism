@@ -36,6 +36,7 @@ export interface FullnodeContext {
   fullnodeRpcServer: ExpressHttpServer
   l2ToL1MessageSubmitter: L2ToL1MessageSubmitter
   l1ToL2TransactionProcessor: L1ToL2TransactionProcessor
+  l1NodeContext: L1NodeContext
 }
 
 /**
@@ -80,6 +81,10 @@ export const runFullnode = async (
 
   const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(
     db,
+    EthereumEventProcessor.getEventID(
+      l1NodeContext.l1ToL2MessagePasser.address,
+      L1ToL2TransactionEventName
+    ),
     [fullnodeHandler]
   )
 
@@ -101,5 +106,6 @@ export const runFullnode = async (
     fullnodeRpcServer,
     l2ToL1MessageSubmitter,
     l1ToL2TransactionProcessor,
+    l1NodeContext,
   }
 }

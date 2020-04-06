@@ -57,7 +57,11 @@ const setAndGetStorage = async (
   executionManagerAddress
 ): Promise<void> => {
   await setStorage(simpleStorage, httpProvider, executionManagerAddress)
-  await getStorage(simpleStorage, httpProvider, executionManagerAddress)
+  await getAndVerifyStorage(
+    simpleStorage,
+    httpProvider,
+    executionManagerAddress
+  )
 }
 
 const setStorage = async (
@@ -74,7 +78,7 @@ const setStorage = async (
   await httpProvider.getTransactionReceipt(tx.hash)
 }
 
-const getStorage = async (
+const getAndVerifyStorage = async (
   simpleStorage: Contract,
   httpProvider,
   executionManagerAddress
@@ -231,7 +235,11 @@ describe('Web3Handler', () => {
           target: simpleStorage.address,
         })
 
-        await getStorage(simpleStorage, httpProvider, executionManagerAddress)
+        await getAndVerifyStorage(
+          simpleStorage,
+          httpProvider,
+          executionManagerAddress
+        )
       })
 
       it('should not throw if L1 to L2 Transaction reverts', async () => {
