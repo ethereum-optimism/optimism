@@ -140,11 +140,13 @@ const getL2ToL1MessageReceiverContract = async (
   wallet: Wallet,
   nonceWhenDeployed: number
 ): Promise<Contract> => {
-  const l2ToL1MessageReceiverAddress: Address = await getDeployedContractAddress(
-    nonceWhenDeployed,
-    provider,
-    wallet.address
-  )
+  const l2ToL1MessageReceiverAddress: Address =
+    Environment.l2ToL1MessageReceiverAddress() ||
+    (await getDeployedContractAddress(
+      nonceWhenDeployed,
+      provider,
+      wallet.address
+    ))
 
   let l2ToL1MessageReceiver: Contract
   if (l2ToL1MessageReceiverAddress) {
@@ -210,11 +212,13 @@ const getL1ToL2MessagePasserContract = async (
   wallet: Wallet,
   nonceWhenDeployed: number
 ): Promise<Contract> => {
-  const l1ToL2MessagePasserAddress: Address = await getDeployedContractAddress(
-    nonceWhenDeployed,
-    provider,
-    wallet.address
-  )
+  const l1ToL2MessagePasserAddress: Address =
+    Environment.l1ToL2TransactionPasserAddress() ||
+    (await getDeployedContractAddress(
+      nonceWhenDeployed,
+      provider,
+      wallet.address
+    ))
 
   let l2ToL1MessagePasser: Contract
   if (l1ToL2MessagePasserAddress) {

@@ -1,4 +1,7 @@
-import { DEFAULT_OPCODE_WHITELIST_MASK } from '@eth-optimism/ovm'
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+} from '@eth-optimism/ovm'
 
 /**
  * Class to contain all environment variables referenced by the rollup full node
@@ -50,6 +53,14 @@ export class Environment {
   }
   public static l2WalletPrivateKeyPath(defaultValue?: string): string {
     return process.env.L2_WALLET_PRIVATE_KEY_PATH || defaultValue
+  }
+  public static l2ExecutionManagerAddress(defaultValue?: string): string {
+    return process.env.L2_EXECUTION_MANAGER_ADDRESS || defaultValue
+  }
+  public static l2ToL1MessagePasserOvmAddress(
+    defaultValue = L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS
+  ): string {
+    return process.env.L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS || defaultValue
   }
 
   // L1 Config

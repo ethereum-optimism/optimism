@@ -1,5 +1,6 @@
 /* External Imports */
 import {
+  bufferUtils,
   bufToHexString,
   getLogger,
   hexStrToBuf,
@@ -16,7 +17,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
   implements QueuedPersistedProcessor<T> {
   public static readonly NEXT_INDEX_TO_PROCESS_KEY: string =
     'NEXT_INDEX_TO_PROCESS'
-  public static readonly LAST_INDEX_PROCESSED: string = 'INDEX_BEING_PROCESSED'
+  public static readonly LAST_INDEX_PROCESSED: string = 'LAST_INDEX_PROCESSED'
   public static readonly ITEM_STORAGE_KEY_PREFIX: string = 'ITEM_'
 
   private initialized: boolean

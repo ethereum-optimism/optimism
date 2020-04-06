@@ -533,7 +533,7 @@ export class DefaultWeb3Handler
         0,
         transaction.target,
         transaction.callData,
-        this.context.wallet.address,
+        ZERO_ADDRESS,
         transaction.sender,
         false
       )
