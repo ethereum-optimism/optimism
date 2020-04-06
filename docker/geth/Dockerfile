@@ -5,7 +5,7 @@ FROM golang:1.13-alpine as builder
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 RUN mkdir /go-ethereum
-RUN git clone https://github.com/K-Ho/go-ethereum.git /go-ethereum
+RUN git clone https://github.com/ethereum-optimism/go-ethereum.git /go-ethereum
 RUN cd /go-ethereum && make all
 
 # Pull all binaries into a second stage deploy alpine container
