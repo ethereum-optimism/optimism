@@ -1,9 +1,13 @@
+/* External Imports */
 import {
   BaseQueuedPersistedProcessor,
   DB,
   EthereumEvent,
   EthereumListener,
 } from '@eth-optimism/core-db'
+import { BigNumber } from '@eth-optimism/core-utils'
+
+/* Internal Imports */
 import { L1ToL2Transaction, L1ToL2TransactionListener } from '../types'
 import { L1ToL2TransactionEventId } from './constants'
 
@@ -38,12 +42,12 @@ export class L1ToL2TransactionProcessor
    * @inheritDoc
    */
   public async handle(event: EthereumEvent): Promise<void> {
-    if (event.eventID !== L1ToL2TransactionEventId) {
+    if (event.eventID !== L1ToL2TransactionEventId || !event.values) {
       return
     }
 
     const transaction: L1ToL2Transaction = {
-      nonce: event.values['_nonce'],
+      nonce: new BigNumber(event.values['_nonce']).toNumber(),
       sender: event.values['_sender'],
       target: event.values['_target'],
       callData: event.values['_callData'],
