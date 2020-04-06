@@ -49,7 +49,7 @@ describe.only('L1 To L2 Transaction Passing', () => {
     const ovmEntrypoint: Address = simpleStorage.address
     const ovmCalldata: string = getUnsignedTransactionCalldata(simpleStorage, 'setStorage', [storageKey, storageValue])
 
-    await rollupFullnodeContext.l1NodeContext.l1ToL2MessagePasser.passMessageToL2(add0x(ovmEntrypoint), ovmCalldata)
+    await rollupFullnodeContext.l1NodeContext.l1ToL2TransactionPasser.passTransactionToL2(add0x(ovmEntrypoint), ovmCalldata)
 
     await sleep(8_000)
 

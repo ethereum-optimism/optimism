@@ -82,7 +82,7 @@ export const runFullnode = async (
   const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(
     db,
     EthereumEventProcessor.getEventID(
-      l1NodeContext.l1ToL2MessagePasser.address,
+      l1NodeContext.l1ToL2TransactionPasser.address,
       L1ToL2TransactionEventName
     ),
     [fullnodeHandler]
@@ -91,7 +91,7 @@ export const runFullnode = async (
   // TODO: Figure out earliest block # when necessary
   const eventProcessor = new EthereumEventProcessor(db)
   await eventProcessor.subscribe(
-    l1NodeContext.l1ToL2MessagePasser,
+    l1NodeContext.l1ToL2TransactionPasser,
     L1ToL2TransactionEventName,
     l1ToL2TransactionProcessor
   )
