@@ -14,6 +14,7 @@ import {
   formatBytecode,
   Opcode,
   EVMOpcodeAndBytes,
+  bufferToBytecode,
 } from '@eth-optimism/rollup-core'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import * as SimpleJumper from '../contracts/build/SimpleJumper.json'
@@ -59,7 +60,7 @@ import {
 const log = getLogger(`test-solidity-JUMPs`)
 const abi = new ethers.utils.AbiCoder()
 
-describe.only('JUMP table solidity integration', () => {
+describe('JUMP table solidity integration', () => {
   let evmUtil: EvmIntrospectionUtil
   const mockReplacer: OpcodeReplacer = {
     replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
@@ -109,13 +110,14 @@ describe.only('JUMP table solidity integration', () => {
     const transpiledJumperDeployedBytecode: Buffer = (transpiler.transpileRawBytecode(
       originalJumperDeployedBytecde
     ) as SuccessfulTranspilation).bytecode
+    log.debug(`transpiled output with log searcher: \n${formatBytecode(bufferToBytecode(transpiledJumperDeployedBytecode))}`)
     await evmUtil.deployBytecodeToAddress(
       transpiledJumperDeployedBytecode,
       hexStrToBuf(transpiledJumperAddr)
     )
   })
   it('should handle an if(true)', async () => {
-    assertCallsProduceSameResult(
+    await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,
       transpiledJumperAddr,
@@ -123,7 +125,7 @@ describe.only('JUMP table solidity integration', () => {
     )
   })
   it('should handle an if(false)', async () => {
-    assertCallsProduceSameResult(
+    await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,
       transpiledJumperAddr,
@@ -131,7 +133,7 @@ describe.only('JUMP table solidity integration', () => {
     )
   })
   it('should handle for loops', async () => {
-    assertCallsProduceSameResult(
+    await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,
       transpiledJumperAddr,
@@ -139,7 +141,7 @@ describe.only('JUMP table solidity integration', () => {
     )
   })
   it('should handle while loops', async () => {
-    assertCallsProduceSameResult(
+    await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,
       transpiledJumperAddr,
@@ -147,7 +149,7 @@ describe.only('JUMP table solidity integration', () => {
     )
   })
   it('should handle a while loop whose inner function calls another method with a for loop', async () => {
-    assertCallsProduceSameResult(
+    await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,
       transpiledJumperAddr,
@@ -161,7 +163,7 @@ describe.only('JUMP table solidity integration', () => {
       remove0x(abi.encode(paramTypes, [nonzeroInput])),
       'hex'
     )
-    assertCallsProduceSameResult(
+    await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,
       transpiledJumperAddr,
@@ -169,7 +171,7 @@ describe.only('JUMP table solidity integration', () => {
       paramTypes,
       callParams
     )
-  })
+  }).timeout(10000)
 })
 
 const assertCallsProduceSameResult = async (
@@ -180,6 +182,8 @@ const assertCallsProduceSameResult = async (
   paramTypes?: string[],
   abiEncodedParams?: Buffer
 ) => {
+  log.debug(`Asked to compare the result of two calls.`)
+  log.debug(`Calling first contract at address ${addr1}...`)
   const res1 = await util.callContract(
     addr1,
     methodName,
@@ -187,10 +191,12 @@ const assertCallsProduceSameResult = async (
     abiEncodedParams
   )
   if (res1.error) {
+    log.debug(`oh, erroring`)
     throw new Error(
       `TEST ERROR: failed to execute callContract() for contract address: ${addr1}.  Error was: \n${res1.error}`
     )
   }
+  log.debug(`Completed first call successfully.  Calling second contract at address ${addr2}...`)
   const res2 = await util.callContract(
     addr2,
     methodName,
@@ -202,5 +208,7 @@ const assertCallsProduceSameResult = async (
       `TEST ERROR: failed to execute callContract() for contract address: ${addr2}.  Error was: \n${res2.error}`
     )
   }
+  log.debug(`Completed second call successfully.  Comparing results...`)
   res2.result.should.deep.equal(res1.result)
+  return
 }
