@@ -175,7 +175,7 @@ describe('JUMP table solidity integration', () => {
       paramTypes,
       callParams
     )
-  }).timeout(10000)
+  }).timeout(25000)
 })
 
 const assertCallsProduceSameResult = async (

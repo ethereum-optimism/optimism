@@ -37,7 +37,7 @@ type LogSearchNode = LogSearchLeafNode | LogSearchInternalNode
 
 type LogSearchTree = LogSearchNode[][]
 
-const maxBytesOfContractSize = 2
+const maxBytesOfContractSize = 3
 
 const IS_PUSH_BINARY_SEARCH_NODE_LOCATION =
   'IS_PUSH_BINARY_SEARCH_NODE_LOCATION'
