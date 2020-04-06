@@ -19,18 +19,17 @@ import { UnicodeNormalizationForm } from 'ethers/utils'
 
 const log = getLogger('log-search-generator')
 
-
-type LogSearchLeafNode = {
+interface LogSearchLeafNode {
   key: number
   value: number
   nodeId: number
 }
 
-type LogSearchInternalNode = {
+interface LogSearchInternalNode {
   largestAncestorKey: number
   keyToCompare: number
-  nodeId: number,
-  leftChildNodeId: number,
+  nodeId: number
+  leftChildNodeId: number
   rightChildNodeId: number
 }
 
@@ -48,45 +47,42 @@ export const generateLogSearchTreeNodes = (
   keys: number[],
   values: number[]
 ): LogSearchNode[] => {
-  let allTreeNodes: LogSearchNode[] = keys.map((v, i) => {
+  const allTreeNodes: LogSearchNode[] = keys.map((v, i) => {
     return {
       key: keys[i],
       value: values[i],
-      nodeId: i
+      nodeId: i,
     }
   })
 
   let curLevel: LogSearchNode[] = [...allTreeNodes]
   while (curLevel.length > 1) {
     // console.log(`processing level: ${JSON.stringify(curLevel)}`)
-    let nextLevel: LogSearchNode[] = []
+    const nextLevel: LogSearchNode[] = []
     for (let i = 0; i < curLevel.length; i += 2) {
       const leftChild = curLevel[i]
-      const rightChild = curLevel[i+1]
+      const rightChild = curLevel[i + 1]
       if (!rightChild) {
-        nextLevel.push(leftChild) 
+        nextLevel.push(leftChild)
         continue
       }
 
-      let newNode: LogSearchInternalNode = {
+      const newNode: LogSearchInternalNode = {
         nodeId: allTreeNodes.length,
         leftChildNodeId: leftChild.nodeId,
         rightChildNodeId: rightChild.nodeId,
         largestAncestorKey: undefined,
-        keyToCompare: undefined
+        keyToCompare: undefined,
       }
 
-      if (isLeafNode(rightChild)) {
-        newNode.largestAncestorKey = (rightChild as LogSearchLeafNode).key
-      } else {
-        newNode.largestAncestorKey = (rightChild as LogSearchInternalNode).largestAncestorKey
-      }
+      newNode.largestAncestorKey = isLeafNode(rightChild)
+        ? (rightChild as LogSearchLeafNode).key
+        : (rightChild as LogSearchInternalNode).largestAncestorKey
 
-      if (isLeafNode(leftChild)) {
-        newNode.keyToCompare = (leftChild as LogSearchLeafNode).key
-      } else {
-        newNode.keyToCompare = (leftChild as LogSearchInternalNode).largestAncestorKey
-      }
+      newNode.keyToCompare = isLeafNode(leftChild)
+        ? (leftChild as LogSearchLeafNode).key
+        : (newNode.keyToCompare = (leftChild as LogSearchInternalNode).largestAncestorKey)
+
       allTreeNodes.push(newNode)
       nextLevel.push(newNode)
     }
@@ -108,7 +104,11 @@ export const getJumpIndexSearchBytecode = (
     jumpdestIndexesBefore,
     jumpdestIndexesAfter
   )
-  log.debug(`successfully generated conceptual log search tree, its flat structure is: \n${JSON.stringify(searchTreeNodes)}`)
+  log.debug(
+    `successfully generated conceptual log search tree, its flat structure is: \n${JSON.stringify(
+      searchTreeNodes
+    )}`
+  )
   const rootNodeId = searchTreeNodes.length - 1 // root node is the final one
   const bytecode: EVMBytecode = [
     {
@@ -117,7 +117,11 @@ export const getJumpIndexSearchBytecode = (
     },
     ...appendNodeToBytecode(searchTreeNodes, rootNodeId, true, []), // should recursively fill out tree
   ]
-  const finalBytecode = fixTaggedNodePositions(bytecode, indexOfThisBlock, searchTreeNodes)
+  const finalBytecode = fixTaggedNodePositions(
+    bytecode,
+    indexOfThisBlock,
+    searchTreeNodes
+  )
   // log.debug(`generated final bytecode for log searcher : \n${formatBytecode(finalBytecode)}`)
   return finalBytecode
 }
@@ -127,19 +131,21 @@ const fixTaggedNodePositions = (
   indexOfThisBlock: number,
   searchTreeNodes: LogSearchNode[]
 ): EVMBytecode => {
-  for (let opcodeAndBytes of bytecode) {
+  for (const opcodeAndBytes of bytecode) {
     if (
       !!opcodeAndBytes.tag &&
-      opcodeAndBytes.tag.reasonTagged == IS_PUSH_BINARY_SEARCH_NODE_LOCATION
+      opcodeAndBytes.tag.reasonTagged === IS_PUSH_BINARY_SEARCH_NODE_LOCATION
     ) {
       const thisNodeId = opcodeAndBytes.tag.metadata.nodeId
-      const rightChildNodeId = (searchTreeNodes[thisNodeId] as LogSearchInternalNode).rightChildNodeId
+      const rightChildNodeId = (searchTreeNodes[
+        thisNodeId
+      ] as LogSearchInternalNode).rightChildNodeId
       const rightChildJumpdestIndexInBytecodeBlock = bytecode.findIndex(
-        (opcodeAndBytes: EVMOpcodeAndBytes) => {
+        (toCheck: EVMOpcodeAndBytes) => {
           return (
-            !!opcodeAndBytes.tag &&
-            opcodeAndBytes.tag.reasonTagged == IS_BINARY_SEARCH_NODE_JUMPDEST &&
-            opcodeAndBytes.tag.metadata.nodeId == rightChildNodeId
+            !!toCheck.tag &&
+            toCheck.tag.reasonTagged === IS_BINARY_SEARCH_NODE_JUMPDEST &&
+            toCheck.tag.metadata.nodeId === rightChildNodeId
           )
         }
       )
@@ -167,7 +173,9 @@ const appendNodeToBytecode = (
 ): EVMBytecode => {
   const thisNode: LogSearchNode = treeNodes[nodeId]
   log.info(
-    `Processing node with Id ${nodeId} of tree into bytecode, its parameters are ${JSON.stringify(thisNode)}.`
+    `Processing node with Id ${nodeId} of tree into bytecode, its parameters are ${JSON.stringify(
+      thisNode
+    )}.`
   )
   if (isLeafNode(thisNode)) {
     bytecode = [
@@ -182,26 +190,12 @@ const appendNodeToBytecode = (
     const thisInternalNode = thisNode as LogSearchInternalNode
     bytecode = [
       ...bytecode,
-      ...generateComparisonBytecode(
-        thisInternalNode,
-        nodeId,
-        isLeftSibling
-      ),
+      ...generateComparisonBytecode(thisInternalNode, nodeId, isLeftSibling),
     ]
     const leftChildId = thisInternalNode.leftChildNodeId
     const rightChildId = thisInternalNode.rightChildNodeId
-    bytecode = appendNodeToBytecode(
-      treeNodes,
-      leftChildId,
-      true,
-      bytecode,
-    )
-    bytecode = appendNodeToBytecode(
-      treeNodes,
-      rightChildId,
-      false,
-      bytecode
-    )
+    bytecode = appendNodeToBytecode(treeNodes, leftChildId, true, bytecode)
+    bytecode = appendNodeToBytecode(treeNodes, rightChildId, false, bytecode)
   }
   return bytecode
 }
@@ -275,16 +269,14 @@ const generateLeafBytecode = (
   return bytecodeToReturn
 }
 
-const generateSearchNodeJumpdest = (
-  nodeId: number
-): EVMOpcodeAndBytes => {
+const generateSearchNodeJumpdest = (nodeId: number): EVMOpcodeAndBytes => {
   return {
     opcode: Opcode.JUMPDEST,
     consumedBytes: undefined,
     tag: {
       padPUSH: false,
       reasonTagged: IS_BINARY_SEARCH_NODE_JUMPDEST,
-      metadata: { nodeId }
-    }
+      metadata: { nodeId },
+    },
   }
 }

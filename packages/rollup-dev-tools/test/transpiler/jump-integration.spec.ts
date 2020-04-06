@@ -110,7 +110,11 @@ describe('JUMP table solidity integration', () => {
     const transpiledJumperDeployedBytecode: Buffer = (transpiler.transpileRawBytecode(
       originalJumperDeployedBytecde
     ) as SuccessfulTranspilation).bytecode
-    log.debug(`transpiled output with log searcher: \n${formatBytecode(bufferToBytecode(transpiledJumperDeployedBytecode))}`)
+    log.debug(
+      `transpiled output with log searcher: \n${formatBytecode(
+        bufferToBytecode(transpiledJumperDeployedBytecode)
+      )}`
+    )
     await evmUtil.deployBytecodeToAddress(
       transpiledJumperDeployedBytecode,
       hexStrToBuf(transpiledJumperAddr)
@@ -196,7 +200,9 @@ const assertCallsProduceSameResult = async (
       `TEST ERROR: failed to execute callContract() for contract address: ${addr1}.  Error was: \n${res1.error}`
     )
   }
-  log.debug(`Completed first call successfully.  Calling second contract at address ${addr2}...`)
+  log.debug(
+    `Completed first call successfully.  Calling second contract at address ${addr2}...`
+  )
   const res2 = await util.callContract(
     addr2,
     methodName,
