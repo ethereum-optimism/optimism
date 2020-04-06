@@ -10,7 +10,6 @@ import {
   L2ExecutionManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
   CHAIN_ID,
-  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '@eth-optimism/ovm'
 import { Address } from '@eth-optimism/rollup-core'
 
@@ -147,11 +146,9 @@ async function getExecutionManagerContract(
   provider: JsonRpcProvider,
   wallet: Wallet
 ): Promise<Contract> {
-  const executionManagerAddress: Address = await getDeployedContractAddress(
-    0,
-    provider,
-    wallet.address
-  )
+  const executionManagerAddress: Address =
+    Environment.l2ExecutionManagerAddress() ||
+    (await getDeployedContractAddress(0, provider, wallet.address))
 
   let executionManager: Contract
   if (executionManagerAddress) {
@@ -205,11 +202,12 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
  * @returns The Message Passer contract.
  */
 function getL2ToL1MessagePasserContract(wallet: Wallet): Contract {
+  const l2ToL1MessagePasserOvmAddress: Address = Environment.l2ToL1MessagePasserOvmAddress()
   log.info(
-    `Using existing L2ToL1MessagePasser deployed at ${L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS}`
+    `Using existing L2ToL1MessagePasser deployed at ${l2ToL1MessagePasserOvmAddress}`
   )
   return new Contract(
-    L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+    l2ToL1MessagePasserOvmAddress,
     L2ToL1MessagePasserContractDefinition.abi,
     wallet
   )

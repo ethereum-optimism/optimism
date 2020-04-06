@@ -18,6 +18,7 @@
     "object-literal-sort-keys": false,
     "ordered-imports": false,
     "prettier": true,
+    "semicolon": false,
     "variable-name": false
   },
   "linterOptions": {

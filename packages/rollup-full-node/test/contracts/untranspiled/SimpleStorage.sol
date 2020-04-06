@@ -50,4 +50,8 @@ contract SimpleStorage {
             return(result, returndatasize)
         }
     }
+
+    function justRevert() public view {
+        revert("This failed");
+    }
 }

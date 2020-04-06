@@ -18,6 +18,13 @@ export interface L2ToL1Message {
   callData: string
 }
 
+export interface L1ToL2Transaction {
+  nonce: number
+  sender: Address
+  target: Address
+  callData: string
+}
+
 /* Types */
 export type Address = string
 export type StorageSlot = string
