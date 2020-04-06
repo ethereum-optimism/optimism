@@ -43,7 +43,6 @@ const log = getLogger('execution-manager-calls', true)
 
 const methodIds = fromPairs(
   [
-    'executeTransactionRaw',
     'makeCall',
     'makeStaticCall',
     'makeStaticCallThenCall',

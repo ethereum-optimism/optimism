@@ -39,7 +39,6 @@ const log = getLogger('execution-manager-context', true)
 const methodIds = fromPairs(
   [
     'callThroughExecutionManager',
-    'executeTransactionRaw',
     'getADDRESS',
     'getCALLER',
     'getGASLIMIT',
