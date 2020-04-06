@@ -37,7 +37,7 @@ export const generateLogSearchTreeNodes = (
   values: number[]
 ): BinarySearchNode[] => {
   // initialize our array of all tree nodes, populating first with all the leaves
-  let allTreeNodes: BinarySearchNode[] = keys.map((v, i) => {
+  const allTreeNodes: BinarySearchNode[] = keys.map((v, i) => {
     return {
       key: keys[i],
       value: values[i],
