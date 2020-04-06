@@ -34,6 +34,74 @@ import {
 import { EvmIntrospectionUtil } from '../../src/types/vm'
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 
+/**
+ * Validates transpiled JUMP bytecode provided via the TranspilationResult parameter.
+ *
+ * @param successResult The transpilation result in question.
+ */
+const validateJumpBytecode = (successResult: SuccessfulTranspilation): void => {
+  const outputBytecode: EVMBytecode = bufferToBytecode(successResult.bytecode)
+
+  let pc = 0
+  let lastOpcode: EVMOpcodeAndBytes
+  const jumpdestIndexes: number[] = []
+  const opcodesBeforeJump: Map<number, EVMOpcodeAndBytes> = new Map<
+    number,
+    EVMOpcodeAndBytes
+  >()
+  // Build map of index => opcode immediately before JUMP and get index of footer switch
+  for (const opcodeAndBytes of outputBytecode) {
+    if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
+      jumpdestIndexes.push(pc)
+    }
+    if (
+      opcodeAndBytes.opcode === Opcode.JUMP ||
+      opcodeAndBytes.opcode === Opcode.JUMPI
+    ) {
+      opcodesBeforeJump.set(
+        pc - 1 - lastOpcode.opcode.programBytesConsumed,
+        lastOpcode
+      )
+    }
+    lastOpcode = opcodeAndBytes
+    pc += 1 + opcodeAndBytes.opcode.programBytesConsumed
+  }
+
+  jumpdestIndexes.length.should.be.greaterThan(
+    0,
+    'There should be JUMPDESTs, but there are not!'
+  )
+
+  const switchJumpdestIndex: number = jumpdestIndexes.pop()
+  const switchJumpdest: Buffer = successResult.bytecode.slice(
+    switchJumpdestIndex,
+    switchJumpdestIndex + 1
+  )
+  switchJumpdest.should.eql(
+    Opcode.JUMPDEST.code,
+    `Switch JUMPDEST index is ${switchJumpdestIndex}, but byte at that index is ${bufToHexString(
+      switchJumpdest
+    )}, not ${bufToHexString(Opcode.JUMPDEST.code)}`
+  )
+
+  const switchSuccessJumpdestIndex: number = jumpdestIndexes.pop()
+  const switchSuccessJumpdest: Buffer = successResult.bytecode.slice(
+    switchSuccessJumpdestIndex,
+    switchSuccessJumpdestIndex + 1
+  )
+  switchSuccessJumpdest.should.eql(
+    Opcode.JUMPDEST.code,
+    `Switch success JUMPDEST index is ${switchJumpdestIndex}, but byte at that index is ${bufToHexString(
+      switchJumpdest
+    )}, not ${bufToHexString(Opcode.JUMPDEST.code)}`
+  )
+
+  opcodesBeforeJump.size.should.be.greaterThan(
+    0,
+    'opcodesBeforeJump should have entries but does not!'
+  )
+}
+
 const getSuccessfulTranspilationResult = (
   transpiler: Transpiler,
   bytecode: Buffer
@@ -79,6 +147,7 @@ describe('Transpile - JUMPs', () => {
       initialBytecode
     )
 
+    validateJumpBytecode(successResult)
     await assertExecutionEqual(evmUtil, initialBytecode, successResult.bytecode)
   })
 
@@ -99,6 +168,7 @@ describe('Transpile - JUMPs', () => {
       transpiler,
       initialBytecode
     )
+    validateJumpBytecode(successResult)
     await assertExecutionEqual(evmUtil, initialBytecode, successResult.bytecode)
   })
 
@@ -130,6 +200,7 @@ describe('Transpile - JUMPs', () => {
       transpiler,
       initialBytecode
     )
+    validateJumpBytecode(successResult)
     await assertExecutionEqual(evmUtil, initialBytecode, successResult.bytecode)
   })
 
@@ -148,6 +219,7 @@ describe('Transpile - JUMPs', () => {
       transpiler,
       initialBytecode
     )
+    validateJumpBytecode(successResult)
     await assertExecutionEqual(evmUtil, initialBytecode, successResult.bytecode)
   })
 
@@ -174,6 +246,7 @@ describe('Transpile - JUMPs', () => {
       initialBytecode,
       'Transpilation should not have changed anything but did!'
     )
+
     await assertExecutionEqual(evmUtil, initialBytecode, successResult.bytecode)
   })
 })
