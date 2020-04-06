@@ -334,9 +334,7 @@ describe('Execution Manager -- Call opcodes', () => {
       await executeTransaction(
         callContractAddress,
         methodIds.makeStaticCallThenCall,
-        [
-          addressToBytes32Address(callContractAddress),
-        ]
+        [addressToBytes32Address(callContractAddress)]
       )
     })
 

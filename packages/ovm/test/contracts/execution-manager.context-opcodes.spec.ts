@@ -123,10 +123,8 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executeTransaction(
         contractAddress,
         methodIds.callThroughExecutionManager,
-      [
-        contract2Address32,
-        methodIds.getCALLER,
-      ])
+        [contract2Address32, methodIds.getCALLER]
+      )
       log.debug(`CALLER result: ${result}`)
 
       should.exist(result, 'Result should exist!')
@@ -144,10 +142,9 @@ describe('Execution Manager -- Context opcodes', () => {
     it('properly retrieves ADDRESS when address is set', async () => {
       const result = await executeTransaction(
         contractAddress,
-        methodIds.callThroughExecutionManager,[
-        contract2Address32,
-        methodIds.getADDRESS,
-      ])
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getADDRESS]
+      )
 
       log.debug(`ADDRESS result: ${result}`)
 
@@ -160,17 +157,18 @@ describe('Execution Manager -- Context opcodes', () => {
     it('properly retrieves TIMESTAMP', async () => {
       const timestamp: number = getCurrentTime()
       const result = await executeTransaction(
-          contractAddress,
-          methodIds.callThroughExecutionManager, [
-          contract2Address32,
-          methodIds.getTIMESTAMP,
-        ]
+        contractAddress,
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getTIMESTAMP]
       )
 
       log.debug(`TIMESTAMP result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      hexStrToNumber(result).should.be.gte(timestamp, 'Timestamps do not match.')
+      hexStrToNumber(result).should.be.gte(
+        timestamp,
+        'Timestamps do not match.'
+      )
     })
   })
 
@@ -178,10 +176,9 @@ describe('Execution Manager -- Context opcodes', () => {
     it('properly retrieves GASLIMIT', async () => {
       const result = await executeTransaction(
         contractAddress,
-        methodIds.callThroughExecutionManager,[
-        contract2Address32,
-        methodIds.getGASLIMIT,
-      ])
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getGASLIMIT]
+      )
 
       log.debug(`GASLIMIT result: ${result}`)
 
@@ -194,11 +191,9 @@ describe('Execution Manager -- Context opcodes', () => {
     it('gets Queue Origin when it is 0', async () => {
       const queueOrigin: string = '00'.repeat(32)
       const result = await executeTransaction(
-          contractAddress,
-          methodIds.callThroughExecutionManager,[
-          contract2Address32,
-          methodIds.getQueueOrigin,
-        ]
+        contractAddress,
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getQueueOrigin]
       )
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
@@ -211,10 +206,8 @@ describe('Execution Manager -- Context opcodes', () => {
       const queueOrigin: string = '00'.repeat(30) + '1111'
       const result = await executeTransaction(
         contractAddress,
-        methodIds.callThroughExecutionManager,[
-        contract2Address32,
-        methodIds.getQueueOrigin,
-      ],
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getQueueOrigin],
         add0x(queueOrigin)
       )
 
@@ -229,7 +222,7 @@ describe('Execution Manager -- Context opcodes', () => {
     address: string,
     methodId: string,
     args: any[],
-    queueOrigin = ZERO_ADDRESS,
+    queueOrigin = ZERO_ADDRESS
   ): Promise<string> => {
     const callBytes = add0x(methodId + encodeRawArguments(args))
     const data = executionManager.interface.functions[

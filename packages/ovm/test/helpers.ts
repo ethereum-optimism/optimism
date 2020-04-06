@@ -372,6 +372,8 @@ export const encodeRawArguments = (args: any[]): string => {
     .map((arg) => {
       if (Number.isInteger(arg)) {
         return bufferUtils.numberToBuffer(arg).toString('hex')
+      } else if (Buffer.isBuffer(arg)) {
+        return arg.toString('hex')
       } else if (arg && arg.startsWith('0x')) {
         return remove0x(arg)
       } else {
