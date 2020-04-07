@@ -60,7 +60,7 @@ import {
 const log = getLogger(`test-solidity-JUMPs`)
 const abi = new ethers.utils.AbiCoder()
 
-describe('JUMP table solidity integration', () => {
+describe.only('JUMP table solidity integration', () => {
   let evmUtil: EvmIntrospectionUtil
   const mockReplacer: OpcodeReplacer = {
     replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
@@ -111,7 +111,7 @@ describe('JUMP table solidity integration', () => {
       originalJumperDeployedBytecde
     ) as SuccessfulTranspilation).bytecode
     log.debug(
-      `transpiled output with log searcher: \n${formatBytecode(
+      `Transpiled jumper output with BST jump table: \n${formatBytecode(
         bufferToBytecode(transpiledJumperDeployedBytecode)
       )}`
     )
