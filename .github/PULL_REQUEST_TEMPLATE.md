@@ -8,13 +8,6 @@
 ## Metadata
 ### Fixes
 - Fixes # [Link to Issue]
-- Fixes # [Link to Issue]
-- Fixes # [Link to Issue]
-
-### Blockers
-- #
-- #
-- #
 
 ## Contributing Agreement
 <!--
