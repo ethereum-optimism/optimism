@@ -77,7 +77,7 @@ if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
   echo "Ran Setup" > $SETUP_RUN_PATH
 
   echo "Setup Complete"
-  echo "Sealer Address: 0x`cat $SEALER_PRIVATE_KEY_PATH`"
+  echo "Sealer Address: 0x`cat $SEALER_ADDRESS_PATH`"
   echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
 else
   echo "FOUND EXISTING GETH DATA"
