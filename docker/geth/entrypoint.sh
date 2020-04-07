@@ -78,7 +78,7 @@ if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
 
   echo "Setup Complete"
   echo "Sealer Address: 0x`cat $SEALER_ADDRESS_PATH`"
-  echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
+  echo "Account Address: 0x`cat $ADDRESS_PATH`"
 else
   echo "FOUND EXISTING GETH DATA"
 fi
@@ -86,4 +86,3 @@ fi
 echo "Starting Geth..."
 ## Command to kick off geth
 geth --datadir $VOLUME_PATH --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=$HOSTNAME --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
-
