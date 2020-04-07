@@ -5,7 +5,7 @@ import {
   EVMOpcodeAndBytes,
   formatBytecode,
   getPCOfEVMBytecodeIndex,
-  OpcodeTagReason
+  OpcodeTagReason,
 } from '@eth-optimism/rollup-core'
 import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
 import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
@@ -262,39 +262,45 @@ const fixJUMPsToNodes = (
   bytecode: EVMBytecode,
   indexOfThisBlock: number
 ): EVMBytecode => {
-  for (const pushMatchSuccessOp of bytecode.filter(x => !!x.tag && x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC)) {
+  for (const pushMatchSuccessOp of bytecode.filter(
+    (x) =>
+      !!x.tag &&
+      x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC
+  )) {
     pushMatchSuccessOp.consumedBytes = bufferUtils.numberToBuffer(
       indexOfThisBlock,
       pcMaxByteSize,
       pcMaxByteSize
     )
   }
-  for (const pushBSTNodeOp of bytecode.filter(x => !!x.tag && x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION)) {
+  for (const pushBSTNodeOp of bytecode.filter(
+    (x) =>
+      !!x.tag &&
+      x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION
+  )) {
     const rightChild: BinarySearchTreeNode =
       pushBSTNodeOp.tag.metadata.node.right
-      // Find the index of the right child's JUMPDEST in the bytecode, for each node.
-      const rightChildJumpdestIndexInBytecodeBlock = bytecode.findIndex(
-        (toCheck: EVMOpcodeAndBytes) => {
-          return (
-            !!toCheck.tag &&
-            toCheck.tag.reasonTagged === OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST &&
-            toCheck.tag.metadata.node === rightChild
-          )
-        }
-      )
-      // Calculate the PC of the found JUMPDEST, offsetting by the index of this block.
-      const rightChildJumpdestPC =
-        indexOfThisBlock +
-        getPCOfEVMBytecodeIndex(
-          rightChildJumpdestIndexInBytecodeBlock,
-          bytecode
+    // Find the index of the right child's JUMPDEST in the bytecode, for each node.
+    const rightChildJumpdestIndexInBytecodeBlock = bytecode.findIndex(
+      (toCheck: EVMOpcodeAndBytes) => {
+        return (
+          !!toCheck.tag &&
+          toCheck.tag.reasonTagged ===
+            OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST &&
+          toCheck.tag.metadata.node === rightChild
         )
-      // Set the consumed bytes to be this PC
-      pushBSTNodeOp.consumedBytes = bufferUtils.numberToBuffer(
-        rightChildJumpdestPC,
-        pcMaxByteSize,
-        pcMaxByteSize
-      )
+      }
+    )
+    // Calculate the PC of the found JUMPDEST, offsetting by the index of this block.
+    const rightChildJumpdestPC =
+      indexOfThisBlock +
+      getPCOfEVMBytecodeIndex(rightChildJumpdestIndexInBytecodeBlock, bytecode)
+    // Set the consumed bytes to be this PC
+    pushBSTNodeOp.consumedBytes = bufferUtils.numberToBuffer(
+      rightChildJumpdestPC,
+      pcMaxByteSize,
+      pcMaxByteSize
+    )
   }
   return bytecode
 }
