@@ -6,7 +6,7 @@ const { ZERO_ADDRESS } = require('../utils/testUtils');
 contract('Owned - Test contract deployment', accounts => {
 	const [deployerAccount, account1] = accounts;
 
-	it('should revert when owner parameter is passed the zero address', async () => {
+	it.skip('should revert when owner parameter is passed the zero address', async () => {
 		await assert.revert(Owned.new(ZERO_ADDRESS, { from: deployerAccount }));
 	});
 

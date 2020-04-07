@@ -8,7 +8,7 @@ import { Filter, Log, Provider } from 'ethers/providers'
 import { EthereumEvent, EthereumListener } from '../../types/ethereum'
 import { DB } from '../../types/db'
 
-const log = getLogger('ethereum- event-processor')
+const log = getLogger('ethereum-event-processor')
 
 interface SyncStatus {
   syncCompleted: boolean
@@ -54,7 +54,10 @@ export class EthereumEventProcessor {
     handler: EthereumListener<EthereumEvent>,
     syncPastEvents: boolean = true
   ): Promise<void> {
-    const eventId: string = this.getEventID(contract.address, eventName)
+    const eventId: string = EthereumEventProcessor.getEventID(
+      contract.address,
+      eventName
+    )
     log.debug(`Received subscriber for event ${eventName}, ID: ${eventId}`)
 
     if (!this.subscriptions.has(eventId)) {
@@ -103,6 +106,17 @@ export class EthereumEventProcessor {
         await handler.onSyncCompleted(eventName)
       }
     }
+  }
+
+  /**
+   * Gets a unique ID for the event with the provided address and name.
+   *
+   * @param address The address of the event
+   * @param eventName The name of the event
+   * @returns The unique ID string.
+   */
+  public static getEventID(address: string, eventName: string): string {
+    return Md5Hash(`${address}${eventName}`)
   }
 
   /**
@@ -234,7 +248,7 @@ export class EthereumEventProcessor {
   private createEventFromEthersEvent(event: ethers.Event): EthereumEvent {
     const values = EthereumEventProcessor.getLogValues(event.args)
     return {
-      eventID: this.getEventID(event.address, event.event),
+      eventID: EthereumEventProcessor.getEventID(event.address, event.event),
       name: event.event,
       signature: event.eventSignature,
       values,
@@ -256,16 +270,5 @@ export class EthereumEventProcessor {
     delete values['length']
 
     return values
-  }
-
-  /**
-   * Gets a unique ID for the event with the provided address and name.
-   *
-   * @param address The address of the event
-   * @param eventName The name of the event
-   * @returns The unique ID string.
-   */
-  private getEventID(address: string, eventName: string): string {
-    return Md5Hash(`${address}${eventName}`)
   }
 }

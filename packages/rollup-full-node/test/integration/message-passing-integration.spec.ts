@@ -1,5 +1,5 @@
 import { Address, L2ToL1Message } from '@eth-optimism/rollup-core'
-import { add0x } from '@eth-optimism/core-utils'
+import { add0x, sleep } from '@eth-optimism/core-utils'
 
 import {
   createProviderForHandler,
@@ -93,6 +93,8 @@ describe('Message Passing Integration Tests', () => {
       )
       await messagePasserFraud.callMessagePasser(messagePasserAddress, message)
       await messagePasserFraud.callMessagePasser(messagePasserAddress, message)
+      // wait for events to process
+      await sleep(100)
 
       const receivedMessages = messageSubmitter.getReceivedMessages()
       receivedMessages.length.should.equal(
