@@ -159,6 +159,10 @@ export class DefaultWeb3Handler
         this.assertParameters(params, 0)
         response = await this.networkVersion()
         break
+      case Web3RpcMethods.chainId:
+        this.assertParameters(params, 0)
+        response = await this.chainId()
+        break
       default:
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
@@ -444,6 +448,15 @@ export class DefaultWeb3Handler
     const response = CHAIN_ID
     log.debug(`Got network version: [${response}]`)
     return response.toString()
+  }
+
+  public async chainId(): Promise<string> {
+    log.debug('Getting chain ID')
+    // Return our internal chain_id
+    // TODO: Add getter for chainId that is not just imported
+    const response = add0x(CHAIN_ID.toString(16))
+    log.debug(`Got chain ID: [${response}]`)
+    return response
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
