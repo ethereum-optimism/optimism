@@ -1,3 +1,22 @@
+# AWS
+This documentation contains all of the necessary information to build and deploy new images to an existing environment or to create an entirely new environment in AWS.
+
+# Building and Registering Containers
+There are a few different docker containers in this repo that get built and published to AWS's registry. 
+As of right now they are defined by the Dockerfiles at:
+* `docker/geth/Dockerfile` published (here)
+  * Manually built and deployed
+* `Dockerfile`
+  * Automatically built and deployed to shared dev environment on merge to `master`
+  * Note: 
+    * This is for the rollup-full-node but at the base directory for easy dependency inclusion
+    * Currently all source code must be built _outside_ of Docker, ahead of doing a docker build.
+
+Here are the steps for publishing new version to ECR:
+* `docker/geth/Dockerfile` click on "View push commands" [here](https://us-east-2.console.aws.amazon.com/ecr/repositories/optimism/geth/?region=us-east-2) 
+* `Dockerfile` click on "View push commands" [here](https://us-east-2.console.aws.amazon.com/ecr/repositories/optimism/rollup-full-node/?region=us-east-2) 
+
+
 # Creating an AWS ECS Environment
 The contents of this directory can be used to deploy a fully-functional Full Node to AWS.
 
