@@ -8,6 +8,10 @@ import {
  * to consolidate access / updates and default values.
  */
 export class Environment {
+  public static clearDataKey(defaultValue?: string) {
+    return process.env.CLEAR_DATA_KEY || defaultValue
+  }
+
   // L2 Rpc Server Config
   public static l2RpcServerPersistentDbPath(defaultValue?: string) {
     return process.env.L2_RPC_SERVER_PERSISTENT_DB_PATH || defaultValue

@@ -227,7 +227,7 @@ const getL1ToL2TransactionPasserContract = async (
     )
     l2ToL1transactionPasser = new Contract(
       l1ToL2transactionPasserAddress,
-      L2ToL1MessageReceiverContractDefinition.abi,
+      L1ToL2TransactionPasserContractDefinition.abi,
       wallet
     )
   } else {

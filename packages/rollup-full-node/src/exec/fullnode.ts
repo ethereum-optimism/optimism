@@ -11,7 +11,10 @@ import {
   L1ToL2TransactionEventName,
   L1ToL2TransactionProcessor,
 } from '@eth-optimism/rollup-core'
+
 import { JsonRpcProvider } from 'ethers/providers'
+import * as fs from 'fs'
+import * as rimraf from 'rimraf'
 
 /* Internal Imports */
 import {
@@ -47,6 +50,8 @@ export interface FullnodeContext {
 export const runFullnode = async (
   testFullnode: boolean = false
 ): Promise<FullnodeContext> => {
+  initializeDBPaths()
+
   let provider: JsonRpcProvider
   // TODO Get these from config
   const port: number = Environment.l2RpcServerPort()
@@ -75,9 +80,7 @@ export const runFullnode = async (
     port
   )
 
-  const db: DB = testFullnode
-    ? newInMemoryDB()
-    : new BaseDB(getLevelInstance(Environment.l2RpcServerPersistentDbPath()))
+  const db: DB = getDB(testFullnode)
 
   const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(
     db,
@@ -108,4 +111,71 @@ export const runFullnode = async (
     l1ToL2TransactionProcessor,
     l1NodeContext,
   }
+}
+
+/**
+ * Initializes filesystem DB paths. This will also purge all data if the `CLEAR_DATA_KEY` has changed.
+ */
+const initializeDBPaths = () => {
+  if (!fs.existsSync(Environment.l2RpcServerPersistentDbPath())) {
+    makeDataDirectory()
+  } else {
+    if (Environment.clearDataKey() && !fs.existsSync(getClearDataFilePath())) {
+      log.info(`Detected change in CLEAR_DATA_KEY. Purging data...`)
+      rimraf.sync(`${Environment.l2RpcServerPersistentDbPath()}/{*,.*}`)
+      log.info(
+        `L2 RPC Server data purged from '${Environment.l2RpcServerPersistentDbPath()}/{*,.*}'`
+      )
+      if (Environment.localL1NodePersistentDbPath()) {
+        rimraf.sync(`${Environment.localL1NodePersistentDbPath()}/{*,.*}`)
+        log.info(
+          `Local L1 node data purged from '${Environment.localL1NodePersistentDbPath()}/{*,.*}'`
+        )
+      }
+      if (Environment.localL2NodePersistentDbPath()) {
+        rimraf.sync(`${Environment.localL2NodePersistentDbPath()}/{*,.*}`)
+        log.info(
+          `Local L2 node data purged from '${Environment.localL2NodePersistentDbPath()}/{*,.*}'`
+        )
+      }
+      makeDataDirectory()
+    }
+  }
+}
+
+/**
+ * Gets the appropriate db for this node to use based on whether or not this is run in test mode.
+ *
+ * @param isTestMode Whether or not it is test mode.
+ * @returns The constructed DB instance.
+ */
+const getDB = (isTestMode: boolean = false): DB => {
+  if (isTestMode) {
+    return newInMemoryDB()
+  } else {
+    if (!Environment.l2RpcServerPersistentDbPath()) {
+      log.error(
+        `No L2_RPC_SERVER_PERSISTENT_DB_PATH environment variable present. Please set one!`
+      )
+      process.exit(1)
+    }
+
+    return new BaseDB(
+      getLevelInstance(Environment.l2RpcServerPersistentDbPath())
+    )
+  }
+}
+
+/**
+ * Makes the data directory for this full node and adds a clear data key file if it is configured to use one.
+ */
+const makeDataDirectory = () => {
+  fs.mkdirSync(Environment.l2RpcServerPersistentDbPath(), { recursive: true })
+  if (Environment.clearDataKey()) {
+    fs.writeFileSync(getClearDataFilePath(), '')
+  }
+}
+
+const getClearDataFilePath = () => {
+  return `${Environment.l2RpcServerPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
 }
