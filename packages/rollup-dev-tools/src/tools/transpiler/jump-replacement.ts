@@ -11,10 +11,7 @@ import {
   TranspilationErrors,
 } from '../../types/transpiler'
 import { createError } from './util'
-import {
-  buildJumpBSTBytecode,
-  getJumpIndexSwitchStatementSuccessJumpdestBytecode,
-} from './'
+import { buildJumpBSTBytecode, getJumpdestMatchSuccessBytecode } from './'
 
 const log = getLogger('jump-replacement')
 
@@ -188,8 +185,6 @@ export const getExpectedFooterSwitchStatementJumpdestIndex = (
       length += 1 + opcodeAndBytes.opcode.programBytesConsumed
     }
   }
-  length += bytecodeToBuffer(
-    getJumpIndexSwitchStatementSuccessJumpdestBytecode()
-  ).length
+  length += bytecodeToBuffer(getJumpdestMatchSuccessBytecode()).length
   return length
 }

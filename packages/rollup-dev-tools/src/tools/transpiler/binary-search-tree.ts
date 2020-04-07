@@ -30,10 +30,15 @@ export const buildJumpBSTBytecode = (
   values: number[],
   indexOfThisBlock: number
 ): EVMBytecode => {
+  if (keys.length !== values.length) {
+    throw new Error(
+      `Asked to build binary search tree, but given key array of length ${keys.length} and value array of length ${values.length}`
+    )
+  }
   const rootNode = getBSTRoot(keys, values)
   const BSTBytecodeWithIncorrectJUMPs: EVMBytecode = [
     // Bytecode to JUMP to when a successful match is found by a BST node
-    ...getJumpIndexSwitchStatementSuccessJumpdestBytecode(),
+    ...getJumpdestMatchSuccessBytecode(),
     // Entry point for the actual BST matching logic
     {
       opcode: Opcode.JUMPDEST,
@@ -120,47 +125,7 @@ const getBytecodeForSubtreeRoot = (
     bytecodeToReturn.push(generateBinarySearchTreeNodeJumpdest(node))
   }
   // Generate the match check for this node
-  bytecodeToReturn.push(
-    ...[
-      // DUP the value to match without deleting it forever
-      {
-        opcode: Opcode.DUP1,
-        consumedBytes: undefined,
-      },
-      // Compare to JUMPDEST before
-      getPUSHIntegerOp(node.value.jumpdestBefore),
-      {
-        opcode: Opcode.EQ,
-        consumedBytes: undefined,
-      },
-      // If match, we will send the JUMPDEST after to the success block
-      getPUSHIntegerOp(node.value.jumpdestAfter),
-      {
-        opcode: Opcode.SWAP1,
-        consumedBytes: undefined,
-      },
-      // PUSH success block location (via a tag--will be filled out later)
-      {
-        opcode: getPUSHOpcode(pcMaxByteSize),
-        consumedBytes: Buffer.alloc(pcMaxByteSize),
-        tag: {
-          padPUSH: false,
-          reasonTagged: OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC,
-          metadata: undefined,
-        },
-      },
-      // JUMPI to success block if match
-      {
-        opcode: Opcode.JUMPI,
-        consumedBytes: undefined,
-      },
-      // POP the JUMPDESTafter if not a match.
-      {
-        opcode: Opcode.POP,
-        consumedBytes: undefined,
-      },
-    ]
-  )
+  bytecodeToReturn.push(...generateNodeEqualityCheckBytecode(node))
   // If there are no children to continue to, there is definitely no match--STOP as this was an invalid JUMP according to pre-transpilation JUMPDESTs
   if (!node.left && !node.right) {
     bytecodeToReturn.push({
@@ -172,34 +137,7 @@ const getBytecodeForSubtreeRoot = (
   // If this node has a right child, check whether the stack input is greater than this node value and JUMP there.  Otherwise we will continue to the left.
   if (node.right) {
     bytecodeToReturn.push(
-      ...[
-        {
-          opcode: Opcode.DUP1,
-          consumedBytes: undefined,
-        },
-        // PUSH the key to be compared to determine which node to proceed to
-        getPUSHIntegerOp(node.value.jumpdestBefore),
-        // Compare the keys
-        {
-          opcode: Opcode.LT,
-          consumedBytes: undefined,
-        },
-        // PUSH a *placeholder* for the destination of thde right child to be JUMPed to if check passes--to be set later
-        {
-          opcode: getPUSHOpcode(pcMaxByteSize),
-          consumedBytes: Buffer.alloc(pcMaxByteSize),
-          tag: {
-            padPUSH: false,
-            reasonTagged: OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION,
-            metadata: { node },
-          },
-        },
-        // JUMP if the LT check passed
-        {
-          opcode: Opcode.JUMPI,
-          consumedBytes: undefined,
-        },
-      ]
+      ...generateIfGreaterThenJumpToRightChildBytecode(node)
     )
   }
   // generate bytecode for the next subtree enforcing left->right depth first execution so that every left sibling is continued to, every right sibling JUMPed to
@@ -211,9 +149,98 @@ const getBytecodeForSubtreeRoot = (
 }
 
 /**
+ * Generates a bytecode block that checks if the current stack element is >= this node's value, and jumping to the right child node if so.
+ *
+ * @param node The BST node being inequality checked
+ * @returns The correctly tagged bytecode jumping to the right child of this node if needed.
+ */
+const generateIfGreaterThenJumpToRightChildBytecode = (
+  node: BinarySearchTreeNode
+): EVMBytecode => {
+  return [
+    {
+      opcode: Opcode.DUP1,
+      consumedBytes: undefined,
+    },
+    // PUSH the key to be compared to determine which node to proceed to
+    getPUSHIntegerOp(node.value.jumpdestBefore),
+    // Compare the keys
+    {
+      opcode: Opcode.LT,
+      consumedBytes: undefined,
+    },
+    // PUSH a *placeholder* for the destination of thde right child to be JUMPed to if check passes--to be set later
+    {
+      opcode: getPUSHOpcode(pcMaxByteSize),
+      consumedBytes: Buffer.alloc(pcMaxByteSize),
+      tag: {
+        padPUSH: false,
+        reasonTagged: OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION,
+        metadata: { node },
+      },
+    },
+    // JUMP if the LT check passed
+    {
+      opcode: Opcode.JUMPI,
+      consumedBytes: undefined,
+    },
+  ]
+}
+
+/**
+ * Generates a bytecode block that checks for equality of the stack element to the node, and jumping to a match success block if so.
+ *
+ * @param node The BST node being equality checked
+ * @returns The correctly tagged bytecode jumping to the match success case for this node.
+ */
+const generateNodeEqualityCheckBytecode = (
+  node: BinarySearchTreeNode
+): EVMBytecode => {
+  return [
+    // DUP the value to match without deleting it forever
+    {
+      opcode: Opcode.DUP1,
+      consumedBytes: undefined,
+    },
+    // Compare to JUMPDEST before
+    getPUSHIntegerOp(node.value.jumpdestBefore),
+    {
+      opcode: Opcode.EQ,
+      consumedBytes: undefined,
+    },
+    // If match, we will send the JUMPDEST after to the success block
+    getPUSHIntegerOp(node.value.jumpdestAfter),
+    {
+      opcode: Opcode.SWAP1,
+      consumedBytes: undefined,
+    },
+    // PUSH success block location (via a tag--will be filled out later)
+    {
+      opcode: getPUSHOpcode(pcMaxByteSize),
+      consumedBytes: Buffer.alloc(pcMaxByteSize),
+      tag: {
+        padPUSH: false,
+        reasonTagged: OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC,
+        metadata: undefined,
+      },
+    },
+    // JUMPI to success block if match
+    {
+      opcode: Opcode.JUMPI,
+      consumedBytes: undefined,
+    },
+    // POP the JUMPDESTafter if not a match.
+    {
+      opcode: Opcode.POP,
+      consumedBytes: undefined,
+    },
+  ]
+}
+
+/**
  * Generates a tagged JUMPDEST for a binary search node
  *
- * @param nodeId The nodeId of this node (used for tagging for later correction)
+ * @param node The BST node being jumped to (used for tagging for later correction)
  * @returns The correctly tagged JUMPDEST.
  */
 const generateBinarySearchTreeNodeJumpdest = (
@@ -238,7 +265,7 @@ const generateBinarySearchTreeNodeJumpdest = (
  * @returns The success bytecode.
  */
 
-export const getJumpIndexSwitchStatementSuccessJumpdestBytecode = (): EVMBytecode => {
+export const getJumpdestMatchSuccessBytecode = (): EVMBytecode => {
   return [
     // This JUMPDEST is hit on successful switch match
     { opcode: Opcode.JUMPDEST, consumedBytes: undefined },
