@@ -16,8 +16,18 @@ export type EVMBytecode = EVMOpcodeAndBytes[]
 
 export interface OpcodeTag {
   padPUSH: boolean // whether this PUSHN should be turned into a PUSH(N+1) to preempt later changes to consumedBytes in transpilation.
-  reasonTagged: string
+  reasonTagged: string | OpcodeTagReason
   metadata: any
+}
+
+export enum OpcodeTagReason {
+  IS_CONSTANT_OFFSET,
+  IS_DEPLOY_CODECOPY_OFFSET,
+  IS_DEPLOY_CODE_LENGTH,
+  IS_CONSTRUCTOR_INPUTS_OFFSET,
+  IS_PUSH_BINARY_SEARCH_NODE_LOCATION,
+  IS_BINARY_SEARCH_NODE_JUMPDEST,
+  IS_PUSH_MATCH_SUCCESS_LOC,
 }
 
 export class Opcode {

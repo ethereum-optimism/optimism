@@ -5,6 +5,7 @@ import {
   EVMOpcodeAndBytes,
   formatBytecode,
   getPCOfEVMBytecodeIndex,
+  OpcodeTagReason
 } from '@eth-optimism/rollup-core'
 import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
 import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
@@ -13,15 +14,7 @@ import { BinarySearchTreeNode } from '../../types/transpiler'
 const log = getLogger('binary-search-tree-generator')
 
 // The max number of bytes we expect a JUMPDEST's PC to be expressible in.  Setting to 3 allows 16 MB contracts--more than enough!
-const maxBytesOfContractSize = 3
-
-// reasonTagged label for opcode PUSHing the PC of a binary search tree node to the stack
-const IS_PUSH_BINARY_SEARCH_NODE_LOCATION =
-  'IS_PUSH_BINARY_SEARCH_NODE_LOCATION'
-// reasonTagged label for JUMPDEST of a binary searchh tree node.
-const IS_BINARY_SEARCH_NODE_JUMPDEST = 'IS_BINARY_SEARCH_NODE_JUMPDEST'
-// reasonTagged label for PUSHing the PC of our jumpdestBefore match success block
-const IS_PUSH_MATCH_SUCCESS_LOC = 'IS_PUSH_MATCH_SUCCESS_LOC'
+const pcMaxByteSize = 3
 
 /**
  * Generates a JUMP-correctiing binary search tree block which is used to map pre-transpiled JUMPDESTs too post-transpiled JUMPDESTs.
@@ -148,11 +141,11 @@ const getBytecodeForSubtreeRoot = (
       },
       // PUSH success block location (via a tag--will be filled out later)
       {
-        opcode: getPUSHOpcode(maxBytesOfContractSize),
-        consumedBytes: Buffer.alloc(maxBytesOfContractSize),
+        opcode: getPUSHOpcode(pcMaxByteSize),
+        consumedBytes: Buffer.alloc(pcMaxByteSize),
         tag: {
           padPUSH: false,
-          reasonTagged: IS_PUSH_MATCH_SUCCESS_LOC,
+          reasonTagged: OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC,
           metadata: undefined,
         },
       },
@@ -193,11 +186,11 @@ const getBytecodeForSubtreeRoot = (
         },
         // PUSH a *placeholder* for the destination of thde right child to be JUMPed to if check passes--to be set later
         {
-          opcode: getPUSHOpcode(maxBytesOfContractSize),
-          consumedBytes: Buffer.alloc(maxBytesOfContractSize),
+          opcode: getPUSHOpcode(pcMaxByteSize),
+          consumedBytes: Buffer.alloc(pcMaxByteSize),
           tag: {
             padPUSH: false,
-            reasonTagged: IS_PUSH_BINARY_SEARCH_NODE_LOCATION,
+            reasonTagged: OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION,
             metadata: { node },
           },
         },
@@ -231,7 +224,7 @@ const generateBinarySearchTreeNodeJumpdest = (
     consumedBytes: undefined,
     tag: {
       padPUSH: false,
-      reasonTagged: IS_BINARY_SEARCH_NODE_JUMPDEST,
+      reasonTagged: OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST,
       metadata: { node },
     },
   }
@@ -269,31 +262,22 @@ const fixJUMPsToNodes = (
   bytecode: EVMBytecode,
   indexOfThisBlock: number
 ): EVMBytecode => {
-  for (const opcodeAndBytes of bytecode) {
-    // Find all the PUSHes going to the "successful match" block which is always placed at the start of this block
-    if (
-      !!opcodeAndBytes.tag &&
-      opcodeAndBytes.tag.reasonTagged === IS_PUSH_MATCH_SUCCESS_LOC
-    ) {
-      opcodeAndBytes.consumedBytes = bufferUtils.numberToBuffer(
-        indexOfThisBlock,
-        maxBytesOfContractSize,
-        maxBytesOfContractSize
-      )
-    }
-    // Find all the PUSHes which we need to append the right sibling's JUMPDEST location to.
-    if (
-      !!opcodeAndBytes.tag &&
-      opcodeAndBytes.tag.reasonTagged === IS_PUSH_BINARY_SEARCH_NODE_LOCATION
-    ) {
-      const rightChild: BinarySearchTreeNode =
-        opcodeAndBytes.tag.metadata.node.right
+  for (const pushMatchSuccessOp of bytecode.filter(x => !!x.tag && x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC)) {
+    pushMatchSuccessOp.consumedBytes = bufferUtils.numberToBuffer(
+      indexOfThisBlock,
+      pcMaxByteSize,
+      pcMaxByteSize
+    )
+  }
+  for (const pushBSTNodeOp of bytecode.filter(x => !!x.tag && x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION)) {
+    const rightChild: BinarySearchTreeNode =
+      pushBSTNodeOp.tag.metadata.node.right
       // Find the index of the right child's JUMPDEST in the bytecode, for each node.
       const rightChildJumpdestIndexInBytecodeBlock = bytecode.findIndex(
         (toCheck: EVMOpcodeAndBytes) => {
           return (
             !!toCheck.tag &&
-            toCheck.tag.reasonTagged === IS_BINARY_SEARCH_NODE_JUMPDEST &&
+            toCheck.tag.reasonTagged === OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST &&
             toCheck.tag.metadata.node === rightChild
           )
         }
@@ -306,12 +290,11 @@ const fixJUMPsToNodes = (
           bytecode
         )
       // Set the consumed bytes to be this PC
-      opcodeAndBytes.consumedBytes = bufferUtils.numberToBuffer(
+      pushBSTNodeOp.consumedBytes = bufferUtils.numberToBuffer(
         rightChildJumpdestPC,
-        maxBytesOfContractSize,
-        maxBytesOfContractSize
+        pcMaxByteSize,
+        pcMaxByteSize
       )
-    }
   }
   return bytecode
 }
