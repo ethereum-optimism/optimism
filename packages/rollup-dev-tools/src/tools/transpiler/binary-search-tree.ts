@@ -11,8 +11,6 @@ import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
 import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
 import { BinarySearchTreeNode } from '../../types/transpiler'
 
-const log = getLogger('binary-search-tree-generator')
-
 // The max number of bytes we expect a JUMPDEST's PC to be expressible in.  Setting to 3 allows 16 MB contracts--more than enough!
 const pcMaxByteSize = 3
 
