@@ -50,7 +50,7 @@ export interface FullnodeContext {
 export const runFullnode = async (
   testFullnode: boolean = false
 ): Promise<FullnodeContext> => {
-  initializeDBPaths()
+  initializeDBPaths(testFullnode)
 
   let provider: JsonRpcProvider
   // TODO Get these from config
@@ -116,7 +116,11 @@ export const runFullnode = async (
 /**
  * Initializes filesystem DB paths. This will also purge all data if the `CLEAR_DATA_KEY` has changed.
  */
-const initializeDBPaths = () => {
+const initializeDBPaths = (isTestMode: boolean) => {
+  if (isTestMode) {
+    return
+  }
+
   if (!fs.existsSync(Environment.l2RpcServerPersistentDbPath())) {
     makeDataDirectory()
   } else {
