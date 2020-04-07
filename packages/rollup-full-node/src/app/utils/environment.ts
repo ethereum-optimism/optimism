@@ -63,6 +63,14 @@ export class Environment {
     return process.env.L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS || defaultValue
   }
 
+  // L1 Infura
+  public static l1NodeInfuraNetwork(defaultValue?: string): string {
+    return process.env.L1_NODE_INFURA_NETWORK || defaultValue
+  }
+  public static l1NodeInfuraProjectId(defaultValue?: string): string {
+    return process.env.L1_NODE_INFURA_PROJECT_ID || defaultValue
+  }
+
   // L1 Config
   public static l1NodeWeb3Url(defaultValue?: string): string {
     return process.env.L1_NODE_WEB3_URL || defaultValue
