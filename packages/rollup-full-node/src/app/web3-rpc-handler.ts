@@ -159,6 +159,10 @@ export class DefaultWeb3Handler
         this.assertParameters(params, 0)
         response = await this.networkVersion()
         break
+      case Web3RpcMethods.chainId:
+        this.assertParameters(params, 0)
+        response = await this.chainId()
+        break
       default:
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
@@ -446,6 +450,15 @@ export class DefaultWeb3Handler
     return response.toString()
   }
 
+  public async chainId(): Promise<string> {
+    log.debug('Getting chain ID')
+    // Return our internal chain_id
+    // TODO: Add getter for chainId that is not just imported
+    const response = add0x(CHAIN_ID.toString(16))
+    log.debug(`Got chain ID: [${response}]`)
+    return response
+  }
+
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
     const timestamp = this.getTimestamp()
     // lock here because the mapOmTxHash... tx and the sendRawTransaction tx need to be in order because of nonces.
@@ -497,21 +510,28 @@ export class DefaultWeb3Handler
         throw Error(msg)
       }
 
-      const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
-        ovmTxHash,
-        true
-      )
-      log.debug(
-        `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
-      )
-      if (!receipt || !receipt.status) {
-        log.debug(`Transaction reverted: ${rawOvmTx}, ovmTxHash: ${ovmTxHash}`)
-        throw new RevertError(receipt.revertMessage)
-      }
+      this.context.provider
+        .waitForTransaction(internalTxHash)
+        .then(async () => {
+          const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
+            ovmTxHash,
+            true
+          )
+          log.debug(
+            `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+          )
+          if (!receipt) {
+            log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
+            return
+          } else if (!receipt.status) {
+            log.debug(`Transaction reverted: ${rawOvmTx}`)
+          } else {
+            log.debug(`Transaction mined successfully: ${rawOvmTx}`)
+            await this.processTransactionEvents(receipt)
+          }
+          this.blockTimestamps[receipt.blockNumber] = timestamp
+        })
 
-      await this.processTransactionEvents(receipt)
-
-      this.blockTimestamps[receipt.blockNumber] = timestamp
       log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
       // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
       return ovmTxHash

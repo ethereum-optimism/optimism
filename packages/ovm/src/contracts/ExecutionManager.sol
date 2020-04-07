@@ -104,52 +104,6 @@ contract ExecutionManager is FullStateManager {
         incrementOvmContractNonce(addr);
     }
 
-    /**
-     * @notice Execute a transaction which will return the result of the call instead of the updated storage.
-     *         Note: This should only be used with a Web3 `call` operation, otherwise you may accidentally save changes to the state.
-     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
-     * Below format of the bytes expected as input and written as output:
-     * calldata: variable-length bytes:
-     *       [methodID (bytes4)]
-     *       [timestamp (uint)]
-     *       [queueOrigin (uint)]
-     *       [ovmEntrypointAddress (address as bytes32 (left-padded, big-endian))]
-     *       [callBytes (bytes (variable length))]
-     * returndata: [variable-length bytes returned from call]
-     */
-    function executeTransactionRaw() external {
-        uint _timestamp;
-        uint _queueOrigin;
-        uint _callSize;
-        bytes memory callBytes;
-        address _ovmEntrypoint;
-        assembly {
-            // populate timestamp and queue origin from calldata
-            _timestamp := calldataload(0x04)
-            // skip method ID (bytes4) and timestamp (bytes32)
-            _queueOrigin := calldataload(0x24)
-
-            callBytes := mload(0x40)
-            // set callsize: total param size minus 2 uints (methodId bytes are repurposed)
-            _callSize := sub(calldatasize, 0x40)
-            mstore(0x40, add(callBytes, _callSize))
-
-            _ovmEntrypoint := calldataload(0x44)
-            calldatacopy(add(callBytes, 0x20), 0x64, sub(_callSize, 0x04))
-            mstore(callBytes, sub(_callSize, 0x20))
-        }
- 
-        return executeTransaction(
-            _timestamp,
-            _queueOrigin,
-            _ovmEntrypoint,
-            callBytes,
-            ZERO_ADDRESS,
-            ZERO_ADDRESS,
-            true
-        );
-    }
-
     /********************
     * Execute EOA Calls *
     ********************/
