@@ -5,9 +5,12 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   server.hcl: |
+    ui = false
+    disable_mlock = {{ .Values.server.mlockDisabled }}
+    plugin_directory = "/home/vault/plugins"
+
     listener "tcp" {
       address = "127.0.0.1:8200"
-      tls_disable = 0
       tls_cert_file = "/etc/tls/service/tls.crt"
       tls_client_ca_file = "/etc/tls/ca/tls.crt"
       tls_key_file = "/etc/tls/service/tls.key"
@@ -30,10 +33,6 @@ data:
       disable_registration = "true"
       token = "{{ .Values.server.acl.token }}"
     }
-    
-    plugin_directory = "/home/vault/plugins"
-    disable_mlock = {{ .Values.server.mlockDisabled }}
-    ui = false
 
   sidecar.json: |
     {

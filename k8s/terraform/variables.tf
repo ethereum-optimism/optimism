@@ -69,6 +69,12 @@ variable "local_certificates_dir" {
   description = "Absolute path to the directory storing the generated cluster service certificates"
 }
 
+variable "recovery" {
+  type        = bool
+  default     = false
+  description = "Recovering from a disaster"
+}
+
 variable "unsealer_vault_addr" {
   type        = string
   default     = "https://192.168.64.1:8200"
@@ -79,10 +85,4 @@ variable "vault_replicas" {
   type        = number
   default     = 3
   description = "The number of Vault server pods to run in the cluster"
-}
-
-variable "recovery" {
-  type = bool
-  default = false
-  description = "Recovering from a disaster."
 }

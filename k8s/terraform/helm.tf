@@ -85,7 +85,7 @@ resource "helm_release" "vault_chart" {
 
   set {
     name  = "server.acl.token"
-    value = var.recovery ? data.vault_generic_secret.consul_vault_token.data["value"] : data.kubernetes_secret.vault_acl_token.data.token
+    value = var.recovery ? data.vault_generic_secret.consul_vault_token.0.data["value"] : data.kubernetes_secret.vault_acl_token.0.data.token
   }
 
   set {
@@ -111,6 +111,11 @@ resource "helm_release" "vault_chart" {
   set {
     name  = "consul.image"
     value = local.consul_img
+  }
+
+  set {
+    name  = "consul.acl.token"
+    value = var.recovery ? data.vault_generic_secret.consul_client_token.0.data["value"] : data.kubernetes_secret.client_acl_token.0.data.token
   }
 
   set {

@@ -14,22 +14,23 @@ The Helm operations have been abstracted away through Terraform for installation
 
 ### Variables
 
-|                  Name                  |  Type  |               Default                |
-| :------------------------------------: | :----: | :----------------------------------: |
-|       `consul_bootstrap_expect`        | number |                 `3`                  |
-|          `consul_datacenter`           | string |                `dc1`                 |
-|           `consul_replicas`            | number |                 `5`                  |
-|         `docker_registry_addr`         | string |         `192.168.64.1:5000`          |
-| `k8s_certificates_secret_name_prefix`  | string |        `omisego-certificates`        |
-|           `k8s_config_path`            | string |           `~/.kube/config`           |
-|         `k8s_context_cluster`          | string |              `minikube`              |
-| `k8s_consul_bootstrap_acl_token__name` | string | `omisego-consul-bootstrap-acl-token` |
-|   `k8s_consul_client_acl_token_name`   | string |  `omisego-consul-client-acl-token`   |
-|   `k8s_consul_vault_acl_token_name`    | string |   `omisego-consul-vault-acl-token`   |
-|            `k8s_namespace`             | string |              `default`               |
-|        `local_certificates_dir`        | string |                  -                   |
-|         `unsealer_vault_addr`          | string |       `https://127.0.0.1:8200`       |
-|            `vault_replicas`            | number |                 `3`                  |
+|                  Name                  |  Type   |               Default                |
+| :------------------------------------: | :-----: | :----------------------------------: |
+|       `consul_bootstrap_expect`        | number  |                 `3`                  |
+|          `consul_datacenter`           | string  |                `dc1`                 |
+|           `consul_replicas`            | number  |                 `5`                  |
+|         `docker_registry_addr`         | string  |         `192.168.64.1:5000`          |
+| `k8s_certificates_secret_name_prefix`  | string  |        `omisego-certificates`        |
+|           `k8s_config_path`            | string  |           `~/.kube/config`           |
+|         `k8s_context_cluster`          | string  |              `minikube`              |
+| `k8s_consul_bootstrap_acl_token__name` | string  | `omisego-consul-bootstrap-acl-token` |
+|   `k8s_consul_client_acl_token_name`   | string  |  `omisego-consul-client-acl-token`   |
+|   `k8s_consul_vault_acl_token_name`    | string  |   `omisego-consul-vault-acl-token`   |
+|            `k8s_namespace`             | string  |              `default`               |
+|        `local_certificates_dir`        | string  |                  -                   |
+|               `recovery`               | boolean |               `false`                |
+|         `unsealer_vault_addr`          | string  |     `https://192.168.64.1:8200`      |
+|            `vault_replicas`            | number  |                 `3`                  |
 
 ### Execution
 

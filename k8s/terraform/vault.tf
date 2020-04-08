@@ -10,12 +10,30 @@ data "vault_generic_secret" "consul_gossip_key" {
 
 /*
  * Vault Secret - https://www.terraform.io/docs/providers/vault/d/generic_secret.html
+ * Loads the Consul bootstrap acl token
+ */
+data "vault_generic_secret" "consul_bootstrap_token" {
+  count = var.recovery ? 1 : 0
+  path  = "kv/consul_bootstrap_token"
+}
+
+/*
+ * Vault Secret - https://www.terraform.io/docs/providers/vault/d/generic_secret.html
+ * Loads the Consul acl token that Vault uses for storage
+ */
+data "vault_generic_secret" "consul_client_token" {
+  count = var.recovery ? 1 : 0
+  path  = "kv/consul_client_token"
+}
+
+/*
+ * Vault Secret - https://www.terraform.io/docs/providers/vault/d/generic_secret.html
  * Loads the Consul acl token that Vault uses for storage
  */
 data "vault_generic_secret" "consul_vault_token" {
-  path = "kv/consul_vault_token"
+  count = var.recovery ? 1 : 0
+  path  = "kv/consul_vault_token"
 }
-
 
 /*
  * Vault Secret - https://www.terraform.io/docs/providers/vault/d/generic_secret.html
@@ -34,8 +52,9 @@ data "vault_generic_secret" "unseal_token" {
  * token value is able to be read
  */
 resource "vault_generic_secret" "consul_bootstrap_token" {
+  count     = var.recovery ? 0 : 1
   path      = "kv/consul_bootstrap_token"
-  data_json = jsonencode({ "value" = data.kubernetes_secret.bootstrap_acl_token.data.token })
+  data_json = jsonencode({ "value" = data.kubernetes_secret.bootstrap_acl_token.0.data.token })
 }
 
 /*
@@ -45,8 +64,9 @@ resource "vault_generic_secret" "consul_bootstrap_token" {
  * token value is able to be read
  */
 resource "vault_generic_secret" "consul_client_token" {
+  count     = var.recovery ? 0 : 1
   path      = "kv/consul_client_token"
-  data_json = jsonencode({ "value" = data.kubernetes_secret.client_acl_token.data.token })
+  data_json = jsonencode({ "value" = data.kubernetes_secret.client_acl_token.0.data.token })
 }
 
 /*
@@ -56,6 +76,7 @@ resource "vault_generic_secret" "consul_client_token" {
  * token value is able to be read
  */
 resource "vault_generic_secret" "consul_vault_token" {
+  count     = var.recovery ? 0 : 1
   path      = "kv/consul_vault_token"
-  data_json = jsonencode({ "value" = var.recovery ? data.vault_generic_secret.consul_vault_token.data["value"] : data.kubernetes_secret.vault_acl_token.data.token })
+  data_json = jsonencode({ "value" = data.kubernetes_secret.vault_acl_token.0.data.token })
 }

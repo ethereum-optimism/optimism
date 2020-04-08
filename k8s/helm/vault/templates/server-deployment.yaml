@@ -32,7 +32,16 @@ spec:
         securityContext:
           capabilities:
             add: ["IPC_LOCK"]
-        command: ["vault", "server", "-config", "/vault/config/server.hcl"]
+        env:
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        command:
+          - "/bin/sh"
+          - "-ec"
+          - |
+            vault server -config=/vault/config/server.hcl
         volumeMounts:
           - name: vault-config
             mountPath: /vault/config/server.hcl
