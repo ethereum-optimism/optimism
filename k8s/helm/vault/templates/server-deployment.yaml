@@ -37,6 +37,10 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: status.podIP
+          - name: VAULT_API_ADDR
+            value: "https://$(POD_IP):8200"
+          - name: VAULT_CLUSTER_ADDR
+            value: "https://$(POD_IP):8201"
         command:
           - "/bin/sh"
           - "-ec"
