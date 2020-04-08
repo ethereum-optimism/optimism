@@ -182,9 +182,9 @@ export class EvmIntrospectionUtilImpl implements EvmIntrospectionUtil {
         origin: hexStrToBuf(this.wallet.address),
         data,
       })
-      this.vm.removeListener('step', stepCallback)
       return ret
     })
+    this.vm.removeListener('step', stepCallback)
 
     if (result.execResult.exceptionError) {
       const params: string = bufToHexString(abiEncodedParams)

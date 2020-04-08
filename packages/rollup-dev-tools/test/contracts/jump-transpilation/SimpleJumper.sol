@@ -54,7 +54,7 @@ contract SimpleJumper {
             return 0;
         } else {
         uint256 val = 29;
-        for (uint i=0; i<25; i++) {
+        for (uint i=0; i<8; i++) {
             times[block.timestamp] = doLoopingSubcalls();
             val = val + 7*i;
         }
