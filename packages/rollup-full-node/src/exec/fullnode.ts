@@ -117,7 +117,7 @@ export const runFullnode = async (
  * Initializes filesystem DB paths. This will also purge all data if the `CLEAR_DATA_KEY` has changed.
  */
 const initializeDBPaths = (isTestMode: boolean) => {
-  if (isTestMode) {
+  if (isTestMode || !Environment.l2RpcServerPersistentDbPath()) {
     return
   }
 
