@@ -1,0 +1,53 @@
+/* External Imports */
+import {add0x, keccak256} from '@eth-optimism/core-utils'
+import {CHAIN_ID, GAS_LIMIT} from '@eth-optimism/ovm'
+
+import {Contract, Wallet} from 'ethers'
+import {JsonRpcProvider} from 'ethers/providers'
+import {deployContract} from 'ethereum-waffle'
+
+/* Internal Imports */
+import {getUnsignedTransactionCalldata} from './helpers'
+import {FullNodeStressTest} from './stress-test'
+
+/* Contract Imports */
+import * as SimpleStorage from '../build/SimpleStorage.json'
+
+
+class StoreStressTest extends FullNodeStressTest {
+  private contract: Contract
+  constructor(numberOfRequests: number, nodeUrl: string) {
+    super(numberOfRequests, nodeUrl);
+  }
+
+  protected async deployContract(): Promise<void> {
+    const provider = new JsonRpcProvider(this.nodeUrl)
+    const wallet: Wallet = Wallet.createRandom().connect(provider)
+
+    this.contract = await deployContract(wallet, SimpleStorage, [])
+  }
+
+  protected getSignedTransaction(): Promise<string> {
+    const wallet: Wallet = Wallet.createRandom()
+
+    const key = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
+    const value = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
+
+    const calldata = getUnsignedTransactionCalldata(
+      this.contract,
+      'setStorage',
+      [add0x(key), add0x(value)]
+    )
+
+    return wallet.sign({
+      nonce: 0,
+      gasLimit: GAS_LIMIT,
+      to: this.contract.address,
+      value: 0,
+      data: calldata,
+      chainId: CHAIN_ID
+    })
+  }
+}
+
+new StoreStressTest(100, 'http://0.0.0.0:8545').run()
