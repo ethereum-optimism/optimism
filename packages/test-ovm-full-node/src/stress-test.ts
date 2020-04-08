@@ -1,12 +1,12 @@
 /* External Imports */
-import {getLogger, Logger} from '@eth-optimism/core-utils'
+import {getLogger, Logger, sleep} from '@eth-optimism/core-utils'
 import {JsonRpcProvider} from 'ethers/providers'
 
 const log: Logger = getLogger('stress-test')
 
 export interface Metrics {
-  best: number,
-  worst: number
+  bestMillis: number,
+  worstMillis: number
   meanDurationMillis: number
   medianDurationMillis: number
   worstTenPercentMillis: number
@@ -57,12 +57,13 @@ export abstract class FullNodeStressTest {
     // Do some maths
     const results: TestResult = {
       requestCount: this.numberOfRequests,
-      requestResults,
+      requestResults: [],
       totalTimeMillis,
       requestsPerMilli: totalTimeMillis / this.numberOfRequests,
       responseMetrics: this.getMetrics(requestResults.map(x => x.responseDurationMillis)),
       confirmMetrics: this.getMetrics(requestResults.map(x => x.confirmationDurationMillis))
     }
+
     log.info(`Test results: ${JSON.stringify(results)}`)
     return results
   }
@@ -75,13 +76,14 @@ export abstract class FullNodeStressTest {
     const request = await this.getSignedTransaction()
     const provider: JsonRpcProvider = new JsonRpcProvider(this.nodeUrl)
     const index: number = this.requestNumber++
+
     const startTime: number = Date.now()
 
     const response = await provider.sendTransaction(request)
 
     const responseTime: number = Date.now()
 
-    await provider.waitForTransaction(response.hash)
+    // await provider.waitForTransaction(response.hash)
 
     const confirmTime: number = Date.now()
 
@@ -95,10 +97,10 @@ export abstract class FullNodeStressTest {
   }
 
   private getMetrics(data: number[]): Metrics {
-    const sortedData = data.sort((a,b) => a -b)
+    const sortedData = data.sort((a,b) => a - b)
     return {
-      best: sortedData[0],
-      worst: sortedData[sortedData.length -1],
+      bestMillis: sortedData[0],
+      worstMillis: sortedData[sortedData.length -1],
       meanDurationMillis: sortedData.reduce((a, b) => a + b, 0) / this.numberOfRequests,
       medianDurationMillis: sortedData[Math.floor(this.numberOfRequests / 2)],
       worstTenPercentMillis: FullNodeStressTest.getWorstPercentileMean(sortedData, 10),
@@ -108,6 +110,8 @@ export abstract class FullNodeStressTest {
   }
 
   private static getWorstPercentileMean(data: number[], percentile: number): number {
-    return data.sort().slice(Math.floor(data.length * (100 - percentile) / 100)).reduce((a,b) => a + b, 0)
+    const percentileData: number[] = data.sort((a, b) => a - b)
+      .slice(Math.floor(data.length * (100 - percentile) / 100))
+    return percentileData.reduce((a,b) => a + b, 0) / percentileData.length
   }
 }
