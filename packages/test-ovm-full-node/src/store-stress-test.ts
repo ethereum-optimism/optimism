@@ -28,7 +28,6 @@ class StoreStressTest extends FullNodeStressTest {
   }
 
   protected getSignedTransaction(): Promise<string> {
-    const wallet: Wallet = Wallet.createRandom()
 
     const key = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
     const value = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
@@ -38,6 +37,8 @@ class StoreStressTest extends FullNodeStressTest {
       'setStorage',
       [add0x(key), add0x(value)]
     )
+
+    const wallet: Wallet = Wallet.createRandom({extraEntropy: Buffer.from(key, 'hex')})
 
     return wallet.sign({
       nonce: 0,

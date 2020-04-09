@@ -45,16 +45,18 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     const timestamp = getCurrentTime()
     const context: L2NodeContext = await initializeL2Node(provider)
     const blockNumber = await context.provider.getBlockNumber()
-    const handler = new TestWeb3Handler(messageSubmitter, context)
+    const walletNonce = await context.wallet.getTransactionCount()
+    const handler = new TestWeb3Handler(messageSubmitter, context, walletNonce)
     handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp
     return handler
   }
 
   protected constructor(
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
-    context: L2NodeContext
+    context: L2NodeContext,
+    walletNonce: number
   ) {
-    super(messageSubmitter, context)
+    super(messageSubmitter, context, walletNonce)
   }
 
   /**

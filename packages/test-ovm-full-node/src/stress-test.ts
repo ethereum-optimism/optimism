@@ -59,7 +59,7 @@ export abstract class FullNodeStressTest {
       requestCount: this.numberOfRequests,
       requestResults: [],
       totalTimeMillis,
-      requestsPerMilli: totalTimeMillis / this.numberOfRequests,
+      requestsPerMilli: this.numberOfRequests / totalTimeMillis,
       responseMetrics: this.getMetrics(requestResults.map(x => x.responseDurationMillis)),
       confirmMetrics: this.getMetrics(requestResults.map(x => x.confirmationDurationMillis))
     }
@@ -83,7 +83,7 @@ export abstract class FullNodeStressTest {
 
     const responseTime: number = Date.now()
 
-    // await provider.waitForTransaction(response.hash)
+    await provider.waitForTransaction(response.hash)
 
     const confirmTime: number = Date.now()
 
