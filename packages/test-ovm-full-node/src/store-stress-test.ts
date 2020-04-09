@@ -20,6 +20,9 @@ class StoreStressTest extends FullNodeStressTest {
     super(numberOfRequests, nodeUrl);
   }
 
+  /**
+   * @inheritDoc
+   */
   protected async deployContract(): Promise<void> {
     const provider = new JsonRpcProvider(this.nodeUrl)
     const wallet: Wallet = Wallet.createRandom().connect(provider)
@@ -27,6 +30,9 @@ class StoreStressTest extends FullNodeStressTest {
     this.contract = await deployContract(wallet, SimpleStorage, [])
   }
 
+  /**
+   * @inheritDoc
+   */
   protected getSignedTransaction(): Promise<string> {
 
     const key = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
