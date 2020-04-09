@@ -14,7 +14,7 @@ import {FullNodeStressTest} from './stress-test'
 import * as SimpleStorage from '../build/SimpleStorage.json'
 
 
-class StoreStressTest extends FullNodeStressTest {
+class SimpleStorageStressTest extends FullNodeStressTest {
   private contract: Contract
   constructor(numberOfRequests: number, nodeUrl: string) {
     super(numberOfRequests, nodeUrl);
@@ -57,4 +57,4 @@ class StoreStressTest extends FullNodeStressTest {
   }
 }
 
-new StoreStressTest(100, 'http://0.0.0.0:8545').run()
+new SimpleStorageStressTest(100, 'http://0.0.0.0:8545').run()
