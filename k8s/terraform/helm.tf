@@ -154,7 +154,6 @@ resource "null_resource" "local" {
    * chart templates for auto-deletion during uninstall.
    */
   provisioner "local-exec" {
-    when       = destroy
     command    = "kubectl delete secret ${self.triggers.secrets_list}"
     on_failure = fail
   }

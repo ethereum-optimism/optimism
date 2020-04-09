@@ -51,7 +51,9 @@ $ terraform apply
 
 ### Outputs
 
-> None
+- `helm_consul_status`
+- `helm_vault_status`
+- `disaster_recovery_steps`
 
 
 ## Verify ACL and Snapshot
@@ -64,3 +66,22 @@ $ export ACL_TOKEN="*****-****-****-*****"
 $ kubectl exec pod/consul-backend-consul-server-0 \
     -- consul snapshot save -token=$ACL_TOKEN backup.snap
 ```
+
+## Recovery
+
+In the event of disaster recovery, perform the followings steps:
+1. Delete the existing local Terraform state file:
+      
+    `rm *.tfstate*`
+
+2. Destroy the Vault and Consul Kubernetes resources:
+      
+    `kubectl -n ${var.k8s_namespace} delete pod,svc,deployment,statefulset,secret --all`
+
+3. Change the Terraform variable `recovery` to true in your `.tfvars` file
+4. Re-apply the Terraform script:
+
+    ```
+    $ terraform plan
+    $ terraform apply --var "recovery=true"
+    ```
