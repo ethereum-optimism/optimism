@@ -26,7 +26,7 @@ export interface TestResult {
   requestResults: RequestResult[]
   requestCount: number
   totalTimeMillis: number
-  requestsPerMilli: number
+  requestsPerSecond: number
   responseMetrics: Metrics
   confirmMetrics: Metrics
 }
@@ -71,7 +71,7 @@ export abstract class FullNodeStressTest {
       requestCount: this.numberOfRequests,
       requestResults: [], // not included by default because it's way too verbose
       totalTimeMillis,
-      requestsPerMilli: this.numberOfRequests / totalTimeMillis,
+      requestsPerSecond: this.numberOfRequests / totalTimeMillis * 1_000,
       responseMetrics: this.getMetrics(requestResults.map(x => x.responseDurationMillis)),
       confirmMetrics: this.getMetrics(requestResults.map(x => x.confirmationDurationMillis))
     }
