@@ -126,10 +126,11 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @param The snapshot id of the snapshot to restore
    */
   private async revert(snapShotId: string): Promise<string> {
-    const response = this.context.provider.send(Web3RpcMethods.revert, [
+    const response = await this.context.provider.send(Web3RpcMethods.revert, [
       snapShotId,
     ])
     this.timestampIncreaseSeconds = this.timestampIncreaseSnapshots[snapShotId]
+    this.walletNonce = await this.context.wallet.getTransactionCount()
     return response
   }
 }
