@@ -54,10 +54,9 @@ export abstract class FullNodeStressTest {
     const requestResults: RequestResult[] = await Promise.all(promises)
     const totalTimeMillis: number = Date.now() - startTime
 
-    // Do some maths
     const results: TestResult = {
       requestCount: this.numberOfRequests,
-      requestResults: [],
+      requestResults: [], // not included by default because it's way too verbose
       totalTimeMillis,
       requestsPerMilli: this.numberOfRequests / totalTimeMillis,
       responseMetrics: this.getMetrics(requestResults.map(x => x.responseDurationMillis)),
