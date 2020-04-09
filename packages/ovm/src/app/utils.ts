@@ -39,6 +39,9 @@ export const revertMessagePrefix: string =
 export const executionManagerInterface = new ethers.utils.Interface(
   ExecutionManager.interface
 )
+export const l2ExecutionManagerInterface = new ethers.utils.Interface(
+  L2ExecutionManager.interface
+)
 export const l2ToL1MessagePasserInterface = new ethers.utils.Interface(
   L2ToL1MessagePasser.interface
 )
