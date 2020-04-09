@@ -44,7 +44,7 @@ class SimpleStorageStressTest extends FullNodeStressTest {
       [add0x(key), add0x(value)]
     )
 
-    const wallet: Wallet = Wallet.createRandom({extraEntropy: Buffer.from(key, 'hex')})
+    const wallet: Wallet = Wallet.createRandom()
 
     return wallet.sign({
       nonce: 0,

@@ -45,18 +45,16 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     const timestamp = getCurrentTime()
     const context: L2NodeContext = await initializeL2Node(provider)
     const blockNumber = await context.provider.getBlockNumber()
-    const walletNonce = await context.wallet.getTransactionCount()
-    const handler = new TestWeb3Handler(messageSubmitter, context, walletNonce)
+    const handler = new TestWeb3Handler(messageSubmitter, context)
     handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp
     return handler
   }
 
   protected constructor(
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
-    context: L2NodeContext,
-    walletNonce: number
+    context: L2NodeContext
   ) {
-    super(messageSubmitter, context, walletNonce)
+    super(messageSubmitter, context)
   }
 
   /**
@@ -130,7 +128,6 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       snapShotId,
     ])
     this.timestampIncreaseSeconds = this.timestampIncreaseSnapshots[snapShotId]
-    this.walletNonce = await this.context.wallet.getTransactionCount()
     return response
   }
 }
