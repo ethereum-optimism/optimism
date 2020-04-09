@@ -33,7 +33,6 @@ import {
   InvalidParametersError,
   L2NodeContext,
   L2ToL1MessageSubmitter,
-  RevertError,
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
@@ -73,8 +72,14 @@ export class DefaultWeb3Handler
 
     const timestamp = getCurrentTime()
     const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
+    const walletNonce: number = await l2NodeContext.wallet.getTransactionCount()
+    log.debug(`Internal full node wallet nonce starting at ${walletNonce}`)
 
-    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
+    const handler = new DefaultWeb3Handler(
+      messageSubmitter,
+      l2NodeContext,
+      walletNonce
+    )
     const blockNumber = await l2NodeContext.provider.getBlockNumber()
     handler.blockTimestamps[blockNumber] = timestamp
     return handler
@@ -82,7 +87,8 @@ export class DefaultWeb3Handler
 
   protected constructor(
     protected readonly messageSubmitter: L2ToL1MessageSubmitter,
-    protected readonly context: L2NodeContext
+    protected readonly context: L2NodeContext,
+    protected walletNonce: number
   ) {
     this.lock = new AsyncLock()
   }
@@ -422,7 +428,7 @@ export class DefaultWeb3Handler
 
     if (!internalTxReceipt) {
       log.debug(`No tx receipt found for ovm tx hash [${ovmTxHash}]`)
-      return undefined
+      return null
     }
 
     // Now let's parse the internal transaction reciept
@@ -479,10 +485,15 @@ export class DefaultWeb3Handler
       const ovmTxHash = await utils.keccak256(rawOvmTx)
       const internalTxHash = await utils.keccak256(internalTx)
 
-      log.debug(`\n\n\nSIGNED INTERNAL TX: ${JSON.stringify(internalTx)}\n\n\n`)
+      log.debug(
+        `OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(
+          internalTx
+        )}`
+      )
 
       // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
       await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
+      this.walletNonce++
 
       let returnedInternalTxHash: string
       try {
@@ -491,6 +502,7 @@ export class DefaultWeb3Handler
           Web3RpcMethods.sendRawTransaction,
           [internalTx]
         )
+        this.walletNonce++
       } catch (e) {
         logError(
           log,
@@ -679,7 +691,7 @@ export class DefaultWeb3Handler
       throw new Error('Non-EOA transaction detected')
     }
     // TODO: Make sure we lock this function with this nonce so we don't send to txs with the same nonce
-    const nonce = (await this.context.wallet.getTransactionCount()) + 1
+    const nonce = this.walletNonce + 1
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to

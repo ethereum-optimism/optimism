@@ -8,14 +8,16 @@ import {
 import {Address} from '@eth-optimism/rollup-core'
 import {add0x, sleep} from '@eth-optimism/core-utils'
 
-/* Internal Imports */
 import {Contract, Wallet} from 'ethers'
 import {JsonRpcProvider} from 'ethers/providers'
+import {deployContract} from 'ethereum-waffle'
+
+/* Internal Imports */
+import {getUnsignedTransactionCalldata} from '../src'
 
 /* Contract Imports */
 import * as SimpleStorage from '../build/SimpleStorage.json'
-import {deployContract} from 'ethereum-waffle'
-import {getUnsignedTransactionCalldata} from './helpers'
+
 
 const storageKey: string = '0x' + '01'.repeat(32)
 const storageValue: string = '0x' + '22'.repeat(32)

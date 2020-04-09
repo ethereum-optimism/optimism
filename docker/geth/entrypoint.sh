@@ -50,7 +50,9 @@ generate_geneisis()
 if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
   echo "Detected change in CLEAR_DATA_KEY. Purging data."
   rm -rf ${VOLUME_PATH}/*
+  rm -rf ${VOLUME_PATH}/.clear_data_key_*
   echo "Local data cleared from '${VOLUME_PATH}/*'"
+  echo "Contents of volume dir: $(ls -alh $VOLUME_PATH)"
   touch $CLEAR_DATA_FILE_PATH
 fi
 
