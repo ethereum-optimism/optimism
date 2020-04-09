@@ -75,7 +75,11 @@ export class DefaultWeb3Handler
     const walletNonce: number = await l2NodeContext.wallet.getTransactionCount()
     log.debug(`Internal full node wallet nonce starting at ${walletNonce}`)
 
-    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext, walletNonce)
+    const handler = new DefaultWeb3Handler(
+      messageSubmitter,
+      l2NodeContext,
+      walletNonce
+    )
     const blockNumber = await l2NodeContext.provider.getBlockNumber()
     handler.blockTimestamps[blockNumber] = timestamp
     return handler
@@ -481,7 +485,11 @@ export class DefaultWeb3Handler
       const ovmTxHash = await utils.keccak256(rawOvmTx)
       const internalTxHash = await utils.keccak256(internalTx)
 
-      log.debug(`OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(internalTx)}`)
+      log.debug(
+        `OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(
+          internalTx
+        )}`
+      )
 
       // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
       await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
