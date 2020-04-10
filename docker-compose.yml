@@ -52,7 +52,7 @@ services:
       - ADDRESS_PATH_SUFFIX=/address.txt
       - SEALER_ADDRESS_PATH_SUFFIX=/sealer_address.txt
       - INITIAL_BALANCE=0x200000000000000000000000000000000000000000000000000000000000000
-      - GENISIS_PATH=etc/rollup-fullnode.json
+      - GENESIS_PATH=etc/rollup-fullnode.json
       - SETUP_RUN_PATH_SUFFIX=/setup_run.txt
     expose:
       - "9545"
