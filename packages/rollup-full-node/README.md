@@ -58,7 +58,7 @@ Make sure the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-cha
     ```
 3. Tag the build: 
     ```
-    optimism/rollup-full-node:latest <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    docker tag optimism/rollup-full-node:latest <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
     ```
 4. Push tag to ECR:
     ```
