@@ -47,13 +47,12 @@ services:
       - PORT=9545
       - NETWORK_ID=108
       - PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
-      - KEYSTORE_PATH_SUFFIX=/keystore
       - SEALER_PRIVATE_KEY_PATH_SUFFIX=/sealer_private_key.txt
       - PRIVATE_KEY_PATH_SUFFIX=/private_key.txt
       - ADDRESS_PATH_SUFFIX=/address.txt
       - SEALER_ADDRESS_PATH_SUFFIX=/sealer_address.txt
       - INITIAL_BALANCE=0x200000000000000000000000000000000000000000000000000000000000000
-      - GENISIS_PATH=etc/rollup-fullnode.json
+      - GENESIS_PATH=etc/rollup-fullnode.json
       - SETUP_RUN_PATH_SUFFIX=/setup_run.txt
     expose:
       - "9545"
