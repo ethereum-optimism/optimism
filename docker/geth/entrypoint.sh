@@ -4,7 +4,6 @@
 # HOSTNAME=
 # PORT=8545
 # NETWORK_ID=108
-KEYSTORE_PATH="${VOLUME_PATH}${KEYSTORE_PATH_SUFFIX}"
 SEALER_PRIVATE_KEY_PATH="${VOLUME_PATH}${SEALER_PRIVATE_KEY_PATH_SUFFIX}"
 PRIVATE_KEY_PATH="${VOLUME_PATH}${PRIVATE_KEY_PATH_SUFFIX}"
 ADDRESS_PATH="${VOLUME_PATH}${ADDRESS_PATH_SUFFIX}"
@@ -57,7 +56,7 @@ if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
 fi
 
 ## One-time configuration to be run only on first startup
-if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
+if [[ ! -f $SETUP_RUN_PATH ]]; then
   echo "Generating keys and initializing geth..."
 
   generate_private_key > $SEALER_PRIVATE_KEY_PATH
