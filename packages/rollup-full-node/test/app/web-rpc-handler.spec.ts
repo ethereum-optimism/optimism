@@ -188,7 +188,10 @@ describe('Web3Handler', () => {
           executionManagerAddress
         )
 
-        const blockRetrievedByNumber = await httpProvider.getBlock('latest', true)
+        const blockRetrievedByNumber = await httpProvider.getBlock(
+          'latest',
+          true
+        )
         const blockRetrievedByHash = await httpProvider.getBlock(
           blockRetrievedByNumber.hash,
           true
