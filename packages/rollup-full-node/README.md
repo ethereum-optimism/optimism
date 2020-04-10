@@ -32,7 +32,7 @@ Config is handled entirely through environment variables. Below are some config 
 * `L2_WALLET_PRIVATE_KEY` - (optional) Set to provide a PK to use for L2 contract deployment (if not already deployed) and for signing and sending L2 transactions. This takes priority over PK path and mnemonic if multiple are set.
 * `L2_WALLET_PRIVATE_KEY_PATH` - (optional) The path to the private key file from which the L2 wallet private key can be read. This file is assumed to only contain the private key in UTF-8 hexadecimal characters.
 * `L2_WALLET_MNEMONIC` - (optional) Set to provide a mnemonic to use for L2 contract deployment (if not already deployed) and for signing and sending rollup blocks. If not set and `L2_NODE_WEB3_URL` is not set, the default Ganache wallet will be used with the Ganache local node created at runtime.
-* `LOCAL_L2_NODE_PERSISTENT_DB_PATH - (optional) If a local L2 node is to be run, this may be set to persist the state of the local node so as to be able to stop the node and restart it with the same state.
+* `LOCAL_L2_NODE_PERSISTENT_DB_PATH` - (optional) If a local L2 node is to be run, this may be set to persist the state of the local node so as to be able to stop the node and restart it with the same state.
 
 # Building
 Run `yarn build` to build the code. Note: `yarn all` may be used to build and run tests.
