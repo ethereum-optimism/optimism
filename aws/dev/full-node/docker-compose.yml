@@ -1,7 +1,7 @@
 version: "3"
 services:
   rollup-full-node:
-    image: 737797969628.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
     depends_on: [ "geth_l2" ]
     volumes:
       - full-node-data:/mnt/full-node:rw
@@ -30,7 +30,7 @@ services:
         awslogs-stream-prefix: l2-rpc-server
 
   geth_l2:
-    image: 737797969628.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
     volumes:
       - l2-node-data:/mnt/l2-node/l2:rw
     environment:
