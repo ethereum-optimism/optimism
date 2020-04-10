@@ -16,10 +16,12 @@ services:
     ports:
       - 8545:8545
     environment:
-      - CLEAR_DATA_KEY=33
+      - CLEAR_DATA_KEY=335
       - STARTUP_WAIT_TIMEOUT=30
       - OPCODE_WHITELIST_MASK
+      - L1_SEQUENCER_PRIVATE_KEY
       - L1_SEQUENCER_MNEMONIC
+      - L1_TO_L2_TRANSACTION_PASSER_ADDRESS
       - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
       - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
       - L2_RPC_SERVER_HOST
@@ -41,7 +43,7 @@ services:
       context: docker/geth
       dockerfile: Dockerfile
     environment:
-      - CLEAR_DATA_KEY=35
+      - CLEAR_DATA_KEY=355
       - VOLUME_PATH=/mnt/l2-node/l2
       - HOSTNAME=geth_l2
       - PORT=9545
