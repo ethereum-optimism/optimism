@@ -165,6 +165,42 @@ describe('Web3Handler', () => {
       })
     })
 
+    describe('the getBlockByHash endpoint', () => {
+      it('should return the same block that is returned by eth_getBlockByNumber', async () => {
+        const blockRetrievedByNumber = await httpProvider.getBlock('latest')
+        const blockRetrievedByHash = await httpProvider.getBlock(
+          blockRetrievedByNumber.hash
+        )
+
+        blockRetrievedByHash.should.deep.equal(blockRetrievedByNumber)
+      })
+
+      it('should return the same black as eth_getBlockByNumber even after another block is created', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const simpleStorage = await deploySimpleStorage(wallet)
+        await setAndGetStorage(
+          simpleStorage,
+          httpProvider,
+          executionManagerAddress
+        )
+
+        const blockRetrievedByNumber = await httpProvider.getBlock(
+          'latest',
+          true
+        )
+        const blockRetrievedByHash = await httpProvider.getBlock(
+          blockRetrievedByNumber.hash,
+          true
+        )
+
+        blockRetrievedByHash.should.deep.equal(blockRetrievedByNumber)
+      })
+    })
+
     describe('SimpleStorage integration test', () => {
       it('should set storage & retrieve the value', async () => {
         const executionManagerAddress = await httpProvider.send(
