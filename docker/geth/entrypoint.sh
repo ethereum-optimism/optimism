@@ -56,7 +56,7 @@ if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
 fi
 
 ## One-time configuration to be run only on first startup
-if [[ ! -f $SETUP_RUN_PATH ]]; then
+if [ ! -f $SETUP_RUN_PATH ]; then
   echo "Generating keys and initializing geth..."
 
   generate_private_key > $SEALER_PRIVATE_KEY_PATH
