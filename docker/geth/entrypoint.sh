@@ -38,12 +38,12 @@ generate_geneisis()
   ADDRESS=$2
   ADDRESS_BYTES=`echo $ADDRESS | sed 's/^0x//'`
   SEALER_ADDRESS_BYTES=`echo $SEALER_ADDRESS | sed 's/^0x//'`
-  EXTRA_DATA=`jq -r '.extraData' $GENISIS_PATH | sed "s/\\$SEALER_ADDRESSES/$SEALER_ADDRESS_BYTES/g"`
+  EXTRA_DATA=`jq -r '.extraData' $GENESIS_PATH | sed "s/\\$SEALER_ADDRESSES/$SEALER_ADDRESS_BYTES/g"`
   tmp=$(mktemp)
-  jq --arg address $ADDRESS_BYTES --arg balance $INITIAL_BALANCE '.alloc += {($address): {balance: $balance}}' $GENISIS_PATH > $tmp
-  mv $tmp $GENISIS_PATH
-  jq --arg extraData $EXTRA_DATA '.extraData = $extraData' $GENISIS_PATH > $tmp
-  mv $tmp $GENISIS_PATH
+  jq --arg address $ADDRESS_BYTES --arg balance $INITIAL_BALANCE '.alloc += {($address): {balance: $balance}}' $GENESIS_PATH > $tmp
+  mv $tmp $GENESIS_PATH
+  jq --arg extraData $EXTRA_DATA '.extraData = $extraData' $GENESIS_PATH > $tmp
+  mv $tmp $GENESIS_PATH
 }
 
 if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
@@ -74,7 +74,7 @@ if [[ ! -f $SETUP_RUN_PATH ]]; then
 
   generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
 
-  geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
+  geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENESIS_PATH 2> /dev/null;
   echo "Ran Setup" > $SETUP_RUN_PATH
 
   echo "Setup Complete"
