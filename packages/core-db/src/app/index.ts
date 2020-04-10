@@ -5,6 +5,7 @@ export * from './keystore'
 export * from './utils'
 
 export * from './bucket'
-export * from './range-bucket'
 export * from './db'
 export * from './iterator'
+export * from './queued-persisted-processor'
+export * from './range-bucket'

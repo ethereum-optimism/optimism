@@ -10,6 +10,7 @@ PRIVATE_KEY_PATH="${VOLUME_PATH}${PRIVATE_KEY_PATH_SUFFIX}"
 ADDRESS_PATH="${VOLUME_PATH}${ADDRESS_PATH_SUFFIX}"
 SEALER_ADDRESS_PATH="${VOLUME_PATH}${SEALER_ADDRESS_PATH_SUFFIX}"
 SETUP_RUN_PATH="${VOLUME_PATH}${SETUP_RUN_PATH_SUFFIX}"
+CLEAR_DATA_FILE_PATH="${VOLUME_PATH}/.clear_data_key_${CLEAR_DATA_KEY}"
 
 ## Generates an Ethereum private key
 # Source: https://gist.github.com/miguelmota/3793b160992b4ea0b616497b8e5aee2f
@@ -46,31 +47,44 @@ generate_geneisis()
   mv $tmp $GENISIS_PATH
 }
 
-## One-time configuration to be run only on first startup
-if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
-     generate_private_key > $SEALER_PRIVATE_KEY_PATH
-    import_private_key $SEALER_PRIVATE_KEY_PATH > $SEALER_ADDRESS_PATH
-
-    if [ -z "$PRIVATE_KEY" ]; then
-      echo "\nGENERATING PRIVATE KEY!! We most likely don't want to do this.\n"
-      generate_private_key > $PRIVATE_KEY_PATH
-    else
-      echo "Reading private key from env"
-      echo "$PRIVATE_KEY" | sed 's/^0x//' > $PRIVATE_KEY_PATH
-    fi
-
-    import_private_key $PRIVATE_KEY_PATH > $ADDRESS_PATH
-
-    generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
-
-    geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
-    echo "Ran Setup" > $SETUP_RUN_PATH
-
-    echo "Setup Complete"
-    echo "Sealer Address: 0x`cat $SEALER_PRIVATE_KEY_PATH`"
-    echo "Account Address: 0x`cat $PRIVATE_KEY_PATH`"
+if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
+  echo "Detected change in CLEAR_DATA_KEY. Purging data."
+  rm -rf ${VOLUME_PATH}/*
+  rm -rf ${VOLUME_PATH}/.clear_data_key_*
+  echo "Local data cleared from '${VOLUME_PATH}/*'"
+  echo "Contents of volume dir: $(ls -alh $VOLUME_PATH)"
+  touch $CLEAR_DATA_FILE_PATH
 fi
 
+## One-time configuration to be run only on first startup
+if [[ ! -f $KEYSTORE_PATH && ! -f $SETUP_RUN_PATH ]]; then
+  echo "Generating keys and initializing geth..."
+
+  generate_private_key > $SEALER_PRIVATE_KEY_PATH
+  import_private_key $SEALER_PRIVATE_KEY_PATH > $SEALER_ADDRESS_PATH
+
+  if [ -z "$PRIVATE_KEY" ]; then
+    echo "\nGENERATING PRIVATE KEY!! We most likely don't want to do this.\n"
+    generate_private_key > $PRIVATE_KEY_PATH
+  else
+    echo "Reading private key from env"
+    echo "$PRIVATE_KEY" | sed 's/^0x//' > $PRIVATE_KEY_PATH
+  fi
+
+  import_private_key $PRIVATE_KEY_PATH > $ADDRESS_PATH
+
+  generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
+
+  geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENISIS_PATH 2> /dev/null;
+  echo "Ran Setup" > $SETUP_RUN_PATH
+
+  echo "Setup Complete"
+  echo "Sealer Address: 0x`cat $SEALER_ADDRESS_PATH`"
+  echo "Account Address: 0x`cat $ADDRESS_PATH`"
+else
+  echo "FOUND EXISTING GETH DATA"
+fi
+
+echo "Starting Geth..."
 ## Command to kick off geth
 geth --datadir $VOLUME_PATH --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=$HOSTNAME --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
-

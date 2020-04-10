@@ -6,6 +6,8 @@ import {
   getLogger,
   hexStrToNumber,
   remove0x,
+  add0x,
+  ZERO_ADDRESS,
   TestUtils,
   getCurrentTime,
 } from '@eth-optimism/core-utils'
@@ -25,6 +27,7 @@ import {
   executeOVMCall,
   encodeRawArguments,
   encodeMethodId,
+  gasLimit,
 } from '../helpers'
 import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 import { fromPairs } from 'lodash'
@@ -36,7 +39,6 @@ const log = getLogger('execution-manager-context', true)
 const methodIds = fromPairs(
   [
     'callThroughExecutionManager',
-    'executeCall',
     'getADDRESS',
     'getCALLER',
     'getGASLIMIT',
@@ -112,17 +114,16 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmCALLER', async () => {
     it('reverts when CALLER is not set', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executeCall([contractAddress32, methodIds.ovmCALLER])
+        await executeTransaction(contractAddress, methodIds.ovmCALLER, [])
       })
     })
 
     it('properly retrieves CALLER when caller is set', async () => {
-      const result = await executeCall([
-        contractAddress32,
+      const result = await executeTransaction(
+        contractAddress,
         methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getCALLER,
-      ])
+        [contract2Address32, methodIds.getCALLER]
+      )
       log.debug(`CALLER result: ${result}`)
 
       should.exist(result, 'Result should exist!')
@@ -133,17 +134,16 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmADDRESS', async () => {
     it('reverts when ADDRESS is not set', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executeCall([contractAddress32, methodIds.ovmADDRESS])
+        await executeTransaction(contractAddress, methodIds.ovmADDRESS, [])
       })
     })
 
     it('properly retrieves ADDRESS when address is set', async () => {
-      const result = await executeCall([
-        contractAddress32,
+      const result = await executeTransaction(
+        contractAddress,
         methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getADDRESS,
-      ])
+        [contract2Address32, methodIds.getADDRESS]
+      )
 
       log.debug(`ADDRESS result: ${result}`)
 
@@ -154,31 +154,30 @@ describe('Execution Manager -- Context opcodes', () => {
 
   describe('ovmTIMESTAMP', async () => {
     it('properly retrieves TIMESTAMP', async () => {
-      const timestamp: number = 1582890922
-      const result = await executeOVMCall(executionManager, 'executeCall', [
-        timestamp,
-        0,
-        contractAddress32,
+      const timestamp: number = getCurrentTime()
+      const result = await executeTransaction(
+        contractAddress,
         methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getTIMESTAMP,
-      ])
+        [contract2Address32, methodIds.getTIMESTAMP]
+      )
 
       log.debug(`TIMESTAMP result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      hexStrToNumber(result).should.equal(timestamp, 'Timestamps do not match.')
+      hexStrToNumber(result).should.be.gte(
+        timestamp,
+        'Timestamps do not match.'
+      )
     })
   })
 
   describe('ovmGASLIMIT', async () => {
     it('properly retrieves GASLIMIT', async () => {
-      const result = await executeCall([
-        contractAddress32,
+      const result = await executeTransaction(
+        contractAddress,
         methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getGASLIMIT,
-      ])
+        [contract2Address32, methodIds.getGASLIMIT]
+      )
 
       log.debug(`GASLIMIT result: ${result}`)
 
@@ -190,14 +189,11 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmQueueOrigin', async () => {
     it('gets Queue Origin when it is 0', async () => {
       const queueOrigin: string = '00'.repeat(32)
-      const result = await executeOVMCall(executionManager, 'executeCall', [
-        getCurrentTime(),
-        queueOrigin,
-        contractAddress32,
+      const result = await executeTransaction(
+        contractAddress,
         methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getQueueOrigin,
-      ])
+        [contract2Address32, methodIds.getQueueOrigin]
+      )
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
 
@@ -207,14 +203,12 @@ describe('Execution Manager -- Context opcodes', () => {
 
     it('properly retrieves Queue Origin when queue origin is set', async () => {
       const queueOrigin: string = '00'.repeat(30) + '1111'
-      const result = await executeOVMCall(executionManager, 'executeCall', [
-        getCurrentTime(),
-        queueOrigin,
-        contractAddress32,
+      const result = await executeTransaction(
+        contractAddress,
         methodIds.callThroughExecutionManager,
-        contract2Address32,
-        methodIds.getQueueOrigin,
-      ])
+        [contract2Address32, methodIds.getQueueOrigin],
+        add0x(queueOrigin)
+      )
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
 
@@ -223,9 +217,28 @@ describe('Execution Manager -- Context opcodes', () => {
     })
   })
 
-  const executeCall = (args: any[]): Promise<string> => {
-    return executeOVMCall(executionManager, 'executeCall', [
-      encodeRawArguments([getCurrentTime(), 0, ...args]),
+  const executeTransaction = async (
+    address: string,
+    methodId: string,
+    args: any[],
+    queueOrigin = ZERO_ADDRESS
+  ): Promise<string> => {
+    const callBytes = add0x(methodId + encodeRawArguments(args))
+    const data = executionManager.interface.functions[
+      'executeTransaction'
+    ].encode([
+      getCurrentTime(),
+      queueOrigin,
+      address,
+      callBytes,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
+      true,
     ])
+    return executionManager.provider.call({
+      to: executionManager.address,
+      data,
+      gasLimit,
+    })
   }
 })

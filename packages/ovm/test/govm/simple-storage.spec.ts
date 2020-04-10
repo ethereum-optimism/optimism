@@ -17,7 +17,7 @@ import {
   ensureGovmIsConnected,
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
-  executeUnsignedEOACall,
+  executeTransaction,
 } from '../helpers'
 import { CHAIN_ID, GAS_LIMIT } from '../../src/app'
 
@@ -69,7 +69,7 @@ describe('SimpleStorage', () => {
 
   const setStorage = async (slot, value): Promise<TransactionReceipt> => {
     const innerCallData: string = add0x(`${setStorageMethodId}${slot}${value}`)
-    return executeUnsignedEOACall(
+    return executeTransaction(
       executionManager,
       wallet,
       simpleStorageOvmAddress,

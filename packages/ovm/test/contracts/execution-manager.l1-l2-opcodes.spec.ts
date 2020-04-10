@@ -38,6 +38,9 @@ import { L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app/constants'
 export const abi = new ethers.utils.AbiCoder()
 
 const log = getLogger('l2-to-l1-messaging', true)
+const methodIds = fromPairs(
+  ['makeCall'].map((methodId) => [methodId, encodeMethodId(methodId)])
+)
 
 /***********
  * HELPERS *
@@ -63,18 +66,18 @@ function overrideAbiFunctionData(
 }
 
 /**
- * Use executeUnsignedEOACall with `eth_call`.
+ * Use executeTransaction with `eth_call`.
  * @param {ethers.Contract} an ExecutionManager contract instance used for it's address & provider.
- * @param {Array} an array of parameters which should be fed into `executeUnsignedEOACall(...)`.
+ * @param {Array} an array of parameters which should be fed into `executeTransaction(...)`.
  * @param {OutputTypes} an array ABI types which should be used to decode the output of the call.
  */
-function callExecutionManagerExecuteUnsignedEOACall(
+function callExecutionManagerExecuteTransaction(
   executionManager: Contract,
   parameters: any[],
   outputTypes: any[]
 ): Promise<any[]> {
   const modifiedAbi = cloneDeep(ExecutionManager.abi)
-  overrideAbiFunctionData(modifiedAbi, 'executeUnsignedEOACall', {
+  overrideAbiFunctionData(modifiedAbi, 'executeTransaction', {
     constant: true,
     outputs: outputTypes,
   })
@@ -83,7 +86,7 @@ function callExecutionManagerExecuteUnsignedEOACall(
     modifiedAbi,
     executionManager.provider
   )
-  return callableExecutionManager.executeUnsignedEOACall.apply(null, parameters)
+  return callableExecutionManager.executeTransaction.apply(null, parameters)
 }
 
 /*********
@@ -120,26 +123,35 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
   describe('OVM L2 -> L1 message passer', () => {
     it(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
       const bytesToSendToL1 = '0x123412341234deadbeef'
+      const callBytes = add0x(
+        methodIds.makeCall +
+          encodeRawArguments([
+            addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
+            ethereumjsAbi.methodID('passMessageToL1', ['bytes']),
+            abi.encode(['bytes'], [bytesToSendToL1]),
+          ])
+      )
       const passMessageToL1MethodId = bufToHexString(
         ethereumjsAbi.methodID('passMessageToL1', ['bytes'])
       )
-      const txData: string =
-        encodeMethodId('executeCall') +
-        encodeRawArguments([
-          0,
-          0,
-          addressToBytes32Address(callContractAddress),
-          encodeMethodId('makeCall'),
-          addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
-          passMessageToL1MethodId,
-          abi.encode(['bytes'], [bytesToSendToL1]),
-        ])
+      const data = executionManager.interface.functions[
+        'executeTransaction'
+      ].encode([
+        getCurrentTime(),
+        0,
+        callContractAddress,
+        callBytes,
+        ZERO_ADDRESS,
+        ZERO_ADDRESS,
+        true,
+      ])
 
       const txResult = await wallet.sendTransaction({
         to: executionManager.address,
-        data: add0x(txData),
+        data: add0x(data),
         gasLimit,
       })
+
       const receipt = await provider.getTransactionReceipt(txResult.hash)
       const txLogs = receipt.logs
 
@@ -147,6 +159,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         'L2ToL1Message(uint256,address,bytes)'
       )
       const crossChainMessageEvent = txLogs.find((logged) => {
+        // console.log(logged)
         return logged.topics.includes(l2ToL1EventTopic)
       })
 
@@ -164,12 +177,12 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       ethereumjsAbi.methodID('getL1MessageSender', [])
     )
 
-    it.only('should return the l1 message sender provided', async () => {
+    it('should return the l1 message sender provided', async () => {
       const l1MessageSenderPrecompileAddr =
         '0x4200000000000000000000000000000000000001'
       const testL1MsgSenderAddress = '0x' + '01'.repeat(20)
 
-      const callResult = await callExecutionManagerExecuteUnsignedEOACall(
+      const callResult = await callExecutionManagerExecuteTransaction(
         executionManager,
         [
           getCurrentTime(),
@@ -195,7 +208,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
 
       let failed = false
       try {
-        const callResult = await callExecutionManagerExecuteUnsignedEOACall(
+        const callResult = await callExecutionManagerExecuteTransaction(
           executionManager,
           [
             0,
@@ -222,7 +235,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
 
       let failed = false
       try {
-        const callResult = await callExecutionManagerExecuteUnsignedEOACall(
+        const callResult = await callExecutionManagerExecuteTransaction(
           executionManager,
           [
             0,

@@ -24,7 +24,6 @@ contract ExecutionManager is FullStateManager {
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
     bytes32 constant ovmCreateMethodId = keccak256("ovmCREATE()") >> 224;
-    bytes32 constant executeCallMethodId = keccak256("executeCall()") >> 224;
 
     // Precompile addresses
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
@@ -105,67 +104,6 @@ contract ExecutionManager is FullStateManager {
         incrementOvmContractNonce(addr);
     }
 
-    /**
-     * @notice Execute a call which will return the result of the call instead of the updated storage.
-     *         Note: This should only be used with a Web3 `call` operation, otherwise you may accidentally save changes to the state.
-     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
-     * Below format of the bytes expected as input and written as output:
-     * calldata: variable-length bytes:
-     *       [methodID (bytes4)]
-     *       [timestamp (uint)]
-     *       [queueOrigin (uint)]
-     *       [ovmEntrypointAddress (address as bytes32 (left-padded, big-endian))]
-     *       [callBytes (bytes (variable length))]
-     * returndata: [variable-length bytes returned from call]
-     */
-    function executeCall() external {
-        uint _timestamp;
-        uint _queueOrigin;
-        uint callSize;
-        bytes memory callBytes;
-        bytes32 methodId = ovmCallMethodId;
-        assembly {
-            // Revert if we don't have methodId, timestamp, queueOrigin, and ovmEntrypointAddress.
-            if lt(calldatasize, 100) {
-                revert(0,0)
-            }
-
-            // populate timestamp and queue origin from calldata
-            _timestamp := calldataload(4)
-            // skip method ID (bytes4) and timestamp (bytes32)
-            _queueOrigin := calldataload(0x24)
-
-            callBytes := mload(0x40)
-            // set callsize: total param size minus 2 uints (methodId bytes are repurposed)
-            callSize := sub(calldatasize, 0x40)
-            mstore(0x40, add(callBytes, callSize))
-
-            // leave room for method ID, skip ahead in calldata methodID(4), timestamp(32), queueOrigin(32)
-            calldatacopy(add(callBytes, 4), 0x44, sub(callSize, 4))
-
-            mstore8(callBytes, shr(24, methodId))
-            mstore8(add(callBytes, 1), shr(16, methodId))
-            mstore8(add(callBytes, 2), shr(8, methodId))
-            mstore8(add(callBytes, 3), methodId)
-        }
-
-        // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, ZERO_ADDRESS, ZERO_ADDRESS);
-
-        address addr = address(this);
-        assembly {
-            let success := call(gas, addr, 0, callBytes, callSize, 0, 0)
-            let result := mload(0x40)
-            returndatacopy(result, 0, returndatasize)
-
-            if eq(success, 0) {
-                revert(result, returndatasize)
-            }
-
-            return(result, returndatasize)
-        }
-    }
-
     /********************
     * Execute EOA Calls *
     ********************/
@@ -201,11 +139,11 @@ contract ExecutionManager is FullStateManager {
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
         emit CallingWithEOA(eoaAddress);
         // Make the EOA call for the account
-        executeUnsignedEOACall(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
+        executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
     }
 
     /**
-     * @notice Execute an unsigned EOA call. Note that unsigned EOA calls are unauthenticated.
+     * @notice Execute an unsigned EOA transaction. Note that unsigned EOA calls are unauthenticated.
      *         This means that they should not be allowed for normal execution.
      * @param _timestamp The timestamp which should be used for this call's context.
      * @param _queueOrigin The parent-chain queue from which this call originated.
@@ -214,7 +152,7 @@ contract ExecutionManager is FullStateManager {
      * @param _fromAddress The address which this call should originate from--the msg.sender.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
-    function executeUnsignedEOACall(
+    function executeTransaction(
         uint _timestamp,
         uint _queueOrigin,
         address _ovmEntrypoint,

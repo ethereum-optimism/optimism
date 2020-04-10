@@ -8,6 +8,7 @@ import {
   formatBytecode,
   bufferToBytecode,
   getPCOfEVMBytecodeIndex,
+  OpcodeTagReason,
 } from '@eth-optimism/rollup-core'
 import {
   getLogger,
@@ -33,14 +34,6 @@ import {
 import { accountForJumps } from './jump-replacement'
 
 const log = getLogger('transpiler-impl')
-
-const IS_CONSTANT_OFFSET: string = 'THIS IS A CONSTANT OFFSET'
-const IS_DEPLOY_CODECOPY_OFFSET: string =
-  'THIS IS THE OFFSET TO CODECOPY DEPLOYED BYTECODE FROM INITCODE DURING CREATE/2'
-const IS_DEPLOY_CODE_LENGTH: string =
-  'THIS IS THE LENGTH OF DEPLOYED BYTECODE TO COPY AND RETURN DURING CREATE/2'
-const IS_CONSTRUCTOR_INPUTS_OFFSET: string =
-  'THIS IS THE OFFSET AFTER WHICH CONSTRUCTOR INPUTS SHOULD BE'
 
 export class TranspilerImpl implements Transpiler {
   constructor(
@@ -219,7 +212,10 @@ export class TranspilerImpl implements Transpiler {
 
     for (const [index, op] of transpiledConstructorInitLogic.entries()) {
       const tag = op.tag
-      if (!!tag && tag.reasonTagged === IS_CONSTRUCTOR_INPUTS_OFFSET) {
+      if (
+        !!tag &&
+        tag.reasonTagged === OpcodeTagReason.IS_CONSTRUCTOR_INPUTS_OFFSET
+      ) {
         // this should be the total length of the bytecode we're about to have generated!
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledInitLogicByteLength +
@@ -227,12 +223,15 @@ export class TranspilerImpl implements Transpiler {
             constantsUsedByConstructorLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
       }
-      if (!!tag && tag.reasonTagged === IS_DEPLOY_CODE_LENGTH) {
+      if (!!tag && tag.reasonTagged === OpcodeTagReason.IS_DEPLOY_CODE_LENGTH) {
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledDeployedBytecodeByteLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
       }
-      if (!!tag && tag.reasonTagged === IS_DEPLOY_CODECOPY_OFFSET) {
+      if (
+        !!tag &&
+        tag.reasonTagged === OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET
+      ) {
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledInitLogicByteLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
@@ -272,7 +271,10 @@ export class TranspilerImpl implements Transpiler {
         opcode: taggedBytecode[index].opcode,
         consumedBytes: taggedBytecode[index].consumedBytes,
       }
-      if (!!op.tag && op.tag.reasonTagged === IS_CONSTANT_OFFSET) {
+      if (
+        !!op.tag &&
+        op.tag.reasonTagged === OpcodeTagReason.IS_CONSTANT_OFFSET
+      ) {
         const theConstant: Buffer = op.tag.metadata
         const newConstantOffset: number = inputAsBuf.indexOf(theConstant)
         if (newConstantOffset === -1) {
@@ -339,7 +341,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: op.consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_DEPLOY_CODE_LENGTH,
+            reasonTagged: OpcodeTagReason.IS_DEPLOY_CODE_LENGTH,
             metadata: undefined,
           },
         }
@@ -348,7 +350,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: bytecode[index + 2].consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
+            reasonTagged: OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET,
             metadata: undefined,
           },
         }
@@ -378,7 +380,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: op.consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_DEPLOY_CODE_LENGTH,
+            reasonTagged: OpcodeTagReason.IS_DEPLOY_CODE_LENGTH,
             metadata: undefined,
           },
         }
@@ -387,7 +389,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: bytecode[index + 1].consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_DEPLOY_CODECOPY_OFFSET,
+            reasonTagged: OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET,
             metadata: undefined,
           },
         }
@@ -457,7 +459,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: op.consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_CONSTRUCTOR_INPUTS_OFFSET,
+            reasonTagged: OpcodeTagReason.IS_CONSTRUCTOR_INPUTS_OFFSET,
             metadata: undefined,
           },
         }
@@ -466,7 +468,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: bytecode[index + 4].consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_CONSTRUCTOR_INPUTS_OFFSET,
+            reasonTagged: OpcodeTagReason.IS_CONSTRUCTOR_INPUTS_OFFSET,
             metadata: undefined,
           },
         }
@@ -538,7 +540,7 @@ export class TranspilerImpl implements Transpiler {
           consumedBytes: op.consumedBytes,
           tag: {
             padPUSH: true,
-            reasonTagged: IS_CONSTANT_OFFSET,
+            reasonTagged: OpcodeTagReason.IS_CONSTANT_OFFSET,
             metadata: theConstant,
           },
         }
