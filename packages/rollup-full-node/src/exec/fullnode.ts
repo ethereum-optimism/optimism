@@ -91,8 +91,10 @@ export const runFullnode = async (
     [fullnodeHandler]
   )
 
+  const earliestBlock = Environment.l1EarliestBlock()
+
   // TODO: Figure out earliest block # when necessary
-  const eventProcessor = new EthereumEventProcessor(db)
+  const eventProcessor = new EthereumEventProcessor(db, earliestBlock)
   await eventProcessor.subscribe(
     l1NodeContext.l1ToL2TransactionPasser,
     L1ToL2TransactionEventName,

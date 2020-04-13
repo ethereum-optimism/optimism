@@ -17,7 +17,7 @@ import { createMockProvider, deployContract } from 'ethereum-waffle'
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT, Environment } from '../index'
 import { L1NodeContext } from '../../types'
-import { JsonRpcProvider, Provider } from 'ethers/providers'
+import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
 
 const log = getLogger('local-l1-node')
 
@@ -84,7 +84,18 @@ const getSequencerWallet = (): Wallet => {
  * @returns The provider to use.
  */
 const getProvider = (wallet: Wallet): Provider => {
-  if (Environment.l1NodeWeb3Url()) {
+  if (
+    Environment.l1NodeInfuraNetwork() &&
+    Environment.l1NodeInfuraProjectId()
+  ) {
+    log.info(
+      `Connecting to L1 Infura network: ${Environment.l1NodeInfuraNetwork()}`
+    )
+    return new InfuraProvider(
+      Environment.l1NodeInfuraNetwork(),
+      Environment.l1NodeInfuraProjectId()
+    )
+  } else if (Environment.l1NodeWeb3Url()) {
     log.info(`Connecting to L1 web3 URL: ${Environment.l1NodeWeb3Url()}`)
     return new JsonRpcProvider(Environment.l1NodeWeb3Url())
   } else {
