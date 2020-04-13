@@ -121,7 +121,7 @@ describe('L1 To L2 Transaction Passing', () => {
   //     console.log(`Received value ${res} from L2 contract.`)
   //     res.should.equal(randomValue, `L1 Transaction did not flow through!`)
   //   }).timeout(65_000)
-  })
+  // })
 
 })
 
