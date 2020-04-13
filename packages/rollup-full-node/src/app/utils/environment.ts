@@ -8,6 +8,10 @@ import {
  * to consolidate access / updates and default values.
  */
 export class Environment {
+  public static clearDataKey(defaultValue?: string) {
+    return process.env.CLEAR_DATA_KEY || defaultValue
+  }
+
   // L2 Rpc Server Config
   public static l2RpcServerPersistentDbPath(defaultValue?: string) {
     return process.env.L2_RPC_SERVER_PERSISTENT_DB_PATH || defaultValue
@@ -29,13 +33,6 @@ export class Environment {
   }
   public static localL2NodePersistentDbPath(defaultValue?: string) {
     return process.env.LOCAL_L2_NODE_PERSISTENT_DB_PATH || defaultValue
-  }
-  public static l2ToL1MessageFinalityDelayInBlocks(
-    defaultValue: number = 0
-  ): number {
-    return process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
-      ? parseInt(process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS, 10)
-      : defaultValue
   }
   public static localL1NodePersistentDbPath(defaultValue?: string): string {
     return process.env.LOCAL_L1_NODE_PERSISTENT_DB_PATH || defaultValue
@@ -89,10 +86,22 @@ export class Environment {
   public static sequencerPrivateKey(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_PRIVATE_KEY || defaultValue
   }
+  public static l1ToL2TransactionPasserAddress(defaultValue?: string): string {
+    return process.env.L1_TO_L2_TRANSACTION_PASSER_ADDRESS || defaultValue
+  }
   public static l2ToL1MessageReceiverAddress(defaultValue?: string): string {
     return process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS || defaultValue
   }
-  public static l1ToL2TransactionPasserAddress(defaultValue?: string): string {
-    return process.env.L1_TO_L2_TRANSACTION_PASSER_ADDRESS || defaultValue
+  public static l2ToL1MessageFinalityDelayInBlocks(
+    defaultValue: number = 0
+  ): number {
+    return process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
+      ? parseInt(process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS, 10)
+      : defaultValue
+  }
+  public static l1EarliestBlock(defaultValue: number = 0): number {
+    return process.env.L1_EARLIEST_BLOCK
+      ? parseInt(process.env.L1_EARLIEST_BLOCK, 10)
+      : defaultValue
   }
 }

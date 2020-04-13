@@ -100,30 +100,6 @@ const validateJumpBytecode = (successResult: SuccessfulTranspilation): void => {
     0,
     'opcodesBeforeJump should have entries but does not!'
   )
-
-  for (const [index, opcodeBeforeJump] of opcodesBeforeJump.entries()) {
-    if (index < switchSuccessJumpdestIndex) {
-      // All regular program JUMPs should go to the footer JUMPDEST
-      opcodeBeforeJump.opcode.programBytesConsumed.should.be.gt(
-        0,
-        'Opcode before JUMP should be a PUSH32, pushing the location of the footer JUMP switch!'
-      )
-      opcodeBeforeJump.consumedBytes.should.eql(
-        bufferUtils.numberToBufferPacked(switchJumpdestIndex, 2),
-        'JUMP should be equal to index of footer switch JUMPDEST!'
-      )
-    } else if (index > switchJumpdestIndex) {
-      // Make sure that all footer JUMPS go to footer JUMP success jumpdest
-      const dest: number = parseInt(
-        opcodeBeforeJump.consumedBytes.toString('hex'),
-        16
-      )
-      dest.should.eq(
-        switchSuccessJumpdestIndex,
-        'All footer JUMPs should go to success JUMPDEST block'
-      )
-    }
-  }
 }
 
 const getSuccessfulTranspilationResult = (

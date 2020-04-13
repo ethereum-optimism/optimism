@@ -32,3 +32,12 @@ export interface TaggedTranspilationResult {
   errors?: TranspilationError[]
   bytecodeWithTags?: EVMBytecode
 }
+
+export interface BinarySearchTreeNode {
+  value: {
+    jumpdestBefore: number
+    jumpdestAfter: number
+  }
+  left: BinarySearchTreeNode
+  right: BinarySearchTreeNode
+}

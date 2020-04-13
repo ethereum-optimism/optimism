@@ -11,6 +11,7 @@ import {
   TranspilationErrors,
 } from '../../types/transpiler'
 import { createError } from './util'
+import { buildJumpBSTBytecode, getJumpdestMatchSuccessBytecode } from './'
 
 const log = getLogger('jump-replacement')
 
@@ -71,7 +72,7 @@ export const accountForJumps = (
 
   // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
   replacedBytecode.push(
-    ...getJumpIndexSwitchStatementBytecode(
+    ...buildJumpBSTBytecode(
       jumpdestIndexesBefore,
       jumpdestIndexesAfter,
       bytecodeToBuffer(replacedBytecode).length
@@ -164,130 +165,6 @@ export const getJumpiReplacementBytecode = (
 }
 
 /**
- * Gets the success jumpdest for the footer switch statement. This will be jumped to when the
- * switch statement finds a match. It is responsible for getting rid of extra stack arguments
- * that the footer switch statement adds.
- *
- * @returns The success bytecode.
- */
-const getJumpIndexSwitchStatementSuccessJumpdestBytecode = (): EVMBytecode => {
-  return [
-    // This JUMPDEST is hit on successful switch match
-    { opcode: Opcode.JUMPDEST, consumedBytes: undefined },
-    // Swaps the duped pre-transpilation JUMPDEST with the post-transpilation JUMPDEST
-    { opcode: Opcode.SWAP1, consumedBytes: undefined },
-    // Pops the pre-transpilation JUMPDEST
-    { opcode: Opcode.POP, consumedBytes: undefined },
-    // Jumps to the post-transpilation JUMPDEST
-    { opcode: Opcode.JUMP, consumedBytes: undefined },
-  ]
-}
-
-/**
- * Gets the EVMBytecode to read a pre-transpilation JUMPDEST index off of the stack and
- * JUMP to the associated post-transpilation JUMPDEST.
- * See: https://github.com/op-optimism/optimistic-rollup/wiki/Transpiler#jump-transpilation-approach
- * for more information on why this is necessary and how replacement occurs.
- *
- * @param jumpdestIndexesBefore The array of of pre-transpilation JUMPDEST indexes.
- * @param jumpdestIndexesAfter The array of of post-transpilation JUMPDEST indexes.
- * @param indexOfThisBlock The index in the bytecode that this block will be at.
- * @returns The JUMP switch statement bytecode.
- */
-export const getJumpIndexSwitchStatementBytecode = (
-  jumpdestIndexesBefore: number[],
-  jumpdestIndexesAfter: number[],
-  indexOfThisBlock: number
-): EVMBytecode => {
-  const successJumpIndex: Buffer = bufferUtils.numberToBufferPacked(
-    indexOfThisBlock,
-    2
-  )
-
-  const footerBytecode: EVMBytecode = [
-    ...getJumpIndexSwitchStatementSuccessJumpdestBytecode(),
-    // Switch statement jumpdest
-    { opcode: Opcode.JUMPDEST, consumedBytes: undefined },
-  ]
-  for (let i = 0; i < jumpdestIndexesBefore.length; i++) {
-    log.debug(
-      `Adding bytecode to replace ${jumpdestIndexesBefore[i]} with ${jumpdestIndexesAfter[i]}`
-    )
-
-    const beforeIndex: number = jumpdestIndexesBefore[i]
-    const afterIndex: number = jumpdestIndexesAfter[i]
-    const beforeBuffer: Buffer = bufferUtils.numberToBufferPacked(
-      jumpdestIndexesBefore[i],
-      2
-    )
-    const afterBuffer: Buffer = bufferUtils.numberToBufferPacked(
-      jumpdestIndexesAfter[i],
-      2
-    )
-
-    footerBytecode.push(
-      ...[
-        {
-          opcode: Opcode.DUP1,
-          consumedBytes: undefined,
-        },
-        getPUSHIntegerOp(beforeIndex),
-        {
-          opcode: Opcode.EQ,
-          consumedBytes: undefined,
-        },
-        // push ACTUAL jumpdest
-        getPUSHIntegerOp(afterIndex),
-        {
-          // swap actual jumpdest with EQ result so stack is [eq result, actual jumpdest, duped compare jumpdest, ...]
-          opcode: Opcode.SWAP1,
-          consumedBytes: undefined,
-        },
-        {
-          // push loop exit jumpdest
-          opcode: getPUSHOpcode(successJumpIndex.length),
-          consumedBytes: successJumpIndex,
-        },
-        {
-          opcode: Opcode.JUMPI,
-          consumedBytes: undefined,
-        },
-        // pop ACTUAL jumpdest because this is not a match
-        {
-          opcode: Opcode.POP,
-          consumedBytes: undefined,
-        },
-      ]
-    )
-  }
-  // If pre-transpile JUMPDEST index is not found, revert.
-  footerBytecode.push({ opcode: Opcode.REVERT, consumedBytes: undefined })
-  return footerBytecode
-}
-
-/**
- * Gets the expected index of the successful switch match JUMPDEST in the footer switch statement.
- *
- * @param transpiledBytecode The transpiled bytecode in question.
- * @returns The expected index of the JUMPDEST for successful footer switch matches.
- */
-const getFooterSwitchStatementSuccessJumpdestIndex = (
-  transpiledBytecode: EVMBytecode
-): number => {
-  let length: number = 0
-  for (const opcodeAndBytes of transpiledBytecode) {
-    if (opcodeAndBytes.opcode === Opcode.JUMP) {
-      length += getJumpReplacementBytecodeLength()
-    } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
-      length += getJumpiReplacementBytecodeLength()
-    } else {
-      length += 1 + opcodeAndBytes.opcode.programBytesConsumed
-    }
-  }
-  return length
-}
-
-/**
  * Gets the expected index of the footer JUMP switch statement, given EVMBytecode
  * that will *only* change by replacing JUMP, JUMPI, and JUMPDEST with the appropriate
  * EVMBytecode.
@@ -308,8 +185,6 @@ export const getExpectedFooterSwitchStatementJumpdestIndex = (
       length += 1 + opcodeAndBytes.opcode.programBytesConsumed
     }
   }
-  length += bytecodeToBuffer(
-    getJumpIndexSwitchStatementSuccessJumpdestBytecode()
-  ).length
+  length += bytecodeToBuffer(getJumpdestMatchSuccessBytecode()).length
   return length
 }

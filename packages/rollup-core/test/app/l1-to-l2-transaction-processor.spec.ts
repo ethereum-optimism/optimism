@@ -60,7 +60,7 @@ describe('L1 to L2 Transaction Processor', () => {
       },
     })
 
-    await sleep(10)
+    await sleep(100)
 
     listener.receivedTransactions.length.should.equal(
       1,
@@ -109,7 +109,7 @@ describe('L1 to L2 Transaction Processor', () => {
       },
     })
 
-    await sleep(10)
+    await sleep(100)
 
     listener.receivedTransactions.length.should.equal(
       2,
@@ -175,7 +175,7 @@ describe('L1 to L2 Transaction Processor', () => {
       },
     })
 
-    await sleep(10)
+    await sleep(100)
 
     listener.receivedTransactions.length.should.equal(
       2,
