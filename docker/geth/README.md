@@ -42,15 +42,19 @@ Make sure the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-cha
     ```
     aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth
     ```
-2. Build and tag latest: 
+2. Change the working directory to `docker/geth`:
+    ```
+    cd docker/geth
+    ``` 
+3. Build and tag latest: 
     ```
     docker build -t optimism/geth .
     ```
-3. Tag the build: 
+4. Tag the build: 
     ```
     docker tag optimism/geth:latest <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
     ```
-4. Push tag to ECR:
+5. Push tag to ECR:
     ```
     docker push <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
     ``` 
