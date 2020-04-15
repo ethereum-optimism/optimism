@@ -154,6 +154,10 @@ export class DefaultWeb3Handler
         args = this.assertParameters(params, 1)
         response = await this.sendRawTransaction(args[0])
         break
+      case Web3RpcMethods.sendTransaction:
+        args = this.assertParameters(params, 1)
+        response = await this.sendRawTransaction(args[0])
+        break
       case Web3RpcMethods.networkVersion:
         this.assertParameters(params, 0)
         response = await this.networkVersion()
