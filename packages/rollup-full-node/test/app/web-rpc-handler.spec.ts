@@ -1,6 +1,6 @@
 import '../setup'
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, numberToHexString } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
@@ -133,6 +133,15 @@ describe('Web3Handler', () => {
   })
 
   describe('ephemeral node', () => {
+    describe('the getBalance endpoint', () => {
+      it('should return zero for all accounts', async () => {
+        const wallet = getWallet(httpProvider)
+        const balance = await httpProvider.getBalance(wallet.address)
+
+        balance.toNumber().should.eq(0)
+      })
+    })
+
     describe('the getBlockByNumber endpoint', () => {
       it('should return a block with the correct timestamp', async () => {
         const block = await httpProvider.getBlock('latest')
