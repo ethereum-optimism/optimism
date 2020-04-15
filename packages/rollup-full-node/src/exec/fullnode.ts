@@ -11,6 +11,7 @@ import {
   L1ToL2TransactionEventName,
   L1ToL2TransactionProcessor,
 } from '@eth-optimism/rollup-core'
+import cors = require('cors')
 
 import { JsonRpcProvider } from 'ethers/providers'
 import * as fs from 'fs'
@@ -77,7 +78,8 @@ export const runFullnode = async (
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
     Environment.l2RpcServerHost(),
-    port
+    port,
+    [cors]
   )
 
   const db: DB = getDB(testFullnode)
