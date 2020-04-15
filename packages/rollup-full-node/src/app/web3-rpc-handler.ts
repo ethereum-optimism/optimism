@@ -198,7 +198,7 @@ export class DefaultWeb3Handler
     )
     // TODO allow executing a call without a from address
     // Currently using a dummy default from_address
-    if(!txObject['from']) {
+    if (!txObject['from']) {
       txObject['from'] = '0x' + '88'.repeat(20)
     }
     // First generate the internalTx calldata
