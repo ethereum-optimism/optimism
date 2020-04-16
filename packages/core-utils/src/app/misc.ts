@@ -3,6 +3,7 @@ import * as domain from 'domain'
 
 /* Internal Imports */
 import { BigNumber } from './number'
+import { RLP, hexlify } from 'ethers/utils'
 
 export const NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
 
@@ -289,3 +290,17 @@ export const runInDomain = async (
 export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
 }
+  /**
+   * RLP encodes a transaction
+   * @param {object} transaction object
+   */
+export const rlpEncodeTransaction = (transaction: object): string => {
+    return RLP.encode([
+      hexlify(transaction['nonce']),
+      hexlify(transaction['gasPrice']),
+      hexlify(transaction['gasLimit']),
+      hexlify(transaction['to']),
+      hexlify(transaction['value']),
+      transaction['data'],
+    ])
+  }

@@ -11,7 +11,6 @@ import {
 } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 import { getWallets, deployContract } from 'ethereum-waffle'
-import { rlpEncodeTransaction } from './helpers'
 
 /* Internal Imports */
 import {

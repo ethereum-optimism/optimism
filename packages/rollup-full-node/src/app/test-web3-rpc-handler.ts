@@ -4,10 +4,10 @@ import {
   getLogger,
   numberToHexString,
   castToNumber,
+  rlpEncodeTransaction,
 } from '@eth-optimism/core-utils'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 import { utils } from 'ethers'
-import { RLP, hexlify } from 'ethers/utils'
 
 /* Internal Imports */
 import { initializeL2Node } from './index'
@@ -125,23 +125,8 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     return snapShotId
   }
 
-  /**
-   * RLP encodes a transaction
-   * @param {ethers.Trasaction} transaction
-   */
-  private rlpEncodeTransaction(transaction: object): string {
-    return RLP.encode([
-      hexlify(transaction['nonce']),
-      hexlify(transaction['gasPrice']),
-      hexlify(transaction['gasLimit']),
-      hexlify(transaction['to']),
-      hexlify(transaction['value']),
-      transaction['data'],
-    ])
-  }
-  public async sendTransaction(rawOvmTx: object): Promise<string> {
-    // const ovmTx = utils.parseTransaction(rawOvmTx)
-    return this.sendRawTransaction(this.rlpEncodeTransaction(rawOvmTx))
+  public async sendTransaction(ovmTx: object): Promise<string> {
+    return this.sendRawTransaction(rlpEncodeTransaction(ovmTx))
   }
 
   /**
