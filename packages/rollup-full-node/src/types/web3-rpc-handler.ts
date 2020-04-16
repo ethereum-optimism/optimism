@@ -33,6 +33,7 @@ export enum Web3RpcMethods {
   gasPrice = 'eth_gasPrice',
   getBlockByNumber = 'eth_getBlockByNumber',
   getBlockByHash = 'eth_getBlockByHash',
+  getBalance = 'eth_getBalance',
   getCode = 'eth_getCode',
   getExecutionManagerAddress = 'ovm_getExecutionManagerAddress',
   getLogs = 'eth_getLogs',

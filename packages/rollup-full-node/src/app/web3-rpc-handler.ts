@@ -130,6 +130,10 @@ export class DefaultWeb3Handler
         args = this.assertParameters(params, 2)
         response = await this.getBlockByHash(args[0], args[1])
         break
+      case Web3RpcMethods.getBalance:
+        this.assertParameters(params, 2, latestBlock)
+        response = await this.getBalance()
+        break
       case Web3RpcMethods.getCode:
         args = this.assertParameters(params, 2, latestBlock)
         response = await this.getCode(args[0], args[1])
@@ -286,6 +290,11 @@ export class DefaultWeb3Handler
 
   public async gasPrice(): Promise<string> {
     // Gas price is always zero
+    return '0x0'
+  }
+
+  public async getBalance(): Promise<string> {
+    // Balances are always zero
     return '0x0'
   }
 
