@@ -131,7 +131,7 @@ export class DefaultWeb3Handler
         response = await this.getBlockByHash(args[0], args[1])
         break
       case Web3RpcMethods.getBalance:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, 2, latestBlock)
         response = await this.getBalance()
         break
       case Web3RpcMethods.getCode:
