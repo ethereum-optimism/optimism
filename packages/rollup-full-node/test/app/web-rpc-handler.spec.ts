@@ -13,6 +13,7 @@ import {
   TestWeb3Handler,
 } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
+import { rlpEncodeTransaction } from './helpers'
 
 const log = getLogger('web3-handler', true)
 
@@ -146,11 +147,12 @@ describe('Web3Handler', () => {
           storageKey,
           storageValue
         )
+        tx.nonce = 0
 
         const transactionData = await simpleStorage.interface.functions[
           'setStorage'
         ].encode([executionManagerAddress, storageKey, storageValue])
-        const transaction = utils.RLP.encode(utils.RLP.decode(await wallet.sign({data: transactionData})).slice(0, -3))
+        const transaction =  await rlpEncodeTransaction(tx)
 
         const response = await httpProvider.send('eth_sendTransaction', [
           transaction,
