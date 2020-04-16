@@ -243,6 +243,7 @@ describe('TestHandler', () => {
       ].encode([executionManagerAddress, storageKey, storageValue])
       const transaction = {
         nonce: 0,
+        from: wallet.address,
         to: simpleStorage.address,
         gasPrice: 0,
         gasLimit: 0,
