@@ -1,7 +1,7 @@
 import '../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
+import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
@@ -147,13 +147,13 @@ describe('Web3Handler', () => {
           storageValue
         )
 
-        const txData = await simpleStorage.interface.functions[
+        const transactionData = await simpleStorage.interface.functions[
           'setStorage'
         ].encode([executionManagerAddress, storageKey, storageValue])
-        console.log(txData)
-        await httpProvider.getTransactionReceipt(tx.hash)
+        const transaction = utils.RLP.encode(utils.RLP.decode(await wallet.sign({data: transactionData})).slice(0, -3))
+
         const response = await httpProvider.send('eth_sendTransaction', [
-          txData,
+          transaction,
         ])
         await getAndVerifyStorage(
           simpleStorage,
