@@ -242,14 +242,14 @@ describe('TestHandler', () => {
       const transactionData = await simpleStorage.interface.functions[
         'setStorage'
       ].encode([executionManagerAddress, storageKey, storageValue])
-      const transaction =  await rlpEncodeTransaction({
+      const transaction = {
         nonce: 0,
         to: simpleStorage.address,
         gasPrice: 0,
         gasLimit: 0,
         value: 0,
         data: transactionData,
-      })
+      }
 
       const response = await httpProvider.send('eth_sendTransaction', [
         transaction,
