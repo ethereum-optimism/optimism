@@ -290,17 +290,17 @@ export const runInDomain = async (
 export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
 }
-  /**
-   * Encodes a transaction in RLP format
-   * @param {object} Transaction object
-   */
+/**
+ * Encodes a transaction in RLP format
+ * @param {object} Transaction object
+ */
 export const rlpEncodeTransaction = (transaction: object): string => {
-    return RLP.encode([
-      hexlify(transaction['nonce']),
-      hexlify(transaction['gasPrice']),
-      hexlify(transaction['gasLimit']),
-      hexlify(transaction['to']),
-      hexlify(transaction['value']),
-      transaction['data'],
-    ])
-  }
+  return RLP.encode([
+    hexlify(transaction['nonce']),
+    hexlify(transaction['gasPrice']),
+    hexlify(transaction['gasLimit']),
+    hexlify(transaction['to']),
+    hexlify(transaction['value']),
+    transaction['data'],
+  ])
+}
