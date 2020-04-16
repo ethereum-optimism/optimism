@@ -27,6 +27,9 @@ npm-debug.log
 
 *.bytecode
 
+# security
+*.pem
+
 # docs
 /packages/docs/src/core/_build/
 /packages/docs/src/core/pyvenv.cfg

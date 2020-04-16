@@ -1,0 +1,44 @@
+name: Build & Tag Container, Push to ECR, Deploy to UAT
+
+on:
+  push:
+    branches:
+      - synthetix-uat-test
+
+jobs:
+  build:
+    name: Build, Tag & push to ECR, Deploy to UAT
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v1
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_CI_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_CI_USER_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Build, tag, and push Geth to ECR
+        run: ./docker/publish-geth-container.sh synthetix-uat
+
+      - name: Build, tag, and push Full Node to ECR
+        run: ./docker/publish-rollup-fullnode-container.sh synthetix-uat
+
+      - name: Stop existing ECS tasks to auto-start task with new image
+        env:
+          AWS_ACCOUNT_NUMBER: ${{ secrets.AWS_CI_AWS_ACCOUNT_ID }}
+        run: |
+          ./.github/scripts/stop-ecs-task.sh synthetix-uat-web synthetix-uat-web
+          ./.github/scripts/stop-ecs-task.sh synthetix-uat-geth synthetix-uat-geth
+
+
+      - name: Logout of Amazon ECR
+        if: always()
+        run: docker logout ${{ steps.login-ecr.outputs.registry }}
