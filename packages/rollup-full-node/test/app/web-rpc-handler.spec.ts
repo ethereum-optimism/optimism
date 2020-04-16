@@ -134,37 +134,6 @@ describe('Web3Handler', () => {
   })
 
   describe('ephemeral node', () => {
-    describe('the sendTransaction endpoint', () => {
-      it.only('should run the transaction', async () => {
-        const executionManagerAddress = await httpProvider.send(
-          'ovm_getExecutionManagerAddress',
-          []
-        )
-        const wallet = getWallet(httpProvider)
-        const simpleStorage = await deploySimpleStorage(wallet)
-        const tx = await simpleStorage.setStorage(
-          executionManagerAddress,
-          storageKey,
-          storageValue
-        )
-        tx.nonce = 0
-
-        const transactionData = await simpleStorage.interface.functions[
-          'setStorage'
-        ].encode([executionManagerAddress, storageKey, storageValue])
-        const transaction =  await rlpEncodeTransaction(tx)
-
-        const response = await httpProvider.send('eth_sendTransaction', [
-          transaction,
-        ])
-        await getAndVerifyStorage(
-          simpleStorage,
-          httpProvider,
-          executionManagerAddress
-        )
-      })
-    })
-
     describe('the getBlockByNumber endpoint', () => {
       it('should return a block with the correct timestamp', async () => {
         const block = await httpProvider.getBlock('latest')

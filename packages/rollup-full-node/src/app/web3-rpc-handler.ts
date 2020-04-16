@@ -154,10 +154,6 @@ export class DefaultWeb3Handler
         args = this.assertParameters(params, 1)
         response = await this.sendRawTransaction(args[0])
         break
-      case Web3RpcMethods.sendTransaction:
-        args = this.assertParameters(params, 1)
-        response = await this.sendTransaction(args[0])
-        break
       case Web3RpcMethods.networkVersion:
         this.assertParameters(params, 0)
         response = await this.networkVersion()
@@ -482,10 +478,6 @@ export class DefaultWeb3Handler
     return response
   }
 
-  public async sendTransaction(rawOvmTx: string): Promise<string> {
-    const ovmTx = utils.parseTransaction(rawOvmTx)
-    return this.sendRawTransaction(await this.getNewWallet().sign(ovmTx))
-  }
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
     const timestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)

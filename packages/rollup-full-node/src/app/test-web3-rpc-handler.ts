@@ -6,6 +6,7 @@ import {
   castToNumber,
 } from '@eth-optimism/core-utils'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
+import { utils } from 'ethers'
 
 /* Internal Imports */
 import { initializeL2Node } from './index'
@@ -69,6 +70,10 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
         return TestWeb3Handler.successString
       case Web3RpcMethods.mine:
         return this.context.provider.send(Web3RpcMethods.mine, params)
+      case Web3RpcMethods.sendTransaction:
+        this.assertParameters(params, 1)
+        return this.sendTransaction(params[0])
+        break
       case Web3RpcMethods.snapshot:
         this.assertParameters(params, 0)
         return this.snapshot()
@@ -117,6 +122,11 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     )
     this.timestampIncreaseSnapshots[snapShotId] = this.timestampIncreaseSeconds
     return snapShotId
+  }
+
+  public async sendTransaction(rawOvmTx: string): Promise<string> {
+    const ovmTx = utils.parseTransaction(rawOvmTx)
+    return this.sendRawTransaction(await this.getNewWallet().sign(ovmTx))
   }
 
   /**
