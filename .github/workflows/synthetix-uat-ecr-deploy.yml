@@ -3,7 +3,7 @@ name: Build & Tag Container, Push to ECR, Deploy to UAT
 on:
   push:
     branches:
-      - synthetix-uat-test
+      - synthetix-uat
 
 jobs:
   build:
