@@ -788,7 +788,6 @@ export class DefaultWeb3Handler
     if (ovmEntrypoint === null || ovmEntrypoint === undefined) {
       ovmEntrypoint = ZERO_ADDRESS
     }
-
     return this.context.executionManager.interface.functions[
       'executeTransaction'
     ].encode([

@@ -225,7 +225,7 @@ describe('TestHandler', () => {
       await testRpcServer.close()
     })
 
-    it.only('should run the transaction', async () => {
+    it('should run the transaction', async () => {
       const storageKey = add0x('01'.repeat(32))
       const storageValue = add0x('02'.repeat(32))
       const executionManagerAddress = await httpProvider.send(
