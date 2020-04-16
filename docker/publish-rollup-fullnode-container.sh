@@ -26,10 +26,10 @@ echo "\nAuthenticating within ECR...\n"
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node"
 
 echo "\nBuilding fullnode container...\n"
-docker build -t optimism/rollup-full-node "$ROOT_DIR"
+docker build -t "optimism/rollup-full-node:$TAG" "$ROOT_DIR"
 
 echo "\nTagging fullnode container as $TAG in ECR...\n"
-docker tag optimism/rollup-full-node:latest "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:$TAG"
+docker tag "optimism/rollup-full-node:$TAG" "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:$TAG"
 
 echo "\nPushing fullnode container to ECR...\n"
 docker push "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:$TAG"

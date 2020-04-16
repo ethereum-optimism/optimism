@@ -43,10 +43,8 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # TODO: REMOVE FIRST COMMAND WHEN EPHEMERAL DEV IS COMPLETELY REPLACED BY SHARED DEV.
       - name: Stop existing dev-rollup-full-node ECS task to auto-start task with new image
         run: |
-          ./.github/scripts/stop-ecs-task.sh dev-rollup-full-node rollup-full-node
           ./.github/scripts/stop-ecs-task.sh dev-full-node full-node
 
 

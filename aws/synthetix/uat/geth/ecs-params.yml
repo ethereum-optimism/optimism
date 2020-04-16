@@ -1,0 +1,34 @@
+version: 1
+task_definition:
+  services:
+    geth_l2:
+      essential: true
+#      healthcheck:
+#        test: ["CMD-SHELL", "curl -f -H \"Content-Type: application/json\" -d '{\"jsonrpc\": \"2.0\", \"id\": 9999999, \"method\": \"net_version\"}' http://localhost:9545/ || exit 1"]
+#        interval: 10s
+#        timeout: 5s
+#        retries: 3
+#        start_period: 10s
+      mem_limit: 32889600000
+
+
+  ecs_network_mode: awsvpc
+  docker_volumes:
+      - name: l2-node-data
+        scope: shared
+        autoprovision: true
+        driver: 'local'
+
+run_params:
+  network_configuration:
+    awsvpc_configuration:
+      subnets:
+        - <subnet(s) here>
+      security_groups:
+        - <security group(s) here>
+  service_discovery_service:
+    name: 'geth'
+    description: 'Synthetix UAT Geth Service Discovery'
+    dns_config:
+      type: 'A'
+      ttl: 60

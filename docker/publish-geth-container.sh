@@ -21,10 +21,10 @@ echo "\nAuthenticating within ECR...\n"
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/geth"
 
 echo "\nBuilding Geth container...\n"
-docker build -t optimism/geth "$BASE_DIR/geth/."
+docker build -t "optimism/geth:$TAG" "$BASE_DIR/geth/."
 
 echo "\nTagging Geth container as $TAG...\n"
-docker tag optimism/geth:latest "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:$TAG"
+docker tag "optimism/geth:$TAG" "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:$TAG"
 
 echo "\nPushing Geth container to ECR...\n"
 docker push "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:$TAG"
