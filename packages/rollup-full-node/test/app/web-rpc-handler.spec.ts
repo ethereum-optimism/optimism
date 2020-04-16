@@ -1,7 +1,7 @@
 import '../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
+import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
@@ -13,7 +13,6 @@ import {
   TestWeb3Handler,
 } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
-import { rlpEncodeTransaction } from './helpers'
 
 const log = getLogger('web3-handler', true)
 

@@ -291,8 +291,8 @@ export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
 }
   /**
-   * RLP encodes a transaction
-   * @param {object} transaction object
+   * Encodes a transaction in RLP format
+   * @param {object} Transaction object
    */
 export const rlpEncodeTransaction = (transaction: object): string => {
     return RLP.encode([

@@ -125,6 +125,13 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     return snapShotId
   }
 
+  /**
+   * Sends a transactions to the backend node to be run.
+   * Note: This is only exposed in testing so all accounts
+   * are authorized to send transactions
+   * 
+   * @param The transaction to send
+   */
   public async sendTransaction(ovmTx: object): Promise<string> {
     return this.sendRawTransaction(rlpEncodeTransaction(ovmTx))
   }

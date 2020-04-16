@@ -723,14 +723,9 @@ export class DefaultWeb3Handler
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
     const ovmFrom = ovmTx.from === undefined ? ZERO_ADDRESS : ovmTx.from
     // Check the nonce
-    let expectedNonce
-    if (ovmTx.from) {
-      expectedNonce = (
-        await this.context.executionManager.getOvmContractNonce(ovmTx.from)
-      ).toNumber()
-    } else {
-      expectedNonce = 0
-    }
+    const expectedNonce = (
+      await this.context.executionManager.getOvmContractNonce(ovmFrom)
+    ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
       throw new Error(
         `Incorrect nonce! Expected nonce: ${expectedNonce} but received nonce: ${ovmTx.nonce}`
