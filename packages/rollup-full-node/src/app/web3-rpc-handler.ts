@@ -430,30 +430,26 @@ export class DefaultWeb3Handler
   public async getTransactionByHash(ovmTxHash: string): Promise<any> {
     log.debug('Getting tx for ovm tx hash:', ovmTxHash)
     // First convert our ovmTxHash into an internalTxHash
-    const internalTxHash = await this.getInternalTxHash(ovmTxHash)
+    const signedOvmTx: string = await this.getOvmTransactionByHash(ovmTxHash)
 
-    if (!internalTxHash) {
-      log.debug(
-        `There is no EVM tx hash associated with OVM tx hash [${ovmTxHash}]`
-      )
+    if (!signedOvmTx) {
+      log.debug(`There is no OVM tx associated with OVM tx hash [${ovmTxHash}]`)
       return null
     }
 
     log.debug(
-      `OVM tx hash [${ovmTxHash}] is associated with EVM tx hash [${internalTxHash}]`
+      `OVM tx hash [${ovmTxHash}] is associated with signed OVM tx [${signedOvmTx}]`
     )
 
-    const internalTx = await this.context.provider.send(
-      Web3RpcMethods.getTransactionByHash,
-      [internalTxHash]
-    )
+    const ovmTx = utils.parseTransaction(signedOvmTx)
 
     log.debug(
-      `OVM tx hash [${ovmTxHash}] is for EVM tx: [${JSON.stringify(
-        internalTx
+      `OVM tx hash [${ovmTxHash}] is associated with parsed OVM tx [${JSON.stringify(
+        ovmTx
       )}]`
     )
-    return internalTx
+
+    return ovmTx
   }
 
   public async getTransactionCount(
@@ -542,8 +538,6 @@ export class DefaultWeb3Handler
       )}`
     )
 
-    const wallet: Wallet = this.getNewWallet()
-
     // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
     const internalTx = await this.ovmTxToInternalTx(ovmTx)
     // Now compute the hash of the OVM transaction which we will return
@@ -557,7 +551,7 @@ export class DefaultWeb3Handler
     )
 
     // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
-    await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
+    await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
 
     let returnedInternalTxHash: string
     try {
@@ -725,17 +719,22 @@ export class DefaultWeb3Handler
    * @param internalTxHash Our internal transactions's hash.
    * @throws if not stored properly
    */
-  private async mapOvmTxHashToInternalTxHash(
+  private async storeOvmTransaction(
     ovmTxHash: string,
-    internalTxHash: string
+    internalTxHash: string,
+    signedOvmTransaction: string
   ): Promise<void> {
     log.debug(
       `Mapping ovmTxHash: ${ovmTxHash} to internal tx hash: ${internalTxHash}.`
     )
 
     const calldata: string = this.context.executionManager.interface.functions[
-      'mapOvmTransactionHashToInternalTransactionHash'
-    ].encode([add0x(ovmTxHash), add0x(internalTxHash)])
+      'storeOvmTransaction'
+    ].encode([
+      add0x(ovmTxHash),
+      add0x(internalTxHash),
+      add0x(signedOvmTransaction),
+    ])
 
     const signedTx = this.getSignedTransaction(
       calldata,
@@ -760,10 +759,26 @@ export class DefaultWeb3Handler
     }
   }
 
+  /**
+   * Gets the internal EVM transaction hash for the provided OVM transaction hash, if one exists.
+   *
+   * @param ovmTxHash The OVM transaction hash
+   * @returns The EVM tx hash if one exists, else undefined.
+   */
   private async getInternalTxHash(ovmTxHash: string): Promise<string> {
     return this.context.executionManager.getInternalTransactionHash(
       add0x(ovmTxHash)
     )
+  }
+
+  /**
+   * Gets the signed OVM transaction that we received by its hash.
+   *
+   * @param ovmTxHash The hash of the signed tx.
+   * @returns The signed OVM transaction if one exists, else undefined.
+   */
+  private async getOvmTransactionByHash(ovmTxHash: string): Promise<string> {
+    return this.context.executionManager.getOvmTransaction(add0x(ovmTxHash))
   }
 
   /**

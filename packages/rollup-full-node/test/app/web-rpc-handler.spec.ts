@@ -5,8 +5,11 @@ import {
   getLogger,
   keccak256,
   numberToHexString,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
+import { CHAIN_ID } from '@eth-optimism/ovm'
+
+import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
@@ -229,25 +232,47 @@ describe('Web3Handler', () => {
         )
       })
 
-      it.only('should return a tx by OVM hash', async () => {
+      it('should return a tx by OVM hash', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
           []
         )
         const wallet = getWallet(httpProvider)
         const simpleStorage = await deploySimpleStorage(wallet)
-        const txReceipt = await setStorage(
-          simpleStorage,
-          httpProvider,
-          executionManagerAddress
+
+        const calldata = simpleStorage.interface.functions[
+          'setStorage'
+        ].encode([executionManagerAddress, storageKey, storageValue])
+
+        const tx = {
+          nonce: await wallet.getTransactionCount(),
+          gasPrice: 0,
+          gasLimit: 9999999999,
+          to: executionManagerAddress,
+          data: calldata,
+          chainId: CHAIN_ID,
+        }
+
+        const signedTransaction = await wallet.sign(tx)
+
+        const hash = await httpProvider.send(
+          Web3RpcMethods.sendRawTransaction,
+          [signedTransaction]
         )
 
-        const txByHash = await httpProvider.send(
+        await httpProvider.waitForTransaction(hash)
+
+        const returnedSignedTx = await httpProvider.send(
           Web3RpcMethods.getTransactionByHash,
-          [txReceipt.transactionHash]
+          [hash]
         )
 
-        assert(!!txByHash, 'Transaction should exist!')
+        const parsedSignedTx = utils.parseTransaction(signedTransaction)
+
+        JSON.stringify(parsedSignedTx).should.eq(
+          JSON.stringify(returnedSignedTx),
+          'Signed transactions do not match!'
+        )
       })
     })
 
