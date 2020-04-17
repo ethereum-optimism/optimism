@@ -146,6 +146,10 @@ export class DefaultWeb3Handler
         args = this.assertParameters(params, 1)
         response = await this.getLogs([0])
         break
+      case Web3RpcMethods.getTransactionByHash:
+        args = this.assertParameters(params, 1)
+        response = await this.getTransactionByHash(args[0])
+        break
       case Web3RpcMethods.getTransactionCount:
         args = this.assertParameters(params, 2, latestBlock)
         response = await this.getTransactionCount(args[0], args[1])
@@ -423,6 +427,31 @@ export class DefaultWeb3Handler
     return res
   }
 
+  public async getTransactionByHash(ovmTxHash: string): Promise<any> {
+    log.debug('Getting tx for ovm tx hash:', ovmTxHash)
+    // First convert our ovmTxHash into an internalTxHash
+    const signedOvmTx: string = await this.getOvmTransactionByHash(ovmTxHash)
+
+    if (!remove0x(signedOvmTx)) {
+      log.debug(`There is no OVM tx associated with OVM tx hash [${ovmTxHash}]`)
+      return null
+    }
+
+    log.debug(
+      `OVM tx hash [${ovmTxHash}] is associated with signed OVM tx [${signedOvmTx}]`
+    )
+
+    const ovmTx = utils.parseTransaction(signedOvmTx)
+
+    log.debug(
+      `OVM tx hash [${ovmTxHash}] is associated with parsed OVM tx [${JSON.stringify(
+        ovmTx
+      )}]`
+    )
+
+    return ovmTx
+  }
+
   public async getTransactionCount(
     address: Address,
     defaultBlock: string
@@ -464,7 +493,8 @@ export class DefaultWeb3Handler
 
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-      internalTxReceipt
+      internalTxReceipt,
+      ovmTxHash
     )
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
@@ -508,8 +538,6 @@ export class DefaultWeb3Handler
       )}`
     )
 
-    const wallet: Wallet = this.getNewWallet()
-
     // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
     const internalTx = await this.ovmTxToInternalTx(ovmTx)
     // Now compute the hash of the OVM transaction which we will return
@@ -523,7 +551,7 @@ export class DefaultWeb3Handler
     )
 
     // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
-    await this.mapOvmTxHashToInternalTxHash(ovmTxHash, internalTxHash)
+    await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
 
     let returnedInternalTxHash: string
     try {
@@ -691,17 +719,22 @@ export class DefaultWeb3Handler
    * @param internalTxHash Our internal transactions's hash.
    * @throws if not stored properly
    */
-  private async mapOvmTxHashToInternalTxHash(
+  private async storeOvmTransaction(
     ovmTxHash: string,
-    internalTxHash: string
+    internalTxHash: string,
+    signedOvmTransaction: string
   ): Promise<void> {
     log.debug(
       `Mapping ovmTxHash: ${ovmTxHash} to internal tx hash: ${internalTxHash}.`
     )
 
     const calldata: string = this.context.executionManager.interface.functions[
-      'mapOvmTransactionHashToInternalTransactionHash'
-    ].encode([add0x(ovmTxHash), add0x(internalTxHash)])
+      'storeOvmTransaction'
+    ].encode([
+      add0x(ovmTxHash),
+      add0x(internalTxHash),
+      add0x(signedOvmTransaction),
+    ])
 
     const signedTx = this.getSignedTransaction(
       calldata,
@@ -726,10 +759,26 @@ export class DefaultWeb3Handler
     }
   }
 
+  /**
+   * Gets the internal EVM transaction hash for the provided OVM transaction hash, if one exists.
+   *
+   * @param ovmTxHash The OVM transaction hash
+   * @returns The EVM tx hash if one exists, else undefined.
+   */
   private async getInternalTxHash(ovmTxHash: string): Promise<string> {
     return this.context.executionManager.getInternalTransactionHash(
       add0x(ovmTxHash)
     )
+  }
+
+  /**
+   * Gets the signed OVM transaction that we received by its hash.
+   *
+   * @param ovmTxHash The hash of the signed tx.
+   * @returns The signed OVM transaction if one exists, else undefined.
+   */
+  private async getOvmTransactionByHash(ovmTxHash: string): Promise<string> {
+    return this.context.executionManager.getOvmTransaction(add0x(ovmTxHash))
   }
 
   /**
@@ -848,7 +897,10 @@ export class DefaultWeb3Handler
         return []
       }
     } else if (params.length === expected - 1 || params.length === expected) {
-      return params.length === expected ? params : [...params, defaultLast]
+      const nonEmptyParams = params.filter((x) => !!x)
+      return nonEmptyParams.length === expected
+        ? nonEmptyParams
+        : [...nonEmptyParams, defaultLast]
     }
     throw new InvalidParametersError(
       `Expected ${expected} parameters but received ${
