@@ -165,10 +165,12 @@ export const getOvmTransactionMetadata = (
  * Converts an EVM receipt to an OVM receipt.
  *
  * @param internalTxReceipt The EVM tx receipt to convert to an OVM tx receipt
+ * @param ovmTxHash The OVM tx hash to replace the internal tx hash with.
  * @returns The converted receipt
  */
 export const internalTxReceiptToOvmTxReceipt = async (
-  internalTxReceipt: TransactionReceipt
+  internalTxReceipt: TransactionReceipt,
+  ovmTxHash?: string
 ): Promise<OvmTransactionReceipt> => {
   const ovmTransactionMetadata = getOvmTransactionMetadata(internalTxReceipt)
   // Construct a new receipt
@@ -186,6 +188,10 @@ export const internalTxReceiptToOvmTxReceipt = async (
     ovmTransactionMetadata.ovmCreatedContractAddress
 
   ovmTxReceipt.status = ovmTransactionMetadata.ovmTxSucceeded ? 1 : 0
+
+  if (!!ovmTxReceipt.transactionHash && !!ovmTxHash) {
+    ovmTxReceipt.transactionHash = ovmTxHash
+  }
 
   if (ovmTransactionMetadata.revertMessage !== undefined) {
     ovmTxReceipt.revertMessage = ovmTransactionMetadata.revertMessage

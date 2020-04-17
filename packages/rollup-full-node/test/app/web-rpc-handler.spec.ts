@@ -1,18 +1,21 @@
 import '../setup'
 /* External Imports */
-import { getLogger, numberToHexString } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  keccak256,
+  numberToHexString,
+} from '@eth-optimism/core-utils'
 import { ethers, ContractFactory, Wallet, Contract } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
+import assert from 'assert'
 
 /* Internal Imports */
-import {
-  FullnodeRpcServer,
-  DefaultWeb3Handler,
-  TestWeb3Handler,
-} from '../../src/app'
+import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
+import { Web3RpcMethods } from '../../src/types'
 
 const log = getLogger('web3-handler', true)
 
@@ -68,14 +71,14 @@ const setStorage = async (
   simpleStorage: Contract,
   httpProvider,
   executionManagerAddress
-): Promise<void> => {
+): Promise<any> => {
   // Set storage with our new storage elements
   const tx = await simpleStorage.setStorage(
     executionManagerAddress,
     storageKey,
     storageValue
   )
-  await httpProvider.getTransactionReceipt(tx.hash)
+  return httpProvider.getTransactionReceipt(tx.hash)
 }
 
 const getAndVerifyStorage = async (
@@ -207,6 +210,44 @@ describe('Web3Handler', () => {
         )
 
         blockRetrievedByHash.should.deep.equal(blockRetrievedByNumber)
+      })
+    })
+
+    describe('the eth_getTransactionByHash endpoint', () => {
+      it('should return null if no tx exists', async () => {
+        const garbageHash = add0x(
+          keccak256(Buffer.from('garbage').toString('hex'))
+        )
+        const txByHash = await httpProvider.send(
+          Web3RpcMethods.getTransactionByHash,
+          [garbageHash]
+        )
+
+        assert(
+          txByHash === null,
+          'Should not have gotten a tx for garbage hash!'
+        )
+      })
+
+      it.only('should return a tx by OVM hash', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const simpleStorage = await deploySimpleStorage(wallet)
+        const txReceipt = await setStorage(
+          simpleStorage,
+          httpProvider,
+          executionManagerAddress
+        )
+
+        const txByHash = await httpProvider.send(
+          Web3RpcMethods.getTransactionByHash,
+          [txReceipt.transactionHash]
+        )
+
+        assert(!!txByHash, 'Transaction should exist!')
       })
     })
 

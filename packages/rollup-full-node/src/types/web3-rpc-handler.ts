@@ -18,6 +18,7 @@ export interface Web3Handler {
   getCode(address: Address, defaultBlock: string): Promise<string>
   getExecutionManagerAddress()
   getLogs(filter: any): Promise<any[]>
+  getTransactionByHash(transactionHash: string): Promise<any>
   getTransactionCount(address: Address, defaultBlock: string): Promise<string>
   getTransactionReceipt(txHash: string): Promise<string>
   networkVersion(): Promise<string>
@@ -37,6 +38,7 @@ export enum Web3RpcMethods {
   getCode = 'eth_getCode',
   getExecutionManagerAddress = 'ovm_getExecutionManagerAddress',
   getLogs = 'eth_getLogs',
+  getTransactionByHash = 'eth_getTransactionByHash',
   getTransactionCount = 'eth_getTransactionCount',
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',

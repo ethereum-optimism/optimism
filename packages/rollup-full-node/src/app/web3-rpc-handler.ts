@@ -146,6 +146,10 @@ export class DefaultWeb3Handler
         args = this.assertParameters(params, 1)
         response = await this.getLogs([0])
         break
+      case Web3RpcMethods.getTransactionByHash:
+        args = this.assertParameters(params, 1)
+        response = await this.getTransactionByHash(args[0])
+        break
       case Web3RpcMethods.getTransactionCount:
         args = this.assertParameters(params, 2, latestBlock)
         response = await this.getTransactionCount(args[0], args[1])
@@ -423,6 +427,35 @@ export class DefaultWeb3Handler
     return res
   }
 
+  public async getTransactionByHash(ovmTxHash: string): Promise<any> {
+    log.debug('Getting tx for ovm tx hash:', ovmTxHash)
+    // First convert our ovmTxHash into an internalTxHash
+    const internalTxHash = await this.getInternalTxHash(ovmTxHash)
+
+    if (!internalTxHash) {
+      log.debug(
+        `There is no EVM tx hash associated with OVM tx hash [${ovmTxHash}]`
+      )
+      return null
+    }
+
+    log.debug(
+      `OVM tx hash [${ovmTxHash}] is associated with EVM tx hash [${internalTxHash}]`
+    )
+
+    const internalTx = await this.context.provider.send(
+      Web3RpcMethods.getTransactionByHash,
+      [internalTxHash]
+    )
+
+    log.debug(
+      `OVM tx hash [${ovmTxHash}] is for EVM tx: [${JSON.stringify(
+        internalTx
+      )}]`
+    )
+    return internalTx
+  }
+
   public async getTransactionCount(
     address: Address,
     defaultBlock: string
@@ -464,7 +497,8 @@ export class DefaultWeb3Handler
 
     // Now let's parse the internal transaction reciept
     const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-      internalTxReceipt
+      internalTxReceipt,
+      ovmTxHash
     )
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
@@ -848,7 +882,10 @@ export class DefaultWeb3Handler
         return []
       }
     } else if (params.length === expected - 1 || params.length === expected) {
-      return params.length === expected ? params : [...params, defaultLast]
+      const nonEmptyParams = params.filter((x) => !!x)
+      return nonEmptyParams.length === expected
+        ? nonEmptyParams
+        : [...nonEmptyParams, defaultLast]
     }
     throw new InvalidParametersError(
       `Expected ${expected} parameters but received ${
