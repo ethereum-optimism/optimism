@@ -37,3 +37,8 @@ output "bucket_ovpn_delete_command" {
   value       = "gsutil rm gs://${var.bucket_name}/unsealer.ovpn"
   description = "Command to delete the VPN key from the bucket"
 }
+
+output "registry_uri" {
+  value       = google_container_registry.registry.bucket_self_link
+  description = "The self-link URI for the private container registry in GCR"
+}
