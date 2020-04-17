@@ -21,7 +21,7 @@ contract L2ExecutionManager is ExecutionManager {
     ) ExecutionManager(_opcodeWhitelistMask, _owner, _gasLimit, _overridePurityChecker) public {}
 
     /**
-    @notice Stores the provided OVM transaction, mapping its hash to its value and its hash to the EVM tx
+    @notice Stores the provided OVM transaction, mapping its hash to its value and its hash to the EVM tx hash
             with which it's associated.
     @param ovmTransactionHash The OVM transaction hash, used publicly as the reference to the transaction.
     @param internalTransactionHash The internal transaction hash of the transaction actually executed.
