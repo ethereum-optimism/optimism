@@ -40,6 +40,7 @@ export enum Web3RpcMethods {
   getTransactionCount = 'eth_getTransactionCount',
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',
+  sendTransaction = 'eth_sendTransaction',
   sendRawTransaction = 'eth_sendRawTransaction',
   chainId = 'eth_chainId',
 

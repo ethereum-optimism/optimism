@@ -4,8 +4,10 @@ import {
   getLogger,
   numberToHexString,
   castToNumber,
+  rlpEncodeTransaction,
 } from '@eth-optimism/core-utils'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
+import { utils } from 'ethers'
 
 /* Internal Imports */
 import { initializeL2Node } from './index'
@@ -69,6 +71,10 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
         return TestWeb3Handler.successString
       case Web3RpcMethods.mine:
         return this.context.provider.send(Web3RpcMethods.mine, params)
+      case Web3RpcMethods.sendTransaction:
+        this.assertParameters(params, 1)
+        return this.sendTransaction(params[0])
+        break
       case Web3RpcMethods.snapshot:
         this.assertParameters(params, 0)
         return this.snapshot()
@@ -117,6 +123,17 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     )
     this.timestampIncreaseSnapshots[snapShotId] = this.timestampIncreaseSeconds
     return snapShotId
+  }
+
+  /**
+   * Sends a transactions to the backend node to be run.
+   * Note: This is only exposed in testing so all accounts
+   * are authorized to send transactions
+   *
+   * @param The transaction to send
+   */
+  public async sendTransaction(ovmTx: object): Promise<string> {
+    return this.sendRawTransaction(rlpEncodeTransaction(ovmTx))
   }
 
   /**

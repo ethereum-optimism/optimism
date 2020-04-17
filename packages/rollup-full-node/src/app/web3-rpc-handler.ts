@@ -758,9 +758,10 @@ export class DefaultWeb3Handler
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
+    const ovmFrom = ovmTx.from === undefined ? ZERO_ADDRESS : ovmTx.from
     // Check the nonce
     const expectedNonce = (
-      await this.context.executionManager.getOvmContractNonce(ovmTx.from)
+      await this.context.executionManager.getOvmContractNonce(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
       throw new Error(
@@ -773,7 +774,7 @@ export class DefaultWeb3Handler
       0,
       ovmTo,
       ovmTx.data,
-      ovmTx.from,
+      ovmFrom,
       ZERO_ADDRESS,
       false
     )

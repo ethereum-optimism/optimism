@@ -208,4 +208,57 @@ describe('TestHandler', () => {
       )
     })
   })
+
+  describe('the sendTransaction endpoint', () => {
+    let testRpcServer
+    let httpProvider
+    let wallet
+
+    beforeEach(async () => {
+      testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+      testRpcServer.listen()
+      httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      wallet = getWallets(httpProvider)[0]
+    })
+
+    afterEach(async () => {
+      await testRpcServer.close()
+    })
+
+    it('should run the transaction', async () => {
+      const storageKey = add0x('01'.repeat(32))
+      const storageValue = add0x('02'.repeat(32))
+      const executionManagerAddress = await httpProvider.send(
+        'ovm_getExecutionManagerAddress',
+        []
+      )
+      const factory = new ContractFactory(
+        SimpleStorage.abi,
+        SimpleStorage.bytecode,
+        wallet
+      )
+      const simpleStorage = await factory.deploy()
+      const transactionData = await simpleStorage.interface.functions[
+        'setStorage'
+      ].encode([executionManagerAddress, storageKey, storageValue])
+      const transaction = {
+        nonce: 0,
+        from: wallet.address,
+        to: simpleStorage.address,
+        gasPrice: 0,
+        gasLimit: 0,
+        value: 0,
+        data: transactionData,
+      }
+
+      const response = await httpProvider.send('eth_sendTransaction', [
+        transaction,
+      ])
+      const res = await simpleStorage.getStorage(
+        executionManagerAddress,
+        storageKey
+      )
+      res.should.equal(storageValue)
+    })
+  })
 })
