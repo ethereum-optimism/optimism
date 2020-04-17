@@ -432,7 +432,7 @@ export class DefaultWeb3Handler
     // First convert our ovmTxHash into an internalTxHash
     const signedOvmTx: string = await this.getOvmTransactionByHash(ovmTxHash)
 
-    if (!signedOvmTx) {
+    if (!remove0x(signedOvmTx)) {
       log.debug(`There is no OVM tx associated with OVM tx hash [${ovmTxHash}]`)
       return null
     }
