@@ -448,6 +448,10 @@ export class DefaultWeb3Handler
     // First convert our ovmTxHash into an internalTxHash
     const internalTxHash = await this.getInternalTxHash(ovmTxHash)
 
+    log.debug(
+      `Got internal hash [${internalTxHash}] for ovm hash [${ovmTxHash}]`
+    )
+
     const internalTxReceipt = await this.context.provider.send(
       Web3RpcMethods.getTransactionReceipt,
       [internalTxHash]
@@ -691,6 +695,10 @@ export class DefaultWeb3Handler
     ovmTxHash: string,
     internalTxHash: string
   ): Promise<void> {
+    log.debug(
+      `Mapping ovmTxHash: ${ovmTxHash} to internal tx hash: ${internalTxHash}.`
+    )
+
     const calldata: string = this.context.executionManager.interface.functions[
       'mapOvmTransactionHashToInternalTransactionHash'
     ].encode([add0x(ovmTxHash), add0x(internalTxHash)])
@@ -700,7 +708,22 @@ export class DefaultWeb3Handler
       this.context.executionManager.address
     )
 
-    await this.context.provider.sendTransaction(signedTx)
+    const res = await this.context.provider.sendTransaction(signedTx)
+    try {
+      const receipt = await this.context.provider.waitForTransaction(res.hash)
+      log.debug(
+        `Got receipt mapping ${ovmTxHash} to ${internalTxHash}: ${JSON.stringify(
+          receipt
+        )}`
+      )
+    } catch (e) {
+      logError(
+        log,
+        `Error mapping ovmTxHash: ${ovmTxHash} to internal tx hash: ${internalTxHash}`,
+        e
+      )
+      throw e
+    }
   }
 
   private async getInternalTxHash(ovmTxHash: string): Promise<string> {
