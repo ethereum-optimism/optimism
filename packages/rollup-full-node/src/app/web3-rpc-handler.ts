@@ -449,7 +449,7 @@ export class DefaultWeb3Handler
     const internalTxHash = await this.getInternalTxHash(ovmTxHash)
 
     log.debug(
-      `Got internal hash [${internalTxHash}]0 for ovm hash [${ovmTxHash}]`
+      `Got internal hash [${internalTxHash}] for ovm hash [${ovmTxHash}]`
     )
 
     const internalTxReceipt = await this.context.provider.send(
