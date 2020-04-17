@@ -11,6 +11,7 @@ import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.js
 /* Internal Imports */
 import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+import { keccak256 } from 'ethers/utils'
 
 const log = getLogger('l2-execution-manager-calls', true)
 
@@ -41,12 +42,14 @@ describe('L2 Execution Manager', () => {
     )
   })
 
-  describe('Store external-to-internal tx hash map', async () => {
+  describe('Store OVM transactions', async () => {
+    const fakeSignedTx = add0x(
+      Buffer.from('derp')
+        .toString('hex')
+        .repeat(20)
+    )
     it('properly maps OVM tx hash to internal tx hash', async () => {
-      await l2ExecutionManager.mapOvmTransactionHashToInternalTransactionHash(
-        key,
-        value
-      )
+      await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
     })
 
     it('properly reads non-existent mapping', async () => {
@@ -54,13 +57,16 @@ describe('L2 Execution Manager', () => {
       result.should.equal(zero32, 'Incorrect unpopulated result!')
     })
 
-    it('properly reads existing mapping', async () => {
-      await l2ExecutionManager.mapOvmTransactionHashToInternalTransactionHash(
-        key,
-        value
-      )
+    it('properly reads existing OVM tx hash -> internal tx hash mapping', async () => {
+      await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
       const result = await l2ExecutionManager.getInternalTransactionHash(key)
-      result.should.equal(value, 'Incorrect populated result!')
+      result.should.equal(value, 'Incorrect hash mapped!')
+    })
+
+    it('properly reads existing OVM tx hash -> OVM tx mapping', async () => {
+      await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
+      const result = await l2ExecutionManager.getOvmTransaction(key)
+      result.should.equal(fakeSignedTx, 'Incorrect tx mapped!')
     })
   })
 })
