@@ -170,6 +170,10 @@ export class DefaultWeb3Handler
         this.assertParameters(params, 0)
         response = await this.chainId()
         break
+      case Web3RpcMethods.accounts:
+        this.assertParameters(params, 0)
+        response = await this.accounts()
+        break
       default:
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
@@ -523,6 +527,16 @@ export class DefaultWeb3Handler
     // TODO: Add getter for chainId that is not just imported
     const response = add0x(CHAIN_ID.toString(16))
     log.debug(`Got chain ID: [${response}]`)
+    return response
+  }
+
+  public async accounts(): Promise<string> {
+    log.debug('Getting accounts')
+    const response = await this.context.provider.send(
+      Web3RpcMethods.accounts,
+      []
+    )
+    log.debug(`Received accounts [${response}].`)
     return response
   }
 
