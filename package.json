@@ -5,7 +5,7 @@
   "private": true,
   "main": "index.js",
   "workspaces": [
-    "packages/^[test]*"
+    "packages/*"
   ],
   "scripts": {
     "pkgparse": "echo ${PKGS:-'*'} | sed -e 's#,# @eth-optimism*/#g' -e 's#^#@eth-optimism*/#'",

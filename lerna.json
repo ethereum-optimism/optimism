@@ -1,16 +1,7 @@
 {
   "version": "independent",
   "packages": [
-    "packages/core-db/*",
-    "packages/core-utils/*",
-    "packages/optimistic-game-semantics/*",
-    "packages/ovm/*",
-    "packages/ovm-truffle-provider-wrapper/*",
-    "packages/rollup-contracts/*",
-    "packages/rollup-core/*",
-    "packages/rollup-dev-tools/*",
-    "packages/rollup-full-node/*",
-    "packages/solc-transpiler/*"
+    "packages/^[(test)|(docs)]*"
   ],
   "command": {
     "publish": {
@@ -23,5 +14,5 @@
     }
   },
   "npmClient": "yarn",
-  "useWorkspaces": true
+  "useWorkspaces": false
 }
