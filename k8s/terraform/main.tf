@@ -10,7 +10,7 @@ terraform {
  */
 provider "kubernetes" {
   config_path            = var.k8s_config_path
-  config_context_cluster = var.k8s_context_cluster
+  config_context_cluster = "gke_${var.gcp_project}_${var.gcp_region}_${var.gke_cluster_name}"
 }
 
 /*
@@ -38,14 +38,8 @@ provider "vault" {
  * Setup local variables to leverage in the rest of the scripts
  */
 locals {
-  base_imgs = {
-    consul       = "consul:1.7.1"
-    consul_k8s   = "hashicorp/consul-k8s:0.12.0"
-    vault        = "vault:1.3.2"
-    custom_vault = "omisego/immutability-vault-ethereum:1.0.0"
-  }
-
-  consul_img     = var.docker_registry_addr == "" ? local.base_imgs.consul : "${var.docker_registry_addr}/${local.base_imgs.consul}"
-  consul_k8s_img = var.docker_registry_addr == "" ? local.base_imgs.consul_k8s : "${var.docker_registry_addr}/${local.base_imgs.consul_k8s}"
-  vault_img      = var.docker_registry_addr == "" ? local.base_imgs.vault : "${var.docker_registry_addr}/${local.base_imgs.custom_vault}"
+  image_registry = "${trimsuffix(var.docker_registry_host, "/")}/${var.gcp_project}"
+  consul_img     = "${local.image_registry}/consul:1.7.1"
+  consul_k8s_img = "${local.image_registry}/hashicorp/consul-k8s:0.12.0"
+  vault_img      = "${local.image_registry}/omisego/immutability-vault-ethereum:1.0.0"
 }

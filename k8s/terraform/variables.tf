@@ -16,10 +16,25 @@ variable "consul_replicas" {
   description = "The number of Consul servers to create in the cluster"
 }
 
-variable "docker_registry_addr" {
+variable "docker_registry_host" {
   type        = string
-  default     = "192.168.64.1:5000"
-  description = "The address of the Docker registry to use for pulling pod images (blank if using global registry)"
+  default     = "gcr.io"
+  description = "The host of the Docker registry to use for pulling pod images, gets combined with `gcp_project` to make registry addr"
+}
+
+variable "gcp_project" {
+  type        = string
+  description = "Name of the GCP project being targeted if deploying"
+}
+
+variable "gcp_region" {
+  type        = string
+  description = "GCP region that the target project is in"
+}
+
+variable "gke_cluster_name" {
+  type        = string
+  description = "Name of the GKE cluster created by the infrastructure scripts"
 }
 
 variable "k8s_certificates_secret_name_prefix" {
@@ -32,12 +47,6 @@ variable "k8s_config_path" {
   type        = string
   default     = "~/.kube/config"
   description = "Path to the local Kubernetes configuration file"
-}
-
-variable "k8s_context_cluster" {
-  type        = string
-  default     = "minikube"
-  description = "Name of the context from the Kubernetes configuration file for the cluster to target"
 }
 
 variable "k8s_consul_bootstrap_acl_token_name" {
@@ -77,7 +86,7 @@ variable "recovery" {
 
 variable "unsealer_vault_addr" {
   type        = string
-  default     = "https://192.168.64.1:8200"
+  default     = "https://10.8.0.2:8200"
   description = "The address to the Unsealer Vault server"
 }
 
