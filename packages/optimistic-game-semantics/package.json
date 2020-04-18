@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/optimistic-game-semantics",
-  "version": "0.0.1-alpha.24",
+  "version": "0.0.1-alpha.25",
   "description": "Optimism Optimistic Game Semantics",
   "main": "build/index.js",
   "files": [
@@ -29,8 +29,8 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/core-db": "^0.0.1-alpha.24",
-    "@eth-optimism/core-utils": "^0.0.1-alpha.24",
+    "@eth-optimism/core-db": "^0.0.1-alpha.25",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.25",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "debug": "^4.1.1",
