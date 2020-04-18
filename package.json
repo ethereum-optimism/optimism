@@ -5,7 +5,16 @@
   "private": true,
   "main": "index.js",
   "workspaces": [
-    "packages/*"
+    "packages/core-db/*",
+    "packages/core-utils/*",
+    "packages/optimistic-game-semantics/*",
+    "packages/ovm/*",
+    "packages/ovm-truffle-provider-wrapper/*",
+    "packages/rollup-contracts/*",
+    "packages/rollup-core/*",
+    "packages/rollup-dev-tools/*",
+    "packages/rollup-full-node/*",
+    "packages/solc-transpiler/*"
   ],
   "scripts": {
     "pkgparse": "echo ${PKGS:-'*'} | sed -e 's#,# @eth-optimism*/#g' -e 's#^#@eth-optimism*/#'",
