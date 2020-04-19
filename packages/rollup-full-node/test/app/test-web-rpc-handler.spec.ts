@@ -261,4 +261,29 @@ describe('TestHandler', () => {
       res.should.equal(storageValue)
     })
   })
+
+  describe('the accounts endpoint', () => {
+    let testRpcServer
+    let httpProvider
+
+    beforeEach(async () => {
+      testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+      testRpcServer.listen()
+      httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+    })
+
+    afterEach(async () => {
+      await testRpcServer.close()
+    })
+
+    it('should get accounts', async () => {
+      const response = await httpProvider.send('eth_accounts', [])
+      const addresses = getWallets(httpProvider).map((wallet) =>
+        wallet['signingKey']['address'].toLowerCase()
+      )
+      response
+        .map((address) => address.toLowerCase())
+        .should.have.members(addresses)
+    })
+  })
 })
