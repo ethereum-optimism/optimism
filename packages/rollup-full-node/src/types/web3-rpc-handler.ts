@@ -24,7 +24,6 @@ export interface Web3Handler {
   networkVersion(): Promise<string>
   sendRawTransaction(signedTx: string): Promise<string>
   chainId(): Promise<string>
-  accounts(): Promise<string>
 }
 
 // Enum of supported web3 rpc methods
@@ -46,9 +45,9 @@ export enum Web3RpcMethods {
   sendTransaction = 'eth_sendTransaction',
   sendRawTransaction = 'eth_sendRawTransaction',
   chainId = 'eth_chainId',
-  accounts = 'eth_accounts',
 
   // Test methods:
+  accounts = 'eth_accounts',
   snapshot = 'evm_snapshot',
   revert = 'evm_revert',
   mine = 'evm_mine',
