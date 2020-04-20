@@ -18,7 +18,6 @@ import assert from 'assert'
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
-import * as EventEmitter from '../contracts/build/untranspiled/EventEmitter.json'
 import { Web3RpcMethods } from '../../src/types'
 
 const log = getLogger('web3-handler', true)
@@ -292,31 +291,6 @@ describe('Web3Handler', () => {
           httpProvider,
           executionManagerAddress
         )
-      })
-    })
-
-    describe.only('EventEmitter integration test', () => {
-      it('should set storage & retrieve the value', async () => {
-        const executionManagerAddress = await httpProvider.send(
-          'ovm_getExecutionManagerAddress',
-          []
-        )
-
-        const wallet = getWallet(httpProvider)
-        const factory = new ContractFactory(
-          EventEmitter.abi,
-          EventEmitter.bytecode,
-          wallet
-        )
-
-        const eventEmitter = await factory.deploy()
-        const tx = await eventEmitter.emitEvent(
-          executionManagerAddress,
-        )
-        
-        await httpProvider.getTransactionReceipt(tx.hash)
-        const block = await httpProvider.getBlock('latest', true)
-        block.transactions.length.should.be.gt(0)
       })
     })
 
