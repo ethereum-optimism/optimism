@@ -57,7 +57,7 @@ fi
 
 ## One-time configuration to be run only on first startup
 if [ ! -f $SETUP_RUN_PATH ]; then
-  echo "Generating keys and initializing geth..."
+  echo "Generating keys..."
 
   generate_private_key > $SEALER_PRIVATE_KEY_PATH
   import_private_key $SEALER_PRIVATE_KEY_PATH > $SEALER_ADDRESS_PATH
@@ -74,11 +74,9 @@ if [ ! -f $SETUP_RUN_PATH ]; then
 
   generate_geneisis `cat $SEALER_ADDRESS_PATH` `cat $ADDRESS_PATH`
 
-  geth --datadir $VOLUME_PATH --nousb --verbosity 0 init $GENESIS_PATH 2> /dev/null;
   echo "Ran Setup" > $SETUP_RUN_PATH
 
   echo "Setup Complete"
-  echo "Sealer Address: 0x`cat $SEALER_ADDRESS_PATH`"
   echo "Account Address: 0x`cat $ADDRESS_PATH`"
 else
   echo "FOUND EXISTING GETH DATA"
@@ -86,4 +84,4 @@ fi
 
 echo "Starting Geth..."
 ## Command to kick off geth
-geth --datadir $VOLUME_PATH --syncmode 'full' --rpc --rpcaddr $HOSTNAME  --rpcvhosts=* --rpcapi 'eth,net' --rpcport $PORT --networkid $NETWORK_ID --nodiscover --nousb --allow-insecure-unlock -unlock `cat $SEALER_ADDRESS_PATH` --password /dev/null --gasprice '1' --mine
+geth --dev --datadir $VOLUME_PATH --rpc --rpcaddr $HOSTNAME --rpcvhosts=* --rpcport $PORT --networkid $NETWORK_ID --rpcapi 'eth,net' --gasprice '0' --targetgaslimit '4294967295'
