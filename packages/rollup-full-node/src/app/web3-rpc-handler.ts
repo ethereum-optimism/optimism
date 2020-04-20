@@ -369,7 +369,7 @@ export class DefaultWeb3Handler
         )
       )
         // Filter transactions that aren't included in the execution manager
-        .filter((transaction) => transaction['hash'] !== add0x("00".repeat(32)))
+        .filter((transaction) => transaction['hash'] !== add0x('00'.repeat(32)))
     }
 
     log.debug(
