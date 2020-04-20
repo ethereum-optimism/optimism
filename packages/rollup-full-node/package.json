@@ -17,7 +17,9 @@
     "build-contracts": "yarn clean-contracts && waffle waffle-config-untranspiled.json && waffle waffle-config-transpiled.json",
     "server:aggregator": "env DEBUG=\"info:*,error:*\" node ./exec/aggregator.js",
     "server:fullnode": "env DEBUG=\"info:*,error:*\" node ./exec/fullnode.js",
-    "server:fullnode:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./exec/fullnode.js"
+    "server:fullnode:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./exec/fullnode.js",
+    "server:fullnode-test": "env DEBUG=\"info:*,error:*\" node ./exec/fullnode-test.js",
+    "server:fullnode-test:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./exec/fullnode-test.js"
   },
   "keywords": [
     "plasma",
