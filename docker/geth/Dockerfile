@@ -19,7 +19,6 @@ EXPOSE 8545 8546 8547 30303 30303/udp
 ## end ethereum/client-go
 
 RUN apk add --no-cache  openssl jq
-COPY rollup-fullnode.json /etc/
 COPY entrypoint.sh /bin
 RUN chmod +x /bin/entrypoint.sh
 
