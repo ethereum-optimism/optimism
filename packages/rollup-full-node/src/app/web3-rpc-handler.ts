@@ -363,9 +363,15 @@ export class DefaultWeb3Handler
           block['transactions'].map(async (transaction) => {
             transaction['hash'] = await this.getOvmTxHash(transaction['hash'])
             let ovmTx = await this.getTransactionByHash(transaction['hash'])
-            transaction['from'] = ovmTx.from
-            transaction['to'] = ovmTx.to
-            transaction['gasLimit'] = ovmTx.gasLimit.toNumber()
+            Object.keys(transaction).forEach((key) => {
+              if(ovmTx && ovmTx[key]) {
+                if(typeof ovmTx[key] === "object") {
+                  transaction[key] = ovmTx[key].toNumber()
+                } else {
+                  transaction[key] = ovmTx[key]
+                }
+              }
+            })
 
             return transaction
           })

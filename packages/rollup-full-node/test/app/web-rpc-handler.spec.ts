@@ -139,7 +139,7 @@ describe('Web3Handler', () => {
     }
   })
 
-  describe('ephemeral node', () => {
+  describe.only('ephemeral node', () => {
     describe('the getBalance endpoint', () => {
       it('should return zero for all accounts', async () => {
         const wallet = getWallet(httpProvider)
