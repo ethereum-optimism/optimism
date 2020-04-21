@@ -787,7 +787,7 @@ export class DefaultWeb3Handler
    * @returns The OVM tx hash if one exists, else undefined.
    */
   private async getOvmTxHash(evmTxHash: string): Promise<string> {
-    return this.context.executionManager.getEvmTransactionHash(add0x(evmTxHash))
+    return this.context.executionManager.getOvmTransactionHash(add0x(evmTxHash))
   }
 
   /**

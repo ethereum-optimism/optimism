@@ -39,7 +39,7 @@ contract L2ExecutionManager is ExecutionManager {
     @param evmTransactionHash The EVM transaction hash.
     @return The associated OVM transaction hash.
     */
-    function getEvmTransactionHash(bytes32 evmTransactionHash) public view returns (bytes32) {
+    function getOvmTransactionHash(bytes32 evmTransactionHash) public view returns (bytes32) {
         return evmHashToOvmHash[evmTransactionHash];
     }
 
