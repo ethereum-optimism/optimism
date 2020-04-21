@@ -2,7 +2,6 @@ version: "3"
 services:
   rollup-full-node:
     image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
-    depends_on: [ "geth_l2" ]
     volumes:
       - full-node-data:/mnt/full-node:rw
       - l1-node-data:/mnt/l1-node:rw
