@@ -19,6 +19,7 @@ import assert from 'assert'
 /* Internal Imports */
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
+import * as EventEmitter from '../contracts/build/untranspiled/EventEmitter.json'
 import { Web3RpcMethods } from '../../src/types'
 
 const log = getLogger('web3-handler', true)
@@ -309,6 +310,33 @@ describe('Web3Handler', () => {
           JSON.stringify(returnedSignedTx),
           'Signed transactions do not match!'
         )
+      })
+    })
+
+    describe('the getLogs endpoint', () => {
+      it.only('should return logs', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const balance = await httpProvider.getBalance(wallet.address)
+        const factory = new ContractFactory(
+          EventEmitter.abi,
+          EventEmitter.bytecode,
+          wallet
+        )
+        const eventEmitter = await factory.deploy()
+        const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
+          eventEmitter.deployTransaction.hash
+        )
+        const tx = await eventEmitter.emitEvent(executionManagerAddress)
+
+        const logs = (await httpProvider.getLogs({
+          address: eventEmitter.address
+        })).map((x) => factory.interface.parseLog(x))
+        logs.length.should.eq(1)
+        logs[0].name.should.eq("Event")
       })
     })
 

@@ -17,6 +17,7 @@ import {
 import {
   CHAIN_ID,
   GAS_LIMIT,
+  convertInternalLogsToOvmLogs,
   internalTxReceiptToOvmTxReceipt,
   l2ExecutionManagerInterface,
   l2ToL1MessagePasserInterface,
@@ -146,7 +147,7 @@ export class DefaultWeb3Handler
         break
       case Web3RpcMethods.getLogs:
         args = this.assertParameters(params, 1)
-        response = await this.getLogs([0])
+        response = await this.getLogs(args[0])
         break
       case Web3RpcMethods.getTransactionByHash:
         args = this.assertParameters(params, 1)
@@ -437,9 +438,14 @@ export class DefaultWeb3Handler
 
   public async getLogs(filter: any): Promise<any[]> {
     log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-    const res = await this.context.provider.send(Web3RpcMethods.getLogs, filter)
-    log.debug(`Log result: [${res}], filter: [${JSON.stringify(filter)}].`)
-    return res
+    if(filter['address']) {
+      filter = {}
+    }
+    const res = await this.context.provider.send(Web3RpcMethods.getLogs, [filter])
+    console.log(res)
+    const logs = convertInternalLogsToOvmLogs(res)
+    log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    return logs
   }
 
   public async getTransactionByHash(ovmTxHash: string): Promise<any> {
