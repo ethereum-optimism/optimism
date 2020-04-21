@@ -57,4 +57,4 @@ class SimpleStorageStressTest extends FullNodeStressTest {
   }
 }
 
-new SimpleStorageStressTest(100, 'http://0.0.0.0:8545').run()
+new SimpleStorageStressTest(10, 'http://0.0.0.0:8545').runBatches(1000)

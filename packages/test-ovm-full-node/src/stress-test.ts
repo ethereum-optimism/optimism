@@ -81,6 +81,20 @@ export abstract class FullNodeStressTest {
   }
 
   /**
+   * Runs numBatches consecutive stress tests of numberOfRequests.
+   *
+   * @param numBatches The number of batches to run
+   * @returns The TestResult for each batch
+   */
+  public async runBatches(numBatches: number): Promise<Array<TestResult>> {
+    const toReturn: TestResult[] = []
+    for (let i = 0; i < numBatches; i++) {
+      toReturn.push(await this.run())
+    }
+    return toReturn
+  }
+
+  /**
    * Deploys the contract to be used for this stress test.
    */
   protected abstract deployContract(): Promise<void>
