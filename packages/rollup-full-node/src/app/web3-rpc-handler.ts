@@ -374,14 +374,11 @@ export class DefaultWeb3Handler
         // Filter transactions that aren't included in the execution manager
         .filter((transaction) => transaction['hash'] !== add0x('00'.repeat(32)))
     } else {
-      block['transactions'] = (
-        await Promise.all(
-          block['transactions'].map(async (transactionHash) => {
-            return this.getOvmTxHash(
-              transactionHash
-            )
-          })
-        ))
+      block['transactions'] = await Promise.all(
+        block['transactions'].map(async (transactionHash) =>
+          this.getOvmTxHash(transactionHash)
+        )
+      )
     }
 
     log.debug(

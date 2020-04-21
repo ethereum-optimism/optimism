@@ -180,7 +180,7 @@ describe('Web3Handler', () => {
         block.timestamp.should.be.gte(timestamp)
       })
 
-      it.only('should return the latest block with transaction objects', async () => {
+      it('should return the latest block with transaction objects', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
           []
@@ -199,7 +199,7 @@ describe('Web3Handler', () => {
         block.transactions[0].to.should.eq(simpleStorage.address)
       })
 
-      it.only('should return the latest block with transaction hashes', async () => {
+      it('should return the latest block with transaction hashes', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
           []
