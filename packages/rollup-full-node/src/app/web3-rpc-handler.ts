@@ -366,7 +366,7 @@ export class DefaultWeb3Handler
             Object.keys(transaction).forEach((key) => {
               if(ovmTx && ovmTx[key]) {
                 // Check if this value is a BigNumber object
-                if(typeof ovmTx[key] === "object") {
+                if(ovmTx[key].hasOwnProperty('toNumber')) {
                   transaction[key] = ovmTx[key].toNumber()
                 } else {
                   transaction[key] = ovmTx[key]
