@@ -11,6 +11,7 @@ import {ExecutionManager} from "./ExecutionManager.sol";
  */
 contract L2ExecutionManager is ExecutionManager {
     mapping(bytes32 => bytes32) ovmHashToEvmHash;
+    mapping(bytes32 => bytes32) evmHashToOvmHash;
     mapping(bytes32 => bytes) ovmHashToOvmTx;
 
     constructor(
@@ -28,8 +29,18 @@ contract L2ExecutionManager is ExecutionManager {
     @param signedOvmTx The signed OVM tx that we received
     */
     function storeOvmTransaction(bytes32 ovmTransactionHash, bytes32 internalTransactionHash, bytes memory signedOvmTx) public {
+        evmHashToOvmHash[internalTransactionHash] = ovmTransactionHash;
         ovmHashToEvmHash[ovmTransactionHash] = internalTransactionHash;
         ovmHashToOvmTx[ovmTransactionHash] = signedOvmTx;
+    }
+
+    /**
+    @notice Gets the OVM transaction hash associated with the provided EVM transaction hash.
+    @param evmTransactionHash The EVM transaction hash.
+    @return The associated OVM transaction hash.
+    */
+    function getEvmTransactionHash(bytes32 evmTransactionHash) public view returns (bytes32) {
+        return evmHashToOvmHash[evmTransactionHash];
     }
 
     /**
