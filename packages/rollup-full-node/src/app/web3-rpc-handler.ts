@@ -365,6 +365,7 @@ export class DefaultWeb3Handler
             let ovmTx = await this.getTransactionByHash(transaction['hash'])
             transaction['from'] = ovmTx.from
             transaction['to'] = ovmTx.to
+            transaction['gasLimit'] = ovmTx.gasLimit.toNumber()
 
             return transaction
           })
