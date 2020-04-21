@@ -63,6 +63,12 @@ describe('L2 Execution Manager', () => {
       result.should.equal(value, 'Incorrect hash mapped!')
     })
 
+    it('properly reads existing internal tx hash -> OVM tx hash mapping', async () => {
+      await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
+      const result = await l2ExecutionManager.getOvmTransactionHash(value)
+      result.should.equal(key, 'Incorrect hash mapped!')
+    })
+
     it('properly reads existing OVM tx hash -> OVM tx mapping', async () => {
       await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
       const result = await l2ExecutionManager.getOvmTransaction(key)
