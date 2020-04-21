@@ -365,6 +365,7 @@ export class DefaultWeb3Handler
             let ovmTx = await this.getTransactionByHash(transaction['hash'])
             Object.keys(transaction).forEach((key) => {
               if(ovmTx && ovmTx[key]) {
+                // Check if this value is a BigNumber object
                 if(typeof ovmTx[key] === "object") {
                   transaction[key] = ovmTx[key].toNumber()
                 } else {
