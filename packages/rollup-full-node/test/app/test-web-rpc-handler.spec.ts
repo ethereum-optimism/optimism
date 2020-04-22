@@ -21,6 +21,8 @@ import {
 } from '../../src'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.json'
+import * as CallerStorer from '../contracts/build/transpiled/CallerStorer.json'
+import { getOvmTransactionMetadata } from '@eth-optimism/ovm'
 
 const log = getLogger('test-web3-handler', true)
 
@@ -31,7 +33,7 @@ const host = '0.0.0.0'
 const port = 9998
 const baseUrl = `http://${host}:${port}`
 
-describe('TestHandler', () => {
+describe.only('TestHandler', () => {
   let testHandler: TestWeb3Handler
 
   beforeEach(async () => {
@@ -209,7 +211,7 @@ describe('TestHandler', () => {
     })
   })
 
-  describe('the sendTransaction endpoint', () => {
+  describe.only('the sendTransaction endpoint', () => {
     let testRpcServer
     let httpProvider
     let wallet
@@ -225,7 +227,7 @@ describe('TestHandler', () => {
       await testRpcServer.close()
     })
 
-    it('should run the transaction', async () => {
+    it('should run the transaction for arbitrary from, to, and data, correctly filling optional fields including nonce', async () => {
       const storageKey = add0x('01'.repeat(32))
       const storageValue = add0x('02'.repeat(32))
       const executionManagerAddress = await httpProvider.send(
@@ -242,16 +244,12 @@ describe('TestHandler', () => {
         'setStorage'
       ].encode([executionManagerAddress, storageKey, storageValue])
       const transaction = {
-        nonce: 0,
         from: wallet.address,
         to: simpleStorage.address,
-        gasPrice: 0,
-        gasLimit: 0,
-        value: 0,
         data: transactionData,
       }
 
-      const response = await httpProvider.send('eth_sendTransaction', [
+      await httpProvider.send('eth_sendTransaction', [
         transaction,
       ])
       const res = await simpleStorage.getStorage(
@@ -259,6 +257,29 @@ describe('TestHandler', () => {
         storageKey
       )
       res.should.equal(storageValue)
+    })
+
+    it('the EVM should actually see the arbitrary .from as the sender of the tx', async () => {
+      const factory = new ContractFactory(
+        CallerStorer.abi,
+        CallerStorer.bytecode,
+        wallet
+      )
+      const callerStorer = await factory.deploy()
+      const setData = await callerStorer.interface.functions[
+        'storeMsgSender'
+      ].encode([])
+      const randomFromAddress =  add0x('02'.repeat(20))
+      const transaction = {
+        from: randomFromAddress,
+        to: callerStorer.address,
+        data: setData
+      }
+      await httpProvider.send('eth_sendTransaction', [
+        transaction,
+      ])
+      const res = await callerStorer.getLastMsgSender()
+      res.should.equal(randomFromAddress)
     })
   })
 })
