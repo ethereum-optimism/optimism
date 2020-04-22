@@ -235,10 +235,12 @@ describe('Web3Handler', () => {
         )
         const tx = await eventEmitter.emitEvent(executionManagerAddress)
 
-        const block = await httpProvider.send('eth_getBlockByNumber', ['latest', true])
+        const block = await httpProvider.send('eth_getBlockByNumber', [
+          'latest',
+          true,
+        ])
         const bloomFilter = new BloomFilter(hexStrToBuf(block.logsBloom))
         bloomFilter.check(hexStrToBuf(eventEmitter.address)).should.be.true
-
       })
     })
 

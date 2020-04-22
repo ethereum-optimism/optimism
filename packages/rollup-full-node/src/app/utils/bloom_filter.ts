@@ -16,7 +16,10 @@ export default class BloomFilter {
     if (!bitvector) {
       this.bitvector = zeros(BYTE_SIZE)
     } else {
-      assert(bitvector.length === BYTE_SIZE, 'bitvectors must be 2048 bits long')
+      assert(
+        bitvector.length === BYTE_SIZE,
+        'bitvectors must be 2048 bits long'
+      )
       this.bitvector = bitvector
     }
   }

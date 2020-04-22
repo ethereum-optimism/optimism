@@ -391,14 +391,14 @@ export class DefaultWeb3Handler
       )
     }
 
-    let logsBloom = new BloomFilter(hexStrToBuf(block["logsBloom"]));
+    let logsBloom = new BloomFilter(hexStrToBuf(block['logsBloom']))
     block['transactions'].forEach((transaction) => {
-      if(transaction['to'] && transaction['from']) {
+      if (transaction['to'] && transaction['from']) {
         logsBloom.add(hexStrToBuf(transaction['to']))
         logsBloom.add(hexStrToBuf(transaction['from']))
       }
     })
-    block["logsBloom"] = bufToHexString(logsBloom.bitvector)
+    block['logsBloom'] = bufToHexString(logsBloom.bitvector)
     log.debug(
       `Transforming block #${block['number']} complete: ${JSON.stringify(
         block
