@@ -7,7 +7,9 @@ import {
 } from '@eth-optimism/rollup-core'
 import {
   add0x,
+  bufToHexString,
   getLogger,
+  hexStrToBuf,
   hexStrToNumber,
   logError,
   numberToHexString,
@@ -26,6 +28,7 @@ import {
 
 import { Contract, utils, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
+import { BloomFilter } from './utils'
 
 import AsyncLock from 'async-lock'
 
@@ -388,6 +391,14 @@ export class DefaultWeb3Handler
       )
     }
 
+    let logsBloom = new BloomFilter(hexStrToBuf(block["logsBloom"]));
+    block['transactions'].forEach((transaction) => {
+      if(transaction['to'] && transaction['from']) {
+        logsBloom.add(hexStrToBuf(transaction['to']))
+        logsBloom.add(hexStrToBuf(transaction['from']))
+      }
+    })
+    block["logsBloom"] = bufToHexString(logsBloom.bitvector)
     log.debug(
       `Transforming block #${block['number']} complete: ${JSON.stringify(
         block

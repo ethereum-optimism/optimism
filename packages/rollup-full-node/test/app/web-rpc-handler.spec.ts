@@ -5,10 +5,11 @@ import {
   getLogger,
   keccak256,
   numberToHexString,
-  hexStrToBuf,
   ZERO_ADDRESS,
+  hexStrToBuf,
 } from '@eth-optimism/core-utils'
 import { CHAIN_ID } from '@eth-optimism/ovm'
+import { BloomFilter } from '../../src'
 
 import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'
@@ -214,6 +215,30 @@ describe('Web3Handler', () => {
 
         const block = await httpProvider.getBlock('latest', false)
         hexStrToBuf(block.transactions[0]).length.should.eq(32)
+      })
+
+      it.only('should return a block with the correct logsBloom', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const balance = await httpProvider.getBalance(wallet.address)
+        const factory = new ContractFactory(
+          EventEmitter.abi,
+          EventEmitter.bytecode,
+          wallet
+        )
+        const eventEmitter = await factory.deploy()
+        const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
+          eventEmitter.deployTransaction.hash
+        )
+        const tx = await eventEmitter.emitEvent(executionManagerAddress)
+
+        const block = await httpProvider.send('eth_getBlockByNumber', ['latest', true])
+        const bloomFilter = new BloomFilter(hexStrToBuf(block.logsBloom))
+        bloomFilter.check(hexStrToBuf(eventEmitter.address)).should.be.true
+
       })
     })
 
