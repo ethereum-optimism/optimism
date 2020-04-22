@@ -291,10 +291,10 @@ export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
 }
 /**
- * Encodes a transaction in RLP format, using an invalid but present signature
+ * Encodes a transaction in RLP format, using a random signature
  * @param {object} Transaction object
  */
-export const rlpEncodeTransactionWithInvalidSig = (
+export const rlpEncodeTransactionWithRandomSig = (
   transaction: object
 ): string => {
   return RLP.encode([

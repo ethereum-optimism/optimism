@@ -4,7 +4,7 @@ import {
   getLogger,
   numberToHexString,
   castToNumber,
-  rlpEncodeTransactionWithInvalidSig,
+  rlpEncodeTransactionWithRandomSig,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { GAS_LIMIT } from '@eth-optimism/ovm'
@@ -149,7 +149,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     }
     ovmTx.value = 0
     return this.sendRawTransaction(
-      rlpEncodeTransactionWithInvalidSig(ovmTx),
+      rlpEncodeTransactionWithRandomSig(ovmTx),
       ovmTx.from
     )
   }
