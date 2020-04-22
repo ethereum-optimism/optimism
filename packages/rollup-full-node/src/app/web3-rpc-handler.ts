@@ -840,7 +840,6 @@ export class DefaultWeb3Handler
       )
       throw new Error('Non-EOA transaction detected')
     }
-    // TODO: Make sure we lock this function with this nonce so we don't send to txs with the same nonce
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
