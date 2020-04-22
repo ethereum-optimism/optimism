@@ -1,6 +1,7 @@
 import '../setup'
 /* External Imports */
 import {
+  BloomFilter,
   add0x,
   getLogger,
   keccak256,
@@ -9,7 +10,6 @@ import {
   hexStrToBuf,
 } from '@eth-optimism/core-utils'
 import { CHAIN_ID } from '@eth-optimism/ovm'
-import { BloomFilter } from '../../src'
 
 import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'

@@ -8,6 +8,7 @@ import {
 import {
   add0x,
   bufToHexString,
+  BloomFilter,
   getLogger,
   hexStrToBuf,
   hexStrToNumber,
@@ -41,7 +42,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node, getCurrentTime, BloomFilter } from './utils'
+import { initializeL2Node, getCurrentTime } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
@@ -362,6 +363,7 @@ export class DefaultWeb3Handler
         this.blockTimestamps[block['number']]
       )
     }
+
     if (fullObjects) {
       block['transactions'] = (
         await Promise.all(
@@ -390,14 +392,15 @@ export class DefaultWeb3Handler
       )
     }
 
-    const logsBloom = new BloomFilter(hexStrToBuf(block['logsBloom']))
-    block['transactions'].forEach((transaction) => {
-      if (transaction['to'] && transaction['from']) {
-        logsBloom.add(hexStrToBuf(transaction['to']))
-        logsBloom.add(hexStrToBuf(transaction['from']))
-      }
+    const logsBloom = new BloomFilter()
+    await Promise.all(
+    block['transactions'].map(async (transaction) => {
+      const receipt = await this.getTransactionReceipt(transaction.hash)
+      logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
     })
+    )
     block['logsBloom'] = bufToHexString(logsBloom.bitvector)
+
     log.debug(
       `Transforming block #${block['number']} complete: ${JSON.stringify(
         block
