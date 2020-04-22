@@ -361,15 +361,28 @@ export class DefaultWeb3Handler
       block['transactions'] = (
         await Promise.all(
           block['transactions'].map(async (transaction) => {
-            transaction['hash'] = await this.getInternalTxHash(
-              transaction['hash']
-            )
+            transaction['hash'] = await this.getOvmTxHash(transaction['hash'])
+            const ovmTx = await this.getTransactionByHash(transaction['hash'])
+            Object.keys(transaction).forEach((key) => {
+              if (ovmTx && ovmTx[key]) {
+                transaction[key] = utils.BigNumber.isBigNumber(ovmTx[key])
+                  ? ovmTx[key].toNumber()
+                  : ovmTx[key]
+              }
+            })
+
             return transaction
           })
         )
       )
         // Filter transactions that aren't included in the execution manager
         .filter((transaction) => transaction['hash'] !== add0x('00'.repeat(32)))
+    } else {
+      block['transactions'] = await Promise.all(
+        block['transactions'].map(async (transactionHash) =>
+          this.getOvmTxHash(transactionHash)
+        )
+      )
     }
 
     log.debug(
@@ -769,6 +782,16 @@ export class DefaultWeb3Handler
     return this.context.executionManager.getInternalTransactionHash(
       add0x(ovmTxHash)
     )
+  }
+
+  /**
+   * Gets the external OVM transaction hash for the provided EVM transaction hash, if one exists.
+   *
+   * @param evmTxHash The EVM transaction hash
+   * @returns The OVM tx hash if one exists, else undefined.
+   */
+  private async getOvmTxHash(evmTxHash: string): Promise<string> {
+    return this.context.executionManager.getOvmTransactionHash(add0x(evmTxHash))
   }
 
   /**

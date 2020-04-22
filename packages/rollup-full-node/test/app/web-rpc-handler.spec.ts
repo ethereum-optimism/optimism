@@ -5,6 +5,7 @@ import {
   getLogger,
   keccak256,
   numberToHexString,
+  hexStrToBuf,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { CHAIN_ID } from '@eth-optimism/ovm'
@@ -177,6 +178,41 @@ describe('Web3Handler', () => {
 
         const block = await httpProvider.getBlock('latest', true)
         block.timestamp.should.be.gte(timestamp)
+      })
+
+      it('should return the latest block with transaction objects', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const simpleStorage = await deploySimpleStorage(wallet)
+        await setAndGetStorage(
+          simpleStorage,
+          httpProvider,
+          executionManagerAddress
+        )
+
+        const block = await httpProvider.getBlock('latest', true)
+        block.transactions[0].from.should.eq(wallet.address)
+        block.transactions[0].to.should.eq(simpleStorage.address)
+      })
+
+      it('should return the latest block with transaction hashes', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const simpleStorage = await deploySimpleStorage(wallet)
+        await setAndGetStorage(
+          simpleStorage,
+          httpProvider,
+          executionManagerAddress
+        )
+
+        const block = await httpProvider.getBlock('latest', false)
+        hexStrToBuf(block.transactions[0]).length.should.eq(32)
       })
     })
 
