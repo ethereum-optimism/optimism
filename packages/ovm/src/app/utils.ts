@@ -202,8 +202,8 @@ export const internalTxReceiptToOvmTxReceipt = async (
   logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   const logsBloom = new BloomFilter()
   ovmTxReceipt.logs.forEach((log) => {
-      logsBloom.add(hexStrToBuf(log.address))
-      log.topics.forEach((topic) => logsBloom.add(hexStrToBuf(topic)))
+    logsBloom.add(hexStrToBuf(log.address))
+    log.topics.forEach((topic) => logsBloom.add(hexStrToBuf(topic)))
   })
   ovmTxReceipt.logsBloom = bufToHexString(logsBloom.bitvector)
 

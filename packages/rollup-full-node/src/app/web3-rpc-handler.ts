@@ -394,10 +394,10 @@ export class DefaultWeb3Handler
 
     const logsBloom = new BloomFilter()
     await Promise.all(
-    block['transactions'].map(async (transaction) => {
-      const receipt = await this.getTransactionReceipt(transaction.hash)
-      logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
-    })
+      block['transactions'].map(async (transaction) => {
+        const receipt = await this.getTransactionReceipt(transaction.hash)
+        logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
+      })
     )
     block['logsBloom'] = bufToHexString(logsBloom.bitvector)
 
