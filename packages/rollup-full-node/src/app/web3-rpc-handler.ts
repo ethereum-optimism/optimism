@@ -550,7 +550,10 @@ export class DefaultWeb3Handler
     const debugTime = new Date().getTime()
     log.debug('Sending raw transaction with params:', rawOvmTx)
     return this.lock.acquire(lockKey, async () => {
-      log.debug(`Send tx lock acquired. Waited ${new Date().getTime() - debugTime}ms for lock.`)
+      log.debug(
+        `Send tx lock acquired. Waited ${new Date().getTime() -
+          debugTime}ms for lock.`
+      )
       const blockTimestamp = this.getTimestamp()
 
       // Decode the OVM transaction -- this will be used to construct our internal transaction
@@ -576,7 +579,10 @@ export class DefaultWeb3Handler
       // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
       await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
 
-      log.debug(`Stored OVM tx hash ${ovmTxHash} mapping. Elapsed time: ${new Date().getTime() - debugTime}ms`)
+      log.debug(
+        `Stored OVM tx hash ${ovmTxHash} mapping. Elapsed time: ${new Date().getTime() -
+          debugTime}ms`
+      )
 
       let returnedInternalTxHash: string
       try {
@@ -604,27 +610,32 @@ export class DefaultWeb3Handler
         throw Error(msg)
       }
 
-      log.debug(`OVM tx with hash ${ovmTxHash} sent. Elapsed time: ${new Date().getTime() - debugTime}ms`)
+      log.debug(
+        `OVM tx with hash ${ovmTxHash} sent. Elapsed time: ${new Date().getTime() -
+          debugTime}ms`
+      )
 
-      this.context.provider.waitForTransaction(internalTxHash).then(async () => {
-        const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
-          ovmTxHash,
-          true
-        )
-        log.debug(
-          `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
-        )
-        if (!receipt) {
-          log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
-          return
-        } else if (!receipt.status) {
-          log.debug(`Transaction reverted: ${rawOvmTx}`)
-        } else {
-          log.debug(`Transaction mined successfully: ${rawOvmTx}`)
-          await this.processTransactionEvents(receipt)
-        }
-        this.blockTimestamps[receipt.blockNumber] = blockTimestamp
-      })
+      this.context.provider
+        .waitForTransaction(internalTxHash)
+        .then(async () => {
+          const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
+            ovmTxHash,
+            true
+          )
+          log.debug(
+            `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+          )
+          if (!receipt) {
+            log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
+            return
+          } else if (!receipt.status) {
+            log.debug(`Transaction reverted: ${rawOvmTx}`)
+          } else {
+            log.debug(`Transaction mined successfully: ${rawOvmTx}`)
+            await this.processTransactionEvents(receipt)
+          }
+          this.blockTimestamps[receipt.blockNumber] = blockTimestamp
+        })
 
       log.debug(
         `Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]. Total time: ${new Date().getTime() -
