@@ -226,7 +226,7 @@ describe('Web3Handler', () => {
         blockRetrievedByHash.should.deep.equal(blockRetrievedByNumber)
       })
 
-      it('should return the same black as eth_getBlockByNumber even after another block is created', async () => {
+      it.only('should return the same black as eth_getBlockByNumber even after another block is created', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
           []
