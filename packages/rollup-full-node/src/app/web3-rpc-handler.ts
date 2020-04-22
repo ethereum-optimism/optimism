@@ -47,7 +47,9 @@ const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
+  private readonly ovmHashToOvmTransactionCache: Object = {}
   protected blockTimestamps: Object = {}
+
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
    * Web3Handler that handles Web3 requests to it.
@@ -755,21 +757,26 @@ export class DefaultWeb3Handler
     )
 
     const res = await this.context.provider.sendTransaction(signedTx)
-    try {
-      const receipt = await this.context.provider.waitForTransaction(res.hash)
-      log.debug(
-        `Got receipt mapping ${ovmTxHash} to ${internalTxHash}: ${JSON.stringify(
-          receipt
-        )}`
-      )
-    } catch (e) {
-      logError(
-        log,
-        `Error mapping ovmTxHash: ${ovmTxHash} to internal tx hash: ${internalTxHash}`,
-        e
-      )
-      throw e
-    }
+    this.ovmHashToOvmTransactionCache[ovmTxHash] = signedOvmTransaction
+
+    this.context.provider
+      .waitForTransaction(res.hash)
+      .then((receipt) => {
+        log.debug(
+          `Got receipt mapping ${ovmTxHash} to ${internalTxHash}: ${JSON.stringify(
+            receipt
+          )}`
+        )
+        delete this.ovmHashToOvmTransactionCache[ovmTxHash]
+      })
+      .catch((e) => {
+        logError(
+          log,
+          `Error mapping ovmTxHash: ${ovmTxHash} to internal tx hash: ${internalTxHash}. This should never happen!`,
+          e
+        )
+        throw e
+      })
   }
 
   /**
@@ -801,6 +808,9 @@ export class DefaultWeb3Handler
    * @returns The signed OVM transaction if one exists, else undefined.
    */
   private async getOvmTransactionByHash(ovmTxHash: string): Promise<string> {
+    if (ovmTxHash in this.ovmHashToOvmTransactionCache) {
+      return this.ovmHashToOvmTransactionCache[ovmTxHash]
+    }
     return this.context.executionManager.getOvmTransaction(add0x(ovmTxHash))
   }
 
