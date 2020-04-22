@@ -1,12 +1,23 @@
 version: 1
 task_definition:
   services:
-    full-node:
-      cpu_shares: 25
+    rollup-full-node:
+      cpu_shares: 20
       mem_limit: 524288000
     geth_l2:
-      cpu_shares: 75
-      mem_limit: 1523288000
+      cpu_shares: 60
+      mem_limit: 1597847999
+    graph-node:
+      cpu_shares: 10
+      mem_limit: 524288000
+    ipfs:
+      cpu_shares: 5
+      mem_limit: 524288000
+    postgres:
+      cpu_shares: 5
+      mem_limit: 524288000
+
+
   # This is all local for now -- eventually will change
   ecs_network_mode: host
   docker_volumes:
@@ -22,4 +33,11 @@ task_definition:
         scope: shared
         autoprovision: true       
         driver: 'local'
-
+      - name: postgres-data
+        scope: shared
+        autoprovision: true
+        driver: 'local'
+      - name: ipfs-data
+        scope: shared
+        autoprovision: true
+        driver: 'local'

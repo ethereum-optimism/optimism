@@ -1,7 +1,7 @@
 version: 1
 task_definition:
   services:
-    full-node:
+    rollup-full-node:
       cpu_shares: 25
       mem_limit: 524288000
     geth_l2:
