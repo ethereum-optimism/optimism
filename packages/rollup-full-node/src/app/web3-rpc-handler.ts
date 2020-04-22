@@ -438,8 +438,12 @@ export class DefaultWeb3Handler
 
   public async getLogs(filter: any): Promise<any[]> {
     log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
+    const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
+      filter.address
+    )
+
     if(filter['address']) {
-      filter = {}
+      filter['address'] = codeContractAddress
     }
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [filter])
     console.log(res)
