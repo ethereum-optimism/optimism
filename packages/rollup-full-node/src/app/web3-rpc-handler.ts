@@ -363,7 +363,6 @@ export class DefaultWeb3Handler
         this.blockTimestamps[block['number']]
       )
     }
-
     if (fullObjects) {
       block['transactions'] = (
         await Promise.all(
