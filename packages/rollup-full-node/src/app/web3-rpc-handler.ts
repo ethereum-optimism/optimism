@@ -542,7 +542,8 @@ export class DefaultWeb3Handler
   }
 
   public async sendRawTransaction(rawOvmTx: string): Promise<string> {
-    const timestamp = this.getTimestamp()
+    const debugTime = new Date().getTime()
+    const blockTimestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)
 
     // Decode the OVM transaction -- this will be used to construct our internal transaction
@@ -611,10 +612,13 @@ export class DefaultWeb3Handler
         log.debug(`Transaction mined successfully: ${rawOvmTx}`)
         await this.processTransactionEvents(receipt)
       }
-      this.blockTimestamps[receipt.blockNumber] = timestamp
+      this.blockTimestamps[receipt.blockNumber] = blockTimestamp
     })
 
-    log.debug(`Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]`)
+    log.debug(
+      `Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]. Total time: ${new Date().getTime() -
+        debugTime}ms`
+    )
     // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
     return ovmTxHash
   }
