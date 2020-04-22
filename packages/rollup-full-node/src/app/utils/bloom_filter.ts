@@ -7,7 +7,7 @@ import { zeros, keccak256 } from 'ethereumjs-util'
 const BYTE_SIZE = 256
 
 export default class BloomFilter {
-  bitvector: Buffer
+  public bitvector: Buffer
 
   /**
    * Represents a Bloom filter.
@@ -28,7 +28,7 @@ export default class BloomFilter {
    * Adds an element to a bit vector of a 64 byte bloom filter.
    * @param e - The element to add
    */
-  add(e: Buffer) {
+  public add(e: Buffer) {
     assert(Buffer.isBuffer(e), 'Element should be buffer')
     e = keccak256(e)
     const mask = 2047 // binary 11111111111
@@ -46,7 +46,7 @@ export default class BloomFilter {
    * Checks if an element is in the bloom.
    * @param e - The element to check
    */
-  check(e: Buffer): boolean {
+  public check(e: Buffer): boolean {
     assert(Buffer.isBuffer(e), 'Element should be Buffer')
     e = keccak256(e)
     const mask = 2047 // binary 11111111111
@@ -67,14 +67,14 @@ export default class BloomFilter {
    * Checks if multiple topics are in a bloom.
    * @returns `true` if every topic is in the bloom
    */
-  multiCheck(topics: Buffer[]): boolean {
+  public multiCheck(topics: Buffer[]): boolean {
     return topics.every((t: Buffer) => this.check(t))
   }
 
   /**
    * Bitwise or blooms together.
    */
-  or(bloom: BloomFilter) {
+  public or(bloom: BloomFilter) {
     if (bloom) {
       for (let i = 0; i <= BYTE_SIZE; i++) {
         this.bitvector[i] = this.bitvector[i] | bloom.bitvector[i]

@@ -46,6 +46,7 @@
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
     "ethereum-waffle": "2.1.0",
+    "ethereumjs-util": "^6.2.0",
     "ethers": "^4.0.39",
     "fastpriorityqueue": "^0.6.3",
     "level": "^6.0.1",

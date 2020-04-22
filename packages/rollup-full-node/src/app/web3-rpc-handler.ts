@@ -28,7 +28,6 @@ import {
 
 import { Contract, utils, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
-import { BloomFilter } from './utils'
 
 import AsyncLock from 'async-lock'
 
@@ -42,7 +41,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
 } from '../types'
-import { initializeL2Node, getCurrentTime } from './utils'
+import { initializeL2Node, getCurrentTime, BloomFilter } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
@@ -391,7 +390,7 @@ export class DefaultWeb3Handler
       )
     }
 
-    let logsBloom = new BloomFilter(hexStrToBuf(block['logsBloom']))
+    const logsBloom = new BloomFilter(hexStrToBuf(block['logsBloom']))
     block['transactions'].forEach((transaction) => {
       if (transaction['to'] && transaction['from']) {
         logsBloom.add(hexStrToBuf(transaction['to']))
