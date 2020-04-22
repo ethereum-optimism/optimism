@@ -448,7 +448,6 @@ export class DefaultWeb3Handler
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,
     ])
-    console.log(res)
     const logs = convertInternalLogsToOvmLogs(res)
     log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
     return logs
