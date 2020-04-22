@@ -1,4 +1,4 @@
-// Thanks to the etherereumjs-vm team for this Bloom Filter implmentation! ❤️
+// Thanks to the etherereumjs-vm team for this Bloom Filter implementation! ❤️
 // https://github.com/ethereumjs/ethereumjs-vm/blob/master/packages/vm/lib/bloom/index.ts
 //
 import assert from 'assert'
