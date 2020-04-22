@@ -332,11 +332,13 @@ describe('Web3Handler', () => {
         )
         const tx = await eventEmitter.emitEvent(executionManagerAddress)
 
-        const logs = (await httpProvider.getLogs({
-          address: eventEmitter.address
-        })).map((x) => factory.interface.parseLog(x))
+        const logs = (
+          await httpProvider.getLogs({
+            address: eventEmitter.address,
+          })
+        ).map((x) => factory.interface.parseLog(x))
         logs.length.should.eq(1)
-        logs[0].name.should.eq("Event")
+        logs[0].name.should.eq('Event')
       })
     })
 

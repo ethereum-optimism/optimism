@@ -442,10 +442,12 @@ export class DefaultWeb3Handler
       filter.address
     )
 
-    if(filter['address']) {
+    if (filter['address']) {
       filter['address'] = codeContractAddress
     }
-    const res = await this.context.provider.send(Web3RpcMethods.getLogs, [filter])
+    const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
+      filter,
+    ])
     console.log(res)
     const logs = convertInternalLogsToOvmLogs(res)
     log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
