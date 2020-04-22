@@ -541,7 +541,10 @@ export class DefaultWeb3Handler
     return response
   }
 
-  public async sendRawTransaction(rawOvmTx: string, fromAddressOverride?: string): Promise<string> {
+  public async sendRawTransaction(
+    rawOvmTx: string,
+    fromAddressOverride?: string
+  ): Promise<string> {
     const debugTime = new Date().getTime()
     const blockTimestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)
@@ -549,7 +552,9 @@ export class DefaultWeb3Handler
     // Decode the OVM transaction -- this will be used to construct our internal transaction
     const ovmTx = utils.parseTransaction(rawOvmTx)
     // override the from address if in testing mode
-    if (!!fromAddressOverride) { ovmTx.from = fromAddressOverride }
+    if (!!fromAddressOverride) {
+      ovmTx.from = fromAddressOverride
+    }
     log.debug(
       `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
         ovmTx

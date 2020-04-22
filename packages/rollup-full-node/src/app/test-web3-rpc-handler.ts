@@ -135,7 +135,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    * @param The transaction to send
    */
   public async sendTransaction(ovmTx: any): Promise<string> {
-    if (!ovmTx.nonce) { 
+    if (!ovmTx.nonce) {
       ovmTx.nonce = await this.getTransactionCount(ovmTx.from, latestBlock)
     }
     if (!ovmTx.to) {
@@ -148,7 +148,10 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       ovmTx.gasLimit = GAS_LIMIT
     }
     ovmTx.value = 0
-    return this.sendRawTransaction(rlpEncodeTransactionWithInvalidSig(ovmTx), ovmTx.from)
+    return this.sendRawTransaction(
+      rlpEncodeTransactionWithInvalidSig(ovmTx),
+      ovmTx.from
+    )
   }
 
   /**

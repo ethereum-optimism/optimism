@@ -33,7 +33,7 @@ const host = '0.0.0.0'
 const port = 9998
 const baseUrl = `http://${host}:${port}`
 
-describe.only('TestHandler', () => {
+describe('TestHandler', () => {
   let testHandler: TestWeb3Handler
 
   beforeEach(async () => {
@@ -211,7 +211,7 @@ describe.only('TestHandler', () => {
     })
   })
 
-  describe.only('the sendTransaction endpoint', () => {
+  describe('the sendTransaction endpoint', () => {
     let testRpcServer
     let httpProvider
     let wallet
@@ -249,9 +249,7 @@ describe.only('TestHandler', () => {
         data: transactionData,
       }
 
-      await httpProvider.send('eth_sendTransaction', [
-        transaction,
-      ])
+      await httpProvider.send('eth_sendTransaction', [transaction])
       const res = await simpleStorage.getStorage(
         executionManagerAddress,
         storageKey
@@ -269,15 +267,13 @@ describe.only('TestHandler', () => {
       const setData = await callerStorer.interface.functions[
         'storeMsgSender'
       ].encode([])
-      const randomFromAddress =  add0x('02'.repeat(20))
+      const randomFromAddress = add0x('02'.repeat(20))
       const transaction = {
         from: randomFromAddress,
         to: callerStorer.address,
-        data: setData
+        data: setData,
       }
-      await httpProvider.send('eth_sendTransaction', [
-        transaction,
-      ])
+      await httpProvider.send('eth_sendTransaction', [transaction])
       const res = await callerStorer.getLastMsgSender()
       res.should.equal(randomFromAddress)
     })

@@ -294,7 +294,9 @@ export const getCurrentTime = (): number => {
  * Encodes a transaction in RLP format, using an invalid but present signature
  * @param {object} Transaction object
  */
-export const rlpEncodeTransactionWithInvalidSig = (transaction: object): string => {
+export const rlpEncodeTransactionWithInvalidSig = (
+  transaction: object
+): string => {
   return RLP.encode([
     hexlify(transaction['nonce']),
     hexlify(transaction['gasPrice']),
