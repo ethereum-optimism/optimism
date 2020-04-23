@@ -398,12 +398,9 @@ export class DefaultWeb3Handler
           ? transactionOrHash.hash
           : transactionOrHash
         if (transactionHash) {
-          // console.log(transactionHash)
           const receipt = await this.getTransactionReceipt(transactionHash)
           if (receipt && receipt.logsBloom) {
             logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
-            // logsBloom = new BloomFilter(hexStrToBuf(receipt.logsBloom))
-            // log.error(logsBloom)
           }
         }
       })
@@ -460,11 +457,11 @@ export class DefaultWeb3Handler
 
   public async getLogs(filter: any): Promise<any[]> {
     log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-    const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
-      filter.address
-    )
 
     if (filter['address']) {
+      const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
+        filter.address
+      )
       filter['address'] = codeContractAddress
     }
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
