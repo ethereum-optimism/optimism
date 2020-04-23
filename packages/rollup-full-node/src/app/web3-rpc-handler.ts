@@ -399,7 +399,9 @@ export class DefaultWeb3Handler
           : transactionOrHash
         if (transactionHash) {
           const receipt = await this.getTransactionReceipt(transactionHash)
-          logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
+          if (receipt && receipt.logsBloom) {
+            logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
+          }
         }
       })
     )
