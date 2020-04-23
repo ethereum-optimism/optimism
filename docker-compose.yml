@@ -1,10 +1,10 @@
-version: "3"
+version: "3.7"
 
 services:
 
   rollup-full-node:
     volumes:
-       - full-node-data:/mnt/full-node:rw
+       - .:/mnt/full-node:rw
        - l1-node-data:/mnt/l1-node:rw
        - l2-node-data:/mnt/l2-node:rw
     depends_on:
