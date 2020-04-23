@@ -81,6 +81,9 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       case Web3RpcMethods.revert:
         this.assertParameters(params, 1)
         return this.revert(params[0])
+      case Web3RpcMethods.accounts:
+        this.assertParameters(params, 0)
+        return this.accounts()
       default:
         return super.handleRequest(method, params)
     }
@@ -145,6 +148,16 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       snapShotId,
     ])
     this.timestampIncreaseSeconds = this.timestampIncreaseSnapshots[snapShotId]
+    return response
+  }
+
+  public async accounts(): Promise<string> {
+    log.debug('Getting accounts')
+    const response = await this.context.provider.send(
+      Web3RpcMethods.accounts,
+      []
+    )
+    log.debug(`Received accounts [${response}].`)
     return response
   }
 }

@@ -47,6 +47,7 @@ export enum Web3RpcMethods {
   chainId = 'eth_chainId',
 
   // Test methods:
+  accounts = 'eth_accounts',
   snapshot = 'evm_snapshot',
   revert = 'evm_revert',
   mine = 'evm_mine',
