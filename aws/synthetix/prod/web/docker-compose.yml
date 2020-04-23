@@ -1,0 +1,29 @@
+version: "3"
+services:
+  rollup-full-node:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:synthetix-prod
+    volumes:
+      - full-node-data:/mnt/full-node:rw
+      - l1-node-data:/mnt/l1-node:rw
+    ports:
+      - 8545:8545
+    environment:
+      - CLEAR_DATA_KEY
+      - STARTUP_WAIT_TIMEOUT=60
+      - LOCAL_L1_NODE_PERSISTENT_DB_PATH=/mnt/l1-node
+      - L2_RPC_SERVER_PERSISTENT_DB_PATH=/mnt/full-node/level
+      - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
+      - L2_NODE_WEB3_URL=http://synthetix-prod-geth.synthetix-prod:9545
+
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: web
+
+volumes:
+  full-node-data:
+  l1-node-data:
+  l2-node-data:
+

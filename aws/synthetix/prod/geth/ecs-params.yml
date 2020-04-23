@@ -28,7 +28,7 @@ run_params:
         - <security group(s) here>
   service_discovery_service:
     name: 'geth'
-    description: 'Synthetix UAT Geth Service Discovery'
+    description: 'Synthetix PROD Geth Service Discovery'
     dns_config:
       type: 'A'
       ttl: 60

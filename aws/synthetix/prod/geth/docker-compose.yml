@@ -1,7 +1,7 @@
 version: "3"
 services:
   geth_l2:
-    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:synthetix-uat
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:synthetix-prod
     volumes:
       - l2-node-data:/mnt/l2-node/l2:rw
     environment:
@@ -16,7 +16,7 @@ services:
     logging:
       driver: awslogs
       options:
-        awslogs-group: sythetix-uat-geth
+        awslogs-group: sythetix-prod-geth
         awslogs-region: us-east-2
         awslogs-stream-prefix: geth
 
