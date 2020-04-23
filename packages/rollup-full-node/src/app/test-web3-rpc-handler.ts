@@ -139,7 +139,7 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       ovmTx.nonce = await this.getTransactionCount(ovmTx.from, latestBlock)
     }
     if (!ovmTx.to) {
-      ovmTx.to = ZERO_ADDRESS
+      ovmTx.to = '0x'
     }
     if (!ovmTx.gasPrice) {
       ovmTx.gasPrice = 0

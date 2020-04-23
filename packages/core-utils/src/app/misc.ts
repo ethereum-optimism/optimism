@@ -297,15 +297,16 @@ export const getCurrentTime = (): number => {
 export const rlpEncodeTransactionWithRandomSig = (
   transaction: object
 ): string => {
+  console.log(`input tx is:\n${JSON.stringify(transaction)}`)
   return RLP.encode([
     hexlify(transaction['nonce']),
     hexlify(transaction['gasPrice']),
     hexlify(transaction['gasLimit']),
     hexlify(transaction['to']),
     hexlify(transaction['value']),
-    transaction['data'],
-    '0x01', // v
-    '0x' + '01'.repeat(32), // r
-    '0x' + '01'.repeat(32), // s
+    hexlify(transaction['data']),
+    '0x11', // v
+    '0x' + '11'.repeat(32), // r
+    '0x' + '11'.repeat(32), // s
   ])
 }

@@ -277,5 +277,20 @@ describe('TestHandler', () => {
       const res = await callerStorer.getLastMsgSender()
       res.should.equal(randomFromAddress)
     })
+    it('should allow for contract deployment through the endpoint', async () => {
+      log.debug(`here is a working log`)
+      const randomFromAddress = add0x('02'.repeat(20))
+      const creationInitcode = '0x' + SimpleStorage.bytecode
+      const transaction = {
+        from: randomFromAddress,
+        data: creationInitcode
+      }
+      const txHash = await httpProvider.send('eth_sendTransaction', [transaction])
+      const txReceipt = await wallet.provider.getTransactionReceipt(
+        txHash
+      )
+      // make sure the receipt's contractAddress is set
+      txReceipt.contractAddress.slice(0,2).should.equal('0x')
+    })
   })
 })
