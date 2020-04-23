@@ -129,7 +129,7 @@ To run the fullnode in Docker in production run:
 
 To run it in development run:
 
-`docker-compose -f docker-compose.yml -f docker-compo     se.dev.yml up`
+`docker-compose -f docker-compose.yml -f docker-compose.dev.yml up`
 
 **Contributors: remember to run tests and lint before submitting a pull request!**
 Linted code with passing tests makes life easier for everyone and means your contribution can get pulled into this project faster.
