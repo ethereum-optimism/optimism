@@ -1,0 +1,24 @@
+version: 1
+task_definition:
+  services:
+    rollup-full-node:
+      essential: true
+      healthcheck:
+        test: ["CMD-SHELL", "curl -f -H \"Content-Type: application/json\" -d '{\"jsonrpc\": \"2.0\", \"id\": 9999999, \"method\": \"net_version\"}' http://localhost:8545/ || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+        start_period: 5s
+      mem_limit: 7680000000
+
+
+  ecs_network_mode: host
+  docker_volumes:
+      - name: l1-node-data
+        scope: task
+        driver: 'local'
+      - name: full-node-data
+        scope: shared
+        autoprovision: true
+        driver: 'local'
+
