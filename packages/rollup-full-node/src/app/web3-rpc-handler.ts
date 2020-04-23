@@ -391,7 +391,7 @@ export class DefaultWeb3Handler
       )
     }
 
-    let logsBloom = new BloomFilter()
+    const logsBloom = new BloomFilter()
     await Promise.all(
       block['transactions'].map(async (transactionOrHash) => {
         const transactionHash = fullObjects
