@@ -10,6 +10,7 @@
     "interface-name": false,
     "max-classes-per-file": false,
     "member-ordering": false,
+    "no-bitwise": false,
     "no-empty-interface": false,
     "no-implicit-dependencies": [true, "dev"],
     "no-string-literal": false,

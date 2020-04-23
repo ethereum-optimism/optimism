@@ -4,9 +4,11 @@ import {
   add0x,
   getLogger,
   hexStrToBuf,
+  bufToHexString,
   logError,
   remove0x,
   ZERO_ADDRESS,
+  BloomFilter,
 } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { LogDescription } from 'ethers/utils'
@@ -198,7 +200,12 @@ export const internalTxReceiptToOvmTxReceipt = async (
   }
 
   logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
-  // TODO: Fix the logsBloom to remove the txs we just removed
+  const logsBloom = new BloomFilter()
+  ovmTxReceipt.logs.forEach((log) => {
+    logsBloom.add(hexStrToBuf(log.address))
+    log.topics.forEach((topic) => logsBloom.add(hexStrToBuf(topic)))
+  })
+  ovmTxReceipt.logsBloom = bufToHexString(logsBloom.bitvector)
 
   // Return!
   return ovmTxReceipt

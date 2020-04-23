@@ -7,6 +7,7 @@ export * from './serialization'
 export * from './transport'
 
 export * from './buffer'
+export { default as BloomFilter } from './bloom_filter'
 export * from './contract-deployment'
 export * from './crypto'
 export * from './equals'

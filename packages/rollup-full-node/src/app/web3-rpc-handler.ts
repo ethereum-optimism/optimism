@@ -7,7 +7,10 @@ import {
 } from '@eth-optimism/rollup-core'
 import {
   add0x,
+  bufToHexString,
+  BloomFilter,
   getLogger,
+  hexStrToBuf,
   hexStrToNumber,
   logError,
   numberToHexString,
@@ -17,6 +20,7 @@ import {
 import {
   CHAIN_ID,
   GAS_LIMIT,
+  convertInternalLogsToOvmLogs,
   internalTxReceiptToOvmTxReceipt,
   l2ExecutionManagerInterface,
   l2ToL1MessagePasserInterface,
@@ -146,7 +150,7 @@ export class DefaultWeb3Handler
         break
       case Web3RpcMethods.getLogs:
         args = this.assertParameters(params, 1)
-        response = await this.getLogs([0])
+        response = await this.getLogs(args[0])
         break
       case Web3RpcMethods.getTransactionByHash:
         args = this.assertParameters(params, 1)
@@ -387,6 +391,22 @@ export class DefaultWeb3Handler
       )
     }
 
+    const logsBloom = new BloomFilter()
+    await Promise.all(
+      block['transactions'].map(async (transactionOrHash) => {
+        const transactionHash = fullObjects
+          ? transactionOrHash.hash
+          : transactionOrHash
+        if (transactionHash) {
+          const receipt = await this.getTransactionReceipt(transactionHash)
+          if (receipt && receipt.logsBloom) {
+            logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
+          }
+        }
+      })
+    )
+    block['logsBloom'] = bufToHexString(logsBloom.bitvector)
+
     log.debug(
       `Transforming block #${block['number']} complete: ${JSON.stringify(
         block
@@ -437,9 +457,19 @@ export class DefaultWeb3Handler
 
   public async getLogs(filter: any): Promise<any[]> {
     log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-    const res = await this.context.provider.send(Web3RpcMethods.getLogs, filter)
-    log.debug(`Log result: [${res}], filter: [${JSON.stringify(filter)}].`)
-    return res
+
+    if (filter['address']) {
+      const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
+        filter.address
+      )
+      filter['address'] = codeContractAddress
+    }
+    const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
+      filter,
+    ])
+    const logs = convertInternalLogsToOvmLogs(res)
+    log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    return logs
   }
 
   public async getTransactionByHash(ovmTxHash: string): Promise<any> {
