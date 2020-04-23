@@ -391,11 +391,21 @@ export class DefaultWeb3Handler
       )
     }
 
-    const logsBloom = new BloomFilter()
+    let logsBloom = new BloomFilter()
     await Promise.all(
-      block['transactions'].map(async (transaction) => {
-        const receipt = await this.getTransactionReceipt(transaction.hash)
-        logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
+      block['transactions'].map(async (transactionOrHash) => {
+        const transactionHash = fullObjects
+          ? transactionOrHash.hash
+          : transactionOrHash
+        if (transactionHash) {
+          // console.log(transactionHash)
+          const receipt = await this.getTransactionReceipt(transactionHash)
+          if (receipt && receipt.logsBloom) {
+            logsBloom.or(new BloomFilter(hexStrToBuf(receipt.logsBloom)))
+            // logsBloom = new BloomFilter(hexStrToBuf(receipt.logsBloom))
+            // log.error(logsBloom)
+          }
+        }
       })
     )
     block['logsBloom'] = bufToHexString(logsBloom.bitvector)
