@@ -283,14 +283,14 @@ describe('TestHandler', () => {
       const creationInitcode = '0x' + SimpleStorage.bytecode
       const transaction = {
         from: randomFromAddress,
-        data: creationInitcode
+        data: creationInitcode,
       }
-      const txHash = await httpProvider.send('eth_sendTransaction', [transaction])
-      const txReceipt = await wallet.provider.getTransactionReceipt(
-        txHash
-      )
+      const txHash = await httpProvider.send('eth_sendTransaction', [
+        transaction,
+      ])
+      const txReceipt = await wallet.provider.getTransactionReceipt(txHash)
       // make sure the receipt's contractAddress is set
-      txReceipt.contractAddress.slice(0,2).should.equal('0x')
+      txReceipt.contractAddress.slice(0, 2).should.equal('0x')
     })
   })
 })
