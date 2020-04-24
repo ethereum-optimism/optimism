@@ -961,7 +961,7 @@ export class DefaultWeb3Handler
       await this.context.executionManager.getOvmContractNonce(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
-      throw new Error(
+      throw new InvalidParametersError(
         `Incorrect nonce! Expected nonce: ${expectedNonce} but received nonce: ${ovmTx.nonce}`
       )
     }
