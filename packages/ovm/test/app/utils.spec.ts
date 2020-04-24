@@ -49,7 +49,11 @@ describe('getSuccessfulOvmTransactionMetadata', () => {
       byzantium: true,
       logs: [
         [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [ALICE]],
-        [EXECUTION_MANAGER_ADDRESS, 'CallingWithEOA(address,address)', [ALICE,CONTRACT]],
+        [
+          EXECUTION_MANAGER_ADDRESS,
+          'CallingWithEOA(address,address)',
+          [ALICE, CONTRACT],
+        ],
         [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [ALICE]],
         [EXECUTION_MANAGER_ADDRESS, 'EOACreatedContract(address)', [CONTRACT]],
         [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [CONTRACT]],

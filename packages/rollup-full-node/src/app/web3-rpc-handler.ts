@@ -540,19 +540,26 @@ export class DefaultWeb3Handler
       return null
     }
 
-    log.debug(`Converting internal tx receipt to ovm receipt, internal receipt is:`, internalTxReceipt)
-    
+    log.debug(
+      `Converting internal tx receipt to ovm receipt, internal receipt is:`,
+      internalTxReceipt
+    )
+
     // if there are no logs, the tx must have failed, as the Execution Mgr always logs stuff
     const txSucceeded: boolean = internalTxReceipt.logs.length !== 0
     let ovmTxReceipt
     if (txSucceeded) {
-      log.debug(`The internal tx previously succeeded for this OVM tx, converting internal receipt to OVM receipt...`)
+      log.debug(
+        `The internal tx previously succeeded for this OVM tx, converting internal receipt to OVM receipt...`
+      )
       ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
         internalTxReceipt,
         ovmTxHash
       )
     } else {
-      log.debug(`Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`)
+      log.debug(
+        `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
+      )
       const rawOvmTx = await this.getOvmTransactionByHash(ovmTxHash)
       const ovmTx = utils.parseTransaction(rawOvmTx)
       // for a failing tx, everything is identical between the internal and external receipts, except to and from

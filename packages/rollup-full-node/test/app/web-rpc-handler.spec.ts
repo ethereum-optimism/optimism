@@ -11,7 +11,14 @@ import {
 } from '@eth-optimism/core-utils'
 import { CHAIN_ID, convertInternalLogsToOvmLogs } from '@eth-optimism/ovm'
 
-import { ethers, ContractFactory, Wallet, Contract, utils, providers } from 'ethers'
+import {
+  ethers,
+  ContractFactory,
+  Wallet,
+  Contract,
+  utils,
+  providers,
+} from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
@@ -203,23 +210,19 @@ describe('Web3Handler', () => {
           gasLimit: 9999999999,
           to: simpleReversion.address,
           chainId: CHAIN_ID,
-          data: simpleReversion.interface.functions[
-            'doRevert'
-          ].encode([])
+          data: simpleReversion.interface.functions['doRevert'].encode([]),
         }
         const signedTx = await wallet.sign(revertingTx)
         const txHash = ethers.utils.keccak256(signedTx)
         try {
-          await httpProvider.send(
-            'eth_sendRawTransaction',
-            [signedTx]
+          await httpProvider.send('eth_sendRawTransaction', [signedTx])
+        } catch (e) {
+          e.message.should.equal(
+            EVM_REVERT_MSG,
+            'expected EVM revert but got some other error!'
           )
-        } catch(e) {
-          e.message.should.equal(EVM_REVERT_MSG, 'expected EVM revert but got some other error!')
         }
-        const receipt = await httpProvider.getTransactionReceipt(
-          txHash
-        )
+        const receipt = await httpProvider.getTransactionReceipt(txHash)
         receipt.from.should.equal(wallet.address)
         receipt.to.should.equal(simpleReversion.address)
       })

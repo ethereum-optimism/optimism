@@ -121,6 +121,7 @@ export const getSuccessfulOvmTransactionMetadata = (
 
   if (callingWithEoaLog) {
     ovmFrom = callingWithEoaLog.values._ovmFromAddress
+    ovmTo = callingWithEoaLog.values._ovmToAddress
   }
 
   const eoaContractCreatedLog = logs.find(
@@ -129,8 +130,6 @@ export const getSuccessfulOvmTransactionMetadata = (
   if (eoaContractCreatedLog) {
     ovmCreatedContractAddress = eoaContractCreatedLog.values._ovmContractAddress
     ovmTo = ovmCreatedContractAddress
-  } else {
-    ovmTo = callingWithEoaLog.values._ovmToAddress
   }
 
   const metadata: OvmTransactionMetadata = {
@@ -177,7 +176,9 @@ export const internalTxReceiptToOvmTxReceipt = async (
   internalTxReceipt: TransactionReceipt,
   ovmTxHash?: string
 ): Promise<OvmTransactionReceipt> => {
-  const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(internalTxReceipt)
+  const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(
+    internalTxReceipt
+  )
   // Construct a new receipt
   //
   // Start off with the internalTxReceipt
