@@ -9,7 +9,7 @@ import {
   ZERO_ADDRESS,
   hexStrToBuf,
 } from '@eth-optimism/core-utils'
-import { CHAIN_ID } from '@eth-optimism/ovm'
+import { CHAIN_ID, convertInternalLogsToOvmLogs } from '@eth-optimism/ovm'
 
 import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'
@@ -21,6 +21,7 @@ import assert from 'assert'
 import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import * as EventEmitter from '../contracts/build/untranspiled/EventEmitter.json'
+import * as SimpleReversion from '../contracts/build/transpiled/SimpleReversion.json'
 import { Web3RpcMethods } from '../../src/types'
 
 const log = getLogger('web3-handler', true)
@@ -115,6 +116,22 @@ export const getUnsignedTransactionCalldata = (
   return contract.interface.functions[functionName].encode(args)
 }
 
+const assertAsyncThrowsWithMessage = async (
+  func: () => Promise<any>,
+  message: string
+): Promise<void> => {
+  let succeeded = true
+  try {
+    await func()
+    succeeded = false
+  } catch (e) {
+    if (e.message !== message) {
+      succeeded = false
+    }
+  }
+  succeeded.should.equal(true, 'Function didn\'t throw as expected or threw with the wrong error message.' )
+}
+
 /*********
  * TESTS *
  *********/
@@ -149,6 +166,51 @@ describe('Web3Handler', () => {
 
         balance.toNumber().should.eq(0)
       })
+    })
+
+    describe.only('EVM reversion handling', async () => {
+      let wallet
+      let simpleReversion
+      beforeEach(async () => {
+        wallet = getWallet(httpProvider)
+        const factory = new ContractFactory(
+          SimpleReversion.abi,
+          SimpleReversion.bytecode,
+          wallet
+        )
+        simpleReversion = await factory.deploy()
+      })
+      it('Should propogate generic internal EVM reverts upwards for sendRawTransaction', async () => {
+        await assertAsyncThrowsWithMessage(
+          async () => {
+            await simpleReversion.doRevert()
+          },
+          'VM Exception while processing transaction: revert'
+        )
+      })
+      it('Should propogate solidity require messages upwards for sendRawTransaction', async () => {
+        const solidityRevertMessage = 'trolololo'
+        await assertAsyncThrowsWithMessage(
+          async () => {
+            await simpleReversion.doRevertWithMessage(solidityRevertMessage)
+          },
+          'VM Exception while processing transaction: revert ' + solidityRevertMessage
+        )
+      })
+      it('Logs should acknowledge the reversion as well', async () => {
+        // this will fail, but that's fine, we want it to and then check its logs
+        try {
+          await simpleReversion.doRevert()
+        } catch {}
+        const receipt = (
+          await httpProvider.getTransactionReceipt(
+            '0xade9e00b889b02e994f9ef2d652f3fdb6f34c5862c4a78e959b2b36c79142dc9'
+          )
+        )
+        log.debug(`the receipt is: ${JSON.stringify(receipt)}`)
+        // .map((x) => simpleReversion.interface.parseLog(x))
+      })
+
     })
 
     describe('the getBlockByNumber endpoint', () => {
