@@ -301,7 +301,7 @@ export class DefaultWeb3Handler
 
   public async getBalance(): Promise<string> {
     // Balances are always zero
-    return '0x99'
+    return '0x0'
   }
 
   public async getBlockByNumber(
