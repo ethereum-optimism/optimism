@@ -375,6 +375,9 @@ export class DefaultWeb3Handler
                   ? ovmTx[key].toNumber()
                   : ovmTx[key]
               }
+              if(typeof transaction[key] === 'number') {
+                transaction[key] = numberToHexString(transaction[key])
+              }
             })
 
             return transaction
@@ -557,17 +560,20 @@ export class DefaultWeb3Handler
     }
 
     // Now let's parse the internal transaction reciept
-    const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
+    const ovmTxReceipt: any = await internalTxReceiptToOvmTxReceipt(
       internalTxReceipt,
       ovmTxHash
     )
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
+    if (typeof ovmTxReceipt.status === 'number') {
+      ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
+    }
 
     log.debug(
       `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${JSON.stringify(
-        internalTxReceipt
+        ovmTxReceipt
       )}]`
     )
     return ovmTxReceipt
