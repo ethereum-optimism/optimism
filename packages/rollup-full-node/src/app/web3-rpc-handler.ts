@@ -828,7 +828,7 @@ export class DefaultWeb3Handler
       .waitForTransaction(res.hash)
       .then((receipt) => {
         log.debug(
-          `Got receipt mapping ${ovmTxHash} to ${internalTxHash}: ${JSON.stringify(
+          `Got receipt mapping ovm tx hash ${ovmTxHash} to internal tx hash ${internalTxHash}: ${JSON.stringify(
             receipt
           )}`
         )

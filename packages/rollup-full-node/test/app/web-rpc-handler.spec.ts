@@ -11,7 +11,7 @@ import {
 } from '@eth-optimism/core-utils'
 import { CHAIN_ID, convertInternalLogsToOvmLogs } from '@eth-optimism/ovm'
 
-import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
+import { ethers, ContractFactory, Wallet, Contract, utils, providers } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
@@ -32,6 +32,8 @@ const port = 9999
 // Create some constants we will use for storage
 const storageKey = '0x' + '01'.repeat(32)
 const storageValue = '0x' + '02'.repeat(32)
+
+const EVM_REVERT_MSG = 'VM Exception while processing transaction: revert'
 
 const tmpFilePath = resolve(__dirname, `./.test_db`)
 
@@ -171,7 +173,7 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe.only('EVM reversion handling', async () => {
+    describe('EVM reversion handling', async () => {
       let wallet
       let simpleReversion
       beforeEach(async () => {
@@ -186,24 +188,40 @@ describe('Web3Handler', () => {
       it('Should propogate generic internal EVM reverts upwards for sendRawTransaction', async () => {
         await assertAsyncThrowsWithMessage(async () => {
           await simpleReversion.doRevert()
-        }, 'VM Exception while processing transaction: revert')
+        }, EVM_REVERT_MSG)
       })
       it('Should propogate solidity require messages upwards for sendRawTransaction', async () => {
         const solidityRevertMessage = 'trolololo'
         await assertAsyncThrowsWithMessage(async () => {
           await simpleReversion.doRevertWithMessage(solidityRevertMessage)
-        }, 'VM Exception while processing transaction: revert ' + solidityRevertMessage)
+        }, EVM_REVERT_MSG + ' ' + solidityRevertMessage)
       })
-      it('Logs should acknowledge the reversion as well', async () => {
-        // this will fail, but that's fine, we want it to and then check its logs
+      it('Should serve receipts for reverting transactions', async () => {
+        const revertingTx = {
+          nonce: await wallet.getTransactionCount(),
+          gasPrice: 0,
+          gasLimit: 9999999999,
+          to: simpleReversion.address,
+          chainId: CHAIN_ID,
+          data: simpleReversion.interface.functions[
+            'doRevert'
+          ].encode([])
+        }
+        const signedTx = await wallet.sign(revertingTx)
+        const txHash = ethers.utils.keccak256(signedTx)
         try {
-          await simpleReversion.doRevert()
-        } catch {}
+          await httpProvider.send(
+            'eth_sendRawTransaction',
+            [signedTx]
+          )
+        } catch(e) {
+          e.message.should.equal(EVM_REVERT_MSG, 'expected EVM revert but got some other error!')
+        }
         const receipt = await httpProvider.getTransactionReceipt(
-          '0xade9e00b889b02e994f9ef2d652f3fdb6f34c5862c4a78e959b2b36c79142dc9'
+          txHash
         )
-        log.debug(`the receipt is: ${JSON.stringify(receipt)}`)
-        // .map((x) => simpleReversion.interface.parseLog(x))
+        receipt.from.should.equal(wallet.address)
+        receipt.to.should.equal(simpleReversion.address)
       })
     })
 
