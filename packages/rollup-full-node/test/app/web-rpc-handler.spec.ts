@@ -340,7 +340,7 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe('the getLogs endpoint', () => {
+    describe.only('the getLogs endpoint', () => {
       it('should return logs', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
@@ -363,9 +363,12 @@ describe('Web3Handler', () => {
           await httpProvider.getLogs({
             address: eventEmitter.address,
           })
-        ).map((x) => factory.interface.parseLog(x))
-        logs.length.should.eq(1)
-        logs[0].name.should.eq('Event')
+        )
+        logs[0].address.should.eq(eventEmitter.address)
+        logs[0].logIndex.should.eq(0)
+        const parsedLogs = logs.map((x) => factory.interface.parseLog(x))
+        parsedLogs.length.should.eq(1)
+        parsedLogs[0].name.should.eq('Event')
       })
     })
 

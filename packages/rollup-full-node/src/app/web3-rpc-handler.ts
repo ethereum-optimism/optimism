@@ -464,11 +464,20 @@ export class DefaultWeb3Handler
       )
       filter['address'] = codeContractAddress
     }
-    const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
-      filter,
-    ])
-    const logs = convertInternalLogsToOvmLogs(res)
+    let res = await this.context.provider.send(Web3RpcMethods.getLogs, [filter])
+
+    let logs = JSON.parse(JSON.stringify(convertInternalLogsToOvmLogs(res)))
     log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    logs = await Promise.all(
+      logs.map(async (logItem, index) => {
+        logItem['logIndex'] = numberToHexString(index)
+        logItem['transactionHash'] = await this.getOvmTxHash(logItem['transactionHash'])
+        const transaction = await this.getTransactionByHash(logItem['transactionHash'])
+        logItem['address'] = transaction['to']
+        return logItem
+      })
+    )
+
     return logs
   }
 
