@@ -129,7 +129,10 @@ const assertAsyncThrowsWithMessage = async (
       succeeded = false
     }
   }
-  succeeded.should.equal(true, 'Function didn\'t throw as expected or threw with the wrong error message.' )
+  succeeded.should.equal(
+    true,
+    "Function didn't throw as expected or threw with the wrong error message."
+  )
 }
 
 /*********
@@ -181,36 +184,27 @@ describe('Web3Handler', () => {
         simpleReversion = await factory.deploy()
       })
       it('Should propogate generic internal EVM reverts upwards for sendRawTransaction', async () => {
-        await assertAsyncThrowsWithMessage(
-          async () => {
-            await simpleReversion.doRevert()
-          },
-          'VM Exception while processing transaction: revert'
-        )
+        await assertAsyncThrowsWithMessage(async () => {
+          await simpleReversion.doRevert()
+        }, 'VM Exception while processing transaction: revert')
       })
       it('Should propogate solidity require messages upwards for sendRawTransaction', async () => {
         const solidityRevertMessage = 'trolololo'
-        await assertAsyncThrowsWithMessage(
-          async () => {
-            await simpleReversion.doRevertWithMessage(solidityRevertMessage)
-          },
-          'VM Exception while processing transaction: revert ' + solidityRevertMessage
-        )
+        await assertAsyncThrowsWithMessage(async () => {
+          await simpleReversion.doRevertWithMessage(solidityRevertMessage)
+        }, 'VM Exception while processing transaction: revert ' + solidityRevertMessage)
       })
       it('Logs should acknowledge the reversion as well', async () => {
         // this will fail, but that's fine, we want it to and then check its logs
         try {
           await simpleReversion.doRevert()
         } catch {}
-        const receipt = (
-          await httpProvider.getTransactionReceipt(
-            '0xade9e00b889b02e994f9ef2d652f3fdb6f34c5862c4a78e959b2b36c79142dc9'
-          )
+        const receipt = await httpProvider.getTransactionReceipt(
+          '0xade9e00b889b02e994f9ef2d652f3fdb6f34c5862c4a78e959b2b36c79142dc9'
         )
         log.debug(`the receipt is: ${JSON.stringify(receipt)}`)
         // .map((x) => simpleReversion.interface.parseLog(x))
       })
-
     })
 
     describe('the getBlockByNumber endpoint', () => {

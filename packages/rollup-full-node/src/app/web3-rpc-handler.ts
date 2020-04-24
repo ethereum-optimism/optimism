@@ -376,6 +376,9 @@ export class DefaultWeb3Handler
                   ? ovmTx[key].toNumber()
                   : ovmTx[key]
               }
+              if (typeof transaction[key] === 'number') {
+                transaction[key] = numberToHexString(transaction[key])
+              }
             })
 
             return transaction
@@ -537,18 +540,38 @@ export class DefaultWeb3Handler
       return null
     }
 
-    // Now let's parse the internal transaction reciept
-    const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-      internalTxReceipt,
-      ovmTxHash
-    )
+    log.debug(`Converting internal tx receipt to ovm receipt, internal receipt is:`, internalTxReceipt)
+    
+    // if there are no logs, the tx must have failed, as the Execution Mgr always logs stuff
+    const txSucceeded: boolean = internalTxReceipt.logs.length !== 0
+    let ovmTxReceipt
+    if (txSucceeded) {
+      log.debug(`The internal tx previously succeeded for this OVM tx, converting internal receipt to OVM receipt...`)
+      ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
+        internalTxReceipt,
+        ovmTxHash
+      )
+    } else {
+      log.debug(`Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`)
+      const rawOvmTx = await this.getOvmTransactionByHash(ovmTxHash)
+      const ovmTx = utils.parseTransaction(rawOvmTx)
+      // for a failing tx, everything is identical between the internal and external receipts, except to and from
+      ovmTxReceipt = internalTxReceipt
+      ovmTxReceipt.from = ovmTx.from
+      ovmTxReceipt.to = ovmTx.to
+    }
+
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
 
+    if (typeof ovmTxReceipt.status === 'number') {
+      ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
+    }
+
     log.debug(
       `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${JSON.stringify(
-        internalTxReceipt
+        ovmTxReceipt
       )}]`
     )
     return ovmTxReceipt
@@ -705,7 +728,7 @@ export class DefaultWeb3Handler
       )
       throw e
     }
-    log.debug(`L1 to L2 Transaction mined. Tx hash: ${receipt.hash}`)
+    log.debug(`L1 to L2 Transaction applied to L2. Tx hash: ${receipt.hash}`)
 
     try {
       const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(

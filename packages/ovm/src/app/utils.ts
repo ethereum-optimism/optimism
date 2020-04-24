@@ -97,7 +97,7 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
  * @param internalTxReceipt the internal transaction receipt
  * @return ovm transaction metadata
  */
-export const getOvmTransactionMetadata = (
+export const getSuccessfulOvmTransactionMetadata = (
   internalTxReceipt: TransactionReceipt
 ): OvmTransactionMetadata => {
   let ovmTo
@@ -113,9 +113,6 @@ export const getOvmTransactionMetadata = (
     .map((log) => executionManagerInterface.parseLog(log))
     .filter((log) => log != null)
   const callingWithEoaLog = logs.find((log) => log.name === 'CallingWithEOA')
-  const eoaContractCreatedLog = logs.find(
-    (log) => log.name === 'EOACreatedContract'
-  )
 
   const revertEvents: LogDescription[] = logs.filter(
     (x) => x.name === 'EOACallRevert'
@@ -125,9 +122,15 @@ export const getOvmTransactionMetadata = (
   if (callingWithEoaLog) {
     ovmFrom = callingWithEoaLog.values._ovmFromAddress
   }
+
+  const eoaContractCreatedLog = logs.find(
+    (log) => log.name === 'EOACreatedContract'
+  )
   if (eoaContractCreatedLog) {
     ovmCreatedContractAddress = eoaContractCreatedLog.values._ovmContractAddress
     ovmTo = ovmCreatedContractAddress
+  } else {
+    ovmTo = callingWithEoaLog.values._ovmToAddress
   }
 
   const metadata: OvmTransactionMetadata = {
@@ -174,20 +177,23 @@ export const internalTxReceiptToOvmTxReceipt = async (
   internalTxReceipt: TransactionReceipt,
   ovmTxHash?: string
 ): Promise<OvmTransactionReceipt> => {
-  const ovmTransactionMetadata = getOvmTransactionMetadata(internalTxReceipt)
+  const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(internalTxReceipt)
   // Construct a new receipt
   //
   // Start off with the internalTxReceipt
   const ovmTxReceipt: OvmTransactionReceipt = internalTxReceipt
   // Add the converted logs
   ovmTxReceipt.logs = convertInternalLogsToOvmLogs(internalTxReceipt.logs)
-  // Update the to and from fields
-  ovmTxReceipt.to = ovmTransactionMetadata.ovmTo
+  // Update the to and from fields if necessary
+  if (ovmTransactionMetadata.ovmTo) {
+    ovmTxReceipt.to = ovmTransactionMetadata.ovmTo
+  }
   // TODO: Update this to use some default account abstraction library potentially.
   ovmTxReceipt.from = ovmTransactionMetadata.ovmFrom
   // Also update the contractAddress in case we deployed a new contract
-  ovmTxReceipt.contractAddress =
-    ovmTransactionMetadata.ovmCreatedContractAddress
+  ovmTxReceipt.contractAddress = !!ovmTransactionMetadata.ovmCreatedContractAddress
+    ? ovmTransactionMetadata.ovmCreatedContractAddress
+    : null
 
   ovmTxReceipt.status = ovmTransactionMetadata.ovmTxSucceeded ? 1 : 0
 

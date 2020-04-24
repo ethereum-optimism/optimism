@@ -22,7 +22,7 @@ import {
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.json'
 import * as CallerStorer from '../contracts/build/transpiled/CallerStorer.json'
-import { getOvmTransactionMetadata } from '@eth-optimism/ovm'
+import { getSuccessfulOvmTransactionMetadata } from '@eth-optimism/ovm'
 
 const log = getLogger('test-web3-handler', true)
 
