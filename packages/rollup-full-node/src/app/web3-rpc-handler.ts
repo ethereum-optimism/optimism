@@ -471,8 +471,12 @@ export class DefaultWeb3Handler
     logs = await Promise.all(
       logs.map(async (logItem, index) => {
         logItem['logIndex'] = numberToHexString(index)
-        logItem['transactionHash'] = await this.getOvmTxHash(logItem['transactionHash'])
-        const transaction = await this.getTransactionByHash(logItem['transactionHash'])
+        logItem['transactionHash'] = await this.getOvmTxHash(
+          logItem['transactionHash']
+        )
+        const transaction = await this.getTransactionByHash(
+          logItem['transactionHash']
+        )
         logItem['address'] = transaction['to']
         return logItem
       })
