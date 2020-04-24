@@ -41,6 +41,7 @@ import {
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
+  RevertError,
 } from '../types'
 import { initializeL2Node, getCurrentTime } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
@@ -616,14 +617,14 @@ export class DefaultWeb3Handler
     } catch (e) {
       logError(
         log,
-        `Error executing transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
+        `Error executing internal transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
         e
       )
 
       await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
       log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
 
-      return ovmTxHash
+      throw new RevertError(e.message as string)
     }
 
     if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
@@ -898,7 +899,7 @@ export class DefaultWeb3Handler
       ovmTx.data,
       ovmFrom,
       ZERO_ADDRESS,
-      false
+      true
     )
 
     log.debug(`EOA calldata: [${internalCalldata}]`)
