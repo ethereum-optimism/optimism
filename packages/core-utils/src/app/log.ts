@@ -17,5 +17,5 @@ export const getLogger = (
 export const logError = (logger: Logger, message: string, e: Error): void => {
   logger.error(`${message}. 
     Error: ${e.message}. 
-    Stack: ${e.stack}`)
+    Stack: ${e.stack.replace('\n', '  ')}`)
 }
