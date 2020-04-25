@@ -1,23 +1,25 @@
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
+import { getLogger, logError, SimpleClient } from '@eth-optimism/core-utils'
 
-import { JsonRpcProvider } from 'ethers/providers'
 import { parseTransaction, Transaction } from 'ethers/utils'
-
 /* Internal Imports */
 import {
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
+  Web3RpcMethods,
 } from '../../types'
 import { AccountRateLimiter } from '../utils'
 
-const sendRawTransactionMethod = 'sendRawTransaction'
+const log = getLogger('routing-handler')
+
 const methodsToRouteWithTransactionHandler: string[] = [
-  sendRawTransactionMethod,
-  'getOvmTransactionByHash',
-  'getBlockByNumber',
-  'getBlockByHash',
+  Web3RpcMethods.sendRawTransaction,
+  Web3RpcMethods.sendTransaction,
+  Web3RpcMethods.getTransactionByHash,
+  Web3RpcMethods.getBlockByNumber,
+  Web3RpcMethods.getBlockByHash,
 ]
 
 /**
@@ -28,8 +30,8 @@ const methodsToRouteWithTransactionHandler: string[] = [
  * otherwise they'll go to the transaction provider.
  */
 export class RoutingHandler implements FullnodeHandler {
-  private readonly readonlyProvider: JsonRpcProvider
-  private readonly transactionProvider: JsonRpcProvider
+  private readonly readOnlyClient: SimpleClient
+  private readonly transactionClient: SimpleClient
 
   private readonly accountRateLimiter: AccountRateLimiter
 
@@ -40,16 +42,22 @@ export class RoutingHandler implements FullnodeHandler {
     maxTransactionsPerTimeUnit: number,
     requestLimitPeriodInMillis: number,
     private readonly deployAddress: Address,
-    private readonly toAddressWhitelist?: Address[]
+    private readonly toAddressWhitelist: Address[] = []
   ) {
-    this.readonlyProvider = new JsonRpcProvider(readonlyHandlerUrl)
-    this.transactionProvider = new JsonRpcProvider(transactionHandlerUrl)
+    this.readOnlyClient = new SimpleClient(readonlyHandlerUrl)
+    this.transactionClient = new SimpleClient(transactionHandlerUrl)
 
-    this.accountRateLimiter = new AccountRateLimiter(
-      maxRequestsPerTimeUnit,
-      maxTransactionsPerTimeUnit,
-      requestLimitPeriodInMillis
-    )
+    if (
+      !!maxTransactionsPerTimeUnit &&
+      !!maxTransactionsPerTimeUnit &&
+      !!requestLimitPeriodInMillis
+    ) {
+      this.accountRateLimiter = new AccountRateLimiter(
+        maxRequestsPerTimeUnit,
+        maxTransactionsPerTimeUnit,
+        requestLimitPeriodInMillis
+      )
+    }
   }
 
   /**
@@ -67,25 +75,90 @@ export class RoutingHandler implements FullnodeHandler {
     params: any[],
     sourceIpAddress: string
   ): Promise<string> {
+    log.debug(
+      `Proxying request for method [${method}], params: [${JSON.stringify(
+        params
+      )}]`
+    )
     let tx: Transaction
 
-    if (method === sendRawTransactionMethod) {
+    if (
+      method === Web3RpcMethods.sendTransaction ||
+      method === Web3RpcMethods.sendRawTransaction
+    ) {
       try {
         tx = parseTransaction(params[0])
       } catch (e) {
         // means improper format -- since we can't get address, add to quota by IP
-        this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+        this.validateRateLimit(undefined, sourceIpAddress)
         throw new InvalidParametersError()
       }
 
-      this.accountRateLimiter.validateTransactionRateLimit(tx.from)
+      this.validateRateLimit(tx.from)
+    } else {
+      this.validateRateLimit(undefined, sourceIpAddress)
+    }
+
+    this.assertDestinationValid(tx)
+
+    try {
+      const result: any =
+        methodsToRouteWithTransactionHandler.indexOf(method) >= 0
+          ? await this.transactionClient.handle<string>(method, params)
+          : await this.readOnlyClient.handle<string>(method, params)
+      log.debug(
+        `Request for [${method}], params: [${JSON.stringify(
+          params
+        )}] got result [${result}]`
+      )
+      return result
+    } catch (e) {
+      logError(
+        log,
+        `Error proxying request: [${method}], params: [${JSON.stringify(
+          params
+        )}]`,
+        e
+      )
+      throw e
+    }
+  }
+
+  /**
+   * Validates the request is under the rate limit for the provided tx from address or
+   * source IP address if a rate limit is configured
+   *
+   * @param txFromAddress The from address only provided if this is to check against the tx rate limit.
+   * @param sourceIpAddress The IP address only provided if this is to check against the IP rate limit.
+   * @throws AccountRateLimiter If the IP in question is above its rate limit.
+   * @throws TransactionLimitError If the address in question is above its rate limit.
+   */
+  private validateRateLimit(
+    txFromAddress?: string,
+    sourceIpAddress?: string
+  ): void {
+    if (!this.accountRateLimiter) {
+      return
+    }
+    if (!!txFromAddress) {
+      this.accountRateLimiter.validateTransactionRateLimit(txFromAddress)
     } else {
       this.accountRateLimiter.validateRateLimit(sourceIpAddress)
     }
+  }
 
+  /**
+   * If provided a transaction, and a transaction destination whitelist is configured,
+   * this will make sure the destination of the transaction is on the whitelist or
+   * the transaction is sent by the deployer address.
+   *
+   * @param tx The transaction in question.
+   * @throws InvalidTransactionDesinationError if the transaction destination is invalid.
+   */
+  private assertDestinationValid(tx?: Transaction): void {
     if (
       !!tx &&
-      !!this.toAddressWhitelist &&
+      !!this.toAddressWhitelist.length &&
       !(tx.to in this.toAddressWhitelist) &&
       tx.from !== this.deployAddress
     ) {
@@ -93,12 +166,6 @@ export class RoutingHandler implements FullnodeHandler {
         tx.to,
         this.toAddressWhitelist
       )
-    }
-
-    if (method in methodsToRouteWithTransactionHandler) {
-      return JSON.stringify(await this.transactionProvider.send(method, params))
-    } else {
-      return JSON.stringify(await this.readonlyProvider.send(method, params))
     }
   }
 }

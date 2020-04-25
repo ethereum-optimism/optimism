@@ -1,8 +1,9 @@
 /* External imports */
-import { TimeBucketedCounter } from '@eth-optimism/core-utils'
+import { getLogger, TimeBucketedCounter } from '@eth-optimism/core-utils'
 
 /* Internal imports */
 import { RateLimitError, TransactionLimitError } from '../../types'
+const log = getLogger('routing-handler')
 
 /**
  * Keeps track of and enforces rate limits for accounts by address and/or IP address.

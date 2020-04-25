@@ -2,19 +2,39 @@ import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '@eth-optimism/ovm'
+import { getLogger } from '@eth-optimism/core-utils/build/src'
+
+const log = getLogger('environment')
 
 /**
  * Class to contain all environment variables referenced by the rollup full node
  * to consolidate access / updates and default values.
  */
 export class Environment {
+  public static getOrThrow<T>(
+    fun: (defaultValue?: T) => T,
+    defaultValue?: T,
+    logValue: boolean = true
+  ): T {
+    const res = fun(defaultValue)
+    if (!res) {
+      throw Error(
+        `Expected Environment variable not set. Error calling Environment.${fun.name}()`
+      )
+    }
+    if (logValue) {
+      log.info(`Environment: ${fun.name} = ${res}`)
+    }
+    return res
+  }
+
   public static clearDataKey(defaultValue?: string) {
     return process.env.CLEAR_DATA_KEY || defaultValue
   }
 
   // Server Type Config
   public static isRoutingServer(defaultValue?: boolean) {
-    return !!process.env.IS_READ_ONLY_NODE || defaultValue
+    return !!process.env.IS_ROUTING_SERVER || defaultValue
   }
   public static isTranasactionNode(defaultValue?: boolean) {
     return !!process.env.IS_TRANSACTION_NODE || defaultValue

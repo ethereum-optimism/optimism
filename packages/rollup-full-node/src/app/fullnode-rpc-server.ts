@@ -9,13 +9,17 @@ import {
   JsonRpcRequest,
   JsonRpcErrorResponse,
   JsonRpcResponse,
+  JSONRPC_ERRORS,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
   FullnodeHandler,
   InvalidParametersError,
+  InvalidTransactionDesinationError,
+  RateLimitError,
   RevertError,
+  TransactionLimitError,
   UnsupportedMethodError,
 } from '../types'
 
@@ -114,7 +118,8 @@ export class FullnodeRpcServer extends ExpressHttpServer {
           )}]`
         )
         return buildJsonRpcError('METHOD_NOT_FOUND', request.id)
-      } else if (err instanceof InvalidParametersError) {
+      }
+      if (err instanceof InvalidParametersError) {
         log.debug(
           `Received request with valid method but invalid parameters: [${JSON.stringify(
             request
@@ -122,6 +127,44 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         )
         return buildJsonRpcError('INVALID_PARAMS', request.id)
       }
+      if (err instanceof InvalidTransactionDesinationError) {
+        const destErr = err as InvalidTransactionDesinationError
+        log.debug(
+          `Received tx request to an invalid destination [${
+            destErr.destinationAddress
+          }]. Valid destinations: [${JSON.stringify(
+            destErr.validDestinationAddresses
+          )}]. Request: [${JSON.stringify(request)}]`
+        )
+        return buildJsonRpcError('INVALID_PARAMS', request.id)
+      }
+      if (err instanceof RateLimitError) {
+        const rateLimitError = err as RateLimitError
+        const msg = `Request puts ${rateLimitError.ipAddress}} over limit of ${rateLimitError.limitPerPeriod}} requests every ${rateLimitError.periodInMillis}ms. Total this period: ${rateLimitError.requestCount}}.`
+        log.debug(`${msg} Request: [${JSON.stringify(request)}]`)
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32005,
+            message: msg,
+          },
+          id: request.id,
+        }
+      }
+      if (err instanceof TransactionLimitError) {
+        const txLimitError = err as TransactionLimitError
+        const msg = `Request puts ${txLimitError.address}} over limit of ${txLimitError.limitPerPeriod}} requests every ${txLimitError.periodInMillis}ms. Total this period: ${txLimitError.transactionCount}}.`
+        log.debug(`${msg} Request: [${JSON.stringify(request)}]`)
+        return {
+          jsonrpc: '2.0',
+          error: {
+            code: -32005,
+            message: msg,
+          },
+          id: request.id,
+        }
+      }
+
       logError(log, `Uncaught exception at endpoint-level`, err)
       return buildJsonRpcError(
         'INTERNAL_ERROR',

@@ -84,19 +84,23 @@ export const runFullnode = async (
  * @returns The L2NodeContext with undefined values for everything except for handler and server.
  */
 const startRoutingServer = async (): Promise<FullnodeContext> => {
+  const toAddressWhitelist = Environment.commaSeparatedToAddressWhitelist()
+    ? Environment.commaSeparatedToAddressWhitelist().split(',')
+    : undefined
+
   const fullnodeHandler = new RoutingHandler(
-    Environment.transactionNodeUrl(),
-    Environment.readOnlyNodeUrl(),
+    Environment.getOrThrow(Environment.transactionNodeUrl),
+    Environment.getOrThrow(Environment.readOnlyNodeUrl),
     Environment.maxNonTransactionRequestsPerUnitTime(),
     Environment.maxTransactionsPerUnitTime(),
     Environment.requestLimitPeriodMillis(),
     Environment.contractDeployerAddress(),
-    Environment.commaSeparatedToAddressWhitelist('').split(',')
+    toAddressWhitelist
   )
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
-    Environment.l2RpcServerHost(),
-    Environment.l2RpcServerPort(),
+    Environment.getOrThrow(Environment.l2RpcServerHost),
+    Environment.getOrThrow(Environment.l2RpcServerPort),
     [cors]
   )
 

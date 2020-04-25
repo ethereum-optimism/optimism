@@ -22,15 +22,12 @@ import {
   GAS_LIMIT,
   convertInternalLogsToOvmLogs,
   internalTxReceiptToOvmTxReceipt,
-  l2ExecutionManagerInterface,
   l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
 } from '@eth-optimism/ovm'
 
-import { Contract, utils, Wallet } from 'ethers'
+import { utils, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
-
-import AsyncLock from 'async-lock'
 
 /* Internal Imports */
 import {
