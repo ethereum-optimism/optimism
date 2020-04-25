@@ -17,7 +17,7 @@ export interface Web3Handler {
   getBlockByHash(blockHash: string, fullObjects: boolean): Promise<any>
   getCode(address: Address, defaultBlock: string): Promise<string>
   getExecutionManagerAddress()
-  getLogs(filter: any): Promise<any[]>
+  getLogs(ovmFilter: any): Promise<any[]>
   getTransactionByHash(transactionHash: string): Promise<any>
   getTransactionCount(address: Address, defaultBlock: string): Promise<string>
   getTransactionReceipt(txHash: string): Promise<string>

@@ -455,9 +455,9 @@ export class DefaultWeb3Handler
     return this.context.executionManager.address
   }
 
-  public async getLogs(filter: any): Promise<any[]> {
-    log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-
+  public async getLogs(ovmFilter: any): Promise<any[]> {
+    log.debug(`Requesting logs with filter [${JSON.stringify(ovmFilter)}].`)
+    const filter = JSON.parse(JSON.stringify(ovmFilter))
     if (filter['address']) {
       const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
         filter.address
@@ -479,7 +479,12 @@ export class DefaultWeb3Handler
         const transaction = await this.getTransactionByHash(
           logItem['transactionHash']
         )
+        if (transaction['to'] === null) {
+          const receipt = await this.getTransactionReceipt(transaction.hash)
+          transaction['to'] = receipt.contractAddress
+        }
         logItem['address'] = transaction['to']
+
         return logItem
       })
     )
