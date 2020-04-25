@@ -183,6 +183,7 @@ describe('Web3Handler', () => {
     describe('EVM reversion handling', async () => {
       let wallet
       let simpleReversion
+      const solidityRevertMessage = 'trolololo'
       beforeEach(async () => {
         wallet = getWallet(httpProvider)
         const factory = new ContractFactory(
@@ -192,13 +193,12 @@ describe('Web3Handler', () => {
         )
         simpleReversion = await factory.deploy()
       })
-      it('Should propogate generic internal EVM reverts upwards for sendRawTransaction', async () => {
+      it('Should propogate generic internal EVM reverts upwards for eth_sendRawTransaction', async () => {
         await assertAsyncThrowsWithMessage(async () => {
           await simpleReversion.doRevert()
         }, EVM_REVERT_MSG)
       })
-      it('Should propogate solidity require messages upwards for sendRawTransaction', async () => {
-        const solidityRevertMessage = 'trolololo'
+      it('Should propogate solidity require messages upwards for eth_sendRawTransaction', async () => {
         await assertAsyncThrowsWithMessage(async () => {
           await simpleReversion.doRevertWithMessage(solidityRevertMessage)
         }, EVM_REVERT_MSG + ' ' + solidityRevertMessage)
@@ -225,6 +225,16 @@ describe('Web3Handler', () => {
         const receipt = await httpProvider.getTransactionReceipt(txHash)
         receipt.from.should.equal(wallet.address)
         receipt.to.should.equal(simpleReversion.address)
+      })
+      it('Should propogate generic EVM reverts for eth_call', async () => {
+        await assertAsyncThrowsWithMessage(async () => {
+          await simpleReversion.doRevertPure()
+        }, EVM_REVERT_MSG)
+      })
+      it('Should propogate custom message EVM reverts for eth_call', async () => {
+        await assertAsyncThrowsWithMessage(async () => {
+          await simpleReversion.doRevertWithMessagePure(solidityRevertMessage)
+        }, EVM_REVERT_MSG + ' ' + solidityRevertMessage)
       })
     })
 

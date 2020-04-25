@@ -43,7 +43,7 @@ import {
   Web3RpcMethods,
   RevertError,
 } from '../types'
-import { initializeL2Node, getCurrentTime } from './utils'
+import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
@@ -242,10 +242,17 @@ export class DefaultWeb3Handler
       ])
     } catch (e) {
       log.debug(
-        `Error executing call: ${JSON.stringify(
+        `Internal error executing call: ${JSON.stringify(
           txObject
         )}, default block: ${defaultBlock}, error: ${JSON.stringify(e)}`
       )
+      console.log('here')
+      if (isErrorEVMRevert(e)) {
+        log.debug(
+          `Internal error appears to be an EVM revert, surfacing revert message up...`
+        )
+        throw new RevertError(e.message as string)
+      }
       throw e
     }
 
@@ -645,16 +652,20 @@ export class DefaultWeb3Handler
         [internalTx]
       )
     } catch (e) {
+      if (isErrorEVMRevert(e)) {
+        log.debug(
+          `Internal EVM revert for Ovm tx hash: ${ovmTxHash} and internal hash: ${internalTxHash}.  Incrementing nonce Incrementing nonce for sender (${ovmTx.from}) and surfacing revert message up...`
+        )
+        await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
+        log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
+        throw new RevertError(e.message as string)
+      }
       logError(
         log,
-        `Error executing internal transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
+        `Non-revert error executing internal transaction! Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}. Returning generic internal error.`,
         e
       )
-
-      await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
-      log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
-
-      throw new RevertError(e.message as string)
+      throw e
     }
 
     if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
