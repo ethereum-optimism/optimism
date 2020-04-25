@@ -1,16 +1,15 @@
 /* External Imports */
 import {
-  add0x,
   getLogger,
   numberToHexString,
   castToNumber,
-  rlpEncodeTransaction,
+  rlpEncodeTransactionWithRandomSig,
 } from '@eth-optimism/core-utils'
-import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
-import { utils } from 'ethers'
+import { GAS_LIMIT } from '@eth-optimism/ovm'
+import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
-import { initializeL2Node } from '../index'
+import { latestBlock } from './index'
 import { DefaultWeb3Handler } from './web3-rpc-handler'
 import {
   L2NodeContext,
@@ -18,7 +17,7 @@ import {
   UnsupportedMethodError,
   Web3RpcMethods,
 } from '../../types'
-import { getCurrentTime } from '../utils'
+import { getCurrentTime, initializeL2Node } from '../utils'
 import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('test-web3-handler')
@@ -138,8 +137,24 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    *
    * @param The transaction to send
    */
-  public async sendTransaction(ovmTx: object): Promise<string> {
-    return this.sendRawTransaction(rlpEncodeTransaction(ovmTx))
+  public async sendTransaction(ovmTx: any): Promise<string> {
+    if (!ovmTx.nonce) {
+      ovmTx.nonce = await this.getTransactionCount(ovmTx.from, latestBlock)
+    }
+    if (!ovmTx.to) {
+      ovmTx.to = '0x'
+    }
+    if (!ovmTx.gasPrice) {
+      ovmTx.gasPrice = 0
+    }
+    if (!ovmTx.gasLimit) {
+      ovmTx.gasLimit = GAS_LIMIT
+    }
+    ovmTx.value = 0
+    return this.sendRawTransaction(
+      rlpEncodeTransactionWithRandomSig(ovmTx),
+      ovmTx.from
+    )
   }
 
   /**

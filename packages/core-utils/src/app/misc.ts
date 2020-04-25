@@ -291,16 +291,21 @@ export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
 }
 /**
- * Encodes a transaction in RLP format
+ * Encodes a transaction in RLP format, using a random signature
  * @param {object} Transaction object
  */
-export const rlpEncodeTransaction = (transaction: object): string => {
+export const rlpEncodeTransactionWithRandomSig = (
+  transaction: object
+): string => {
   return RLP.encode([
     hexlify(transaction['nonce']),
     hexlify(transaction['gasPrice']),
     hexlify(transaction['gasLimit']),
     hexlify(transaction['to']),
     hexlify(transaction['value']),
-    transaction['data'],
+    hexlify(transaction['data']),
+    '0x11', // v
+    '0x' + '11'.repeat(32), // r
+    '0x' + '11'.repeat(32), // s
   ])
 }

@@ -47,7 +47,7 @@ import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('web3-handler')
 
-const latestBlock: string = 'latest'
+export const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
@@ -574,15 +574,22 @@ export class DefaultWeb3Handler
     return response
   }
 
-  public async sendRawTransaction(rawOvmTx: string): Promise<string> {
+  public async sendRawTransaction(
+    rawOvmTx: string,
+    fromAddressOverride?: string
+  ): Promise<string> {
     const debugTime = new Date().getTime()
     const blockTimestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)
 
     // Decode the OVM transaction -- this will be used to construct our internal transaction
     const ovmTx = utils.parseTransaction(rawOvmTx)
+    // override the from address if in testing mode
+    if (!!fromAddressOverride) {
+      ovmTx.from = fromAddressOverride
+    }
     log.debug(
-      `OVM Transaction being parsed ${rawOvmTx}, parsed: ${JSON.stringify(
+      `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
         ovmTx
       )}`
     )
@@ -873,7 +880,6 @@ export class DefaultWeb3Handler
       )
       throw new Error('Non-EOA transaction detected')
     }
-    // TODO: Make sure we lock this function with this nonce so we don't send to txs with the same nonce
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
