@@ -7,7 +7,7 @@ import { FullnodeHandler, L2ToL1MessageSubmitter } from '../../types'
 import { Web3Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import { DefaultWeb3Handler } from '../web3-rpc-handler'
+import { DefaultWeb3Handler } from '../handler/web3-rpc-handler'
 import { FullnodeRpcServer } from '../fullnode-rpc-server'
 import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 

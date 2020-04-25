@@ -41,9 +41,9 @@ import {
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
-} from '../types'
-import { initializeL2Node, getCurrentTime } from './utils'
-import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
+} from '../../types'
+import { initializeL2Node, getCurrentTime } from '../utils'
+import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('web3-handler')
 
@@ -60,11 +60,13 @@ export class DefaultWeb3Handler
    *
    * @param messageSubmitter The messageSubmitter to use to pass messages to L1. Will be replaced by block submitter.
    * @param web3Provider (optional) The web3 provider to use.
+   * @param l2NodeContext (optional) The L2NodeContext to use.
    * @returns The constructed Web3 handler.
    */
   public static async create(
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
-    web3Provider?: JsonRpcProvider
+    web3Provider?: JsonRpcProvider,
+    l2NodeContext?: L2NodeContext
   ): Promise<DefaultWeb3Handler> {
     log.info(
       `Creating Web3 Handler with provider: ${
@@ -75,10 +77,11 @@ export class DefaultWeb3Handler
     )
 
     const timestamp = getCurrentTime()
-    const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
+    const nodeContext: L2NodeContext =
+      l2NodeContext || (await initializeL2Node(web3Provider))
 
-    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
-    const blockNumber = await l2NodeContext.provider.getBlockNumber()
+    const handler = new DefaultWeb3Handler(messageSubmitter, nodeContext)
+    const blockNumber = await nodeContext.provider.getBlockNumber()
     handler.blockTimestamps[blockNumber] = timestamp
     return handler
   }

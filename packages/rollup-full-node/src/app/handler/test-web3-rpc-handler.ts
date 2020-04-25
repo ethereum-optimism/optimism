@@ -10,16 +10,16 @@ import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 import { utils } from 'ethers'
 
 /* Internal Imports */
-import { initializeL2Node } from './index'
+import { initializeL2Node } from '../index'
 import { DefaultWeb3Handler } from './web3-rpc-handler'
 import {
   L2NodeContext,
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3RpcMethods,
-} from '../types'
-import { getCurrentTime } from './utils'
-import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
+} from '../../types'
+import { getCurrentTime } from '../utils'
+import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('test-web3-handler')
 
@@ -38,14 +38,17 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    *
    * @param messageSubmitter (optional) The L2MessageSubmitter to use.
    * @param provider (optional) The web3 provider to use.
+   * @param l2NodeContext (optional) The L2NodeContext to use.
    * @returns The constructed Web3 handler.
    */
   public static async create(
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
-    provider?: JsonRpcProvider
+    provider?: JsonRpcProvider,
+    l2NodeContext?: L2NodeContext
   ): Promise<TestWeb3Handler> {
     const timestamp = getCurrentTime()
-    const context: L2NodeContext = await initializeL2Node(provider)
+    const context: L2NodeContext =
+      l2NodeContext || (await initializeL2Node(provider))
     const blockNumber = await context.provider.getBlockNumber()
     const handler = new TestWeb3Handler(messageSubmitter, context)
     handler.blockTimestamps[numberToHexString(blockNumber)] = timestamp

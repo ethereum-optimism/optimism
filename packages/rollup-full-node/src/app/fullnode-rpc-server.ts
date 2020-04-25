@@ -65,6 +65,7 @@ export class FullnodeRpcServer extends ExpressHttpServer {
     inBatchRequest: boolean = false
   ): Promise<JsonRpcResponse | JsonRpcResponse[]> {
     let request: JsonRpcRequest
+
     try {
       request = req.body
       if (Array.isArray(request) && !inBatchRequest) {
@@ -85,9 +86,11 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         return buildJsonRpcError('INVALID_REQUEST', null)
       }
 
+      const sourceIpAddress = FullnodeRpcServer.getIpAddressFromRequest(req)
       const result = await this.fullnodeHandler.handleRequest(
         request.method,
-        request.params
+        request.params,
+        sourceIpAddress
       )
       return {
         id: request.id,
@@ -125,5 +128,18 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         request && request.id ? request.id : null
       )
     }
+  }
+
+  private static getIpAddressFromRequest(req: any): string {
+    if (!!req.ip) {
+      return req.ip
+    }
+    if (!!req.headers && !!req.headers['x-forwarded-for']) {
+      return req.headers['x-forwarded-for']
+    }
+    if (!!req.connection && !!req.connection.remoteAddress) {
+      return req.connection.remoteAddress
+    }
+    return undefined
   }
 }

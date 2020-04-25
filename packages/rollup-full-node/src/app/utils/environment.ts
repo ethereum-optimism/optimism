@@ -12,7 +12,47 @@ export class Environment {
     return process.env.CLEAR_DATA_KEY || defaultValue
   }
 
-  // L2 Rpc Server Config
+  // Server Type Config
+  public static isRoutingServer(defaultValue?: boolean) {
+    return !!process.env.IS_READ_ONLY_NODE || defaultValue
+  }
+  public static isTranasactionNode(defaultValue?: boolean) {
+    return !!process.env.IS_TRANSACTION_NODE || defaultValue
+  }
+  public static isReadOnlyNode(defaultValue?: boolean) {
+    return !!process.env.IS_READ_ONLY_NODE || defaultValue
+  }
+
+  // Routing Server Config
+  public static transactionNodeUrl(defaultValue?: string) {
+    return process.env.TRANSACTION_NODE_URL || defaultValue
+  }
+  public static readOnlyNodeUrl(defaultValue?: string) {
+    return process.env.READ_ONLY_NODE_URL || defaultValue
+  }
+  public static maxNonTransactionRequestsPerUnitTime(defaultValue?: number) {
+    return process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME
+      ? parseInt(process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME, 10)
+      : defaultValue
+  }
+  public static maxTransactionsPerUnitTime(defaultValue?: number) {
+    return process.env.MAX_TRANSACTIONS_PER_UNIT_TIME
+      ? parseInt(process.env.MAX_TRANSACTIONS_PER_UNIT_TIME, 10)
+      : defaultValue
+  }
+  public static requestLimitPeriodMillis(defaultValue?: number) {
+    return process.env.REQUEST_LIMIT_PERIOD_MILLIS
+      ? parseInt(process.env.REQUEST_LIMIT_PERIOD_MILLIS, 10)
+      : defaultValue
+  }
+  public static contractDeployerAddress(defaultValue?: string) {
+    return process.env.CONTRACT_DEPLOYER_ADDRESS || defaultValue
+  }
+  public static commaSeparatedToAddressWhitelist(defaultValue?: string) {
+    return process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST || defaultValue
+  }
+
+  // L2 RPC Server Config
   public static l2RpcServerPersistentDbPath(defaultValue?: string) {
     return process.env.L2_RPC_SERVER_PERSISTENT_DB_PATH || defaultValue
   }
@@ -23,6 +63,9 @@ export class Environment {
     return process.env.L2_RPC_SERVER_PORT
       ? parseInt(process.env.L2_RPC_SERVER_PORT, 10)
       : defaultValue
+  }
+  public static noL1Node(defaultValue?: boolean) {
+    return !!process.env.NO_L1_NODE || defaultValue
   }
 
   // Local Node Config
