@@ -246,7 +246,6 @@ export class DefaultWeb3Handler
           txObject
         )}, default block: ${defaultBlock}, error: ${JSON.stringify(e)}`
       )
-      console.log('here')
       if (isErrorEVMRevert(e)) {
         log.debug(
           `Internal error appears to be an EVM revert, surfacing revert message up...`
