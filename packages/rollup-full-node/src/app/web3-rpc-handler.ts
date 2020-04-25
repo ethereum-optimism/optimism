@@ -375,7 +375,7 @@ export class DefaultWeb3Handler
                   ? ovmTx[key].toNumber()
                   : ovmTx[key]
               }
-              if(typeof transaction[key] === 'number') {
+              if (typeof transaction[key] === 'number') {
                 transaction[key] = numberToHexString(transaction[key])
               }
             })
