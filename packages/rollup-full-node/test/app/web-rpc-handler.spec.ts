@@ -344,9 +344,7 @@ describe('Web3Handler', () => {
           eventEmitter.deployTransaction.hash
         )
         const tx = await eventEmitter.emitEvent(executionManagerAddress)
-        await wallet.provider.getTransactionReceipt(
-                  tx.hash
-                )
+        await wallet.provider.getTransactionReceipt(tx.hash)
         const block = await httpProvider.send('eth_getBlockByNumber', [
           'latest',
           true,
