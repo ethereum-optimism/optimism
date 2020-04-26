@@ -39,8 +39,9 @@ import {
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
+  RevertError,
 } from '../../types'
-import { initializeL2Node, getCurrentTime } from '../utils'
+import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from '../utils'
 import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('web3-handler')
@@ -246,10 +247,16 @@ export class DefaultWeb3Handler
       ])
     } catch (e) {
       log.debug(
-        `Error executing call: ${JSON.stringify(
+        `Internal error executing call: ${JSON.stringify(
           txObject
         )}, default block: ${defaultBlock}, error: ${JSON.stringify(e)}`
       )
+      if (isErrorEVMRevert(e)) {
+        log.debug(
+          `Internal error appears to be an EVM revert, surfacing revert message up...`
+        )
+        throw new RevertError(e.message as string)
+      }
       throw e
     }
 
@@ -380,6 +387,9 @@ export class DefaultWeb3Handler
                   ? ovmTx[key].toNumber()
                   : ovmTx[key]
               }
+              if (typeof transaction[key] === 'number') {
+                transaction[key] = numberToHexString(transaction[key])
+              }
             })
 
             return transaction
@@ -460,9 +470,9 @@ export class DefaultWeb3Handler
     return this.context.executionManager.address
   }
 
-  public async getLogs(filter: any): Promise<any[]> {
-    log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-
+  public async getLogs(ovmFilter: any): Promise<any[]> {
+    log.debug(`Requesting logs with filter [${JSON.stringify(ovmFilter)}].`)
+    const filter = JSON.parse(JSON.stringify(ovmFilter))
     if (filter['address']) {
       const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
         filter.address
@@ -472,8 +482,28 @@ export class DefaultWeb3Handler
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,
     ])
-    const logs = convertInternalLogsToOvmLogs(res)
+
+    let logs = JSON.parse(JSON.stringify(convertInternalLogsToOvmLogs(res)))
     log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    logs = await Promise.all(
+      logs.map(async (logItem, index) => {
+        logItem['logIndex'] = numberToHexString(index)
+        logItem['transactionHash'] = await this.getOvmTxHash(
+          logItem['transactionHash']
+        )
+        const transaction = await this.getTransactionByHash(
+          logItem['transactionHash']
+        )
+        if (transaction['to'] === null) {
+          const receipt = await this.getTransactionReceipt(transaction.hash)
+          transaction['to'] = receipt.contractAddress
+        }
+        logItem['address'] = transaction['to']
+
+        return logItem
+      })
+    )
+
     return logs
   }
 
@@ -541,18 +571,42 @@ export class DefaultWeb3Handler
       return null
     }
 
-    // Now let's parse the internal transaction reciept
-    const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-      internalTxReceipt,
-      ovmTxHash
+    log.debug(
+      `Converting internal tx receipt to ovm receipt, internal receipt is:`,
+      internalTxReceipt
     )
+
+    // if there are no logs, the tx must have failed, as the Execution Mgr always logs stuff
+    const txSucceeded: boolean = internalTxReceipt.logs.length !== 0
+    let ovmTxReceipt
+    if (txSucceeded) {
+      log.debug(
+        `The internal tx previously succeeded for this OVM tx, converting internal receipt to OVM receipt...`
+      )
+      ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
+        internalTxReceipt,
+        ovmTxHash
+      )
+    } else {
+      log.debug(
+        `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
+      )
+    }
+    const ovmTx = await this.getTransactionByHash(ovmTxReceipt.transactionHash)
+    log.debug(`got OVM tx from hash: [${JSON.stringify(ovmTx)}]`)
+    ovmTxReceipt.to = ovmTx.to ? ovmTx.to : ovmTxReceipt.to
+    ovmTxReceipt.from = ovmTx.from
+
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
+    }
+    if (typeof ovmTxReceipt.status === 'number') {
+      ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
     }
 
     log.debug(
       `Returning tx receipt for ovm tx hash [${ovmTxHash}]: [${JSON.stringify(
-        internalTxReceipt
+        ovmTxReceipt
       )}]`
     )
     return ovmTxReceipt
@@ -616,11 +670,6 @@ export class DefaultWeb3Handler
       // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
       await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
 
-      log.debug(
-        `Stored OVM tx hash ${ovmTxHash} mapping. Elapsed time: ${new Date().getTime() -
-          debugTime}ms`
-      )
-
       let returnedInternalTxHash: string
       try {
         // Then apply our transaction
@@ -629,16 +678,20 @@ export class DefaultWeb3Handler
           [internalTx]
         )
       } catch (e) {
+        if (isErrorEVMRevert(e)) {
+          log.debug(
+            `Internal EVM revert for Ovm tx hash: ${ovmTxHash} and internal hash: ${internalTxHash}.  Incrementing nonce Incrementing nonce for sender (${ovmTx.from}) and surfacing revert message up...`
+          )
+          await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
+          log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
+          throw new RevertError(e.message as string)
+        }
         logError(
           log,
-          `Error executing transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
+          `Non-revert error executing internal transaction! Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}. Returning generic internal error.`,
           e
         )
-
-        await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
-        log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
-
-        return ovmTxHash
+        throw e
       }
 
       if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
@@ -727,7 +780,7 @@ export class DefaultWeb3Handler
       )
       throw e
     }
-    log.debug(`L1 to L2 Transaction mined. Tx hash: ${receipt.hash}`)
+    log.debug(`L1 to L2 Transaction applied to L2. Tx hash: ${receipt.hash}`)
 
     try {
       const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
@@ -827,7 +880,7 @@ export class DefaultWeb3Handler
       .waitForTransaction(res.hash)
       .then((receipt) => {
         log.debug(
-          `Got receipt mapping ${ovmTxHash} to ${internalTxHash}: ${JSON.stringify(
+          `Got receipt mapping ovm tx hash ${ovmTxHash} to internal tx hash ${internalTxHash}: ${JSON.stringify(
             receipt
           )}`
         )
@@ -921,7 +974,7 @@ export class DefaultWeb3Handler
       ovmTx.data,
       ovmFrom,
       ZERO_ADDRESS,
-      false
+      true
     )
 
     log.debug(`EOA calldata: [${internalCalldata}]`)

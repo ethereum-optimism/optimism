@@ -1,4 +1,4 @@
-name: Build & Tag Container, Push to ECR, Deploy to UAT
+name: Build & Tag Container, Push to ECR, Deploy to prod
 
 on:
   push:
@@ -28,17 +28,17 @@ jobs:
       - name: Build, tag, and push Geth to ECR
         env:
           AWS_ACCOUNT_NUMBER: ${{ secrets.AWS_CI_AWS_ACCOUNT_ID }}
-        run: ./docker/publish-geth-container.sh synthetix-uat
+        run: ./docker/publish-geth-container.sh synthetix-prod
 
       - name: Build, tag, and push Full Node to ECR
         env:
           AWS_ACCOUNT_NUMBER: ${{ secrets.AWS_CI_AWS_ACCOUNT_ID }}
-        run: ./docker/publish-rollup-fullnode-container.sh synthetix-uat
+        run: ./docker/publish-rollup-fullnode-container.sh synthetix-prod
 
       - name: Stop existing ECS tasks to auto-start task with new image
         run: |
-          ./.github/scripts/stop-ecs-task.sh synthetix-uat-web synthetix-prod-web
-          ./.github/scripts/stop-ecs-task.sh synthetix-uat-geth synthetix-prod-geth
+          ./.github/scripts/stop-ecs-task.sh synthetix-prod-web synthetix-prod-web
+          ./.github/scripts/stop-ecs-task.sh synthetix-prod-geth synthetix-prod-geth
 
 
       - name: Logout of Amazon ECR
