@@ -10,7 +10,7 @@ import {
 import { TransactionReceipt } from 'ethers/providers'
 import {
   convertInternalLogsToOvmLogs,
-  getOvmTransactionMetadata,
+  getSuccessfulOvmTransactionMetadata,
   OvmTransactionMetadata,
   revertMessagePrefix,
 } from '../../src/app'
@@ -43,13 +43,17 @@ describe('convertInternalLogsToOvmLogs', () => {
   })
 })
 
-describe('getOvmTransactionMetadata', () => {
+describe('getSuccessfulOvmTransactionMetadata', () => {
   it('should return transaction metadata from calls from externally owned accounts', async () => {
     const transactionReceipt: TransactionReceipt = {
       byzantium: true,
       logs: [
         [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [ALICE]],
-        [EXECUTION_MANAGER_ADDRESS, 'CallingWithEOA(address)', [ALICE]],
+        [
+          EXECUTION_MANAGER_ADDRESS,
+          'CallingWithEOA(address,address)',
+          [ALICE, CONTRACT],
+        ],
         [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [ALICE]],
         [EXECUTION_MANAGER_ADDRESS, 'EOACreatedContract(address)', [CONTRACT]],
         [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [CONTRACT]],
@@ -61,33 +65,11 @@ describe('getOvmTransactionMetadata', () => {
       ].map((args) => buildLog.apply(null, args)),
     }
 
-    getOvmTransactionMetadata(transactionReceipt).should.deep.eq({
+    getSuccessfulOvmTransactionMetadata(transactionReceipt).should.deep.eq({
       ovmCreatedContractAddress: CONTRACT,
       ovmFrom: ALICE,
       ovmTo: CONTRACT,
       ovmTxSucceeded: true,
     })
-  })
-
-  it('should return with ovmTxSucceeded equal to false if the transaction reverted', async () => {
-    const revertMessage: string = 'The tx reverted!'
-    const msgHex: string = add0x(
-      Buffer.from(revertMessage, 'utf8').toString('hex')
-    )
-    const encodedMessage: string = abi.encode(['bytes'], [msgHex])
-    // needs 4 bytes of sighash
-    const eventData: string = add0x('ab'.repeat(4) + remove0x(encodedMessage))
-    const transactionReceipt: TransactionReceipt = {
-      byzantium: true,
-      logs: [
-        [EXECUTION_MANAGER_ADDRESS, 'EOACallRevert(bytes)', [eventData]],
-      ].map((args) => buildLog.apply(null, args)),
-    }
-
-    const metadata: OvmTransactionMetadata = getOvmTransactionMetadata(
-      transactionReceipt
-    )
-    metadata.ovmTxSucceeded.should.eq(false)
-    metadata.revertMessage.should.eq(revertMessagePrefix + revertMessage)
   })
 })
