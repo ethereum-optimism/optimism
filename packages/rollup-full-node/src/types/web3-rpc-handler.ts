@@ -46,7 +46,6 @@ export enum Web3RpcMethods {
   getTransactionCount = 'eth_getTransactionCount',
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',
-  sendTransaction = 'eth_sendTransaction',
   sendRawTransaction = 'eth_sendRawTransaction',
   chainId = 'eth_chainId',
 
@@ -56,6 +55,7 @@ export enum Web3RpcMethods {
   revert = 'evm_revert',
   mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
+  sendTransaction = 'eth_sendTransaction',
 }
 
 export const allWeb3RpcMethodsIncludingTest = Object.values(Web3RpcMethods)
@@ -65,6 +65,7 @@ export const testWeb3RpcMethods = Object.values([
   Web3RpcMethods.revert,
   Web3RpcMethods.mine,
   Web3RpcMethods.increaseTimestamp,
+  Web3RpcMethods.sendTransaction,
 ])
 export const web3RpcMethodsExcludingTest = allWeb3RpcMethodsIncludingTest.filter(
   (x) => testWeb3RpcMethods.indexOf(x) < 0

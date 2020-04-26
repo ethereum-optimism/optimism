@@ -17,6 +17,7 @@ import { AccountRateLimiter } from '../utils'
 const log = getLogger('routing-handler')
 
 const methodsToRouteWithTransactionHandler: string[] = [
+  Web3RpcMethods.sendTransaction,
   Web3RpcMethods.sendRawTransaction,
   Web3RpcMethods.getTransactionByHash,
   Web3RpcMethods.getBlockByNumber,
@@ -86,10 +87,7 @@ export class RoutingHandler implements FullnodeHandler {
     )
 
     let tx: Transaction
-    if (
-      method === Web3RpcMethods.sendTransaction ||
-      method === Web3RpcMethods.sendRawTransaction
-    ) {
+    if (method === Web3RpcMethods.sendRawTransaction) {
       try {
         tx = parseTransaction(params[0])
       } catch (e) {
