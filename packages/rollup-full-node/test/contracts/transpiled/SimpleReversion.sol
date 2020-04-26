@@ -10,7 +10,7 @@ contract SimpleReversion {
     function doRevertPure() public pure {
         revert();
     }
-        function doRevertWithMessagePure(string memory _message) public pure {
+    function doRevertWithMessagePure(string memory _message) public pure {
         require(false, _message);
     }
 }
