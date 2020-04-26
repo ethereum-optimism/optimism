@@ -4,13 +4,15 @@ import {
   getLogger,
   numberToHexString,
   castToNumber,
-  rlpEncodeTransaction,
+  rlpEncodeTransactionWithRandomSig,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
+import { GAS_LIMIT } from '@eth-optimism/ovm'
 import { JsonRpcProvider, Web3Provider } from 'ethers/providers'
 import { utils } from 'ethers'
 
 /* Internal Imports */
-import { initializeL2Node } from './index'
+import { initializeL2Node, latestBlock } from './index'
 import { DefaultWeb3Handler } from './web3-rpc-handler'
 import {
   L2NodeContext,
@@ -135,8 +137,24 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
    *
    * @param The transaction to send
    */
-  public async sendTransaction(ovmTx: object): Promise<string> {
-    return this.sendRawTransaction(rlpEncodeTransaction(ovmTx))
+  public async sendTransaction(ovmTx: any): Promise<string> {
+    if (!ovmTx.nonce) {
+      ovmTx.nonce = await this.getTransactionCount(ovmTx.from, latestBlock)
+    }
+    if (!ovmTx.to) {
+      ovmTx.to = '0x'
+    }
+    if (!ovmTx.gasPrice) {
+      ovmTx.gasPrice = 0
+    }
+    if (!ovmTx.gasLimit) {
+      ovmTx.gasLimit = GAS_LIMIT
+    }
+    ovmTx.value = 0
+    return this.sendRawTransaction(
+      rlpEncodeTransactionWithRandomSig(ovmTx),
+      ovmTx.from
+    )
   }
 
   /**

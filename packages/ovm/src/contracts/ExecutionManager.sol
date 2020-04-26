@@ -47,7 +47,8 @@ contract ExecutionManager is FullStateManager {
         bytes32 _codeContractHash
     );
     event CallingWithEOA(
-        address _ovmFromAddress
+        address _ovmFromAddress,
+        address _ovmToAddress
     );
     event EOACreatedContract(
         address _ovmContractAddress
@@ -137,7 +138,10 @@ contract ExecutionManager is FullStateManager {
         require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
         // Require nonce to be correct
         require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
-        emit CallingWithEOA(eoaAddress);
+        emit CallingWithEOA(
+            eoaAddress,
+            _ovmEntrypoint
+        );
         // Make the EOA call for the account
         executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
     }

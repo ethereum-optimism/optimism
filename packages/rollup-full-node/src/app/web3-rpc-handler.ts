@@ -41,13 +41,14 @@ import {
   UnsupportedMethodError,
   Web3Handler,
   Web3RpcMethods,
+  RevertError,
 } from '../types'
-import { initializeL2Node, getCurrentTime } from './utils'
+import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
 
-const latestBlock: string = 'latest'
+export const latestBlock: string = 'latest'
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
@@ -241,10 +242,16 @@ export class DefaultWeb3Handler
       ])
     } catch (e) {
       log.debug(
-        `Error executing call: ${JSON.stringify(
+        `Internal error executing call: ${JSON.stringify(
           txObject
         )}, default block: ${defaultBlock}, error: ${JSON.stringify(e)}`
       )
+      if (isErrorEVMRevert(e)) {
+        log.debug(
+          `Internal error appears to be an EVM revert, surfacing revert message up...`
+        )
+        throw new RevertError(e.message as string)
+      }
       throw e
     }
 
@@ -559,14 +566,41 @@ export class DefaultWeb3Handler
       return null
     }
 
-    // Now let's parse the internal transaction reciept
-    const ovmTxReceipt: any = await internalTxReceiptToOvmTxReceipt(
-      internalTxReceipt,
-      ovmTxHash
+    log.debug(
+      `Converting internal tx receipt to ovm receipt, internal receipt is:`,
+      internalTxReceipt
     )
+
+    // if there are no logs, the tx must have failed, as the Execution Mgr always logs stuff
+    const txSucceeded: boolean = internalTxReceipt.logs.length !== 0
+    let ovmTxReceipt
+    if (txSucceeded) {
+      log.debug(
+        `The internal tx previously succeeded for this OVM tx, converting internal receipt to OVM receipt...`
+      )
+      ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
+        internalTxReceipt,
+        ovmTxHash
+      )
+    } else {
+      log.debug(
+        `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
+      )
+      const rawOvmTx = await this.getOvmTransactionByHash(ovmTxHash)
+      const ovmTx = utils.parseTransaction(rawOvmTx)
+      // for a failing tx, everything is identical between the internal and external receipts, except to and from
+      ovmTxReceipt = internalTxReceipt
+      ovmTxReceipt.from = ovmTx.from
+      ovmTxReceipt.to = ovmTx.to
+    }
+
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
+    if (typeof ovmTxReceipt.status === 'number') {
+      ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
+    }
+
     if (typeof ovmTxReceipt.status === 'number') {
       ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
     }
@@ -597,15 +631,22 @@ export class DefaultWeb3Handler
     return response
   }
 
-  public async sendRawTransaction(rawOvmTx: string): Promise<string> {
+  public async sendRawTransaction(
+    rawOvmTx: string,
+    fromAddressOverride?: string
+  ): Promise<string> {
     const debugTime = new Date().getTime()
     const blockTimestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)
 
     // Decode the OVM transaction -- this will be used to construct our internal transaction
     const ovmTx = utils.parseTransaction(rawOvmTx)
+    // override the from address if in testing mode
+    if (!!fromAddressOverride) {
+      ovmTx.from = fromAddressOverride
+    }
     log.debug(
-      `OVM Transaction being parsed ${rawOvmTx}, parsed: ${JSON.stringify(
+      `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
         ovmTx
       )}`
     )
@@ -633,16 +674,20 @@ export class DefaultWeb3Handler
         [internalTx]
       )
     } catch (e) {
+      if (isErrorEVMRevert(e)) {
+        log.debug(
+          `Internal EVM revert for Ovm tx hash: ${ovmTxHash} and internal hash: ${internalTxHash}.  Incrementing nonce Incrementing nonce for sender (${ovmTx.from}) and surfacing revert message up...`
+        )
+        await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
+        log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
+        throw new RevertError(e.message as string)
+      }
       logError(
         log,
-        `Error executing transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
+        `Non-revert error executing internal transaction! Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}. Returning generic internal error.`,
         e
       )
-
-      await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
-      log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
-
-      return ovmTxHash
+      throw e
     }
 
     if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
@@ -723,7 +768,7 @@ export class DefaultWeb3Handler
       )
       throw e
     }
-    log.debug(`L1 to L2 Transaction mined. Tx hash: ${receipt.hash}`)
+    log.debug(`L1 to L2 Transaction applied to L2. Tx hash: ${receipt.hash}`)
 
     try {
       const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
@@ -823,7 +868,7 @@ export class DefaultWeb3Handler
       .waitForTransaction(res.hash)
       .then((receipt) => {
         log.debug(
-          `Got receipt mapping ${ovmTxHash} to ${internalTxHash}: ${JSON.stringify(
+          `Got receipt mapping ovm tx hash ${ovmTxHash} to internal tx hash ${internalTxHash}: ${JSON.stringify(
             receipt
           )}`
         )
@@ -896,7 +941,6 @@ export class DefaultWeb3Handler
       )
       throw new Error('Non-EOA transaction detected')
     }
-    // TODO: Make sure we lock this function with this nonce so we don't send to txs with the same nonce
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
     const ovmTo = ovmTx.to === null ? ZERO_ADDRESS : ovmTx.to
@@ -918,7 +962,7 @@ export class DefaultWeb3Handler
       ovmTx.data,
       ovmFrom,
       ZERO_ADDRESS,
-      false
+      true
     )
 
     log.debug(`EOA calldata: [${internalCalldata}]`)

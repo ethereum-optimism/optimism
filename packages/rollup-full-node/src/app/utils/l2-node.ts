@@ -212,3 +212,17 @@ function getL2ToL1MessagePasserContract(wallet: Wallet): Contract {
     wallet
   )
 }
+
+/**
+ * Detects whether an internal L2 node error is due to an EVM revert or some other error
+ *
+ * @param e The error message reterned from either eth_sendRawTransaction or eth_call on the internal L2 node
+ * @returns Whether the error is an EVM revert error or some other issue.
+ */
+export function isErrorEVMRevert(e: any): boolean {
+  return (
+    !!e.results &&
+    !!Object.keys(e.results)[0] &&
+    e.results[Object.keys(e.results)[0]].error === 'revert'
+  )
+}
