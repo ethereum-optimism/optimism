@@ -8,7 +8,9 @@ import {
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
+  UnsupportedMethodError,
   Web3RpcMethods,
+  web3RpcMethodsExcludingTest,
 } from '../../types'
 import { AccountRateLimiter } from '../utils'
 
@@ -16,7 +18,6 @@ const log = getLogger('routing-handler')
 
 const methodsToRouteWithTransactionHandler: string[] = [
   Web3RpcMethods.sendRawTransaction,
-  Web3RpcMethods.sendTransaction,
   Web3RpcMethods.getTransactionByHash,
   Web3RpcMethods.getBlockByNumber,
   Web3RpcMethods.getBlockByHash,
@@ -42,7 +43,10 @@ export class RoutingHandler implements FullnodeHandler {
     maxTransactionsPerTimeUnit: number,
     requestLimitPeriodInMillis: number,
     private readonly deployAddress: Address,
-    private readonly toAddressWhitelist: Address[] = []
+    private readonly toAddressWhitelist: Address[] = [],
+    private readonly whitelistedMethods: Set<string> = new Set<string>(
+      web3RpcMethodsExcludingTest
+    )
   ) {
     this.readOnlyClient = new SimpleClient(readonlyHandlerUrl)
     this.transactionClient = new SimpleClient(transactionHandlerUrl)
@@ -80,8 +84,8 @@ export class RoutingHandler implements FullnodeHandler {
         params
       )}]`
     )
-    let tx: Transaction
 
+    let tx: Transaction
     if (
       method === Web3RpcMethods.sendTransaction ||
       method === Web3RpcMethods.sendRawTransaction
@@ -97,6 +101,15 @@ export class RoutingHandler implements FullnodeHandler {
       this.validateRateLimit(tx.from)
     } else {
       this.validateRateLimit(undefined, sourceIpAddress)
+    }
+
+    if (!this.whitelistedMethods.has(method)) {
+      log.debug(
+        `Received request for unsupported method: [${method}]. Supported methods: [${JSON.stringify(
+          this.whitelistedMethods
+        )}]`
+      )
+      throw new UnsupportedMethodError()
     }
 
     this.assertDestinationValid(tx)

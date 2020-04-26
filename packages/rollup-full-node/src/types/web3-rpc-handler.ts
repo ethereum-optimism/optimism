@@ -57,3 +57,15 @@ export enum Web3RpcMethods {
   mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
 }
+
+export const allWeb3RpcMethodsIncludingTest = Object.values(Web3RpcMethods)
+export const testWeb3RpcMethods = Object.values([
+  Web3RpcMethods.accounts,
+  Web3RpcMethods.snapshot,
+  Web3RpcMethods.revert,
+  Web3RpcMethods.mine,
+  Web3RpcMethods.increaseTimestamp,
+])
+export const web3RpcMethodsExcludingTest = allWeb3RpcMethodsIncludingTest.filter(
+  (x) => testWeb3RpcMethods.indexOf(x) < 0
+)
