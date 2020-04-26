@@ -5,6 +5,7 @@ import {
   getLogger,
   hexStrToBuf,
   bufToHexString,
+  numberToHexString,
   logError,
   remove0x,
   ZERO_ADDRESS,
@@ -69,7 +70,7 @@ export interface OvmTransactionMetadata {
  * @return the converted logs
  */
 export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
-  let activeContract = ZERO_ADDRESS
+  let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
   const ovmLogs = []
   logs.forEach((log) => {
     const executionManagerLog = executionManagerInterface.parseLog(log)
@@ -189,8 +190,6 @@ export const internalTxReceiptToOvmTxReceipt = async (
   if (ovmTransactionMetadata.ovmTo) {
     ovmTxReceipt.to = ovmTransactionMetadata.ovmTo
   }
-  // TODO: Update this to use some default account abstraction library potentially.
-  ovmTxReceipt.from = ovmTransactionMetadata.ovmFrom
   // Also update the contractAddress in case we deployed a new contract
   ovmTxReceipt.contractAddress = !!ovmTransactionMetadata.ovmCreatedContractAddress
     ? ovmTransactionMetadata.ovmCreatedContractAddress
@@ -208,9 +207,11 @@ export const internalTxReceiptToOvmTxReceipt = async (
 
   logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   const logsBloom = new BloomFilter()
-  ovmTxReceipt.logs.forEach((log) => {
+  ovmTxReceipt.logs.forEach((log, index) => {
     logsBloom.add(hexStrToBuf(log.address))
     log.topics.forEach((topic) => logsBloom.add(hexStrToBuf(topic)))
+    log.transactionHash = ovmTxReceipt.transactionHash
+    log.logIndex = numberToHexString(index) as any
   })
   ovmTxReceipt.logsBloom = bufToHexString(logsBloom.bitvector)
 

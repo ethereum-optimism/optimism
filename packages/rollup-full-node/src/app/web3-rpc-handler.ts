@@ -465,9 +465,9 @@ export class DefaultWeb3Handler
     return this.context.executionManager.address
   }
 
-  public async getLogs(filter: any): Promise<any[]> {
-    log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-
+  public async getLogs(ovmFilter: any): Promise<any[]> {
+    log.debug(`Requesting logs with filter [${JSON.stringify(ovmFilter)}].`)
+    const filter = JSON.parse(JSON.stringify(ovmFilter))
     if (filter['address']) {
       const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
         filter.address
@@ -477,8 +477,28 @@ export class DefaultWeb3Handler
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,
     ])
-    const logs = convertInternalLogsToOvmLogs(res)
+
+    let logs = JSON.parse(JSON.stringify(convertInternalLogsToOvmLogs(res)))
     log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    logs = await Promise.all(
+      logs.map(async (logItem, index) => {
+        logItem['logIndex'] = numberToHexString(index)
+        logItem['transactionHash'] = await this.getOvmTxHash(
+          logItem['transactionHash']
+        )
+        const transaction = await this.getTransactionByHash(
+          logItem['transactionHash']
+        )
+        if (transaction['to'] === null) {
+          const receipt = await this.getTransactionReceipt(transaction.hash)
+          transaction['to'] = receipt.contractAddress
+        }
+        logItem['address'] = transaction['to']
+
+        return logItem
+      })
+    )
+
     return logs
   }
 
@@ -566,18 +586,15 @@ export class DefaultWeb3Handler
       log.debug(
         `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
       )
-      const rawOvmTx = await this.getOvmTransactionByHash(ovmTxHash)
-      const ovmTx = utils.parseTransaction(rawOvmTx)
-      // for a failing tx, everything is identical between the internal and external receipts, except to and from
-      ovmTxReceipt = internalTxReceipt
-      ovmTxReceipt.from = ovmTx.from
-      ovmTxReceipt.to = ovmTx.to
     }
+    const ovmTx = await this.getTransactionByHash(ovmTxReceipt.transactionHash)
+    log.debug(`got OVM tx from hash: [${JSON.stringify(ovmTx)}]`)
+    ovmTxReceipt.to = ovmTx.to ? ovmTx.to : ovmTxReceipt.to
+    ovmTxReceipt.from = ovmTx.from
 
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
-
     if (typeof ovmTxReceipt.status === 'number') {
       ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
     }
