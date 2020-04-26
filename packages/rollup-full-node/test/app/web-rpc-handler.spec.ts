@@ -327,7 +327,7 @@ describe('Web3Handler', () => {
         hexStrToBuf(block.transactions[0]).length.should.eq(32)
       })
 
-      it('should return a block with the correct logsBloom', async () => {
+      it.only('should return a block with the correct logsBloom', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
           []
@@ -344,7 +344,9 @@ describe('Web3Handler', () => {
           eventEmitter.deployTransaction.hash
         )
         const tx = await eventEmitter.emitEvent(executionManagerAddress)
-
+        await wallet.provider.getTransactionReceipt(
+                  tx.hash
+                )
         const block = await httpProvider.send('eth_getBlockByNumber', [
           'latest',
           true,

@@ -586,21 +586,15 @@ export class DefaultWeb3Handler
       log.debug(
         `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
       )
-      const rawOvmTx = await this.getOvmTransactionByHash(ovmTxHash)
-      const ovmTx = utils.parseTransaction(rawOvmTx)
-      // for a failing tx, everything is identical between the internal and external receipts, except to and from
-      ovmTxReceipt = internalTxReceipt
-      ovmTxReceipt.from = ovmTx.from
-      ovmTxReceipt.to = ovmTx.to
     }
+    const ovmTx = await this.getTransactionByHash(ovmTxReceipt.transactionHash)
+    log.debug(`got OVM tx from hash: [${JSON.stringify(ovmTx)}]`)
+    ovmTxReceipt.to = ovmTx.to ? ovmTx.to : ovmTxReceipt.to
+    ovmTxReceipt.from = ovmTx.from
 
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
-    if (typeof ovmTxReceipt.status === 'number') {
-      ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
-    }
-
     if (typeof ovmTxReceipt.status === 'number') {
       ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
     }
