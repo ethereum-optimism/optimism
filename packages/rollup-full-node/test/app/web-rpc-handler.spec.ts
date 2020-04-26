@@ -9,7 +9,7 @@ import {
   ZERO_ADDRESS,
   hexStrToBuf,
 } from '@eth-optimism/core-utils'
-import { CHAIN_ID, convertInternalLogsToOvmLogs } from '@eth-optimism/ovm'
+import { CHAIN_ID } from '@eth-optimism/ovm'
 
 import {
   ethers,
