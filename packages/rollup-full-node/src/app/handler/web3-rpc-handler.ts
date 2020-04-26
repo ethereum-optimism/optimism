@@ -26,6 +26,7 @@ import {
   OvmTransactionReceipt,
 } from '@eth-optimism/ovm'
 
+import AsyncLock from 'async-lock'
 import { utils, Wallet } from 'ethers'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
@@ -45,11 +46,13 @@ import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 const log = getLogger('web3-handler')
 
 export const latestBlock: string = 'latest'
+const lockKey: string = 'LOCK'
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
   private readonly ovmHashToOvmTransactionCache: Object = {}
   protected blockTimestamps: Object = {}
+  private lock: AsyncLock
 
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -86,7 +89,9 @@ export class DefaultWeb3Handler
   protected constructor(
     protected readonly messageSubmitter: L2ToL1MessageSubmitter,
     protected readonly context: L2NodeContext
-  ) {}
+  ) {
+    this.lock = new AsyncLock()
+  }
 
   public getL2ToL1MessagePasserAddress(): Address {
     return this.context.l2ToL1MessagePasser.address
@@ -576,88 +581,106 @@ export class DefaultWeb3Handler
     fromAddressOverride?: string
   ): Promise<string> {
     const debugTime = new Date().getTime()
-    const blockTimestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)
-
-    // Decode the OVM transaction -- this will be used to construct our internal transaction
-    const ovmTx = utils.parseTransaction(rawOvmTx)
-    // override the from address if in testing mode
-    if (!!fromAddressOverride) {
-      ovmTx.from = fromAddressOverride
-    }
-    log.debug(
-      `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
-        ovmTx
-      )}`
-    )
-
-    // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
-    const internalTx = await this.ovmTxToInternalTx(ovmTx)
-    // Now compute the hash of the OVM transaction which we will return
-    const ovmTxHash = await utils.keccak256(rawOvmTx)
-    const internalTxHash = await utils.keccak256(internalTx)
-
-    log.debug(
-      `OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(
-        internalTx
-      )}`
-    )
-
-    // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
-    await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
-
-    let returnedInternalTxHash: string
-    try {
-      // Then apply our transaction
-      returnedInternalTxHash = await this.context.provider.send(
-        Web3RpcMethods.sendRawTransaction,
-        [internalTx]
-      )
-    } catch (e) {
-      logError(
-        log,
-        `Error executing transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
-        e
-      )
-
-      await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
-      log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
-
-      return ovmTxHash
-    }
-
-    if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
-      const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
-      log.error(msg)
-      throw Error(msg)
-    }
-
-    this.context.provider.waitForTransaction(internalTxHash).then(async () => {
-      const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
-        ovmTxHash,
-        true
-      )
+    return this.lock.acquire(lockKey, async () => {
       log.debug(
-        `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+        `Send tx lock acquired. Waited ${new Date().getTime() -
+          debugTime}ms for lock.`
       )
-      if (!receipt) {
-        log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
-        return
-      } else if (!receipt.status) {
-        log.debug(`Transaction reverted: ${rawOvmTx}`)
-      } else {
-        log.debug(`Transaction mined successfully: ${rawOvmTx}`)
-        await this.processTransactionEvents(receipt)
-      }
-      this.blockTimestamps[receipt.blockNumber] = blockTimestamp
-    })
+      const blockTimestamp = this.getTimestamp()
 
-    log.debug(
-      `Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]. Total time: ${new Date().getTime() -
-        debugTime}ms`
-    )
-    // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
-    return ovmTxHash
+      // Decode the OVM transaction -- this will be used to construct our internal transaction
+      const ovmTx = utils.parseTransaction(rawOvmTx)
+      // override the from address if in testing mode
+      if (!!fromAddressOverride) {
+        ovmTx.from = fromAddressOverride
+      }
+      log.debug(
+        `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
+          ovmTx
+        )}`
+      )
+
+      // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
+      const internalTx = await this.ovmTxToInternalTx(ovmTx)
+      // Now compute the hash of the OVM transaction which we will return
+      const ovmTxHash = await utils.keccak256(rawOvmTx)
+      const internalTxHash = await utils.keccak256(internalTx)
+
+      log.debug(
+        `OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(
+          internalTx
+        )}. Elapsed time: ${new Date().getTime() - debugTime}ms`
+      )
+
+      // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
+      await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
+
+      log.debug(
+        `Stored OVM tx hash ${ovmTxHash} mapping. Elapsed time: ${new Date().getTime() -
+          debugTime}ms`
+      )
+
+      let returnedInternalTxHash: string
+      try {
+        // Then apply our transaction
+        returnedInternalTxHash = await this.context.provider.send(
+          Web3RpcMethods.sendRawTransaction,
+          [internalTx]
+        )
+      } catch (e) {
+        logError(
+          log,
+          `Error executing transaction!\n\nIncrementing nonce for sender (${ovmTx.from} and returning failed tx hash. Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}.`,
+          e
+        )
+
+        await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
+        log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
+
+        return ovmTxHash
+      }
+
+      if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
+        const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
+        log.error(msg)
+        throw Error(msg)
+      }
+
+      log.debug(
+        `OVM tx with hash ${ovmTxHash} sent. Elapsed time: ${new Date().getTime() -
+          debugTime}ms`
+      )
+
+      this.context.provider
+        .waitForTransaction(internalTxHash)
+        .then(async () => {
+          const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
+            ovmTxHash,
+            true
+          )
+          log.debug(
+            `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+          )
+          if (!receipt) {
+            log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
+            return
+          } else if (!receipt.status) {
+            log.debug(`Transaction reverted: ${rawOvmTx}`)
+          } else {
+            log.debug(`Transaction mined successfully: ${rawOvmTx}`)
+            await this.processTransactionEvents(receipt)
+          }
+          this.blockTimestamps[receipt.blockNumber] = blockTimestamp
+        })
+
+      log.debug(
+        `Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]. Total time: ${new Date().getTime() -
+          debugTime}ms`
+      )
+      // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
+      return ovmTxHash
+    })
   }
 
   /**

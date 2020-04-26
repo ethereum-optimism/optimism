@@ -96,8 +96,8 @@ export class AccountRateLimiter {
    * @param addresses Whether or not to purge the address map.
    */
   private purgeStale(addresses: boolean = true): void {
-    let map
-    let set
+    let map: Map<string, TimeBucketedCounter>
+    let set: Set<string>
     if (addresses) {
       map = this.addressToRequestCounter
       set = this.requestingAddressesSinceLastPurge
@@ -111,5 +111,6 @@ export class AccountRateLimiter {
         map.delete(key)
       }
     })
+    set.clear()
   }
 }
