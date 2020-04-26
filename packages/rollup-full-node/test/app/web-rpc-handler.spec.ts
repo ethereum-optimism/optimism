@@ -203,6 +203,29 @@ describe('Web3Handler', () => {
           await simpleReversion.doRevertWithMessage(solidityRevertMessage)
         }, EVM_REVERT_MSG + ' ' + solidityRevertMessage)
       })
+      it('Should increment the nonce after a revert', async () => {
+        const beforeNonce = await httpProvider.getTransactionCount(
+          wallet.address
+        )
+        let didError = false
+        try {
+          await simpleReversion.doRevertWithMessage(solidityRevertMessage)
+        } catch (e) {
+          didError = true
+        }
+        didError.should.equal(
+          true,
+          'Expected doRevertWithMessage(...) to throw!'
+        )
+        const afterNonce = await httpProvider.getTransactionCount(
+          wallet.address
+        )
+
+        afterNonce.should.equal(
+          beforeNonce + 1,
+          'Expected the nonce to be incremented by 1!'
+        )
+      })
       it('Should serve receipts for reverting transactions', async () => {
         const revertingTx = {
           nonce: await wallet.getTransactionCount(),
