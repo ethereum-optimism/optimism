@@ -119,7 +119,13 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         )
         return buildJsonRpcError('INVALID_PARAMS', request.id)
       }
-      logError(log, `Uncaught exception at endpoint-level for request [${JSON.stringify(request)}]:`, err)
+      logError(
+        log,
+        `Uncaught exception at endpoint-level for request [${JSON.stringify(
+          request
+        )}]:`,
+        err
+      )
       return buildJsonRpcError(
         'INTERNAL_ERROR',
         request && request.id ? request.id : null
