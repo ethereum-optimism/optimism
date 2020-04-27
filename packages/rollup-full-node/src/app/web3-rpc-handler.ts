@@ -443,7 +443,7 @@ export class DefaultWeb3Handler
           defaultBlock
         )}] curentBlockNumber:[${curentBlockNumber}]`
       )
-      throw new Error(
+      throw new InvalidParametersError(
         `Historical code lookups aren't supported. Requested Block: ${hexStrToNumber(
           defaultBlock
         )} Current Block: ${curentBlockNumber}`
@@ -940,7 +940,7 @@ export class DefaultWeb3Handler
   private async ovmTxToInternalTx(ovmTx: any): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
-      throw new Error('Sending to Zero Address disallowed')
+      throw new InvalidParametersError('Sending to Zero Address disallowed')
     }
     // Get the nonce of the account that we will use to send everything
     // Note: + 1 because all transactions will have a tx hash mapping tx sent before them.
@@ -950,7 +950,7 @@ export class DefaultWeb3Handler
       log.error(
         'Transaction does not have a valid signature! For now we only support calls from EOAs'
       )
-      throw new Error('Non-EOA transaction detected')
+      throw new InvalidParametersError('Non-EOA transaction detected')
     }
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
