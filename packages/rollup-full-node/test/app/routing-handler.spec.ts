@@ -60,7 +60,7 @@ const getSignedTransaction = async (
   })
 }
 
-describe.only('Routing Handler', () => {
+describe('Routing Handler', () => {
   describe('Routing Tests', () => {
     const transactionResponse = 'transaction'
     const readOnlyResponse = 'read only'
