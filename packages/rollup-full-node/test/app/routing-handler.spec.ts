@@ -1,8 +1,5 @@
 /* External Imports */
-import {
-  SimpleClient,
-  TestUtils,
-} from '@eth-optimism/core-utils'
+import { SimpleClient, TestUtils } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
