@@ -6,7 +6,7 @@ services:
       - 8545:8545
     environment:
       - IS_ROUTING_SERVER=1
-      - STARTUP_WAIT_TIMEOUT=30
+      - STARTUP_WAIT_TIMEOUT=60
       - L2_RPC_SERVER_HOST
       - L2_RPC_SERVER_PORT=8545
       - TRANSACTION_NODE_URL=http://0.0.0.0:8546
@@ -14,6 +14,10 @@ services:
       - REQUEST_LIMIT_PERIOD_MILLIS=1000
       - MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME=50
       - MAX_TRANSACTIONS_PER_UNIT_TIME=10
+#     These are just so it waits for the downstream nodes to start up
+      - L2_NODE_WEB3_URL=http://0.0.0.0:8546
+      - L1_NODE_WEB3_URL=http://0.0.0.0:8547
+
     logging:
       driver: awslogs
       options:
@@ -39,7 +43,6 @@ services:
       - L2_NODE_WEB3_URL=http://synthetix-prod-geth.synthetix-prod:9545
       - L2_RPC_SERVER_HOST=0.0.0.0
       - L2_RPC_SERVER_PORT=8546
-      - L2_NODE_WEB3_URL=http://0.0.0.0:9545/
 
     logging:
       driver: awslogs

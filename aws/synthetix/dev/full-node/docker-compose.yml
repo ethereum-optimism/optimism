@@ -14,6 +14,9 @@ services:
       - REQUEST_LIMIT_PERIOD_MILLIS=1000
       - MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME=10
       - MAX_TRANSACTIONS_PER_UNIT_TIME=5
+#     These are just so it waits for the downstream nodes to start up
+      - L2_NODE_WEB3_URL=http://0.0.0.0:8546
+      - L1_NODE_WEB3_URL=http://0.0.0.0:8547
     logging:
       driver: awslogs
       options:
