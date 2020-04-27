@@ -226,7 +226,7 @@ describe('Web3Handler', () => {
           'Expected the nonce to be incremented by 1!'
         )
       })
-      it('Should serve receipts for reverting transactions', async () => {
+      it('Should not serve receipts for reverting transactions', async () => {
         const revertingTx = {
           nonce: await wallet.getTransactionCount(),
           gasPrice: 0,
@@ -236,18 +236,15 @@ describe('Web3Handler', () => {
           data: simpleReversion.interface.functions['doRevert'].encode([]),
         }
         const signedTx = await wallet.sign(revertingTx)
-        const txHash = ethers.utils.keccak256(signedTx)
         try {
           await httpProvider.send('eth_sendRawTransaction', [signedTx])
+          true.should.equal(false, 'above line should have thrown!')
         } catch (e) {
           e.message.should.equal(
             EVM_REVERT_MSG,
             'expected EVM revert but got some other error!'
           )
         }
-        const receipt = await httpProvider.getTransactionReceipt(txHash)
-        receipt.from.should.equal(wallet.address)
-        receipt.to.should.equal(simpleReversion.address)
       })
       it('Should propogate generic EVM reverts for eth_call', async () => {
         await assertAsyncThrowsWithMessage(async () => {

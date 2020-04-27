@@ -3,11 +3,6 @@ import { SimpleClient, TestUtils } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
-  getMethodsToRouteWithTransactionHandler,
-  RoutingHandler,
-} from '../../src/app/handler'
-import { NoOpAccountRateLimiter } from '../../src/app/utils'
-import {
   AccountRateLimiter,
   allWeb3RpcMethodsIncludingTest,
   InvalidTransactionDesinationError,
@@ -17,6 +12,11 @@ import {
   Web3RpcMethods,
 } from '../../src/types'
 import { Wallet } from 'ethers'
+import {
+  getMethodsToRouteWithTransactionHandler,
+  NoOpAccountRateLimiter,
+  RoutingHandler,
+} from '../../src/app'
 
 class DummySimpleClient extends SimpleClient {
   constructor(private readonly cannedResponse: any) {

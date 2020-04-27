@@ -9,7 +9,7 @@ import {
   RateLimitError,
   TransactionLimitError,
 } from '../../src/types'
-import { DefaultAccountRateLimiter } from '../../src/app/utils'
+import { DefaultAccountRateLimiter } from '../../src/app'
 
 describe('Account Rate Limiter', () => {
   const addressOne: string = Wallet.createRandom().address

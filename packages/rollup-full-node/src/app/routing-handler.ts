@@ -13,7 +13,7 @@ import {
   UnsupportedMethodError,
   Web3RpcMethods,
   web3RpcMethodsExcludingTest,
-} from '../../types'
+} from '../types'
 
 const log = getLogger('routing-handler')
 

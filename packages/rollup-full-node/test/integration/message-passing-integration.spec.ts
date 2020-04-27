@@ -2,12 +2,12 @@ import { Address, L2ToL1Message } from '@eth-optimism/rollup-core'
 import { add0x, sleep } from '@eth-optimism/core-utils'
 
 import {
-  createProviderForHandler,
-  deployContract,
-  getWallets,
   TestWeb3Handler,
+  createProviderForHandler,
+  getWallets,
+  deployContract,
 } from '../../src/app'
-import { L2ToL1MessageSubmitter } from '../../src/types'
+import { FullnodeHandler, L2ToL1MessageSubmitter } from '../../src/types'
 
 import * as SimpleStorage from '../contracts/build/transpiled/SimpleStorage.json'
 import * as SimpleCaller from '../contracts/build/transpiled/SimpleCaller.json'
@@ -37,7 +37,7 @@ describe('Message Passing Integration Tests', () => {
   beforeEach(async () => {
     messageSubmitter = new QueuedMessageSubmitter()
     handler = await TestWeb3Handler.create(messageSubmitter)
-    provider = createProviderForHandler(handler)
+    provider = createProviderForHandler(handler as FullnodeHandler)
     wallet = getWallets(provider)[0]
   })
 

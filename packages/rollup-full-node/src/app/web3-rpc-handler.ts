@@ -40,9 +40,9 @@ import {
   Web3Handler,
   Web3RpcMethods,
   RevertError,
-} from '../../types'
-import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from '../utils'
-import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
+} from '../types'
+import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './util'
+import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
 

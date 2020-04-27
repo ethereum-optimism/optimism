@@ -13,16 +13,15 @@ import {
 } from '@eth-optimism/ovm'
 import { Address } from '@eth-optimism/rollup-core'
 
+import { JsonRpcProvider } from 'ethers/providers'
+
 import { Contract, Wallet } from 'ethers'
 import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import {
-  DEFAULT_ETHNODE_GAS_LIMIT,
-  deployContract,
-  Environment,
-} from '../index'
-import { JsonRpcProvider } from 'ethers/providers'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../index'
+import { Environment } from './environment'
+import { deployContract } from './utils'
 import { L2NodeContext } from '../../types'
 import * as fs from 'fs'
 

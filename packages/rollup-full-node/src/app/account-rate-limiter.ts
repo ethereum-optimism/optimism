@@ -6,7 +6,7 @@ import {
   AccountRateLimiter,
   RateLimitError,
   TransactionLimitError,
-} from '../../types'
+} from '../types'
 
 const log = getLogger('routing-handler')
 

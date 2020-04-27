@@ -9,16 +9,15 @@ import { GAS_LIMIT } from '@eth-optimism/ovm'
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
-import { latestBlock } from './index'
-import { DefaultWeb3Handler } from './web3-rpc-handler'
+import { DefaultWeb3Handler, latestBlock } from './web3-rpc-handler'
 import {
   L2NodeContext,
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3RpcMethods,
-} from '../../types'
-import { getCurrentTime, initializeL2Node } from '../utils'
-import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
+} from '../types'
+import { getCurrentTime, initializeL2Node } from './util'
+import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('test-web3-handler')
 
