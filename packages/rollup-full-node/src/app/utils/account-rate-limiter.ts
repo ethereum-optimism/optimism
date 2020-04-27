@@ -2,13 +2,27 @@
 import { getLogger, TimeBucketedCounter } from '@eth-optimism/core-utils'
 
 /* Internal imports */
-import { RateLimitError, TransactionLimitError } from '../../types'
+import {
+  AccountRateLimiter,
+  RateLimitError,
+  TransactionLimitError,
+} from '../../types'
+
 const log = getLogger('routing-handler')
+
+export class NoOpAccountRateLimiter implements AccountRateLimiter {
+  public validateRateLimit(sourceIpAddress: string): void {
+    /* no-op */
+  }
+  public validateTransactionRateLimit(address: string): void {
+    /* no-op */
+  }
+}
 
 /**
  * Keeps track of and enforces rate limits for accounts by address and/or IP address.
  */
-export class AccountRateLimiter {
+export class DefaultAccountRateLimiter implements AccountRateLimiter {
   private readonly ipToRequestCounter: Map<string, TimeBucketedCounter>
   private readonly addressToRequestCounter: Map<string, TimeBucketedCounter>
 

@@ -6,7 +6,12 @@ import {
   getLevelInstance,
   newInMemoryDB,
 } from '@eth-optimism/core-db'
-import { ExpressHttpServer, getLogger, Logger } from '@eth-optimism/core-utils'
+import {
+  ExpressHttpServer,
+  getLogger,
+  Logger,
+  SimpleClient,
+} from '@eth-optimism/core-utils'
 import {
   L1ToL2TransactionEventName,
   L1ToL2TransactionListener,
@@ -29,8 +34,11 @@ import {
   DefaultL2ToL1MessageSubmitter,
   NoOpL2ToL1MessageSubmitter,
   initializeL2Node,
+  NoOpAccountRateLimiter,
+  DefaultAccountRateLimiter,
 } from '../app'
 import {
+  AccountRateLimiter,
   FullnodeHandler,
   L1NodeContext,
   L2NodeContext,
@@ -88,13 +96,34 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
     ? Environment.commaSeparatedToAddressWhitelist().split(',')
     : undefined
 
+  if (
+    (!!Environment.maxNonTransactionRequestsPerUnitTime() ||
+      !!Environment.maxTransactionsPerUnitTime() ||
+      !!Environment.requestLimitPeriodMillis()) &&
+    !(
+      !!Environment.maxNonTransactionRequestsPerUnitTime() &&
+      !!Environment.maxTransactionsPerUnitTime() &&
+      !!Environment.requestLimitPeriodMillis()
+    )
+  ) {
+    throw new Error(
+      'Routing server rate limiting is partially configured. Please configure all of MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME, MAX_TRANSACTIONS_PER_UNIT_TIME, REQUEST_LIMIT_PERIOD_MILLIS or none of them.'
+    )
+  }
+
+  const rateLimiter: AccountRateLimiter = !Environment.maxTransactionsPerUnitTime()
+    ? new NoOpAccountRateLimiter()
+    : new DefaultAccountRateLimiter(
+        Environment.maxNonTransactionRequestsPerUnitTime(),
+        Environment.maxTransactionsPerUnitTime(),
+        Environment.requestLimitPeriodMillis()
+      )
+
   const fullnodeHandler = new RoutingHandler(
-    Environment.getOrThrow(Environment.transactionNodeUrl),
-    Environment.getOrThrow(Environment.readOnlyNodeUrl),
-    Environment.maxNonTransactionRequestsPerUnitTime(),
-    Environment.maxTransactionsPerUnitTime(),
-    Environment.requestLimitPeriodMillis(),
+    new SimpleClient(Environment.getOrThrow(Environment.transactionNodeUrl)),
+    new SimpleClient(Environment.getOrThrow(Environment.readOnlyNodeUrl)),
     Environment.contractDeployerAddress(),
+    rateLimiter,
     toAddressWhitelist
   )
   const fullnodeRpcServer = new FullnodeRpcServer(

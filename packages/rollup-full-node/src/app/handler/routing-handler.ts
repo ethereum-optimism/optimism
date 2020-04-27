@@ -5,6 +5,7 @@ import { getLogger, logError, SimpleClient } from '@eth-optimism/core-utils'
 import { parseTransaction, Transaction } from 'ethers/utils'
 /* Internal Imports */
 import {
+  AccountRateLimiter,
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
@@ -12,7 +13,6 @@ import {
   Web3RpcMethods,
   web3RpcMethodsExcludingTest,
 } from '../../types'
-import { AccountRateLimiter } from '../utils'
 
 const log = getLogger('routing-handler')
 
@@ -23,6 +23,9 @@ const methodsToRouteWithTransactionHandler: string[] = [
   Web3RpcMethods.getBlockByNumber,
   Web3RpcMethods.getBlockByHash,
 ]
+export const getMethodsToRouteWithTransactionHandler = () => {
+  return Array.of(...methodsToRouteWithTransactionHandler)
+}
 
 /**
  * Handles rate-limiting requests by Ethereum address for transactions and by IP address for all
@@ -32,38 +35,16 @@ const methodsToRouteWithTransactionHandler: string[] = [
  * otherwise they'll go to the transaction provider.
  */
 export class RoutingHandler implements FullnodeHandler {
-  private readonly readOnlyClient: SimpleClient
-  private readonly transactionClient: SimpleClient
-
-  private readonly accountRateLimiter: AccountRateLimiter
-
   constructor(
-    transactionHandlerUrl: string,
-    readonlyHandlerUrl: string,
-    maxRequestsPerTimeUnit: number,
-    maxTransactionsPerTimeUnit: number,
-    requestLimitPeriodInMillis: number,
+    private readonly transactionClient: SimpleClient,
+    private readonly readOnlyClient: SimpleClient,
     private readonly deployAddress: Address,
+    private readonly accountRateLimiter: AccountRateLimiter,
     private readonly toAddressWhitelist: Address[] = [],
     private readonly whitelistedMethods: Set<string> = new Set<string>(
       web3RpcMethodsExcludingTest
     )
-  ) {
-    this.readOnlyClient = new SimpleClient(readonlyHandlerUrl)
-    this.transactionClient = new SimpleClient(transactionHandlerUrl)
-
-    if (
-      !!maxTransactionsPerTimeUnit &&
-      !!maxTransactionsPerTimeUnit &&
-      !!requestLimitPeriodInMillis
-    ) {
-      this.accountRateLimiter = new AccountRateLimiter(
-        maxRequestsPerTimeUnit,
-        maxTransactionsPerTimeUnit,
-        requestLimitPeriodInMillis
-      )
-    }
-  }
+  ) {}
 
   /**
    * Handles the provided request by
@@ -92,13 +73,13 @@ export class RoutingHandler implements FullnodeHandler {
         tx = parseTransaction(params[0])
       } catch (e) {
         // means improper format -- since we can't get address, add to quota by IP
-        this.validateRateLimit(undefined, sourceIpAddress)
+        this.accountRateLimiter.validateRateLimit(sourceIpAddress)
         throw new InvalidParametersError()
       }
 
-      this.validateRateLimit(tx.from)
+      this.accountRateLimiter.validateTransactionRateLimit(tx.from)
     } else {
-      this.validateRateLimit(undefined, sourceIpAddress)
+      this.accountRateLimiter.validateRateLimit(sourceIpAddress)
     }
 
     if (!this.whitelistedMethods.has(method)) {
@@ -136,29 +117,6 @@ export class RoutingHandler implements FullnodeHandler {
   }
 
   /**
-   * Validates the request is under the rate limit for the provided tx from address or
-   * source IP address if a rate limit is configured
-   *
-   * @param txFromAddress The from address only provided if this is to check against the tx rate limit.
-   * @param sourceIpAddress The IP address only provided if this is to check against the IP rate limit.
-   * @throws AccountRateLimiter If the IP in question is above its rate limit.
-   * @throws TransactionLimitError If the address in question is above its rate limit.
-   */
-  private validateRateLimit(
-    txFromAddress?: string,
-    sourceIpAddress?: string
-  ): void {
-    if (!this.accountRateLimiter) {
-      return
-    }
-    if (!!txFromAddress) {
-      this.accountRateLimiter.validateTransactionRateLimit(txFromAddress)
-    } else {
-      this.accountRateLimiter.validateRateLimit(sourceIpAddress)
-    }
-  }
-
-  /**
    * If provided a transaction, and a transaction destination whitelist is configured,
    * this will make sure the destination of the transaction is on the whitelist or
    * the transaction is sent by the deployer address.
@@ -170,7 +128,7 @@ export class RoutingHandler implements FullnodeHandler {
     if (
       !!tx &&
       !!this.toAddressWhitelist.length &&
-      !(tx.to in this.toAddressWhitelist) &&
+      this.toAddressWhitelist.indexOf(tx.to) < 0 &&
       tx.from !== this.deployAddress
     ) {
       throw new InvalidTransactionDesinationError(
