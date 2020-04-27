@@ -1,6 +1,5 @@
 /* External Imports */
 import {
-  bufToHexString,
   SimpleClient,
   TestUtils,
 } from '@eth-optimism/core-utils'

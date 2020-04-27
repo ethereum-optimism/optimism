@@ -3,6 +3,7 @@ import { Address } from '@eth-optimism/rollup-core'
 import { getLogger, logError, SimpleClient } from '@eth-optimism/core-utils'
 
 import { parseTransaction, Transaction } from 'ethers/utils'
+
 /* Internal Imports */
 import {
   AccountRateLimiter,
