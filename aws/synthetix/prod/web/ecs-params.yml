@@ -10,6 +10,51 @@ task_definition:
         retries: 3
         start_period: 5s
       mem_limit: 7680000000
+    router:
+      essential: true
+      healthcheck:
+        test: ["CMD-SHELL", "curl -f -H \"Content-Type: application/json\" -d '{\"jsonrpc\": \"2.0\", \"id\": 9999999, \"method\": \"net_version\"}' http://localhost:8545/ || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+        start_period: 5s
+      # 10%
+      cpu_shares: 409
+      mem_limit: 768000000
+    transaction-node:
+      essential: true
+      healthcheck:
+        test: ["CMD-SHELL", "curl -f -H \"Content-Type: application/json\" -d '{\"jsonrpc\": \"2.0\", \"id\": 9999999, \"method\": \"net_version\"}' http://localhost:8546/ || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+        start_period: 5s
+      # 40%
+      cpu_shares: 1638
+      mem_limit: 3072000000
+    read-only-node:
+      essential: true
+      healthcheck:
+        test: ["CMD-SHELL", "curl -f -H \"Content-Type: application/json\" -d '{\"jsonrpc\": \"2.0\", \"id\": 9999999, \"method\": \"net_version\"}' http://localhost:8547/ || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+        start_period: 5s
+      # 20%
+      cpu_shares: 818
+      mem_limit: 1536000000
+    graph-node:
+      # 15%
+      cpu_shares: 614
+      mem_limit: 1152000000
+    ipfs:
+      # 5%
+      cpu_shares: 204
+      mem_limit: 384000000
+    postgres:
+      # 10%
+      cpu_shares: 409
+      mem_limit: 768000000
 
 
   ecs_network_mode: host

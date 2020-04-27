@@ -1,29 +1,154 @@
 version: "3"
 services:
-  rollup-full-node:
-    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:synthetix-prod
-    volumes:
-      - full-node-data:/mnt/full-node:rw
-      - l1-node-data:/mnt/l1-node:rw
+  router:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
     ports:
       - 8545:8545
     environment:
+      - IS_ROUTING_SERVER=1
+      - STARTUP_WAIT_TIMEOUT=30
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT=8545
+      - TRANSACTION_NODE_URL=http://0.0.0.0:8546
+      - READ_ONLY_NODE_URL=http://0.0.0.0:8547
+      - REQUEST_LIMIT_PERIOD_MILLIS=1000
+      - MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME=50
+      - MAX_TRANSACTIONS_PER_UNIT_TIME=10
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: l2-router
+
+  transaction-node:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    volumes:
+      - full-node-data:/mnt/full-node:rw
+      - l1-node-data:/mnt/l1-node:rw
+      - l2-node-data:/mnt/l2-node:rw
+    ports:
+      - 8546:8546
+    environment:
+      - IS_TRANSACTION_NODE=1
       - CLEAR_DATA_KEY
       - STARTUP_WAIT_TIMEOUT=60
-      - LOCAL_L1_NODE_PERSISTENT_DB_PATH=/mnt/l1-node
+      - NO_L1_NODE=1
       - L2_RPC_SERVER_PERSISTENT_DB_PATH=/mnt/full-node/level
       - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
       - L2_NODE_WEB3_URL=http://synthetix-prod-geth.synthetix-prod:9545
+      - L2_RPC_SERVER_HOST=0.0.0.0
+      - L2_RPC_SERVER_PORT=8546
+      - L2_NODE_WEB3_URL=http://0.0.0.0:9545/
 
     logging:
       driver: awslogs
       options:
         awslogs-group: synthetix-prod-web
         awslogs-region: us-east-2
-        awslogs-stream-prefix: web
+        awslogs-stream-prefix: l2-transaction-node
+
+  read-only-node:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    ports:
+      - 8547:8547
+    environment:
+      - IS_READ_ONLY_NODE=1
+      - STARTUP_WAIT_TIMEOUT=30
+      - L2_RPC_SERVER_HOST=0.0.0.0
+      - L2_RPC_SERVER_PORT=8547
+      - L2_EXECUTION_MANAGER_ADDRESS=0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA
+      - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
+      - L2_NODE_WEB3_URL=http://0.0.0.0:9545/
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: l2-read-only-node
+
+  l2-node:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
+    volumes:
+      - l2-node-data:/mnt/l2-node/l2:rw
+    environment:
+      - CLEAR_DATA_KEY
+      - VOLUME_PATH=/mnt/l2-node/l2
+      - HOSTNAME=0.0.0.0
+      - PORT=9545
+      - NETWORK_ID=108
+    ports:
+      - 9545:9545
+
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: l2-node
+
+  graph-node:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/the-graph:latest
+    ports:
+      - '8000:8000'
+      - '8001:8001'
+      - '8020:8020'
+      - '8030:8030'
+      - '8040:8040'
+    environment:
+      postgres_host: 0.0.0.0:5432
+      postgres_user: graph-node
+      postgres_pass: let-me-in
+      postgres_db: graph-node
+      ipfs: '0.0.0.0:5001'
+      ethereum: 'ovm:http://0.0.0.0:8545'
+      RUST_LOG: info
+      STARTUP_WAIT_TIMEOUT: 30
+      OVM_URL_WITH_PORT: 'http://0.0.0.0:8545'
+
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: the-graph
+
+  ipfs:
+    image: ipfs/go-ipfs:v0.4.23
+    ports:
+      - '5001:5001'
+    volumes:
+      - ipfs-data:/data/ipfs
+
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: the-graph-ipfs
+
+  postgres:
+    image: postgres
+    ports:
+      - '5432:5432'
+    command: ["postgres", "-cshared_preload_libraries=pg_stat_statements"]
+    environment:
+      POSTGRES_USER: graph-node
+      POSTGRES_PASSWORD: let-me-in
+      POSTGRES_DB: graph-node
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-prod-web
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: the-graph-postgres
 
 volumes:
   full-node-data:
   l1-node-data:
   l2-node-data:
-
+  postgres-data:
+  ipfs-data:

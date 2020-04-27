@@ -1,21 +1,27 @@
 version: 1
 task_definition:
   services:
-    rollup-full-node:
-      cpu_shares: 20
+    router:
+      cpu_shares: 204
+      mem_limit: 262144000
+    transaction-node:
+      cpu_shares: 408
       mem_limit: 524288000
-    geth_l2:
-      cpu_shares: 60
+    read-only-node:
+      cpu_shares: 204
+      mem_limit: 262144000
+    l2-node:
+      cpu_shares: 820
       mem_limit: 1597847999
     graph-node:
-      cpu_shares: 10
-      mem_limit: 524288000
+      cpu_shares: 204
+      mem_limit: 262144000
     ipfs:
-      cpu_shares: 5
-      mem_limit: 524288000
+      cpu_shares: 102
+      mem_limit: 262144000
     postgres:
-      cpu_shares: 5
-      mem_limit: 524288000
+      cpu_shares: 102
+      mem_limit: 262144000
 
 
   # This is all local for now -- eventually will change

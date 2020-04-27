@@ -102,7 +102,7 @@ export class RoutingHandler implements FullnodeHandler {
       log.debug(
         `Request for [${method}], params: [${JSON.stringify(
           params
-        )}] got result [${result}]`
+        )}] got result [${JSON.stringify(result)}]`
       )
       return result
     } catch (e) {
