@@ -70,19 +70,6 @@ services:
         awslogs-region: us-east-2
         awslogs-stream-prefix: l2-read-only-node
 
-  l2-node:
-    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
-    volumes:
-      - l2-node-data:/mnt/l2-node/l2:rw
-    environment:
-      - CLEAR_DATA_KEY
-      - VOLUME_PATH=/mnt/l2-node/l2
-      - HOSTNAME=0.0.0.0
-      - PORT=9545
-      - NETWORK_ID=108
-    ports:
-      - 9545:9545
-
     logging:
       driver: awslogs
       options:
