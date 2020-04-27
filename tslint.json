@@ -20,7 +20,8 @@
     "ordered-imports": false,
     "prettier": true,
     "semicolon": false,
-    "variable-name": false
+    "variable-name": false,
+    "no-only-tests": true
   },
   "linterOptions": {
     "exclude": [

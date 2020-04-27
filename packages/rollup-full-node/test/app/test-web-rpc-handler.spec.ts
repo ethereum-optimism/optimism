@@ -3,7 +3,6 @@ import '../setup'
 import {
   add0x,
   getLogger,
-  remove0x,
   castToNumber,
   hexStrToBuf,
   TestUtils,
@@ -13,12 +12,7 @@ import { ethers, ContractFactory } from 'ethers'
 import { getWallets, deployContract } from 'ethereum-waffle'
 
 /* Internal Imports */
-import {
-  Web3RpcMethods,
-  TestWeb3Handler,
-  FullnodeRpcServer,
-  DefaultWeb3Handler,
-} from '../../src'
+import { Web3RpcMethods, TestWeb3Handler, FullnodeRpcServer } from '../../src'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.json'
 import * as CallerStorer from '../contracts/build/transpiled/CallerStorer.json'
@@ -29,7 +23,7 @@ const secondsSinceEpoch = (): number => {
   return Math.round(Date.now() / 1000)
 }
 const host = '0.0.0.0'
-const port = 9998
+const port = 9997
 const baseUrl = `http://${host}:${port}`
 
 describe('TestHandler', () => {
