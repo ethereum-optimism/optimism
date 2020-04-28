@@ -475,7 +475,7 @@ export class DefaultWeb3Handler
     const filter = JSON.parse(JSON.stringify(ovmFilter))
     if (filter['address'] && Array.isArray(filter['address'])) {
       const codeContractAddresses = filter['address'].map(async (address) => {
-        return await this.context.executionManager.getCodeContractAddress(
+        return this.context.executionManager.getCodeContractAddress(
           address
         )
       })
