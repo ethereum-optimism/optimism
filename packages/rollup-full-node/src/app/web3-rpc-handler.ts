@@ -1056,7 +1056,7 @@ export class DefaultWeb3Handler
     }
     expected.forEach((expectedType, index) => {
       const param = params[index]
-      const conditions = {
+      const typeChecks = {
         'quantity|tag': (value) => {
           return (
             value === undefined ||
@@ -1073,7 +1073,7 @@ export class DefaultWeb3Handler
         },
       }
 
-      if (!conditions[expectedType](param)) {
+      if (!typeChecks[expectedType](param)) {
         throw new InvalidParametersError(
           `Expected ${expectedType} but got ${param}`
         )

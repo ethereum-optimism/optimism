@@ -457,7 +457,7 @@ describe('Web3Handler', () => {
     })
 
     describe('the getLogs endpoint', () => {
-      it.skip('should return logs', async () => {
+      it('should return logs', async () => {
         const executionManagerAddress = await httpProvider.send(
           'ovm_getExecutionManagerAddress',
           []
