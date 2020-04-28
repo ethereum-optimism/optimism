@@ -28,7 +28,7 @@ import {
 
 import AsyncLock from 'async-lock'
 import { Contract, utils, Wallet } from 'ethers'
-import { utils as web3Utils } from 'web3'
+import Web3 from 'web3'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
@@ -1086,8 +1086,8 @@ export class DefaultWeb3Handler
         },
         [Web3RpcTypes.boolean]: (value) => [true, false].includes(value),
         [Web3RpcTypes.quantity]: (value) => !isNaN(value),
-        [Web3RpcTypes.data]: web3Utils.isHex,
-        [Web3RpcTypes.address]: web3Utils.isAddress,
+        [Web3RpcTypes.data]: Web3.utils.isHex,
+        [Web3RpcTypes.address]: Web3.utils.isAddress,
         [Web3RpcTypes.object]: (value) => {
           return value instanceof Object
         },
