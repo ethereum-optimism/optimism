@@ -31,3 +31,7 @@ Make any necessary changes now.
     ```
     ecs-cli compose --project-name synthetix-uat-web service up --vpc <vpc ID> --cluster-config synthetix-uat-web-config --ecs-profile synthetix-uat-web-profile --create-log-groups
     ```
+
+
+# Redeploying after first deploy
+Repeat step #4 above
