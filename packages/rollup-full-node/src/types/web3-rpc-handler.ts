@@ -31,12 +31,12 @@ export interface Web3Handler {
 }
 
 export enum Web3RpcTypes {
-  quantity = 0,
-  boolean = 2,
-  data = 8,
-  address = 16,
-  object = 32,
-  quantityOrTag = 64,
+  quantity = 'quantity',
+  boolean = 'boolean',
+  data = 'data',
+  address = 'address',
+  object = 'object',
+  quantityOrTag = 'quantityOrTag',
 }
 
 // Enum of supported web3 rpc methods

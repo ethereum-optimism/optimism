@@ -180,7 +180,7 @@ describe('Web3Handler', () => {
         balance.toNumber().should.eq(0)
       })
 
-      it('should return a parameter error if an invalid paramter is passed', async () => {
+      it('should return a parameter error if an invalid parameter is passed', async () => {
         const wallet = getWallet(httpProvider)
 
         await assertAsyncThrowsWithMessage(async () => {

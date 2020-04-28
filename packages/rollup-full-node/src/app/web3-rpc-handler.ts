@@ -124,11 +124,17 @@ export class DefaultWeb3Handler
         response = await this.blockNumber()
         break
       case Web3RpcMethods.call:
-        this.assertParameters(params, [Web3RpcTypes.object, Web3RpcTypes.quantityOrTag])
+        this.assertParameters(params, [
+          Web3RpcTypes.object,
+          Web3RpcTypes.quantityOrTag,
+        ])
         response = await this.call(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.estimateGas:
-        this.assertParameters(params, [Web3RpcTypes.object, Web3RpcTypes.quantityOrTag])
+        this.assertParameters(params, [
+          Web3RpcTypes.object,
+          Web3RpcTypes.quantityOrTag,
+        ])
         response = await this.estimateGas(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.gasPrice:
@@ -136,7 +142,10 @@ export class DefaultWeb3Handler
         response = await this.gasPrice()
         break
       case Web3RpcMethods.getBlockByNumber:
-        this.assertParameters(params, [Web3RpcTypes.quantityOrTag, Web3RpcTypes.boolean])
+        this.assertParameters(params, [
+          Web3RpcTypes.quantityOrTag,
+          Web3RpcTypes.boolean,
+        ])
         response = await this.getBlockByNumber(params[0], params[1])
         break
       case Web3RpcMethods.getBlockByHash:
@@ -144,11 +153,18 @@ export class DefaultWeb3Handler
         response = await this.getBlockByHash(params[0], params[1])
         break
       case Web3RpcMethods.getBalance:
-        this.assertParameters(params, [Web3RpcTypes.address, Web3RpcTypes.quantityOrTag], latestBlock)
+        this.assertParameters(
+          params,
+          [Web3RpcTypes.address, Web3RpcTypes.quantityOrTag],
+          latestBlock
+        )
         response = await this.getBalance()
         break
       case Web3RpcMethods.getCode:
-        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.quantityOrTag])
+        this.assertParameters(params, [
+          Web3RpcTypes.data,
+          Web3RpcTypes.quantityOrTag,
+        ])
         response = await this.getCode(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.getExecutionManagerAddress:
@@ -164,7 +180,10 @@ export class DefaultWeb3Handler
         response = await this.getTransactionByHash(params[0])
         break
       case Web3RpcMethods.getTransactionCount:
-        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.quantityOrTag])
+        this.assertParameters(params, [
+          Web3RpcTypes.data,
+          Web3RpcTypes.quantityOrTag,
+        ])
         response = await this.getTransactionCount(
           params[0],
           params[1] || latestBlock
