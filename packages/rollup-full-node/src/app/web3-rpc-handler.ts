@@ -26,10 +26,10 @@ import {
   OvmTransactionReceipt,
 } from '@eth-optimism/ovm'
 
+import AsyncLock from 'async-lock'
 import { Contract, utils, Wallet } from 'ethers'
 import { utils as web3Utils } from 'web3'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
-import AsyncLock from 'async-lock'
 
 /* Internal Imports */
 import {

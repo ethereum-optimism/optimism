@@ -9,6 +9,7 @@ import {
   logError,
   remove0x,
   ZERO_ADDRESS,
+  LOG_NEWLINE_STRING,
   BloomFilter,
 } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
@@ -90,7 +91,7 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
       ovmLogs.push({ ...log, address: activeContract })
     }
   })
-  logger.debug(loggerLogs.join("\\n"))
+  logger.debug(loggerLogs.join(LOG_NEWLINE_STRING))
   return ovmLogs
 }
 

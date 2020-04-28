@@ -1,8 +1,9 @@
 import debug from 'debug'
 import { Logger } from '../types'
 
+export const LOG_NEWLINE_STRING = '<\n>'
 export const joinNewlinesAndDebug = (logs :string) =>
-  debug(logs.replace("\n", "\\n"))
+  debug(logs.replace("\n", LOG_NEWLINE_STRING))
 
 export const getLogger = (
   identifier: string,
