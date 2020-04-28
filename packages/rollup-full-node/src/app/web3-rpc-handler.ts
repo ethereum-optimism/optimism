@@ -498,7 +498,6 @@ export class DefaultWeb3Handler
           const receipt = await this.getTransactionReceipt(transaction.hash)
           transaction['to'] = receipt.contractAddress
         }
-        logItem['address'] = transaction['to']
 
         return logItem
       })
