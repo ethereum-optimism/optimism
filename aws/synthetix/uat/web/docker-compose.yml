@@ -1,12 +1,12 @@
 version: "3"
 services:
   router:
-    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:synthetix-uat
     ports:
       - 8545:8545
     environment:
       - IS_ROUTING_SERVER=1
-      - STARTUP_WAIT_TIMEOUT=30
+      - STARTUP_WAIT_TIMEOUT=60
       - L2_RPC_SERVER_HOST
       - L2_RPC_SERVER_PORT=8545
       - TRANSACTION_NODE_URL=http://0.0.0.0:8546
@@ -14,7 +14,7 @@ services:
       - REQUEST_LIMIT_PERIOD_MILLIS=1000
       - MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME=50
       - MAX_TRANSACTIONS_PER_UNIT_TIME=10
-#     These are just so it waits for the downstream nodes to start up
+      #     These are just so it waits for the downstream nodes to start up
       - L2_NODE_WEB3_URL=http://0.0.0.0:8546
       - L1_NODE_WEB3_URL=http://0.0.0.0:8547
 
@@ -26,11 +26,9 @@ services:
         awslogs-stream-prefix: l2-router
 
   transaction-node:
-    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:synthetix-uat
     volumes:
       - full-node-data:/mnt/full-node:rw
-      - l1-node-data:/mnt/l1-node:rw
-      - l2-node-data:/mnt/l2-node:rw
     ports:
       - 8546:8546
     environment:
@@ -52,7 +50,7 @@ services:
         awslogs-stream-prefix: l2-transaction-node
 
   read-only-node:
-    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:synthetix-uat
     ports:
       - 8547:8547
     environment:
@@ -62,20 +60,13 @@ services:
       - L2_RPC_SERVER_PORT=8547
       - L2_EXECUTION_MANAGER_ADDRESS=0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA
       - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
-      - L2_NODE_WEB3_URL=http://0.0.0.0:9545/
+      - L2_NODE_WEB3_URL=http://synthetix-uat-geth.synthetix-uat:9545
     logging:
       driver: awslogs
       options:
         awslogs-group: synthetix-uat-web
         awslogs-region: us-east-2
         awslogs-stream-prefix: l2-read-only-node
-
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: synthetix-uat-web
-        awslogs-region: us-east-2
-        awslogs-stream-prefix: l2-node
 
   graph-node:
     image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/the-graph:latest
@@ -138,7 +129,5 @@ services:
 
 volumes:
   full-node-data:
-  l1-node-data:
-  l2-node-data:
   postgres-data:
   ipfs-data:

@@ -1,15 +1,6 @@
 version: 1
 task_definition:
   services:
-    rollup-full-node:
-      essential: true
-      healthcheck:
-        test: ["CMD-SHELL", "curl -f -H \"Content-Type: application/json\" -d '{\"jsonrpc\": \"2.0\", \"id\": 9999999, \"method\": \"net_version\"}' http://localhost:8545/ || exit 1"]
-        interval: 10s
-        timeout: 5s
-        retries: 3
-        start_period: 5s
-      mem_limit: 7680000000
     router:
       essential: true
       healthcheck:
@@ -18,9 +9,9 @@ task_definition:
         timeout: 5s
         retries: 3
         start_period: 5s
-      # 10%
+      # 15%
       cpu_shares: 409
-      mem_limit: 768000000
+      mem_limit: 1.125GB
     transaction-node:
       essential: true
       healthcheck:
@@ -31,7 +22,7 @@ task_definition:
         start_period: 5s
       # 40%
       cpu_shares: 1638
-      mem_limit: 3072000000
+      mem_limit: 2GB  # Was 3GB but ECS says not enough memory
     read-only-node:
       essential: true
       healthcheck:
@@ -40,30 +31,32 @@ task_definition:
         timeout: 5s
         retries: 3
         start_period: 5s
-      # 20%
+      # 15%
       cpu_shares: 818
-      mem_limit: 1536000000
+      mem_limit: 1.125GB
     graph-node:
       # 15%
       cpu_shares: 614
-      mem_limit: 1152000000
+      mem_limit: 1.125GB
     ipfs:
       # 5%
       cpu_shares: 204
-      mem_limit: 384000000
+      mem_limit: 0.375GB
     postgres:
       # 10%
       cpu_shares: 409
-      mem_limit: 768000000
+      mem_limit: 0.75GB
 
 
   ecs_network_mode: host
   docker_volumes:
-    - name: l1-node-data
-      scope: task
-      driver: 'local'
     - name: full-node-data
       scope: shared
       autoprovision: true
       driver: 'local'
-
+    - name: postgres-data
+      scope: task
+      driver: 'local'
+    - name: ipfs-data
+      scope: task
+      driver: 'local'
