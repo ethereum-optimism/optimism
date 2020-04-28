@@ -10,6 +10,7 @@ import {
   remove0x,
   ZERO_ADDRESS,
   BloomFilter,
+  hexStrToNumber,
 } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { LogDescription } from 'ethers/utils'
@@ -60,33 +61,66 @@ export interface OvmTransactionMetadata {
 }
 
 /**
- * Convert internal logs into OVM logs. Or in other words, take the logs which
+ * Convert internal transaction logs into OVM logs. Or in other words, take the logs which
  * are emitted by a normal Ganache or Geth node (this will include logs from the ExecutionManager),
  * parse them, and then convert them into logs which look like they would if you were running this tx
  * using an OVM backend.
  *
+ * NOTE: The input logs MUST NOT be stripped of any Execution Manager events, or this function will break.
  *
- * @param logs an array of internal logs which we will parse and then convert.
+ * @param logs an array of internal transaction logs which we will parse and then convert.
  * @return the converted logs
  */
-export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
+export const convertInternalLogsToOvmLogs = (
+  logs: Log[],
+  executionManagerAddress: string
+): Log[] => {
   let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
   const ovmLogs = []
+  let cumulativeTxEMLogIndices = 0
+  let prevEMLogIndex = 0
+  logger.debug(`using em address of ${executionManagerAddress}`)
   logs.forEach((log) => {
-    const executionManagerLog = executionManagerInterface.parseLog(log)
-    if (executionManagerLog) {
-      if (executionManagerLog.name === 'ActiveContract') {
-        activeContract = executionManagerLog.values['_activeContract']
+    if (log.address.toUpperCase() === executionManagerAddress.toUpperCase()) {
+      const EMLogIndex = log.logIndex
+      if (EMLogIndex < prevEMLogIndex) {
+        logger.debug(
+          `Detected raw EM log ${log} with lower logIndex than previously processed, must be from a new transaction.  Resetting cumulative EM log indices for tx.`
+        )
+        cumulativeTxEMLogIndices = 0
+      }
+      cumulativeTxEMLogIndices++
+      prevEMLogIndex = EMLogIndex
+      const executionManagerLog = executionManagerInterface.parseLog(log)
+      if (!executionManagerLog) {
+        logger.debug(
+          `execution manager log ${log} was unrecognized by the interface parser--Definitely not an activeContract event, ignoring...`
+        )
       } else {
         logger.debug(
-          `${executionManagerLog.name}, values: ${JSON.stringify(
+          `Parsed execution manager event ${
+            executionManagerLog.name
+          } with values: ${JSON.stringify(
             executionManagerLog.values
-          )}`
+          )} and cumulativeTxEMLogIndices: ${cumulativeTxEMLogIndices}`
         )
+        if (executionManagerLog.name === 'ActiveContract') {
+          activeContract = executionManagerLog.values['_activeContract']
+          logger.debug(
+            `EM activeContract event detected, setting activeContract to ${activeContract}`
+          )
+        } else {
+          logger.debug(`EM-but-non-activeContract event detected, ignoring...`)
+        }
       }
     } else {
-      logger.debug(`Non-EM log: ${JSON.stringify(log)}`)
-      ovmLogs.push({ ...log, address: activeContract })
+      const newIndex = log.logIndex - cumulativeTxEMLogIndices
+      logger.debug(
+        `Non-EM log: ${JSON.stringify(
+          log
+        )}. Using address of active contract ${activeContract} and log index ${newIndex}`
+      )
+      ovmLogs.push({ ...log, address: activeContract, logIndex: newIndex })
     }
   })
   return ovmLogs
@@ -175,17 +209,21 @@ export const getSuccessfulOvmTransactionMetadata = (
  */
 export const internalTxReceiptToOvmTxReceipt = async (
   internalTxReceipt: TransactionReceipt,
+  executionManagerAddress: string,
   ovmTxHash?: string
 ): Promise<OvmTransactionReceipt> => {
   const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(
     internalTxReceipt
   )
   // Construct a new receipt
-  //
+
   // Start off with the internalTxReceipt
   const ovmTxReceipt: OvmTransactionReceipt = internalTxReceipt
   // Add the converted logs
-  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(internalTxReceipt.logs)
+  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(
+    internalTxReceipt.logs,
+    executionManagerAddress
+  )
   // Update the to and from fields if necessary
   if (ovmTransactionMetadata.ovmTo) {
     ovmTxReceipt.to = ovmTransactionMetadata.ovmTo

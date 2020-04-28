@@ -29,15 +29,16 @@ describe('convertInternalLogsToOvmLogs', () => {
   it('should replace the address of the event with the address of the last active contract event', async () => {
     convertInternalLogsToOvmLogs(
       [
-        [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [ALICE]],
-        [EXECUTION_MANAGER_ADDRESS, 'EventFromAlice()', []],
-        [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [BOB]],
-        [EXECUTION_MANAGER_ADDRESS, 'EventFromBob()', []],
-      ].map((args) => buildLog.apply(null, args))
+        [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [ALICE], 0],
+        [CODE_CONTRACT, 'EventFromAlice()', [], 1],
+        [EXECUTION_MANAGER_ADDRESS, 'ActiveContract(address)', [BOB], 2],
+        [CODE_CONTRACT, 'EventFromBob()', [], 3],
+      ].map((args) => buildLog.apply(null, args)),
+      EXECUTION_MANAGER_ADDRESS
     ).should.deep.eq(
       [
-        [ALICE, 'EventFromAlice()', []],
-        [BOB, 'EventFromBob()', []],
+        [ALICE, 'EventFromAlice()', [], 0],
+        [BOB, 'EventFromBob()', [], 1],
       ].map((args) => buildLog.apply(null, args))
     )
   })

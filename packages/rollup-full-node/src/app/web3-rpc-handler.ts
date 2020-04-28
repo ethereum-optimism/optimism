@@ -471,20 +471,44 @@ export class DefaultWeb3Handler
   }
 
   public async getLogs(ovmFilter: any): Promise<any[]> {
-    log.debug(`Requesting logs with filter [${JSON.stringify(ovmFilter)}].`)
+    log.debug(`Requesting logs with ovm filter [${JSON.stringify(ovmFilter)}].`)
     const filter = JSON.parse(JSON.stringify(ovmFilter))
-    if (filter['address']) {
+    if (filter['address'] && Array.isArray(filter['address'])) {
+      const codeContractAddresses = filter['address'].map(async (address) => {
+        return await this.context.executionManager.getCodeContractAddress(
+          address
+        )
+      })
+      filter['address'] = [
+        ...codeContractAddresses,
+        this.context.executionManager.address,
+      ]
+    }
+    if (filter['address'] && !Array.isArray(filter['address'])) {
       const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
         filter.address
       )
-      filter['address'] = codeContractAddress
+      filter['address'] = [
+        codeContractAddress,
+        this.context.executionManager.address,
+      ]
     }
+    log.debug(`Converted ovm filter to internal filter ${filter}`)
+
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,
     ])
 
-    let logs = JSON.parse(JSON.stringify(convertInternalLogsToOvmLogs(res)))
-    log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    let logs = JSON.parse(
+      JSON.stringify(
+        convertInternalLogsToOvmLogs(res, this.context.executionManager.address)
+      )
+    )
+    log.debug(
+      `Log result: [${JSON.stringify(logs)}], filter: [${JSON.stringify(
+        filter
+      )}].`
+    )
     logs = await Promise.all(
       logs.map(async (logItem, index) => {
         logItem['logIndex'] = numberToHexString(index)
@@ -584,6 +608,7 @@ export class DefaultWeb3Handler
       )
       ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
         internalTxReceipt,
+        this.context.executionManager.address,
         ovmTxHash
       )
     } else {
@@ -783,7 +808,8 @@ export class DefaultWeb3Handler
 
     try {
       const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-        txReceipt
+        txReceipt,
+        this.context.executionManager.address
       )
       await this.processTransactionEvents(ovmTxReceipt)
     } catch (e) {

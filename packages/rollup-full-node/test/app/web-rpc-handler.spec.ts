@@ -29,6 +29,8 @@ import { FullnodeRpcServer, DefaultWeb3Handler } from '../../src/app'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import * as EventEmitter from '../contracts/build/untranspiled/EventEmitter.json'
 import * as SimpleReversion from '../contracts/build/transpiled/SimpleReversion.json'
+import * as MasterEventEmitter from '../contracts/build/transpiled/MasterEventEmitter.json'
+import * as SubEventEmitter from '../contracts/build/transpiled/SubEventEmitter.json'
 import { Web3RpcMethods } from '../../src/types'
 
 const log = getLogger('web3-handler', true)
@@ -474,6 +476,50 @@ describe('Web3Handler', () => {
         const parsedLogs = logs.map((x) => factory.interface.parseLog(x))
         parsedLogs.length.should.eq(1)
         parsedLogs[0].name.should.eq('Event')
+      })
+      describe('Nested contract call events', async () => {
+        let wallet
+        let sub
+        let master
+        beforeEach(async () => {
+          wallet = getWallet(httpProvider)
+          const subFactory = new ContractFactory(
+            SubEventEmitter.abi,
+            SubEventEmitter.bytecode,
+            wallet
+          )
+          sub = await subFactory.deploy()
+          const masterFactory = new ContractFactory(
+            MasterEventEmitter.abi,
+            MasterEventEmitter.bytecode,
+            wallet
+          )
+          master = await masterFactory.deploy(sub.address)
+        })
+        it('should return nested contract call events with the correct addresses for each log', async () => {
+          await master.callSubEmitter()
+          const logs = await httpProvider.send(Web3RpcMethods.getLogs, [
+            {
+              fromBlock: 'latest',
+              toBlock: 'latest',
+            },
+          ])
+          logs[0].address.should.eq(master.address)
+          logs[1].address.should.eq(sub.address)
+        })
+        it('should return logs which are the same as a transaction receipt', async () => {
+          const tx = await master.callSubEmitter()
+          const gotLogs = await httpProvider.send(Web3RpcMethods.getLogs, [
+            {
+              fromBlock: 'latest',
+              toBlock: 'latest',
+            },
+          ])
+          const receipt = await httpProvider.send(
+            Web3RpcMethods.getTransactionReceipt,
+            [tx.hash]
+          )
+        })
       })
     })
 
