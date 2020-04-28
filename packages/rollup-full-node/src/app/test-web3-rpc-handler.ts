@@ -66,24 +66,24 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
   public async handleRequest(method: string, params: any[]): Promise<string> {
     switch (method) {
       case Web3RpcMethods.increaseTimestamp:
-        this.assertParameters(params, 1)
+        this.assertParameters(params, ['quantity'])
         this.increaseTimestamp(params[0])
         log.debug(`Set increased timestamp by ${params[0]} seconds.`)
         return TestWeb3Handler.successString
       case Web3RpcMethods.mine:
         return this.context.provider.send(Web3RpcMethods.mine, params)
       case Web3RpcMethods.sendTransaction:
-        this.assertParameters(params, 1)
+        this.assertParameters(params, ['object'])
         return this.sendTransaction(params[0])
         break
       case Web3RpcMethods.snapshot:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         return this.snapshot()
       case Web3RpcMethods.revert:
-        this.assertParameters(params, 1)
+        this.assertParameters(params, ['quantity'])
         return this.revert(params[0])
       case Web3RpcMethods.accounts:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         return this.accounts()
       default:
         return super.handleRequest(method, params)

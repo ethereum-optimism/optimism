@@ -6,6 +6,7 @@ import {
   getLogger,
   keccak256,
   numberToHexString,
+  JSONRPC_ERRORS,
   ZERO_ADDRESS,
   hexStrToBuf,
 } from '@eth-optimism/core-utils'
@@ -177,6 +178,14 @@ describe('Web3Handler', () => {
         const balance = await httpProvider.getBalance(wallet.address)
 
         balance.toNumber().should.eq(0)
+      })
+
+      it('should return a parameter error if an invalid paramter is passed', async () => {
+        const wallet = getWallet(httpProvider)
+
+        await assertAsyncThrowsWithMessage(async () => {
+          await httpProvider.send('eth_getBalance', [1])
+        }, JSONRPC_ERRORS.INVALID_PARAMS.message)
       })
     })
 
