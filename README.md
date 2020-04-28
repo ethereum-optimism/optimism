@@ -120,5 +120,19 @@ Run tests for a specific package or set of packages:
 PKGS=your,packages,here yarn test
 ```
 
+### Running the fullnode in Docker
+Running the fullnode in [Docker](https://www.docker.com/) allows us launch our entire stack with a single command. 
+
+To run the fullnode in Docker in production run:
+
+`docker-compose up`
+
+To run it in development run:
+
+```sh
+  docker-compose -f docker-compose.yml -f docker-compose.dev.yml run rollup-fullnode yarn
+  docker-compose -f docker-compose.yml -f docker-compose.dev.yml up`
+```
+
 **Contributors: remember to run tests and lint before submitting a pull request!**
 Linted code with passing tests makes life easier for everyone and means your contribution can get pulled into this project faster.

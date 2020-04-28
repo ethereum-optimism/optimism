@@ -1,0 +1,5 @@
+FROM node:11
+WORKDIR /mnt/full-node/packages/rollup-full-node
+
+EXPOSE 8545
+CMD [ "bash", "./exec/wait-for-nodes.sh", "yarn", "run", "server:fullnode:debug" ]
