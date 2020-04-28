@@ -39,6 +39,7 @@ import {
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3Handler,
+  Web3RpcTypes,
   Web3RpcMethods,
   RevertError,
 } from '../types'
@@ -123,11 +124,11 @@ export class DefaultWeb3Handler
         response = await this.blockNumber()
         break
       case Web3RpcMethods.call:
-        this.assertParameters(params, ['object', 'quantity|tag'])
+        this.assertParameters(params, [Web3RpcTypes.object, Web3RpcTypes.quantityOrTag])
         response = await this.call(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.estimateGas:
-        this.assertParameters(params, ['object', 'quantity|tag'])
+        this.assertParameters(params, [Web3RpcTypes.object, Web3RpcTypes.quantityOrTag])
         response = await this.estimateGas(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.gasPrice:
@@ -135,19 +136,19 @@ export class DefaultWeb3Handler
         response = await this.gasPrice()
         break
       case Web3RpcMethods.getBlockByNumber:
-        this.assertParameters(params, ['quantity|tag', 'boolean'])
+        this.assertParameters(params, [Web3RpcTypes.quantityOrTag, Web3RpcTypes.boolean])
         response = await this.getBlockByNumber(params[0], params[1])
         break
       case Web3RpcMethods.getBlockByHash:
-        this.assertParameters(params, ['data', 'boolean'])
+        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.boolean])
         response = await this.getBlockByHash(params[0], params[1])
         break
       case Web3RpcMethods.getBalance:
-        this.assertParameters(params, ['address', 'quantity|tag'], latestBlock)
+        this.assertParameters(params, [Web3RpcTypes.address, Web3RpcTypes.quantityOrTag], latestBlock)
         response = await this.getBalance()
         break
       case Web3RpcMethods.getCode:
-        this.assertParameters(params, ['data', 'quantity|tag'])
+        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.quantityOrTag])
         response = await this.getCode(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.getExecutionManagerAddress:
@@ -155,26 +156,26 @@ export class DefaultWeb3Handler
         response = await this.getExecutionManagerAddress()
         break
       case Web3RpcMethods.getLogs:
-        this.assertParameters(params, ['object'])
+        this.assertParameters(params, [Web3RpcTypes.object])
         response = await this.getLogs(params[0])
         break
       case Web3RpcMethods.getTransactionByHash:
-        this.assertParameters(params, ['data'])
+        this.assertParameters(params, [Web3RpcTypes.data])
         response = await this.getTransactionByHash(params[0])
         break
       case Web3RpcMethods.getTransactionCount:
-        this.assertParameters(params, ['data', 'quantity|tag'])
+        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.quantityOrTag])
         response = await this.getTransactionCount(
           params[0],
           params[1] || latestBlock
         )
         break
       case Web3RpcMethods.getTransactionReceipt:
-        this.assertParameters(params, ['data'])
+        this.assertParameters(params, [Web3RpcTypes.data])
         response = await this.getTransactionReceipt(params[0])
         break
       case Web3RpcMethods.sendRawTransaction:
-        this.assertParameters(params, ['data'])
+        this.assertParameters(params, [Web3RpcTypes.data])
         response = await this.sendRawTransaction(params[0])
         break
       case Web3RpcMethods.networkVersion:
@@ -1041,7 +1042,7 @@ export class DefaultWeb3Handler
 
   protected assertParameters(
     params: any[],
-    expected: string[],
+    expected: Web3RpcTypes[],
     defaultLast?: any
   ) {
     if (
@@ -1057,18 +1058,18 @@ export class DefaultWeb3Handler
     expected.forEach((expectedType, index) => {
       const param = params[index]
       const typeChecks = {
-        'quantity|tag': (value) => {
+        [Web3RpcTypes.quantityOrTag]: (value) => {
           return (
             value === undefined ||
             !isNaN(value) ||
             ['latest', 'earliest', 'pending'].includes(value)
           )
         },
-        boolean: (value) => [true, false].includes(value),
-        quantity: (value) => !isNaN(value),
-        data: web3Utils.isHex,
-        address: web3Utils.isAddress,
-        object: (value) => {
+        [Web3RpcTypes.boolean]: (value) => [true, false].includes(value),
+        [Web3RpcTypes.quantity]: (value) => !isNaN(value),
+        [Web3RpcTypes.data]: web3Utils.isHex,
+        [Web3RpcTypes.address]: web3Utils.isAddress,
+        [Web3RpcTypes.object]: (value) => {
           return value instanceof Object
         },
       }
