@@ -79,7 +79,6 @@ export const convertInternalLogsToOvmLogs = (
   const ovmLogs = []
   let cumulativeTxEMLogIndices = 0
   let prevEMLogIndex = 0
-  logger.debug(`using em address of ${executionManagerAddress}`)
   logs.forEach((log) => {
     if (log.address.toUpperCase() === executionManagerAddress.toUpperCase()) {
       const EMLogIndex = log.logIndex

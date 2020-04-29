@@ -24,6 +24,7 @@ import {
   internalTxReceiptToOvmTxReceipt,
   l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
+  ALL_EXECUTION_MANAGER_EVENT_TOPICS,
 } from '@eth-optimism/ovm'
 
 import AsyncLock from 'async-lock'
@@ -471,8 +472,8 @@ export class DefaultWeb3Handler
   }
 
   public async getLogs(ovmFilter: any): Promise<any[]> {
-    log.debug(`Requesting logs with ovm filter [${JSON.stringify(ovmFilter)}].`)
     const filter = JSON.parse(JSON.stringify(ovmFilter))
+
     if (filter['address'] && Array.isArray(filter['address'])) {
       const codeContractAddresses = filter['address'].map(async (address) => {
         return this.context.executionManager.getCodeContractAddress(address)
@@ -482,6 +483,7 @@ export class DefaultWeb3Handler
         this.context.executionManager.address,
       ]
     }
+    // todo convert singleton to single-element array instead so getCodeContractAddress mapping is sufficient for all cases
     if (filter['address'] && !Array.isArray(filter['address'])) {
       const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
         filter.address
@@ -491,7 +493,16 @@ export class DefaultWeb3Handler
         this.context.executionManager.address,
       ]
     }
-    log.debug(`Converted ovm filter to internal filter ${filter}`)
+
+    if (filter['topics']) {
+      if (!Array.isArray(filter['topics'][0])) {
+        filter['topics'][0] = [JSON.parse(JSON.stringify(filter['topics'][0]))]
+      }
+      filter['topics'][0].push(...ALL_EXECUTION_MANAGER_EVENT_TOPICS)
+    }
+    log.debug(
+      `Converted ovm filter to internal filter ${JSON.stringify(filter)}`
+    )
 
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,

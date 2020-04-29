@@ -449,40 +449,59 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe('the getLogs endpoint', () => {
-      it('should return logs', async () => {
-        const executionManagerAddress = await httpProvider.send(
-          'ovm_getExecutionManagerAddress',
-          []
-        )
-        const wallet = getWallet(httpProvider)
-        const balance = await httpProvider.getBalance(wallet.address)
-        const factory = new ContractFactory(
-          EventEmitter.abi,
-          EventEmitter.bytecode,
-          wallet
-        )
-        const eventEmitter = await factory.deploy()
-        const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
-          eventEmitter.deployTransaction.hash
-        )
-        const tx = await eventEmitter.emitEvent(executionManagerAddress)
-
-        const logs = await httpProvider.getLogs({
-          address: eventEmitter.address,
+    describe.only('the getLogs endpoint', () => {
+      let wallet
+      beforeEach(async () => {
+        wallet = getWallet(httpProvider)
+      })
+      describe('Non-subcall events', async () => {
+        let eventEmitter
+        let eventEmitterFactory
+        beforeEach(async () => {
+          eventEmitterFactory = new ContractFactory(
+            EventEmitter.abi,
+            EventEmitter.bytecode,
+            wallet
+          )
+          eventEmitter = await eventEmitterFactory.deploy()
+          await eventEmitter.emitEvent()
         })
-        logs[0].address.should.eq(eventEmitter.address)
-        logs[0].logIndex.should.eq(0)
-        const parsedLogs = logs.map((x) => factory.interface.parseLog(x))
-        parsedLogs.length.should.eq(1)
-        parsedLogs[0].name.should.eq('Event')
+        const DUMMY_EVENT_NAME = 'DummyEvent()'
+        const verifyEventEmitterLogs = (logs: any) => {
+          logs[0].address.should.eq(eventEmitter.address)
+          logs[0].logIndex.should.eq(0)
+          const parsedLogs = logs.map((x) =>
+            eventEmitterFactory.interface.parseLog(x)
+          )
+          parsedLogs.length.should.eq(1)
+          parsedLogs[0].signature.should.eq(DUMMY_EVENT_NAME)
+        }
+        it('should return correct logs with #nofilter', async () => {
+          const logs = await httpProvider.getLogs({
+            fromBlock: 'latest',
+            toBlock: 'latest',
+          })
+          verifyEventEmitterLogs(logs)
+        })
+        it('should return correct logs with address filter', async () => {
+          const logs = await httpProvider.getLogs({
+            address: eventEmitter.address,
+          })
+          verifyEventEmitterLogs(logs)
+        })
+        it('should return correct logs with a topics filter', async () => {
+          const dummyTopic =
+            eventEmitterFactory.interface.events[DUMMY_EVENT_NAME].topic
+          const logs = await httpProvider.getLogs({
+            topics: [dummyTopic],
+          })
+          verifyEventEmitterLogs(logs)
+        })
       })
       describe('Nested contract call events', async () => {
-        let wallet
         let sub
         let master
         beforeEach(async () => {
-          wallet = getWallet(httpProvider)
           const subFactory = new ContractFactory(
             SubEventEmitter.abi,
             SubEventEmitter.bytecode,
@@ -507,7 +526,7 @@ describe('Web3Handler', () => {
           logs[0].address.should.eq(master.address)
           logs[1].address.should.eq(sub.address)
         })
-        it('should return logs which are the same as a transaction receipt', async () => {
+        it("should return logs which are the same as a transaction receipt's logs", async () => {
           const tx = await master.callSubEmitter()
           const gotLogs = await httpProvider.send(Web3RpcMethods.getLogs, [
             {
@@ -519,6 +538,7 @@ describe('Web3Handler', () => {
             Web3RpcMethods.getTransactionReceipt,
             [tx.hash]
           )
+          gotLogs.should.deep.equal(receipt.logs)
         })
       })
     })
