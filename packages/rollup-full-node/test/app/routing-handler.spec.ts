@@ -314,7 +314,7 @@ describe('Routing Handler', () => {
       error.should.be.instanceOf(FormattedJsonRpcError, 'Invalid error type!')
       const formatted: FormattedJsonRpcError = error as FormattedJsonRpcError
       formatted.jsonRpcResponse.should.deep.equal(
-        transactionErrorRFesponsePayload,
+        transactionErrorResponsePayload,
         'Incorrect error returned!'
       )
     })
