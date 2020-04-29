@@ -84,7 +84,7 @@ export const convertInternalLogsToOvmLogs = (
   logs.forEach((log) => {
     if (log.address.toUpperCase() === executionManagerAddress.toUpperCase()) {
       const EMLogIndex = log.logIndex
-      if (EMLogIndex < prevEMLogIndex) {
+      if (EMLogIndex <= prevEMLogIndex) {
         loggerLogs.push(
           `Detected raw EM log ${log} with lower logIndex than previously processed, must be from a new transaction.  Resetting cumulative EM log indices for tx.`
         )
