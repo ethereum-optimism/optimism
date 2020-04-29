@@ -5,10 +5,13 @@ import {
   getLogger,
   hexStrToBuf,
   bufToHexString,
+  numberToHexString,
   logError,
   remove0x,
   ZERO_ADDRESS,
+  LOG_NEWLINE_STRING,
   BloomFilter,
+  hexStrToNumber,
 } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { LogDescription } from 'ethers/utils'
@@ -59,35 +62,69 @@ export interface OvmTransactionMetadata {
 }
 
 /**
- * Convert internal logs into OVM logs. Or in other words, take the logs which
+ * Convert internal transaction logs into OVM logs. Or in other words, take the logs which
  * are emitted by a normal Ganache or Geth node (this will include logs from the ExecutionManager),
  * parse them, and then convert them into logs which look like they would if you were running this tx
  * using an OVM backend.
  *
+ * NOTE: The input logs MUST NOT be stripped of any Execution Manager events, or this function will break.
  *
- * @param logs an array of internal logs which we will parse and then convert.
+ * @param logs an array of internal transaction logs which we will parse and then convert.
  * @return the converted logs
  */
-export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
-  let activeContract = ZERO_ADDRESS
+export const convertInternalLogsToOvmLogs = (
+  logs: Log[],
+  executionManagerAddress: string
+): Log[] => {
+  let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
+  const loggerLogs = [`Parsing internal logs ${JSON.stringify(logs)}: `]
   const ovmLogs = []
+  let cumulativeTxEMLogIndices = 0
+  let prevEMLogIndex = 0
   logs.forEach((log) => {
-    const executionManagerLog = executionManagerInterface.parseLog(log)
-    if (executionManagerLog) {
-      if (executionManagerLog.name === 'ActiveContract') {
-        activeContract = executionManagerLog.values['_activeContract']
+    if (log.address.toUpperCase() === executionManagerAddress.toUpperCase()) {
+      const EMLogIndex = log.logIndex
+      if (EMLogIndex <= prevEMLogIndex) {
+        loggerLogs.push(
+          `Detected raw EM log ${log} with lower logIndex than previously processed, must be from a new transaction.  Resetting cumulative EM log indices for tx.`
+        )
+        cumulativeTxEMLogIndices = 0
+      }
+      cumulativeTxEMLogIndices++
+      prevEMLogIndex = EMLogIndex
+      const executionManagerLog = executionManagerInterface.parseLog(log)
+      if (!executionManagerLog) {
+        loggerLogs.push(
+          `execution manager log ${log} was unrecognized by the interface parser--Definitely not an activeContract event, ignoring...`
+        )
       } else {
-        logger.debug(
+        loggerLogs.push(
           `${executionManagerLog.name}, values: ${JSON.stringify(
             executionManagerLog.values
-          )}`
+          )} and cumulativeTxEMLogIndices: ${cumulativeTxEMLogIndices}`
         )
+        if (executionManagerLog.name === 'ActiveContract') {
+          activeContract = executionManagerLog.values['_activeContract']
+          loggerLogs.push(
+            `EM activeContract event detected, setting activeContract to ${activeContract}`
+          )
+        } else {
+          loggerLogs.push(
+            `EM-but-non-activeContract event detected, ignoring...`
+          )
+        }
       }
     } else {
-      logger.debug(`Non-EM log: ${JSON.stringify(log)}`)
-      ovmLogs.push({ ...log, address: activeContract })
+      const newIndex = log.logIndex - cumulativeTxEMLogIndices
+      loggerLogs.push(
+        `Non-EM log: ${JSON.stringify(
+          log
+        )}. Using address of active contract ${activeContract} and log index ${newIndex}`
+      )
+      ovmLogs.push({ ...log, address: activeContract, logIndex: newIndex })
     }
   })
+  logger.debug(loggerLogs.join(LOG_NEWLINE_STRING))
   return ovmLogs
 }
 
@@ -174,23 +211,25 @@ export const getSuccessfulOvmTransactionMetadata = (
  */
 export const internalTxReceiptToOvmTxReceipt = async (
   internalTxReceipt: TransactionReceipt,
+  executionManagerAddress: string,
   ovmTxHash?: string
 ): Promise<OvmTransactionReceipt> => {
   const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(
     internalTxReceipt
   )
   // Construct a new receipt
-  //
+
   // Start off with the internalTxReceipt
   const ovmTxReceipt: OvmTransactionReceipt = internalTxReceipt
   // Add the converted logs
-  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(internalTxReceipt.logs)
+  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(
+    internalTxReceipt.logs,
+    executionManagerAddress
+  )
   // Update the to and from fields if necessary
   if (ovmTransactionMetadata.ovmTo) {
     ovmTxReceipt.to = ovmTransactionMetadata.ovmTo
   }
-  // TODO: Update this to use some default account abstraction library potentially.
-  ovmTxReceipt.from = ovmTransactionMetadata.ovmFrom
   // Also update the contractAddress in case we deployed a new contract
   ovmTxReceipt.contractAddress = !!ovmTransactionMetadata.ovmCreatedContractAddress
     ? ovmTransactionMetadata.ovmCreatedContractAddress
@@ -208,9 +247,11 @@ export const internalTxReceiptToOvmTxReceipt = async (
 
   logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   const logsBloom = new BloomFilter()
-  ovmTxReceipt.logs.forEach((log) => {
+  ovmTxReceipt.logs.forEach((log, index) => {
     logsBloom.add(hexStrToBuf(log.address))
     log.topics.forEach((topic) => logsBloom.add(hexStrToBuf(topic)))
+    log.transactionHash = ovmTxReceipt.transactionHash
+    log.logIndex = numberToHexString(index) as any
   })
   ovmTxReceipt.logsBloom = bufToHexString(logsBloom.bitvector)
 

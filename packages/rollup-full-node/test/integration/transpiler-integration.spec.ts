@@ -2,6 +2,14 @@ import '../setup'
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
 
+/* Internal Imports */
+import {
+  createProviderForHandler,
+  deployContract,
+  getWallets,
+  TestWeb3Handler,
+} from '../../src/app'
+
 /* Contract Imports */
 
 import * as SimpleStorage from '../contracts/build/transpiled/SimpleStorage.json'
@@ -11,14 +19,6 @@ import * as CallerGetter from '../contracts/build/transpiled/CallerGetter.json'
 import * as OriginGetter from '../contracts/build/transpiled/OriginGetter.json'
 import * as CallerReturner from '../contracts/build/transpiled/CallerReturner.json'
 import * as TimeGetter from '../contracts/build/transpiled/TimeGetter.json'
-
-import {
-  createMockProvider,
-  createProviderForHandler,
-  getWallets,
-  deployContract,
-  TestWeb3Handler,
-} from '../../'
 
 describe(`Various opcodes should be usable in combination with transpiler and full node`, () => {
   let handler: TestWeb3Handler

@@ -22,15 +22,15 @@ import {
   GAS_LIMIT,
   convertInternalLogsToOvmLogs,
   internalTxReceiptToOvmTxReceipt,
-  l2ExecutionManagerInterface,
   l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
+  ALL_EXECUTION_MANAGER_EVENT_TOPICS,
 } from '@eth-optimism/ovm'
 
-import { Contract, utils, Wallet } from 'ethers'
-import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
-
 import AsyncLock from 'async-lock'
+import { Contract, utils, Wallet } from 'ethers'
+import Web3 from 'web3'
+import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
 import {
@@ -40,20 +40,24 @@ import {
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3Handler,
+  Web3RpcTypes,
   Web3RpcMethods,
   RevertError,
+  UnsupportedFilterError,
 } from '../types'
-import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './utils'
+import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './util'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
 
 export const latestBlock: string = 'latest'
+const lockKey: string = 'LOCK'
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
   private readonly ovmHashToOvmTransactionCache: Object = {}
   protected blockTimestamps: Object = {}
+  private lock: AsyncLock
 
   /**
    * Creates a local node, deploys the L2ExecutionManager to it, and returns a
@@ -61,11 +65,13 @@ export class DefaultWeb3Handler
    *
    * @param messageSubmitter The messageSubmitter to use to pass messages to L1. Will be replaced by block submitter.
    * @param web3Provider (optional) The web3 provider to use.
+   * @param l2NodeContext (optional) The L2NodeContext to use.
    * @returns The constructed Web3 handler.
    */
   public static async create(
     messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter(),
-    web3Provider?: JsonRpcProvider
+    web3Provider?: JsonRpcProvider,
+    l2NodeContext?: L2NodeContext
   ): Promise<DefaultWeb3Handler> {
     log.info(
       `Creating Web3 Handler with provider: ${
@@ -76,10 +82,11 @@ export class DefaultWeb3Handler
     )
 
     const timestamp = getCurrentTime()
-    const l2NodeContext: L2NodeContext = await initializeL2Node(web3Provider)
+    const nodeContext: L2NodeContext =
+      l2NodeContext || (await initializeL2Node(web3Provider))
 
-    const handler = new DefaultWeb3Handler(messageSubmitter, l2NodeContext)
-    const blockNumber = await l2NodeContext.provider.getBlockNumber()
+    const handler = new DefaultWeb3Handler(messageSubmitter, nodeContext)
+    const blockNumber = await nodeContext.provider.getBlockNumber()
     handler.blockTimestamps[blockNumber] = timestamp
     return handler
   }
@@ -87,7 +94,9 @@ export class DefaultWeb3Handler
   protected constructor(
     protected readonly messageSubmitter: L2ToL1MessageSubmitter,
     protected readonly context: L2NodeContext
-  ) {}
+  ) {
+    this.lock = new AsyncLock()
+  }
 
   public getL2ToL1MessagePasserAddress(): Address {
     return this.context.l2ToL1MessagePasser.address
@@ -111,70 +120,91 @@ export class DefaultWeb3Handler
 
     // Make sure the method is available
     let response: any
-    let args: any[]
     switch (method) {
       case Web3RpcMethods.blockNumber:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.blockNumber()
         break
       case Web3RpcMethods.call:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.call(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.object,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.call(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.estimateGas:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.estimateGas(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.object,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.estimateGas(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.gasPrice:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.gasPrice()
         break
       case Web3RpcMethods.getBlockByNumber:
-        args = this.assertParameters(params, 2)
-        response = await this.getBlockByNumber(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.quantityOrTag,
+          Web3RpcTypes.boolean,
+        ])
+        response = await this.getBlockByNumber(params[0], params[1])
         break
       case Web3RpcMethods.getBlockByHash:
-        args = this.assertParameters(params, 2)
-        response = await this.getBlockByHash(args[0], args[1])
+        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.boolean])
+        response = await this.getBlockByHash(params[0], params[1])
         break
       case Web3RpcMethods.getBalance:
-        this.assertParameters(params, 2, latestBlock)
+        this.assertParameters(
+          params,
+          [Web3RpcTypes.address, Web3RpcTypes.quantityOrTag],
+          latestBlock
+        )
         response = await this.getBalance()
         break
       case Web3RpcMethods.getCode:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.getCode(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.data,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.getCode(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.getExecutionManagerAddress:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.getExecutionManagerAddress()
         break
       case Web3RpcMethods.getLogs:
-        args = this.assertParameters(params, 1)
-        response = await this.getLogs(args[0])
+        this.assertParameters(params, [Web3RpcTypes.object])
+        response = await this.getLogs(params[0])
         break
       case Web3RpcMethods.getTransactionByHash:
-        args = this.assertParameters(params, 1)
-        response = await this.getTransactionByHash(args[0])
+        this.assertParameters(params, [Web3RpcTypes.data])
+        response = await this.getTransactionByHash(params[0])
         break
       case Web3RpcMethods.getTransactionCount:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.getTransactionCount(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.data,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.getTransactionCount(
+          params[0],
+          params[1] || latestBlock
+        )
         break
       case Web3RpcMethods.getTransactionReceipt:
-        args = this.assertParameters(params, 1)
-        response = await this.getTransactionReceipt(args[0])
+        this.assertParameters(params, [Web3RpcTypes.data])
+        response = await this.getTransactionReceipt(params[0])
         break
       case Web3RpcMethods.sendRawTransaction:
-        args = this.assertParameters(params, 1)
-        response = await this.sendRawTransaction(args[0])
+        this.assertParameters(params, [Web3RpcTypes.data])
+        response = await this.sendRawTransaction(params[0])
         break
       case Web3RpcMethods.networkVersion:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.networkVersion()
         break
       case Web3RpcMethods.chainId:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.chainId()
         break
       default:
@@ -438,7 +468,7 @@ export class DefaultWeb3Handler
           defaultBlock
         )}] curentBlockNumber:[${curentBlockNumber}]`
       )
-      throw new Error(
+      throw new InvalidParametersError(
         `Historical code lookups aren't supported. Requested Block: ${hexStrToNumber(
           defaultBlock
         )} Current Block: ${curentBlockNumber}`
@@ -465,20 +495,75 @@ export class DefaultWeb3Handler
     return this.context.executionManager.address
   }
 
-  public async getLogs(filter: any): Promise<any[]> {
-    log.debug(`Requesting logs with filter [${JSON.stringify(filter)}].`)
-
+  public async getLogs(ovmFilter: any): Promise<any[]> {
+    const filter = JSON.parse(JSON.stringify(ovmFilter))
+    // We cannot filter out execution manager events or else convertInternalLogsToOvmLogs will break.  So add EM address to address filter
     if (filter['address']) {
-      const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
-        filter.address
-      )
-      filter['address'] = codeContractAddress
+      if (!Array.isArray(filter['address'])) {
+        filter['address'] = [filter['address']]
+      }
+      const codeContractAddresses = []
+      for (const address of filter['address']) {
+        codeContractAddresses.push(
+          await this.context.executionManager.getCodeContractAddress(address)
+        )
+      }
+      filter['address'] = [
+        ...codeContractAddresses,
+        this.context.executionManager.address,
+      ]
     }
+    // We cannot filter out execution manager events or else convertInternalLogsToOvmLogs will break.  So add EM topics to topics filter
+    if (filter['topics']) {
+      if (filter['topics'].length > 1) {
+        // todo make this proper error
+        const msg = `The provided filter ${filter} has multiple levels of topic filter.  Multi-level topic filters are currently unsupported by the OVM.`
+        throw new UnsupportedFilterError(msg)
+      }
+      if (!Array.isArray(filter['topics'][0])) {
+        filter['topics'][0] = [JSON.parse(JSON.stringify(filter['topics'][0]))]
+      }
+      filter['topics'][0].push(...ALL_EXECUTION_MANAGER_EVENT_TOPICS)
+    }
+    log.debug(
+      `Converted ovm filter ${JSON.stringify(
+        ovmFilter
+      )} to internal filter ${JSON.stringify(filter)}`
+    )
+
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,
     ])
-    const logs = convertInternalLogsToOvmLogs(res)
-    log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+
+    let logs = JSON.parse(
+      JSON.stringify(
+        convertInternalLogsToOvmLogs(res, this.context.executionManager.address)
+      )
+    )
+    log.debug(
+      `Log result: [${JSON.stringify(logs)}], filter: [${JSON.stringify(
+        filter
+      )}].`
+    )
+    logs = await Promise.all(
+      logs.map(async (logItem, index) => {
+        logItem['transactionHash'] = await this.getOvmTxHash(
+          logItem['transactionHash']
+        )
+        const transaction = await this.getTransactionByHash(
+          logItem['transactionHash']
+        )
+        if (transaction['to'] === null) {
+          const receipt = await this.getTransactionReceipt(transaction.hash)
+          transaction['to'] = receipt.contractAddress
+        }
+        if (typeof logItem['logIndex'] === 'number') {
+          logItem['logIndex'] = numberToHexString(logItem['logIndex'])
+        }
+        return logItem
+      })
+    )
+
     return logs
   }
 
@@ -560,24 +645,22 @@ export class DefaultWeb3Handler
       )
       ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
         internalTxReceipt,
+        this.context.executionManager.address,
         ovmTxHash
       )
     } else {
       log.debug(
         `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
       )
-      const rawOvmTx = await this.getOvmTransactionByHash(ovmTxHash)
-      const ovmTx = utils.parseTransaction(rawOvmTx)
-      // for a failing tx, everything is identical between the internal and external receipts, except to and from
-      ovmTxReceipt = internalTxReceipt
-      ovmTxReceipt.from = ovmTx.from
-      ovmTxReceipt.to = ovmTx.to
     }
+    const ovmTx = await this.getTransactionByHash(ovmTxReceipt.transactionHash)
+    log.debug(`got OVM tx from hash: [${JSON.stringify(ovmTx)}]`)
+    ovmTxReceipt.to = ovmTx.to ? ovmTx.to : ovmTxReceipt.to
+    ovmTxReceipt.from = ovmTx.from
 
     if (ovmTxReceipt.revertMessage !== undefined && !includeRevertMessage) {
       delete ovmTxReceipt.revertMessage
     }
-
     if (typeof ovmTxReceipt.status === 'number') {
       ovmTxReceipt.status = numberToHexString(ovmTxReceipt.status)
     }
@@ -613,92 +696,105 @@ export class DefaultWeb3Handler
     fromAddressOverride?: string
   ): Promise<string> {
     const debugTime = new Date().getTime()
-    const blockTimestamp = this.getTimestamp()
     log.debug('Sending raw transaction with params:', rawOvmTx)
-
-    // Decode the OVM transaction -- this will be used to construct our internal transaction
-    const ovmTx = utils.parseTransaction(rawOvmTx)
-    // override the from address if in testing mode
-    if (!!fromAddressOverride) {
-      ovmTx.from = fromAddressOverride
-    }
-    log.debug(
-      `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
-        ovmTx
-      )}`
-    )
-
-    // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
-    const internalTx = await this.ovmTxToInternalTx(ovmTx)
-    // Now compute the hash of the OVM transaction which we will return
-    const ovmTxHash = await utils.keccak256(rawOvmTx)
-    const internalTxHash = await utils.keccak256(internalTx)
-
-    log.debug(
-      `OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(
-        internalTx
-      )}`
-    )
-
-    // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
-    await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
-
-    let returnedInternalTxHash: string
-    try {
-      // Then apply our transaction
-      returnedInternalTxHash = await this.context.provider.send(
-        Web3RpcMethods.sendRawTransaction,
-        [internalTx]
-      )
-    } catch (e) {
-      if (isErrorEVMRevert(e)) {
-        log.debug(
-          `Internal EVM revert for Ovm tx hash: ${ovmTxHash} and internal hash: ${internalTxHash}.  Incrementing nonce Incrementing nonce for sender (${ovmTx.from}) and surfacing revert message up...`
-        )
-        await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
-        log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
-        throw new RevertError(e.message as string)
-      }
-      logError(
-        log,
-        `Non-revert error executing internal transaction! Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}. Returning generic internal error.`,
-        e
-      )
-      throw e
-    }
-
-    if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
-      const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
-      log.error(msg)
-      throw Error(msg)
-    }
-
-    this.context.provider.waitForTransaction(internalTxHash).then(async () => {
-      const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
-        ovmTxHash,
-        true
-      )
+    return this.lock.acquire(lockKey, async () => {
       log.debug(
-        `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+        `Send tx lock acquired. Waited ${new Date().getTime() -
+          debugTime}ms for lock.`
       )
-      if (!receipt) {
-        log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
-        return
-      } else if (!receipt.status) {
-        log.debug(`Transaction reverted: ${rawOvmTx}`)
-      } else {
-        log.debug(`Transaction mined successfully: ${rawOvmTx}`)
-        await this.processTransactionEvents(receipt)
-      }
-      this.blockTimestamps[receipt.blockNumber] = blockTimestamp
-    })
+      const blockTimestamp = this.getTimestamp()
 
-    log.debug(
-      `Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]. Total time: ${new Date().getTime() -
-        debugTime}ms`
-    )
-    // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
-    return ovmTxHash
+      // Decode the OVM transaction -- this will be used to construct our internal transaction
+      const ovmTx = utils.parseTransaction(rawOvmTx)
+      // override the from address if in testing mode
+      if (!!fromAddressOverride) {
+        ovmTx.from = fromAddressOverride
+      }
+      log.debug(
+        `OVM Transaction being parsed ${rawOvmTx}, with from address override of [${fromAddressOverride}], parsed: ${JSON.stringify(
+          ovmTx
+        )}`
+      )
+
+      // Convert the OVM transaction into an "internal" tx which we can use for our execution manager
+      const internalTx = await this.ovmTxToInternalTx(ovmTx)
+      // Now compute the hash of the OVM transaction which we will return
+      const ovmTxHash = await utils.keccak256(rawOvmTx)
+      const internalTxHash = await utils.keccak256(internalTx)
+
+      log.debug(
+        `OVM tx hash: ${ovmTxHash}, internal tx hash: ${internalTxHash}, signed internal tx: ${JSON.stringify(
+          internalTx
+        )}. Elapsed time: ${new Date().getTime() - debugTime}ms`
+      )
+
+      // Make sure we have a way to look up our internal tx hash from the ovm tx hash.
+      await this.storeOvmTransaction(ovmTxHash, internalTxHash, rawOvmTx)
+
+      let returnedInternalTxHash: string
+      try {
+        // Then apply our transaction
+        returnedInternalTxHash = await this.context.provider.send(
+          Web3RpcMethods.sendRawTransaction,
+          [internalTx]
+        )
+      } catch (e) {
+        if (isErrorEVMRevert(e)) {
+          log.debug(
+            `Internal EVM revert for Ovm tx hash: ${ovmTxHash} and internal hash: ${internalTxHash}.  Incrementing nonce Incrementing nonce for sender (${ovmTx.from}) and surfacing revert message up...`
+          )
+          await this.context.executionManager.incrementNonce(add0x(ovmTx.from))
+          log.debug(`Nonce incremented successfully for ${ovmTx.from}.`)
+          throw new RevertError(e.message as string)
+        }
+        logError(
+          log,
+          `Non-revert error executing internal transaction! Ovm tx hash: ${ovmTxHash}, internal hash: ${internalTxHash}. Returning generic internal error.`,
+          e
+        )
+        throw e
+      }
+
+      if (remove0x(internalTxHash) !== remove0x(returnedInternalTxHash)) {
+        const msg: string = `Internal Transaction hashes do not match for OVM Hash: [${ovmTxHash}]. Calculated: [${internalTxHash}], returned from tx: [${returnedInternalTxHash}]`
+        log.error(msg)
+        throw Error(msg)
+      }
+
+      log.debug(
+        `OVM tx with hash ${ovmTxHash} sent. Elapsed time: ${new Date().getTime() -
+          debugTime}ms`
+      )
+
+      this.context.provider
+        .waitForTransaction(internalTxHash)
+        .then(async () => {
+          const receipt: OvmTransactionReceipt = await this.getTransactionReceipt(
+            ovmTxHash,
+            true
+          )
+          log.debug(
+            `Transaction receipt for ${rawOvmTx}: ${JSON.stringify(receipt)}`
+          )
+          if (!receipt) {
+            log.error(`Unable to find receipt for raw ovm tx: ${rawOvmTx}`)
+            return
+          } else if (!receipt.status) {
+            log.debug(`Transaction reverted: ${rawOvmTx}`)
+          } else {
+            log.debug(`Transaction mined successfully: ${rawOvmTx}`)
+            await this.processTransactionEvents(receipt)
+          }
+          this.blockTimestamps[receipt.blockNumber] = blockTimestamp
+        })
+
+      log.debug(
+        `Completed send raw tx [${rawOvmTx}]. Response: [${ovmTxHash}]. Total time: ${new Date().getTime() -
+          debugTime}ms`
+      )
+      // Return the *OVM* tx hash. We can do this because we store a mapping to the ovmTxHashs in the EM contract.
+      return ovmTxHash
+    })
   }
 
   /**
@@ -749,7 +845,8 @@ export class DefaultWeb3Handler
 
     try {
       const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-        txReceipt
+        txReceipt,
+        this.context.executionManager.address
       )
       await this.processTransactionEvents(ovmTxReceipt)
     } catch (e) {
@@ -906,7 +1003,7 @@ export class DefaultWeb3Handler
   private async ovmTxToInternalTx(ovmTx: any): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
-      throw new Error('Sending to Zero Address disallowed')
+      throw new InvalidParametersError('Sending to Zero Address disallowed')
     }
     // Get the nonce of the account that we will use to send everything
     // Note: + 1 because all transactions will have a tx hash mapping tx sent before them.
@@ -916,7 +1013,7 @@ export class DefaultWeb3Handler
       log.error(
         'Transaction does not have a valid signature! For now we only support calls from EOAs'
       )
-      throw new Error('Non-EOA transaction detected')
+      throw new InvalidParametersError('Non-EOA transaction detected')
     }
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
@@ -927,7 +1024,7 @@ export class DefaultWeb3Handler
       await this.context.executionManager.getOvmContractNonce(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
-      throw new Error(
+      throw new InvalidParametersError(
         `Incorrect nonce! Expected nonce: ${expectedNonce} but received nonce: ${ovmTx.nonce}`
       )
     }
@@ -1003,23 +1100,44 @@ export class DefaultWeb3Handler
 
   protected assertParameters(
     params: any[],
-    expected: number,
+    expected: Web3RpcTypes[],
     defaultLast?: any
-  ): any[] {
-    if (!params) {
-      if (!expected) {
-        return []
-      }
-    } else if (params.length === expected - 1 || params.length === expected) {
-      const nonEmptyParams = params.filter((x) => !!x)
-      return nonEmptyParams.length === expected
-        ? nonEmptyParams
-        : [...nonEmptyParams, defaultLast]
+  ) {
+    if (
+      !(
+        !params ||
+        params.length === expected.length - 1 ||
+        params.length === expected.length
+      )
+    ) {
+      throw new InvalidParametersError(
+        `Expected ${expected} parameters but received ${params.length}.`
+      )
     }
-    throw new InvalidParametersError(
-      `Expected ${expected} parameters but received ${
-        !params ? 0 : params.length
-      }.`
-    )
+    expected.forEach((expectedType, index) => {
+      const param = params[index]
+      const typeChecks = {
+        [Web3RpcTypes.quantityOrTag]: (value) => {
+          return (
+            value === undefined ||
+            !isNaN(value) ||
+            ['latest', 'earliest', 'pending'].includes(value)
+          )
+        },
+        [Web3RpcTypes.boolean]: (value) => [true, false].includes(value),
+        [Web3RpcTypes.quantity]: (value) => !isNaN(value),
+        [Web3RpcTypes.data]: Web3.utils.isHex,
+        [Web3RpcTypes.address]: Web3.utils.isAddress,
+        [Web3RpcTypes.object]: (value) => {
+          return value instanceof Object
+        },
+      }
+
+      if (!typeChecks[expectedType](param)) {
+        throw new InvalidParametersError(
+          `Expected ${expectedType} but got ${param}`
+        )
+      }
+    })
   }
 }

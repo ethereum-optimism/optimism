@@ -1,22 +1,47 @@
 version: "3"
 services:
-  rollup-full-node:
+  router:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    ports:
+      - 8545:8545
+    environment:
+      - IS_ROUTING_SERVER=1
+      - STARTUP_WAIT_TIMEOUT=30
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT=8545
+      - TRANSACTION_NODE_URL=http://0.0.0.0:8546
+      - READ_ONLY_NODE_URL=http://0.0.0.0:8547
+      - REQUEST_LIMIT_PERIOD_MILLIS=1000
+      - MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME=10
+      - MAX_TRANSACTIONS_PER_UNIT_TIME=5
+#     These are just so it waits for the downstream nodes to start up
+      - L2_NODE_WEB3_URL=http://0.0.0.0:8546
+      - L1_NODE_WEB3_URL=http://0.0.0.0:8547
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-dev-full-node
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: l2-router
+
+  transaction-node:
     image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
     volumes:
       - full-node-data:/mnt/full-node:rw
       - l1-node-data:/mnt/l1-node:rw
       - l2-node-data:/mnt/l2-node:rw
     ports:
-      - 8545:8545
+      - 8546:8546
     environment:
+      - IS_TRANSACTION_NODE=1
       - STARTUP_WAIT_TIMEOUT=30
       - CLEAR_DATA_KEY
       - OPCODE_WHITELIST_MASK
       - L1_SEQUENCER_MNEMONIC
       - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
       - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
-      - L2_RPC_SERVER_HOST
-      - L2_RPC_SERVER_PORT
+      - L2_RPC_SERVER_HOST=0.0.0.0
+      - L2_RPC_SERVER_PORT=8546
       - L2_RPC_SERVER_PERSISTENT_DB_PATH=/mnt/full-node/level
       - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
       - LOCAL_L1_NODE_PORT
@@ -28,9 +53,28 @@ services:
       options:
         awslogs-group: synthetix-dev-full-node
         awslogs-region: us-east-2
-        awslogs-stream-prefix: l2-rpc-server
+        awslogs-stream-prefix: l2-transaction-node
 
-  geth_l2:
+  read-only-node:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-full-node:latest
+    ports:
+      - 8547:8547
+    environment:
+      - IS_READ_ONLY_NODE=1
+      - STARTUP_WAIT_TIMEOUT=30
+      - L2_RPC_SERVER_HOST=0.0.0.0
+      - L2_RPC_SERVER_PORT=8547
+      - L2_EXECUTION_MANAGER_ADDRESS=0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA
+      - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
+      - L2_NODE_WEB3_URL=http://0.0.0.0:9545/
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: synthetix-dev-full-node
+        awslogs-region: us-east-2
+        awslogs-stream-prefix: l2-read-only-node
+
+  l2-node:
     image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
     volumes:
       - l2-node-data:/mnt/l2-node/l2:rw

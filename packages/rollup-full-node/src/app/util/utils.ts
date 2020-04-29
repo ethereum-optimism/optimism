@@ -1,17 +1,17 @@
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils/build/index'
+import { getLogger } from '@eth-optimism/core-utils'
 
 import { providers, ContractFactory, Wallet, Contract } from 'ethers'
-import * as waffle from 'ethereum-waffle'
-import { FullnodeHandler, L2ToL1MessageSubmitter } from '../../types'
 import { Web3Provider } from 'ethers/providers'
+import * as waffle from 'ethereum-waffle'
 
-/* Internal Imports */
+import { FullnodeHandler, L2ToL1MessageSubmitter } from '../../types'
+import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 import { DefaultWeb3Handler } from '../web3-rpc-handler'
 import { FullnodeRpcServer } from '../fullnode-rpc-server'
-import { NoOpL2ToL1MessageSubmitter } from '../message-submitter'
 
 const log = getLogger('utils')
+
 /**
  * Creates a Provider that uses the provided handler to handle `send`s.
  *
@@ -37,6 +37,24 @@ export const createProviderForHandler = (
 
   // The return our slightly modified provider & the execution manager address
   return provider
+}
+
+export async function createMockProvider(
+  port: number = 9999,
+  messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
+) {
+  const host = '0.0.0.0'
+  const fullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
+  const fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
+  fullnodeRpcServer.listen()
+  const baseUrl = `http://${host}:${port}`
+  const httpProvider = new providers.JsonRpcProvider(baseUrl)
+  httpProvider['closeOVM'] = () => {
+    if (!!fullnodeRpcServer) {
+      fullnodeRpcServer.close()
+    }
+  }
+  return httpProvider
 }
 
 const defaultDeployOptions = {
@@ -75,24 +93,6 @@ export async function deployOvmContract(
     contractJSON.abi,
     wallet
   )
-}
-
-export async function createMockProvider(
-  port: number = 9999,
-  messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
-) {
-  const host = '0.0.0.0'
-  const fullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
-  const fullnodeRpcServer = new FullnodeRpcServer(fullnodeHandler, host, port)
-  fullnodeRpcServer.listen()
-  const baseUrl = `http://${host}:${port}`
-  const httpProvider = new providers.JsonRpcProvider(baseUrl)
-  httpProvider['closeOVM'] = () => {
-    if (!!fullnodeRpcServer) {
-      fullnodeRpcServer.close()
-    }
-  }
-  return httpProvider
 }
 
 export function getWallets(httpProvider) {
