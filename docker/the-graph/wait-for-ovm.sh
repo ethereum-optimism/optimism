@@ -29,6 +29,23 @@ wait_for_server_to_be_reachable()
 
 }
 
+clear_data_if_necessary()
+{
+  DATA_DIRECTORY=${DATA_DIRECTORY:-/data}
+  CLEAR_DATA_FILE_PATH="$DATA_DIRECTORY/.clear_data_key_$CLEAR_DATA_KEY"
+
+  if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
+    echo "Detected change in CLEAR_DATA_KEY. Purging data."
+    rm -rf ${DATA_DIRECTORY}/*
+    rm -rf ${DATA_DIRECTORY}/.clear_data_key_*
+    echo "Local data cleared from '${VOLUME_PATH}/*'"
+    echo "Contents of data dir: $(ls -alh $VOLUME_PATH)"
+    touch $CLEAR_DATA_FILE_PATH
+  fi
+}
+
+clear_data_if_necessary
+
 wait_for_server_to_be_reachable $OVM_URL_WITH_PORT
 
 >&2 echo "OVM is up!"
