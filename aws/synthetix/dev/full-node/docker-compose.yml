@@ -112,6 +112,9 @@ services:
       RUST_LOG: info
       STARTUP_WAIT_TIMEOUT: 30
       OVM_URL_WITH_PORT: 'http://0.0.0.0:8545'
+    volumes:
+      - postgres-data:/data/postgres
+      - ipfs-data:/data/ipfs
 
     logging:
       driver: awslogs

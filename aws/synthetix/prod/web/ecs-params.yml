@@ -55,8 +55,10 @@ task_definition:
       autoprovision: true
       driver: 'local'
     - name: postgres-data
-      scope: task
+      scope: shared
+      autoprovision: true
       driver: 'local'
     - name: ipfs-data
-      scope: task
+      scope: shared
+      autoprovision: true
       driver: 'local'
