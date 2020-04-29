@@ -44,6 +44,7 @@ export const revertMessagePrefix: string =
 export const executionManagerInterface = new ethers.utils.Interface(
   ExecutionManager.interface
 )
+
 export const l2ExecutionManagerInterface = new ethers.utils.Interface(
   L2ExecutionManager.interface
 )
@@ -95,7 +96,7 @@ export const convertInternalLogsToOvmLogs = (
       const executionManagerLog = executionManagerInterface.parseLog(log)
       if (!executionManagerLog) {
         loggerLogs.push(
-          `execution manager log ${log} was unrecognized by the interface parser--Definitely not an activeContract event, ignoring...`
+          `Execution manager emitted log with topics: ${log.topics}.  These were unrecognized by the interface parser-but definitely not an ActiveContract event, ignoring...`
         )
       } else {
         loggerLogs.push(
