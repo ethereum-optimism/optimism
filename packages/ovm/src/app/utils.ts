@@ -109,7 +109,9 @@ export const convertInternalLogsToOvmLogs = (
             `EM activeContract event detected, setting activeContract to ${activeContract}`
           )
         } else {
-          loggerLogs.push(`EM-but-non-activeContract event detected, ignoring...`)
+          loggerLogs.push(
+            `EM-but-non-activeContract event detected, ignoring...`
+          )
         }
       }
     } else {

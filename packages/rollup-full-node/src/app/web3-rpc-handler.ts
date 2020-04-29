@@ -559,7 +559,7 @@ export class DefaultWeb3Handler
         }
         if (typeof logItem['logIndex'] === 'number') {
           logItem['logIndex'] = numberToHexString(logItem['logIndex'])
-        }        
+        }
         return logItem
       })
     )
