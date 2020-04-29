@@ -22,6 +22,7 @@ import {
   RevertError,
   TransactionLimitError,
   UnsupportedMethodError,
+  UnsupportedFilterError,
 } from '../types'
 
 const log: Logger = getLogger('rollup-fullnode-rpc-server')
@@ -127,6 +128,14 @@ export class FullnodeRpcServer extends ExpressHttpServer {
           )}]`
         )
         return buildJsonRpcError('METHOD_NOT_FOUND', request.id)
+      }
+      if (err instanceof UnsupportedFilterError) {
+        log.debug(
+          `Received request with unsupported filter parameters: [${JSON.stringify(
+            request
+          )}]`
+        )
+        return buildJsonRpcError('UNSUPPORTED_TOPICS_ERROR', request.id)
       }
       if (err instanceof InvalidParametersError) {
         log.debug(

@@ -24,6 +24,7 @@ import {
   internalTxReceiptToOvmTxReceipt,
   l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
+  executionManagerInterface,
 } from '@eth-optimism/ovm'
 
 import AsyncLock from 'async-lock'
@@ -42,6 +43,7 @@ import {
   Web3RpcTypes,
   Web3RpcMethods,
   RevertError,
+  UnsupportedFilterError,
 } from '../types'
 import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './util'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
@@ -50,6 +52,12 @@ const log = getLogger('web3-handler')
 
 export const latestBlock: string = 'latest'
 const lockKey: string = 'LOCK'
+
+const EMEvents = executionManagerInterface.events
+const ALL_EXECUTION_MANAGER_EVENT_TOPICS = []
+for (const eventKey of Object.keys(EMEvents)) {
+  ALL_EXECUTION_MANAGER_EVENT_TOPICS.push(EMEvents[eventKey].topic)
+}
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
@@ -494,23 +502,59 @@ export class DefaultWeb3Handler
   }
 
   public async getLogs(ovmFilter: any): Promise<any[]> {
-    log.debug(`Requesting logs with filter [${JSON.stringify(ovmFilter)}].`)
     const filter = JSON.parse(JSON.stringify(ovmFilter))
+    // We cannot filter out execution manager events or else convertInternalLogsToOvmLogs will break.  So add EM address to address filter
     if (filter['address']) {
-      const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
-        filter.address
-      )
-      filter['address'] = codeContractAddress
+      if (!Array.isArray(filter['address'])) {
+        filter['address'] = [filter['address']]
+      }
+      const codeContractAddresses = []
+      for (const address of filter['address']) {
+        codeContractAddresses.push(
+          await this.context.executionManager.getCodeContractAddress(address)
+        )
+      }
+      filter['address'] = [
+        ...codeContractAddresses,
+        this.context.executionManager.address,
+      ]
     }
+    // We cannot filter out execution manager events or else convertInternalLogsToOvmLogs will break.  So add EM topics to topics filter
+    if (filter['topics']) {
+      if (filter['topics'].length > 1) {
+        // todo make this proper error
+        const msg = `The provided filter ${JSON.stringify(
+          filter
+        )} has multiple levels of topic filter.  Multi-level topic filters are currently unsupported by the OVM.`
+        throw new UnsupportedFilterError(msg)
+      }
+      if (!Array.isArray(filter['topics'][0])) {
+        filter['topics'][0] = [JSON.parse(JSON.stringify(filter['topics'][0]))]
+      }
+      filter['topics'][0].push(...ALL_EXECUTION_MANAGER_EVENT_TOPICS)
+    }
+    log.debug(
+      `Converted ovm filter ${JSON.stringify(
+        ovmFilter
+      )} to internal filter ${JSON.stringify(filter)}`
+    )
+
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
       filter,
     ])
 
-    let logs = JSON.parse(JSON.stringify(convertInternalLogsToOvmLogs(res)))
-    log.debug(`Log result: [${logs}], filter: [${JSON.stringify(filter)}].`)
+    let logs = JSON.parse(
+      JSON.stringify(
+        convertInternalLogsToOvmLogs(res, this.context.executionManager.address)
+      )
+    )
+    log.debug(
+      `Log result: [${JSON.stringify(logs)}], filter: [${JSON.stringify(
+        filter
+      )}].`
+    )
     logs = await Promise.all(
       logs.map(async (logItem, index) => {
-        logItem['logIndex'] = numberToHexString(index)
         logItem['transactionHash'] = await this.getOvmTxHash(
           logItem['transactionHash']
         )
@@ -521,8 +565,9 @@ export class DefaultWeb3Handler
           const receipt = await this.getTransactionReceipt(transaction.hash)
           transaction['to'] = receipt.contractAddress
         }
-        logItem['address'] = transaction['to']
-
+        if (typeof logItem['logIndex'] === 'number') {
+          logItem['logIndex'] = numberToHexString(logItem['logIndex'])
+        }
         return logItem
       })
     )
@@ -608,6 +653,7 @@ export class DefaultWeb3Handler
       )
       ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
         internalTxReceipt,
+        this.context.executionManager.address,
         ovmTxHash
       )
     } else {
@@ -807,7 +853,8 @@ export class DefaultWeb3Handler
 
     try {
       const ovmTxReceipt: OvmTransactionReceipt = await internalTxReceiptToOvmTxReceipt(
-        txReceipt
+        txReceipt,
+        this.context.executionManager.address
       )
       await this.processTransactionEvents(ovmTxReceipt)
     } catch (e) {
