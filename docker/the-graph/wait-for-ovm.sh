@@ -1,6 +1,6 @@
 #!/bin/sh
 # wait-for-ovm.sh <ovm url with port>
-# NOTE: set the CLEAR_DATA_KEY environment variable to clear the /data directory on startup.
+# NOTE: set the CLEAR_DATA_KEY environment variable to clear the $POSTGRES_DIR and $IPFS_DIR on startup.
 # Directory will only be cleared if CLEAR_DATA_KEY is set AND different from last start.
 
 set -e
@@ -33,16 +33,23 @@ wait_for_server_to_be_reachable()
 
 clear_data_if_necessary()
 {
-  DATA_DIRECTORY=${DATA_DIRECTORY:-/data}
-  CLEAR_DATA_FILE_PATH="$DATA_DIRECTORY/.clear_data_key_$CLEAR_DATA_KEY"
+  POSTGRES_DIR=${POSTGRES_DIR:-/data/postgres}
+  IPFS_DIR=${IPFS_DIR:-/data/ipfs}
+  CLEAR_DATA_FILE_PATH="${IPFS_DIR}/.clear_data_key_${CLEAR_DATA_KEY}"
 
   if [ -n "$CLEAR_DATA_KEY" -a ! -f "$CLEAR_DATA_FILE_PATH" ]; then
     echo "Detected change in CLEAR_DATA_KEY. Purging data."
-    rm -rf ${DATA_DIRECTORY}/*
-    rm -rf ${DATA_DIRECTORY}/.clear_data_key_*
-    echo "Local data cleared from '${DATA_DIRECTORY}/*'"
-    echo "Contents of data dir: $(ls -alh $DATA_DIRECTORY)"
+    rm -rf ${IPFS_DIR}/*
+    rm -rf ${IPFS_DIR}/.clear_data_key_*
+    echo "Local data cleared from '${IPFS_DIR}/*'"
+    echo "Contents of ipfs dir: $(ls -alh $IPFS_DIR)"
+
+    rm -rf ${POSTGRES_DIR}/*
+    echo "Local data cleared from '${POSTGRES_DIR}/*'"
+    echo "Contents of postgres dir: $(ls -alh $POSTGRES_DIR)"
     touch $CLEAR_DATA_FILE_PATH
+  else
+    echo "No change detected in CLEAR_DATA_KEY not deleting data."
   fi
 }
 
