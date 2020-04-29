@@ -72,7 +72,7 @@ export interface OvmTransactionMetadata {
  */
 export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
   let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
-  const loggerLogs = []
+  const loggerLogs = [`Parsing logs from contract ${activeContract}: `]
   const ovmLogs = []
   logs.forEach((log) => {
     const executionManagerLog = executionManagerInterface.parseLog(log)
