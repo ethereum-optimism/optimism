@@ -3,7 +3,6 @@ import '../setup'
 import {
   add0x,
   getLogger,
-  remove0x,
   castToNumber,
   hexStrToBuf,
   TestUtils,
@@ -13,14 +12,10 @@ import { ethers, ContractFactory } from 'ethers'
 import { getWallets, deployContract } from 'ethereum-waffle'
 
 /* Internal Imports */
-import {
-  Web3RpcMethods,
-  TestWeb3Handler,
-  FullnodeRpcServer,
-  DefaultWeb3Handler,
-} from '../../src'
+import { Web3RpcMethods, TestWeb3Handler, FullnodeRpcServer } from '../../src'
 import * as SimpleStorage from '../contracts/build/untranspiled/SimpleStorage.json'
 import * as EmptyContract from '../contracts/build/untranspiled/EmptyContract.json'
+import * as CallerStorer from '../contracts/build/transpiled/CallerStorer.json'
 
 const log = getLogger('test-web3-handler', true)
 
@@ -28,7 +23,7 @@ const secondsSinceEpoch = (): number => {
   return Math.round(Date.now() / 1000)
 }
 const host = '0.0.0.0'
-const port = 9998
+const port = 9997
 const baseUrl = `http://${host}:${port}`
 
 describe('TestHandler', () => {
@@ -225,7 +220,7 @@ describe('TestHandler', () => {
       await testRpcServer.close()
     })
 
-    it('should run the transaction', async () => {
+    it('should run the transaction for arbitrary from, to, and data, correctly filling optional fields including nonce', async () => {
       const storageKey = add0x('01'.repeat(32))
       const storageValue = add0x('02'.repeat(32))
       const executionManagerAddress = await httpProvider.send(
@@ -242,23 +237,53 @@ describe('TestHandler', () => {
         'setStorage'
       ].encode([executionManagerAddress, storageKey, storageValue])
       const transaction = {
-        nonce: 0,
         from: wallet.address,
         to: simpleStorage.address,
-        gasPrice: 0,
-        gasLimit: 0,
-        value: 0,
         data: transactionData,
       }
 
-      const response = await httpProvider.send('eth_sendTransaction', [
-        transaction,
-      ])
+      await httpProvider.send('eth_sendTransaction', [transaction])
       const res = await simpleStorage.getStorage(
         executionManagerAddress,
         storageKey
       )
       res.should.equal(storageValue)
+    })
+
+    it('the EVM should actually see the arbitrary .from as the sender of the tx', async () => {
+      const factory = new ContractFactory(
+        CallerStorer.abi,
+        CallerStorer.bytecode,
+        wallet
+      )
+      const callerStorer = await factory.deploy()
+      const setData = await callerStorer.interface.functions[
+        'storeMsgSender'
+      ].encode([])
+      const randomFromAddress = add0x('02'.repeat(20))
+      const transaction = {
+        from: randomFromAddress,
+        to: callerStorer.address,
+        data: setData,
+      }
+      await httpProvider.send('eth_sendTransaction', [transaction])
+      const res = await callerStorer.getLastMsgSender()
+      res.should.equal(randomFromAddress)
+    })
+    it('should allow for contract deployment through the endpoint', async () => {
+      log.debug(`here is a working log`)
+      const randomFromAddress = add0x('02'.repeat(20))
+      const creationInitcode = '0x' + SimpleStorage.bytecode
+      const transaction = {
+        from: randomFromAddress,
+        data: creationInitcode,
+      }
+      const txHash = await httpProvider.send('eth_sendTransaction', [
+        transaction,
+      ])
+      const txReceipt = await wallet.provider.getTransactionReceipt(txHash)
+      // make sure the receipt's contractAddress is set
+      txReceipt.contractAddress.slice(0, 2).should.equal('0x')
     })
   })
 

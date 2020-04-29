@@ -10,6 +10,7 @@ task_definition:
 #        retries: 3
 #        start_period: 10s
       mem_limit: 32653700000
+      cpu_shares: 16384
 
 
   ecs_network_mode: awsvpc

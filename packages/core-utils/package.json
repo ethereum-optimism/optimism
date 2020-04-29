@@ -38,6 +38,7 @@
     "chai-as-promised": "^7.1.1",
     "debug": "^4.1.1",
     "dotenv": "^8.2.0",
+    "ethereumjs-util": "^6.2.0",
     "ethers": "^4.0.37",
     "express": "^4.17.1",
     "memdown": "^4.0.0",

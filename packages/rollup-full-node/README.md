@@ -11,8 +11,22 @@ Run `yarn install` to install necessary dependencies.
 # Configuration
 Config is handled entirely through environment variables. Below are some config variable names, whether or not they're optional, and what they do:
 
+**Server Type** (set at most one of these):
+* `IS_TRANSACTION_NODE` - (optional) Set this to any value if this container / process is to start in Transaction Node mode. This is a node capable of handling all requests but that is only meant to be sent Transaction requests and requests tightly-coupled to transactions. This node also takes care of L1 <--> L2 message passing. Note: If no server type is specified, this is the default.
+* `IS_READ_ONLY_NODE` - (optional) Set this to any value if this container / process is to start in Read-Only Node mode. This will make this server idempotent and horizontally scalable, only serving read-only requests.
+* `IS_ROUTING_SERVER` - (optional) Set this to any value if this container / process is to start in Routing Server mode. The routing server, if configured, sits in front of the read-only node(s) and the transaction node and rate limits (if configured) and routes read-only requests to the Read-Only Node and transaction and transaction-coupled requests to the Transaction Node.
+
+**Routing Server** (only applicable if `IS_ROUTING_SERVER` is set)
+* `TRANSACTION_NODE_URL` - The url of the Transaction Node to route transaction requests to.
+* `READ_ONLY_NODE_URL` - (optional, but encouraged) The url of the Read-Only node to route read-only requests to.
+* `MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME` - (optional) The max number of non-tx requests that should be permitted per IP address per unit time (see `REQUEST_LIMIT_PERIOD_MILLIS` below).
+* `MAX_TRANSACTIONS_PER_UNIT_TIME` - (optional) The max number of transactions that should be permitted per address per unit time (see `REQUEST_LIMIT_PERIOD_MILLIS` below) 
+* `REQUEST_LIMIT_PERIOD_MILLIS` - (optional) The rolling time period in milliseconds in which the above `MAX...` request limits will be enforced.
+* `CONTRACT_DEPLOYER_ADDRESS` - (optional) Only address that will be allowed to send transactions to any address if a whitelist is configured.
+* `COMMA_SEPARATED_TO_ADDRESS_WHITELIST` - (optional) The comma-separated whitelist of addresses to which transactions may be made. Any transaction sent to another address that is not from the `CONTRACT_DEPLOYER_ADDRESS` will be rejected.
+
 **Rollup Server Data**:
-* `CLEAR_DATA_KEY` - (optional) Set to clear all persisted data in the full node. Data is only cleared on startup when this variable is set _and_ is different from last startup (e.g. last start up it wasn't set, this time it is or last start up it was set to a different value than it is this start up)
+* `CLEAR_DATA_KEY` - (optional) Set to clear all persisted data in the full node. Data is only cleared on startup when this variable is set _and_ is different from last startup (e.g. last start up it wasn't set, this time it is or last start up it was set to a different value than it is this start up). NOTE: This is only applicable for Transaction Nodes.
 
 **L1**:
 * `L1_NODE_WEB3_URL` - (optional) The Web3 node url (including port) to be used to connect to L1 Ethereum. If this is not present, a local L1 node will be created at runtime using Ganache.

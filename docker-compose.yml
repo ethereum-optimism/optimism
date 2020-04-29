@@ -4,19 +4,17 @@ services:
 
   rollup-full-node:
     volumes:
-       - full-node-data:/mnt/full-node:rw
-       - l1-node-data:/mnt/l1-node:rw
-       - l2-node-data:/mnt/l2-node:rw
-    depends_on:
-      - geth_l2
-#      - geth_l1
+      - full-node-data:/mnt/full-node:rw
+      - l1-node-data:/mnt/l1-node:rw
+      - l2-node-data:/mnt/l2-node:rw
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 8545:8545
+      - 8546:8546
     environment:
-      - CLEAR_DATA_KEY=3
+      - IS_TRANSACTION_NODE=1
+      - CLEAR_DATA_KEY=35
       - STARTUP_WAIT_TIMEOUT=30
       - OPCODE_WHITELIST_MASK
       - LOCAL_L1_NODE_PORT
@@ -31,13 +29,36 @@ services:
       - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
       - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
       - L2_RPC_SERVER_HOST
-      - L2_RPC_SERVER_PORT
+      - L2_RPC_SERVER_PORT=8546
       - L2_RPC_SERVER_PERSISTENT_DB_PATH=/mnt/full-node/level
       - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
-      - L2_WALLET_MNEMONIC
-      - L2_WALLET_PRIVATE_KEY_PATH
       - L2_NODE_WEB3_URL=http://geth_l2:9545/
-#      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/mnt/l2-node/
+  #      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/mnt/l2-node/
+
+  router:
+    image: optimism-monorepo_rollup-full-node:latest
+    ports:
+      - 8545:8545
+    environment:
+      - IS_ROUTING_SERVER=1
+      - STARTUP_WAIT_TIMEOUT=30
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT=8545
+      - TRANSACTION_NODE_URL=http://rollup-full-node:8546
+      - READ_ONLY_NODE_URL=http://read-only-node:8547
+
+  read-only-node:
+    image: optimism-monorepo_rollup-full-node:latest
+    ports:
+      - 8547:8547
+    environment:
+      - IS_READ_ONLY_NODE=1
+      - STARTUP_WAIT_TIMEOUT=30
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT=8547
+      - L2_EXECUTION_MANAGER_ADDRESS=0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA
+      - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
+      - L2_NODE_WEB3_URL=http://geth_l2:9545/
 
   geth_l2:
     volumes:
@@ -46,7 +67,7 @@ services:
       context: docker/geth
       dockerfile: Dockerfile
     environment:
-      - CLEAR_DATA_KEY=3
+      - CLEAR_DATA_KEY=35
       - VOLUME_PATH=/mnt/l2-node/l2
       - HOSTNAME=geth_l2
       - PORT=9545
@@ -55,17 +76,6 @@ services:
       - "9545"
     ports:
       - 9545:9545
-#
-#  geth_l1:
-#    volumes:
-#      - l1-node-data:/mnt/l1-node/l1
-#    build:
-#      context: docker/geth
-#      dockerfile: Dockerfile
-#    environment:
-#      - VOLUME_PATH=/mnt/l1-node/l1
-#    expose:
-#      - "8545"
 
 volumes:
   full-node-data:

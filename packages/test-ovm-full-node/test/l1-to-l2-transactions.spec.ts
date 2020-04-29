@@ -102,7 +102,7 @@ describe('L1 To L2 Transaction Passing', () => {
       simpleStorage = await deployContract(wallet, SimpleStorage, [])
     })
 
-    it.only('should process l1-to-l2-transaction properly', async () => {
+    it('should process l1-to-l2-transaction properly', async () => {
       const k: number = Math.floor(Math.random() * Math.floor(9007199254740991))
       const v: number = Math.floor(Math.random() * Math.floor(9007199254740991))
 

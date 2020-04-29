@@ -13,16 +13,15 @@ import {
 } from '@eth-optimism/ovm'
 import { Address } from '@eth-optimism/rollup-core'
 
+import { JsonRpcProvider } from 'ethers/providers'
+
 import { Contract, Wallet } from 'ethers'
 import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import {
-  DEFAULT_ETHNODE_GAS_LIMIT,
-  deployContract,
-  Environment,
-} from '../index'
-import { JsonRpcProvider } from 'ethers/providers'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../index'
+import { Environment } from './environment'
+import { deployContract } from './utils'
 import { L2NodeContext } from '../../types'
 import * as fs from 'fs'
 
@@ -37,17 +36,27 @@ const log = getLogger('l2-node')
  * - Deploying the ExecutionManager if it does not already exist.
  *
  * @param web3Provider (optional) The JsonRpcProvider to use to connect to a remote node.
+ * @param doNotDeploy (optional) Set if this should error rather than deploying any chain or contracts.
  * @returns The L2NodeContext necessary to interact with the L2 Node.
  */
 export async function initializeL2Node(
-  web3Provider?: JsonRpcProvider
+  web3Provider?: JsonRpcProvider,
+  doNotDeploy?: boolean
 ): Promise<L2NodeContext> {
+  if (doNotDeploy && !web3Provider) {
+    const msg =
+      'initializeL2Node is told not to deploy but there is no provider passed'
+    log.error(msg)
+    throw Error(msg)
+  }
+
   const provider: JsonRpcProvider = web3Provider || deployLocalL2Node()
   const wallet: Wallet = getL2Wallet(provider)
 
   const executionManager: Contract = await getExecutionManagerContract(
     provider,
-    wallet
+    wallet,
+    doNotDeploy
   )
   const l2ToL1MessagePasser: Contract = getL2ToL1MessagePasserContract(wallet)
 
@@ -140,11 +149,13 @@ function getL2Wallet(provider: JsonRpcProvider): Wallet {
  *
  * @param provider The provider to use to determine if the contract has already been deployed.
  * @param wallet The wallet to use for the contract.
+ * @param doNotDeploy Set if this should error instead of deploying the contract
  * @returns The Execution Manager contract.
  */
 async function getExecutionManagerContract(
   provider: JsonRpcProvider,
-  wallet: Wallet
+  wallet: Wallet,
+  doNotDeploy: boolean
 ): Promise<Contract> {
   const executionManagerAddress: Address =
     Environment.l2ExecutionManagerAddress() ||
@@ -161,6 +172,13 @@ async function getExecutionManagerContract(
       wallet
     )
   } else {
+    if (doNotDeploy) {
+      const msg =
+        'getExecutionManagerContract is told not to deploy but there is no configured contract address!'
+      log.error(msg)
+      throw Error(msg)
+    }
+
     log.info(`Deploying execution manager!`)
     executionManager = await deployExecutionManager(wallet)
     log.info(
@@ -210,5 +228,19 @@ function getL2ToL1MessagePasserContract(wallet: Wallet): Contract {
     l2ToL1MessagePasserOvmAddress,
     L2ToL1MessagePasserContractDefinition.abi,
     wallet
+  )
+}
+
+/**
+ * Detects whether an internal L2 node error is due to an EVM revert or some other error
+ *
+ * @param e The error message reterned from either eth_sendRawTransaction or eth_call on the internal L2 node
+ * @returns Whether the error is an EVM revert error or some other issue.
+ */
+export function isErrorEVMRevert(e: any): boolean {
+  return (
+    !!e.results &&
+    !!Object.keys(e.results)[0] &&
+    e.results[Object.keys(e.results)[0]].error === 'revert'
   )
 }
