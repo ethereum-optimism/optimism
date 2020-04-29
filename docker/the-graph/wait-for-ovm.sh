@@ -36,7 +36,7 @@ clear_data_if_necessary()
   DATA_DIRECTORY=${DATA_DIRECTORY:-/data}
   CLEAR_DATA_FILE_PATH="$DATA_DIRECTORY/.clear_data_key_$CLEAR_DATA_KEY"
 
-  if [[ -n "$CLEAR_DATA_KEY" && ! -f "$CLEAR_DATA_FILE_PATH" ]]; then
+  if [ -n "$CLEAR_DATA_KEY" -a ! -f "$CLEAR_DATA_FILE_PATH" ]; then
     echo "Detected change in CLEAR_DATA_KEY. Purging data."
     rm -rf ${DATA_DIRECTORY}/*
     rm -rf ${DATA_DIRECTORY}/.clear_data_key_*
