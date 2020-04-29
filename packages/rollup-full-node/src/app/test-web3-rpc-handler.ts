@@ -3,7 +3,6 @@ import {
   getLogger,
   numberToHexString,
   castToNumber,
-  rlpEncodeTransactionWithRandomSig,
 } from '@eth-optimism/core-utils'
 import { GAS_LIMIT } from '@eth-optimism/ovm'
 import { JsonRpcProvider } from 'ethers/providers'
@@ -144,16 +143,18 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     if (!ovmTx.to) {
       ovmTx.to = '0x'
     }
-    if (!ovmTx.gasPrice) {
-      ovmTx.gasPrice = 0
-    }
-    if (!ovmTx.gasLimit) {
+    if (!ovmTx.gas) {
       ovmTx.gasLimit = GAS_LIMIT
+    } else {
+      ovmTx.gasLimit = ovmTx.gas
+      delete ovmTx.gas
     }
+    const ovmTxFrom = ovmTx.from
+    delete ovmTx.from
     ovmTx.value = 0
     return this.sendRawTransaction(
-      rlpEncodeTransactionWithRandomSig(ovmTx),
-      ovmTx.from
+      await this.getNewWallet().sign(ovmTx),
+      ovmTxFrom
     )
   }
 
