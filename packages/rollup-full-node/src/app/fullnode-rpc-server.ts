@@ -14,6 +14,7 @@ import {
 
 /* Internal Imports */
 import {
+  FormattedJsonRpcError,
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
@@ -103,6 +104,14 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         result,
       }
     } catch (err) {
+      if (err instanceof FormattedJsonRpcError) {
+        log.debug(
+          `Received formatted JSON RPC Error response. Returning it as is: ${JSON.stringify(
+            err.jsonRpcResponse
+          )}`
+        )
+        return err.jsonRpcResponse
+      }
       if (err instanceof RevertError) {
         log.debug(`Request reverted. Request: ${JSON.stringify(request)}`)
         const errorResponse: JsonRpcErrorResponse = buildJsonRpcError(

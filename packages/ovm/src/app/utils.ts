@@ -9,6 +9,7 @@ import {
   logError,
   remove0x,
   ZERO_ADDRESS,
+  LOG_NEWLINE_STRING,
   BloomFilter,
   hexStrToNumber,
 } from '@eth-optimism/core-utils'
@@ -76,6 +77,7 @@ export const convertInternalLogsToOvmLogs = (
   executionManagerAddress: string
 ): Log[] => {
   let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
+  const loggerLogs = [`Parsing logs from contract ${activeContract}: `]
   const ovmLogs = []
   let cumulativeTxEMLogIndices = 0
   let prevEMLogIndex = 0
@@ -96,10 +98,8 @@ export const convertInternalLogsToOvmLogs = (
           `execution manager log ${log} was unrecognized by the interface parser--Definitely not an activeContract event, ignoring...`
         )
       } else {
-        logger.debug(
-          `Parsed execution manager event ${
-            executionManagerLog.name
-          } with values: ${JSON.stringify(
+        loggerLogs.push(
+          `${executionManagerLog.name}, values: ${JSON.stringify(
             executionManagerLog.values
           )} and cumulativeTxEMLogIndices: ${cumulativeTxEMLogIndices}`
         )
@@ -114,7 +114,7 @@ export const convertInternalLogsToOvmLogs = (
       }
     } else {
       const newIndex = log.logIndex - cumulativeTxEMLogIndices
-      logger.debug(
+      loggerLogs.push(
         `Non-EM log: ${JSON.stringify(
           log
         )}. Using address of active contract ${activeContract} and log index ${newIndex}`
@@ -122,6 +122,7 @@ export const convertInternalLogsToOvmLogs = (
       ovmLogs.push({ ...log, address: activeContract, logIndex: newIndex })
     }
   })
+  logger.debug(loggerLogs.join(LOG_NEWLINE_STRING))
   return ovmLogs
 }
 

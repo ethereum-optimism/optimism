@@ -28,7 +28,8 @@ import {
 } from '@eth-optimism/ovm'
 
 import AsyncLock from 'async-lock'
-import { utils, Wallet } from 'ethers'
+import { Contract, utils, Wallet } from 'ethers'
+import Web3 from 'web3'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
@@ -39,6 +40,7 @@ import {
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3Handler,
+  Web3RpcTypes,
   Web3RpcMethods,
   RevertError,
   UnsupportedFilterError,
@@ -118,70 +120,91 @@ export class DefaultWeb3Handler
 
     // Make sure the method is available
     let response: any
-    let args: any[]
     switch (method) {
       case Web3RpcMethods.blockNumber:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.blockNumber()
         break
       case Web3RpcMethods.call:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.call(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.object,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.call(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.estimateGas:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.estimateGas(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.object,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.estimateGas(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.gasPrice:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.gasPrice()
         break
       case Web3RpcMethods.getBlockByNumber:
-        args = this.assertParameters(params, 2)
-        response = await this.getBlockByNumber(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.quantityOrTag,
+          Web3RpcTypes.boolean,
+        ])
+        response = await this.getBlockByNumber(params[0], params[1])
         break
       case Web3RpcMethods.getBlockByHash:
-        args = this.assertParameters(params, 2)
-        response = await this.getBlockByHash(args[0], args[1])
+        this.assertParameters(params, [Web3RpcTypes.data, Web3RpcTypes.boolean])
+        response = await this.getBlockByHash(params[0], params[1])
         break
       case Web3RpcMethods.getBalance:
-        this.assertParameters(params, 2, latestBlock)
+        this.assertParameters(
+          params,
+          [Web3RpcTypes.address, Web3RpcTypes.quantityOrTag],
+          latestBlock
+        )
         response = await this.getBalance()
         break
       case Web3RpcMethods.getCode:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.getCode(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.data,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.getCode(params[0], params[1] || latestBlock)
         break
       case Web3RpcMethods.getExecutionManagerAddress:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.getExecutionManagerAddress()
         break
       case Web3RpcMethods.getLogs:
-        args = this.assertParameters(params, 1)
-        response = await this.getLogs(args[0])
+        this.assertParameters(params, [Web3RpcTypes.object])
+        response = await this.getLogs(params[0])
         break
       case Web3RpcMethods.getTransactionByHash:
-        args = this.assertParameters(params, 1)
-        response = await this.getTransactionByHash(args[0])
+        this.assertParameters(params, [Web3RpcTypes.data])
+        response = await this.getTransactionByHash(params[0])
         break
       case Web3RpcMethods.getTransactionCount:
-        args = this.assertParameters(params, 2, latestBlock)
-        response = await this.getTransactionCount(args[0], args[1])
+        this.assertParameters(params, [
+          Web3RpcTypes.data,
+          Web3RpcTypes.quantityOrTag,
+        ])
+        response = await this.getTransactionCount(
+          params[0],
+          params[1] || latestBlock
+        )
         break
       case Web3RpcMethods.getTransactionReceipt:
-        args = this.assertParameters(params, 1)
-        response = await this.getTransactionReceipt(args[0])
+        this.assertParameters(params, [Web3RpcTypes.data])
+        response = await this.getTransactionReceipt(params[0])
         break
       case Web3RpcMethods.sendRawTransaction:
-        args = this.assertParameters(params, 1)
-        response = await this.sendRawTransaction(args[0])
+        this.assertParameters(params, [Web3RpcTypes.data])
+        response = await this.sendRawTransaction(params[0])
         break
       case Web3RpcMethods.networkVersion:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.networkVersion()
         break
       case Web3RpcMethods.chainId:
-        this.assertParameters(params, 0)
+        this.assertParameters(params, [])
         response = await this.chainId()
         break
       default:
@@ -445,7 +468,7 @@ export class DefaultWeb3Handler
           defaultBlock
         )}] curentBlockNumber:[${curentBlockNumber}]`
       )
-      throw new Error(
+      throw new InvalidParametersError(
         `Historical code lookups aren't supported. Requested Block: ${hexStrToNumber(
           defaultBlock
         )} Current Block: ${curentBlockNumber}`
@@ -535,6 +558,7 @@ export class DefaultWeb3Handler
           const receipt = await this.getTransactionReceipt(transaction.hash)
           transaction['to'] = receipt.contractAddress
         }
+        logItem['address'] = transaction['to']
 
         return logItem
       })
@@ -979,7 +1003,7 @@ export class DefaultWeb3Handler
   private async ovmTxToInternalTx(ovmTx: any): Promise<string> {
     // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
     if (ovmTx.to === ZERO_ADDRESS) {
-      throw new Error('Sending to Zero Address disallowed')
+      throw new InvalidParametersError('Sending to Zero Address disallowed')
     }
     // Get the nonce of the account that we will use to send everything
     // Note: + 1 because all transactions will have a tx hash mapping tx sent before them.
@@ -989,7 +1013,7 @@ export class DefaultWeb3Handler
       log.error(
         'Transaction does not have a valid signature! For now we only support calls from EOAs'
       )
-      throw new Error('Non-EOA transaction detected')
+      throw new InvalidParametersError('Non-EOA transaction detected')
     }
     // Generate the calldata which we'll use to call our internal execution manager
     // First pull out the `to` field (we just need to check if it's null & if so set ovmTo to the zero address as that's how we deploy contracts)
@@ -1000,7 +1024,7 @@ export class DefaultWeb3Handler
       await this.context.executionManager.getOvmContractNonce(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
-      throw new Error(
+      throw new InvalidParametersError(
         `Incorrect nonce! Expected nonce: ${expectedNonce} but received nonce: ${ovmTx.nonce}`
       )
     }
@@ -1076,23 +1100,44 @@ export class DefaultWeb3Handler
 
   protected assertParameters(
     params: any[],
-    expected: number,
+    expected: Web3RpcTypes[],
     defaultLast?: any
-  ): any[] {
-    if (!params) {
-      if (!expected) {
-        return []
-      }
-    } else if (params.length === expected - 1 || params.length === expected) {
-      const nonEmptyParams = params.filter((x) => !!x)
-      return nonEmptyParams.length === expected
-        ? nonEmptyParams
-        : [...nonEmptyParams, defaultLast]
+  ) {
+    if (
+      !(
+        !params ||
+        params.length === expected.length - 1 ||
+        params.length === expected.length
+      )
+    ) {
+      throw new InvalidParametersError(
+        `Expected ${expected} parameters but received ${params.length}.`
+      )
     }
-    throw new InvalidParametersError(
-      `Expected ${expected} parameters but received ${
-        !params ? 0 : params.length
-      }.`
-    )
+    expected.forEach((expectedType, index) => {
+      const param = params[index]
+      const typeChecks = {
+        [Web3RpcTypes.quantityOrTag]: (value) => {
+          return (
+            value === undefined ||
+            !isNaN(value) ||
+            ['latest', 'earliest', 'pending'].includes(value)
+          )
+        },
+        [Web3RpcTypes.boolean]: (value) => [true, false].includes(value),
+        [Web3RpcTypes.quantity]: (value) => !isNaN(value),
+        [Web3RpcTypes.data]: Web3.utils.isHex,
+        [Web3RpcTypes.address]: Web3.utils.isAddress,
+        [Web3RpcTypes.object]: (value) => {
+          return value instanceof Object
+        },
+      }
+
+      if (!typeChecks[expectedType](param)) {
+        throw new InvalidParametersError(
+          `Expected ${expectedType} but got ${param}`
+        )
+      }
+    })
   }
 }

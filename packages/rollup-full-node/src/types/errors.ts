@@ -1,3 +1,5 @@
+import { JsonRpcErrorResponse } from '@eth-optimism/core-utils'
+
 export class TreeUpdateError extends Error {
   constructor(message?: string) {
     super(message || 'Error occurred performing a tree update!')
@@ -66,5 +68,11 @@ export class InvalidTransactionDesinationError extends Error {
         validDestinationAddresses
       )}`
     )
+  }
+}
+
+export class FormattedJsonRpcError extends Error {
+  constructor(public readonly jsonRpcResponse: JsonRpcErrorResponse) {
+    super()
   }
 }
