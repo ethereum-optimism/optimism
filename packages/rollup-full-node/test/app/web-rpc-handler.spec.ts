@@ -10,13 +10,7 @@ import {
 } from '@eth-optimism/core-utils'
 import { CHAIN_ID } from '@eth-optimism/ovm'
 
-import {
-  ethers,
-  ContractFactory,
-  Wallet,
-  Contract,
-  utils,
-} from 'ethers'
+import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
 import * as fs from 'fs'
