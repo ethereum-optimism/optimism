@@ -14,7 +14,7 @@ import {
   hexStrToNumber,
 } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
-import { LogDescription  } from 'ethers/utils'
+import { LogDescription } from 'ethers/utils'
 import { Log, TransactionReceipt } from 'ethers/providers'
 
 /* Contract Imports */
