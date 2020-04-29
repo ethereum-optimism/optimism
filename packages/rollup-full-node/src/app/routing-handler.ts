@@ -64,6 +64,7 @@ export class RoutingHandler implements FullnodeHandler {
    * @param method The Ethereum JSON RPC method.
    * @param params The parameters.
    * @param sourceIpAddress The requesting IP address.
+   * @throws FormattedJsonRpcError if the proxied response is a JsonRpcErrorResponse
    */
   public async handleRequest(
     method: string,
@@ -102,8 +103,9 @@ export class RoutingHandler implements FullnodeHandler {
 
     this.assertDestinationValid(tx)
 
+    let result: JsonRpcResponse
     try {
-      const result: JsonRpcResponse =
+      result =
         methodsToRouteWithTransactionHandler.indexOf(method) >= 0
           ? await this.transactionClient.makeRpcCall(method, params)
           : await this.readOnlyClient.makeRpcCall(method, params)
@@ -112,10 +114,6 @@ export class RoutingHandler implements FullnodeHandler {
           params
         )}] got result [${JSON.stringify(result)}]`
       )
-      if (isJsonRpcErrorResponse(result)) {
-        throw new FormattedJsonRpcError(result as JsonRpcErrorResponse)
-      }
-      return result.result
     } catch (e) {
       logError(
         log,
@@ -126,6 +124,11 @@ export class RoutingHandler implements FullnodeHandler {
       )
       throw e
     }
+
+    if (isJsonRpcErrorResponse(result)) {
+      throw new FormattedJsonRpcError(result as JsonRpcErrorResponse)
+    }
+    return result.result
   }
 
   /**
