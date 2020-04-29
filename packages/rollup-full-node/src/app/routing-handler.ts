@@ -117,13 +117,15 @@ export class RoutingHandler implements FullnodeHandler {
       }
       return result.result
     } catch (e) {
-      logError(
-        log,
-        `Error proxying request: [${method}], params: [${JSON.stringify(
-          params
-        )}]`,
-        e
-      )
+      if (!(e instanceof FormattedJsonRpcError)) {
+        logError(
+          log,
+          `Error proxying request: [${method}], params: [${JSON.stringify(
+            params
+          )}]`,
+          e
+        )
+      }
       throw e
     }
   }
