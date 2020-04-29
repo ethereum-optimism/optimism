@@ -38,8 +38,8 @@ clear_data_if_necessary()
     echo "Detected change in CLEAR_DATA_KEY. Purging data."
     rm -rf ${DATA_DIRECTORY}/*
     rm -rf ${DATA_DIRECTORY}/.clear_data_key_*
-    echo "Local data cleared from '${VOLUME_PATH}/*'"
-    echo "Contents of data dir: $(ls -alh $VOLUME_PATH)"
+    echo "Local data cleared from '${DATA_DIRECTORY}/*'"
+    echo "Contents of data dir: $(ls -alh $DATA_DIRECTORY)"
     touch $CLEAR_DATA_FILE_PATH
   fi
 }
