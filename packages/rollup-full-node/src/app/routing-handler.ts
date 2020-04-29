@@ -1,12 +1,20 @@
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, logError, SimpleClient } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  isJsonRpcErrorResponse,
+  JsonRpcErrorResponse,
+  JsonRpcResponse,
+  logError,
+  SimpleClient,
+} from '@eth-optimism/core-utils'
 
 import { parseTransaction, Transaction } from 'ethers/utils'
 
 /* Internal Imports */
 import {
   AccountRateLimiter,
+  FormattedJsonRpcError,
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
@@ -95,16 +103,19 @@ export class RoutingHandler implements FullnodeHandler {
     this.assertDestinationValid(tx)
 
     try {
-      const result: any =
+      const result: JsonRpcResponse =
         methodsToRouteWithTransactionHandler.indexOf(method) >= 0
-          ? await this.transactionClient.handle<string>(method, params)
-          : await this.readOnlyClient.handle<string>(method, params)
+          ? await this.transactionClient.makeRpcCall(method, params)
+          : await this.readOnlyClient.makeRpcCall(method, params)
       log.debug(
         `Request for [${method}], params: [${JSON.stringify(
           params
         )}] got result [${JSON.stringify(result)}]`
       )
-      return result
+      if (isJsonRpcErrorResponse(result)) {
+        throw new FormattedJsonRpcError(result as JsonRpcErrorResponse)
+      }
+      return result.result
     } catch (e) {
       logError(
         log,
