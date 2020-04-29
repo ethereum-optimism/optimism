@@ -24,7 +24,7 @@ import {
   internalTxReceiptToOvmTxReceipt,
   l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
-  ALL_EXECUTION_MANAGER_EVENT_TOPICS,
+  executionManagerInterface
 } from '@eth-optimism/ovm'
 
 import AsyncLock from 'async-lock'
@@ -52,6 +52,12 @@ const log = getLogger('web3-handler')
 
 export const latestBlock: string = 'latest'
 const lockKey: string = 'LOCK'
+
+const EMEvents = executionManagerInterface.events
+const ALL_EXECUTION_MANAGER_EVENT_TOPICS = []
+for (const eventKey of Object.keys(EMEvents)) {
+  ALL_EXECUTION_MANAGER_EVENT_TOPICS.push(EMEvents[eventKey].topic)
+}
 
 export class DefaultWeb3Handler
   implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
@@ -517,7 +523,9 @@ export class DefaultWeb3Handler
     if (filter['topics']) {
       if (filter['topics'].length > 1) {
         // todo make this proper error
-        const msg = `The provided filter ${filter} has multiple levels of topic filter.  Multi-level topic filters are currently unsupported by the OVM.`
+        const msg = `The provided filter ${JSON.stringify(
+          filter
+        )} has multiple levels of topic filter.  Multi-level topic filters are currently unsupported by the OVM.`
         throw new UnsupportedFilterError(msg)
       }
       if (!Array.isArray(filter['topics'][0])) {
