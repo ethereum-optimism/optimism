@@ -449,7 +449,7 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe.only('the getLogs endpoint', () => {
+    describe('the getLogs endpoint', () => {
       let wallet
       beforeEach(async () => {
         wallet = getWallet(httpProvider)
@@ -494,8 +494,17 @@ describe('Web3Handler', () => {
             eventEmitterFactory.interface.events[DUMMY_EVENT_NAME].topic
           const logs = await httpProvider.getLogs({
             topics: [dummyTopic],
-          })
+        })
           verifyEventEmitterLogs(logs)
+        })
+        it('Should throw throw with proper error for unsupported multi-topic filtering', async () => {
+          const dummyTopic =
+            eventEmitterFactory.interface.events[DUMMY_EVENT_NAME].topic
+          assertAsyncThrowsWithMessage(async () => {
+            await httpProvider.getLogs({
+              topics: [dummyTopic, dummyTopic],
+            })
+          }, 'Unsupported filter parameters')
         })
       })
       describe('Nested contract call events', async () => {

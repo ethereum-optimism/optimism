@@ -41,6 +41,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
   RevertError,
+  UnsupportedFilterError
 } from '../types'
 import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './util'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
@@ -473,35 +474,35 @@ export class DefaultWeb3Handler
 
   public async getLogs(ovmFilter: any): Promise<any[]> {
     const filter = JSON.parse(JSON.stringify(ovmFilter))
-
-    if (filter['address'] && Array.isArray(filter['address'])) {
-      const codeContractAddresses = filter['address'].map(async (address) => {
-        return this.context.executionManager.getCodeContractAddress(address)
-      })
+    // We cannot filter out execution manager events or else convertInternalLogsToOvmLogs will break.  So add EM address to address filter
+    if (filter['address']) {
+      if (!Array.isArray(filter['address'])) {
+        filter['address'] = [filter['address']]
+      }
+      let codeContractAddresses = []
+      for (let address of filter['address']) {
+        codeContractAddresses.push(await this.context.executionManager.getCodeContractAddress(address))
+      }
+      console.log(JSON.stringify(codeContractAddresses))
       filter['address'] = [
         ...codeContractAddresses,
         this.context.executionManager.address,
       ]
     }
-    // todo convert singleton to single-element array instead so getCodeContractAddress mapping is sufficient for all cases
-    if (filter['address'] && !Array.isArray(filter['address'])) {
-      const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
-        filter.address
-      )
-      filter['address'] = [
-        codeContractAddress,
-        this.context.executionManager.address,
-      ]
-    }
-
+    // We cannot filter out execution manager events or else convertInternalLogsToOvmLogs will break.  So add EM topics to topics filter
     if (filter['topics']) {
+      if (filter['topics'].length > 1) {
+        // todo make this proper error
+        const msg = `The provided filter ${filter} has multiple levels of topic filter.  Multi-level topic filters are currently unsupported by the OVM.`
+        throw new UnsupportedFilterError(msg)
+      }
       if (!Array.isArray(filter['topics'][0])) {
         filter['topics'][0] = [JSON.parse(JSON.stringify(filter['topics'][0]))]
       }
       filter['topics'][0].push(...ALL_EXECUTION_MANAGER_EVENT_TOPICS)
     }
     log.debug(
-      `Converted ovm filter to internal filter ${JSON.stringify(filter)}`
+      `Converted ovm filter ${JSON.stringify(ovmFilter)} to internal filter ${JSON.stringify(filter)}`
     )
 
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [
