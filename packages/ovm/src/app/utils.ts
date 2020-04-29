@@ -77,7 +77,7 @@ export const convertInternalLogsToOvmLogs = (
   executionManagerAddress: string
 ): Log[] => {
   let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
-  const loggerLogs = [`Parsing logs from contract ${activeContract}: `]
+  const loggerLogs = [`Parsing internal logs ${JSON.stringify(logs)}: `]
   const ovmLogs = []
   let cumulativeTxEMLogIndices = 0
   let prevEMLogIndex = 0
@@ -85,7 +85,7 @@ export const convertInternalLogsToOvmLogs = (
     if (log.address.toUpperCase() === executionManagerAddress.toUpperCase()) {
       const EMLogIndex = log.logIndex
       if (EMLogIndex < prevEMLogIndex) {
-        logger.debug(
+        loggerLogs.push(
           `Detected raw EM log ${log} with lower logIndex than previously processed, must be from a new transaction.  Resetting cumulative EM log indices for tx.`
         )
         cumulativeTxEMLogIndices = 0
@@ -94,7 +94,7 @@ export const convertInternalLogsToOvmLogs = (
       prevEMLogIndex = EMLogIndex
       const executionManagerLog = executionManagerInterface.parseLog(log)
       if (!executionManagerLog) {
-        logger.debug(
+        loggerLogs.push(
           `execution manager log ${log} was unrecognized by the interface parser--Definitely not an activeContract event, ignoring...`
         )
       } else {
@@ -105,11 +105,11 @@ export const convertInternalLogsToOvmLogs = (
         )
         if (executionManagerLog.name === 'ActiveContract') {
           activeContract = executionManagerLog.values['_activeContract']
-          logger.debug(
+          loggerLogs.push(
             `EM activeContract event detected, setting activeContract to ${activeContract}`
           )
         } else {
-          logger.debug(`EM-but-non-activeContract event detected, ignoring...`)
+          loggerLogs.push(`EM-but-non-activeContract event detected, ignoring...`)
         }
       }
     } else {

@@ -547,7 +547,6 @@ export class DefaultWeb3Handler
     )
     logs = await Promise.all(
       logs.map(async (logItem, index) => {
-        logItem['logIndex'] = numberToHexString(index)
         logItem['transactionHash'] = await this.getOvmTxHash(
           logItem['transactionHash']
         )
@@ -558,8 +557,9 @@ export class DefaultWeb3Handler
           const receipt = await this.getTransactionReceipt(transaction.hash)
           transaction['to'] = receipt.contractAddress
         }
-        logItem['address'] = transaction['to']
-
+        if (typeof logItem['logIndex'] === 'number') {
+          logItem['logIndex'] = numberToHexString(logItem['logIndex'])
+        }        
         return logItem
       })
     )

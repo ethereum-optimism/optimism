@@ -458,7 +458,7 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe('the getLogs endpoint', () => {
+    describe.only('the getLogs endpoint', () => {
       let wallet
       beforeEach(async () => {
         wallet = getWallet(httpProvider)
@@ -541,6 +541,8 @@ describe('Web3Handler', () => {
               toBlock: 'latest',
             },
           ])
+          console.log(`master addy is ${master.address}, sub addy is ${sub.address}`)
+          console.log(`logs are ${JSON.stringify(logs)}`)
           logs[0].address.should.eq(master.address)
           logs[1].address.should.eq(sub.address)
         })
