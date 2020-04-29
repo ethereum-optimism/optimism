@@ -9,6 +9,7 @@ import {
   logError,
   remove0x,
   ZERO_ADDRESS,
+  LOG_NEWLINE_STRING,
   BloomFilter,
 } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
@@ -71,6 +72,7 @@ export interface OvmTransactionMetadata {
  */
 export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
   let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
+  const loggerLogs = [`Parsing logs from contract ${activeContract}: `]
   const ovmLogs = []
   logs.forEach((log) => {
     const executionManagerLog = executionManagerInterface.parseLog(log)
@@ -78,17 +80,18 @@ export const convertInternalLogsToOvmLogs = (logs: Log[]): Log[] => {
       if (executionManagerLog.name === 'ActiveContract') {
         activeContract = executionManagerLog.values['_activeContract']
       } else {
-        logger.debug(
+        loggerLogs.push(
           `${executionManagerLog.name}, values: ${JSON.stringify(
             executionManagerLog.values
           )}`
         )
       }
     } else {
-      logger.debug(`Non-EM log: ${JSON.stringify(log)}`)
+      loggerLogs.push(`Non-EM log: ${JSON.stringify(log)}`)
       ovmLogs.push({ ...log, address: activeContract })
     }
   })
+  logger.debug(loggerLogs.join(LOG_NEWLINE_STRING))
   return ovmLogs
 }
 

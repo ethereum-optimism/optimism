@@ -30,6 +30,15 @@ export interface Web3Handler {
   chainId(): Promise<string>
 }
 
+export enum Web3RpcTypes {
+  quantity = 'quantity',
+  boolean = 'boolean',
+  data = 'data',
+  address = 'address',
+  object = 'object',
+  quantityOrTag = 'quantityOrTag',
+}
+
 // Enum of supported web3 rpc methods
 export enum Web3RpcMethods {
   blockNumber = 'eth_blockNumber',
