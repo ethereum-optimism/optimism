@@ -1066,7 +1066,8 @@ export class DefaultWeb3Handler
   ) {
     if (
       !(
-        !params || params.length === expected.length - 1 ||
+        !params ||
+        params.length === expected.length - 1 ||
         params.length === expected.length
       )
     ) {
