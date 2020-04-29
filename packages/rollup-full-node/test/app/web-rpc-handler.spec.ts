@@ -5,12 +5,10 @@ import {
   add0x,
   getLogger,
   keccak256,
-  numberToHexString,
   JSONRPC_ERRORS,
-  ZERO_ADDRESS,
   hexStrToBuf,
 } from '@eth-optimism/core-utils'
-import { CHAIN_ID, convertInternalLogsToOvmLogs } from '@eth-optimism/ovm'
+import { CHAIN_ID } from '@eth-optimism/ovm'
 
 import {
   ethers,
@@ -18,7 +16,6 @@ import {
   Wallet,
   Contract,
   utils,
-  providers,
 } from 'ethers'
 import { resolve } from 'path'
 import * as rimraf from 'rimraf'
