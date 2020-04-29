@@ -548,12 +548,11 @@ describe('Web3Handler', () => {
         })
         it('Should correctly filter by topic for the inner emission', async () => {
           await master.callSubEmitter()
-          const subEventEmitterTopic = subFactory.interface.events[SUB_EMITTER_EVENT_NAME].topic
+          const subEventEmitterTopic =
+            subFactory.interface.events[SUB_EMITTER_EVENT_NAME].topic
           const gotLogs = await httpProvider.send(Web3RpcMethods.getLogs, [
             {
-              topics: [
-                subEventEmitterTopic
-              ]
+              topics: [subEventEmitterTopic],
             },
           ])
           gotLogs.length.should.equal(1)
@@ -574,7 +573,7 @@ describe('Web3Handler', () => {
             [tx.hash]
           )
           gotLogs.should.deep.equal(receipt.logs)
-        })  
+        })
       })
     })
 
