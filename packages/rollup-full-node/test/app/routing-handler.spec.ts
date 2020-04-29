@@ -1,10 +1,17 @@
 /* External Imports */
-import { SimpleClient, TestUtils } from '@eth-optimism/core-utils'
-
+import {
+  JsonRpcError,
+  JsonRpcErrorResponse,
+  JsonRpcResponse,
+  JsonRpcSuccessResponse,
+  SimpleClient,
+  TestUtils,
+} from '@eth-optimism/core-utils'
 /* Internal Imports */
 import {
   AccountRateLimiter,
   allWeb3RpcMethodsIncludingTest,
+  FormattedJsonRpcError,
   InvalidTransactionDesinationError,
   RateLimitError,
   TransactionLimitError,
@@ -19,11 +26,15 @@ import {
 } from '../../src/app'
 
 class DummySimpleClient extends SimpleClient {
-  constructor(private readonly cannedResponse: any) {
+  constructor(private readonly cannedResponse: JsonRpcResponse) {
     super('')
   }
-  public async handle<T>(method: string, params?: any): Promise<T> {
-    return this.cannedResponse as T
+
+  public async makeRpcCall(
+    method: string,
+    params?: any
+  ): Promise<JsonRpcResponse> {
+    return this.cannedResponse
   }
 }
 
@@ -56,13 +67,24 @@ const getSignedTransaction = async (
   })
 }
 
+const transactionResponse = 'transaction'
+const readOnlyResponse = 'read only'
+const transactionResponsePayload: JsonRpcSuccessResponse = {
+  jsonrpc: '2.0',
+  id: 123,
+  result: transactionResponse,
+}
+const readOnlyPayload: JsonRpcSuccessResponse = {
+  jsonrpc: '2.0',
+  id: 1234,
+  result: readOnlyResponse,
+}
+
 describe('Routing Handler', () => {
   describe('Routing Tests', () => {
-    const transactionResponse = 'transaction'
-    const readOnlyResponse = 'read only'
     const routingHandler = new RoutingHandler(
-      new DummySimpleClient(transactionResponse),
-      new DummySimpleClient(readOnlyResponse),
+      new DummySimpleClient(transactionResponsePayload),
+      new DummySimpleClient(readOnlyPayload),
       '',
       new NoOpAccountRateLimiter(),
       [],
@@ -97,14 +119,11 @@ describe('Routing Handler', () => {
     let rateLimiter: DummyRateLimiter
     let routingHandler: RoutingHandler
 
-    const transactionResponse = 'transaction'
-    const readOnlyResponse = 'read only'
-
     beforeEach(() => {
       rateLimiter = new DummyRateLimiter()
       routingHandler = new RoutingHandler(
-        new DummySimpleClient(transactionResponse),
-        new DummySimpleClient(readOnlyResponse),
+        new DummySimpleClient(transactionResponsePayload),
+        new DummySimpleClient(readOnlyPayload),
         '',
         rateLimiter,
         [],
@@ -156,15 +175,13 @@ describe('Routing Handler', () => {
   describe('unsupported destination tests', () => {
     let routingHandler: RoutingHandler
 
-    const transactionResponse = 'transaction'
-    const readOnlyResponse = 'read only'
     const deployerWallet: Wallet = Wallet.createRandom()
     const whitelistedTo: string = Wallet.createRandom().address
 
     beforeEach(() => {
       routingHandler = new RoutingHandler(
-        new DummySimpleClient(transactionResponse),
-        new DummySimpleClient(readOnlyResponse),
+        new DummySimpleClient(transactionResponsePayload),
+        new DummySimpleClient(readOnlyPayload),
         deployerWallet.address,
         new NoOpAccountRateLimiter(),
         [whitelistedTo],
@@ -218,13 +235,10 @@ describe('Routing Handler', () => {
   describe('unsupported methods tests', () => {
     let routingHandler: RoutingHandler
 
-    const transactionResponse = 'transaction'
-    const readOnlyResponse = 'read only'
-
     beforeEach(() => {
       routingHandler = new RoutingHandler(
-        new DummySimpleClient(transactionResponse),
-        new DummySimpleClient(readOnlyResponse),
+        new DummySimpleClient(transactionResponsePayload),
+        new DummySimpleClient(readOnlyPayload),
         '',
         new NoOpAccountRateLimiter(),
         [],
@@ -249,6 +263,77 @@ describe('Routing Handler', () => {
           ''
         )
       }, UnsupportedMethodError)
+    })
+  })
+
+  describe('Formatted JSON RPC Responses', () => {
+    let routingHandler: RoutingHandler
+
+    const txError: JsonRpcError = {
+      code: -123,
+      message: 'tx error',
+      data: 'tx error',
+    }
+
+    const roError: JsonRpcError = {
+      code: -1234,
+      message: 'r/o error',
+      data: 'r/o error',
+    }
+
+    const transactionErrorResponsePayload: JsonRpcErrorResponse = {
+      jsonrpc: '2.0',
+      id: 123,
+      error: txError,
+    }
+    const readOnlyErrorResponsePayload: JsonRpcErrorResponse = {
+      jsonrpc: '2.0',
+      id: 1234,
+      error: roError,
+    }
+
+    beforeEach(() => {
+      routingHandler = new RoutingHandler(
+        new DummySimpleClient(transactionErrorResponsePayload),
+        new DummySimpleClient(readOnlyErrorResponsePayload),
+        '',
+        new NoOpAccountRateLimiter(),
+        []
+      )
+    })
+
+    it('throws Json error on transaction', async () => {
+      const error: Error = await TestUtils.assertThrowsAsync(async () => {
+        await routingHandler.handleRequest(
+          Web3RpcMethods.sendRawTransaction,
+          [await getSignedTransaction()],
+          ''
+        )
+      })
+
+      error.should.be.instanceOf(FormattedJsonRpcError, 'Invalid error type!')
+      const formatted: FormattedJsonRpcError = error as FormattedJsonRpcError
+      formatted.jsonRpcResponse.should.deep.equal(
+        transactionErrorResponsePayload,
+        'Incorrect error returned!'
+      )
+    })
+
+    it('throws Json error on read only request', async () => {
+      const error: Error = await TestUtils.assertThrowsAsync(async () => {
+        await routingHandler.handleRequest(
+          Web3RpcMethods.networkVersion,
+          [],
+          ''
+        )
+      })
+
+      error.should.be.instanceOf(FormattedJsonRpcError, 'Invalid error type!')
+      const formatted: FormattedJsonRpcError = error as FormattedJsonRpcError
+      formatted.jsonRpcResponse.should.deep.equal(
+        readOnlyErrorResponsePayload,
+        'Incorrect error returned!'
+      )
     })
   })
 })

@@ -22,8 +22,9 @@ export class TestUtils {
   public static async assertThrowsAsync(
     func: () => Promise<any>,
     errorType?: any
-  ): Promise<void> {
+  ): Promise<Error> {
     let succeeded = true
+    let error: Error
     try {
       await func()
       succeeded = false
@@ -31,12 +32,14 @@ export class TestUtils {
       if (!!errorType && !(e instanceof errorType)) {
         succeeded = false
       }
+      error = e
     }
 
     assert(
       succeeded,
       "Function didn't throw as expected or threw the wrong error."
     )
+    return error
   }
 
   public static async assertRevertsAsync(
