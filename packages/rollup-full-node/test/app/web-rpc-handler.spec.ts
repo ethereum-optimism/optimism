@@ -458,7 +458,7 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe.only('the getLogs endpoint', () => {
+    describe('the getLogs endpoint', () => {
       let wallet
       beforeEach(async () => {
         wallet = getWallet(httpProvider)
