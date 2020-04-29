@@ -9,7 +9,7 @@ const EMContract = new ContractFactory(
   ExecutionManager.bytecode
 )
 const EMEvents = EMContract.interface.events
-let topics = []
+const topics = []
 for (const eventKey of Object.keys(EMEvents)) {
   topics.push(EMEvents[eventKey].topic)
 }
