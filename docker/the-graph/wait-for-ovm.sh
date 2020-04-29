@@ -1,5 +1,7 @@
 #!/bin/sh
 # wait-for-ovm.sh <ovm url with port>
+# NOTE: set the CLEAR_DATA_KEY environment variable to clear the /data directory on startup.
+# Directory will only be cleared if CLEAR_DATA_KEY is set AND different from last start.
 
 set -e
 
