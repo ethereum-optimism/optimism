@@ -130,6 +130,7 @@ To run the fullnode in Docker in production run:
 To run it in development run:
 
 ```sh
+  rm -rf node_modules
   docker-compose -f docker-compose.yml -f docker-compose.dev.yml run rollup-full-node yarn
   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
