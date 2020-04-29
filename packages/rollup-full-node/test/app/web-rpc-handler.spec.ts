@@ -519,8 +519,10 @@ describe('Web3Handler', () => {
       describe('Nested contract call events', async () => {
         let sub
         let master
+        let subFactory
+        const SUB_EMITTER_EVENT_NAME = 'Burger'
         beforeEach(async () => {
-          const subFactory = new ContractFactory(
+          subFactory = new ContractFactory(
             SubEventEmitter.abi,
             SubEventEmitter.bytecode,
             wallet
@@ -541,12 +543,23 @@ describe('Web3Handler', () => {
               toBlock: 'latest',
             },
           ])
-          console.log(
-            `master addy is ${master.address}, sub addy is ${sub.address}`
-          )
-          console.log(`logs are ${JSON.stringify(logs)}`)
           logs[0].address.should.eq(master.address)
           logs[1].address.should.eq(sub.address)
+        })
+        it('Should correctly filter by topic for the inner emission', async () => {
+          await master.callSubEmitter()
+          const subEventEmitterTopic = subFactory.interface.events[SUB_EMITTER_EVENT_NAME].topic
+          const gotLogs = await httpProvider.send(Web3RpcMethods.getLogs, [
+            {
+              topics: [
+                subEventEmitterTopic
+              ]
+            },
+          ])
+          gotLogs.length.should.equal(1)
+          gotLogs[0].topics.should.deep.equal([subEventEmitterTopic])
+          gotLogs[0].address.should.equal(sub.address)
+          gotLogs[0].logIndex.should.equal('0x1')
         })
         it("should return logs which are the same as a transaction receipt's logs", async () => {
           const tx = await master.callSubEmitter()
@@ -561,7 +574,7 @@ describe('Web3Handler', () => {
             [tx.hash]
           )
           gotLogs.should.deep.equal(receipt.logs)
-        })
+        })  
       })
     })
 
