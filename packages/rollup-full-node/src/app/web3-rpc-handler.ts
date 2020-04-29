@@ -24,7 +24,7 @@ import {
   internalTxReceiptToOvmTxReceipt,
   l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
-  executionManagerInterface
+  executionManagerInterface,
 } from '@eth-optimism/ovm'
 
 import AsyncLock from 'async-lock'
