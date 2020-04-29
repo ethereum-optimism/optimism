@@ -41,7 +41,7 @@ import {
   Web3Handler,
   Web3RpcMethods,
   RevertError,
-  UnsupportedFilterError
+  UnsupportedFilterError,
 } from '../types'
 import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './util'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
@@ -479,11 +479,12 @@ export class DefaultWeb3Handler
       if (!Array.isArray(filter['address'])) {
         filter['address'] = [filter['address']]
       }
-      let codeContractAddresses = []
-      for (let address of filter['address']) {
-        codeContractAddresses.push(await this.context.executionManager.getCodeContractAddress(address))
+      const codeContractAddresses = []
+      for (const address of filter['address']) {
+        codeContractAddresses.push(
+          await this.context.executionManager.getCodeContractAddress(address)
+        )
       }
-      console.log(JSON.stringify(codeContractAddresses))
       filter['address'] = [
         ...codeContractAddresses,
         this.context.executionManager.address,
@@ -502,7 +503,9 @@ export class DefaultWeb3Handler
       filter['topics'][0].push(...ALL_EXECUTION_MANAGER_EVENT_TOPICS)
     }
     log.debug(
-      `Converted ovm filter ${JSON.stringify(ovmFilter)} to internal filter ${JSON.stringify(filter)}`
+      `Converted ovm filter ${JSON.stringify(
+        ovmFilter
+      )} to internal filter ${JSON.stringify(filter)}`
     )
 
     const res = await this.context.provider.send(Web3RpcMethods.getLogs, [

@@ -21,7 +21,7 @@ export class InvalidParametersError extends Error {
 export class UnsupportedFilterError extends Error {
   constructor(message?: string) {
     super(message || 'The provided filter is currently unsupported by the OVM')
-  } 
+  }
 }
 
 export class RevertError extends Error {

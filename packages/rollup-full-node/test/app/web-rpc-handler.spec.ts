@@ -342,7 +342,7 @@ describe('Web3Handler', () => {
         const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
           eventEmitter.deployTransaction.hash
         )
-        const tx = await eventEmitter.emitEvent(executionManagerAddress)
+        const tx = await eventEmitter.emitEvent()
         await wallet.provider.getTransactionReceipt(tx.hash)
         const block = await httpProvider.send('eth_getBlockByNumber', [
           'latest',
@@ -494,7 +494,7 @@ describe('Web3Handler', () => {
             eventEmitterFactory.interface.events[DUMMY_EVENT_NAME].topic
           const logs = await httpProvider.getLogs({
             topics: [dummyTopic],
-        })
+          })
           verifyEventEmitterLogs(logs)
         })
         it('Should throw throw with proper error for unsupported multi-topic filtering', async () => {

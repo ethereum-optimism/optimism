@@ -21,7 +21,7 @@ import {
   RevertError,
   TransactionLimitError,
   UnsupportedMethodError,
-  UnsupportedFilterError
+  UnsupportedFilterError,
 } from '../types'
 
 const log: Logger = getLogger('rollup-fullnode-rpc-server')
