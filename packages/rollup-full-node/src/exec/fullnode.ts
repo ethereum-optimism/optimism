@@ -92,10 +92,6 @@ export const runFullnode = async (
  * @returns The L2NodeContext with undefined values for everything except for handler and server.
  */
 const startRoutingServer = async (): Promise<FullnodeContext> => {
-  const toAddressWhitelist = Environment.commaSeparatedToAddressWhitelist()
-    ? Environment.commaSeparatedToAddressWhitelist().split(',')
-    : undefined
-
   if (
     (!!Environment.maxNonTransactionRequestsPerUnitTime() ||
       !!Environment.maxTransactionsPerUnitTime() ||
@@ -124,7 +120,8 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
     new SimpleClient(Environment.getOrThrow(Environment.readOnlyNodeUrl)),
     Environment.contractDeployerAddress(),
     rateLimiter,
-    toAddressWhitelist
+    Environment.rateLimitWhitelistIpAddresses(),
+    Environment.transactionToAddressWhitelist()
   )
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
