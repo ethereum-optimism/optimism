@@ -4,6 +4,9 @@
     "tslint-config-prettier",
     "tslint-plugin-prettier"
   ],
+  "rulesDirectory": [
+    "tslint-no-focused-test"
+  ],
   "rules": {
     "ban-types": false,
     "comment-format": false,
@@ -21,7 +24,7 @@
     "prettier": true,
     "semicolon": false,
     "variable-name": false,
-    "no-only-tests": true
+    "no-focused-test": true
   },
   "linterOptions": {
     "exclude": [
