@@ -49,6 +49,7 @@ export class RoutingHandler implements FullnodeHandler {
     private readonly readOnlyClient: SimpleClient,
     private readonly deployAddress: Address,
     private readonly accountRateLimiter: AccountRateLimiter,
+    private readonly rateLimiterWhitelistedIps: string[] = [],
     private readonly toAddressWhitelist: Address[] = [],
     private readonly whitelistedMethods: Set<string> = new Set<string>(
       web3RpcMethodsExcludingTest
@@ -83,13 +84,19 @@ export class RoutingHandler implements FullnodeHandler {
         tx = parseTransaction(params[0])
       } catch (e) {
         // means improper format -- since we can't get address, add to quota by IP
-        this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+        if (this.rateLimiterWhitelistedIps.indexOf(sourceIpAddress) < 0) {
+          this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+        }
         throw new InvalidParametersError()
       }
 
-      this.accountRateLimiter.validateTransactionRateLimit(tx.from)
+      if (this.rateLimiterWhitelistedIps.indexOf(sourceIpAddress) < 0) {
+        this.accountRateLimiter.validateTransactionRateLimit(tx.from)
+      }
     } else {
-      this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+      if (this.rateLimiterWhitelistedIps.indexOf(sourceIpAddress) < 0) {
+        this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+      }
     }
 
     if (!this.whitelistedMethods.has(method)) {

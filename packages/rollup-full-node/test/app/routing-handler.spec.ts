@@ -88,6 +88,7 @@ describe('Routing Handler', () => {
       '',
       new NoOpAccountRateLimiter(),
       [],
+      [],
       new Set<string>(allWeb3RpcMethodsIncludingTest)
     )
 
@@ -119,6 +120,8 @@ describe('Routing Handler', () => {
     let rateLimiter: DummyRateLimiter
     let routingHandler: RoutingHandler
 
+    const whitelistedIpAddress = '9.9.9.9'
+
     beforeEach(() => {
       rateLimiter = new DummyRateLimiter()
       routingHandler = new RoutingHandler(
@@ -126,6 +129,7 @@ describe('Routing Handler', () => {
         new DummySimpleClient(readOnlyPayload),
         '',
         rateLimiter,
+        [whitelistedIpAddress],
         [],
         new Set<string>(allWeb3RpcMethodsIncludingTest)
       )
@@ -149,7 +153,7 @@ describe('Routing Handler', () => {
       )
     })
 
-    it('does not let transactions through when not limited', async () => {
+    it('does not let transactions through when limited', async () => {
       rateLimiter.limitNextTransaction = true
       await TestUtils.assertThrowsAsync(async () => {
         return routingHandler.handleRequest(
@@ -160,7 +164,7 @@ describe('Routing Handler', () => {
       }, TransactionLimitError)
     })
 
-    it('does not let requests through when not limited', async () => {
+    it('does not let requests through when limited', async () => {
       rateLimiter.limitNextRequest = true
       await TestUtils.assertThrowsAsync(async () => {
         return routingHandler.handleRequest(
@@ -169,6 +173,24 @@ describe('Routing Handler', () => {
           ''
         )
       }, RateLimitError)
+    })
+
+    it('lets transactions through when whitelisted', async () => {
+      rateLimiter.limitNextTransaction = true
+      await routingHandler.handleRequest(
+        Web3RpcMethods.sendRawTransaction,
+        [await getSignedTransaction()],
+        whitelistedIpAddress
+      )
+    })
+
+    it('lets requests through when whitelisted', async () => {
+      rateLimiter.limitNextRequest = true
+      await routingHandler.handleRequest(
+        Web3RpcMethods.getBlockByNumber,
+        ['0x0'],
+        whitelistedIpAddress
+      )
     })
   })
 
@@ -184,6 +206,7 @@ describe('Routing Handler', () => {
         new DummySimpleClient(readOnlyPayload),
         deployerWallet.address,
         new NoOpAccountRateLimiter(),
+        [],
         [whitelistedTo],
         new Set<string>(allWeb3RpcMethodsIncludingTest)
       )
@@ -242,6 +265,7 @@ describe('Routing Handler', () => {
         '',
         new NoOpAccountRateLimiter(),
         [],
+        [],
         new Set<string>([Web3RpcMethods.sendRawTransaction])
       )
     })
@@ -297,8 +321,7 @@ describe('Routing Handler', () => {
         new DummySimpleClient(transactionErrorResponsePayload),
         new DummySimpleClient(readOnlyErrorResponsePayload),
         '',
-        new NoOpAccountRateLimiter(),
-        []
+        new NoOpAccountRateLimiter()
       )
     })
 
