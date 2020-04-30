@@ -82,10 +82,10 @@ services:
       postgres_pass: let-me-in
       postgres_db: graph-node
       ipfs: '0.0.0.0:5001'
-      ethereum: 'ovm:http://0.0.0.0:8545'
+      ethereum: 'ovm:http://0.0.0.0:8546'
       RUST_LOG: info
       STARTUP_WAIT_TIMEOUT: 30
-      OVM_URL_WITH_PORT: 'http://0.0.0.0:8545'
+      OVM_URL_WITH_PORT: 'http://0.0.0.0:8546'
     volumes:
       - postgres-data:/data/postgres
       - ipfs-data:/data/ipfs
