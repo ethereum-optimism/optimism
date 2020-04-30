@@ -80,7 +80,7 @@ const readOnlyPayload: JsonRpcSuccessResponse = {
   result: readOnlyResponse,
 }
 
-describe.only('Routing Handler', () => {
+describe('Routing Handler', () => {
   describe('Routing Tests', () => {
     const routingHandler = new RoutingHandler(
       new DummySimpleClient(transactionResponsePayload),
