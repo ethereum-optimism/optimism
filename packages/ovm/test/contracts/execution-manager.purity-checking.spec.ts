@@ -19,20 +19,20 @@ import {
 } from '../helpers'
 import { TransactionReceipt } from 'ethers/providers'
 
-const log = getLogger('execution-manager-purity-checking', true)
+const log = getLogger('execution-manager-safety-checking', true)
 
 /*********
  * TESTS *
  *********/
 
-describe('Execution Manager -- Purity Checking', () => {
+describe('Execution Manager -- Safety Checking', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
 
   beforeEach(async () => {
-    // Deploy ExecutionManager with Purity Checking enabled
+    // Deploy ExecutionManager with Safety Checking enabled
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
@@ -40,8 +40,8 @@ describe('Execution Manager -- Purity Checking', () => {
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
-  describe('Purity Checking within Execution Manager', async () => {
-    it('should fail when given an impure contract', async () => {
+  describe('Safety Checking within Execution Manager', async () => {
+    it('should fail when given an unsafe contract', async () => {
       // For transactions,
       const receipt: TransactionReceipt = await manuallyDeployOvmContractReturnReceipt(
         wallet,
@@ -57,10 +57,10 @@ describe('Execution Manager -- Purity Checking', () => {
 
       createSucceeded.should.equal(
         false,
-        `DummyContract.sol should not have been considered pure because it uses storage in its constructor`
+        `DummyContract.sol should not have been considered safe because it uses storage in its constructor`
       )
     })
-    it('should successfully deploy a pure contract', async () => {
+    it('should successfully deploy a safe contract', async () => {
       const receipt = await manuallyDeployOvmContractReturnReceipt(
         wallet,
         provider,
@@ -75,7 +75,7 @@ describe('Execution Manager -- Purity Checking', () => {
 
       createSucceeded.should.equal(
         true,
-        `AddThree.sol contract should have been considered pure`
+        `AddThree.sol contract should have been considered safe`
       )
     })
   })

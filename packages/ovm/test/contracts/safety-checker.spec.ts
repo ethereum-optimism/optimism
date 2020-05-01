@@ -10,10 +10,10 @@ import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Logging */
-const log = getLogger('purity-checker')
+const log = getLogger('safety-checker', true)
 
 /* Contract Imports */
-import * as PurityChecker from '../../build/contracts/PurityChecker.json'
+import * as SafetyChecker from '../../build/contracts/SafetyChecker.json'
 
 const executionManagerAddress = add0x('12'.repeat(20)) // Test Execution Manager address 0x121...212
 const notWhitelisted: EVMOpcode[] = [
@@ -52,25 +52,25 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
     x.name !== 'CALL'
 )
 
-describe('Purity Checker', () => {
+describe('Safety Checker', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  let purityChecker: Contract
+  let safetyChecker: Contract
 
   /* Deploy a new whitelist contract before each test */
   beforeEach(async () => {
-    purityChecker = await deployContract(
+    safetyChecker = await deployContract(
       wallet,
-      PurityChecker,
+      SafetyChecker,
       [DEFAULT_OPCODE_WHITELIST_MASK, executionManagerAddress],
       { gasLimit: 6700000 }
     )
   })
 
-  describe('isBytecodePure()', async () => {
+  describe('isBytecodeSafe()', async () => {
     describe('Empty case', () => {
       it('should work for empty case', async () => {
-        const res: boolean = await purityChecker.isBytecodePure([])
+        const res: boolean = await safetyChecker.isBytecodeSafe([])
         res.should.eq(true, `empty bytecode should be whitelisted!`)
       })
     })
@@ -78,7 +78,7 @@ describe('Purity Checker', () => {
     describe('Single op-code cases', async () => {
       it('should correctly classify non-whitelisted', async () => {
         for (const opcode of notWhitelisted) {
-          const res: boolean = await purityChecker.isBytecodePure(
+          const res: boolean = await safetyChecker.isBytecodeSafe(
             `0x${opcode.code.toString('hex')}`
           )
           res.should.eq(
@@ -91,7 +91,7 @@ describe('Purity Checker', () => {
       it('should correctly classify whitelisted', async () => {
         for (const opcode of whitelistedNotHaltingOrCALL) {
           if (!opcode.name.startsWith('PUSH')) {
-            const res: boolean = await purityChecker.isBytecodePure(
+            const res: boolean = await safetyChecker.isBytecodeSafe(
               `0x${opcode.code.toString('hex')}`
             )
             res.should.eq(
@@ -114,7 +114,7 @@ describe('Purity Checker', () => {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
           )}${invalidOpcode.repeat(i)}`
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
             `PUSH${i} failed by not skipping ${i} bytes of bytecode!`
@@ -132,7 +132,7 @@ describe('Purity Checker', () => {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
           )}${invalidOpcode.repeat(i + 1)}`
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             false,
             `PUSH${i} succeeded, skipping ${i +
@@ -153,7 +153,7 @@ describe('Purity Checker', () => {
           )}`
         }
 
-        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(true, `Bytecode of all whitelisted (non-halting) failed!`)
       })
 
@@ -167,7 +167,7 @@ describe('Purity Checker', () => {
           )}`
         }
         for (const opcode of notWhitelisted) {
-          const res: boolean = await purityChecker.isBytecodePure(
+          const res: boolean = await safetyChecker.isBytecodeSafe(
             bytecode + opcode.code.toString('hex')
           )
           res.should.eq(
@@ -186,7 +186,7 @@ describe('Purity Checker', () => {
           for (const opcode of notWhitelisted) {
             bytecode += opcode.code.toString('hex')
           }
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
             `Bytecode containing invalid opcodes in unreachable code after a ${haltingOp.name} failed!`
@@ -201,7 +201,7 @@ describe('Purity Checker', () => {
           for (const opcode of notWhitelisted) {
             bytecode += opcode.code.toString('hex')
           }
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
             `Bytecode containing invalid opcodes after unreachable JUMPDEST (after a ${haltingOp.name}) failed!`
@@ -220,7 +220,7 @@ describe('Purity Checker', () => {
             for (const opcode of notWhitelisted) {
               bytecode += opcode.code.toString('hex')
             }
-            const res: boolean = await purityChecker.isBytecodePure(bytecode)
+            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
             res.should.eq(
               false,
               `Bytecode containing invalid opcodes after a JUMPDEST preceded by a ${haltingOp.name} and reachable by ${jump.name} should have failed!`
@@ -236,7 +236,7 @@ describe('Purity Checker', () => {
         for (const opcode of notWhitelisted) {
           bytecode += opcode.code.toString('hex')
         }
-        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
           `Bytecode containing invalid opcodes after reachble JUMPDEST should have failed!`
@@ -249,7 +249,7 @@ describe('Purity Checker', () => {
         for (const opcode of notWhitelisted) {
           bytecode += opcode.code.toString('hex')
         }
-        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
           `Bytecode containing invalid opcodes after JUMPI should have failed!`
@@ -275,7 +275,7 @@ describe('Purity Checker', () => {
                 bytecode += opcode.code.toString('hex')
               }
             }
-            const res: boolean = await purityChecker.isBytecodePure(bytecode)
+            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
             res.should.eq(
               true,
               `Long bytecode containing alternating valid reachable and invalid unreachable code failed!`
@@ -304,7 +304,7 @@ describe('Purity Checker', () => {
               }
             }
             bytecode += notWhitelisted[0].code.toString('hex')
-            const res: boolean = await purityChecker.isBytecodePure(bytecode)
+            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
             res.should.eq(
               false,
               `Long bytecode ending in reachable, invalid code should have failed!`
@@ -334,7 +334,7 @@ describe('Purity Checker', () => {
           bytecode += invalidOpcode.repeat(i)
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
             `Bytecode containing valid CALL using PUSH${i} to set gas failed!`
@@ -357,7 +357,7 @@ describe('Purity Checker', () => {
           bytecode += Buffer.of(dup1Code + i - 1).toString('hex')
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
             `Bytecode containing valid CALL using DUP${i} to set gas failed!`
@@ -382,7 +382,7 @@ describe('Purity Checker', () => {
           bytecode += opcode.code.toString('hex')
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             false,
             `Bytecode containing invalid CALL using ${opcode.name} to set gas should have failed!`
@@ -412,7 +412,7 @@ describe('Purity Checker', () => {
           bytecode += '11'.repeat(32) //PUSH32 0x11...11
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             false,
             `Bytecode containing invalid CALL using ${opcode.name} to set value should have failed!`
@@ -442,7 +442,7 @@ describe('Purity Checker', () => {
           bytecode += '11'.repeat(32) //PUSH32 0x11...11
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await purityChecker.isBytecodePure(bytecode)
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             false,
             `Bytecode containing invalid CALL using ${opcode.name} to set value should have failed!`
@@ -462,7 +462,7 @@ describe('Purity Checker', () => {
         bytecode += '11'.repeat(32) //PUSH32 0x11...11
         // CALL
         bytecode += Opcode.CALL.code.toString('hex')
-        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
           `Bytecode containing invalid CALL PUSH1ing non-zero value should have failed!`
@@ -481,7 +481,7 @@ describe('Purity Checker', () => {
         bytecode += '11'.repeat(32) //PUSH32 0x11...11
         // CALL
         bytecode += Opcode.CALL.code.toString('hex')
-        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
           `Bytecode containing invalid CALL PUSH20ing non-Execution Manager address should have failed!`
@@ -497,7 +497,7 @@ describe('Purity Checker', () => {
         bytecode += '11'.repeat(32) //PUSH32 0x11...11
         // CALL
         bytecode += Opcode.CALL.code.toString('hex')
-        const res: boolean = await purityChecker.isBytecodePure(bytecode)
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
           `Bytecode containing invalid CALL with only two preceding opcodes should have failed!`
