@@ -7,6 +7,7 @@ import {
   RateLimitError,
   TransactionLimitError,
 } from '../types'
+import { Environment } from './util'
 
 const log = getLogger('routing-handler')
 
@@ -30,10 +31,11 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
   private readonly requestingAddressesSinceLastPurge: Set<string>
 
   constructor(
-    private readonly maxRequestsPerTimeUnit,
-    private readonly maxTransactionsPerTimeUnit,
-    private readonly requestLimitPeriodInMillis,
-    private purgeIntervalMultiplier: number = 1_000
+    private maxRequestsPerTimeUnit,
+    private maxTransactionsPerTimeUnit,
+    private requestLimitPeriodInMillis,
+    purgeIntervalMultiplier: number = 1_000,
+    variableRefreshRateMillis = 300_000
   ) {
     this.requestingIpsSinceLastPurge = new Set<string>()
     this.requestingAddressesSinceLastPurge = new Set<string>()
@@ -48,6 +50,10 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
     setInterval(() => {
       this.purgeStale(true)
     }, this.requestLimitPeriodInMillis * (purgeIntervalMultiplier + 5))
+
+    setInterval(() => {
+      this.refreshVariables()
+    }, variableRefreshRateMillis)
   }
 
   /**
@@ -126,5 +132,20 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
       }
     })
     set.clear()
+  }
+
+  /**
+   * Refreshes configured member variables from updated Environment Variables.
+   */
+  private refreshVariables(): void {
+    if (!!Environment.requestLimitPeriodMillis()) {
+      this.requestLimitPeriodInMillis = Environment.requestLimitPeriodMillis()
+    }
+    if (!!Environment.maxNonTransactionRequestsPerUnitTime()) {
+      this.maxRequestsPerTimeUnit = Environment.maxNonTransactionRequestsPerUnitTime()
+    }
+    if (!!Environment.maxTransactionsPerUnitTime()) {
+      this.maxTransactionsPerTimeUnit = Environment.maxTransactionsPerUnitTime()
+    }
   }
 }

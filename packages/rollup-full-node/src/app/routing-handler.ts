@@ -22,6 +22,7 @@ import {
   Web3RpcMethods,
   web3RpcMethodsExcludingTest,
 } from '../types'
+import { Environment } from './util'
 
 const log = getLogger('routing-handler')
 
@@ -44,17 +45,25 @@ export const getMethodsToRouteWithTransactionHandler = () => {
  * otherwise they'll go to the transaction provider.
  */
 export class RoutingHandler implements FullnodeHandler {
+  private toAddressWhitelist: Set<string>
+
   constructor(
     private readonly transactionClient: SimpleClient,
     private readonly readOnlyClient: SimpleClient,
-    private readonly deployAddress: Address,
+    private deployAddress: Address,
     private readonly accountRateLimiter: AccountRateLimiter,
-    private readonly rateLimiterWhitelistedIps: string[] = [],
-    private readonly toAddressWhitelist: Address[] = [],
+    private rateLimiterWhitelistedIps: string[] = [],
+    toAddressWhitelist: Address[] = [],
     private readonly whitelistedMethods: Set<string> = new Set<string>(
       web3RpcMethodsExcludingTest
-    )
-  ) {}
+    ),
+    variableRefreshRateMillis = 300_000
+  ) {
+    this.toAddressWhitelist = new Set<Address>(toAddressWhitelist)
+    setInterval(() => {
+      this.refreshVariables()
+    }, variableRefreshRateMillis)
+  }
 
   /**
    * Handles the provided request by
@@ -149,14 +158,37 @@ export class RoutingHandler implements FullnodeHandler {
   private assertDestinationValid(tx?: Transaction): void {
     if (
       !!tx &&
-      !!this.toAddressWhitelist.length &&
-      this.toAddressWhitelist.indexOf(tx.to) < 0 &&
+      this.toAddressWhitelist.size > 0 &&
+      !this.toAddressWhitelist.has(tx.to) &&
       tx.from !== this.deployAddress
     ) {
       throw new InvalidTransactionDesinationError(
         tx.to,
-        this.toAddressWhitelist
+        Array.from(this.toAddressWhitelist)
       )
+    }
+  }
+
+  /**
+   * Refreshes configured member variables from updated Environment Variables.
+   */
+  private refreshVariables(): void {
+    if (
+      !!Environment.transactionToAddressWhitelist() &&
+      !!Environment.transactionToAddressWhitelist().length
+    ) {
+      this.toAddressWhitelist = new Set<string>(
+        Environment.transactionToAddressWhitelist()
+      )
+    }
+    if (
+      !!Environment.rateLimitWhitelistIpAddresses() &&
+      !!Environment.rateLimitWhitelistIpAddresses().length
+    ) {
+      this.rateLimiterWhitelistedIps = Environment.rateLimitWhitelistIpAddresses()
+    }
+    if (!!Environment.contractDeployerAddress()) {
+      this.deployAddress = Environment.contractDeployerAddress()
     }
   }
 }
