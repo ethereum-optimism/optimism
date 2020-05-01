@@ -1,18 +1,17 @@
 /* External Imports */
 import {
   abi,
-  add0x,
   getLogger,
   hexStrToBuf,
   bufToHexString,
   numberToHexString,
   logError,
-  remove0x,
   ZERO_ADDRESS,
   LOG_NEWLINE_STRING,
   BloomFilter,
-  hexStrToNumber,
 } from '@eth-optimism/core-utils'
+import { Address } from '@eth-optimism/rollup-core'
+
 import { ethers } from 'ethers'
 import { LogDescription } from 'ethers/utils'
 import { Log, TransactionReceipt } from 'ethers/providers'
@@ -70,62 +69,46 @@ export interface OvmTransactionMetadata {
  *
  * NOTE: The input logs MUST NOT be stripped of any Execution Manager events, or this function will break.
  *
- * @param logs an array of internal transaction logs which we will parse and then convert.
+ * @param logs An array of internal transaction logs which we will parse and then convert.
+ * @param executionManagerAddress The address of the Execution Manager contract for log parsing.
  * @return the converted logs
  */
 export const convertInternalLogsToOvmLogs = (
   logs: Log[],
   executionManagerAddress: string
 ): Log[] => {
-  let activeContract = logs[0] ? logs[0].address : ZERO_ADDRESS
-  const loggerLogs = [`Parsing internal logs ${JSON.stringify(logs)}: `]
+  const uppercaseExecutionMangerAddress: Address = executionManagerAddress.toUpperCase()
+  let activeContractAddress: Address = logs[0] ? logs[0].address : ZERO_ADDRESS
+  const stringsToDebugLog = [`Parsing internal logs ${JSON.stringify(logs)}: `]
   const ovmLogs = []
-  let cumulativeTxEMLogIndices = 0
+  let numberOfEMLogs = 0
   let prevEMLogIndex = 0
   logs.forEach((log) => {
-    if (log.address.toUpperCase() === executionManagerAddress.toUpperCase()) {
-      const EMLogIndex = log.logIndex
-      if (EMLogIndex <= prevEMLogIndex) {
-        loggerLogs.push(
-          `Detected raw EM log ${log} with lower logIndex than previously processed, must be from a new transaction.  Resetting cumulative EM log indices for tx.`
-        )
-        cumulativeTxEMLogIndices = 0
+    if (log.address.toUpperCase() === uppercaseExecutionMangerAddress) {
+      if (log.logIndex <= prevEMLogIndex) {
+        // This indicates a new TX, so reset number of EM logs to 0
+        numberOfEMLogs = 0
       }
-      cumulativeTxEMLogIndices++
-      prevEMLogIndex = EMLogIndex
+      numberOfEMLogs++
+      prevEMLogIndex = log.logIndex
       const executionManagerLog = executionManagerInterface.parseLog(log)
       if (!executionManagerLog) {
-        loggerLogs.push(
+        stringsToDebugLog.push(
           `Execution manager emitted log with topics: ${log.topics}.  These were unrecognized by the interface parser-but definitely not an ActiveContract event, ignoring...`
         )
-      } else {
-        loggerLogs.push(
-          `${executionManagerLog.name}, values: ${JSON.stringify(
-            executionManagerLog.values
-          )} and cumulativeTxEMLogIndices: ${cumulativeTxEMLogIndices}`
-        )
-        if (executionManagerLog.name === 'ActiveContract') {
-          activeContract = executionManagerLog.values['_activeContract']
-          loggerLogs.push(
-            `EM activeContract event detected, setting activeContract to ${activeContract}`
-          )
-        } else {
-          loggerLogs.push(
-            `EM-but-non-activeContract event detected, ignoring...`
-          )
-        }
+      } else if (executionManagerLog.name === 'ActiveContract') {
+        activeContractAddress = executionManagerLog.values['_activeContract']
       }
     } else {
-      const newIndex = log.logIndex - cumulativeTxEMLogIndices
-      loggerLogs.push(
-        `Non-EM log: ${JSON.stringify(
-          log
-        )}. Using address of active contract ${activeContract} and log index ${newIndex}`
-      )
-      ovmLogs.push({ ...log, address: activeContract, logIndex: newIndex })
+      const newIndex = log.logIndex - numberOfEMLogs
+      ovmLogs.push({
+        ...log,
+        address: activeContractAddress,
+        logIndex: newIndex,
+      })
     }
   })
-  logger.debug(loggerLogs.join(LOG_NEWLINE_STRING))
+  logger.debug(stringsToDebugLog.join(LOG_NEWLINE_STRING))
   return ovmLogs
 }
 
