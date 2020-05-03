@@ -1,6 +1,2 @@
----
-description: fdsa
----
-
 # Optimistic Ethereum
 
