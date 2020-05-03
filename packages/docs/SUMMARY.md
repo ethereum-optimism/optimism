@@ -1,19 +1,19 @@
-# Summary
+# Table of contents
+
+* [Introduction](README.md)
 
 ## Protocol Specifications
 
-* [Optimistic Ethereum](spec/README.md)
-
-* [Optimistic Rollup](spec/optimistic-rollup/README.md)
-
-* [OVM](spec/ovm/README.md)
-  * [Execution Manager](spec/ovm/execution-manager.md)
-  * [Transpiler](spec/ovm/transpilation-details.md)
+* [Optimistic Ethereum](protocol-specifications/optimistic-ethereum.md)
+* [Optimistic Rollup](protocol-specifications/optimistic-rollup.md)
+* [OVM](protocol-specifications/ovm/README.md)
+  * [Execution Manager](protocol-specifications/ovm/execution-manager.md)
+  * [Transpiler](protocol-specifications/ovm/transpiler.md)
 
 ## Developer Documentation
 
-* [Getting Started](dev/getting-started/README.md)    
-  * [Yo mama](dev/getting-started/do-yo-thang.md)    
-  * [Some other child page](dev/getting-started/cash.md)
-    
-* [ERC20 Tutorial](dev/erc20-tutorial/README.md)    
+* [Getting Started](developer-documentation/getting-started/README.md)
+  * [Yo mama](developer-documentation/getting-started/do-yo-thang.md)
+  * [Some other child page](developer-documentation/getting-started/cash.md)
+* [ERC20 Tutorial](developer-documentation/erc20-tutorial.md)
+
