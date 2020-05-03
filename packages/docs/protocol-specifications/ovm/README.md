@@ -1,4 +1,4 @@
-# OVM
+# Optimistic VM
 
 ## What is the OVM?
 
