@@ -13,7 +13,8 @@
 ## Developer Documentation
 
 * [Getting Started](developer-documentation/getting-started/README.md)
-  * [Yo mama](developer-documentation/getting-started/do-yo-thang.md)
-  * [Some other child page](developer-documentation/getting-started/cash.md)
-* [ERC20 Tutorial](developer-documentation/erc20-tutorial.md)
+  * [ERC20 Token Tutorial](developer-documentation/getting-started/do-yo-thang.md)
+* [Integrating the OVM](developer-documentation/erc20-tutorial/README.md)
+  * [Limitations](developer-documentation/erc20-tutorial/limitations.md)
+  * [Troubleshooting](developer-documentation/erc20-tutorial/troubleshooting.md)
 
