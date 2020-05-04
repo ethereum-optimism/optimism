@@ -320,9 +320,13 @@ describe('Routing Handler', () => {
       beforeEach(() => {
         deployerWallet = Wallet.createRandom()
         process.env.CONTRACT_DEPLOYER_ADDRESS = add0x(deployerWallet.address)
+        process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS = '0.0.0.0'
+        process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST = whitelistedTo
       })
       afterEach(() => {
         delete process.env.CONTRACT_DEPLOYER_ADDRESS
+        delete process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS
+        delete process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST
       })
 
       it('allows transactions any address from deployer address', async () => {
@@ -363,9 +367,12 @@ describe('Routing Handler', () => {
           toAddress1,
           toAddress2,
         ].join(',')
+
+        process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS = '0.0.0.0'
       })
       afterEach(() => {
         delete process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST
+        delete process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS
       })
 
       it('allows transactions to whitelisted addresses', async () => {
@@ -402,9 +409,12 @@ describe('Routing Handler', () => {
           whitelistedIpAddress,
           whitelistedIpAddress2,
         ].join(',')
+
+        process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST = whitelistedTo
       })
       afterEach(() => {
         delete process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS
+        delete process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST
       })
 
       it('lets transactions through when not limited', async () => {
