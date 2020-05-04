@@ -3,8 +3,22 @@ import { Logger } from '../types'
 
 export const LOG_CR_STRING = '<\\r>'
 export const LOG_NEWLINE_STRING = '<\\n>'
-export const joinNewlinesAndDebug = (logs: string) =>
-  debug(logs.replace(/\n/g, LOG_NEWLINE_STRING).replace(/\r/g, LOG_CR_STRING))
+export const joinNewlinesAndDebug = (...logs: any[]) => {
+  const stringifiedLogs = []
+  for (const l of logs) {
+    if (typeof l !== 'string') {
+      stringifiedLogs.push(JSON.stringify(l))
+    } else {
+      stringifiedLogs.push(l)
+    }
+  }
+  return debug(
+    stringifiedLogs
+      .join(' ')
+      .replace(/\n/g, LOG_NEWLINE_STRING)
+      .replace(/\r/g, LOG_CR_STRING)
+  )
+}
 
 export const getLogger = (
   identifier: string,
