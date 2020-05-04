@@ -122,9 +122,7 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
     Environment.contractDeployerAddress(),
     rateLimiter,
     Environment.rateLimitWhitelistIpAddresses(),
-    Environment.transactionToAddressWhitelist(),
-    undefined,
-    10_000
+    Environment.transactionToAddressWhitelist()
   )
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
@@ -140,7 +138,7 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
 
   setInterval(() => {
     updateEnvironmentVariables('/server/env_var_updates.config')
-  }, 10_000)
+  }, 179_000)
 
   return {
     fullnodeHandler: undefined,
