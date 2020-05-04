@@ -8,10 +8,11 @@
 * [Optimistic Rollup](protocol-specifications/optimistic-rollup/README.md)
   * [Block Production](protocol-specifications/optimistic-rollup/block-production.md)
 * [Optimistic VM \(OVM\)](protocol-specifications/ovm/README.md)
-  * [JUMP Transpilation](protocol-specifications/ovm/jump-transpilation.md)
+  * [Core Components](protocol-specifications/ovm/ovm-components.md)
   * [Execution Manager Overview](protocol-specifications/ovm/execution-manager.md)
-  * [CODECOPY in Transpiled Bytecode](protocol-specifications/ovm/codecopy-in-transpiled-bytecode.md)
   * [Opcode Transpilation Details](protocol-specifications/ovm/transpiler.md)
+  * [JUMP Transpilation](protocol-specifications/ovm/jump-transpilation.md)
+  * [CODECOPY in Transpiled Bytecode](protocol-specifications/ovm/codecopy-in-transpiled-bytecode.md)
 
 ## Developer Documentation
 
