@@ -1,9 +1,10 @@
 import debug from 'debug'
 import { Logger } from '../types'
 
+export const LOG_CR_STRING = '<\\r>'
 export const LOG_NEWLINE_STRING = '<\\n>'
 export const joinNewlinesAndDebug = (logs: string) =>
-  debug(logs.replace(/\n/g, LOG_NEWLINE_STRING))
+  debug(logs.replace(/\n/g, LOG_NEWLINE_STRING).replace(/\r/g, LOG_CR_STRING))
 
 export const getLogger = (
   identifier: string,
