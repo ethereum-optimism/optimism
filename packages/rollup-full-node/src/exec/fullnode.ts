@@ -9,6 +9,7 @@ import {
 import {
   ExpressHttpServer,
   getLogger,
+  logError,
   Logger,
   SimpleClient,
 } from '@eth-optimism/core-utils'
@@ -121,7 +122,9 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
     Environment.contractDeployerAddress(),
     rateLimiter,
     Environment.rateLimitWhitelistIpAddresses(),
-    Environment.transactionToAddressWhitelist()
+    Environment.transactionToAddressWhitelist(),
+    undefined,
+    10_000
   )
   const fullnodeRpcServer = new FullnodeRpcServer(
     fullnodeHandler,
@@ -134,6 +137,10 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
 
   const baseUrl = `http://${Environment.l2RpcServerHost()}:${Environment.l2RpcServerPort()}`
   log.info(`Listening at ${baseUrl}`)
+
+  setInterval(() => {
+    updateEnvironmentVariables('/server/env_var_updates.config')
+  }, 10_000)
 
   return {
     fullnodeHandler: undefined,
@@ -339,6 +346,78 @@ const getL1ToL2TransactionProcessor = async (
   )
 
   return l1ToL2TransactionProcessor
+}
+
+/**
+ * Updates process environment variables from provided update file
+ * if any variables are updated.
+ *
+ * @param updateFilePath The path to the file from which to read env var updates.
+ */
+const updateEnvironmentVariables = (updateFilePath: string) => {
+  try {
+    log.debug(`Checking for updated environment variables in ${updateFilePath}`)
+    fs.readFile(updateFilePath, 'utf8', (error, data) => {
+      try {
+        let changesExist: boolean = false
+        if (!!error) {
+          logError(
+            log,
+            `Error reading environment variable updates from ${updateFilePath}`,
+            error
+          )
+          return
+        }
+
+        const lines = data.split('\n')
+        for (const rawLine of lines) {
+          if (!rawLine) {
+            continue
+          }
+          const line = rawLine.trim()
+          if (!line || line.startsWith('#')) {
+            continue
+          }
+
+          const varAssignmentSplit = line.split('=')
+          if (varAssignmentSplit.length !== 2) {
+            log.error(
+              `Invalid updated env variable line: ${line}. Expected some_var_name=somevalue`
+            )
+            continue
+          }
+          const key = varAssignmentSplit[0].trim()
+          const value = varAssignmentSplit[1].trim()
+          if (value === '$DELETE$') {
+            delete process.env[key]
+            log.info(`Updated process.env.${key} to have no value.`)
+          } else {
+            process.env[key] = value
+            log.info(`Updated process.env.${key} to have value ${value}.`)
+          }
+          changesExist = true
+        }
+
+        if (!changesExist) {
+          log.debug(`No updated environment variables detected`)
+        } else {
+          log.debug(`Environment variable updates complete.`)
+        }
+      } catch (e) {
+        logError(
+          log,
+          `Error updating environment variables from ${updateFilePath}`,
+          e
+        )
+      }
+    })
+  } catch (e) {
+    logError(
+      log,
+      `Error updating environment variables from ${updateFilePath}`,
+      e
+    )
+  }
 }
 
 /**

@@ -172,12 +172,9 @@ export class RoutingHandler implements FullnodeHandler {
    */
   private refreshVariables(): void {
     try {
+      log.debug(`Checking to see if any env variables have been updated...`)
       const envToWhitelist = Environment.transactionToAddressWhitelist()
-      if (
-        !!envToWhitelist &&
-        envToWhitelist.length &&
-        !areEqual(envToWhitelist.sort(), this.toAddressWhitelist.sort())
-      ) {
+      if (!areEqual(envToWhitelist.sort(), this.toAddressWhitelist.sort())) {
         const prevValue = this.toAddressWhitelist
         this.toAddressWhitelist = envToWhitelist
         log.info(
@@ -189,8 +186,6 @@ export class RoutingHandler implements FullnodeHandler {
 
       const envIpWhitelist = Environment.rateLimitWhitelistIpAddresses()
       if (
-        !!envIpWhitelist &&
-        !!envIpWhitelist.length &&
         !areEqual(envIpWhitelist.sort(), this.rateLimiterWhitelistedIps.sort())
       ) {
         const prevValue = this.rateLimiterWhitelistedIps
@@ -210,6 +205,8 @@ export class RoutingHandler implements FullnodeHandler {
           `Deployer address updated from ${prevValue} to ${this.deployAddress}`
         )
       }
+
+      log.debug(`Done checking for env var updates!`)
     } catch (e) {
       logError(
         log,
