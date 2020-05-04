@@ -38,7 +38,7 @@ describe('ExecutionManager -- Create opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
-  let purityCheckedExecutioManager: Contract
+  let safetyCheckedExecutionManager: Contract
   let deployTx
   let deployInvalidTx
 
@@ -57,10 +57,10 @@ describe('ExecutionManager -- Create opcodes', () => {
       SimpleStorage.bytecode
     ).getDeployTransaction(executionManager.address)
 
-    purityCheckedExecutioManager = await deployContract(
+    safetyCheckedExecutionManager = await deployContract(
       wallet,
-      ExecutionManager, // Note: this is false, so it's purity checked.
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false],
+      ExecutionManager,
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, false], // Note: this is false, so it's safety checked.
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
 
@@ -90,7 +90,7 @@ describe('ExecutionManager -- Create opcodes', () => {
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
-        to: purityCheckedExecutioManager.address,
+        to: safetyCheckedExecutionManager.address,
         data,
         gasLimit,
       })
@@ -130,7 +130,7 @@ describe('ExecutionManager -- Create opcodes', () => {
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
-        to: purityCheckedExecutioManager.address,
+        to: safetyCheckedExecutionManager.address,
         data,
         gasLimit,
       })

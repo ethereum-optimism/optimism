@@ -1,17 +1,17 @@
 pragma solidity ^0.5.0;
 
 /**
- * @title PurityChecker
- * @notice Purity Checker contract used to check whether or not bytecode is pure, meaning:
+ * @title SafetyChecker
+ * @notice Safety Checker contract used to check whether or not bytecode is safe, meaning:
  * 1. It uses only whitelisted opcodes
  * 2. All CALLs are to the Execution Manager and have no value set (no ETH sent)
  */
-contract PurityChecker {
+contract SafetyChecker {
     uint256 public opcodeWhitelistMask;
     address public executionManagerAddress;
 
     /**
-     * @notice Construct a new Purity Checker with the specified whitelist mask
+     * @notice Construct a new Safety Checker with the specified whitelist mask
      * @param _opcodeWhitelistMask A hex number of 256 bits where each bit represents an opcode, 0 - 255, which is set if whitelisted and unset otherwise.
      * @param _executionManagerAddress The address of the ExecutionManager.sol contract
      */
@@ -33,11 +33,11 @@ contract PurityChecker {
     }
 
     /**
-     * @notice Returns whether or not all of the provided bytecode is pure.
-     * @param _bytecode The bytecode to purity check. This can be either creation bytecode (aka initcode) or runtime bytecode (aka contract code).
+     * @notice Returns whether or not all of the provided bytecode is safe.
+     * @param _bytecode The bytecode to safety check. This can be either creation bytecode (aka initcode) or runtime bytecode (aka contract code).
      * More info on creation vs. runtime bytecode: https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904
      */
-    function isBytecodePure(
+    function isBytecodeSafe(
         bytes memory _bytecode
     ) public view returns (bool) {
         bool seenJUMP = false;
@@ -79,7 +79,7 @@ contract PurityChecker {
                     seenJUMP = true;
                     // we are now inside unreachable code until we hit a JUMPDEST!
                     insideUnreachableCode = true;
-                // STOP or REVERT or INVALID or RETURN (see purity checker docs in wiki for more info)
+                // STOP or REVERT or INVALID or RETURN (see safety checker docs in wiki for more info)
                 } else if (op == 0x00 || op == 0xfd || op == 0xfe || op == 0xf3) {
                     // If we can't jump to JUMPDESTs, then all remaining bytecode is unreachable
                     if (!seenJUMP) {
