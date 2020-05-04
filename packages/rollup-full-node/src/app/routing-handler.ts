@@ -183,22 +183,22 @@ export class RoutingHandler implements FullnodeHandler {
         log.info(
           `Transaction 'to' address whitelist updated from ${JSON.stringify(
             prevValue
-          )} to ${this.toAddressWhitelist}`
+          )} to ${JSON.stringify(this.toAddressWhitelist)}`
         )
       }
 
       const envIpWhitelist = Environment.rateLimitWhitelistIpAddresses()
       if (
         !!envIpWhitelist &&
-        !!envToWhitelist.length &&
+        !!envIpWhitelist.length &&
         !areEqual(envIpWhitelist.sort(), this.rateLimiterWhitelistedIps.sort())
       ) {
         const prevValue = this.rateLimiterWhitelistedIps
         this.rateLimiterWhitelistedIps = envIpWhitelist
         log.info(
-          `IP whitelist updated from ${JSON.stringify(prevValue)} to ${
-            this.rateLimiterWhitelistedIps
-          }`
+          `IP whitelist updated from ${JSON.stringify(
+            prevValue
+          )} to ${JSON.stringify(this.rateLimiterWhitelistedIps)}`
         )
       }
 

@@ -1,10 +1,12 @@
 /* External Imports */
 import {
+  add0x,
   JsonRpcError,
   JsonRpcErrorResponse,
   JsonRpcResponse,
   JsonRpcSuccessResponse,
   SimpleClient,
+  sleep,
   TestUtils,
 } from '@eth-optimism/core-utils'
 /* Internal Imports */
@@ -67,6 +69,9 @@ const getSignedTransaction = async (
   })
 }
 
+const whitelistedIpAddress = '9.9.9.9'
+const whitelistedIpAddress2 = '8.8.8.8'
+
 const transactionResponse = 'transaction'
 const readOnlyResponse = 'read only'
 const transactionResponsePayload: JsonRpcSuccessResponse = {
@@ -119,8 +124,6 @@ describe('Routing Handler', () => {
   describe('Rate Limiter Tests', () => {
     let rateLimiter: DummyRateLimiter
     let routingHandler: RoutingHandler
-
-    const whitelistedIpAddress = '9.9.9.9'
 
     beforeEach(() => {
       rateLimiter = new DummyRateLimiter()
@@ -240,7 +243,7 @@ describe('Routing Handler', () => {
       }, InvalidTransactionDesinationError)
     })
 
-    it('allows transactions to the whitelisted address from deployer address', async () => {
+    it('allows transactions to any address from deployer address', async () => {
       // Should not throw
       await routingHandler.handleRequest(
         Web3RpcMethods.sendRawTransaction,
@@ -287,6 +290,188 @@ describe('Routing Handler', () => {
           ''
         )
       }, UnsupportedMethodError)
+    })
+  })
+
+  describe('Environment variable refresh', () => {
+    let routingHandler: RoutingHandler
+    let rateLimiter: DummyRateLimiter
+    const whitelistedTo: string = add0x(Wallet.createRandom().address)
+
+    beforeEach(() => {
+      rateLimiter = new DummyRateLimiter()
+      routingHandler = new RoutingHandler(
+        new DummySimpleClient(transactionResponsePayload),
+        new DummySimpleClient(readOnlyPayload),
+        '',
+        rateLimiter,
+        ['0.0.0.0'],
+        [whitelistedTo],
+        new Set<string>([
+          Web3RpcMethods.sendRawTransaction,
+          Web3RpcMethods.networkVersion,
+        ]),
+        1_000
+      )
+    })
+
+    describe('Contract deployer address', () => {
+      let deployerWallet: Wallet
+      beforeEach(() => {
+        deployerWallet = Wallet.createRandom()
+        process.env.CONTRACT_DEPLOYER_ADDRESS = add0x(deployerWallet.address)
+      })
+      afterEach(() => {
+        delete process.env.CONTRACT_DEPLOYER_ADDRESS
+      })
+
+      it('allows transactions any address from deployer address', async () => {
+        await sleep(1100)
+        // Should not throw
+        await routingHandler.handleRequest(
+          Web3RpcMethods.sendRawTransaction,
+          [
+            await getSignedTransaction(
+              Wallet.createRandom().address,
+              deployerWallet
+            ),
+          ],
+          ''
+        )
+      })
+
+      it('disallows transactions to any address from non-deployer address', async () => {
+        await sleep(1100)
+
+        await TestUtils.assertThrowsAsync(async () => {
+          return routingHandler.handleRequest(
+            Web3RpcMethods.sendRawTransaction,
+            [await getSignedTransaction()],
+            ''
+          )
+        }, InvalidTransactionDesinationError)
+      })
+    })
+
+    describe('To address whitelist', () => {
+      let toAddress1: string
+      let toAddress2: string
+      beforeEach(() => {
+        toAddress1 = add0x(Wallet.createRandom().address)
+        toAddress2 = add0x(Wallet.createRandom().address)
+        process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST = [
+          toAddress1,
+          toAddress2,
+        ].join(',')
+      })
+      afterEach(() => {
+        delete process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST
+      })
+
+      it('allows transactions to whitelisted addresses', async () => {
+        await sleep(1100)
+        // Should not throw
+        await routingHandler.handleRequest(
+          Web3RpcMethods.sendRawTransaction,
+          [await getSignedTransaction(toAddress1)],
+          ''
+        )
+
+        await routingHandler.handleRequest(
+          Web3RpcMethods.sendRawTransaction,
+          [await getSignedTransaction(toAddress2)],
+          ''
+        )
+      })
+
+      it('disallows transactions to non-whitelisted address', async () => {
+        await sleep(1100)
+        await TestUtils.assertThrowsAsync(async () => {
+          await routingHandler.handleRequest(
+            Web3RpcMethods.sendRawTransaction,
+            [await getSignedTransaction(whitelistedTo)],
+            ''
+          )
+        }, InvalidTransactionDesinationError)
+      })
+    })
+
+    describe('Rate limit whitelisted IPs', () => {
+      beforeEach(() => {
+        process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS = [
+          whitelistedIpAddress,
+          whitelistedIpAddress2,
+        ].join(',')
+      })
+      afterEach(() => {
+        delete process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS
+      })
+
+      it('lets transactions through when not limited', async () => {
+        await sleep(1100)
+        // This should not throw
+        await routingHandler.handleRequest(
+          Web3RpcMethods.sendRawTransaction,
+          [await getSignedTransaction(whitelistedTo)],
+          ''
+        )
+      })
+
+      it('does not let transactions through when limited', async () => {
+        await sleep(1100)
+        rateLimiter.limitNextTransaction = true
+        await TestUtils.assertThrowsAsync(async () => {
+          return routingHandler.handleRequest(
+            Web3RpcMethods.sendRawTransaction,
+            [await getSignedTransaction(whitelistedTo)],
+            ''
+          )
+        }, TransactionLimitError)
+      })
+
+      it('lets transactions through when limited and whitelisted', async () => {
+        await sleep(1100)
+        rateLimiter.limitNextTransaction = true
+        // This should not throw
+        await routingHandler.handleRequest(
+          Web3RpcMethods.sendRawTransaction,
+          [await getSignedTransaction(whitelistedTo)],
+          whitelistedIpAddress
+        )
+      })
+
+      it('lets requests through when not limited', async () => {
+        await sleep(1100)
+        // This should not throw
+        await routingHandler.handleRequest(
+          Web3RpcMethods.networkVersion,
+          [],
+          ''
+        )
+      })
+
+      it('does not let requests through when limited', async () => {
+        await sleep(1100)
+        rateLimiter.limitNextRequest = true
+        await TestUtils.assertThrowsAsync(async () => {
+          return routingHandler.handleRequest(
+            Web3RpcMethods.networkVersion,
+            [],
+            ''
+          )
+        }, RateLimitError)
+      })
+
+      it('lets requests through when limited and whitelisted', async () => {
+        await sleep(1100)
+        rateLimiter.limitNextRequest = true
+        // This should not throw
+        await routingHandler.handleRequest(
+          Web3RpcMethods.networkVersion,
+          [],
+          whitelistedIpAddress
+        )
+      })
     })
   })
 
