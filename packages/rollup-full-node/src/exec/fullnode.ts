@@ -383,13 +383,14 @@ const updateEnvironmentVariables = (updateFilePath: string) => {
             )
             continue
           }
+          const deletePlaceholder = '$DELETE$'
           const key = varAssignmentSplit[0].trim()
           const value = varAssignmentSplit[1].trim()
-          if (value === '$DELETE$' && !!process.env[key]) {
+          if (value === deletePlaceholder && !!process.env[key]) {
             delete process.env[key]
             log.info(`Updated process.env.${key} to have no value.`)
             changesExist = true
-          } else if (value !== process.env[key]) {
+          } else if (value !== process.env[key] && value !== deletePlaceholder) {
             process.env[key] = value
             log.info(`Updated process.env.${key} to have value ${value}.`)
             changesExist = true
