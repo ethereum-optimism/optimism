@@ -354,7 +354,6 @@ const getL1ToL2TransactionProcessor = async (
  */
 const updateEnvironmentVariables = (updateFilePath: string) => {
   try {
-    log.debug(`Checking for updated environment variables in ${updateFilePath}`)
     fs.readFile(updateFilePath, 'utf8', (error, data) => {
       try {
         let changesExist: boolean = false
@@ -386,20 +385,15 @@ const updateEnvironmentVariables = (updateFilePath: string) => {
           }
           const key = varAssignmentSplit[0].trim()
           const value = varAssignmentSplit[1].trim()
-          if (value === '$DELETE$') {
+          if (value === '$DELETE$' && !!process.env[key]) {
             delete process.env[key]
             log.info(`Updated process.env.${key} to have no value.`)
-          } else {
+            changesExist = true
+          } else if (value !== process.env[key]) {
             process.env[key] = value
             log.info(`Updated process.env.${key} to have value ${value}.`)
+            changesExist = true
           }
-          changesExist = true
-        }
-
-        if (!changesExist) {
-          log.debug(`No updated environment variables detected`)
-        } else {
-          log.debug(`Environment variable updates complete.`)
         }
       } catch (e) {
         logError(

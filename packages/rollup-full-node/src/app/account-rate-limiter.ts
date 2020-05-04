@@ -149,10 +149,8 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
    */
   private refreshVariables(): void {
     try {
-      log.debug(`Checking to see if any env variables have been updated...`)
-
       const envPeriod = Environment.requestLimitPeriodMillis()
-      if (!!envPeriod && this.requestLimitPeriodInMillis !== envPeriod) {
+      if (this.requestLimitPeriodInMillis !== envPeriod) {
         const prevVal = this.requestLimitPeriodInMillis
         this.requestLimitPeriodInMillis = envPeriod
         this.ipToRequestCounter.clear()
@@ -181,8 +179,6 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
           `Updated Max Transactions Per unit time value from ${prevVal} to ${this.maxTransactionsPerTimeUnit}`
         )
       }
-
-      log.debug(`Done checking for env var updates!`)
     } catch (e) {
       logError(
         log,
