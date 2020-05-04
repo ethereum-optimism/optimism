@@ -1,6 +1,7 @@
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
 import {
+  areEqual,
   getLogger,
   isJsonRpcErrorResponse,
   JsonRpcErrorResponse,
@@ -22,6 +23,7 @@ import {
   Web3RpcMethods,
   web3RpcMethodsExcludingTest,
 } from '../types'
+import { Environment } from './util'
 
 const log = getLogger('routing-handler')
 
@@ -47,14 +49,19 @@ export class RoutingHandler implements FullnodeHandler {
   constructor(
     private readonly transactionClient: SimpleClient,
     private readonly readOnlyClient: SimpleClient,
-    private readonly deployAddress: Address,
+    private deployAddress: Address,
     private readonly accountRateLimiter: AccountRateLimiter,
-    private readonly rateLimiterWhitelistedIps: string[] = [],
-    private readonly toAddressWhitelist: Address[] = [],
+    private rateLimiterWhitelistedIps: string[] = [],
+    private toAddressWhitelist: Address[] = [],
     private readonly whitelistedMethods: Set<string> = new Set<string>(
       web3RpcMethodsExcludingTest
-    )
-  ) {}
+    ),
+    variableRefreshRateMillis = 300_000
+  ) {
+    setInterval(() => {
+      this.refreshVariables()
+    }, variableRefreshRateMillis)
+  }
 
   /**
    * Handles the provided request by
@@ -155,7 +162,59 @@ export class RoutingHandler implements FullnodeHandler {
     ) {
       throw new InvalidTransactionDesinationError(
         tx.to,
-        this.toAddressWhitelist
+        Array.from(this.toAddressWhitelist)
+      )
+    }
+  }
+
+  /**
+   * Refreshes configured member variables from updated Environment Variables.
+   */
+  private refreshVariables(): void {
+    try {
+      const envToWhitelist = Environment.transactionToAddressWhitelist()
+      if (
+        !!envToWhitelist &&
+        envToWhitelist.length &&
+        !areEqual(envToWhitelist.sort(), this.toAddressWhitelist.sort())
+      ) {
+        const prevValue = this.toAddressWhitelist
+        this.toAddressWhitelist = envToWhitelist
+        log.info(
+          `Transaction 'to' address whitelist updated from ${JSON.stringify(
+            prevValue
+          )} to ${JSON.stringify(this.toAddressWhitelist)}`
+        )
+      }
+
+      const envIpWhitelist = Environment.rateLimitWhitelistIpAddresses()
+      if (
+        !!envIpWhitelist &&
+        !!envIpWhitelist.length &&
+        !areEqual(envIpWhitelist.sort(), this.rateLimiterWhitelistedIps.sort())
+      ) {
+        const prevValue = this.rateLimiterWhitelistedIps
+        this.rateLimiterWhitelistedIps = envIpWhitelist
+        log.info(
+          `IP whitelist updated from ${JSON.stringify(
+            prevValue
+          )} to ${JSON.stringify(this.rateLimiterWhitelistedIps)}`
+        )
+      }
+
+      const deployerAddress = Environment.contractDeployerAddress()
+      if (!!deployerAddress && deployerAddress !== this.deployAddress) {
+        const prevValue = this.deployAddress
+        this.deployAddress = deployerAddress
+        log.info(
+          `Deployer address updated from ${prevValue} to ${this.deployAddress}`
+        )
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error updating router variables from environment variables`,
+        e
       )
     }
   }

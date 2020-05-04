@@ -1,5 +1,9 @@
 /* External imports */
-import { getLogger, TimeBucketedCounter } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  logError,
+  TimeBucketedCounter,
+} from '@eth-optimism/core-utils'
 
 /* Internal imports */
 import {
@@ -7,6 +11,7 @@ import {
   RateLimitError,
   TransactionLimitError,
 } from '../types'
+import { Environment } from './util'
 
 const log = getLogger('routing-handler')
 
@@ -30,10 +35,11 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
   private readonly requestingAddressesSinceLastPurge: Set<string>
 
   constructor(
-    private readonly maxRequestsPerTimeUnit,
-    private readonly maxTransactionsPerTimeUnit,
-    private readonly requestLimitPeriodInMillis,
-    private purgeIntervalMultiplier: number = 1_000
+    private maxRequestsPerTimeUnit,
+    private maxTransactionsPerTimeUnit,
+    private requestLimitPeriodInMillis,
+    purgeIntervalMultiplier: number = 1_000,
+    variableRefreshRateMillis = 300_000
   ) {
     this.requestingIpsSinceLastPurge = new Set<string>()
     this.requestingAddressesSinceLastPurge = new Set<string>()
@@ -48,6 +54,10 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
     setInterval(() => {
       this.purgeStale(true)
     }, this.requestLimitPeriodInMillis * (purgeIntervalMultiplier + 5))
+
+    setInterval(() => {
+      this.refreshVariables()
+    }, variableRefreshRateMillis)
   }
 
   /**
@@ -94,7 +104,7 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
     this.requestingAddressesSinceLastPurge.add(address)
 
     const numRequests = this.addressToRequestCounter.get(address).increment()
-    if (numRequests > this.maxRequestsPerTimeUnit) {
+    if (numRequests > this.maxTransactionsPerTimeUnit) {
       throw new TransactionLimitError(
         address,
         numRequests,
@@ -126,5 +136,52 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
       }
     })
     set.clear()
+  }
+
+  /**
+   * Refreshes configured member variables from updated Environment Variables.
+   */
+  private refreshVariables(): void {
+    try {
+      const envPeriod = Environment.requestLimitPeriodMillis()
+      if (!!envPeriod && this.requestLimitPeriodInMillis !== envPeriod) {
+        const prevVal = this.requestLimitPeriodInMillis
+        this.requestLimitPeriodInMillis = envPeriod
+        this.ipToRequestCounter.clear()
+        this.addressToRequestCounter.clear()
+        this.requestingIpsSinceLastPurge.clear()
+        this.requestingAddressesSinceLastPurge.clear()
+        log.info(
+          `Updated Rate Limit time period from ${prevVal} to ${this.requestLimitPeriodInMillis} millis`
+        )
+      }
+
+      const envRequestLimit = Environment.maxNonTransactionRequestsPerUnitTime()
+      if (
+        !!envRequestLimit &&
+        this.maxRequestsPerTimeUnit !== envRequestLimit
+      ) {
+        const prevVal = this.maxRequestsPerTimeUnit
+        this.maxRequestsPerTimeUnit = envRequestLimit
+        log.info(
+          `Updated Max Requests Per unit time value from ${prevVal} to ${this.maxRequestsPerTimeUnit}`
+        )
+      }
+
+      const envTxLimit = Environment.maxTransactionsPerUnitTime()
+      if (!!envTxLimit && this.maxTransactionsPerTimeUnit !== envTxLimit) {
+        const prevVal = this.maxTransactionsPerTimeUnit
+        this.maxTransactionsPerTimeUnit = envTxLimit
+        log.info(
+          `Updated Max Transactions Per unit time value from ${prevVal} to ${this.maxTransactionsPerTimeUnit}`
+        )
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error updating rate limiter variables from environment variables`,
+        e
+      )
+    }
   }
 }
