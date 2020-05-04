@@ -1,5 +1,9 @@
 /* External imports */
-import { getLogger, TimeBucketedCounter } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  logError,
+  TimeBucketedCounter,
+} from '@eth-optimism/core-utils'
 
 /* Internal imports */
 import {
@@ -100,7 +104,7 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
     this.requestingAddressesSinceLastPurge.add(address)
 
     const numRequests = this.addressToRequestCounter.get(address).increment()
-    if (numRequests > this.maxRequestsPerTimeUnit) {
+    if (numRequests > this.maxTransactionsPerTimeUnit) {
       throw new TransactionLimitError(
         address,
         numRequests,
@@ -138,14 +142,46 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
    * Refreshes configured member variables from updated Environment Variables.
    */
   private refreshVariables(): void {
-    if (!!Environment.requestLimitPeriodMillis()) {
-      this.requestLimitPeriodInMillis = Environment.requestLimitPeriodMillis()
-    }
-    if (!!Environment.maxNonTransactionRequestsPerUnitTime()) {
-      this.maxRequestsPerTimeUnit = Environment.maxNonTransactionRequestsPerUnitTime()
-    }
-    if (!!Environment.maxTransactionsPerUnitTime()) {
-      this.maxTransactionsPerTimeUnit = Environment.maxTransactionsPerUnitTime()
+    try {
+      const envPeriod = Environment.requestLimitPeriodMillis()
+      if (!!envPeriod && this.requestLimitPeriodInMillis !== envPeriod) {
+        const prevVal = this.requestLimitPeriodInMillis
+        this.requestLimitPeriodInMillis = envPeriod
+        this.ipToRequestCounter.clear()
+        this.addressToRequestCounter.clear()
+        this.requestingIpsSinceLastPurge.clear()
+        this.requestingAddressesSinceLastPurge.clear()
+        log.info(
+          `Updated Rate Limit time period from ${prevVal} to ${this.requestLimitPeriodInMillis} millis`
+        )
+      }
+
+      const envRequestLimit = Environment.maxNonTransactionRequestsPerUnitTime()
+      if (
+        !!envRequestLimit &&
+        this.maxRequestsPerTimeUnit !== envRequestLimit
+      ) {
+        const prevVal = this.maxRequestsPerTimeUnit
+        this.maxRequestsPerTimeUnit = envRequestLimit
+        log.info(
+          `Updated Max Requests Per unit time value from ${prevVal} to ${this.maxRequestsPerTimeUnit}`
+        )
+      }
+
+      const envTxLimit = Environment.maxTransactionsPerUnitTime()
+      if (!!envTxLimit && this.maxTransactionsPerTimeUnit !== envTxLimit) {
+        const prevVal = this.maxTransactionsPerTimeUnit
+        this.maxTransactionsPerTimeUnit = envTxLimit
+        log.info(
+          `Updated Max Transactions Per unit time value from ${prevVal} to ${this.maxTransactionsPerTimeUnit}`
+        )
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error updating rate limiter variables from environment variables`,
+        e
+      )
     }
   }
 }
