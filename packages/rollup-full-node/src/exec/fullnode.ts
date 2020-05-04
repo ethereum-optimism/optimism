@@ -9,6 +9,7 @@ import {
 import {
   ExpressHttpServer,
   getLogger,
+  logError,
   Logger,
   SimpleClient,
 } from '@eth-optimism/core-utils'
@@ -134,6 +135,10 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
 
   const baseUrl = `http://${Environment.l2RpcServerHost()}:${Environment.l2RpcServerPort()}`
   log.info(`Listening at ${baseUrl}`)
+
+  setInterval(() => {
+    updateEnvironmentVariables('/server/env_var_updates.config')
+  }, 179_000)
 
   return {
     fullnodeHandler: undefined,
@@ -339,6 +344,72 @@ const getL1ToL2TransactionProcessor = async (
   )
 
   return l1ToL2TransactionProcessor
+}
+
+/**
+ * Updates process environment variables from provided update file
+ * if any variables are updated.
+ *
+ * @param updateFilePath The path to the file from which to read env var updates.
+ */
+const updateEnvironmentVariables = (updateFilePath: string) => {
+  try {
+    fs.readFile(updateFilePath, 'utf8', (error, data) => {
+      try {
+        let changesExist: boolean = false
+        if (!!error) {
+          logError(
+            log,
+            `Error reading environment variable updates from ${updateFilePath}`,
+            error
+          )
+          return
+        }
+
+        const lines = data.split('\n')
+        for (const rawLine of lines) {
+          if (!rawLine) {
+            continue
+          }
+          const line = rawLine.trim()
+          if (!line || line.startsWith('#')) {
+            continue
+          }
+
+          const varAssignmentSplit = line.split('=')
+          if (varAssignmentSplit.length !== 2) {
+            log.error(
+              `Invalid updated env variable line: ${line}. Expected some_var_name=somevalue`
+            )
+            continue
+          }
+          const key = varAssignmentSplit[0].trim()
+          const value = varAssignmentSplit[1].trim()
+          if (value === '$DELETE$' && !!process.env[key]) {
+            delete process.env[key]
+            log.info(`Updated process.env.${key} to have no value.`)
+            changesExist = true
+          } else if (value !== process.env[key]) {
+            process.env[key] = value
+            log.info(`Updated process.env.${key} to have value ${value}.`)
+            changesExist = true
+          }
+        }
+      } catch (e) {
+        logError(
+          log,
+          `Error updating environment variables from ${updateFilePath}`,
+          e
+        )
+      }
+    })
+  } catch (e) {
+    logError(
+      log,
+      `Error updating environment variables from ${updateFilePath}`,
+      e
+    )
+  }
 }
 
 /**

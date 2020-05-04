@@ -77,7 +77,10 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
     this.requestingIpsSinceLastPurge.add(sourceIpAddress)
 
     const numRequests = this.ipToRequestCounter.get(sourceIpAddress).increment()
-    if (numRequests > this.maxRequestsPerTimeUnit) {
+    if (
+      this.maxRequestsPerTimeUnit !== undefined &&
+      numRequests > this.maxRequestsPerTimeUnit
+    ) {
       throw new RateLimitError(
         sourceIpAddress,
         numRequests,
@@ -104,7 +107,10 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
     this.requestingAddressesSinceLastPurge.add(address)
 
     const numRequests = this.addressToRequestCounter.get(address).increment()
-    if (numRequests > this.maxTransactionsPerTimeUnit) {
+    if (
+      this.maxTransactionsPerTimeUnit !== undefined &&
+      numRequests > this.maxTransactionsPerTimeUnit
+    ) {
       throw new TransactionLimitError(
         address,
         numRequests,
@@ -144,7 +150,7 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
   private refreshVariables(): void {
     try {
       const envPeriod = Environment.requestLimitPeriodMillis()
-      if (!!envPeriod && this.requestLimitPeriodInMillis !== envPeriod) {
+      if (this.requestLimitPeriodInMillis !== envPeriod) {
         const prevVal = this.requestLimitPeriodInMillis
         this.requestLimitPeriodInMillis = envPeriod
         this.ipToRequestCounter.clear()
@@ -157,10 +163,7 @@ export class DefaultAccountRateLimiter implements AccountRateLimiter {
       }
 
       const envRequestLimit = Environment.maxNonTransactionRequestsPerUnitTime()
-      if (
-        !!envRequestLimit &&
-        this.maxRequestsPerTimeUnit !== envRequestLimit
-      ) {
+      if (this.maxRequestsPerTimeUnit !== envRequestLimit) {
         const prevVal = this.maxRequestsPerTimeUnit
         this.maxRequestsPerTimeUnit = envRequestLimit
         log.info(

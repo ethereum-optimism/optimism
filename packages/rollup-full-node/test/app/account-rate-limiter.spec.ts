@@ -71,6 +71,17 @@ describe('Account Rate Limiter', () => {
   })
 
   describe('Environment Variable Refresh -- no change', () => {
+    beforeEach(() => {
+      process.env.REQUEST_LIMIT_PERIOD_MILLIS = '1000'
+      process.env.MAX_TRANSACTIONS_PER_UNIT_TIME = '1'
+      process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME = '1'
+    })
+    afterEach(() => {
+      delete process.env.REQUEST_LIMIT_PERIOD_MILLIS
+      delete process.env.MAX_TRANSACTIONS_PER_UNIT_TIME
+      delete process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME
+    })
+
     it('post-refresh: does not rate limit transactions if in range', async () => {
       await sleep(2_000)
       // Should not throw
@@ -121,9 +132,13 @@ describe('Account Rate Limiter', () => {
   describe('Environment Variable Refresh -- duration increased', () => {
     beforeEach(() => {
       process.env.REQUEST_LIMIT_PERIOD_MILLIS = '3000'
+      process.env.MAX_TRANSACTIONS_PER_UNIT_TIME = '1'
+      process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME = '1'
     })
     afterEach(() => {
       delete process.env.REQUEST_LIMIT_PERIOD_MILLIS
+      delete process.env.MAX_TRANSACTIONS_PER_UNIT_TIME
+      delete process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME
     })
 
     it('post-refresh: does not rate limit transactions if in range', async () => {
@@ -179,10 +194,14 @@ describe('Account Rate Limiter', () => {
 
   describe('Environment Variable Refresh -- tx limit increased', () => {
     beforeEach(() => {
+      process.env.REQUEST_LIMIT_PERIOD_MILLIS = '1000'
       process.env.MAX_TRANSACTIONS_PER_UNIT_TIME = '2'
+      process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME = '1'
     })
     afterEach(() => {
+      delete process.env.REQUEST_LIMIT_PERIOD_MILLIS
       delete process.env.MAX_TRANSACTIONS_PER_UNIT_TIME
+      delete process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME
     })
 
     it('post-refresh: does not rate limit transactions if in range', async () => {
@@ -229,9 +248,13 @@ describe('Account Rate Limiter', () => {
 
   describe('Environment Variable Refresh -- request limit increased', () => {
     beforeEach(() => {
+      process.env.REQUEST_LIMIT_PERIOD_MILLIS = '1000'
+      process.env.MAX_TRANSACTIONS_PER_UNIT_TIME = '1'
       process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME = '2'
     })
     afterEach(() => {
+      delete process.env.REQUEST_LIMIT_PERIOD_MILLIS
+      delete process.env.MAX_TRANSACTIONS_PER_UNIT_TIME
       delete process.env.MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME
     })
 
