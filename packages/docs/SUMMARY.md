@@ -1,6 +1,7 @@
 # Table of contents
 
 * [Introduction](README.md)
+* [Synthetix Demo FAQ] (synthetix-l2.md)
 
 ## Protocol Specifications
 
