@@ -6,14 +6,14 @@ This pages provides a quick reference which discusses how every EVM opcode is ha
 
 The following opcodes perform stack operations which are constant in terms of L1/L2 state, and do not require modification:
 
-* * Arithmetic/pure-math opcodes:
-    * `ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYTE, SHL, SHR, SAAR, SHA3`.
-* * "Pure" code execution operations:
-    * `PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*`.
+* Arithmetic/pure-math opcodes:
+    * `ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYTE, SHL, SHR, SAAR, SHA3`
+* "Pure" code execution operations:
+    * `PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*`
       \*NOTE: In practice, `JUMPDEST`s are modified, but not "transpiled away" like the impure opcodes.  See JUMP transpilation [section](protocol-specifications/ovm/jump-transpilation.md) for more details.
-* * "Pure" memory modifying operations:
-    * `MLOAD, MSTORE, MSTORE8, MSIZE`.
-* * Permitted execution-context-dependent operations:
+* "Pure" memory modifying operations:
+    * `MLOAD, MSTORE, MSTORE8, MSIZE`
+* Permitted execution-context-dependent operations:
     * `CALLVALUE\*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY, CODESIZE, RETURNDATASIZE, RETURNDATACOPY`
       \*Note: `CALLVALUE` will always be 0 because we enforce that all `CALL` s always pass 0 in our purity checking.
 
@@ -57,35 +57,9 @@ To replace Call-type opcodes, we have to pass an existing slice of `calldata` at
 
 There are two functions which are "Pure code execution operations" just like `CODESIZE`, `REVERT`, etc., however, they are used by the Solidity compiler in ways which the transpilation process affects, and need to be dealt with in the transpiler.
 
-> * Because we are inserting bytecode, we are changing the index of
->
->     every `JUMPDEST` proceeding each insertion operation. This means
->
->     our `JUMP` and `JUMPI` values need to be transpiled or they will
->
->     fail/go to the wrong place. We handle this by making all `JUMP` s
->
->     go to new bytecode that we append at the end that simply contains
->
->     a mapping from untranspiled `JUMPDEST` bytecode location to
->
->     transpiled `JUMPDEST` bytecode location. The logic finds the new
->
->     location and `JUMP` s to it. See the \["JUMP Modification"
->
->     page\]\([https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation](https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation)\)
->
->     for more details.
->
-> * The opcode `CODECOPY` works fine, in principle, in our code
->
->   contracts, as its effect on execution is independent of L1 state.
->
->   However, because that code itself is modified by transpilation, we
->
->   need to deal with it in the transpiler. See our `CODECOPY`
->
->   [section](./codecopy.html) for how we handle these modifications.
+* Because we are inserting bytecode, we are changing the index of  every `JUMPDEST` proceeding each insertion operation. This means  our `JUMP` and `JUMPI` values need to be transpiled or they will  fail/go to the wrong place. We handle this by making all `JUMP` s  go to new bytecode that we append at the end that simply contains  a mapping from untranspiled `JUMPDEST` bytecode location to  transpiled `JUMPDEST` bytecode location. The logic finds the new  location and `JUMP` s to it. See the \["JUMP Modification"  page\]\([https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation](https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation)\)  for more details.
+
+* The opcode `CODECOPY` works fine, in principle, in our code   contracts, as its effect on execution is independent of L1 state. However, because that code itself is modified by transpilation, we need to deal with it in the transpiler. See our `CODECOPY` [section](./codecopy.html) for how we handle these modifications.
 
 ### Banned Opcodes
 
@@ -101,55 +75,16 @@ We have made the decision for now not to use native ETH, and instead do everythi
 
 #### Others
 
-* `NUMBER` -- the relationship between `block.number` in L1 and L2 is
-
-  unclear so we've banned. In the future, we could even transpile to
-
-  return `timestamp/avg. blocktime` but unclear if this is a good
-
-  idea.
-
-* `GASPRICE` -- Before we implement proper gas metering ramifications,
-
-  we shouldn't transpile anything here. Down the line, we may need to
-
-  and can potentially add it depending on how we handle.
-
+* `NUMBER` -- the relationship between `block.number` in L1 and L2 is unclear so we've banned. In the future, we could even transpile toreturn `timestamp/avg. blocktime` but unclear if this is a good idea.
+* `GASPRICE` -- Before we implement proper gas metering ramifications, we shouldn't transpile anything here. Down the line, we may need to and can potentially add it depending on how we handle.
 * `GASLIMIT` -- see `GASPRICE`, same arguments apply.
-* `BLOCKHASH` -- in theory the previous state roots can be accessible
-
-  to the OVM, but because it is EXTREMELY manipulable by the
-
-  single-party sequencer, and usually used as a bad source of
-
-  randomness, we'll ban for now. Down the line, we can expose historic
-
-  L1 blockhashes for this purpose, but that's a lot of work \(and still
-
-  a bad idea for randomness even on L1!\).
-
-* `ORIGIN` -- see note on `CALLER` and metatransactions. In the
-
-  future, could transpile to the metatransaction library's standard,
-
-  once we're more confident in that approach/choice.
-
-* `CALLCODE` -- This opcode was a failed implementation of
-
-  `DELEGATECALL`. Deprecated, extremely low priority to support.
-
-* `SELFDESTRUCT` -- This opcode is currently unsupported, and we also
-
-  will not be able to handle it's default functionality to send all
-
-  ETH of self destructed contract to a designated address
+* `BLOCKHASH` -- in theory the previous state roots can be accessible to the OVM, but because it is EXTREMELY manipulable by the single-party sequencer, and usually used as a bad source of randomness, we'll ban for now. Down the line, we can expose historic L1 blockhashes for this purpose, but that's a lot of work \(and still a bad idea for randomness even on L1!\).
+* `ORIGIN` -- see note on `CALLER` and metatransactions. In the future, could transpile to the metatransaction library's standard, once we're more confident in that approach/choice.
+* `CALLCODE` -- This opcode was a failed implementation of `DELEGATECALL`. Deprecated, extremely low priority to support.
+* `SELFDESTRUCT` -- This opcode is currently unsupported, and we also will not be able to handle it's default functionality to send all ETH of self destructed contract to a designated address
 
 #### "Impossible" opcodes
 
 * `COINBASE` -- since we don't have inflation in L2
-* `DIFFICULTY` -- since there is no sense of difficulty in L2. An
-
-  analogous value in L2 is actually the MEVA price, but it's not so
-
-  analogous that transpiling would make any sense.
+* `DIFFICULTY` -- since there is no sense of difficulty in L2. An analogous value in L2 is actually the MEVA price, but it's not so analogous that transpiling would make any sense.
 
