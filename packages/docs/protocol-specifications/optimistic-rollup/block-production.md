@@ -10,7 +10,7 @@ This is a monotonically increasing list of transactions which is maintained in a
 
 This is where the sequencer is allowed to post transactions which they recieved off chain to be applied to the rollup chain.  Transactions can only be moved from the OVM Transaction Queue to the Canonical Transaction Chain if the transactions in the L1->L2 transaction queue are not older than some number of L1 blocks.
 
-### L1->L2 Transactioon queue
+### L1->L2 Transaction queue
 
 This is where users who are being censored, as well as L1 contracts like deposit contracts, enqueue transactions to be added to the rollup chain.  After some number of L1 blocks, the L1->L2 transactions *must be included* next in the canonical transaction chain.  This enforces censorship resistance.
 

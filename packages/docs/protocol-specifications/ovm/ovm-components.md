@@ -7,9 +7,9 @@ the computation is the same--\*no matter what the state of the L1.
 
 To accomplish this, there are three critical components:
 
-1. Execution Manager: provides a safe, sandboxed execution environment for OVM contracts to run in.
-2. Safety Checker: contract which can check that OVM contracts will not try to escape the Execution Manager's sandbox.
-3. Transpiler: converts EVM contracts to safe OVM contracts which will not escape the execution sandbox.
+1. **Execution Manager:** provides a safe, sandboxed execution environment for OVM contracts to run in.
+2. **Safety Checker:** contract which can check that OVM contracts will not try to escape the Execution Manager's sandbox.
+3. **Transpiler:** converts EVM contracts to safe OVM contracts which will not escape the execution sandbox.
 
 ## Execution Manager
 
@@ -28,7 +28,7 @@ contracts that can only use the OVM's container interface.  For instance, in L1,
 `executionManager.ovmSSTORE(...)` to update the OVM's virtualized state
 instead.
 
-![The Execution Manager](../.gitbook/assets/execution-manager.png)
+![The Execution Manager](https://i.imgur.com/9eMuXwc.png)
 
 
 The execution manager contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/ExecutionManager.sol).
@@ -42,7 +42,7 @@ contract to tell the execution manager whether the code conforms to the
 OVM interface. If it does not, then the execution manager does not allow
 such a contract to be created or used in a fraud proof.
 
-![The Safety Checker](../.gitbook/assets/safety-checker.png)
+![The Safety Checker](https://i.imgur.com/JYKNqNC.png)
 
 The safety checker contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/SafetyChecker.sol)
 

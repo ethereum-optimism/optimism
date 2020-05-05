@@ -6,7 +6,7 @@ The Optimistic Virtual Machine \(OVM\) is a scalable form of the EVM. It lives a
 
 ### For Developers...
 
-The OVM is an EVM-based VM which supports optimistically executing EVM smart contracts on a layer 1 blockchain like Ethereum. It is structured in such a way that it is possible to verify individual steps of it's computation on Ethereum mainnet. This allows the mainnet to enforce validity of state roots with fraud proofs in the layer 2 Optimistic Rollup chain.
+The OVM is an EVM-based VM which supports optimistically executing EVM smart contracts on a layer 1 blockchain like Ethereum. It is structured in such a way that it is possible to verify individual steps of its computation on Ethereum mainnet. This allows the mainnet to enforce validity of state roots with fraud proofs in the layer 2 Optimistic Rollup chain.
 
 Each computational step is called a transition. These transitions can be evaluated off-chain as well as on-chain in an OVM [sandbox](https://en.wikipedia.org/wiki/Sandbox_%28computer_security%29) to ensure their validity. Through techniques similar to a technique called [stateless clients](https://ethresear.ch/t/the-stateless-client-concept/172) originally developed for Eth2, each transition's validity may be evaluated efficiently & in isolation.
 

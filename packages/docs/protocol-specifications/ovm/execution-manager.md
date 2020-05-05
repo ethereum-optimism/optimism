@@ -32,10 +32,9 @@ Transactions that are run in layer 2 will necessarily have a different context t
 
 ![The Execution Manager](https://i.imgur.com/cOhmFRo.png)
 
-To handle this, the OVM ExecutionManager Contract implements these opcodes as functions. When a contract executing in layer 2 or a fraud proof executing in layer 1 needs to know the timestamp, it will call the OVM ExecutionManager Contract instead of accessing these layer-1-protocol-level opcodes directly. We have [transpilation tools](https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details) that take compiled layer 1 bytecode and swap out certain opcodes, like TIMESTAMP, for calls to our OVM ExecutionManager Contract. All contracts deployed to layer 2 must be transpiled accordingly.
+To handle this, the OVM ExecutionManager Contract implements these opcodes as functions. When a contract executing in layer 2 or a fraud proof executing in layer 1 needs to know the timestamp, it will call the OVM ExecutionManager Contract instead of accessing these layer-1-protocol-level opcodes directly. We have [transpilation tools](protocol-specifications/ovm/transpiler.md) that take compiled layer 1 bytecode and swap out certain opcodes, like TIMESTAMP, for calls to our OVM ExecutionManager Contract. All contracts deployed to layer 2 must be transpiled accordingly.
 
-In our example, the sequencer that commits to a layer 2 transaction passes the timestamp at the time of execution to the OVM ExecutionManager Contract with the transaction to evaluate. They also specify the same timestamp in their rollup block that includes the transaction. This way, when the fraud proof is executed, the same timestamp from the rollup block will be set in the OVM ExecutionManager Contract prior to evaluating fraud so that the context that was committed to can be accessed correctly. More on timestamp considerations [here](https://github.com/op-optimism/optimistic-rollup/wiki/MVOVM-State-Specification).
-
+In our example, the sequencer that commits to a layer 2 transaction passes the timestamp at the time of execution to the OVM ExecutionManager Contract with the transaction to evaluate. They also specify the same timestamp in their rollup block that includes the transaction. This way, when the fraud proof is executed, the same timestamp from the rollup block will be set in the OVM ExecutionManager Contract prior to evaluating fraud so that the context that was committed to can be accessed correctly.
 #### CALL
 
 There are many contextual differences between layer 1 and layer 2, so we won't go through all of them, but another important one to consider is that the addresses of the corresponding contracts will be different. All contracts in layer 2 are actually deployed by the OVM ExecutionManager Contract, but their addresses are created as if the caller deployed them. As such, all contract deployments go through the OVM ExecutionManager Contract, which maintains a map from OVM contract addresses \(as if the caller created them\) to EVM contract addresses \(the address of the contract that was actually deployed by the OVM ExecutionManager Contract\). This means that all CALL type opcodes must be transpiled to instead call the OVM ExecutionManager Contract so it may fill in the proper address for the call, as well as set other relevant context for the call's execution, like CALLER and ADDRESS.
@@ -44,7 +43,7 @@ There are many contextual differences between layer 1 and layer 2, so we won't g
 
 The last example to highlight is that SSTORE and SLOAD also need to be transpiled into calls to the OVM ExecutionManager Contract. Recall that one of the requirements is that the OVM ExecutionManager Contract needs to store all layer 2 state. This is so rollup blocks can commit to single pre-state and post-state roots and the fraud proof's pre- and post-state can be verified and executed through the OVM ExecutionManager Contract on layer 1 during fraud proofs.
 
-A list of transpiled opcodes and other transpilation details are available [here](https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details).
+A list of transpiled opcodes and other transpilation details are available [here](protocol-specifications/ovm/transpiler.md).
 
 ### Example: A user trading ETH for BAT on Uniswap
 
@@ -54,99 +53,36 @@ There are two main parts to this example: \* User transaction calling the layer 
 
 #### Sequencer Handles Request
 
-1. It receives a signed transaction from the User calling the Uniswap
-
-   BAT Exchange address's ethToTokenTransferInput\(...\) function.
-
-2. It wraps this transaction's calldata in a call to the OVM
-
-   ExecutionManager Contract's executeCall\(...\) function and sends the
-
-   wrapped
-
-   transaction.
+1. It receives a signed transaction from the User calling the Uniswap BAT Exchange address's ethToTokenTransferInput\(...\) function.
+2. It wraps this transaction's calldata in a call to the OVM ExecutionManager Contract's executeCall\(...\) function and sends the wrapped transaction.
 
 #### OVM ExecutionManager Contract handles the transaction in executeCall\(...\)
 
-1. It receives the wrapped transaction, sets the transaction context
-
-   \(including timestamp, etc.\), and calls the ovmCALL\(...\) opcode
-
-   replacement function to execute the transaction.
-
-2. Its ovmCALL\(...\) function sets the call-specific context \(including
-
-   the CALLER, the ADDRESS of the uniswap contract, etc.\)
-
-3. It looks up the EVM address of the Uniswap contract from the OVM
-
-   address and CALLs the contract with the original transaction data.
+1. It receives the wrapped transaction, sets the transaction context \(including timestamp, etc.\), and calls the ovmCALL\(...\) opcode replacement function to execute the transaction.
+2. Its ovmCALL\(...\) function sets the call-specific context \(including the CALLER, the ADDRESS of the uniswap contract, etc.\)
+3. It looks up the EVM address of the Uniswap contract from the OVM address and CALLs the contract with the original transaction data.
 
 #### Uniswap / BAT Contract interaction
 
-1. Uniswap determines the exchange rate based on how much BAT it has by
-
-   calling the OVM ExecutionManager Contract's ovmCALL\(...\) function to
-
-   call the layer 2 BAT ERC-20 contract's balanceOf\(...\) function.
-
-2. The OVM ExecutionManager Contract temporarily updates all of the
-
-   call context variables in ovmCALL\(...\) to properly reflect that the
-
-   CALLER is the Uniswap contract, ADDRESS is the BAT address, etc.
-
-3. The OVM ExecutionManager Contract calls the BAT contract and it
-
-   properly returns the balance
-
-4. The OVM ExecutionManager Contract restores the call context such
-
-   that the CALLER is the original caller, the ADDRESS is the Uniswap
-
-   contract, etc.
-
-5. The OVM ExecutionManager Contract returns the result to the Uniswap
-
-   contract.
-
-6. The Uniswap contract then calls the BAT contract, through the OVM
-
-   ExecutionManager Contract again, to actually execute the transfer of
-
-   the calculated amount of BAT
-
-7. The Uniswap contract makes a final call to the BAT contract, through
-
-   the OVM ExecutionManager Contract, to transfer the WETH \[all ETH in
-
-   layer 2 is
-
-   WETH\]\([https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details\#eth-native-value](https://github.com/op-optimism/optimistic-rollup/wiki/Opcode-Transpilation-Details#eth-native-value)\).
-
+1. Uniswap determines the exchange rate based on how much BAT it has by calling the OVM ExecutionManager Contract's ovmCALL\(...\) function to call the layer 2 BAT ERC-20 contract's balanceOf\(...\) function.
+2. The OVM ExecutionManager Contract temporarily updates all of the call context variables in ovmCALL\(...\) to properly reflect that the CALLER is the Uniswap contract, ADDRESS is the BAT address, etc.
+3. The OVM ExecutionManager Contract calls the BAT contract and it properly returns the balance
+4. The OVM ExecutionManager Contract restores the call context such that the CALLER is the original caller, the ADDRESS is the Uniswap contract, etc.
+5. The OVM ExecutionManager Contract returns the result to the Uniswap contract.
+6. The Uniswap contract then calls the BAT contract, through the OVM ExecutionManager Contract again, to actually execute the transfer of the calculated amount of BAT
+7. The Uniswap contract makes a final call to the BAT contract, through the OVM ExecutionManager Contract, to transfer the WETH \(all ETH in the OVM is WETH\)
 8. The Uniswap returns the number of tokens bought.
-9. The OVM ExecutionManager Contract restores the original call context
-
-   before the original call to the Uniswap contract and returns the
-
-   result.
+9. The OVM ExecutionManager Contract restores the original call context before the original call to the Uniswap contract and returns the result.
 
 #### OVM ExecutionManager Contract handles the transaction in executeCall\(...\) \(continued\)
 
-1. It restores the original transaction context from before the
-
-   transaction and returns the result
+1. It restores the original transaction context from before the transaction and returns the result
 
 #### Sequencer Handles Request \(continued\)
 
 1. It gets the internal transaction hash as a result.
-2. It stores a mapping from the original transaction hash to the
-
-   internal transaction hash for future transaction lookup.
-
-3. It returns the original transaction hash, in compliance with Web3,
-
-   to the caller.
+2. It stores a mapping from the original transaction hash to the internal transaction hash for future transaction lookup.
+3. It returns the original transaction hash, in compliance with Web3, to the caller.
 
 Not mentioned above: \* Access of TIMESTAMP, ADDRESS, CALLER, etc. which are actually CALLs to the associated OVM ExecutionManager Contract function. \* Access of all storage, which is actually a CALL to the ovmSLOAD\(...\) OVM ExecutionManager Contract function. \* Storage modification, which is actually a CALL to the ovmSSTORE\(...\) OVM ExecutionManager Contract function. \* All other opcodes handled through the OVM ExecutionManager Contract.
 
