@@ -30,6 +30,7 @@ instead.
 
 ![The Execution Manager](../.gitbook/assets/execution-manager.png)
 
+
 The execution manager contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/ExecutionManager.sol).
 
 ## Safety Checker

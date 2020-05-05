@@ -6,5 +6,5 @@ Our `@eth-optimism` module is the set of core modules that the OVM and our L2 im
 
 ![The OVM Optipus](../.gitbook/assets/optipus.png)
 
-You can find all of our source code here on [our monorepo](https://github.com/ethereum-optimism/optimism-monorepo).
+You can find all of our source code here in [our monorepo](https://github.com/ethereum-optimism/optimism-monorepo).
 
