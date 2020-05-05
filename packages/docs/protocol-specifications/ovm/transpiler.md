@@ -1,37 +1,21 @@
-# Opcode Transpilation Details
+# Opcode Transpilation Overview
 
-This document provides a quick reference which discusses how every EVM opcode is handled in the transpilation process. There are three classes of opcodes: 1. Pure opcodes which do not need to be modified. 2. Replaced opcodes which are substituted with other bytecode by the transpiler. 3. Banned opcodes which are not replaced and simply disallowed.
+This pages provides a quick reference which discusses how every EVM opcode is handled in the transpilation process. There are three classes of opcodes: 1. Pure opcodes which do not need to be modified. 2. Replaced opcodes which are substituted with other bytecode by the transpiler. 3. Banned opcodes which are not replaced and simply disallowed.
 
 ### Pure Opcodes
 
 The following opcodes perform stack operations which are constant in terms of L1/L2 state, and do not require modification:
 
 * * Arithmetic/pure-math opcodes:
-    * \`ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP,
-
-      SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT,
-
-      BYT, SHL, SHR, SAAR, SHA3\`.
+    * `ADD, MUL, SUB, DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND, OR, XOR, NOT, BYTE, SHL, SHR, SAAR, SHA3`.
 * * "Pure" code execution operations:
-    * \`PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP,
-
-      LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST_\`. \_
-
-      NOTE: \[See
-
-      section\]\([https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation](https://github.com/op-optimism/optimistic-rollup/wiki/JUMP-Transpilation)\)
-
-      which involves `JUMPDEST` s.
+    * `PUSH1....PUSH32, DUP1...DUP16, SWAP1...SWAP16, POP, LOG0...LOG4, STOP, REVERT, RETURN, PC, GAS, JUMPDEST*`.
+      \*NOTE: In practice, `JUMPDEST`s are modified, but not "transpiled away" like the impure opcodes.  See JUMP transpilation [section](protocol-specifications/ovm/jump-transpilation.md) for more details.
 * * "Pure" memory modifying operations:
     * `MLOAD, MSTORE, MSTORE8, MSIZE`.
 * * Permitted execution-context-dependent operations:
-    * \`CALLVALUE\*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY,
-
-      CODESIZE, RETURNDATASIZE, RETURNDATACOPY\` \*Note:
-
-      `CALLVALUE` will always be 0 because we enforce that all
-
-      `CALL` s always pass 0 in our purity checking.
+    * `CALLVALUE\*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY, CODESIZE, RETURNDATASIZE, RETURNDATACOPY`
+      \*Note: `CALLVALUE` will always be 0 because we enforce that all `CALL` s always pass 0 in our purity checking.
 
 ### Replaced Opcodes
 
@@ -49,7 +33,7 @@ The following opcodes need to be dealt with at transpilation time to work with t
 
 \* Note 1: we are currently using metatransactions, having no EOAs, and assuming all transactions are handled with account abstraction. Because of this, at the initial entry point of a rollup transaction, `CALLER` will revert the transaction--unlike the EVM's usual behavior.
 
-\*\* Note 2: The timestamp will correspond to the timestamp of the ORU block, and not any L1 Ethereum block. We will need to properly communicate this to developers. See: the [MVOVM State Specification](https://github.com/op-optimism/optimistic-rollup/wiki/MVOVM-State-Specification) for more details about the ORU timestamp.
+\*\* Note 2: The timestamp will correspond to the timestamp of the ORU block, and not any L1 Ethereum block.
 
 #### Memory-reading opcodes
 

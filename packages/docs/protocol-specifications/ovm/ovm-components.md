@@ -30,6 +30,8 @@ instead.
 
 ![The Execution Manager](../.gitbook/assets/execution-manager.png)
 
+The execution manager contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/ExecutionManager.sol).
+
 ## Safety Checker
 
 To ensure that the execution of an OVM transaction is deterministic for a given sandbox state, we must enforce that **only** the container interface
@@ -41,10 +43,10 @@ such a contract to be created or used in a fraud proof.
 
 ![The Safety Checker](../.gitbook/assets/safety-checker.png)
 
+The safety checker contract can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/blob/master/packages/ovm/src/contracts/SafetyChecker.sol)
+
 ## Transpiler
 
-Because smart contracts are not normally compiled to comply with any
-containerization interface, we have a transpiler which takes low-level
-EVM assembly, detects the usage of any stateful opcodes, and converts
-them into calls to the relevant Execution Manager method. There's a lot
-more that goes into doing that, which you can read about below.
+Because smart contracts are not normally compiled to comply with any container interface, we have a transpiler which takes low-level EVM assembly, detects the usage of any stateful opcodes, and converts them into calls to the relevant Execution Manager method. There's a lot more that goes into doing that, which you can read about in the following section.
+
+Code for the transpiler can be found [here](https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/rollup-dev-tools/src/tools/transpiler).

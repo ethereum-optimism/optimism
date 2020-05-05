@@ -1,4 +1,4 @@
-# Opcode Transpilation Details
+# Opcode Transpilation Overview
 
 This document provides a quick reference which discusses how every EVM
 opcode is handled in the transpilation process. There are three classes
