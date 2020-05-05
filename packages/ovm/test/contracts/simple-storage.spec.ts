@@ -10,6 +10,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
+import * as StateManager from '../../build/contracts/StateManager.json'
 import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 /* Internal Imports */
@@ -50,7 +51,7 @@ describe('SimpleStorage', () => {
       [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
-
+    //
     // Deploy SimpleStorage with the ExecutionManager
     simpleStorageOvmAddress = await manuallyDeployOvmContract(
       wallet,
@@ -60,10 +61,10 @@ describe('SimpleStorage', () => {
       [executionManager.address]
     )
     // Also set our simple storage ethers contract so we can generate unsigned transactions
-    simpleStorage = new ContractFactory(
-      SimpleStorage.abi as any, // For some reason the ABI type definition is not accepted
-      SimpleStorage.bytecode
-    )
+    // simpleStorage = new ContractFactory(
+    //   SimpleStorage.abi as any, // For some reason the ABI type definition is not accepted
+    //   SimpleStorage.bytecode
+    // )
   })
 
   const setStorage = async (slot, value): Promise<TransactionReceipt> => {
@@ -103,7 +104,9 @@ describe('SimpleStorage', () => {
         .toString('hex')
 
       const innerCallData: string = add0x(`${getStorageMethodId}${slot}`)
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,

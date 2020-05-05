@@ -25,7 +25,7 @@ contract FullStateManager is StateManager {
      * @param _slot The slot we're querying.
      * @return The bytes32 value stored at the particular slot.
      */
-    function getStorage(address _ovmContractAddress, bytes32 _slot) internal view returns(bytes32) {
+    function getStorage(address _ovmContractAddress, bytes32 _slot) public view returns(bytes32) {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
@@ -35,7 +35,7 @@ contract FullStateManager is StateManager {
      * @param _slot The slot we're setting.
      * @param _value The value we will set the storage to.
      */
-    function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) internal {
+    function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) public {
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
@@ -59,7 +59,7 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The contract we're setting the nonce of.
      * @param _value The new nonce.
      */
-    function setOvmContractNonce(address _ovmContractAddress, uint _value) internal {
+    function setOvmContractNonce(address _ovmContractAddress, uint _value) public {
         ovmContractNonces[_ovmContractAddress] = _value;
     }
 
@@ -67,7 +67,7 @@ contract FullStateManager is StateManager {
      * @notice Increment the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're incrementing by 1 the nonce of.
      */
-    function incrementOvmContractNonce(address _ovmContractAddress) internal {
+    function incrementOvmContractNonce(address _ovmContractAddress) public {
         ovmContractNonces[_ovmContractAddress] += 1;
     }
 
@@ -83,7 +83,8 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
-    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) internal {
+    function associateCodeContract(address _ovmContractAddress, address
+_codeContractAddress) public {
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
@@ -102,7 +103,7 @@ contract FullStateManager is StateManager {
      * @param _codeContractAddress The address of the code contract.
      * @return The bytecode at this address.
      */
-    function getCodeContractBytecode(address _codeContractAddress) internal view returns (bytes memory codeContractBytecode) {
+    function getCodeContractBytecode(address _codeContractAddress) public view returns (bytes memory codeContractBytecode) {
         assembly {
             // retrieve the size of the code
             let size := extcodesize(_codeContractAddress)
@@ -123,7 +124,7 @@ contract FullStateManager is StateManager {
      * @param _codeContractAddress The address of the code contract.
      * @return The hash of the bytecode at this address.
      */
-    function getCodeContractHash(address _codeContractAddress) internal view returns (bytes32 _codeContractHash) {
+    function getCodeContractHash(address _codeContractAddress) public view returns (bytes32 _codeContractHash) {
         // TODO: Look up cached hash values eventually to avoid having to load all of this bytecode
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);
