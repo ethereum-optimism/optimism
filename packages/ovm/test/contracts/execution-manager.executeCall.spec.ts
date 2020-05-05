@@ -15,6 +15,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
+import * as StateManager from '../../build/contracts/StateManager.json'
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as DummyContract from '../../build/contracts/DummyContract.json'
 
@@ -91,7 +92,9 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -133,7 +136,9 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -169,7 +174,9 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -206,7 +213,9 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -231,9 +240,7 @@ describe('Execution Manager -- Call opcodes', () => {
         s
       )
       await provider.waitForTransaction(tx.hash)
-      const nonceAfter = await executionManager.getOvmContractNonce(
-        wallet.address
-      )
+      const nonceAfter = await stateManager.getOvmContractNonce(wallet.address)
       nonceAfter.should.equal(parseInt(nonce, 10) + 1)
     })
 
@@ -246,7 +253,9 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,

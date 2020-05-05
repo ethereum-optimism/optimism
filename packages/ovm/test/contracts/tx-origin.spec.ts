@@ -10,6 +10,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Contract Imports */
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
 import * as SimpleTxOrigin from '../../build/contracts/SimpleTxOrigin.json'
+import * as StateManager from '../../build/contracts/StateManager.json'
 
 /* Internal Imports */
 import {
@@ -71,7 +72,9 @@ describe('SimpleTxOrigin', () => {
         .toString('hex')
 
       const innerCallData: string = add0x(`${getStorageMethodId}`)
-      const nonce = await executionManager.getOvmContractNonce(wallet.address)
+      const stateManagerAddress = await executionManager.getStateManagerAddress()
+      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
