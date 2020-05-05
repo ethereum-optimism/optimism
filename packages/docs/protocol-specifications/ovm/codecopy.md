@@ -1,4 +1,4 @@
-# CODECOPY in Transpiled Bytecode
+# CODECOPY Transpilation
 
 The opcode `CODECOPY` accepts `memOffset`, `codeOffset`, and `length` inputs from the stack, modifying the memory so that `memory[memOffset:memOffset + length] = code[codeOffset:codeOffset + length]`. Since we are by definition modifying the `code` of a contract by transpiling, there is no general way to handle pre-transpiled `CODECOPYs` since the impact on execution is dependent on how the `CODECOPY` was expected to be used. For Solidity, there are three ways in which `CODECOPY` is used:
 
