@@ -12,7 +12,7 @@ Each computational step is called a transition. These transitions can be evaluat
 
 ### Why not just use the EVM?
 
-Unfortunately the EVM is not structured in a way that allows you to spawn sandboxed subprocesses. Without sandboxing, we are unable to verify the validity of ORU transitions, and therefore are unable to build ORU.
+Unfortunately the EVM is not structured in a way that allows you to spawn sandboxed subprocesses. Without sandboxing, we are unable to verify the validity of ORU transitions, and therefore are unable to build an ORU compatible with the EVM.
 
 Thankfully, the EVM is turing complete & therefore flexible enough for us to embed this sandbox functionality directly inside of it. By embedding the OVM inside of the EVM, we're able to take advantage of all of the great work on the EVM while adding this critical feature that we need for ORU.
 

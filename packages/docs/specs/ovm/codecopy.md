@@ -1,25 +1,12 @@
 # `CODECOPY` in Transpiled Bytecode
 
-The opcode `CODECOPY` accepts `memOffset`, `codeOffset`, and `length`
-inputs from the stack, modifying the memory so that
-`memory[memOffset:memOffset + length] = code[codeOffset:codeOffset +
-length]`. Since we are by definition modifying the `code` of a contract
-by transpiling, there is no general way to handle pre-transpiled
-`CODECOPYs` since the impact on execution is dependent on how the
-`CODECOPY` was expected to be used. For Solidity, there are three ways
-in which `CODECOPY` is used:
+The opcode `CODECOPY` accepts `memOffset`, `codeOffset`, and `length` inputs from the stack, modifying the memory so that `memory[memOffset:memOffset + length] = cod [codeOffset:codeOffset + length]`. Since we are by definition modifying the `code` of a contract by transpiling, there is no general way to handle pre-transpiled `CODECOPYs` since the impact on execution is dependent on how the `CODECOPY` was expected to be used. For Solidity, there are three ways in which `CODECOPY` is used:
 
-> 1.  Constants which exceed 32 bytes in length are stored in the
->     bytecode and `CODECOPY` ed for use in execution. (if \<=32 bytes
->     they are just `PUSHN` ed)
-> 2.  All constructor logic for initcode is prefixed to the bytecode to
->     be deployed, and this prefix runs `CODECOPY(suffixToDeploy), ...,
->     RETURN` during `CREATE(2)` .
-> 3.  Constructor parameters are passed as bytecode and then are
->     `CODECOPY` ed to memory before being treated like calldata.
+1.  Constants which exceed 32 bytes in length are stored in the bytecode and `CODECOPY` ed for use in execution. (if \<=32 bytes they are just `PUSHN` ed)
+2.  All constructor logic for initcode is prefixed to the bytecode to be deployed, and this prefix runs `CODECOPY(suffixToDeploy), ..., RETURN` during `CREATE(2)` .
+3.  Constructor parameters are passed as bytecode and then are `CODECOPY` ed to memory before being treated like calldata.
 
-This document explains each of these cases and how they're handled
-transpilation-side.
+This document explains each of these cases and how they're handled transpilation-side.
 
 ## Constants
 
