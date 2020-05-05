@@ -1,7 +1,6 @@
 # Table of contents
 
 * [Introduction](README.md)
-* [Uniswap Demo FAQ](uniswap-demo-faq.md)
 * [Synthetix Demo FAQ](synthetix-l2.md)
 
 ## Protocol Specifications
