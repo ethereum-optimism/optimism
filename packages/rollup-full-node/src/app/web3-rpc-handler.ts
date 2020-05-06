@@ -309,30 +309,29 @@ export class DefaultWeb3Handler
         txObject
       )}], defaultBlock: [${defaultBlock}]`
     )
-    // // First generate the internalTx calldata
-    // const internalCalldata = this.getTransactionCalldata(
-    //   this.getTimestamp(),
-    //   0,
-    //   txObject['to'],
-    //   txObject['data'],
-    //   txObject['from'],
-    //   ZERO_ADDRESS,
-    //   true
-    // )
-    //
-    // log.debug(internalCalldata)
-    // // Then estimate the gas
-    // const response = await this.context.provider.send(
-    //   Web3RpcMethods.estimateGas,
-    //   [
-    //     {
-    //       from: this.context.wallet.address,
-    //       to: this.context.executionManager.address,
-    //       data: internalCalldata,
-    //     },
-    //   ]
-    // )
-    const response = `hard-coded return: ${GAS_LIMIT}`
+    // First generate the internalTx calldata
+    const internalCalldata = this.getTransactionCalldata(
+      this.getTimestamp(),
+      0,
+      txObject['to'],
+      txObject['data'],
+      txObject['from'],
+      ZERO_ADDRESS,
+      true
+    )
+
+    log.debug(internalCalldata)
+    // Then estimate the gas
+    const response = await this.context.provider.send(
+      Web3RpcMethods.estimateGas,
+      [
+        {
+          from: this.context.wallet.address,
+          to: this.context.executionManager.address,
+          data: internalCalldata,
+        },
+      ]
+    )
     // TODO: Make sure gas limit is below max
     log.debug(
       `Estimated gas: request: [${JSON.stringify(
@@ -662,8 +661,10 @@ export class DefaultWeb3Handler
         `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
       )
       ovmTxReceipt = internalTxReceipt
+      ovmTxReceipt.transactionHash = ovmTxHash
+      ovmTxReceipt.logs = []
     }
-    const ovmTx = await this.getTransactionByHash(ovmTxHash)
+    const ovmTx = await this.getTransactionByHash(ovmTxReceipt.transactionHash)
     log.debug(`got OVM tx from hash: [${JSON.stringify(ovmTx)}]`)
     ovmTxReceipt.to = ovmTx.to ? ovmTx.to : ovmTxReceipt.to
     ovmTxReceipt.from = ovmTx.from
