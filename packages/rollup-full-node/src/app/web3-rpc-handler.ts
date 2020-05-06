@@ -660,6 +660,9 @@ export class DefaultWeb3Handler
       log.debug(
         `Internal tx previously failed for this OVM tx, creating receipt from the OVM tx itself.`
       )
+      ovmTxReceipt = internalTxReceipt
+      ovmTxReceipt.transactionHash = ovmTxHash
+      ovmTxReceipt.logs = []
     }
     const ovmTx = await this.getTransactionByHash(ovmTxReceipt.transactionHash)
     log.debug(`got OVM tx from hash: [${JSON.stringify(ovmTx)}]`)
