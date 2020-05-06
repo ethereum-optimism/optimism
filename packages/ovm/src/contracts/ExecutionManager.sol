@@ -583,7 +583,7 @@ contract ExecutionManager {
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = deployCodeContract(_ovmInitcode);
+        address codeContractAddress = stateManager.deployCodeContract(_ovmInitcode);
         // Get the runtime bytecode
         bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
         // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
@@ -600,24 +600,6 @@ contract ExecutionManager {
         // Emit CreatedContract event! We've created a new contract!
         emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
         return true;
-    }
-
-    /**
-     * @notice Deploys a code contract, and then registers it to the state
-     * @param _ovmContractInitcode The bytecode of the contract to be deployed
-     * @return the codeContractAddress.
-     */
-    function deployCodeContract(bytes memory _ovmContractInitcode) internal returns(address codeContractAddress) {
-        // Deploy a new contract with this _ovmContractInitCode
-        assembly {
-            // Set our codeContractAddress to the address returned by our CREATE operation
-            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
-            // Make sure that the CREATE was successful (actually deployed something)
-            if iszero(extcodesize(codeContractAddress)) {
-                revert(0, 0)
-            }
-        }
-        return codeContractAddress;
     }
 
     /************************

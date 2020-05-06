@@ -130,4 +130,22 @@ _codeContractAddress) public {
         _codeContractHash = keccak256(codeContractBytecode);
         return _codeContractHash;
     }
+
+    /**
+     * @notice Deploys a code contract, and then registers it to the state
+     * @param _ovmContractInitcode The bytecode of the contract to be deployed
+     * @return the codeContractAddress.
+     */
+    function deployCodeContract(bytes memory _ovmContractInitcode) public returns(address codeContractAddress) {
+        // Deploy a new contract with this _ovmContractInitCode
+        assembly {
+            // Set our codeContractAddress to the address returned by our CREATE operation
+            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
+            // Make sure that the CREATE was successful (actually deployed something)
+            if iszero(extcodesize(codeContractAddress)) {
+                revert(0, 0)
+            }
+        }
+        return codeContractAddress;
+    }
 }
