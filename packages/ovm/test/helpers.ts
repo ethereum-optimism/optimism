@@ -36,7 +36,7 @@ type Signature = [string, string, string]
 
 export const ZERO_UINT = '00'.repeat(32)
 
-export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000
+export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000_000
 export const gasLimit = 6_700_000
 const log = getLogger('helpers', true)
 
