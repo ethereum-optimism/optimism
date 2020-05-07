@@ -12,7 +12,7 @@ Synthetix on L2 is a demonstration of the power of Layer 2 for Ethereum--Web2 UX
 
 ## How does Optimistic Ethereum work?
 
-Optiomistic Ethereum is a layer 2 scaling solution powered by The Happy Stack: the OVM \[link to OVM explainer\] running on ORU \[link to ORU article\]. Together, the two make for web3 magic.
+Optimistic Ethereum is a layer 2 scaling solution powered by The Happy Stack: the OVM \[link to OVM explainer\] running on ORU \[link to ORU article\]. Together, the two make for web3 magic.
 
 ## What are the UX benefits of Optimistic Ethereum?
 
