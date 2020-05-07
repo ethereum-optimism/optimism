@@ -583,16 +583,10 @@ contract ExecutionManager {
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = stateManager.deployCodeContract(_ovmInitcode);
-        // Get the runtime bytecode
-        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
-        // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
-        if (!overridePurityChecker && !purityChecker.isBytecodePure(codeContractBytecode)) {
-            // Contract runtime bytecode is not pure.
-            return false;
-        }
+        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode, overridePurityChecker, purityChecker);
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
+        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
         // Revert to the previous the context

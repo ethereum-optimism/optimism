@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import {StateManager} from "./StateManager.sol";
+import {PurityChecker} from "./PurityChecker.sol";
 
 /**
  * @title FullStateManager
@@ -10,6 +11,9 @@ import {StateManager} from "./StateManager.sol";
  *         of all chain storage.
  */
 contract FullStateManager is StateManager {
+    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+
+    // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
     mapping(address=>address) ovmCodeContracts;
@@ -136,7 +140,18 @@ _codeContractAddress) public {
      * @param _ovmContractInitcode The bytecode of the contract to be deployed
      * @return the codeContractAddress.
      */
-    function deployCodeContract(bytes memory _ovmContractInitcode) public returns(address codeContractAddress) {
+    function deployContract(
+      address _newOvmContractAddress,
+      bytes memory _ovmContractInitcode,
+      bool overridePurityChecker,
+      PurityChecker purityChecker) public returns(address codeContractAddress) {
+        // Get the runtime bytecode
+        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
+        // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
+        if (!overridePurityChecker && !purityChecker.isBytecodePure(codeContractBytecode)) {
+            // Contract runtime bytecode is not pure.
+            return ZERO_ADDRESS;
+        }
         // Deploy a new contract with this _ovmContractInitCode
         assembly {
             // Set our codeContractAddress to the address returned by our CREATE operation
