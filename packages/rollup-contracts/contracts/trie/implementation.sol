@@ -62,6 +62,7 @@ contract PatriciaTreeImplementation {
     function verifyNonInclusionProof(bytes32 rootHash, bytes32 key, bytes32 leafLabel, bytes32 leafNode, uint branchMask, bytes32[] memory siblings) public pure {
         PatriciaTree.verifyNonInclusionProof(rootHash, key, leafLabel, leafNode, branchMask, siblings);
     }
+
 }
 
 // contract PatriciaTreeMerkleProof {

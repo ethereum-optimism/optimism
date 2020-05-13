@@ -17,15 +17,18 @@ describe.only('PatriciaTree', async () => {
     const provider = createMockProvider()
     const [wallet1, wallet2] = getWallets(provider)
 
-    beforeEach('deploy PatriciaTree', async () => {
+    before(async () => {
       const treeLibrary = await deployContract(wallet1, PatriciaTreeLibrary, [])
       link(PatriciaTreeImplementation, 'contracts/trie/tree.sol:PatriciaTree', treeLibrary.address)
+    })
+
+    beforeEach('deploy new PatriciaTree', async () => {
       fullTree = await deployContract(wallet1, PatriciaTreeImplementation, [], {
         gasLimit: 6700000,
       })
     })
     describe('getProof() & verifyProof()', async () => {
-      it('should be able to verify merkle proof for a given key', async () => {
+      it.only('should be able to verify proofs for some keys', async () => {
         const numLeaves = 3
         let keys = []
         let values = []
@@ -70,7 +73,7 @@ describe.only('PatriciaTree', async () => {
 
       const BIG_RANDOM_KEY = padToLength(numberToHexString(1345), 32*2)
 
-      log.debug(`gettingnoninclusion prooffor big key ${BIG_RANDOM_KEY}`)
+      log.debug(`getting  non-inclusion proof for big key ${BIG_RANDOM_KEY}`)
       const nonInclusionProof = await fullTree.getNonInclusionProof(
         BIG_RANDOM_KEY
       )

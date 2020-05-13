@@ -77,30 +77,57 @@ library PatriciaTree {
     //                    where we have branch nodes (bit in key denotes direction)
     //  - bytes32[] hashes - hashes of sibling edges
     
-    function getProof(Tree storage tree, bytes32 hashedKey) internal view returns (uint branchMask, bytes32[] memory _siblings) {
-        D.Label memory k = D.Label(hashedKey, 256);
-        D.Edge memory e = tree.rootEdge;
+    function getProof(Tree storage tree, bytes32 key) public view returns (uint branchMask, bytes32[] memory _siblings) {
+        // We will progressively "eat" into the key from the left as we traverse.
+        D.Label memory remaining;
+        // We initialize to the full key
+        remaining = D.Label(key, 256);
+        // Keeps track of how much we have "eaten" into the key.
+        // It should always hold that bitsTraversed + remaining.length == keyLength (256) at the end of each loop iteration
+        uint bitsTraversed = 0;
+        // Current edge the traversal is processing.
+        // Each loop iteration will chose the right or left child as the new current edge.
+        D.Edge memory currentEdge;
+        // Start traversal at the root
+        currentEdge = tree.rootEdge;
+
+        // Proof to return along with branch bitmask
         bytes32[256] memory siblings;
-        uint length;
-        uint numSiblings;
+        uint numSiblings = 0;
         while (true) {
+            // Figure out the common prefix between the current edge and remaning bits in the traversal.
+            // If the requested key has indeed been set, the current edge should be a prefix of the remaining.
             D.Label memory prefix;
             D.Label memory suffix;
-            (prefix, suffix) = Utils.splitCommonPrefix(k, e.label);
-            require(prefix.length == e.label.length);
+            (prefix, suffix) = Utils.splitCommonPrefix(remaining, currentEdge.label);
+            require(
+                prefix.length == currentEdge.label.length,
+                'Reached an edge in traversal whose label is not a strict prefix of the remaining part of key.  This indicates that the requested key has not been set.'
+            );
             if (suffix.length == 0) {
-                // Found it
+                // Found a match!
                 break;
             }
-            length += prefix.length;
-            branchMask |= uint(1) << (255 - length);
-            length += 1;
+            // Now that we are traversing this edge, add its length to bitsTraversed.
+            bitsTraversed += prefix.length;
+            // The next bit in the key determines whether to branch left or right.
+            // So, this sets the bitsTraversed'th bit in the branch mask to 1.
+            branchMask |= uint(1) << (255 - bitsTraversed);
+
+            // As explained in the last line, we traverse left or right based on the next bit.
             uint head;
             D.Label memory tail;
             (head, tail) = Utils.chopFirstBit(suffix);
-            siblings[numSiblings++] = edgeHash(tree.nodes[e.node].children[1 - head]);
-            e = tree.nodes[e.node].children[head];
-            k = tail;
+            // head, either 0 or 1, tells us which child edge is to traverse to, and which is the sibling to supply in our proof.
+            uint siblingIndex = 1 - head;
+            siblings[numSiblings++] = edgeHash(
+                tree.nodes[currentEdge.node].children[siblingIndex]
+            );
+            // Now, update the current edge to be processed in next iteration
+            currentEdge = tree.nodes[currentEdge.node].children[head];
+            // Account for having processed another bit by choosing left or right.
+            bitsTraversed += 1;
+            remaining = tail;
         }
         if (numSiblings > 0)
         {
@@ -165,21 +192,30 @@ library PatriciaTree {
         uint branchMask,
         bytes32[] memory siblings
     ) public pure {
-        D.Label memory k = D.Label(key, 256);
-        D.Edge memory e;
-        e.node = keccak256(value);
+        // We will progressively "eat" into the key from the right as we hash up to the root.
+        D.Label memory remaining = D.Label(key, 256);
+        // We will progressively hash the current edge up with its siblings until we get the root edge.
+        // To start, its node hash is the leaf (value) hash
+        D.Edge memory currentEdge;
+        currentEdge.node = keccak256(value);
+        // Iterate over each set bit in the branch mask to build parent edges, starting from the right.
         for (uint i = 0; branchMask != 0; i++) {
+            // Find the lowest index nonzero bit in the mask, where rightmost == index 0
             uint bitSet = Utils.lowestBitSet(branchMask);
+            // Remove from bitmask as we are about to process it
             branchMask &= ~(uint(1) << bitSet);
-            (k, e.label) = Utils.splitAt(k, 255 - bitSet);
+            // The label for the current edge is the suffix of the remaining label proceeeding the set bit
+            (remaining, currentEdge.label) = Utils.splitAt(remaining, 255 - bitSet); // (255 - bitSet) since bitset indexes from the right
+            // The bitSet'th bit in the key determines whether the sibling is left or right.
             uint bit;
-            (bit, e.label) = Utils.chopFirstBit(e.label);
+            // chop this bit off the label, it is implicit in the merkle path so will not be included in a label
+            (bit, currentEdge.label) = Utils.chopFirstBit(currentEdge.label);
             bytes32[2] memory edgeHashes;
-            edgeHashes[bit] = edgeHash(e);
+            edgeHashes[bit] = edgeHash(currentEdge);
             edgeHashes[1 - bit] = siblings[siblings.length - i - 1];
-            e.node = keccak256(abi.encode(edgeHashes[0], edgeHashes[1]));
+            currentEdge.node = keccak256(abi.encode(edgeHashes[0], edgeHashes[1]));
         }
-        e.label = k;
+        currentEdge.label = remaining;
         require(rootHash == edgeHash(e));
     }
 
