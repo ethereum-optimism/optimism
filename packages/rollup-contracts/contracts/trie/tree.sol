@@ -76,11 +76,17 @@ library PatriciaTree {
     //  - uint branchMask - bitmask with high bits at the positions in the key
     //                    where we have branch nodes (bit in key denotes direction)
     //  - bytes32[] hashes - hashes of sibling edges
-    function getProof(Tree storage tree, bytes memory key) internal view returns (uint branchMask, bytes32[] memory _siblings) {
-        return getProofWithHashedKey(tree, keccak256(key));
-    }
+    
 
-    function getProofWithHashedKey(Tree storage tree, bytes32 hashedKey) internal view returns (uint branchMask, bytes32[] memory _siblings) {
+    // DEPRECATED ARBITRARY LENGTH KEY WRAPER
+    // function getProof(Tree storage tree, bytes memory key) internal view returns (uint branchMask, bytes32[] memory _siblings) {
+    //     return getProofWithHashedKey(tree, keccak256(key));
+    // }
+
+    // old function WAS:
+    // function getProofWithHashedKey(Tree storage tree, bytes32 hashedKey) internal view returns (uint branchMask, bytes32[] memory _siblings) {
+
+    function getProof(Tree storage tree, bytes32 hashedKey) internal view returns (uint branchMask, bytes32[] memory _siblings) {
         D.Label memory k = D.Label(hashedKey, 256);
         D.Edge memory e = tree.rootEdge;
         bytes32[256] memory siblings;
@@ -170,8 +176,8 @@ library PatriciaTree {
         }
     }
 
-    function verifyProof(bytes32 rootHash, bytes memory key, bytes memory value, uint branchMask, bytes32[] memory siblings) public pure {
-        D.Label memory k = D.Label(keccak256(key), 256);
+    function verifyProof(bytes32 rootHash, bytes32 key, bytes memory value, uint branchMask, bytes32[] memory siblings) public pure {
+        D.Label memory k = D.Label(key, 256);
         D.Edge memory e;
         e.node = keccak256(value);
         for (uint i = 0; branchMask != 0; i++) {
@@ -190,12 +196,24 @@ library PatriciaTree {
     }
 
     function verifyNonInclusionProof(bytes32 rootHash, bytes memory key, bytes32 potentialSiblingLabel, bytes32 potentialSiblingValue, uint branchMask, bytes32[] memory siblings) public pure {
+        // Hash to fixed length key AKA full label (TODO get rid of this)
+        // D.Label memory remainingKeyLabel
         D.Label memory k = D.Label(keccak256(key), 256);
+        // Initialize an edge to be tracing up to the root
         D.Edge memory e;
+        // we go through the tree starting at the bottom/leaves
         for (uint i = 0; branchMask != 0; i++) {
+            // get the rightmost nonzero mask bit index (0 == rightmost index, we are going "up" the tree)
             uint bitSet = Utils.lowestBitSet(branchMask);
+            // remove the bit whose index we just found
             branchMask &= ~(uint(1) << bitSet);
+
+            // split LABEL (i.e. both length & val) into (prefix, suffix) with the bitSet as first in suffix
+            // e.g. if the final bit is in the mask (bitset = 0), this will make e.label = final bit and the remaining bits in k
             (k, e.label) = Utils.splitAt(k, 255 - bitSet);
+
+            // chop first bit from label.data to get whether this is a left or right edge.
+            // note that this does remove the bit from e.label
             uint bit;
             (bit, e.label) = Utils.chopFirstBit(e.label);
             bytes32[2] memory edgeHashes;
@@ -213,8 +231,8 @@ library PatriciaTree {
     }
 
     // TODO also return the proof
-    function insert(Tree storage tree, bytes memory key, bytes memory value) internal {
-        D.Label memory k = D.Label(keccak256(key), 256);
+    function insert(Tree storage tree, bytes32 key, bytes memory value) internal {
+        D.Label memory k = D.Label(key, 256);
         bytes32 valueHash = keccak256(value);
         tree.values[valueHash] = value;
         // keys.push(key);

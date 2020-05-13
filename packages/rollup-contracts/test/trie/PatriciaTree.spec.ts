@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger, numberToHexString } from '@eth-optimism/core-utils'
+import { getLogger, numberToHexString, bufToHexString, padToLength } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets, link } from 'ethereum-waffle'
 
 /* Logging */
@@ -29,8 +29,12 @@ describe.only('PatriciaTree', async () => {
         let keys = []
         let values = []
         for (let i = 0; i < numLeaves; i++) {
-          keys.push(numberToHexString(i*100))
-          values.push(numberToHexString(i + 100))
+          keys.push(
+            padToLength(numberToHexString(i), 32*2)
+          )
+          values.push(
+            padToLength(numberToHexString(i*32), 32*2)
+          )
           await fullTree.insert(keys[i], values[i])
         }
         for (let i = 0; i < numLeaves; i++) {
