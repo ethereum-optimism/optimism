@@ -46,7 +46,7 @@ contract PatriciaTreeImplementation {
         return tree.getProof(key);
     }
 
-    function getNonInclusionProof(bytes memory key) public view returns (
+    function getNonInclusionProof(bytes32 key) public view returns (
         bytes32 leafLabel,
         bytes32 leafNode,
         uint branchMask,
@@ -59,7 +59,7 @@ contract PatriciaTreeImplementation {
         PatriciaTree.verifyProof(rootHash, key, value, branchMask, siblings);
     }
 
-    function verifyNonInclusionProof(bytes32 rootHash, bytes memory key, bytes32 leafLabel, bytes32 leafNode, uint branchMask, bytes32[] memory siblings) public pure {
+    function verifyNonInclusionProof(bytes32 rootHash, bytes32 key, bytes32 leafLabel, bytes32 leafNode, uint branchMask, bytes32[] memory siblings) public pure {
         PatriciaTree.verifyNonInclusionProof(rootHash, key, leafLabel, leafNode, branchMask, siblings);
     }
 }

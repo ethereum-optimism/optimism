@@ -77,15 +77,6 @@ library PatriciaTree {
     //                    where we have branch nodes (bit in key denotes direction)
     //  - bytes32[] hashes - hashes of sibling edges
     
-
-    // DEPRECATED ARBITRARY LENGTH KEY WRAPER
-    // function getProof(Tree storage tree, bytes memory key) internal view returns (uint branchMask, bytes32[] memory _siblings) {
-    //     return getProofWithHashedKey(tree, keccak256(key));
-    // }
-
-    // old function WAS:
-    // function getProofWithHashedKey(Tree storage tree, bytes32 hashedKey) internal view returns (uint branchMask, bytes32[] memory _siblings) {
-
     function getProof(Tree storage tree, bytes32 hashedKey) internal view returns (uint branchMask, bytes32[] memory _siblings) {
         D.Label memory k = D.Label(hashedKey, 256);
         D.Edge memory e = tree.rootEdge;
@@ -119,16 +110,7 @@ library PatriciaTree {
         }
     }
 
-    function getNonInclusionProof(Tree storage tree, bytes memory key) internal view returns (
-        bytes32 potentialSiblingLabel,
-        bytes32 potentialSiblingValue,
-        uint branchMask,
-        bytes32[] memory _siblings
-    ) {
-        return getNonInclusionProofWithHashedKey(tree, keccak256(key));
-    }
-
-    function getNonInclusionProofWithHashedKey(Tree storage tree, bytes32 hashedKey) internal view returns (
+    function getNonInclusionProof(Tree storage tree, bytes32 key) internal view returns (
         bytes32 potentialSiblingLabel,
         bytes32 potentialSiblingValue,
         uint branchMask,
@@ -138,7 +120,7 @@ library PatriciaTree {
         uint numSiblings;
 
         // Start from root edge
-        D.Label memory label = D.Label(hashedKey, 256);
+        D.Label memory label = D.Label(key, 256);
         D.Edge memory e = tree.rootEdge;
         bytes32[256] memory siblings;
 
@@ -176,7 +158,13 @@ library PatriciaTree {
         }
     }
 
-    function verifyProof(bytes32 rootHash, bytes32 key, bytes memory value, uint branchMask, bytes32[] memory siblings) public pure {
+    function verifyProof(
+        bytes32 rootHash,
+        bytes32 key,
+        bytes memory value,
+        uint branchMask,
+        bytes32[] memory siblings
+    ) public pure {
         D.Label memory k = D.Label(key, 256);
         D.Edge memory e;
         e.node = keccak256(value);
@@ -195,10 +183,10 @@ library PatriciaTree {
         require(rootHash == edgeHash(e));
     }
 
-    function verifyNonInclusionProof(bytes32 rootHash, bytes memory key, bytes32 potentialSiblingLabel, bytes32 potentialSiblingValue, uint branchMask, bytes32[] memory siblings) public pure {
+    function verifyNonInclusionProof(bytes32 rootHash, bytes32 key, bytes32 potentialSiblingLabel, bytes32 potentialSiblingValue, uint branchMask, bytes32[] memory siblings) public pure {
         // Hash to fixed length key AKA full label (TODO get rid of this)
         // D.Label memory remainingKeyLabel
-        D.Label memory k = D.Label(keccak256(key), 256);
+        D.Label memory k = D.Label(key, 256);
         // Initialize an edge to be tracing up to the root
         D.Edge memory e;
         // we go through the tree starting at the bottom/leaves
@@ -208,7 +196,7 @@ library PatriciaTree {
             // remove the bit whose index we just found
             branchMask &= ~(uint(1) << bitSet);
 
-            // split LABEL (i.e. both length & val) into (prefix, suffix) with the bitSet as first in suffix
+            // split non-included key (as a label i.e. both length & val) into (prefix, suffix) with the bitSet as first in suffix
             // e.g. if the final bit is in the mask (bitset = 0), this will make e.label = final bit and the remaining bits in k
             (k, e.label) = Utils.splitAt(k, 255 - bitSet);
 
@@ -227,7 +215,7 @@ library PatriciaTree {
             e.node = keccak256(abi.encode(edgeHashes[0], edgeHashes[1]));
         }
         e.label = k;
-        require(rootHash == edgeHash(e));
+        require(rootHash == edgeHash(e), 'Root edge hash calculated from siblings did not match given rootHash.');
     }
 
     // TODO also return the proof
