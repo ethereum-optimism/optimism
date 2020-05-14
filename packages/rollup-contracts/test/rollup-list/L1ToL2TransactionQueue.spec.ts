@@ -8,7 +8,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { DefaultRollupBlock } from './RLhelper'
 
 /* Logging */
-const log = getLogger('l1-to-l2-tx-queue')
+const log = getLogger('l1-to-l2-tx-queue', true)
 
 /* Contract Imports */
 import * as L1ToL2TransactionQueue from '../../build/L1ToL2TransactionQueue.json'
