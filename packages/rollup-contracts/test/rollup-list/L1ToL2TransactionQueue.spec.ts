@@ -15,7 +15,7 @@ import * as L1ToL2TransactionQueue from '../../build/L1ToL2TransactionQueue.json
 import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
 
 /* Begin tests */
-describe.only('L1ToL2TransactionQueue', () => {
+describe('L1ToL2TransactionQueue', () => {
   const provider = createMockProvider()
   const [
     wallet,
