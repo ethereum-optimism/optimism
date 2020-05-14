@@ -2,8 +2,6 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import {DataTypes as dt} from "./DataTypes.sol";
-import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 import {RollupList} from "./RollupList.sol";
 
 contract L1ToL2TransactionQueue is RollupList {
