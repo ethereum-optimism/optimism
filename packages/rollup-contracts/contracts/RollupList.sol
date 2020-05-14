@@ -107,7 +107,7 @@ contract RollupList {
   // dequeues all blocks including and before the given block index
   function dequeueBeforeInclusive(uint _blockIndex) public {
     //Check that msg.sender is authorized to delete
-    require(authenticateDequeue(msg.sender), "Message sender does not have permission to dequeue blocks");
+    require(authenticateDequeue(msg.sender), "Message sender does not have permission to dequeue");
     //blockIndex is between first and last blocks
     require(_blockIndex >= front && _blockIndex < blocks.length, "Cannot delete blocks outside of valid range");
     //delete all block headers before and including blockIndex

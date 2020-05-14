@@ -80,15 +80,11 @@ describe('L1ToL2TransactionQueue', () => {
     })
     it('should not allow enqueue from other address', async () => {
       const block = ['0x1234']
-      try {
-        await l1ToL2TxQueue.enqueueBlock(block)
-      } catch (err) {
-        // Success we threw an error!
-        return
-      }
-      throw new Error(
-        'Allowed non-l1ToL2TransactionPasser account to enqueue block'
-      )
+      await l1ToL2TxQueue
+        .enqueueBlock(block)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Message sender does not have permission to enqueue'
+        )
     })
   })
   /*
@@ -137,16 +133,11 @@ describe('L1ToL2TransactionQueue', () => {
         blockIndex,
         cumulativePrevElements
       )
-      try {
-        // delete the single appended block
-        await l1ToL2TxQueue.dequeueBeforeInclusive(blockIndex)
-      } catch (err) {
-        // Success we threw an error!
-        return
-      }
-      throw new Error(
-        'Allowed non-canonicalTransactionChain account to dequeue block'
-      )
+      await l1ToL2TxQueue
+        .dequeueBeforeInclusive(blockIndex)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Message sender does not have permission to dequeue'
+        )
     })
   })
 })
