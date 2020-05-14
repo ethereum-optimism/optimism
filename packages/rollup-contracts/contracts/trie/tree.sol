@@ -185,19 +185,20 @@ library PatriciaTree {
         }
     }
 
-    function verifyProof(
+    // TODO comment/explain these args
+    function verifyEdgeInclusionProof(
         bytes32 rootHash,
-        bytes32 key,
-        bytes memory value,
+        bytes32 edgeCommittment,
+        D.Label memory fullEdgeLabel,
         uint branchMask,
         bytes32[] memory siblings
-    ) public pure {
-        // We will progressively "eat" into the key from the right as we hash up to the root.
-        D.Label memory remaining = D.Label(key, 256);
+    ) internal pure {
+        // We will progressively "eat" into the label from the right as we hash up to the root.
+        D.Label memory remaining = fullEdgeLabel;
         // We will progressively hash the current edge up with its siblings until we get the root edge.
-        // To start, its node hash is the leaf (value) hash
         D.Edge memory currentEdge;
-        currentEdge.node = keccak256(value);
+        // To start, this is the edge we are verifying so it's the edgeHash which was input
+        currentEdge.node = edgeCommittment;
         // Iterate over each set bit in the branch mask to build parent edges, starting from the right.
         for (uint i = 0; branchMask != 0; i++) {
             // Find the lowest index nonzero bit in the mask, where rightmost == index 0
@@ -215,8 +216,30 @@ library PatriciaTree {
             edgeHashes[1 - bit] = siblings[siblings.length - i - 1];
             currentEdge.node = keccak256(abi.encode(edgeHashes[0], edgeHashes[1]));
         }
+        // no more branching, so the remaining label is the root edge's label
         currentEdge.label = remaining;
-        require(rootHash == edgeHash(e));
+        require(rootHash == edgeHash(currentEdge));
+    }
+
+    function verifyProof(
+        bytes32 rootHash,
+        bytes32 key,
+        bytes memory value,
+        uint branchMask,
+        bytes32[] memory siblings
+    ) public pure {
+        // The edge above a leaf commits to the leaf value (i.e. what was actually set) 
+        bytes32 edgeCommittment = keccak256(value);
+        // The full "label" for a leaf node is the entirety of the key.
+        D.Label memory fullLabel = D.Label(key, 256);
+
+        verifyEdgeInclusionProof(
+            rootHash,
+            edgeCommittment,
+            fullLabel,
+            branchMask,
+            siblings
+        );
     }
 
     function verifyNonInclusionProof(bytes32 rootHash, bytes32 key, bytes32 potentialSiblingLabel, bytes32 potentialSiblingValue, uint branchMask, bytes32[] memory siblings) public pure {
