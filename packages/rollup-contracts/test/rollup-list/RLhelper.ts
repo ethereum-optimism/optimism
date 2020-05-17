@@ -11,7 +11,7 @@ import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 import { utils } from 'ethers'
 
 interface BlockHeader {
-  ethBlockNumber: number
+  timestamp: number
   elementsMerkleRoot: string
   numElementsInBlock: number
   cumulativePrevElements: number
@@ -30,19 +30,19 @@ interface ElementInclusionProof {
  * as well as the merkle tree which it generates.
  */
 export class DefaultRollupBlock {
-  public ethBlockNumber: number
+  public timestamp: number
   public blockIndex: number //index in
   public cumulativePrevElements: number //in blockHeader
   public elements: string[] //Rollup block
   public elementsMerkleTree: SparseMerkleTreeImpl
 
   constructor(
-    ethBlockNumber: number, // Ethereum block this block was submitted in
+    timestamp: number, // Ethereum block this block was submitted in
     blockIndex: number, // index in blocks array (first block has blockIndex of 0)
     cumulativePrevElements: number,
     elements: string[]
   ) {
-    this.ethBlockNumber = ethBlockNumber
+    this.timestamp = timestamp
     this.blockIndex = blockIndex
     this.cumulativePrevElements = cumulativePrevElements
     this.elements = elements
@@ -95,7 +95,7 @@ export class DefaultRollupBlock {
     const encoding = abiCoder.encode(
       ['uint', 'bytes32', 'uint', 'uint'],
       [
-        this.ethBlockNumber,
+        this.timestamp,
         bufToHexString(bufferRoot),
         this.elements.length,
         this.cumulativePrevElements,
@@ -116,7 +116,7 @@ export class DefaultRollupBlock {
     return {
       blockIndex: this.blockIndex,
       blockHeader: {
-        ethBlockNumber: this.ethBlockNumber,
+        timestamp: this.timestamp,
         elementsMerkleRoot: bufToHexString(bufferRoot),
         numElementsInBlock: this.elements.length,
         cumulativePrevElements: this.cumulativePrevElements,
