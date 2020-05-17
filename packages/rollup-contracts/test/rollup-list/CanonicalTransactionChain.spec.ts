@@ -57,6 +57,7 @@ describe.only('CanonicalTransactionChain', () => {
     // Generate a local version of the rollup block
     const localBlock = new DefaultRollupBlock(
       timestamp,
+      false,
       blockIndex,
       cumulativePrevElements,
       block

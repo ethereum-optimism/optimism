@@ -37,8 +37,8 @@ contract CanonicalTransactionChain is RollupList {
 
     // calculate block header
     bytes32 blockHeaderHash = keccak256(abi.encodePacked(
-      _timestamp, //timestamp, duh
       _timestamp,
+      false, // isL1ToL2Tx
       merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
       _txBatch.length, // numElementsInBlock
       cumulativeNumElements // cumulativeNumElements

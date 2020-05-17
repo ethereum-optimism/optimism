@@ -12,6 +12,7 @@ import { utils } from 'ethers'
 
 interface BlockHeader {
   timestamp: number
+  isL1ToL2Tx: boolean
   elementsMerkleRoot: string
   numElementsInBlock: number
   cumulativePrevElements: number
@@ -31,6 +32,7 @@ interface ElementInclusionProof {
  */
 export class DefaultRollupBlock {
   public timestamp: number
+  public isL1ToL2Tx: boolean
   public blockIndex: number //index in
   public cumulativePrevElements: number //in blockHeader
   public elements: string[] //Rollup block
@@ -38,10 +40,12 @@ export class DefaultRollupBlock {
 
   constructor(
     timestamp: number, // Ethereum block this block was submitted in
+    isL1ToL2Tx: boolean,
     blockIndex: number, // index in blocks array (first block has blockIndex of 0)
     cumulativePrevElements: number,
     elements: string[]
   ) {
+    this.isL1ToL2Tx = isL1ToL2Tx
     this.timestamp = timestamp
     this.blockIndex = blockIndex
     this.cumulativePrevElements = cumulativePrevElements
@@ -91,17 +95,16 @@ export class DefaultRollupBlock {
 
   public async hashBlockHeader(): Promise<string> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
-    const abiCoder = new utils.AbiCoder()
-    const encoding = abiCoder.encode(
-      ['uint', 'bytes32', 'uint', 'uint'],
+    return utils.solidityKeccak256(
+      ['uint', 'bool', 'bytes32', 'uint', 'uint'],
       [
         this.timestamp,
+        this.isL1ToL2Tx,
         bufToHexString(bufferRoot),
         this.elements.length,
         this.cumulativePrevElements,
       ]
     )
-    return bufToHexString(Buffer.from(keccak256(encoding), 'hex'))
   }
 
   /*
@@ -117,6 +120,7 @@ export class DefaultRollupBlock {
       blockIndex: this.blockIndex,
       blockHeader: {
         timestamp: this.timestamp,
+        isL1ToL2Tx: this.isL1ToL2Tx,
         elementsMerkleRoot: bufToHexString(bufferRoot),
         numElementsInBlock: this.elements.length,
         cumulativePrevElements: this.cumulativePrevElements,
