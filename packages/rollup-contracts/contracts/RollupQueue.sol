@@ -38,12 +38,12 @@ contract RollupQueue {
     require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
     require(_rollupBlock.length > 0, "Cannot submit an empty block");
     // calculate block header
-    bytes32 blockHeaderHash = keccak256(abi.encodePacked(
-      block.number, // ethBlockNumber
-      merkleUtils.getMerkleRoot(_rollupBlock), // elementsMerkleRoot
-      _rollupBlock.length, // numElementsInBlock
-      cumulativeNumElements // cumulativeNumElements
-    ));
+    bytes32 blockHeaderHash = keccak256(
+      abi.encodePacked(
+        merkleUtils.getMerkleRoot(_rollupBlock), // elementsMerkleRoot
+        _rollupBlock.length // numElementsInBlock
+      )
+    );
     // store block header
     blocks.push(blockHeaderHash);
     // update cumulative elements

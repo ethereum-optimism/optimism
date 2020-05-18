@@ -130,3 +130,42 @@ export class DefaultRollupBlock {
     }
   }
 }
+/*
+ * Helper class which provides all information requried for a particular
+ * Rollup block. This includes all of the tranisitions in readable form
+ * as well as the merkle tree which it generates.
+ */
+export class RollupQueueBatch {
+  public elements: string[] //Rollup block
+  public elementsMerkleTree: SparseMerkleTreeImpl
+
+  constructor(elements: string[]) {
+    this.elements = elements
+  }
+  /*
+   * Generate the elements merkle tree from this.elements
+   */
+  public async generateTree(): Promise<void> {
+    // Create a tree!
+    const treeHeight = Math.ceil(Math.log2(this.elements.length)) + 1 // The height should actually not be plus 1
+    this.elementsMerkleTree = await SparseMerkleTreeImpl.create(
+      newInMemoryDB(),
+      undefined,
+      treeHeight
+    )
+    for (let i = 0; i < this.elements.length; i++) {
+      await this.elementsMerkleTree.update(
+        new BigNumber(i, 10),
+        hexStrToBuf(this.elements[i])
+      )
+    }
+  }
+
+  public async hashBlockHeader(): Promise<string> {
+    const bufferRoot = await this.elementsMerkleTree.getRootHash()
+    return utils.solidityKeccak256(
+      ['bytes32', 'uint'],
+      [bufToHexString(bufferRoot), this.elements.length]
+    )
+  }
+}
