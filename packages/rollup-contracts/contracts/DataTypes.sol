@@ -12,17 +12,17 @@ contract DataTypes {
     }
 
     struct ElementInclusionProof {
-       uint blockIndex; // index in blocks array (first block has blockNumber of 0)
-       BlockHeader blockHeader;
-       uint indexInBlock; // used to verify inclusion of the element in elementsMerkleRoot
+       uint batchIndex; // index in batches array (first batch has batchNumber of 0)
+       BatchHeader batchHeader;
+       uint indexInBatch; // used to verify inclusion of the element in elementsMerkleRoot
        bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
     }
 
-    struct BlockHeader {
+    struct BatchHeader {
        uint timestamp;
        bool isL1ToL2Tx;
        bytes32 elementsMerkleRoot;
-       uint numElementsInBlock;
+       uint numElementsInBatch;
        uint cumulativePrevElements;
     }
 }

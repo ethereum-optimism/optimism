@@ -12,8 +12,8 @@ contract CanonicalTransactionChain {
 
   // How many elements in total have been appended
   uint public cumulativeNumElements;
-  // List of block header hashes
-  bytes32[] public blocks;
+  // List of batch header hashes
+  bytes32[] public batches;
 
 
   constructor(
@@ -24,50 +24,48 @@ contract CanonicalTransactionChain {
     sequencer = _sequencer;
   }
 
-  // for testing: returns length of block list
-  function getBlocksLength() public view returns (uint) {
-    return blocks.length;
+  // for testing: returns length of batch list
+  function getBatchsLength() public view returns (uint) {
+    return batches.length;
   }
 
-  function hashBlockHeader(
-    dt.BlockHeader memory _blockHeader
+  function hashBatchHeader(
+    dt.BatchHeader memory _batchHeader
   ) public pure returns (bytes32) {
     return keccak256(abi.encodePacked(
-      _blockHeader.timestamp,
-      _blockHeader.isL1ToL2Tx,
-      _blockHeader.elementsMerkleRoot,
-      _blockHeader.numElementsInBlock,
-      _blockHeader.cumulativePrevElements
+      _batchHeader.timestamp,
+      _batchHeader.isL1ToL2Tx,
+      _batchHeader.elementsMerkleRoot,
+      _batchHeader.numElementsInBatch,
+      _batchHeader.cumulativePrevElements
     ));
   }
 
-  function authenticateEnqueue(address _sender) public view returns (bool) {
+  function authenticateAppend(address _sender) public view returns (bool) {
     return _sender == sequencer;
   }
-  function authenticateDequeue(address _sender) public view returns (bool) { return false; }
-  function authenticateDelete(address _sender) public view returns (bool) { return false; }
 
-  // appends to the current list of blocks
+  // appends to the current list of batches
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
     //Check that msg.sender is authorized to append
-    require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
-    require(_txBatch.length > 0, "Cannot submit an empty block");
+    require(authenticateAppend(msg.sender), "Message sender does not have permission to enqueue");
+    require(_txBatch.length > 0, "Cannot submit an empty batch");
 
     // require(_timestamp > lastOVMTimestamp, "timestamps must monotonically increase");
     // lastOVMTimestamp = _timestamp;
-    // require dist(_timestamp, block.timestamp) < sequencerLivenessAssumption
-    // require(L1ToL2Queue.ageOfOldestQueuedBlock() < sequencerLivenessAssumption, "must process all L1->L2 blocks older than liveness assumption before processing L2 blocks.")
+    // require dist(_timestamp, batch.timestamp) < sequencerLivenessAssumption
+    // require(L1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.")
 
-    // calculate block header
-    bytes32 blockHeaderHash = keccak256(abi.encodePacked(
+    // calculate batch header
+    bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       _timestamp,
       false, // isL1ToL2Tx
       merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
-      _txBatch.length, // numElementsInBlock
+      _txBatch.length, // numElementsInBatch
       cumulativeNumElements // cumulativeNumElements
     ));
-    // store block header
-    blocks.push(blockHeaderHash);
+    // store batch header
+    batches.push(batchHeaderHash);
     // update cumulative elements
     cumulativeNumElements += _txBatch.length;
   }
@@ -76,23 +74,23 @@ contract CanonicalTransactionChain {
   function verifyElement(
      bytes memory _element, // the element of the list being proven
      uint _position, // the position in the list of the element being proven
-     dt.ElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup block
+     dt.ElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
   ) public view returns (bool) {
-    // For convenience, store the blockHeader
-    dt.BlockHeader memory blockHeader = _inclusionProof.blockHeader;
+    // For convenience, store the batchHeader
+    dt.BatchHeader memory batchHeader = _inclusionProof.batchHeader;
     // make sure absolute position equivalent to relative positions
-    if(_position != _inclusionProof.indexInBlock +
-      blockHeader.cumulativePrevElements)
+    if(_position != _inclusionProof.indexInBatch +
+      batchHeader.cumulativePrevElements)
       return false;
 
     // verify elementsMerkleRoot
     if (!merkleUtils.verify(
-      blockHeader.elementsMerkleRoot,
+      batchHeader.elementsMerkleRoot,
       _element,
-      _inclusionProof.indexInBlock,
+      _inclusionProof.indexInBatch,
       _inclusionProof.siblings
     )) return false;
-    //compare computed block header with the block header in the list.
-    return hashBlockHeader(blockHeader) == blocks[_inclusionProof.blockIndex];
+    //compare computed batch header with the batch header in the list.
+    return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
   }
 }

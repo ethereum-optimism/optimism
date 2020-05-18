@@ -8,11 +8,9 @@ import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 contract RollupQueue {
   // How many elements in total have been appended
   uint public cumulativeNumElements;
-
-  // List of block header hashes
-  bytes32[] public blocks;
-
-  uint256 public front; //Index of the first blockHeaderHash in the list
+  // List of batch header hashes
+  bytes32[] public batches;
+  uint256 public front; //Index of the first batchHeaderHash in the list
 
   // The Rollup Merkle Tree library (currently a contract for ease of testing)
   RollupMerkleUtils merkleUtils;
@@ -24,44 +22,44 @@ contract RollupQueue {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     front = 0;
   }
-  // for testing: returns length of block list
-  function getBlocksLength() public view returns (uint) {
-    return blocks.length;
+  // for testing: returns length of batch list
+  function getBatchesLength() public view returns (uint) {
+    return batches.length;
   }
 
   function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
   function authenticateDequeue(address _sender) public view returns (bool) { return true; }
 
-  // appends to the current list of blocks
-  function enqueueBlock(bytes[] memory _rollupBlock) public {
+  // appends to the current list of batches
+  function enqueueBatch(bytes[] memory _rollupBatch) public {
     //Check that msg.sender is authorized to append
     require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
-    require(_rollupBlock.length > 0, "Cannot submit an empty block");
-    // calculate block header
-    bytes32 blockHeaderHash = keccak256(
+    require(_rollupBatch.length > 0, "Cannot submit an empty batch");
+    // calculate batch header
+    bytes32 batchHeaderHash = keccak256(
       abi.encodePacked(
-        merkleUtils.getMerkleRoot(_rollupBlock), // elementsMerkleRoot
-        _rollupBlock.length // numElementsInBlock
+        merkleUtils.getMerkleRoot(_rollupBatch), // elementsMerkleRoot
+        _rollupBatch.length // numElementsInBatch
       )
     );
-    // store block header
-    blocks.push(blockHeaderHash);
+    // store batch header
+    batches.push(batchHeaderHash);
     // update cumulative elements
-    cumulativeNumElements += _rollupBlock.length;
+    cumulativeNumElements += _rollupBatch.length;
   }
 
-  // dequeues all blocks including and before the given block index
-  function dequeueBeforeInclusive(uint _blockIndex) public {
+  // dequeues all batches including and before the given batch index
+  function dequeueBeforeInclusive(uint _batchIndex) public {
     //Check that msg.sender is authorized to delete
     require(authenticateDequeue(msg.sender), "Message sender does not have permission to dequeue");
-    //blockIndex is between first and last blocks
-    require(_blockIndex >= front && _blockIndex < blocks.length, "Cannot delete blocks outside of valid range");
-    //delete all block headers before and including blockIndex
-    for (uint i = front; i <= _blockIndex; i++) {
-        delete blocks[i];
+    //batchIndex is between first and last batches
+    require(_batchIndex >= front && _batchIndex < batches.length, "Cannot delete batches outside of valid range");
+    //delete all batch headers before and including batchIndex
+    for (uint i = front; i <= _batchIndex; i++) {
+        delete batches[i];
     }
     //keep track of new head of list
-    front = _blockIndex + 1;
-    // Note: keep in mind that front can point to a non-existent block if the list is empty.
+    front = _batchIndex + 1;
+    // Note: keep in mind that front can point to a non-existent batch if the list is empty.
   }
 }

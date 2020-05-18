@@ -5,7 +5,7 @@ import { getLogger } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DefaultRollupBlock } from './RLhelper'
+import { DefaultRollupBatch } from './RLhelper'
 
 /* Logging */
 const log = getLogger('rollup-tx-queue', true)
@@ -40,163 +40,163 @@ describe('CanonicalTransactionChain', () => {
     )
   })
 
-  const enqueueAndGenerateBlock = async (
-    block: string[],
+  const enqueueAndGenerateBatch = async (
+    batch: string[],
     timestamp: number,
-    blockIndex: number,
+    batchIndex: number,
     cumulativePrevElements: number
-  ): Promise<DefaultRollupBlock> => {
-    // Submit the rollup block on-chain
+  ): Promise<DefaultRollupBatch> => {
+    // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendTransactionBatch(block, timestamp)
-    // Generate a local version of the rollup block
-    const localBlock = new DefaultRollupBlock(
+      .appendTransactionBatch(batch, timestamp)
+    // Generate a local version of the rollup batch
+    const localBatch = new DefaultRollupBatch(
       timestamp,
       false,
-      blockIndex,
+      batchIndex,
       cumulativePrevElements,
-      block
+      batch
     )
-    await localBlock.generateTree()
-    return localBlock
+    await localBatch.generateTree()
+    return localBatch
   }
 
   /*
-   * Test enqueueBlock()
+   * Test enqueueBatch()
    */
   describe('appendTransactionBatch() ', async () => {
     it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
-      const block = ['0x1234', '0x1234']
+      const batch = ['0x1234', '0x1234']
       const timestamp = 0
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(block, timestamp) // Did not throw... success!
+        .appendTransactionBatch(batch, timestamp) // Did not throw... success!
     })
 
-    it('should throw if submitting an empty block', async () => {
-      const emptyBlock = []
+    it('should throw if submitting an empty batch', async () => {
+      const emptyBatch = []
       const timestamp = 0
       try {
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(emptyBlock, timestamp)
+          .appendTransactionBatch(emptyBatch, timestamp)
       } catch (err) {
         // Success we threw an error!
         return
       }
-      throw new Error('Allowed an empty block to be appended')
+      throw new Error('Allowed an empty batch to be appended')
     })
 
-    it('should add to blocks array', async () => {
-      const block = ['0x1234', '0x6578']
+    it('should add to batches array', async () => {
+      const batch = ['0x1234', '0x6578']
       const timestamp = 0
       const output = await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(block, timestamp)
-      log.debug('enqueue block output', JSON.stringify(output))
-      const blocksLength = await canonicalTxChain.getBlocksLength()
-      blocksLength.toNumber().should.equal(1)
+        .appendTransactionBatch(batch, timestamp)
+      log.debug('enqueue batch output', JSON.stringify(output))
+      const batchesLength = await canonicalTxChain.getBatchsLength()
+      batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      const block = ['0x1234', '0x5678']
+      const batch = ['0x1234', '0x5678']
       const timestamp = 0
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(block, timestamp)
+        .appendTransactionBatch(batch, timestamp)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(2)
     })
     it('should allow appendTransactionBatch from sequencer', async () => {
-      const block = ['0x1234', '0x6578']
+      const batch = ['0x1234', '0x6578']
       const timestamp = 0
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(block, timestamp) // Did not throw... success!
+        .appendTransactionBatch(batch, timestamp) // Did not throw... success!
     })
     it('should not allow appendTransactionBatch from other address', async () => {
-      const block = ['0x1234', '0x6578']
+      const batch = ['0x1234', '0x6578']
       const timestamp = 0
       await canonicalTxChain
-        .appendTransactionBatch(block, timestamp)
+        .appendTransactionBatch(batch, timestamp)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to enqueue'
         )
     })
-    it('should calculate blockHeaderHash correctly', async () => {
-      const block = ['0x1234', '0x5678']
-      const blockIndex = 0
+    it('should calculate batchHeaderHash correctly', async () => {
+      const batch = ['0x1234', '0x5678']
+      const batchIndex = 0
       const cumulativePrevElements = 0
       const timestamp = 0
-      const localBlock = await enqueueAndGenerateBlock(
-        block,
+      const localBatch = await enqueueAndGenerateBatch(
+        batch,
         timestamp,
-        blockIndex,
+        batchIndex,
         cumulativePrevElements
       )
-      //Check blockHeaderHash
-      const expectedBlockHeaderHash = await localBlock.hashBlockHeader()
-      const calculatedBlockHeaderHash = await canonicalTxChain.blocks(0)
-      calculatedBlockHeaderHash.should.equal(expectedBlockHeaderHash)
+      //Check batchHeaderHash
+      const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
+      const calculatedBatchHeaderHash = await canonicalTxChain.batches(0)
+      calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
     })
-    it('should add multiple blocks correctly', async () => {
-      const block = ['0x1234', '0x5678']
-      const numBlocks = 10
-      for (let blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
-        const timestamp = blockIndex
-        const cumulativePrevElements = block.length * blockIndex
-        const localBlock = await enqueueAndGenerateBlock(
-          block,
+    it('should add multiple batches correctly', async () => {
+      const batch = ['0x1234', '0x5678']
+      const numBatchs = 10
+      for (let batchIndex = 0; batchIndex < numBatchs; batchIndex++) {
+        const timestamp = batchIndex
+        const cumulativePrevElements = batch.length * batchIndex
+        const localBatch = await enqueueAndGenerateBatch(
+          batch,
           timestamp,
-          blockIndex,
+          batchIndex,
           cumulativePrevElements
         )
-        //Check blockHeaderHash
-        const expectedBlockHeaderHash = await localBlock.hashBlockHeader()
-        const calculatedBlockHeaderHash = await canonicalTxChain.blocks(
-          blockIndex
+        //Check batchHeaderHash
+        const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
+        const calculatedBatchHeaderHash = await canonicalTxChain.batches(
+          batchIndex
         )
-        calculatedBlockHeaderHash.should.equal(expectedBlockHeaderHash)
+        calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
       }
       //check cumulativeNumElements
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
-      cumulativeNumElements.toNumber().should.equal(numBlocks * block.length)
-      //check blocks length
-      const blocksLength = await canonicalTxChain.getBlocksLength()
-      blocksLength.toNumber().should.equal(numBlocks)
+      cumulativeNumElements.toNumber().should.equal(numBatchs * batch.length)
+      //check batches length
+      const batchesLength = await canonicalTxChain.getBatchsLength()
+      batchesLength.toNumber().should.equal(numBatchs)
     })
     //TODO test with actual transitions and actual state roots
-    //TODO test above with multiple blocks with different # elements and different size elements
+    //TODO test above with multiple batches with different # elements and different size elements
   })
 
   /*
    * Test verifyElement()
    */
   describe('verifyElement() ', async () => {
-    it('should return true for valid elements for different blockIndexs', async () => {
-      const maxBlockNumber = 5
-      const minBlockNumber = 0
-      const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+    it('should return true for valid elements for different batchIndexes', async () => {
+      const maxBatchNumber = 5
+      const minBatchNumber = 0
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
       for (
-        let blockIndex = minBlockNumber;
-        blockIndex < maxBlockNumber + 1;
-        blockIndex++
+        let batchIndex = minBatchNumber;
+        batchIndex < maxBatchNumber + 1;
+        batchIndex++
       ) {
-        log.debug(`testing valid proof for block #: ${blockIndex}`)
-        const timestamp = blockIndex
-        const cumulativePrevElements = block.length * blockIndex
-        const localBlock = await enqueueAndGenerateBlock(
-          block,
+        log.debug(`testing valid proof for batch #: ${batchIndex}`)
+        const timestamp = batchIndex
+        const cumulativePrevElements = batch.length * batchIndex
+        const localBatch = await enqueueAndGenerateBatch(
+          batch,
           timestamp,
-          blockIndex,
+          batchIndex,
           cumulativePrevElements
         )
         // Create inclusion proof for the element at elementIndex
         const elementIndex = 3
-        const element = block[elementIndex]
-        const position = localBlock.getPosition(elementIndex)
-        const elementInclusionProof = await localBlock.getElementInclusionProof(
+        const element = batch[elementIndex]
+        const position = localBatch.getPosition(elementIndex)
+        const elementInclusionProof = await localBatch.getElementInclusionProof(
           elementIndex
         )
         log.debug(
@@ -216,21 +216,21 @@ describe('CanonicalTransactionChain', () => {
       }
     })
 
-    it('should return false for wrong position with wrong indexInBlock', async () => {
-      const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+    it('should return false for wrong position with wrong indexInBatch', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
       const cumulativePrevElements = 0
-      const blockIndex = 0
+      const batchIndex = 0
       const timestamp = 0
-      const localBlock = await enqueueAndGenerateBlock(
-        block,
+      const localBatch = await enqueueAndGenerateBatch(
+        batch,
         timestamp,
-        blockIndex,
+        batchIndex,
         cumulativePrevElements
       )
       const elementIndex = 1
-      const element = block[elementIndex]
-      const position = localBlock.getPosition(elementIndex)
-      const elementInclusionProof = await localBlock.getElementInclusionProof(
+      const element = batch[elementIndex]
+      const position = localBatch.getPosition(elementIndex)
+      const elementInclusionProof = await localBatch.getElementInclusionProof(
         elementIndex
       )
       log.debug(
@@ -251,28 +251,28 @@ describe('CanonicalTransactionChain', () => {
       isIncluded.should.equal(false)
     })
 
-    it('should return false for wrong position and matching indexInBlock', async () => {
-      const block = ['0x1234', '0x4567', '0x890a', '0xabcd']
+    it('should return false for wrong position and matching indexInBatch', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0xabcd']
       const cumulativePrevElements = 0
-      const blockIndex = 0
+      const batchIndex = 0
       const timestamp = 0
-      const localBlock = await enqueueAndGenerateBlock(
-        block,
+      const localBatch = await enqueueAndGenerateBatch(
+        batch,
         timestamp,
-        blockIndex,
+        batchIndex,
         cumulativePrevElements
       )
       //generate inclusion proof
       const elementIndex = 1
-      const element = block[elementIndex]
-      const position = localBlock.getPosition(elementIndex)
-      const elementInclusionProof = await localBlock.getElementInclusionProof(
+      const element = batch[elementIndex]
+      const position = localBatch.getPosition(elementIndex)
+      const elementInclusionProof = await localBatch.getElementInclusionProof(
         elementIndex
       )
       //Give wrong position so inclusion proof is wrong
       const wrongPosition = position + 1
       //Change index to also be false (so position = index + cumulative)
-      elementInclusionProof.indexInBlock++
+      elementInclusionProof.indexInBatch++
       log.debug(
         `trying to falsely verify this inclusion proof: ${JSON.stringify(
           elementInclusionProof

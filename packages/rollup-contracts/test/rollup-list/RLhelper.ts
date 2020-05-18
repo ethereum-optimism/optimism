@@ -10,44 +10,44 @@ import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 
 import { utils } from 'ethers'
 
-interface BlockHeader {
+interface BatchHeader {
   timestamp: number
   isL1ToL2Tx: boolean
   elementsMerkleRoot: string
-  numElementsInBlock: number
+  numElementsInBatch: number
   cumulativePrevElements: number
 }
 
 interface ElementInclusionProof {
-  blockIndex: number
-  blockHeader: BlockHeader
-  indexInBlock: number
+  batchIndex: number
+  batchHeader: BatchHeader
+  indexInBatch: number
   siblings: string[]
 }
 
 /*
  * Helper class which provides all information requried for a particular
- * Rollup block. This includes all of the tranisitions in readable form
+ * Rollup batch. This includes all of the tranisitions in readable form
  * as well as the merkle tree which it generates.
  */
-export class DefaultRollupBlock {
+export class DefaultRollupBatch {
   public timestamp: number
   public isL1ToL2Tx: boolean
-  public blockIndex: number //index in
-  public cumulativePrevElements: number //in blockHeader
-  public elements: string[] //Rollup block
+  public batchIndex: number //index in
+  public cumulativePrevElements: number //in batchHeader
+  public elements: string[] //Rollup batch
   public elementsMerkleTree: SparseMerkleTreeImpl
 
   constructor(
-    timestamp: number, // Ethereum block this block was submitted in
+    timestamp: number, // Ethereum batch this batch was submitted in
     isL1ToL2Tx: boolean,
-    blockIndex: number, // index in blocks array (first block has blockIndex of 0)
+    batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
     elements: string[]
   ) {
     this.isL1ToL2Tx = isL1ToL2Tx
     this.timestamp = timestamp
-    this.blockIndex = blockIndex
+    this.batchIndex = batchIndex
     this.cumulativePrevElements = cumulativePrevElements
     this.elements = elements
   }
@@ -78,22 +78,22 @@ export class DefaultRollupBlock {
   }
 
   /*
-   * elementIndex is the index in this block of the element
+   * elementIndex is the index in this batch of the element
    * that we want to get the siblings of
    */
   public async getSiblings(elementIndex: number): Promise<string[]> {
-    const blockInclusion = await this.elementsMerkleTree.getMerkleProof(
+    const batchInclusion = await this.elementsMerkleTree.getMerkleProof(
       new BigNumber(elementIndex),
       hexStrToBuf(this.elements[elementIndex])
     )
-    const path = bufToHexString(blockInclusion.key.toBuffer('B', 32))
-    const siblings = blockInclusion.siblings.map((sibBuf) =>
+    const path = bufToHexString(batchInclusion.key.toBuffer('B', 32))
+    const siblings = batchInclusion.siblings.map((sibBuf) =>
       bufToHexString(sibBuf)
     )
     return siblings
   }
 
-  public async hashBlockHeader(): Promise<string> {
+  public async hashBatchHeader(): Promise<string> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
     return utils.solidityKeccak256(
       ['uint', 'bool', 'bytes32', 'uint', 'uint'],
@@ -108,7 +108,7 @@ export class DefaultRollupBlock {
   }
 
   /*
-   * elementIndex is the index in this block of the element
+   * elementIndex is the index in this batch of the element
    * that we want to create an inclusion proof for.
    */
 
@@ -117,26 +117,26 @@ export class DefaultRollupBlock {
   ): Promise<ElementInclusionProof> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
     return {
-      blockIndex: this.blockIndex,
-      blockHeader: {
+      batchIndex: this.batchIndex,
+      batchHeader: {
         timestamp: this.timestamp,
         isL1ToL2Tx: this.isL1ToL2Tx,
         elementsMerkleRoot: bufToHexString(bufferRoot),
-        numElementsInBlock: this.elements.length,
+        numElementsInBatch: this.elements.length,
         cumulativePrevElements: this.cumulativePrevElements,
       },
-      indexInBlock: elementIndex,
+      indexInBatch: elementIndex,
       siblings: await this.getSiblings(elementIndex),
     }
   }
 }
 /*
  * Helper class which provides all information requried for a particular
- * Rollup block. This includes all of the tranisitions in readable form
+ * Rollup batch. This includes all of the tranisitions in readable form
  * as well as the merkle tree which it generates.
  */
 export class RollupQueueBatch {
-  public elements: string[] //Rollup block
+  public elements: string[] //Rollup batch
   public elementsMerkleTree: SparseMerkleTreeImpl
 
   constructor(elements: string[]) {
@@ -161,7 +161,7 @@ export class RollupQueueBatch {
     }
   }
 
-  public async hashBlockHeader(): Promise<string> {
+  public async hashBatchHeader(): Promise<string> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
     return utils.solidityKeccak256(
       ['bytes32', 'uint'],

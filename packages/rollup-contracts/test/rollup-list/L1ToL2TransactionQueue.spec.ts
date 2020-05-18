@@ -5,7 +5,7 @@ import { getLogger } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DefaultRollupBlock } from './RLhelper'
+import { DefaultRollupBatch } from './RLhelper'
 
 /* Logging */
 const log = getLogger('l1-to-l2-tx-queue', true)
@@ -49,49 +49,49 @@ describe('L1ToL2TransactionQueue', () => {
   })
 
   /*
-   * Test enqueueBlock()
+   * Test enqueueBatch()
    */
-  describe('enqueueBlock() ', async () => {
+  describe('enqueueBatch() ', async () => {
     it('should allow enqueue from l1ToL2TransactionPasser', async () => {
-      const block = ['0x1234']
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBlock(block) // Did not throw... success!
+      const batch = ['0x1234']
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch) // Did not throw... success!
     })
     it('should not allow enqueue from other address', async () => {
-      const block = ['0x1234']
+      const batch = ['0x1234']
       await l1ToL2TxQueue
-        .enqueueBlock(block)
+        .enqueueBatch(batch)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to enqueue'
         )
     })
   })
   /*
-   * Test dequeueBlock()
+   * Test dequeueBatch()
    */
-  describe('dequeueBlock() ', async () => {
+  describe('dequeueBatch() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
-      const block = ['0x1234']
+      const batch = ['0x1234']
       const cumulativePrevElements = 0
-      const blockIndex = 0
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBlock(block)
-      let blocksLength = await l1ToL2TxQueue.getBlocksLength()
-      log.debug(`blocksLength before deletion: ${blocksLength}`)
+      const batchIndex = 0
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
+      let batchesLength = await l1ToL2TxQueue.getBatchesLength()
+      log.debug(`batchesLength before deletion: ${batchesLength}`)
       let front = await l1ToL2TxQueue.front()
       log.debug(`front before deletion: ${front}`)
-      let firstBlockHash = await l1ToL2TxQueue.blocks(0)
-      log.debug(`firstBlockHash before deletion: ${firstBlockHash}`)
+      let firstBatchHash = await l1ToL2TxQueue.batches(0)
+      log.debug(`firstBatchHash before deletion: ${firstBatchHash}`)
 
-      // delete the single appended block
+      // delete the single appended batch
       await l1ToL2TxQueue
         .connect(canonicalTransactionChain)
-        .dequeueBeforeInclusive(blockIndex)
+        .dequeueBeforeInclusive(batchIndex)
 
-      blocksLength = await l1ToL2TxQueue.getBlocksLength()
-      log.debug(`blocksLength after deletion: ${blocksLength}`)
-      blocksLength.should.equal(1)
-      firstBlockHash = await l1ToL2TxQueue.blocks(0)
-      log.debug(`firstBlockHash after deletion: ${firstBlockHash}`)
-      firstBlockHash.should.equal(
+      batchesLength = await l1ToL2TxQueue.getBatchesLength()
+      log.debug(`batchesLength after deletion: ${batchesLength}`)
+      batchesLength.should.equal(1)
+      firstBatchHash = await l1ToL2TxQueue.batches(0)
+      log.debug(`firstBatchHash after deletion: ${firstBatchHash}`)
+      firstBatchHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
       front = await l1ToL2TxQueue.front()
@@ -99,12 +99,12 @@ describe('L1ToL2TransactionQueue', () => {
       front.should.equal(1)
     })
     it('should not allow dequeue from other address', async () => {
-      const block = ['0x1234']
+      const batch = ['0x1234']
       const cumulativePrevElements = 0
-      const blockIndex = 0
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBlock(block)
+      const batchIndex = 0
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
       await l1ToL2TxQueue
-        .dequeueBeforeInclusive(blockIndex)
+        .dequeueBeforeInclusive(batchIndex)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to dequeue'
         )

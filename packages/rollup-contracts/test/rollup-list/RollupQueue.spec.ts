@@ -40,99 +40,99 @@ describe('RollupQueue', () => {
     )
   })
 
-  const enqueueAndGenerateBlock = async (
-    block: string[]
+  const enqueueAndGenerateBatch = async (
+    batch: string[]
   ): Promise<RollupQueueBatch> => {
-    // Submit the rollup block on-chain
-    await rollupQueue.enqueueBlock(block)
-    // Generate a local version of the rollup block
-    const localBlock = new RollupQueueBatch(block)
-    await localBlock.generateTree()
-    return localBlock
+    // Submit the rollup batch on-chain
+    await rollupQueue.enqueueBatch(batch)
+    // Generate a local version of the rollup batch
+    const localBatch = new RollupQueueBatch(batch)
+    await localBatch.generateTree()
+    return localBatch
   }
   /*
-   * Test enqueueBlock()
+   * Test enqueueBatch()
    */
-  describe('enqueueBlock() ', async () => {
+  describe('enqueueBatch() ', async () => {
     it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
-      const block = ['0x1234', '0x1234']
-      await rollupQueue.enqueueBlock(block) // Did not throw... success!
+      const batch = ['0x1234', '0x1234']
+      await rollupQueue.enqueueBatch(batch) // Did not throw... success!
     })
 
-    it('should throw if submitting an empty block', async () => {
-      const emptyBlock = []
+    it('should throw if submitting an empty batch', async () => {
+      const emptyBatch = []
       try {
-        await rollupQueue.enqueueBlock(emptyBlock)
+        await rollupQueue.enqueueBatch(emptyBatch)
       } catch (err) {
         // Success we threw an error!
         return
       }
-      throw new Error('Allowed an empty block to be appended')
+      throw new Error('Allowed an empty batch to be appended')
     })
 
-    it('should add to blocks array', async () => {
-      const block = ['0x1234', '0x6578']
-      const output = await rollupQueue.enqueueBlock(block)
-      log.debug('enqueue block output', JSON.stringify(output))
-      const blocksLength = await rollupQueue.getBlocksLength()
-      blocksLength.toNumber().should.equal(1)
+    it('should add to batches array', async () => {
+      const batch = ['0x1234', '0x6578']
+      const output = await rollupQueue.enqueueBatch(batch)
+      log.debug('enqueue batch output', JSON.stringify(output))
+      const batchesLength = await rollupQueue.getBatchesLength()
+      batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      const block = ['0x1234', '0x5678']
-      await rollupQueue.enqueueBlock(block)
+      const batch = ['0x1234', '0x5678']
+      await rollupQueue.enqueueBatch(batch)
       const cumulativeNumElements = await rollupQueue.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(2)
     })
 
-    it('should calculate blockHeaderHash correctly', async () => {
-      const block = ['0x1234', '0x5678']
-      const localBlock = await enqueueAndGenerateBlock(block)
-      //Check blockHeaderHash
-      const expectedBlockHeaderHash = await localBlock.hashBlockHeader()
-      const calculatedBlockHeaderHash = await rollupQueue.blocks(0)
-      calculatedBlockHeaderHash.should.equal(expectedBlockHeaderHash)
+    it('should calculate batchHeaderHash correctly', async () => {
+      const batch = ['0x1234', '0x5678']
+      const localBatch = await enqueueAndGenerateBatch(batch)
+      //Check batchHeaderHash
+      const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
+      const calculatedBatchHeaderHash = await rollupQueue.batches(0)
+      calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
     })
 
-    it('should add multiple blocks correctly', async () => {
-      const block = ['0x1234', '0x5678']
-      const numBlocks = 10
-      for (let blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
-        const cumulativePrevElements = block.length * blockIndex
-        const localBlock = await enqueueAndGenerateBlock(block)
-        //Check blockHeaderHash
-        const expectedBlockHeaderHash = await localBlock.hashBlockHeader()
-        const calculatedBlockHeaderHash = await rollupQueue.blocks(blockIndex)
-        calculatedBlockHeaderHash.should.equal(expectedBlockHeaderHash)
+    it('should add multiple batches correctly', async () => {
+      const batch = ['0x1234', '0x5678']
+      const numBatches = 10
+      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
+        const cumulativePrevElements = batch.length * batchIndex
+        const localBatch = await enqueueAndGenerateBatch(batch)
+        //Check batchHeaderHash
+        const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
+        const calculatedBatchHeaderHash = await rollupQueue.batches(batchIndex)
+        calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
       }
-      //check blocks length
-      const blocksLength = await rollupQueue.getBlocksLength()
-      blocksLength.toNumber().should.equal(numBlocks)
+      //check batches length
+      const batchesLength = await rollupQueue.getBatchesLength()
+      batchesLength.toNumber().should.equal(numBatches)
     })
   })
 
   describe('dequeueBeforeInclusive()', async () => {
-    it('should dequeue single block', async () => {
-      const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+    it('should dequeue single batch', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
       const cumulativePrevElements = 0
-      const blockIndex = 0
-      const localBlock = await enqueueAndGenerateBlock(block)
-      let blocksLength = await rollupQueue.getBlocksLength()
-      log.debug(`blocksLength before deletion: ${blocksLength}`)
+      const batchIndex = 0
+      const localBatch = await enqueueAndGenerateBatch(batch)
+      let batchesLength = await rollupQueue.getBatchesLength()
+      log.debug(`batchesLength before deletion: ${batchesLength}`)
       let front = await rollupQueue.front()
       log.debug(`front before deletion: ${front}`)
-      let firstBlockHash = await rollupQueue.blocks(0)
-      log.debug(`firstBlockHash before deletion: ${firstBlockHash}`)
+      let firstBatchHash = await rollupQueue.batches(0)
+      log.debug(`firstBatchHash before deletion: ${firstBatchHash}`)
 
-      // delete the single appended block
-      await rollupQueue.dequeueBeforeInclusive(blockIndex)
+      // delete the single appended batch
+      await rollupQueue.dequeueBeforeInclusive(batchIndex)
 
-      blocksLength = await rollupQueue.getBlocksLength()
-      log.debug(`blocksLength after deletion: ${blocksLength}`)
-      blocksLength.should.equal(1)
-      firstBlockHash = await rollupQueue.blocks(0)
-      log.debug(`firstBlockHash after deletion: ${firstBlockHash}`)
-      firstBlockHash.should.equal(
+      batchesLength = await rollupQueue.getBatchesLength()
+      log.debug(`batchesLength after deletion: ${batchesLength}`)
+      batchesLength.should.equal(1)
+      firstBatchHash = await rollupQueue.batches(0)
+      log.debug(`firstBatchHash after deletion: ${firstBatchHash}`)
+      firstBatchHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
       front = await rollupQueue.front()
@@ -140,34 +140,34 @@ describe('RollupQueue', () => {
       front.should.equal(1)
     })
 
-    it('should dequeue many blocks', async () => {
-      const block = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBlocks = []
-      const numBlocks = 5
-      for (let blockIndex = 0; blockIndex < numBlocks; blockIndex++) {
-        const cumulativePrevElements = block.length * blockIndex
-        const localBlock = await enqueueAndGenerateBlock(block)
-        localBlocks.push(localBlock)
+    it('should dequeue many batches', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const localBatches = []
+      const numBatches = 5
+      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
+        const cumulativePrevElements = batch.length * batchIndex
+        const localBatch = await enqueueAndGenerateBatch(batch)
+        localBatches.push(localBatch)
       }
-      let blocksLength = await rollupQueue.getBlocksLength()
-      log.debug(`blocksLength before deletion: ${blocksLength}`)
+      let batchesLength = await rollupQueue.getBatchesLength()
+      log.debug(`batchesLength before deletion: ${batchesLength}`)
       let front = await rollupQueue.front()
       log.debug(`front before deletion: ${front}`)
-      for (let i = 0; i < numBlocks; i++) {
-        const ithBlockHash = await rollupQueue.blocks(i)
-        log.debug(`blockHash #${i} before deletion: ${ithBlockHash}`)
+      for (let i = 0; i < numBatches; i++) {
+        const ithBatchHash = await rollupQueue.batches(i)
+        log.debug(`batchHash #${i} before deletion: ${ithBatchHash}`)
       }
-      await rollupQueue.dequeueBeforeInclusive(numBlocks - 1)
-      blocksLength = await rollupQueue.getBlocksLength()
-      log.debug(`blocksLength after deletion: ${blocksLength}`)
-      blocksLength.should.equal(numBlocks)
+      await rollupQueue.dequeueBeforeInclusive(numBatches - 1)
+      batchesLength = await rollupQueue.getBatchesLength()
+      log.debug(`batchesLength after deletion: ${batchesLength}`)
+      batchesLength.should.equal(numBatches)
       front = await rollupQueue.front()
       log.debug(`front after deletion: ${front}`)
-      front.should.equal(numBlocks)
-      for (let i = 0; i < numBlocks; i++) {
-        const ithBlockHash = await rollupQueue.blocks(i)
-        log.debug(`blockHash #${i} after deletion: ${ithBlockHash}`)
-        ithBlockHash.should.equal(
+      front.should.equal(numBatches)
+      for (let i = 0; i < numBatches; i++) {
+        const ithBatchHash = await rollupQueue.batches(i)
+        log.debug(`batchHash #${i} after deletion: ${ithBatchHash}`)
+        ithBatchHash.should.equal(
           '0x0000000000000000000000000000000000000000000000000000000000000000'
         )
       }
