@@ -77,15 +77,12 @@ describe('CanonicalTransactionChain', () => {
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
       const timestamp = 0
-      try {
-        await canonicalTxChain
-          .connect(sequencer)
-          .appendTransactionBatch(emptyBatch, timestamp)
-      } catch (err) {
-        // Success we threw an error!
-        return
-      }
-      throw new Error('Allowed an empty batch to be appended')
+      await canonicalTxChain
+        .connect(sequencer)
+        .appendTransactionBatch(emptyBatch, timestamp)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Cannot submit an empty batch'
+        )
     })
 
     it('should add to batches array', async () => {

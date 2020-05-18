@@ -61,13 +61,11 @@ describe('RollupQueue', () => {
 
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
-      try {
-        await rollupQueue.enqueueBatch(emptyBatch)
-      } catch (err) {
-        // Success we threw an error!
-        return
-      }
-      throw new Error('Allowed an empty batch to be appended')
+      await rollupQueue
+        .enqueueBatch(emptyBatch)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Cannot submit an empty batch'
+        )
     })
 
     it('should add to batches array', async () => {
