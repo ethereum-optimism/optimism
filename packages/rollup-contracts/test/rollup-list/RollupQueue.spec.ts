@@ -88,7 +88,8 @@ describe('RollupQueue', () => {
       const localBatch = await enqueueAndGenerateBatch(batch)
       //Check batchHeaderHash
       const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
-      const calculatedBatchHeaderHash = await rollupQueue.batches(0)
+      const calculatedBatchHeaderHash = (await rollupQueue.batches(0))
+        .batchHeaderHash
       calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
     })
 
@@ -100,7 +101,9 @@ describe('RollupQueue', () => {
         const localBatch = await enqueueAndGenerateBatch(batch)
         //Check batchHeaderHash
         const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
-        const calculatedBatchHeaderHash = await rollupQueue.batches(batchIndex)
+        const calculatedBatchHeaderHash = (
+          await rollupQueue.batches(batchIndex)
+        ).batchHeaderHash
         calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
       }
       //check batches length
@@ -119,7 +122,7 @@ describe('RollupQueue', () => {
       log.debug(`batchesLength before deletion: ${batchesLength}`)
       let front = await rollupQueue.front()
       log.debug(`front before deletion: ${front}`)
-      let firstBatchHash = await rollupQueue.batches(0)
+      let firstBatchHash = (await rollupQueue.batches(0)).batchHeaderHash
       log.debug(`firstBatchHash before deletion: ${firstBatchHash}`)
 
       // delete the single appended batch
@@ -128,7 +131,7 @@ describe('RollupQueue', () => {
       batchesLength = await rollupQueue.getBatchesLength()
       log.debug(`batchesLength after deletion: ${batchesLength}`)
       batchesLength.should.equal(1)
-      firstBatchHash = await rollupQueue.batches(0)
+      firstBatchHash = (await rollupQueue.batches(0)).batchHeaderHash
       log.debug(`firstBatchHash after deletion: ${firstBatchHash}`)
       firstBatchHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
@@ -152,7 +155,7 @@ describe('RollupQueue', () => {
       let front = await rollupQueue.front()
       log.debug(`front before deletion: ${front}`)
       for (let i = 0; i < numBatches; i++) {
-        const ithBatchHash = await rollupQueue.batches(i)
+        const ithBatchHash = (await rollupQueue.batches(i)).batchHeaderHash
         log.debug(`batchHash #${i} before deletion: ${ithBatchHash}`)
       }
       await rollupQueue.dequeueBeforeInclusive(numBatches - 1)
@@ -163,7 +166,7 @@ describe('RollupQueue', () => {
       log.debug(`front after deletion: ${front}`)
       front.should.equal(numBatches)
       for (let i = 0; i < numBatches; i++) {
-        const ithBatchHash = await rollupQueue.batches(i)
+        const ithBatchHash = (await rollupQueue.batches(i)).batchHeaderHash
         log.debug(`batchHash #${i} after deletion: ${ithBatchHash}`)
         ithBatchHash.should.equal(
           '0x0000000000000000000000000000000000000000000000000000000000000000'

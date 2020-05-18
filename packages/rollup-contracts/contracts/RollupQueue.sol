@@ -9,7 +9,7 @@ contract RollupQueue {
   // How many elements in total have been appended
   uint public cumulativeNumElements;
   // List of batch header hashes
-  bytes32[] public batches;
+  dt.TimestampedHash[] public batches;
   uint256 public front; //Index of the first batchHeaderHash in the list
 
   // The Rollup Merkle Tree library (currently a contract for ease of testing)
@@ -42,8 +42,9 @@ contract RollupQueue {
         _rollupBatch.length // numElementsInBatch
       )
     );
+    dt.TimestampedHash memory timestampedBatchHeaderHash = dt.TimestampedHash(now, batchHeaderHash);
     // store batch header
-    batches.push(batchHeaderHash);
+    batches.push(timestampedBatchHeaderHash);
     // update cumulative elements
     cumulativeNumElements += _rollupBatch.length;
   }

@@ -25,4 +25,9 @@ contract DataTypes {
        uint numElementsInBatch;
        uint cumulativePrevElements;
     }
+
+   struct TimestampedHash {
+       uint timestamp;
+       bytes32 batchHeaderHash;
+    }
 }

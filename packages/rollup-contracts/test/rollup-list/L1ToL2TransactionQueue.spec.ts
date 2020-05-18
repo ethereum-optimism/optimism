@@ -89,7 +89,7 @@ describe('L1ToL2TransactionQueue', () => {
       batchesLength = await l1ToL2TxQueue.getBatchesLength()
       log.debug(`batchesLength after deletion: ${batchesLength}`)
       batchesLength.should.equal(1)
-      firstBatchHash = await l1ToL2TxQueue.batches(0)
+      firstBatchHash = (await l1ToL2TxQueue.batches(0)).batchHeaderHash
       log.debug(`firstBatchHash after deletion: ${firstBatchHash}`)
       firstBatchHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
