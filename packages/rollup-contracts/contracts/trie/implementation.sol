@@ -14,11 +14,11 @@ contract PatriciaTreeImplementation {
         tree.insert(key, value);
     }
 
-    function get(bytes memory key) public view returns (bytes memory) {
+    function get(bytes32 key) public view returns (bytes memory) {
         return tree.get(key);
     }
 
-    function safeGet(bytes memory key) public view returns (bytes memory) {
+    function safeGet(bytes32 key) public view returns (bytes memory) {
         return tree.safeGet(key);
     }
 
@@ -46,11 +46,13 @@ contract PatriciaTreeImplementation {
         return tree.getProof(key);
     }
 
+// todo naming -- these arent always leaves
     function getNonInclusionProof(bytes32 key) public view returns (
         bytes32 leafLabel,
         bytes32 leafNode,
         uint branchMask,
-        bytes32[] memory _siblings
+        bytes32[] memory _siblings,
+        uint leafLength
     ) {
         return tree.getNonInclusionProof(key);
     }
@@ -62,6 +64,21 @@ contract PatriciaTreeImplementation {
     function verifyNonInclusionProof(bytes32 rootHash, bytes32 key, bytes32 leafLabel, bytes32 leafNode, uint branchMask, bytes32[] memory siblings) public pure {
         PatriciaTree.verifyNonInclusionProof(rootHash, key, leafLabel, leafNode, branchMask, siblings);
     }
+
+    function verifyNonInclusionProof2(
+        bytes32 rootHash,
+        bytes32 key,
+        bytes32 conflictingEdgeFullLabelData,
+        uint conflictingEdgeFullLabelLength,
+        bytes32 conflictingEdgeCommitment,
+        uint branchMask,
+        bytes32[] memory siblings
+    ) public pure {
+        PatriciaTree.verifyNonInclusionProof2(rootHash, key, conflictingEdgeFullLabelData, conflictingEdgeFullLabelLength, conflictingEdgeCommitment, branchMask, siblings);
+    }
+    // temp
+
+    function getHash(bytes memory pre) public pure returns(bytes32) {return keccak256(pre);}
 
 }
 

@@ -21,11 +21,11 @@ library PatriciaTree {
         D.Edge rootEdge;
     }
 
-    function get(Tree storage tree, bytes memory key) internal view returns (bytes memory) {
+    function get(Tree storage tree, bytes32 key) internal view returns (bytes memory) {
         return getValue(tree, _findNode(tree, key));
     }
 
-    function safeGet(Tree storage tree, bytes memory key) internal view returns (bytes memory value) {
+    function safeGet(Tree storage tree, bytes32 key) internal view returns (bytes memory value) {
         bytes32 valueHash = _findNode(tree, key);
         require(valueHash != bytes32(0));
         value = getValue(tree, valueHash);
@@ -141,7 +141,8 @@ library PatriciaTree {
         bytes32 potentialSiblingLabel,
         bytes32 potentialSiblingValue,
         uint branchMask,
-        bytes32[] memory _siblings
+        bytes32[] memory _siblings,
+        uint potentialSiblingCumulativeLength
     ){
         uint length;
         uint numSiblings;
@@ -173,6 +174,7 @@ library PatriciaTree {
             } else {
                 // Found the potential sibling. Set data to return
                 potentialSiblingLabel = e.label.data;
+                potentialSiblingCumulativeLength = length;
                 potentialSiblingValue = e.node;
                 break;
             }
@@ -218,7 +220,7 @@ library PatriciaTree {
         }
         // no more branching, so the remaining label is the root edge's label
         currentEdge.label = remaining;
-        require(rootHash == edgeHash(currentEdge));
+        require(rootHash == edgeHash(currentEdge), 'Edge inclusion proof verification failed: root hashes do not match.');
     }
 
     function verifyProof(
@@ -237,6 +239,32 @@ library PatriciaTree {
             rootHash,
             edgeCommittment,
             fullLabel,
+            branchMask,
+            siblings
+        );
+    }
+
+    function verifyNonInclusionProof2(
+        bytes32 rootHash,
+        bytes32 key,
+        bytes32 conflictingEdgeFullLabelData,
+        uint conflictingEdgeFullLabelLength,
+        bytes32 conflictingEdgeCommitment,
+        uint branchMask,
+        bytes32[] memory siblings
+    ) public pure {
+        // first, verify there is a conflict between the key and given edge
+        require(conflictingEdgeFullLabelLength <= 256, 'invalid label specified');
+        D.Label memory fullConflictingEdgeLabel = D.Label(conflictingEdgeFullLabelData, conflictingEdgeFullLabelLength);
+        D.Label memory fullLeafLabel = D.Label(key, 256);
+        uint indexOfConflict = Utils.commonPrefix(fullConflictingEdgeLabel, fullLeafLabel);
+        uint doesBranchAtConflict = branchMask & (1 << 255 - indexOfConflict);
+        
+        require(doesBranchAtConflict == 0, 'The provided conflicting edge is not actually conflicting.');
+        verifyEdgeInclusionProof(
+            rootHash,
+            conflictingEdgeCommitment,
+            fullConflictingEdgeLabel,
             branchMask,
             siblings
         );
@@ -352,8 +380,9 @@ library PatriciaTree {
         return _insertNode(tree, n);
     }
 
-    function _findNode(Tree storage tree, bytes memory key) private view returns (bytes32) {
-        return _findNodeWithHashedKey(tree, keccak256(key));
+// todo remove this
+    function _findNode(Tree storage tree, bytes32 key) private view returns (bytes32) {
+        return _findNodeWithHashedKey(tree, key);
     }
 
     function _findNodeWithHashedKey(Tree storage tree, bytes32 hashedKey) private view returns (bytes32) {
