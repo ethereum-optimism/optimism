@@ -91,7 +91,6 @@ describe('CanonicalTransactionChain', () => {
       const output = await canonicalTxChain
         .connect(sequencer)
         .appendTransactionBatch(batch, timestamp)
-      log.debug('enqueue batch output', JSON.stringify(output))
       const batchesLength = await canonicalTxChain.getBatchsLength()
       batchesLength.toNumber().should.equal(1)
     })

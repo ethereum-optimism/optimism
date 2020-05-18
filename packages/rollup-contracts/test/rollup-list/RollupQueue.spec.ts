@@ -71,7 +71,6 @@ describe('RollupQueue', () => {
     it('should add to batches array', async () => {
       const batch = ['0x1234', '0x6578']
       const output = await rollupQueue.enqueueBatch(batch)
-      log.debug('enqueue batch output', JSON.stringify(output))
       const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
@@ -112,66 +111,40 @@ describe('RollupQueue', () => {
     })
   })
 
-  describe('dequeueBeforeInclusive()', async () => {
+  describe('dequeueBatch()', async () => {
     it('should dequeue single batch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const cumulativePrevElements = 0
-      const batchIndex = 0
       const localBatch = await enqueueAndGenerateBatch(batch)
-      let batchesLength = await rollupQueue.getBatchesLength()
-      log.debug(`batchesLength before deletion: ${batchesLength}`)
-      let front = await rollupQueue.front()
-      log.debug(`front before deletion: ${front}`)
-      let firstBatchHash = (await rollupQueue.batches(0)).batchHeaderHash
-      log.debug(`firstBatchHash before deletion: ${firstBatchHash}`)
-
       // delete the single appended batch
-      await rollupQueue.dequeueBeforeInclusive(batchIndex)
+      await rollupQueue.dequeueBatch()
 
-      batchesLength = await rollupQueue.getBatchesLength()
-      log.debug(`batchesLength after deletion: ${batchesLength}`)
+      const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.should.equal(1)
-      firstBatchHash = (await rollupQueue.batches(0)).batchHeaderHash
-      log.debug(`firstBatchHash after deletion: ${firstBatchHash}`)
+      const firstBatchHash = (await rollupQueue.batches(0)).batchHeaderHash
       firstBatchHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
-      front = await rollupQueue.front()
-      log.debug(`front after deletion: ${front}`)
+      const front = await rollupQueue.front()
       front.should.equal(1)
     })
 
     it('should dequeue many batches', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatches = []
       const numBatches = 5
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = batch.length * batchIndex
-        const localBatch = await enqueueAndGenerateBatch(batch)
-        localBatches.push(localBatch)
+        await enqueueAndGenerateBatch(batch)
       }
-      let batchesLength = await rollupQueue.getBatchesLength()
-      log.debug(`batchesLength before deletion: ${batchesLength}`)
-      let front = await rollupQueue.front()
-      log.debug(`front before deletion: ${front}`)
       for (let i = 0; i < numBatches; i++) {
+        await rollupQueue.dequeueBatch()
+        const front = await rollupQueue.front()
+        front.should.equal(i + 1)
         const ithBatchHash = (await rollupQueue.batches(i)).batchHeaderHash
-        log.debug(`batchHash #${i} before deletion: ${ithBatchHash}`)
-      }
-      await rollupQueue.dequeueBeforeInclusive(numBatches - 1)
-      batchesLength = await rollupQueue.getBatchesLength()
-      log.debug(`batchesLength after deletion: ${batchesLength}`)
-      batchesLength.should.equal(numBatches)
-      front = await rollupQueue.front()
-      log.debug(`front after deletion: ${front}`)
-      front.should.equal(numBatches)
-      for (let i = 0; i < numBatches; i++) {
-        const ithBatchHash = (await rollupQueue.batches(i)).batchHeaderHash
-        log.debug(`batchHash #${i} after deletion: ${ithBatchHash}`)
         ithBatchHash.should.equal(
           '0x0000000000000000000000000000000000000000000000000000000000000000'
         )
       }
+      const batchesLength = await rollupQueue.getBatchesLength()
+      batchesLength.should.equal(numBatches)
     })
   })
 })

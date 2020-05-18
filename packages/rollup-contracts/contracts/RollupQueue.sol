@@ -30,7 +30,7 @@ contract RollupQueue {
   function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
   function authenticateDequeue(address _sender) public view returns (bool) { return true; }
 
-  // appends to the current list of batches
+  // enqueues to the end of the current queue of batches
   function enqueueBatch(bytes[] memory _rollupBatch) public {
     //Check that msg.sender is authorized to append
     require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
@@ -49,18 +49,11 @@ contract RollupQueue {
     cumulativeNumElements += _rollupBatch.length;
   }
 
-  // dequeues all batches including and before the given batch index
-  function dequeueBeforeInclusive(uint _batchIndex) public {
-    //Check that msg.sender is authorized to delete
+  // dequeues the first (oldest) batch
+  function dequeueBatch() public {
     require(authenticateDequeue(msg.sender), "Message sender does not have permission to dequeue");
-    //batchIndex is between first and last batches
-    require(_batchIndex >= front && _batchIndex < batches.length, "Cannot delete batches outside of valid range");
-    //delete all batch headers before and including batchIndex
-    for (uint i = front; i <= _batchIndex; i++) {
-        delete batches[i];
-    }
-    //keep track of new head of list
-    front = _batchIndex + 1;
+    delete batches[front];
+    front++;
     // Note: keep in mind that front can point to a non-existent batch if the list is empty.
   }
 }

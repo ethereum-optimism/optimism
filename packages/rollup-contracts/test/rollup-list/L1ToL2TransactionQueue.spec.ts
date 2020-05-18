@@ -82,9 +82,7 @@ describe('L1ToL2TransactionQueue', () => {
       log.debug(`firstBatchHash before deletion: ${firstBatchHash}`)
 
       // delete the single appended batch
-      await l1ToL2TxQueue
-        .connect(canonicalTransactionChain)
-        .dequeueBeforeInclusive(batchIndex)
+      await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeueBatch()
 
       batchesLength = await l1ToL2TxQueue.getBatchesLength()
       log.debug(`batchesLength after deletion: ${batchesLength}`)
@@ -104,7 +102,7 @@ describe('L1ToL2TransactionQueue', () => {
       const batchIndex = 0
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
       await l1ToL2TxQueue
-        .dequeueBeforeInclusive(batchIndex)
+        .dequeueBatch()
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to dequeue'
         )
