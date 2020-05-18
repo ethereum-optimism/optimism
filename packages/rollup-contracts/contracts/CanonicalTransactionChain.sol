@@ -2,19 +2,43 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import {RollupList} from "./RollupList.sol";
+import {DataTypes as dt} from "./DataTypes.sol";
+import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 
-contract CanonicalTransactionChain is RollupList {
+contract CanonicalTransactionChain {
+  // The Rollup Merkle Tree library (currently a contract for ease of testing)
+  RollupMerkleUtils merkleUtils;
   address public sequencer;
-  address public canonicalTransactionChain;
+
+  // How many elements in total have been appended
+  uint public cumulativeNumElements;
+  // List of block header hashes
+  bytes32[] public blocks;
+
 
   constructor(
     address _rollupMerkleUtilsAddress,
-    address _sequencer,
-    address _canonicalTransactionChain
-  ) RollupList(_rollupMerkleUtilsAddress) public {
+    address _sequencer
+  ) public {
+    merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     sequencer = _sequencer;
-    canonicalTransactionChain = _canonicalTransactionChain;
+  }
+
+  // for testing: returns length of block list
+  function getBlocksLength() public view returns (uint) {
+    return blocks.length;
+  }
+
+  function hashBlockHeader(
+    dt.BlockHeader memory _blockHeader
+  ) public pure returns (bytes32) {
+    return keccak256(abi.encodePacked(
+      _blockHeader.timestamp,
+      _blockHeader.isL1ToL2Tx,
+      _blockHeader.elementsMerkleRoot,
+      _blockHeader.numElementsInBlock,
+      _blockHeader.cumulativePrevElements
+    ));
   }
 
   function authenticateEnqueue(address _sender) public view returns (bool) {
@@ -34,7 +58,6 @@ contract CanonicalTransactionChain is RollupList {
     // require dist(_timestamp, block.timestamp) < sequencerLivenessAssumption
     // require(L1ToL2Queue.ageOfOldestQueuedBlock() < sequencerLivenessAssumption, "must process all L1->L2 blocks older than liveness assumption before processing L2 blocks.")
 
-
     // calculate block header
     bytes32 blockHeaderHash = keccak256(abi.encodePacked(
       _timestamp,
@@ -47,20 +70,29 @@ contract CanonicalTransactionChain is RollupList {
     blocks.push(blockHeaderHash);
     // update cumulative elements
     cumulativeNumElements += _txBatch.length;
+  }
 
+  // verifies an element is in the current list at the given position
+  function verifyElement(
+     bytes memory _element, // the element of the list being proven
+     uint _position, // the position in the list of the element being proven
+     dt.ElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup block
+  ) public view returns (bool) {
+    // For convenience, store the blockHeader
+    dt.BlockHeader memory blockHeader = _inclusionProof.blockHeader;
+    // make sure absolute position equivalent to relative positions
+    if(_position != _inclusionProof.indexInBlock +
+      blockHeader.cumulativePrevElements)
+      return false;
 
-
-    // // calculate block header
-    // bytes32 blockHeaderHash = keccak256(abi.encodePacked(
-    //   _timestamp, //timestamp, duh
-    //   false, //isL1ToL2Tx
-    //   merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
-    //   _txBatch.length, // numElementsInBlock
-    //   cumulativeNumElements // cumulativePrevElements
-    // ));
-    // // store block header
-    // blocks.push(blockHeaderHash);
-    // // update cumulative elements
-    // cumulativeNumElements += _txBatch.length;
+    // verify elementsMerkleRoot
+    if (!merkleUtils.verify(
+      blockHeader.elementsMerkleRoot,
+      _element,
+      _inclusionProof.indexInBlock,
+      _inclusionProof.siblings
+    )) return false;
+    //compare computed block header with the block header in the list.
+    return hashBlockHeader(blockHeader) == blocks[_inclusionProof.blockIndex];
   }
 }

@@ -19,7 +19,8 @@ contract DataTypes {
     }
 
     struct BlockHeader {
-       uint ethBlockNumber;
+       uint timestamp;
+       bool isL1ToL2Tx;
        bytes32 elementsMerkleRoot;
        uint numElementsInBlock;
        uint cumulativePrevElements;
