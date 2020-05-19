@@ -1,4 +1,5 @@
 pragma solidity >=0.5.0 <0.6.0;
+pragma experimental ABIEncoderV2;
 
 import {D} from "./data.sol";
 import {Utils} from "./utils.sol";
@@ -138,17 +139,18 @@ library PatriciaTree {
     }
 
     function getNonInclusionProof(Tree storage tree, bytes32 key) internal view returns (
-        bytes32 potentialSiblingLabel,
+        D.Label memory potentialSiblingCumulativeLabel,
         bytes32 potentialSiblingValue,
         uint branchMask,
-        bytes32[] memory _siblings,
-        uint potentialSiblingCumulativeLength
+        bytes32[] memory _siblings
     ){
         uint length;
         uint numSiblings;
 
+        D.Label memory cumulativeKeyLabel = D.Label(key, 256);
+
         // Start from root edge
-        D.Label memory label = D.Label(key, 256);
+        D.Label memory label = cumulativeKeyLabel;
         D.Edge memory e = tree.rootEdge;
         bytes32[256] memory siblings;
 
@@ -173,8 +175,8 @@ library PatriciaTree {
                 e = tree.nodes[e.node].children[head];
             } else {
                 // Found the potential sibling. Set data to return
-                potentialSiblingLabel = e.label.data;
-                potentialSiblingCumulativeLength = length;
+                (D.Label memory sharedCumulativePrefix, ) = Utils.splitAt(cumulativeKeyLabel, length);
+                potentialSiblingCumulativeLabel = Utils.combineLabels(sharedCumulativePrefix, e.label);
                 potentialSiblingValue = e.node;
                 break;
             }

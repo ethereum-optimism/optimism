@@ -1,4 +1,5 @@
 pragma solidity >=0.5.0 <0.6.0;
+pragma experimental ABIEncoderV2;
 
 import {D} from "./data.sol";
 import {PatriciaTree} from "./tree.sol";
@@ -48,11 +49,10 @@ contract PatriciaTreeImplementation {
 
 // todo naming -- these arent always leaves
     function getNonInclusionProof(bytes32 key) public view returns (
-        bytes32 leafLabel,
-        bytes32 leafNode,
+        D.Label memory potentialSiblingCumulativeLabel,
+        bytes32 potentialSiblingValue,
         uint branchMask,
-        bytes32[] memory _siblings,
-        uint leafLength
+        bytes32[] memory _siblings
     ) {
         return tree.getNonInclusionProof(key);
     }

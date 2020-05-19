@@ -8,6 +8,13 @@ pragma solidity >=0.5.0 <0.6.0;
 import {D} from "./data.sol";
 
 library Utils {
+    /// combines two labels into one
+    function combineLabels(D.Label memory prefix, D.Label memory suffix) internal pure returns (D.Label memory combined) {
+        combined.length = prefix.length + suffix.length;
+        combined.data = prefix.data | (suffix.data >> prefix.length);
+    }
+
+
     /// Returns a label containing the longest common prefix of `check` and `label`
     /// and a label consisting of the remaining part of `label`.
     function splitCommonPrefix(D.Label memory label, D.Label memory check) internal pure returns (D.Label memory prefix, D.Label memory labelSuffix) {

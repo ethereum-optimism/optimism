@@ -81,7 +81,7 @@ describe.only('PatriciaTree', async () => {
       const offset = 1
       const KVPairs = await insertSequentialKeys(fullTree, numLeaves, offset)
 
-      const keyToUse = ZERO_KEY
+      const keyToUse = BIG_RANDOM_KEY
 
       log.debug(`getting  non-inclusion proof for key ${keyToUse}`)
       const nonInclusionProof = await fullTree.getNonInclusionProof(
@@ -92,51 +92,50 @@ describe.only('PatriciaTree', async () => {
       const leafNode = nonInclusionProof[1]
       const branchMask = nonInclusionProof[2]
       const siblings = nonInclusionProof[3]
-      const leafLength = nonInclusionProof[4]
+      // const leafLength = nonInclusionProof[4]
 
       log.debug(`here is the non inclusion proof:`)
       log.debug(`leaf label: ${leafLabel}`)
-      log.debug(`leaf label(this time in binary): ${hexStrToNumber(leafLabel).toString(2)}`)
+      log.debug(`leaf label(this time just data in binary): ${hexStrToNumber(leafLabel[0]).toString(2)}`)
       log.debug(`leaf node/hash: ${leafNode}`)
       log.debug(`branch mask (in binary): ${hexStrToNumber(branchMask._hex).toString(2)}`)
       log.debug(`siblings: ${siblings}`)
-      log.debug(`leaf length: ${leafLength}`)
-
-      const ONE_KEY = padToLength(numberToHexString(1), 32*2)
-      const proof = await fullTree.getProof(ONE_KEY)
+      // log.debug(`leaf length: ${leafLength}`)
 
 
-      const onekeyval = await fullTree.get(ONE_KEY)
-      const hashedonekeyval = await fullTree.getHash(onekeyval);
+      // const ONE_KEY = padToLength(numberToHexString(1), 32*2)
+      // const proof = await fullTree.getProof(ONE_KEY)
+      // const onekeyval = await fullTree.get(ONE_KEY)
+      // const hashedonekeyval = await fullTree.getHash(onekeyval);
       
-      log.debug(`Got proof for key: ${ONE_KEY}, It has:`)
-      log.debug(`    proof bitmask (in binary): ${
-        hexStrToNumber(proof.branchMask._hex)
-        .toString(2)
-      }`)
-      log.debug(`    proof edge commitment: ${hashedonekeyval}`)
-      log.debug(`    proof siblings: ${proof._siblings}`)
-      log.debug(` and the value for ${ONE_KEY} is: ${onekeyval}, which hashes to: ${hashedonekeyval}`)
+      // log.debug(`Got proof for key: ${ONE_KEY}, It has:`)
+      // log.debug(`    proof bitmask (in binary): ${
+      //   hexStrToNumber(proof.branchMask._hex)
+      //   .toString(2)
+      // }`)
+      // log.debug(`    proof edge commitment: ${hashedonekeyval}`)
+      // log.debug(`    proof siblings: ${proof._siblings}`)
+      // log.debug(` and the value for ${ONE_KEY} is: ${onekeyval}, which hashes to: ${hashedonekeyval}`)
 
 
       let rootHash = await fullTree.getRootHash()
 
 
 
-      await fullTree.verifyProof(
-        rootHash,
-        ONE_KEY,
-        onekeyval,
-        proof.branchMask,
-        proof._siblings
-      )
+      // await fullTree.verifyProof(
+      //   rootHash,
+      //   ONE_KEY,
+      //   onekeyval,
+      //   proof.branchMask,
+      //   proof._siblings
+      // )
 
 
       const doesConflict = await fullTree.verifyNonInclusionProof2(
         rootHash,
         keyToUse,
-        ONE_KEY,
-        256,
+        leafLabel[0],
+        leafLabel[1],
         leafNode,
         branchMask,
         siblings
