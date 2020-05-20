@@ -38,7 +38,7 @@ library FullPatriciaTree {
     }
 
     function doesIncludeHashedKey(Tree storage tree, bytes32 hashedKey) internal view returns (bool) {
-        bytes32 valueHash = _findNodeWithHashedKey(tree, hashedKey);
+        bytes32 valueHash = _findNode(tree, hashedKey);
         return (valueHash != bytes32(0));
     }
 
@@ -346,16 +346,11 @@ library FullPatriciaTree {
         return _insertNode(tree, n);
     }
 
-// todo remove this
     function _findNode(Tree storage tree, bytes32 key) private view returns (bytes32) {
-        return _findNodeWithHashedKey(tree, key);
-    }
-
-    function _findNodeWithHashedKey(Tree storage tree, bytes32 hashedKey) private view returns (bytes32) {
         if (tree.rootEdge.node == 0 && tree.rootEdge.label.length == 0) {
             return 0;
         } else {
-            D.Label memory k = D.Label(hashedKey, 256);
+            D.Label memory k = D.Label(key, 256);
             return _findAtEdge(tree, tree.rootEdge, k);
         }
     }

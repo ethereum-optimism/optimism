@@ -1,8 +1,18 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger, numberToHexString, padToLength, TestUtils } from '@eth-optimism/core-utils'
-import { createMockProvider, deployContract, getWallets, link } from 'ethereum-waffle'
+import {
+  getLogger,
+  numberToHexString,
+  padToLength,
+  TestUtils,
+} from '@eth-optimism/core-utils'
+import {
+  createMockProvider,
+  deployContract,
+  getWallets,
+  link,
+} from 'ethereum-waffle'
 
 /* Logging */
 const log = getLogger('patricia-tree', true)
@@ -10,27 +20,24 @@ const log = getLogger('patricia-tree', true)
 /* Contract Imports */
 import * as FullPatriciaTreeImplementation from '../../build/FullPatriciaTreeImplementation.json'
 import * as FullPatriciaTreeLibrary from '../../build/FullPatriciaTree.json'
-import * as UtilsTest  from '../../build/UtilsTest.json'
+import * as UtilsTest from '../../build/UtilsTest.json'
 
 const insertSequentialKeys = async (
   treeContract: any,
   numKeysToInsert: number,
   startingIndex: number = 0
-): Promise<{
-  key: string,
+): Promise<Array<{
+  key: string
   value: string
-}[]> => {
+}>> => {
   const pairs = []
   for (let i = startingIndex; i < startingIndex + numKeysToInsert; i++) {
-    const key = padToLength(numberToHexString(i), 32*2)
-    const value = padToLength(numberToHexString(i*32), 32*2)
-    await treeContract.insert(
-      key,
-      value
-    )
+    const key = padToLength(numberToHexString(i), 32 * 2)
+    const value = padToLength(numberToHexString(i * 32), 32 * 2)
+    await treeContract.insert(key, value)
     pairs.push({
       key,
-      value
+      value,
     })
   }
   return pairs
@@ -41,7 +48,11 @@ const insertAndVerifySequential = async (
   numKeysToInsert: number,
   startingIndex: number = 0
 ) => {
-  const KVPairs = await insertSequentialKeys(treeContract, numKeysToInsert, startingIndex)
+  const KVPairs = await insertSequentialKeys(
+    treeContract,
+    numKeysToInsert,
+    startingIndex
+  )
   const rootHash = await treeContract.getRootHash()
   for (const pair of KVPairs) {
     const proof = await treeContract.getProof(pair.key)
@@ -55,21 +66,19 @@ const insertAndVerifySequential = async (
   }
 }
 
-const getAndVerifyNonInclusionProof = async(
-  treeContract: any, 
+const getAndVerifyNonInclusionProof = async (
+  treeContract: any,
   key: number
-)  => {
-  const keyToUse = padToLength(numberToHexString(key), 32*2)
-  const nonInclusionProof = await treeContract.getNonInclusionProof(
-    keyToUse
-  )
-  
+) => {
+  const keyToUse = padToLength(numberToHexString(key), 32 * 2)
+  const nonInclusionProof = await treeContract.getNonInclusionProof(keyToUse)
+
   const conflictingEdgeLabel = nonInclusionProof[0]
   const leafNode = nonInclusionProof[1]
   const branchMask = nonInclusionProof[2]
   const siblings = nonInclusionProof[3]
 
-  let rootHash = await treeContract.getRootHash()
+  const rootHash = await treeContract.getRootHash()
 
   await treeContract.verifyNonInclusionProof(
     rootHash,
@@ -82,26 +91,42 @@ const getAndVerifyNonInclusionProof = async(
   )
 }
 
-describe.only('PatriciaTree (full, non-stateless version)', async () => {
+describe('PatriciaTree (full, non-stateless version)', async () => {
   let fullTree
   const provider = createMockProvider()
   const [wallet1, wallet2] = getWallets(provider)
 
   before(async () => {
-    const treeLibrary = await deployContract(wallet1, FullPatriciaTreeLibrary, [])
-    link(FullPatriciaTreeImplementation, 'contracts/state-tree/FullPatriciaTree.sol:FullPatriciaTree', treeLibrary.address)
+    const treeLibrary = await deployContract(
+      wallet1,
+      FullPatriciaTreeLibrary,
+      []
+    )
+    link(
+      FullPatriciaTreeImplementation,
+      'contracts/state-tree/FullPatriciaTree.sol:FullPatriciaTree',
+      treeLibrary.address
+    )
   })
 
   beforeEach('Deploy new PatriciaTree', async () => {
-    fullTree = await deployContract(wallet1, FullPatriciaTreeImplementation, [], {
-      gasLimit: 6700000,
-    })
+    fullTree = await deployContract(
+      wallet1,
+      FullPatriciaTreeImplementation,
+      [],
+      {
+        gasLimit: 6700000,
+      }
+    )
   })
 
   describe('Works as a keystore', async () => {
-    const FOO = '0x0000000000000000000000000000000000000000000000067320000000000000'
-    const BAR = '0x0000000000000000000000000000000004578000000000000000000000000000'
-    const FUZ = '0x0000000000000000157800000000000000000000000000000000000000000000'
+    const FOO =
+      '0x0000000000000000000000000000000000000000000000067320000000000000'
+    const BAR =
+      '0x0000000000000000000000000000000004578000000000000000000000000000'
+    const FUZ =
+      '0x0000000000000000157800000000000000000000000000000000000000000000'
     describe('get()', async () => {
       it('should return stored value for the given key', async () => {
         await fullTree.insert(FOO, BAR)
@@ -120,7 +145,7 @@ describe.only('PatriciaTree (full, non-stateless version)', async () => {
         await fullTree.insert(FOO, BAR)
         TestUtils.assertThrowsAsync(async () => {
           await fullTree.safeGet(FUZ)
-        })          
+        })
       })
     })
   })
@@ -128,27 +153,15 @@ describe.only('PatriciaTree (full, non-stateless version)', async () => {
   describe('Inclusion proof generation and verification', async () => {
     it('should work for the single-key case', async () => {
       const key = 150
-      const pairs = await insertAndVerifySequential(
-        fullTree,
-        1,
-        key
-      )
+      const pairs = await insertAndVerifySequential(fullTree, 1, key)
     })
     it('should work for the two-key sequential case', async () => {
       const startKey = 150
-      const pairs = await insertAndVerifySequential(
-        fullTree,
-        2,
-        startKey
-      )
+      const pairs = await insertAndVerifySequential(fullTree, 2, startKey)
     })
     it('should work for 17-key sequential case', async () => {
       const startKey = 150
-      const pairs = await insertAndVerifySequential(
-        fullTree,
-        17,
-        startKey
-      )
+      const pairs = await insertAndVerifySequential(fullTree, 17, startKey)
     })
     it('should work for multiple non-sequential keys', async () => {
       const keyToVerify = 18
@@ -157,11 +170,7 @@ describe.only('PatriciaTree (full, non-stateless version)', async () => {
       await insertSequentialKeys(fullTree, 1, 27)
       await insertSequentialKeys(fullTree, 1, 100000)
       await insertSequentialKeys(fullTree, 1, 3000000345)
-      const pairs = await insertSequentialKeys(
-        fullTree,
-        1,
-        keyToVerify
-      )
+      const pairs = await insertSequentialKeys(fullTree, 1, keyToVerify)
       const pair = pairs[0]
       const rootHash = await fullTree.getRootHash()
       const proof = await fullTree.getProof(pair.key)
