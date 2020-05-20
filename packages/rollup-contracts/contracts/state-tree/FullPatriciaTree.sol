@@ -1,8 +1,8 @@
 pragma solidity >=0.5.0 <0.6.0;
 pragma experimental ABIEncoderV2;
 
-import {D} from "./data.sol";
-import {Utils} from "./utils.sol";
+import {D} from "./DataTypes.sol";
+import {Utils} from "./BinaryUtils.sol";
 
 /**
  MIT License
@@ -10,7 +10,7 @@ import {Utils} from "./utils.sol";
  Rewritten by: Wanseob Lim
  */
 
-library PatriciaTree {
+library FullPatriciaTree {
     struct Tree {
         // Mapping of hash of key to value
         mapping(bytes32 => bytes) values;
@@ -246,7 +246,7 @@ library PatriciaTree {
         );
     }
 
-    function verifyNonInclusionProof2(
+    function verifyNonInclusionProof(
         bytes32 rootHash,
         bytes32 key,
         bytes32 conflictingEdgeFullLabelData,
@@ -270,41 +270,6 @@ library PatriciaTree {
             branchMask,
             siblings
         );
-    }
-
-    function verifyNonInclusionProof(bytes32 rootHash, bytes32 key, bytes32 potentialSiblingLabel, bytes32 potentialSiblingValue, uint branchMask, bytes32[] memory siblings) public pure {
-        // Hash to fixed length key AKA full label (TODO get rid of this)
-        // D.Label memory remainingKeyLabel
-        D.Label memory k = D.Label(key, 256);
-        // Initialize an edge to be tracing up to the root
-        D.Edge memory e;
-        // we go through the tree starting at the bottom/leaves
-        for (uint i = 0; branchMask != 0; i++) {
-            // get the rightmost nonzero mask bit index (0 == rightmost index, we are going "up" the tree)
-            uint bitSet = Utils.lowestBitSet(branchMask);
-            // remove the bit whose index we just found
-            branchMask &= ~(uint(1) << bitSet);
-
-            // split non-included key (as a label i.e. both length & val) into (prefix, suffix) with the bitSet as first in suffix
-            // e.g. if the final bit is in the mask (bitset = 0), this will make e.label = final bit and the remaining bits in k
-            (k, e.label) = Utils.splitAt(k, 255 - bitSet);
-
-            // chop first bit from label.data to get whether this is a left or right edge.
-            // note that this does remove the bit from e.label
-            uint bit;
-            (bit, e.label) = Utils.chopFirstBit(e.label);
-            bytes32[2] memory edgeHashes;
-            if (i == 0) {
-                e.label.length = bitSet;
-                e.label.data = potentialSiblingLabel;
-                e.node = potentialSiblingValue;
-            }
-            edgeHashes[bit] = edgeHash(e);
-            edgeHashes[1 - bit] = siblings[siblings.length - i - 1];
-            e.node = keccak256(abi.encode(edgeHashes[0], edgeHashes[1]));
-        }
-        e.label = k;
-        require(rootHash == edgeHash(e), 'Root edge hash calculated from siblings did not match given rootHash.');
     }
 
     // TODO also return the proof

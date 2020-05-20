@@ -5,7 +5,7 @@ pragma solidity >=0.5.0 <0.6.0;
  Original author: chriseth
  */
 
-import {D} from "./data.sol";
+import {D} from "./DataTypes.sol";
 
 library Utils {
     /// combines two labels into one

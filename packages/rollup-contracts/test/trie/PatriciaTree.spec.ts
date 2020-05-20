@@ -8,11 +8,8 @@ import { createMockProvider, deployContract, getWallets, link } from 'ethereum-w
 const log = getLogger('patricia-tree', true)
 
 /* Contract Imports */
-import * as PatriciaTreeImplementation from '../../build/PatriciaTreeImplementation.json'
-import * as PatriciaTreeLibrary from '../../build/PatriciaTree.json'
-
-const ZERO_KEY = padToLength(numberToHexString(0), 32*2)
-const BIG_RANDOM_KEY = padToLength(numberToHexString(1234567), 32*2)
+import * as FullPatriciaTreeImplementation from '../../build/FullPatriciaTreeImplementation.json'
+import * as FullPatriciaTreeLibrary from '../../build/FullPatriciaTree.json'
 
 const insertSequentialKeys = async (
   treeContract: any,
@@ -38,109 +35,135 @@ const insertSequentialKeys = async (
   return pairs
 }
 
-describe.only('PatriciaTree', async () => {
-    let fullTree
-    const provider = createMockProvider()
-    const [wallet1, wallet2] = getWallets(provider)
+const insertAndVerifySequential = async (
+  treeContract: any,
+  numKeysToInsert: number,
+  startingIndex: number = 0
+) => {
+  const KVPairs = await insertSequentialKeys(treeContract, numKeysToInsert, startingIndex)
+  const rootHash = await treeContract.getRootHash()
+  for (const pair of KVPairs) {
+    const proof = await treeContract.getProof(pair.key)
+    await treeContract.verifyProof(
+      rootHash,
+      pair.key,
+      pair.value,
+      proof.branchMask,
+      proof._siblings
+    )
+  }
+}
 
-    before(async () => {
-      const treeLibrary = await deployContract(wallet1, PatriciaTreeLibrary, [])
-      link(PatriciaTreeImplementation, 'contracts/trie/tree.sol:PatriciaTree', treeLibrary.address)
+const getAndVerifyNonInclusionProof = async(
+  treeContract: any, 
+  key: number
+)  => {
+  const keyToUse = padToLength(numberToHexString(key), 32*2)
+  const nonInclusionProof = await treeContract.getNonInclusionProof(
+    keyToUse
+  )
+  
+  const conflictingEdgeLabel = nonInclusionProof[0]
+  const leafNode = nonInclusionProof[1]
+  const branchMask = nonInclusionProof[2]
+  const siblings = nonInclusionProof[3]
+
+  let rootHash = await treeContract.getRootHash()
+
+  await treeContract.verifyNonInclusionProof(
+    rootHash,
+    keyToUse,
+    conflictingEdgeLabel[0],
+    conflictingEdgeLabel[1],
+    leafNode,
+    branchMask,
+    siblings
+  )
+}
+
+describe.only('PatriciaTree (full, non-stateless version)', async () => {
+  let fullTree
+  const provider = createMockProvider()
+  const [wallet1, wallet2] = getWallets(provider)
+
+  before(async () => {
+    const treeLibrary = await deployContract(wallet1, FullPatriciaTreeLibrary, [])
+    link(FullPatriciaTreeImplementation, 'contracts/state-tree/FullPatriciaTree.sol:FullPatriciaTree', treeLibrary.address)
+  })
+
+  beforeEach('deploy new PatriciaTree', async () => {
+    fullTree = await deployContract(wallet1, FullPatriciaTreeImplementation, [], {
+      gasLimit: 6700000,
     })
+  })
 
-    beforeEach('deploy new PatriciaTree', async () => {
-      fullTree = await deployContract(wallet1, PatriciaTreeImplementation, [], {
-        gasLimit: 6700000,
-      })
-    })
-    describe('getProof() & verifyProof()', async () => {
-      it('should be able to verify proofs for some keys', async () => {
-        const numLeaves = 5
-        const KVPairs = await insertSequentialKeys(fullTree, numLeaves)
-        const rootHash = await fullTree.getRootHash()
-        for (const {key, value} of KVPairs) {
-          const proof = await fullTree.getProof(key)
-          log.debug(`Got proof for key: ${key}, value: ${value}.  It has:`)
-          log.debug(`    proof bitmask (in binary): ${
-            hexStrToNumber(proof.branchMask._hex)
-            .toString(2)
-          }`)
-          log.debug(`    proof siblings: ${proof._siblings}`)
-          await fullTree.verifyProof(
-            rootHash,
-            key,
-            value,
-            proof.branchMask,
-            proof._siblings
-          )
-        }
-    })
-
-    it.only('non inclusion messing around', async () => {
-      const numLeaves = 21
-      const offset = 1
-      const KVPairs = await insertSequentialKeys(fullTree, numLeaves, offset)
-
-      const keyToUse = BIG_RANDOM_KEY
-
-      log.debug(`getting  non-inclusion proof for key ${keyToUse}`)
-      const nonInclusionProof = await fullTree.getNonInclusionProof(
-        keyToUse
+  describe('Inclusion proof generation and verification', async () => {
+    it('should work for the single-key case', async () => {
+      const key = 150
+      const pairs = await insertAndVerifySequential(
+        fullTree,
+        1,
+        key
       )
-      
-      const leafLabel = nonInclusionProof[0]
-      const leafNode = nonInclusionProof[1]
-      const branchMask = nonInclusionProof[2]
-      const siblings = nonInclusionProof[3]
-      // const leafLength = nonInclusionProof[4]
-
-      log.debug(`here is the non inclusion proof:`)
-      log.debug(`leaf label: ${leafLabel}`)
-      log.debug(`leaf label(this time just data in binary): ${hexStrToNumber(leafLabel[0]).toString(2)}`)
-      log.debug(`leaf node/hash: ${leafNode}`)
-      log.debug(`branch mask (in binary): ${hexStrToNumber(branchMask._hex).toString(2)}`)
-      log.debug(`siblings: ${siblings}`)
-      // log.debug(`leaf length: ${leafLength}`)
-
-
-      // const ONE_KEY = padToLength(numberToHexString(1), 32*2)
-      // const proof = await fullTree.getProof(ONE_KEY)
-      // const onekeyval = await fullTree.get(ONE_KEY)
-      // const hashedonekeyval = await fullTree.getHash(onekeyval);
-      
-      // log.debug(`Got proof for key: ${ONE_KEY}, It has:`)
-      // log.debug(`    proof bitmask (in binary): ${
-      //   hexStrToNumber(proof.branchMask._hex)
-      //   .toString(2)
-      // }`)
-      // log.debug(`    proof edge commitment: ${hashedonekeyval}`)
-      // log.debug(`    proof siblings: ${proof._siblings}`)
-      // log.debug(` and the value for ${ONE_KEY} is: ${onekeyval}, which hashes to: ${hashedonekeyval}`)
-
-
-      let rootHash = await fullTree.getRootHash()
-
-
-
-      // await fullTree.verifyProof(
-      //   rootHash,
-      //   ONE_KEY,
-      //   onekeyval,
-      //   proof.branchMask,
-      //   proof._siblings
-      // )
-
-
-      const doesConflict = await fullTree.verifyNonInclusionProof2(
+    })
+    it('should work for the two-key sequential case', async () => {
+      const startKey = 150
+      const pairs = await insertAndVerifySequential(
+        fullTree,
+        2,
+        startKey
+      )
+    })
+    it('should work for 17-key sequential case', async () => {
+      const startKey = 150
+      const pairs = await insertAndVerifySequential(
+        fullTree,
+        17,
+        startKey
+      )
+    })
+    it('should work for multiple non-sequential keys', async () => {
+      const keyToVerify = 18
+      await insertSequentialKeys(fullTree, 1, 5)
+      await insertSequentialKeys(fullTree, 1, 13)
+      await insertSequentialKeys(fullTree, 1, 27)
+      await insertSequentialKeys(fullTree, 1, 100000)
+      await insertSequentialKeys(fullTree, 1, 3000000345)
+      const pairs = await insertSequentialKeys(
+        fullTree,
+        1,
+        keyToVerify
+      )
+      const pair = pairs[0]
+      const rootHash = await fullTree.getRootHash()
+      const proof = await fullTree.getProof(pair.key)
+      await fullTree.verifyProof(
         rootHash,
-        keyToUse,
-        leafLabel[0],
-        leafLabel[1],
-        leafNode,
-        branchMask,
-        siblings
+        pair.key,
+        pair.value,
+        proof.branchMask,
+        proof._siblings
       )
-      log.debug(`branches at conflict?: ${JSON.stringify(doesConflict)}`)
+    })
+  })
+  describe('Non-inclusion proof generation and verification', async () => {
+    it('Should work for an unset key next to a set one', async () => {
+      await insertSequentialKeys(fullTree, 1, 0)
+      await getAndVerifyNonInclusionProof(fullTree, 1)
+    })
+    it('Should work for an unset key between two set ones', async () => {
+      await insertSequentialKeys(fullTree, 1, 0)
+      await insertSequentialKeys(fullTree, 1, 2)
+      await getAndVerifyNonInclusionProof(fullTree, 1)
+    })
+    it('Should work for an unset key next to some set ones', async () => {
+      await insertSequentialKeys(fullTree, 7, 1)
+      await getAndVerifyNonInclusionProof(fullTree, 0)
+    })
+    it('Should work for an unset key far away from some set ones', async () => {
+      await insertSequentialKeys(fullTree, 3, 0)
+      await insertSequentialKeys(fullTree, 3, 60)
+      await getAndVerifyNonInclusionProof(fullTree, 17)
     })
   })
 })

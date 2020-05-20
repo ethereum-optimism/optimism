@@ -20,4 +20,3 @@ library D {
         Edge[2] children;
     }
 }
-
