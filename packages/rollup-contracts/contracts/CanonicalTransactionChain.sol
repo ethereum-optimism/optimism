@@ -55,7 +55,7 @@ contract CanonicalTransactionChain {
     // verify header is the next to dequeue for the L1->L2 queue
     bytes32 batchHeaderHash = l1ToL2Queue.hashBatchHeader(_batchHeader);
     dt.TimestampedHash memory timestampedHash = l1ToL2Queue.getFrontBatch();
-    require(batchHeaderHash == timestampedHash.batchHeaderHash, "this aint it chief");
+    require(batchHeaderHash == timestampedHash.batchHeaderHash, "This batch header is different than the batch header at the front of the L1ToL2TransactionQueue");
     // if (timestamp + sequencerLivenessAssumption > now) {
     //   require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
     // }
@@ -83,6 +83,7 @@ contract CanonicalTransactionChain {
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
 
+    // TODO
     // require(_timestamp > lastOVMTimestamp, "timestamps must monotonically increase");
     // lastOVMTimestamp = _timestamp;
     // require dist(_timestamp, batch.timestamp) < sequencerLivenessAssumption

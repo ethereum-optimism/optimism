@@ -48,9 +48,6 @@ describe('L1ToL2TransactionQueue', () => {
     )
   })
 
-  /*
-   * Test enqueueBatch()
-   */
   describe('enqueueBatch() ', async () => {
     it('should allow enqueue from l1ToL2TransactionPasser', async () => {
       const batch = ['0x1234']
@@ -65,9 +62,7 @@ describe('L1ToL2TransactionQueue', () => {
         )
     })
   })
-  /*
-   * Test dequeueBatch()
-   */
+
   describe('dequeueBatch() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
       const batch = ['0x1234']
@@ -75,25 +70,19 @@ describe('L1ToL2TransactionQueue', () => {
       const batchIndex = 0
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
       let batchesLength = await l1ToL2TxQueue.getBatchesLength()
-      log.debug(`batchesLength before deletion: ${batchesLength}`)
       let front = await l1ToL2TxQueue.front()
-      log.debug(`front before deletion: ${front}`)
       let firstBatchHash = await l1ToL2TxQueue.batches(0)
-      log.debug(`firstBatchHash before deletion: ${firstBatchHash}`)
 
       // delete the single appended batch
       await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeueBatch()
 
       batchesLength = await l1ToL2TxQueue.getBatchesLength()
-      log.debug(`batchesLength after deletion: ${batchesLength}`)
       batchesLength.should.equal(1)
       firstBatchHash = (await l1ToL2TxQueue.batches(0)).batchHeaderHash
-      log.debug(`firstBatchHash after deletion: ${firstBatchHash}`)
       firstBatchHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
       front = await l1ToL2TxQueue.front()
-      log.debug(`front after deletion: ${front}`)
       front.should.equal(1)
     })
     it('should not allow dequeue from other address', async () => {

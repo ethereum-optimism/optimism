@@ -10,7 +10,7 @@ import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 
 import { utils } from 'ethers'
 
-interface BatchHeader {
+interface TxChainBatchHeader {
   timestamp: number
   isL1ToL2Tx: boolean
   elementsMerkleRoot: string
@@ -20,9 +20,14 @@ interface BatchHeader {
 
 interface ElementInclusionProof {
   batchIndex: number
-  batchHeader: BatchHeader
+  batchHeader: TxChainBatchHeader
   indexInBatch: number
   siblings: string[]
+}
+
+interface TxQueueBatchHeader {
+  elementsMerkleRoot: string
+  numElementsInBatch: number
 }
 
 /*
@@ -158,6 +163,13 @@ export class RollupQueueBatch {
         new BigNumber(i, 10),
         hexStrToBuf(this.elements[i])
       )
+    }
+  }
+  public async getBatchHeader(): Promise<TxQueueBatchHeader> {
+    const bufferRoot = await this.elementsMerkleTree.getRootHash()
+    return {
+      elementsMerkleRoot: bufToHexString(bufferRoot),
+      numElementsInBatch: this.elements.length,
     }
   }
 
