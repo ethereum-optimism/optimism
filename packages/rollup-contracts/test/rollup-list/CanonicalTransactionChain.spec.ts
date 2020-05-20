@@ -178,23 +178,23 @@ describe('CanonicalTransactionChain', () => {
   describe('appendL1ToL2Batch()', async () => {
     let l1ToL2Queue
     const localL1ToL2Queue = []
+    const tx = '0x1234'
     const enqueueAndGenerateBatch = async (
-      tx: string
+      _tx: string
     ): Promise<RollupQueueBatch> => {
       // Submit the rollup batch on-chain
       const enqueueTx = await l1ToL2Queue
         .connect(l1ToL2TransactionPasser)
-        .enqueueTx(tx)
+        .enqueueTx(_tx)
       const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
       const timestamp = (await provider.getBlock(txReceipt.blockNumber))
         .timestamp
       // Generate a local version of the rollup batch
-      const localBatch = new RollupQueueBatch(tx, timestamp)
+      const localBatch = new RollupQueueBatch(_tx, timestamp)
       await localBatch.generateTree()
       return localBatch
     }
     beforeEach(async () => {
-      const tx = '0x1234'
       const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
       l1ToL2Queue = new Contract(
         l1ToL2QueueAddress,
@@ -213,6 +213,21 @@ describe('CanonicalTransactionChain', () => {
       txHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
+    })
+    it('should successfully append a L1ToL2Batch', async () => {
+      const { timestamp, txHash } = await l1ToL2Queue.batches(0)
+      const localBatch = new DefaultRollupBatch(
+        timestamp,
+        true, // isL1ToL2Tx
+        0, //batchIndex
+        0, // cumulativePrevElements
+        [tx] // elements
+      )
+      await localBatch.generateTree()
+      const localBatchHeaderHash = await localBatch.hashBatchHeader()
+      await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
+      const batchHeaderHash = await canonicalTxChain.batches(0)
+      batchHeaderHash.should.equal(localBatchHeaderHash)
     })
   })
 

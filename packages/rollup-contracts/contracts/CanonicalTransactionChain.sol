@@ -52,28 +52,28 @@ contract CanonicalTransactionChain {
   }
 
   function appendL1ToL2Batch() public {
-    // verify header is the next to dequeue for the L1->L2 queue
-    // bytes32 batchHeaderHash = l1ToL2Queue.hashBatchHeader(_batchHeader);
     dt.TimestampedHash memory timestampedHash = l1ToL2Queue.getFrontBatch();
-    // require(batchHeaderHash == timestampedHash.batchHeaderHash, "This batch header is different than the batch header at the front of the L1ToL2TransactionQueue");
-    // if (timestamp + sequencerLivenessAssumption > now) {
-    //   require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
-    // }
-    // require(_timestamp > lastOVMTimestamp, "timestamps must monotonically increase");
-    // lastOVMTimestamp = _timestamp;
+    uint timestamp = timestampedHash.timestamp;
+    bytes32 elementsMerkleRoot = timestampedHash.txHash;
+    if (timestamp + sequencerLivenessAssumption > now) {
+      require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
+    }
+    require(timestamp >= latestOVMTimestamp, "Timestamps must be monotonically increasing");
+    latestOVMTimestamp = timestamp;
     // // TODO require proposed timestamp is not too far away from currnt timestamp
     // // require dist(_timestamp, block.timestamp) < sequencerLivenessAssumption
     // // calculate batch header
-    // bytes32 batchHeaderHash = keccak256(abi.encodePacked(
-    //   _timestamp,
-    //   false, // isL1ToL2Tx
-    //   merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
-    //   _txBatch.length, // numElementsInBatch
-    //   cumulativeNumElements // cumulativeNumElements
-    // ));
-    // // store batch header
-    // batches.push(batchHeaderHash);
-    // cumulativeElements += _header.numElementsInBlock;
+    uint numElementsInBatch = 1;
+    bytes32 batchHeaderHash = keccak256(abi.encodePacked(
+      timestamp,
+      true, // isL1ToL2Tx
+      elementsMerkleRoot, 
+      numElementsInBatch, // numElementsInBatch
+      cumulativeNumElements // cumulativePrevElements
+    ));
+    // store batch header
+    batches.push(batchHeaderHash);
+    cumulativeNumElements++; // add a single tx
     l1ToL2Queue.dequeueBatch();
   }
 
@@ -82,12 +82,11 @@ contract CanonicalTransactionChain {
     //Check that msg.sender is authorized to append
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
-
-    // TODO
-    // require(_timestamp > lastOVMTimestamp, "timestamps must monotonically increase");
-    // lastOVMTimestamp = _timestamp;
+    require(_timestamp >= latestOVMTimestamp, "timestamps must monotonically increase");
+    latestOVMTimestamp = _timestamp;
     // require dist(_timestamp, batch.timestamp) < sequencerLivenessAssumption
     // require(L1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.")
+    // TODO check that this timestamp is before that of the oldest slowQueue and l1ToL2Queue batches
 
     // calculate batch header
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
