@@ -143,9 +143,11 @@ export class DefaultRollupBatch {
 export class RollupQueueBatch {
   public elements: string[] //Rollup batch
   public elementsMerkleTree: SparseMerkleTreeImpl
+  public timestamp: number
 
-  constructor(elements: string[]) {
-    this.elements = elements
+  constructor(tx: string, timestamp: number) {
+    this.elements = [tx]
+    this.timestamp = timestamp
   }
   /*
    * Generate the elements merkle tree from this.elements
@@ -165,19 +167,8 @@ export class RollupQueueBatch {
       )
     }
   }
-  public async getBatchHeader(): Promise<TxQueueBatchHeader> {
+  public async getMerkleRoot(): Promise<string> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
-    return {
-      elementsMerkleRoot: bufToHexString(bufferRoot),
-      numElementsInBatch: this.elements.length,
-    }
-  }
-
-  public async hashBatchHeader(): Promise<string> {
-    const bufferRoot = await this.elementsMerkleTree.getRootHash()
-    return utils.solidityKeccak256(
-      ['bytes32', 'uint'],
-      [bufToHexString(bufferRoot), this.elements.length]
-    )
+    return bufToHexString(bufferRoot)
   }
 }

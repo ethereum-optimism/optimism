@@ -33,6 +33,6 @@ contract DataTypes {
 
    struct TimestampedHash {
        uint timestamp;
-       bytes32 batchHeaderHash;
+       bytes32 txHash;
     }
 }

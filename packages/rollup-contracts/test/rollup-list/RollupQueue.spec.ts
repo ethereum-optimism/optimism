@@ -41,69 +41,49 @@ describe('RollupQueue', () => {
   })
 
   const enqueueAndGenerateBatch = async (
-    batch: string[]
+    tx: string
   ): Promise<RollupQueueBatch> => {
     // Submit the rollup batch on-chain
-    await rollupQueue.enqueueBatch(batch)
+    const enqueueTx = await rollupQueue.enqueueTx(tx)
+    const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
+    const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
     // Generate a local version of the rollup batch
-    const localBatch = new RollupQueueBatch(batch)
+    const localBatch = new RollupQueueBatch(tx, timestamp)
     await localBatch.generateTree()
     return localBatch
   }
   /*
-   * Test enqueueBatch()
+   * Test enqueueTx()
    */
-  describe('enqueueBatch() ', async () => {
+  describe('enqueueTx() ', async () => {
     it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
-      const batch = ['0x1234', '0x1234']
-      await rollupQueue.enqueueBatch(batch) // Did not throw... success!
+      const tx = '0x1234'
+      await rollupQueue.enqueueTx(tx) // Did not throw... success!
     })
-
-    it('should throw if submitting an empty batch', async () => {
-      const emptyBatch = []
-      await rollupQueue
-        .enqueueBatch(emptyBatch)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot submit an empty batch'
-        )
-    })
-
     it('should add to batches array', async () => {
-      const batch = ['0x1234', '0x6578']
-      const output = await rollupQueue.enqueueBatch(batch)
+      const tx = '0x1234'
+      const output = await rollupQueue.enqueueTx(tx)
       const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
-
-    it('should update cumulativeNumElements correctly', async () => {
-      const batch = ['0x1234', '0x5678']
-      await rollupQueue.enqueueBatch(batch)
-      const cumulativeNumElements = await rollupQueue.cumulativeNumElements.call()
-      cumulativeNumElements.toNumber().should.equal(2)
-    })
-
-    it('should calculate batchHeaderHash correctly', async () => {
-      const batch = ['0x1234', '0x5678']
-      const localBatch = await enqueueAndGenerateBatch(batch)
-      //Check batchHeaderHash
-      const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
-      const calculatedBatchHeaderHash = (await rollupQueue.batches(0))
-        .batchHeaderHash
-      calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
+    it('should calculate set the TimestampedHash correctly', async () => {
+      const tx = '0x1234'
+      const localBatch = await enqueueAndGenerateBatch(tx)
+      const { txHash, timestamp } = await rollupQueue.batches(0)
+      const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
+      txHash.should.equal(expectedBatchHeaderHash)
+      timestamp.should.equal(localBatch.timestamp)
     })
 
     it('should add multiple batches correctly', async () => {
-      const batch = ['0x1234', '0x5678']
+      const tx = '0x1234'
       const numBatches = 10
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = batch.length * batchIndex
-        const localBatch = await enqueueAndGenerateBatch(batch)
-        //Check batchHeaderHash
-        const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
-        const calculatedBatchHeaderHash = (
-          await rollupQueue.batches(batchIndex)
-        ).batchHeaderHash
-        calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
+        const localBatch = await enqueueAndGenerateBatch(tx)
+        const { txHash, timestamp } = await rollupQueue.batches(batchIndex)
+        const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
+        txHash.should.equal(expectedBatchHeaderHash)
+        timestamp.should.equal(localBatch.timestamp)
       }
       //check batches length
       const batchesLength = await rollupQueue.getBatchesLength()
@@ -113,35 +93,37 @@ describe('RollupQueue', () => {
 
   describe('dequeueBatch()', async () => {
     it('should dequeue single batch', async () => {
-      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await enqueueAndGenerateBatch(batch)
+      const tx = '0x1234'
+      const localBatch = await enqueueAndGenerateBatch(tx)
       // delete the single appended batch
       await rollupQueue.dequeueBatch()
 
       const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.should.equal(1)
-      const firstBatchHash = (await rollupQueue.batches(0)).batchHeaderHash
-      firstBatchHash.should.equal(
+      const { txHash, timestamp } = await rollupQueue.batches(0)
+      txHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
+      timestamp.should.equal(0)
       const front = await rollupQueue.front()
       front.should.equal(1)
     })
 
     it('should dequeue many batches', async () => {
-      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const tx = '0x1234'
       const numBatches = 5
-      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        await enqueueAndGenerateBatch(batch)
+      for (let i = 0; i < numBatches; i++) {
+        await enqueueAndGenerateBatch(tx)
       }
       for (let i = 0; i < numBatches; i++) {
         await rollupQueue.dequeueBatch()
         const front = await rollupQueue.front()
         front.should.equal(i + 1)
-        const ithBatchHash = (await rollupQueue.batches(i)).batchHeaderHash
-        ithBatchHash.should.equal(
+        const { txHash, timestamp } = await rollupQueue.batches(i)
+        txHash.should.equal(
           '0x0000000000000000000000000000000000000000000000000000000000000000'
         )
+        timestamp.should.equal(0)
       }
       const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.should.equal(numBatches)
@@ -156,10 +138,10 @@ describe('RollupQueue', () => {
     })
 
     it('should throw if dequeueing from a once populated, now empty queue', async () => {
-      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const tx = '0x1234'
       const numBatches = 3
-      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        await enqueueAndGenerateBatch(batch)
+      for (let i = 0; i < numBatches; i++) {
+        await enqueueAndGenerateBatch(tx)
       }
       for (let i = 0; i < numBatches; i++) {
         await rollupQueue.dequeueBatch()

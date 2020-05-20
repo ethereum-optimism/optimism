@@ -51,7 +51,7 @@ describe('CanonicalTransactionChain', () => {
     )
   })
 
-  const enqueueAndGenerateBatch = async (
+  const appendAndGenerateBatch = async (
     batch: string[],
     timestamp: number,
     batchIndex: number,
@@ -136,7 +136,7 @@ describe('CanonicalTransactionChain', () => {
       const batchIndex = 0
       const cumulativePrevElements = 0
       const timestamp = 0
-      const localBatch = await enqueueAndGenerateBatch(
+      const localBatch = await appendAndGenerateBatch(
         batch,
         timestamp,
         batchIndex,
@@ -153,7 +153,7 @@ describe('CanonicalTransactionChain', () => {
       for (let batchIndex = 0; batchIndex < numBatchs; batchIndex++) {
         const timestamp = batchIndex
         const cumulativePrevElements = batch.length * batchIndex
-        const localBatch = await enqueueAndGenerateBatch(
+        const localBatch = await appendAndGenerateBatch(
           batch,
           timestamp,
           batchIndex,
@@ -178,48 +178,39 @@ describe('CanonicalTransactionChain', () => {
   describe('appendL1ToL2Batch()', async () => {
     let l1ToL2Queue
     const localL1ToL2Queue = []
-    const enqueueAndGenerateQueueBatch = async (
-      batch: string[]
+    const enqueueAndGenerateBatch = async (
+      tx: string
     ): Promise<RollupQueueBatch> => {
       // Submit the rollup batch on-chain
-      await l1ToL2Queue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
+      const enqueueTx = await l1ToL2Queue
+        .connect(l1ToL2TransactionPasser)
+        .enqueueTx(tx)
+      const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
+      const timestamp = (await provider.getBlock(txReceipt.blockNumber))
+        .timestamp
       // Generate a local version of the rollup batch
-      const localBatch = new RollupQueueBatch(batch)
+      const localBatch = new RollupQueueBatch(tx, timestamp)
       await localBatch.generateTree()
       return localBatch
     }
     beforeEach(async () => {
-      const batch = ['0x1234', '0x1234']
+      const tx = '0x1234'
       const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
       l1ToL2Queue = new Contract(
         l1ToL2QueueAddress,
         L1ToL2TransactionQueue.abi,
         provider
       )
-      const localBatch = await enqueueAndGenerateQueueBatch(batch)
+      const localBatch = await enqueueAndGenerateBatch(tx)
       localL1ToL2Queue.push(localBatch)
     })
-    it.only('should revert when passed an incorrect batch header', async () => {
-      const localBatchHeader = await localL1ToL2Queue[0].getBatchHeader()
-      localBatchHeader.numElementsInBatch++
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendL1ToL2Batch(localBatchHeader)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert This batch header is different than the batch header at the front of the L1ToL2TransactionQueue'
-        )
-    })
     it('should successfully dequeue a L1ToL2Batch', async () => {
-      const localBatchHeader = await localL1ToL2Queue[0].getBatchHeader()
-      console.log('local', localBatchHeader)
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendL1ToL2Batch(localBatchHeader)
+      await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
       const front = await l1ToL2Queue.front()
       front.should.equal(1)
-      const { timestamp, batchHeaderHash } = await l1ToL2Queue.batches(0)
+      const { timestamp, txHash } = await l1ToL2Queue.batches(0)
       timestamp.should.equal(0)
-      batchHeaderHash.should.equal(
+      txHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
     })
@@ -237,7 +228,7 @@ describe('CanonicalTransactionChain', () => {
       ) {
         const timestamp = batchIndex
         const cumulativePrevElements = batch.length * batchIndex
-        const localBatch = await enqueueAndGenerateBatch(
+        const localBatch = await appendAndGenerateBatch(
           batch,
           timestamp,
           batchIndex,
@@ -264,7 +255,7 @@ describe('CanonicalTransactionChain', () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
       const timestamp = 0
-      const localBatch = await enqueueAndGenerateBatch(
+      const localBatch = await appendAndGenerateBatch(
         batch,
         timestamp,
         batchIndex,
@@ -291,7 +282,7 @@ describe('CanonicalTransactionChain', () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
       const timestamp = 0
-      const localBatch = await enqueueAndGenerateBatch(
+      const localBatch = await appendAndGenerateBatch(
         batch,
         timestamp,
         batchIndex,

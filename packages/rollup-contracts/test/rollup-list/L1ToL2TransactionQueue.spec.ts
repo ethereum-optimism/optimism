@@ -50,13 +50,15 @@ describe('L1ToL2TransactionQueue', () => {
 
   describe('enqueueBatch() ', async () => {
     it('should allow enqueue from l1ToL2TransactionPasser', async () => {
-      const batch = ['0x1234']
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch) // Did not throw... success!
+      const tx = '0x1234'
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(tx) // Did not throw... success!
+      const batchesLength = await l1ToL2TxQueue.getBatchesLength()
+      batchesLength.should.equal(1)
     })
     it('should not allow enqueue from other address', async () => {
-      const batch = ['0x1234']
+      const tx = '0x1234'
       await l1ToL2TxQueue
-        .enqueueBatch(batch)
+        .enqueueTx(tx)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to enqueue'
         )
@@ -65,31 +67,22 @@ describe('L1ToL2TransactionQueue', () => {
 
   describe('dequeueBatch() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
-      const batch = ['0x1234']
-      const cumulativePrevElements = 0
-      const batchIndex = 0
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
-      let batchesLength = await l1ToL2TxQueue.getBatchesLength()
-      let front = await l1ToL2TxQueue.front()
-      let firstBatchHash = await l1ToL2TxQueue.batches(0)
-
-      // delete the single appended batch
+      const tx = '0x1234'
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(tx)
       await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeueBatch()
-
-      batchesLength = await l1ToL2TxQueue.getBatchesLength()
+      const batchesLength = await l1ToL2TxQueue.getBatchesLength()
       batchesLength.should.equal(1)
-      firstBatchHash = (await l1ToL2TxQueue.batches(0)).batchHeaderHash
-      firstBatchHash.should.equal(
+      const { txHash, timestamp } = await l1ToL2TxQueue.batches(0)
+      txHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
-      front = await l1ToL2TxQueue.front()
+      timestamp.should.equal(0)
+      const front = await l1ToL2TxQueue.front()
       front.should.equal(1)
     })
     it('should not allow dequeue from other address', async () => {
-      const batch = ['0x1234']
-      const cumulativePrevElements = 0
-      const batchIndex = 0
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueBatch(batch)
+      const tx = '0x1234'
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(tx)
       await l1ToL2TxQueue
         .dequeueBatch()
         .should.be.revertedWith(

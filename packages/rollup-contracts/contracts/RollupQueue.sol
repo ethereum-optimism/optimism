@@ -6,8 +6,6 @@ import {DataTypes as dt} from "./DataTypes.sol";
 import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 
 contract RollupQueue {
-  // How many elements in total have been appended
-  uint public cumulativeNumElements;
   // List of batch header hashes
   dt.TimestampedHash[] public batches;
   uint256 public front; //Index of the first batchHeaderHash in the list
@@ -32,35 +30,17 @@ contract RollupQueue {
     return batches[front];
   }
 
-  function hashBatchHeader(
-    dt.TxQueueBatchHeader memory _batchHeader
-  ) public pure returns (bytes32) {
-    return keccak256(abi.encodePacked(
-      _batchHeader.elementsMerkleRoot,
-      _batchHeader.numElementsInBatch
-    ));
-  }
-
   function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
   function authenticateDequeue(address _sender) public view returns (bool) { return true; }
 
   // enqueues to the end of the current queue of batches
-  function enqueueBatch(bytes[] memory _rollupBatch) public {
-    //Check that msg.sender is authorized to append
+  function enqueueTx(bytes memory _tx) public {
     require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
-    require(_rollupBatch.length > 0, "Cannot submit an empty batch");
-    // calculate batch header
-    bytes32 batchHeaderHash = keccak256(
-      abi.encodePacked(
-        merkleUtils.getMerkleRoot(_rollupBatch), // elementsMerkleRoot
-        _rollupBatch.length // numElementsInBatch
-      )
+    dt.TimestampedHash memory timestampedHash = dt.TimestampedHash(
+      now,
+      keccak256(_tx)
     );
-    dt.TimestampedHash memory timestampedBatchHeaderHash = dt.TimestampedHash(now, batchHeaderHash);
-    // store batch header
-    batches.push(timestampedBatchHeaderHash);
-    // update cumulative elements
-    cumulativeNumElements += _rollupBatch.length;
+    batches.push(timestampedHash);
   }
 
   // dequeues the first (oldest) batch
