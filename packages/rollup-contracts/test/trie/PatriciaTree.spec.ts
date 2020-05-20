@@ -196,21 +196,9 @@ describe.only('PatriciaTree (full, non-stateless version)', async () => {
   })
 
   describe('Binary Utils library', async () => {
-    describe('Legacy tests written in Solidity should all pass', async () => {
-      const testMethodNames = [
-        'testLowestBitSet',
-        'testChopFirstBit',
-        'testRemovePrefix',
-        'testCommonPrefix',
-        'testSplitAt',
-        'testSplitCommonPrefix'
-      ]
+    it('Legacy tests written in Solidity should all pass', async () => {
       const testerContract = await deployContract(wallet2, UtilsTest)
-      for (const methodName of testMethodNames) {
-        it(methodName + '()', async () => {
-          await testerContract[methodName]()
-        })
-      }
+      await testerContract.test()
     })
   })
 })
