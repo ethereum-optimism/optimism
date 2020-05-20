@@ -13,17 +13,22 @@ contract DataTypes {
 
     struct ElementInclusionProof {
        uint batchIndex; // index in batches array (first batch has batchNumber of 0)
-       BatchHeader batchHeader;
+       TxChainBatchHeader batchHeader;
        uint indexInBatch; // used to verify inclusion of the element in elementsMerkleRoot
        bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
     }
 
-    struct BatchHeader {
+    struct TxChainBatchHeader {
        uint timestamp;
        bool isL1ToL2Tx;
        bytes32 elementsMerkleRoot;
        uint numElementsInBatch;
        uint cumulativePrevElements;
+    }
+
+    struct TxQueueBatchHeader {
+       bytes32 elementsMerkleRoot;
+       uint numElementsInBatch;
     }
 
    struct TimestampedHash {

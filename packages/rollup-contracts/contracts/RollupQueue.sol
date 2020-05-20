@@ -27,6 +27,20 @@ contract RollupQueue {
     return batches.length;
   }
 
+  function getFrontBatch() public view returns (dt.TimestampedHash memory) {
+    require(front < batches.length, "Cannot get front batch from an empty queue");
+    return batches[front];
+  }
+
+  function hashBatchHeader(
+    dt.TxQueueBatchHeader memory _batchHeader
+  ) public pure returns (bytes32) {
+    return keccak256(abi.encodePacked(
+      _batchHeader.elementsMerkleRoot,
+      _batchHeader.numElementsInBatch
+    ));
+  }
+
   function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
   function authenticateDequeue(address _sender) public view returns (bool) { return true; }
 
@@ -50,10 +64,11 @@ contract RollupQueue {
   }
 
   // dequeues the first (oldest) batch
+  // Note: keep in mind that front can point to a non-existent batch if the list is empty.
   function dequeueBatch() public {
     require(authenticateDequeue(msg.sender), "Message sender does not have permission to dequeue");
+    require(front < batches.length, "Cannot dequeue from an empty queue");
     delete batches[front];
     front++;
-    // Note: keep in mind that front can point to a non-existent batch if the list is empty.
   }
 }

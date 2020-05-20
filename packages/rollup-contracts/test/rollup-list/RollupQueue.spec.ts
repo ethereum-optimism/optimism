@@ -146,5 +146,29 @@ describe('RollupQueue', () => {
       const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.should.equal(numBatches)
     })
+
+    it('should throw if dequeueing from empty queue', async () => {
+      await rollupQueue
+        .dequeueBatch()
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
+        )
+    })
+
+    it('should throw if dequeueing from a once populated, now empty queue', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const numBatches = 3
+      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
+        await enqueueAndGenerateBatch(batch)
+      }
+      for (let i = 0; i < numBatches; i++) {
+        await rollupQueue.dequeueBatch()
+      }
+      await rollupQueue
+        .dequeueBatch()
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
+        )
+    })
   })
 })

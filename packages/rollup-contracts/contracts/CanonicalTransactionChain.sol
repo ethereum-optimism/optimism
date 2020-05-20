@@ -4,6 +4,7 @@ pragma experimental ABIEncoderV2;
 /* Internal Imports */
 import {DataTypes as dt} from "./DataTypes.sol";
 import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
+import {L1ToL2TransactionQueue} from "./L1ToL2TransactionQueue.sol";
 
 contract CanonicalTransactionChain {
   // The Rollup Merkle Tree library (currently a contract for ease of testing)
@@ -14,14 +15,19 @@ contract CanonicalTransactionChain {
   uint public cumulativeNumElements;
   // List of batch header hashes
   bytes32[] public batches;
-
+  uint public latestOVMTimestamp = 0;
+  uint sequencerLivenessAssumption;
+  L1ToL2TransactionQueue public l1ToL2Queue;
 
   constructor(
     address _rollupMerkleUtilsAddress,
-    address _sequencer
+    address _sequencer,
+    address _l1ToL2TransactionPasserAddress
   ) public {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     sequencer = _sequencer;
+    l1ToL2Queue = new L1ToL2TransactionQueue(_rollupMerkleUtilsAddress, _l1ToL2TransactionPasserAddress, address(this));
+    sequencerLivenessAssumption = 100000000000000000000000000; // TODO parameterize this
   }
 
   // for testing: returns length of batch list
@@ -30,7 +36,7 @@ contract CanonicalTransactionChain {
   }
 
   function hashBatchHeader(
-    dt.BatchHeader memory _batchHeader
+    dt.TxChainBatchHeader memory _batchHeader
   ) public pure returns (bytes32) {
     return keccak256(abi.encodePacked(
       _batchHeader.timestamp,
@@ -45,10 +51,36 @@ contract CanonicalTransactionChain {
     return _sender == sequencer;
   }
 
+  function appendL1ToL2Batch(dt.TxQueueBatchHeader memory _batchHeader) public {
+    // verify header is the next to dequeue for the L1->L2 queue
+    bytes32 batchHeaderHash = l1ToL2Queue.hashBatchHeader(_batchHeader);
+    dt.TimestampedHash memory timestampedHash = l1ToL2Queue.getFrontBatch();
+    require(batchHeaderHash == timestampedHash.batchHeaderHash, "this aint it chief");
+    // if (timestamp + sequencerLivenessAssumption > now) {
+    //   require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
+    // }
+    // require(_timestamp > lastOVMTimestamp, "timestamps must monotonically increase");
+    // lastOVMTimestamp = _timestamp;
+    // // TODO require proposed timestamp is not too far away from currnt timestamp
+    // // require dist(_timestamp, block.timestamp) < sequencerLivenessAssumption
+    // // calculate batch header
+    // bytes32 batchHeaderHash = keccak256(abi.encodePacked(
+    //   _timestamp,
+    //   false, // isL1ToL2Tx
+    //   merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
+    //   _txBatch.length, // numElementsInBatch
+    //   cumulativeNumElements // cumulativeNumElements
+    // ));
+    // // store batch header
+    // batches.push(batchHeaderHash);
+    // cumulativeElements += _header.numElementsInBlock;
+    l1ToL2Queue.dequeueBatch();
+  }
+
   // appends to the current list of batches
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
     //Check that msg.sender is authorized to append
-    require(authenticateAppend(msg.sender), "Message sender does not have permission to enqueue");
+    require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
 
     // require(_timestamp > lastOVMTimestamp, "timestamps must monotonically increase");
@@ -77,7 +109,7 @@ contract CanonicalTransactionChain {
      dt.ElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
   ) public view returns (bool) {
     // For convenience, store the batchHeader
-    dt.BatchHeader memory batchHeader = _inclusionProof.batchHeader;
+    dt.TxChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;
     // make sure absolute position equivalent to relative positions
     if(_position != _inclusionProof.indexInBatch +
       batchHeader.cumulativePrevElements)
