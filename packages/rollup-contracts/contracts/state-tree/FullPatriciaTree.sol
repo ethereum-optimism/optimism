@@ -272,7 +272,6 @@ library FullPatriciaTree {
         );
     }
 
-    // TODO also return the proof
     function insert(Tree storage tree, bytes32 key, bytes memory value) internal {
         D.Label memory k = D.Label(key, 256);
         bytes32 valueHash = keccak256(value);

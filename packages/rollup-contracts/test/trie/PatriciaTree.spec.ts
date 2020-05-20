@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger, numberToHexString, bufToHexString, padToLength, hexStrToNumber } from '@eth-optimism/core-utils'
+import { getLogger, numberToHexString, padToLength, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets, link } from 'ethereum-waffle'
 
 /* Logging */
@@ -10,6 +10,7 @@ const log = getLogger('patricia-tree', true)
 /* Contract Imports */
 import * as FullPatriciaTreeImplementation from '../../build/FullPatriciaTreeImplementation.json'
 import * as FullPatriciaTreeLibrary from '../../build/FullPatriciaTree.json'
+import * as UtilsTest  from '../../build/UtilsTest.json'
 
 const insertSequentialKeys = async (
   treeContract: any,
@@ -91,9 +92,36 @@ describe.only('PatriciaTree (full, non-stateless version)', async () => {
     link(FullPatriciaTreeImplementation, 'contracts/state-tree/FullPatriciaTree.sol:FullPatriciaTree', treeLibrary.address)
   })
 
-  beforeEach('deploy new PatriciaTree', async () => {
+  beforeEach('Deploy new PatriciaTree', async () => {
     fullTree = await deployContract(wallet1, FullPatriciaTreeImplementation, [], {
       gasLimit: 6700000,
+    })
+  })
+
+  describe('Works as a keystore', async () => {
+    const FOO = '0x0000000000000000000000000000000000000000000000067320000000000000'
+    const BAR = '0x0000000000000000000000000000000004578000000000000000000000000000'
+    const FUZ = '0x0000000000000000157800000000000000000000000000000000000000000000'
+    describe('get()', async () => {
+      it('should return stored value for the given key', async () => {
+        await fullTree.insert(FOO, BAR)
+        const retrieved = await fullTree.get(FOO)
+        retrieved.should.equal(BAR)
+      })
+    })
+
+    describe('safeGet()', async () => {
+      it('should return stored value for the given key', async () => {
+        await fullTree.insert(FOO, BAR)
+        const retrieved = await fullTree.safeGet(FOO)
+        retrieved.should.equal(BAR)
+      })
+      it('should throw if the given key is not included', async () => {
+        await fullTree.insert(FOO, BAR)
+        TestUtils.assertThrowsAsync(async () => {
+          await fullTree.safeGet(FUZ)
+        })          
+      })
     })
   })
 
@@ -164,6 +192,25 @@ describe.only('PatriciaTree (full, non-stateless version)', async () => {
       await insertSequentialKeys(fullTree, 3, 0)
       await insertSequentialKeys(fullTree, 3, 60)
       await getAndVerifyNonInclusionProof(fullTree, 17)
+    })
+  })
+
+  describe('Binary Utils library', async () => {
+    describe('Legacy tests written in Solidity should all pass', async () => {
+      const testMethodNames = [
+        'testLowestBitSet',
+        'testChopFirstBit',
+        'testRemovePrefix',
+        'testCommonPrefix',
+        'testSplitAt',
+        'testSplitCommonPrefix'
+      ]
+      const testerContract = await deployContract(wallet2, UtilsTest)
+      for (const methodName of testMethodNames) {
+        it(methodName + '()', async () => {
+          await testerContract[methodName]()
+        })
+      }
     })
   })
 })
