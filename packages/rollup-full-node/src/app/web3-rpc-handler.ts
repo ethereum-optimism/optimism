@@ -252,9 +252,21 @@ export class DefaultWeb3Handler
     if (!txObject['from']) {
       txObject['from'] = '0x' + '88'.repeat(20)
     }
+
+    let timestamp = this.getTimestamp()
+    if (!!defaultBlock && defaultBlock !== latestBlock) {
+      const block = await this.getBlockByNumber(defaultBlock, false)
+      if (!block) {
+        throw new InvalidParametersError(
+          `Block number ${defaultBlock} not found.`
+        )
+      }
+      timestamp = block['timestamp']
+    }
+
     // First generate the internalTx calldata
     const internalCalldata = this.getTransactionCalldata(
-      this.getTimestamp(),
+      timestamp,
       0,
       txObject['to'],
       txObject['data'],
