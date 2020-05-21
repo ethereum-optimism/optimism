@@ -57,33 +57,29 @@ contract CanonicalTransactionChain {
     }
     require(timestamp >= latestOVMTimestamp, "Timestamps must be monotonically increasing");
     latestOVMTimestamp = timestamp;
-    // // TODO require proposed timestamp is not too far away from currnt timestamp
-    // // require dist(_timestamp, block.timestamp) < sequencerLivenessAssumption
-    // // calculate batch header
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       timestamp,
       true, // isL1ToL2Tx
-      elementsMerkleRoot, 
-      numElementsInBatch, // numElementsInBatch
+      elementsMerkleRoot,
+      numElementsInBatch,
       cumulativeNumElements // cumulativePrevElements
     ));
-    // store batch header
     batches.push(batchHeaderHash);
-    cumulativeNumElements++; // add a single tx
+    cumulativeNumElements += numElementsInBatch; // add a single tx
     l1ToL2Queue.dequeueBatch();
   }
 
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
+    require(_timestamp + sequencerLivenessAssumption > now, "Cannot submit a batch with a timestamp older than the sequencer liveness assumption.");
+    require(_timestamp <= now, "Cannot submit a batch with a timestamp in the future");
+    if(!l1ToL2Queue.isEmpty()) {
+      require(_timestamp <= l1ToL2Queue.ageOfOldestQueuedBatch(), "Must process older queued batches first to enforce timestamp monotonicity");
+      require(l1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.");
+    }
     require(_timestamp >= latestOVMTimestamp, "Timestamps must monotonically increase");
     latestOVMTimestamp = _timestamp;
-    require(_timestamp + sequencerLivenessAssumption > now, "cannot submit a batch with a timestamp older than the sequencer liveness assumption.");
-    require(_timestamp <= now, "cannot submit a batch with a timestamp in the future");
-    if(!l1ToL2Queue.isEmpty()) {
-      require(l1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.");
-      require(_timestamp <= l1ToL2Queue.ageOfOldestQueuedBatch(), "Must process older queued batches first to enforce timestamp monotonicity");
-    }
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       _timestamp,
       false, // isL1ToL2Tx

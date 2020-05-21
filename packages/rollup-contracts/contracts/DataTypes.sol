@@ -26,11 +26,6 @@ contract DataTypes {
        uint cumulativePrevElements;
     }
 
-    struct TxQueueBatchHeader {
-       bytes32 elementsMerkleRoot;
-       uint numElementsInBatch;
-    }
-
    struct TimestampedHash {
        uint timestamp;
        bytes32 txHash;

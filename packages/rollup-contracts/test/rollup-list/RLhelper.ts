@@ -25,14 +25,9 @@ interface ElementInclusionProof {
   siblings: string[]
 }
 
-interface TxQueueBatchHeader {
-  elementsMerkleRoot: string
-  numElementsInBatch: number
-}
-
 /*
  * Helper class which provides all information requried for a particular
- * Rollup batch. This includes all of the tranisitions in readable form
+ * Rollup batch. This includes all of the transactions in readable form
  * as well as the merkle tree which it generates.
  */
 export class DefaultRollupBatch {
