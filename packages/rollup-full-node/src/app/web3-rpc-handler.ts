@@ -261,7 +261,7 @@ export class DefaultWeb3Handler
           `Block number ${defaultBlock} not found.`
         )
       }
-      timestamp = block['timestamp']
+      timestamp = hexStrToNumber(block['timestamp'])
     }
 
     // First generate the internalTx calldata
