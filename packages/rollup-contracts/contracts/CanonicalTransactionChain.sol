@@ -48,7 +48,7 @@ contract CanonicalTransactionChain {
   }
 
   function appendL1ToL2Batch() public {
-    dt.TimestampedHash memory timestampedHash = l1ToL2Queue.getFrontBatch();
+    dt.TimestampedHash memory timestampedHash = l1ToL2Queue.peek();
     uint timestamp = timestampedHash.timestamp;
     bytes32 elementsMerkleRoot = timestampedHash.txHash;
     uint numElementsInBatch = 1;
@@ -75,8 +75,8 @@ contract CanonicalTransactionChain {
     require(_timestamp + sequencerLivenessAssumption > now, "Cannot submit a batch with a timestamp older than the sequencer liveness assumption.");
     require(_timestamp <= now, "Cannot submit a batch with a timestamp in the future");
     if(!l1ToL2Queue.isEmpty()) {
-      require(_timestamp <= l1ToL2Queue.ageOfOldestQueuedBatch(), "Must process older queued batches first to enforce timestamp monotonicity");
-      require(l1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.");
+      require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older queued batches first to enforce timestamp monotonicity");
+      require(l1ToL2Queue.peekTimestamp() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.");
     }
     require(_timestamp >= latestOVMTimestamp, "Timestamps must monotonically increase");
     latestOVMTimestamp = _timestamp;

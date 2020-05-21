@@ -110,7 +110,7 @@ describe('CanonicalTransactionChain', () => {
       const batch = ['0x1234', '0x6578']
       await appendBatch(batch)
     })
-    it('should not allow appendTransactionBatch from other address', async () => {
+    it('should not allow appendTransactionBatch from non-sequencer', async () => {
       const batch = ['0x1234', '0x6578']
       const timestamp = Math.floor(Date.now() / 1000)
       // Submit the rollup batch on-chain

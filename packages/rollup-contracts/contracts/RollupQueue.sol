@@ -29,13 +29,13 @@ contract RollupQueue {
     return front >= batches.length;
   }
 
-  function getFrontBatch() public view returns (dt.TimestampedHash memory) {
-    require(!isEmpty(), "Cannot get front batch from an empty queue");
+  function peek() public view returns (dt.TimestampedHash memory) {
+    require(!isEmpty(), "Queue is empty, no element to peek at");
     return batches[front];
   }
 
-  function ageOfOldestQueuedBatch() public view returns (uint) {
-    dt.TimestampedHash memory frontBatch = getFrontBatch();
+  function peekTimestamp() public view returns (uint) {
+    dt.TimestampedHash memory frontBatch = peek();
     return frontBatch.timestamp;
   }
 
