@@ -81,18 +81,61 @@ describe('CanonicalTransactionChain', () => {
    * Test appendTransactionBatch()
    */
   describe('appendTransactionBatch()', async () => {
-    it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
+    it('should not throw when appending a batch from the sequencer', async () => {
       const batch = ['0x1234', '0x1234']
       await appendBatch(batch)
     })
-
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
       await appendBatch(emptyBatch).should.be.revertedWith(
         'VM Exception while processing transaction: revert Cannot submit an empty batch'
       )
     })
-
+    it('should rever if submitting a 10 minute old batch', async () => {
+      const batch = ['0x1234', '0x1234']
+      const timestamp = Math.floor(Date.now() / 1000)
+      const oldTimestamp = timestamp - 601
+      // Submit the rollup batch on-chain
+      await canonicalTxChain
+        .connect(sequencer)
+        .appendTransactionBatch(batch, oldTimestamp)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp older than the sequencer liveness assumption'
+        )
+    })
+    it('should not revert if submitting a 5 minute old batch', async () => {
+      const batch = ['0x1234', '0x1234']
+      const timestamp = Math.floor(Date.now() / 1000)
+      const oldTimestamp = timestamp - 300
+      // Submit the rollup batch on-chain
+      await canonicalTxChain
+        .connect(sequencer)
+        .appendTransactionBatch(batch, oldTimestamp)
+    })
+    it('should revert if submitting a batch with a future timestamp', async () => {
+      const batch = ['0x1234', '0x1234']
+      const timestamp = Math.floor(Date.now() / 1000)
+      const futureTimestamp = timestamp + 100
+      // Submit the rollup batch on-chain
+      await canonicalTxChain
+        .connect(sequencer)
+        .appendTransactionBatch(batch, futureTimestamp)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp in the future'
+        )
+    })
+    it('should revert if submitting a new batch with a timestamp less than latest batch timestamp', async () => {
+      const batch = ['0x1234', '0x1234']
+      const timestamp = await appendBatch(batch)
+      const oldTimestamp = timestamp - 1
+      // Submit the rollup batch on-chain
+      await canonicalTxChain
+        .connect(sequencer)
+        .appendTransactionBatch(batch, oldTimestamp)
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Timestamps must monotonically increase'
+        )
+    })
     it('should add to batches array', async () => {
       const batch = ['0x1234', '0x6578']
       await appendBatch(batch)
@@ -105,10 +148,6 @@ describe('CanonicalTransactionChain', () => {
       await appendBatch(batch)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(2)
-    })
-    it('should allow appendTransactionBatch from sequencer', async () => {
-      const batch = ['0x1234', '0x6578']
-      await appendBatch(batch)
     })
     it('should not allow appendTransactionBatch from non-sequencer', async () => {
       const batch = ['0x1234', '0x6578']

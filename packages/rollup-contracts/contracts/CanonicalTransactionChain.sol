@@ -72,11 +72,11 @@ contract CanonicalTransactionChain {
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
-    require(_timestamp + sequencerLivenessAssumption > now, "Cannot submit a batch with a timestamp older than the sequencer liveness assumption.");
+    require(_timestamp + sequencerLivenessAssumption > now, "Cannot submit a batch with a timestamp older than the sequencer liveness assumption");
     require(_timestamp <= now, "Cannot submit a batch with a timestamp in the future");
     if(!l1ToL2Queue.isEmpty()) {
       require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older queued batches first to enforce timestamp monotonicity");
-      require(l1ToL2Queue.peekTimestamp() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.");
+      require(l1ToL2Queue.peekTimestamp() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches");
     }
     require(_timestamp >= latestOVMTimestamp, "Timestamps must monotonically increase");
     latestOVMTimestamp = _timestamp;

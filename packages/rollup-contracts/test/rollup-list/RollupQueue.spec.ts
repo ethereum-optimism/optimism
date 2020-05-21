@@ -107,6 +107,8 @@ describe('RollupQueue', () => {
       timestamp.should.equal(0)
       const front = await rollupQueue.front()
       front.should.equal(1)
+      const isEmpty = await rollupQueue.isEmpty()
+      isEmpty.should.equal(true)
     })
 
     it('should dequeue many batches', async () => {
@@ -127,6 +129,8 @@ describe('RollupQueue', () => {
       }
       const batchesLength = await rollupQueue.getBatchesLength()
       batchesLength.should.equal(numBatches)
+      const isEmpty = await rollupQueue.isEmpty()
+      isEmpty.should.equal(true)
     })
 
     it('should throw if dequeueing from empty queue', async () => {
@@ -150,6 +154,30 @@ describe('RollupQueue', () => {
         .dequeueBatch()
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
+        )
+    })
+  })
+  describe('peek() and peekTimestamp()', async () => {
+    it('should peek successfully with single element', async () => {
+      const tx = '0x1234'
+      const localBatch = await enqueueAndGenerateBatch(tx)
+      const { txHash, timestamp } = await rollupQueue.peek()
+      const peekTimestamp = await rollupQueue.peekTimestamp()
+      const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
+      txHash.should.equal(expectedBatchHeaderHash)
+      peekTimestamp.should.equal(timestamp)
+      timestamp.should.equal(localBatch.timestamp)
+    })
+    it('should revert when peeking at empty queue', async () => {
+      await rollupQueue
+        .peek()
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
+        )
+      await rollupQueue
+        .peekTimestamp()
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
         )
     })
   })
