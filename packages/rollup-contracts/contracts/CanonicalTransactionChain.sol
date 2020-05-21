@@ -7,13 +7,9 @@ import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 import {L1ToL2TransactionQueue} from "./L1ToL2TransactionQueue.sol";
 
 contract CanonicalTransactionChain {
-  // The Rollup Merkle Tree library (currently a contract for ease of testing)
   RollupMerkleUtils merkleUtils;
   address public sequencer;
-
-  // How many elements in total have been appended
   uint public cumulativeNumElements;
-  // List of batch header hashes
   bytes32[] public batches;
   uint public latestOVMTimestamp = 0;
   uint sequencerLivenessAssumption;
@@ -22,16 +18,16 @@ contract CanonicalTransactionChain {
   constructor(
     address _rollupMerkleUtilsAddress,
     address _sequencer,
-    address _l1ToL2TransactionPasserAddress
+    address _l1ToL2TransactionPasserAddress,
+    uint _sequencerLivenessAssumption
   ) public {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     sequencer = _sequencer;
     l1ToL2Queue = new L1ToL2TransactionQueue(_rollupMerkleUtilsAddress, _l1ToL2TransactionPasserAddress, address(this));
-    sequencerLivenessAssumption = 100000000000000000000000000; // TODO parameterize this
+    sequencerLivenessAssumption =_sequencerLivenessAssumption;
   }
 
-  // for testing: returns length of batch list
-  function getBatchsLength() public view returns (uint) {
+  function getBatchesLength() public view returns (uint) {
     return batches.length;
   }
 
@@ -55,6 +51,7 @@ contract CanonicalTransactionChain {
     dt.TimestampedHash memory timestampedHash = l1ToL2Queue.getFrontBatch();
     uint timestamp = timestampedHash.timestamp;
     bytes32 elementsMerkleRoot = timestampedHash.txHash;
+    uint numElementsInBatch = 1;
     if (timestamp + sequencerLivenessAssumption > now) {
       require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
     }
@@ -63,7 +60,6 @@ contract CanonicalTransactionChain {
     // // TODO require proposed timestamp is not too far away from currnt timestamp
     // // require dist(_timestamp, block.timestamp) < sequencerLivenessAssumption
     // // calculate batch header
-    uint numElementsInBatch = 1;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       timestamp,
       true, // isL1ToL2Tx
@@ -77,18 +73,17 @@ contract CanonicalTransactionChain {
     l1ToL2Queue.dequeueBatch();
   }
 
-  // appends to the current list of batches
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
-    //Check that msg.sender is authorized to append
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
-    require(_timestamp >= latestOVMTimestamp, "timestamps must monotonically increase");
+    require(_timestamp >= latestOVMTimestamp, "Timestamps must monotonically increase");
     latestOVMTimestamp = _timestamp;
-    // require dist(_timestamp, batch.timestamp) < sequencerLivenessAssumption
-    // require(L1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.")
-    // TODO check that this timestamp is before that of the oldest slowQueue and l1ToL2Queue batches
-
-    // calculate batch header
+    require(_timestamp + sequencerLivenessAssumption > now, "cannot submit a batch with a timestamp older than the sequencer liveness assumption.");
+    require(_timestamp <= now, "cannot submit a batch with a timestamp in the future");
+    if(!l1ToL2Queue.isEmpty()) {
+      require(l1ToL2Queue.ageOfOldestQueuedBatch() < sequencerLivenessAssumption, "must process all L1->L2 batches older than liveness assumption before processing L2 batches.");
+      require(_timestamp <= l1ToL2Queue.ageOfOldestQueuedBatch(), "Must process older queued batches first to enforce timestamp monotonicity");
+    }
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       _timestamp,
       false, // isL1ToL2Tx
@@ -96,9 +91,7 @@ contract CanonicalTransactionChain {
       _txBatch.length, // numElementsInBatch
       cumulativeNumElements // cumulativeNumElements
     ));
-    // store batch header
     batches.push(batchHeaderHash);
-    // update cumulative elements
     cumulativeNumElements += _txBatch.length;
   }
 

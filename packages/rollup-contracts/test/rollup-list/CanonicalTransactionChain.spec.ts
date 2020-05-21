@@ -44,23 +44,27 @@ describe('CanonicalTransactionChain', () => {
         rollupMerkleUtils.address,
         sequencer.address,
         l1ToL2TransactionPasser.address,
+        600, //600 seconds = 10 min
       ],
       {
         gasLimit: 6700000,
       }
     )
   })
-
-  const appendAndGenerateBatch = async (
-    batch: string[],
-    timestamp: number,
-    batchIndex: number,
-    cumulativePrevElements: number
-  ): Promise<DefaultRollupBatch> => {
+  const appendBatch = async (batch: string[]): Promise<number> => {
+    const timestamp = Math.floor(Date.now() / 1000)
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
       .appendTransactionBatch(batch, timestamp)
+    return timestamp
+  }
+  const appendAndGenerateBatch = async (
+    batch: string[],
+    batchIndex: number,
+    cumulativePrevElements: number
+  ): Promise<DefaultRollupBatch> => {
+    const timestamp = await appendBatch(batch)
     // Generate a local version of the rollup batch
     const localBatch = new DefaultRollupBatch(
       timestamp,
@@ -79,52 +83,37 @@ describe('CanonicalTransactionChain', () => {
   describe('appendTransactionBatch()', async () => {
     it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
       const batch = ['0x1234', '0x1234']
-      const timestamp = 0
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(batch, timestamp) // Did not throw... success!
+      await appendBatch(batch)
     })
 
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
-      const timestamp = 0
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(emptyBatch, timestamp)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot submit an empty batch'
-        )
+      await appendBatch(emptyBatch).should.be.revertedWith(
+        'VM Exception while processing transaction: revert Cannot submit an empty batch'
+      )
     })
 
     it('should add to batches array', async () => {
       const batch = ['0x1234', '0x6578']
-      const timestamp = 0
-      const output = await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(batch, timestamp)
-      const batchesLength = await canonicalTxChain.getBatchsLength()
+      await appendBatch(batch)
+      const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
       const batch = ['0x1234', '0x5678']
-      const timestamp = 0
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(batch, timestamp)
+      await appendBatch(batch)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(2)
     })
     it('should allow appendTransactionBatch from sequencer', async () => {
       const batch = ['0x1234', '0x6578']
-      const timestamp = 0
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(batch, timestamp) // Did not throw... success!
+      await appendBatch(batch)
     })
     it('should not allow appendTransactionBatch from other address', async () => {
       const batch = ['0x1234', '0x6578']
-      const timestamp = 0
+      const timestamp = Math.floor(Date.now() / 1000)
+      // Submit the rollup batch on-chain
       await canonicalTxChain
         .appendTransactionBatch(batch, timestamp)
         .should.be.revertedWith(
@@ -135,10 +124,8 @@ describe('CanonicalTransactionChain', () => {
       const batch = ['0x1234', '0x5678']
       const batchIndex = 0
       const cumulativePrevElements = 0
-      const timestamp = 0
       const localBatch = await appendAndGenerateBatch(
         batch,
-        timestamp,
         batchIndex,
         cumulativePrevElements
       )
@@ -151,11 +138,9 @@ describe('CanonicalTransactionChain', () => {
       const batch = ['0x1234', '0x5678']
       const numBatchs = 10
       for (let batchIndex = 0; batchIndex < numBatchs; batchIndex++) {
-        const timestamp = batchIndex
         const cumulativePrevElements = batch.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
           batch,
-          timestamp,
           batchIndex,
           cumulativePrevElements
         )
@@ -170,7 +155,7 @@ describe('CanonicalTransactionChain', () => {
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(numBatchs * batch.length)
       //check batches length
-      const batchesLength = await canonicalTxChain.getBatchsLength()
+      const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(numBatchs)
     })
   })
@@ -229,6 +214,13 @@ describe('CanonicalTransactionChain', () => {
       const batchHeaderHash = await canonicalTxChain.batches(0)
       batchHeaderHash.should.equal(localBatchHeaderHash)
     })
+    it('should now allow non-sequencer to appendL1ToL2Batch if less than 10 minutes old', async () => {
+      await canonicalTxChain
+        .appendL1ToL2Batch()
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Message sender does not have permission to append this batch'
+        )
+    })
   })
 
   describe('verifyElement() ', async () => {
@@ -245,7 +237,6 @@ describe('CanonicalTransactionChain', () => {
         const cumulativePrevElements = batch.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
           batch,
-          timestamp,
           batchIndex,
           cumulativePrevElements
         )
@@ -272,7 +263,6 @@ describe('CanonicalTransactionChain', () => {
       const timestamp = 0
       const localBatch = await appendAndGenerateBatch(
         batch,
-        timestamp,
         batchIndex,
         cumulativePrevElements
       )
@@ -299,7 +289,6 @@ describe('CanonicalTransactionChain', () => {
       const timestamp = 0
       const localBatch = await appendAndGenerateBatch(
         batch,
-        timestamp,
         batchIndex,
         cumulativePrevElements
       )

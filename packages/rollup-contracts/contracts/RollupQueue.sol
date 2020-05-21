@@ -25,9 +25,18 @@ contract RollupQueue {
     return batches.length;
   }
 
+  function isEmpty() public view returns (bool) {
+    return front >= batches.length;
+  }
+
   function getFrontBatch() public view returns (dt.TimestampedHash memory) {
-    require(front < batches.length, "Cannot get front batch from an empty queue");
+    require(!isEmpty(), "Cannot get front batch from an empty queue");
     return batches[front];
+  }
+
+  function ageOfOldestQueuedBatch() public view returns (uint) {
+    dt.TimestampedHash memory frontBatch = getFrontBatch();
+    return frontBatch.timestamp;
   }
 
   function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
