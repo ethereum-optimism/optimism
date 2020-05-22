@@ -4,9 +4,6 @@ import '../setup'
 import { getLogger } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-/* Internal Imports */
-import { DefaultRollupBatch } from './RLhelper'
-
 /* Logging */
 const log = getLogger('l1-to-l2-tx-queue', true)
 
@@ -22,6 +19,7 @@ describe('L1ToL2TransactionQueue', () => {
     l1ToL2TransactionPasser,
     canonicalTransactionChain,
   ] = getWallets(provider)
+  const defaultTx = '0x1234'
   let l1ToL2TxQueue
   let rollupMerkleUtils
 
@@ -50,15 +48,13 @@ describe('L1ToL2TransactionQueue', () => {
 
   describe('enqueueBatch() ', async () => {
     it('should allow enqueue from l1ToL2TransactionPasser', async () => {
-      const tx = '0x1234'
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(tx) // Did not throw... success!
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx) // Did not throw... success!
       const batchesLength = await l1ToL2TxQueue.getBatchesLength()
       batchesLength.should.equal(1)
     })
     it('should not allow enqueue from other address', async () => {
-      const tx = '0x1234'
       await l1ToL2TxQueue
-        .enqueueTx(tx)
+        .enqueueTx(defaultTx)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to enqueue'
         )
@@ -67,8 +63,7 @@ describe('L1ToL2TransactionQueue', () => {
 
   describe('dequeueBatch() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
-      const tx = '0x1234'
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(tx)
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
       await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeueBatch()
       const batchesLength = await l1ToL2TxQueue.getBatchesLength()
       batchesLength.should.equal(1)
@@ -81,8 +76,7 @@ describe('L1ToL2TransactionQueue', () => {
       front.should.equal(1)
     })
     it('should not allow dequeue from other address', async () => {
-      const tx = '0x1234'
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(tx)
+      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
       await l1ToL2TxQueue
         .dequeueBatch()
         .should.be.revertedWith(

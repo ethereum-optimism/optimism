@@ -69,7 +69,7 @@ describe('RollupQueue', () => {
 
     it('should add multiple batches correctly', async () => {
       const numBatches = 5
-      for (let i= 0; i < numBatches; i++) {
+      for (let i = 0; i < numBatches; i++) {
         const localBatch = await enqueueAndGenerateBatch(defaultTx)
         const { txHash, timestamp } = await rollupQueue.batches(i)
         const expectedTxHash = await localBatch.getMerkleRoot()
