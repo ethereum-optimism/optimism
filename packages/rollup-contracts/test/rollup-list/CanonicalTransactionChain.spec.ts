@@ -464,6 +464,30 @@ describe('CanonicalTransactionChain', () => {
       isIncluded.should.equal(true)
     })
 
+    it('should return true for valid element from a SafetyBatch', async () => {
+      const l1ToL2Batch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      await canonicalTxChain.connect(sequencer).appendSafetyBatch()
+      const localBatch = new DefaultRollupBatch(
+        l1ToL2Batch.timestamp, //timestamp
+        false, //isL1ToL2Tx
+        0, //batchIndex
+        0, //cumulativePrevElements
+        [DEFAULT_TX] //batch
+      )
+      await localBatch.generateTree()
+      const elementIndex = 0
+      const position = localBatch.getPosition(elementIndex)
+      const elementInclusionProof = await localBatch.getElementInclusionProof(
+        elementIndex
+      )
+      const isIncluded = await canonicalTxChain.verifyElement(
+        DEFAULT_TX, // element
+        position,
+        elementInclusionProof
+      )
+      isIncluded.should.equal(true)
+    })
+
     it('should return false for wrong position with wrong indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
       const localBatch = await appendAndGenerateBatch(batch)
