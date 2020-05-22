@@ -66,7 +66,7 @@ contract CanonicalTransactionChain {
     ));
     batches.push(batchHeaderHash);
     cumulativeNumElements += numElementsInBatch;
-    l1ToL2Queue.dequeueBatch();
+    l1ToL2Queue.dequeue();
   }
 
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {

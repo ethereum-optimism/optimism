@@ -9,7 +9,7 @@ import { Contract } from 'ethers'
 import { DefaultRollupBatch, RollupQueueBatch } from './RLhelper'
 
 /* Logging */
-const log = getLogger('rollup-tx-queue', true)
+const log = getLogger('canonical-tx-chain', true)
 
 /* Contract Imports */
 import * as CanonicalTransactionChain from '../../build/CanonicalTransactionChain.json'
@@ -30,7 +30,8 @@ describe('CanonicalTransactionChain', () => {
   let l1ToL2Queue
   const localL1ToL2Queue = []
   const LIVENESS_ASSUMPTION = 600 //600 seconds = 10 minutes
-  const defaultBatch = ['0x1234', '0x5678']
+  const DEFAULT_BATCH = ['0x1234', '0x5678']
+  const DEFAULT_TX = '0x1234'
 
   const appendBatch = async (batch: string[]): Promise<number> => {
     const timestamp = Math.floor(Date.now() / 1000)
@@ -43,8 +44,8 @@ describe('CanonicalTransactionChain', () => {
 
   const appendAndGenerateBatch = async (
     batch: string[],
-    batchIndex: number,
-    cumulativePrevElements: number
+    batchIndex: number = 0,
+    cumulativePrevElements: number = 0
   ): Promise<DefaultRollupBatch> => {
     const timestamp = await appendBatch(batch)
     // Generate a local version of the rollup batch
@@ -96,11 +97,17 @@ describe('CanonicalTransactionChain', () => {
         gasLimit: 6700000,
       }
     )
+    const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
+    l1ToL2Queue = new Contract(
+      l1ToL2QueueAddress,
+      L1ToL2TransactionQueue.abi,
+      provider
+    )
   })
 
   describe('appendTransactionBatch()', async () => {
     it('should not throw when appending a batch from the sequencer', async () => {
-      await appendBatch(defaultBatch)
+      await appendBatch(DEFAULT_BATCH)
     })
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
@@ -113,7 +120,7 @@ describe('CanonicalTransactionChain', () => {
       const oldTimestamp = timestamp - (LIVENESS_ASSUMPTION + 1)
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(defaultBatch, oldTimestamp)
+        .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp older than the sequencer liveness assumption'
         )
@@ -123,7 +130,7 @@ describe('CanonicalTransactionChain', () => {
       const oldTimestamp = timestamp - LIVENESS_ASSUMPTION / 2
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(defaultBatch, oldTimestamp)
+        .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
     })
     it('should revert if submitting a batch with a future timestamp', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
@@ -131,30 +138,30 @@ describe('CanonicalTransactionChain', () => {
       // Submit the rollup batch on-chain
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(defaultBatch, futureTimestamp)
+        .appendTransactionBatch(DEFAULT_BATCH, futureTimestamp)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp in the future'
         )
     })
     it('should revert if submitting a new batch with a timestamp less than latest batch timestamp', async () => {
-      const timestamp = await appendBatch(defaultBatch)
+      const timestamp = await appendBatch(DEFAULT_BATCH)
       const oldTimestamp = timestamp - 1
       // Submit the rollup batch on-chain
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(defaultBatch, oldTimestamp)
+        .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Timestamps must monotonically increase'
         )
     })
     it('should add to batches array', async () => {
-      await appendBatch(defaultBatch)
+      await appendBatch(DEFAULT_BATCH)
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      await appendBatch(defaultBatch)
+      await appendBatch(DEFAULT_BATCH)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(2)
     })
@@ -162,20 +169,13 @@ describe('CanonicalTransactionChain', () => {
       const timestamp = Math.floor(Date.now() / 1000)
       // Submit the rollup batch on-chain
       await canonicalTxChain
-        .appendTransactionBatch(defaultBatch, timestamp)
+        .appendTransactionBatch(DEFAULT_BATCH, timestamp)
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to append a batch'
         )
     })
     it('should calculate batchHeaderHash correctly', async () => {
-      const batchIndex = 0
-      const cumulativePrevElements = 0
-      const localBatch = await appendAndGenerateBatch(
-        defaultBatch,
-        batchIndex,
-        cumulativePrevElements
-      )
-      //Check batchHeaderHash
+      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
       const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
       const calculatedBatchHeaderHash = await canonicalTxChain.batches(0)
       calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -183,56 +183,46 @@ describe('CanonicalTransactionChain', () => {
     it('should add multiple batches correctly', async () => {
       const numBatchs = 10
       for (let batchIndex = 0; batchIndex < numBatchs; batchIndex++) {
-        const cumulativePrevElements = defaultBatch.length * batchIndex
+        const cumulativePrevElements = DEFAULT_BATCH.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
-          defaultBatch,
+          DEFAULT_BATCH,
           batchIndex,
           cumulativePrevElements
         )
-        //Check batchHeaderHash
         const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
         const calculatedBatchHeaderHash = await canonicalTxChain.batches(
           batchIndex
         )
         calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
       }
-      //check cumulativeNumElements
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements
         .toNumber()
-        .should.equal(numBatchs * defaultBatch.length)
-      //check batches length
+        .should.equal(numBatchs * DEFAULT_BATCH.length)
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(numBatchs)
     })
     describe('when the l1ToL2Queue is not empty', async () => {
       let localBatch
       beforeEach(async () => {
-        const tx = '0x1234'
-        const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
-        l1ToL2Queue = new Contract(
-          l1ToL2QueueAddress,
-          L1ToL2TransactionQueue.abi,
-          provider
-        )
-        localBatch = await enqueueAndGenerateBatch(tx)
+        localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
       })
       it('should succesfully append a batch with an older timestamp', async () => {
         const oldTimestamp = localBatch.timestamp - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(defaultBatch, oldTimestamp)
+          .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
       })
       it('should succesfully append a batch with an equal timestamp', async () => {
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(defaultBatch, localBatch.timestamp)
+          .appendTransactionBatch(DEFAULT_BATCH, localBatch.timestamp)
       })
       it('should revert when appending a block with a newer timestamp', async () => {
         const newTimestamp = localBatch.timestamp + 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(defaultBatch, newTimestamp)
+          .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
           .should.be.revertedWith(
             'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp in the future'
           )
@@ -241,36 +231,29 @@ describe('CanonicalTransactionChain', () => {
   })
 
   describe('appendL1ToL2Batch()', async () => {
-    const tx = '0x1234'
     describe('when there is a batch in the L1toL2Queue', async () => {
       beforeEach(async () => {
-        const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
-        l1ToL2Queue = new Contract(
-          l1ToL2QueueAddress,
-          L1ToL2TransactionQueue.abi,
-          provider
-        )
-        const localBatch = await enqueueAndGenerateBatch(tx)
+        const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
         localL1ToL2Queue.push(localBatch)
       })
       it('should successfully dequeue a L1ToL2Batch', async () => {
         await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
         const front = await l1ToL2Queue.front()
         front.should.equal(1)
-        const { timestamp, txHash } = await l1ToL2Queue.batches(0)
+        const { timestamp, txHash } = await l1ToL2Queue.batchHeaders(0)
         timestamp.should.equal(0)
         txHash.should.equal(
           '0x0000000000000000000000000000000000000000000000000000000000000000'
         )
       })
       it('should successfully append a L1ToL2Batch', async () => {
-        const { timestamp, txHash } = await l1ToL2Queue.batches(0)
+        const { timestamp, txHash } = await l1ToL2Queue.batchHeaders(0)
         const localBatch = new DefaultRollupBatch(
           timestamp,
           true, // isL1ToL2Tx
           0, //batchIndex
           0, // cumulativePrevElements
-          [tx] // elements
+          [DEFAULT_TX] // elements
         )
         await localBatch.generateTree()
         const localBatchHeaderHash = await localBatch.hashBatchHeader()
@@ -309,48 +292,47 @@ describe('CanonicalTransactionChain', () => {
   })
 
   describe('verifyElement() ', async () => {
-    it('should return true for valid elements for different batchIndexes', async () => {
-      const maxBatchNumber = 5
-      const minBatchNumber = 0
-      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      for (
-        let batchIndex = minBatchNumber;
-        batchIndex < maxBatchNumber + 1;
-        batchIndex++
-      ) {
-        const timestamp = batchIndex
+    it('should return true for valid elements for different batches and elements', async () => {
+      const numBatches = 3
+      const batch = [
+        '0x1234',
+        '0x4567',
+        '0x890a',
+        '0x4567',
+        '0x890a',
+        '0xabcd',
+        '0x1234',
+      ]
+      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = batch.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
           batch,
           batchIndex,
           cumulativePrevElements
         )
-        // Create inclusion proof for the element at elementIndex
-        const elementIndex = 3
-        const element = batch[elementIndex]
-        const position = localBatch.getPosition(elementIndex)
-        const elementInclusionProof = await localBatch.getElementInclusionProof(
-          elementIndex
-        )
-        const isIncluded = await canonicalTxChain.verifyElement(
-          element,
-          position,
-          elementInclusionProof
-        )
-        isIncluded.should.equal(true)
+        for (
+          let elementIndex = 0;
+          elementIndex < batch.length;
+          elementIndex += 3
+        ) {
+          const element = batch[elementIndex]
+          const position = localBatch.getPosition(elementIndex)
+          const elementInclusionProof = await localBatch.getElementInclusionProof(
+            elementIndex
+          )
+          const isIncluded = await canonicalTxChain.verifyElement(
+            element,
+            position,
+            elementInclusionProof
+          )
+          isIncluded.should.equal(true)
+        }
       }
     })
 
     it('should return false for wrong position with wrong indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const cumulativePrevElements = 0
-      const batchIndex = 0
-      const timestamp = 0
-      const localBatch = await appendAndGenerateBatch(
-        batch,
-        batchIndex,
-        cumulativePrevElements
-      )
+      const localBatch = await appendAndGenerateBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -368,16 +350,8 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should return false for wrong position and matching indexInBatch', async () => {
-      const batch = ['0x1234', '0x4567', '0x890a', '0xabcd']
-      const cumulativePrevElements = 0
-      const batchIndex = 0
-      const timestamp = 0
-      const localBatch = await appendAndGenerateBatch(
-        batch,
-        batchIndex,
-        cumulativePrevElements
-      )
-      //generate inclusion proof
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const localBatch = await appendAndGenerateBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)

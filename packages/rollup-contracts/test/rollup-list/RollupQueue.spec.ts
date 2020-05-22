@@ -14,12 +14,13 @@ const log = getLogger('rollup-queue', true)
 import * as RollupQueue from '../../build/RollupQueue.json'
 import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
 
+const DEFAULT_TX = '0x1234'
+
 describe('RollupQueue', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let rollupQueue
   let rollupMerkleUtils
-  const defaultTx = '0x1234'
 
   before(async () => {
     rollupMerkleUtils = await deployContract(wallet, RollupMerkleUtils, [], {
@@ -52,16 +53,16 @@ describe('RollupQueue', () => {
 
   describe('enqueueTx() ', async () => {
     it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
-      await rollupQueue.enqueueTx(defaultTx)
+      await rollupQueue.enqueueTx(DEFAULT_TX)
     })
-    it('should add to batches array', async () => {
-      await rollupQueue.enqueueTx(defaultTx)
-      const batchesLength = await rollupQueue.getBatchesLength()
+    it('should add to batchHeaders array', async () => {
+      await rollupQueue.enqueueTx(DEFAULT_TX)
+      const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(1)
     })
     it('should set the TimestampedHash correctly', async () => {
-      const localBatch = await enqueueAndGenerateBatch(defaultTx)
-      const { txHash, timestamp } = await rollupQueue.batches(0)
+      const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+      const { txHash, timestamp } = await rollupQueue.batchHeaders(0)
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)
@@ -70,26 +71,26 @@ describe('RollupQueue', () => {
     it('should add multiple batches correctly', async () => {
       const numBatches = 5
       for (let i = 0; i < numBatches; i++) {
-        const localBatch = await enqueueAndGenerateBatch(defaultTx)
-        const { txHash, timestamp } = await rollupQueue.batches(i)
+        const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+        const { txHash, timestamp } = await rollupQueue.batchHeaders(i)
         const expectedTxHash = await localBatch.getMerkleRoot()
         txHash.should.equal(expectedTxHash)
         timestamp.should.equal(localBatch.timestamp)
       }
       //check batches length
-      const batchesLength = await rollupQueue.getBatchesLength()
+      const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(numBatches)
     })
   })
 
-  describe('dequeueBatch()', async () => {
+  describe('dequeue()', async () => {
     it('should dequeue single batch', async () => {
-      const localBatch = await enqueueAndGenerateBatch(defaultTx)
-      await rollupQueue.dequeueBatch()
+      const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+      await rollupQueue.dequeue()
 
-      const batchesLength = await rollupQueue.getBatchesLength()
+      const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
-      const { txHash, timestamp } = await rollupQueue.batches(0)
+      const { txHash, timestamp } = await rollupQueue.batchHeaders(0)
       txHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
@@ -104,7 +105,7 @@ describe('RollupQueue', () => {
       const numBatches = 5
       const localBatches = []
       for (let i = 0; i < numBatches; i++) {
-        const localBatch = await enqueueAndGenerateBatch(defaultTx)
+        const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
         localBatches.push(localBatch)
       }
       for (let i = 0; i < numBatches; i++) {
@@ -114,18 +115,18 @@ describe('RollupQueue', () => {
         frontBatch.txHash.should.equal(expectedTxHash)
         frontBatch.timestamp.should.equal(localFrontBatch.timestamp)
 
-        await rollupQueue.dequeueBatch()
+        await rollupQueue.dequeue()
 
         const front = await rollupQueue.front()
         front.should.equal(i + 1)
 
-        const dequeuedBatch = await rollupQueue.batches(i)
+        const dequeuedBatch = await rollupQueue.batchHeaders(i)
         dequeuedBatch.txHash.should.equal(
           '0x0000000000000000000000000000000000000000000000000000000000000000'
         )
         dequeuedBatch.timestamp.should.equal(0)
       }
-      const batchesLength = await rollupQueue.getBatchesLength()
+      const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.should.equal(numBatches)
       const isEmpty = await rollupQueue.isEmpty()
       isEmpty.should.equal(true)
@@ -133,7 +134,7 @@ describe('RollupQueue', () => {
 
     it('should revert if dequeueing from empty queue', async () => {
       await rollupQueue
-        .dequeueBatch()
+        .dequeue()
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
         )
@@ -142,11 +143,11 @@ describe('RollupQueue', () => {
     it('should revert if dequeueing from a once populated, now empty queue', async () => {
       const numBatches = 3
       for (let i = 0; i < numBatches; i++) {
-        await enqueueAndGenerateBatch(defaultTx)
-        await rollupQueue.dequeueBatch()
+        await enqueueAndGenerateBatch(DEFAULT_TX)
+        await rollupQueue.dequeue()
       }
       await rollupQueue
-        .dequeueBatch()
+        .dequeue()
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
         )
@@ -154,7 +155,7 @@ describe('RollupQueue', () => {
   })
   describe('peek() and peekTimestamp()', async () => {
     it('should peek successfully with single element', async () => {
-      const localBatch = await enqueueAndGenerateBatch(defaultTx)
+      const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
       const { txHash, timestamp } = await rollupQueue.peek()
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)

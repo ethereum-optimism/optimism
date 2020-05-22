@@ -49,7 +49,7 @@ describe('L1ToL2TransactionQueue', () => {
   describe('enqueueBatch() ', async () => {
     it('should allow enqueue from l1ToL2TransactionPasser', async () => {
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx) // Did not throw... success!
-      const batchesLength = await l1ToL2TxQueue.getBatchesLength()
+      const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
     })
     it('should not allow enqueue from other address', async () => {
@@ -61,13 +61,13 @@ describe('L1ToL2TransactionQueue', () => {
     })
   })
 
-  describe('dequeueBatch() ', async () => {
+  describe('dequeue() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
-      await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeueBatch()
-      const batchesLength = await l1ToL2TxQueue.getBatchesLength()
+      await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeue()
+      const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
-      const { txHash, timestamp } = await l1ToL2TxQueue.batches(0)
+      const { txHash, timestamp } = await l1ToL2TxQueue.batchHeaders(0)
       txHash.should.equal(
         '0x0000000000000000000000000000000000000000000000000000000000000000'
       )
@@ -78,7 +78,7 @@ describe('L1ToL2TransactionQueue', () => {
     it('should not allow dequeue from other address', async () => {
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
       await l1ToL2TxQueue
-        .dequeueBatch()
+        .dequeue()
         .should.be.revertedWith(
           'VM Exception while processing transaction: revert Message sender does not have permission to dequeue'
         )
