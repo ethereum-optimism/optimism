@@ -12,7 +12,7 @@ import { utils } from 'ethers'
 
 interface TxChainBatchHeader {
   timestamp: number
-  isL1ToL2: boolean
+  isL1ToL2Tx: boolean
   elementsMerkleRoot: string
   numElementsInBatch: number
   cumulativePrevElements: number
@@ -32,7 +32,7 @@ interface ElementInclusionProof {
  */
 export class DefaultRollupBatch {
   public timestamp: number
-  public isL1ToL2: boolean
+  public isL1ToL2Tx: boolean
   public batchIndex: number //index in
   public cumulativePrevElements: number //in batchHeader
   public elements: string[] //Rollup batch
@@ -40,12 +40,12 @@ export class DefaultRollupBatch {
 
   constructor(
     timestamp: number, // Ethereum batch this batch was submitted in
-    isL1ToL2: boolean,
+    isL1ToL2Tx: boolean,
     batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
     elements: string[]
   ) {
-    this.isL1ToL2 = isL1ToL2
+    this.isL1ToL2Tx = isL1ToL2Tx
     this.timestamp = timestamp
     this.batchIndex = batchIndex
     this.cumulativePrevElements = cumulativePrevElements
@@ -99,7 +99,7 @@ export class DefaultRollupBatch {
       ['uint', 'bool', 'bytes32', 'uint', 'uint'],
       [
         this.timestamp,
-        this.isL1ToL2,
+        this.isL1ToL2Tx,
         bufToHexString(bufferRoot),
         this.elements.length,
         this.cumulativePrevElements,
@@ -120,7 +120,7 @@ export class DefaultRollupBatch {
       batchIndex: this.batchIndex,
       batchHeader: {
         timestamp: this.timestamp,
-        isL1ToL2: this.isL1ToL2,
+        isL1ToL2Tx: this.isL1ToL2Tx,
         elementsMerkleRoot: bufToHexString(bufferRoot),
         numElementsInBatch: this.elements.length,
         cumulativePrevElements: this.cumulativePrevElements,
