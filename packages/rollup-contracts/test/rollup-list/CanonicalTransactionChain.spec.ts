@@ -123,7 +123,7 @@ describe('CanonicalTransactionChain', () => {
     it('should not revert if submitting a 5 minute old batch', async () => {
       const batch = ['0x1234', '0x1234']
       const timestamp = Math.floor(Date.now() / 1000)
-      const oldTimestamp = timestamp - (LIVENESS_ASSUMPTION / 2)
+      const oldTimestamp = timestamp - LIVENESS_ASSUMPTION / 2
       // Submit the rollup batch on-chain
       await canonicalTxChain
         .connect(sequencer)

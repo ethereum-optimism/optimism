@@ -7,13 +7,13 @@ import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 import {L1ToL2TransactionQueue} from "./L1ToL2TransactionQueue.sol";
 
 contract CanonicalTransactionChain {
-  RollupMerkleUtils merkleUtils;
   address public sequencer;
+  uint public sequencerLivenessAssumption;
+  RollupMerkleUtils public merkleUtils;
+  L1ToL2TransactionQueue public l1ToL2Queue;
   uint public cumulativeNumElements;
   bytes32[] public batches;
-  uint public latestOVMTimestamp = 0;
-  uint sequencerLivenessAssumption;
-  L1ToL2TransactionQueue public l1ToL2Queue;
+  uint public lastOVMTimestamp;
 
   constructor(
     address _rollupMerkleUtilsAddress,
@@ -25,6 +25,7 @@ contract CanonicalTransactionChain {
     sequencer = _sequencer;
     l1ToL2Queue = new L1ToL2TransactionQueue(_rollupMerkleUtilsAddress, _l1ToL2TransactionPasserAddress, address(this));
     sequencerLivenessAssumption =_sequencerLivenessAssumption;
+    lastOVMTimestamp = 0;
   }
 
   function getBatchesLength() public view returns (uint) {
@@ -50,13 +51,12 @@ contract CanonicalTransactionChain {
   function appendL1ToL2Batch() public {
     dt.TimestampedHash memory timestampedHash = l1ToL2Queue.peek();
     uint timestamp = timestampedHash.timestamp;
-    bytes32 elementsMerkleRoot = timestampedHash.txHash;
-    uint numElementsInBatch = 1;
     if (timestamp + sequencerLivenessAssumption > now) {
       require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
     }
-    // require(timestamp >= latestOVMTimestamp, "Timestamps must be monotonically increasing");
-    latestOVMTimestamp = timestamp;
+    lastOVMTimestamp = timestamp;
+    bytes32 elementsMerkleRoot = timestampedHash.txHash;
+    uint numElementsInBatch = 1;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       timestamp,
       true, // isL1ToL2Tx
@@ -65,7 +65,7 @@ contract CanonicalTransactionChain {
       cumulativeNumElements // cumulativePrevElements
     ));
     batches.push(batchHeaderHash);
-    cumulativeNumElements += numElementsInBatch; // add a single tx
+    cumulativeNumElements += numElementsInBatch;
     l1ToL2Queue.dequeueBatch();
   }
 
@@ -77,8 +77,8 @@ contract CanonicalTransactionChain {
     if(!l1ToL2Queue.isEmpty()) {
       require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older queued batches first to enforce timestamp monotonicity");
     }
-    require(_timestamp >= latestOVMTimestamp, "Timestamps must monotonically increase");
-    latestOVMTimestamp = _timestamp;
+    require(_timestamp >= lastOVMTimestamp, "Timestamps must monotonically increase");
+    lastOVMTimestamp = _timestamp;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       _timestamp,
       false, // isL1ToL2Tx
@@ -102,7 +102,6 @@ contract CanonicalTransactionChain {
     if(_position != _inclusionProof.indexInBatch +
       batchHeader.cumulativePrevElements)
       return false;
-
     // verify elementsMerkleRoot
     if (!merkleUtils.verify(
       batchHeader.elementsMerkleRoot,

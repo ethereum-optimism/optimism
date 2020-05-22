@@ -20,7 +20,7 @@ contract RollupQueue {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     front = 0;
   }
-  // for testing: returns length of batch list
+
   function getBatchesLength() public view returns (uint) {
     return batches.length;
   }
@@ -42,7 +42,6 @@ contract RollupQueue {
   function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
   function authenticateDequeue(address _sender) public view returns (bool) { return true; }
 
-  // enqueues to the end of the current queue of batches
   function enqueueTx(bytes memory _tx) public {
     require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
     dt.TimestampedHash memory timestampedHash = dt.TimestampedHash(

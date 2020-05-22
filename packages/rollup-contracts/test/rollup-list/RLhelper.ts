@@ -132,11 +132,11 @@ export class DefaultRollupBatch {
 }
 /*
  * Helper class which provides all information requried for a particular
- * Rollup batch. This includes all of the tranisitions in readable form
+ * Rollup Queue Batch. This includes all of the transactions in readable form
  * as well as the merkle tree which it generates.
  */
 export class RollupQueueBatch {
-  public elements: string[] //Rollup batch
+  public elements: string[]
   public elementsMerkleTree: SparseMerkleTreeImpl
   public timestamp: number
 
@@ -148,7 +148,6 @@ export class RollupQueueBatch {
    * Generate the elements merkle tree from this.elements
    */
   public async generateTree(): Promise<void> {
-    // Create a tree!
     const treeHeight = Math.ceil(Math.log2(this.elements.length)) + 1 // The height should actually not be plus 1
     this.elementsMerkleTree = await SparseMerkleTreeImpl.create(
       newInMemoryDB(),
