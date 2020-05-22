@@ -20,7 +20,12 @@ We call this layer-1-compatible EVM that can run within the layer 1 EVM the OVM 
 
 ### Necessary Features
 
-Just like the EVM, the OVM ExecutionManager Contract must: \* Handle all opcodes other than those deeply embedded in the layer 1 protocol \(like COINBASE, DIFFICULTY, block NUMBER, BLOCKHASH\) \* Generically support smart contracts, including those that depend on and even create other smart contracts \* Serve as the entrypoint to all calls, transactions, and state modification \* Store all state created and modified by transaction and smart contract execution
+Just like the EVM, the OVM ExecutionManager Contract must: 
+
+* Handle all opcodes other than those deeply embedded in the layer 1 protocol (like COINBASE, DIFFICULTY, block NUMBER, BLOCKHASH) 
+* Generically support smart contracts, including those that depend on and even create other smart contracts 
+* Serve as the entrypoint to all calls, transactions, and state modification 
+* Store all state created and modified by transaction and smart contract execution
 
 ### Implementation
 
