@@ -14,6 +14,7 @@ const log = getLogger('canonical-tx-chain', true)
 /* Contract Imports */
 import * as CanonicalTransactionChain from '../../build/CanonicalTransactionChain.json'
 import * as L1ToL2TransactionQueue from '../../build/L1ToL2TransactionQueue.json'
+import * as SafetyTransactionQueue from '../../build/SafetyTransactionQueue.json'
 import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
 
 /* Begin tests */
@@ -24,11 +25,14 @@ describe('CanonicalTransactionChain', () => {
     sequencer,
     canonicalTransactionChain,
     l1ToL2TransactionPasser,
+    randomWallet,
   ] = getWallets(provider)
   let canonicalTxChain
   let rollupMerkleUtils
   let l1ToL2Queue
+  let safetyQueue
   const localL1ToL2Queue = []
+  const localSafetyQueue = []
   const LIVENESS_ASSUMPTION = 600 //600 seconds = 10 minutes
   const DEFAULT_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX = '0x1234'
@@ -60,14 +64,29 @@ describe('CanonicalTransactionChain', () => {
     return localBatch
   }
 
-  const enqueueAndGenerateBatch = async (
+  const enqueueAndGenerateL1ToL2Batch = async (
     _tx: string
   ): Promise<RollupQueueBatch> => {
     // Submit the rollup batch on-chain
     const enqueueTx = await l1ToL2Queue
       .connect(l1ToL2TransactionPasser)
       .enqueueTx(_tx)
-    const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
+    const localBatch = await generateQueueBatch(_tx, enqueueTx.hash)
+    return localBatch
+  }
+  const enqueueAndGenerateSafetyBatch = async (
+    _tx: string
+  ): Promise<RollupQueueBatch> => {
+    const enqueueTx = await safetyQueue.connect(randomWallet).enqueueTx(_tx)
+    const localBatch = await generateQueueBatch(_tx, enqueueTx.hash)
+    return localBatch
+  }
+
+  const generateQueueBatch = async (
+    _tx: string,
+    _txHash: string
+  ): Promise<RollupQueueBatch> => {
+    const txReceipt = await provider.getTransactionReceipt(_txHash)
     const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
     // Generate a local version of the rollup batch
     const localBatch = new RollupQueueBatch(_tx, timestamp)
@@ -97,10 +116,18 @@ describe('CanonicalTransactionChain', () => {
         gasLimit: 6700000,
       }
     )
+
     const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
     l1ToL2Queue = new Contract(
       l1ToL2QueueAddress,
       L1ToL2TransactionQueue.abi,
+      provider
+    )
+
+    const safetyQueueAddress = await canonicalTxChain.safetyQueue()
+    safetyQueue = new Contract(
+      safetyQueueAddress,
+      SafetyTransactionQueue.abi,
       provider
     )
   })
@@ -117,7 +144,7 @@ describe('CanonicalTransactionChain', () => {
       )
     })
 
-    it('should rever if submitting a 10 minute old batch', async () => {
+    it('should revert if submitting a 10 minute old batch', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       const oldTimestamp = timestamp - (LIVENESS_ASSUMPTION + 1)
       await canonicalTxChain
@@ -214,7 +241,7 @@ describe('CanonicalTransactionChain', () => {
     describe('when the l1ToL2Queue is not empty', async () => {
       let localBatch
       beforeEach(async () => {
-        localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+        localBatch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
       })
 
       it('should succesfully append a batch with an older timestamp', async () => {
@@ -245,7 +272,7 @@ describe('CanonicalTransactionChain', () => {
   describe('appendL1ToL2Batch()', async () => {
     describe('when there is a batch in the L1toL2Queue', async () => {
       beforeEach(async () => {
-        const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+        const localBatch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
         localL1ToL2Queue.push(localBatch)
       })
 
@@ -308,6 +335,72 @@ describe('CanonicalTransactionChain', () => {
     })
   })
 
+  describe('appendSafetyBatch()', async () => {
+    describe('when there is a batch in the SafetyQueue', async () => {
+      beforeEach(async () => {
+        const localBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+        localSafetyQueue.push(localBatch)
+      })
+
+      it('should successfully dequeue a SafetyBatch', async () => {
+        await canonicalTxChain.connect(sequencer).appendSafetyBatch()
+        const front = await safetyQueue.front()
+        front.should.equal(1)
+        const { timestamp, txHash } = await safetyQueue.batchHeaders(0)
+        timestamp.should.equal(0)
+        txHash.should.equal(
+          '0x0000000000000000000000000000000000000000000000000000000000000000'
+        )
+      })
+
+      it('should successfully append a SafetyBatch', async () => {
+        const { timestamp, txHash } = await safetyQueue.batchHeaders(0)
+        const localBatch = new DefaultRollupBatch(
+          timestamp,
+          false, // isL1ToL2Tx
+          0, //batchIndex
+          0, // cumulativePrevElements
+          [DEFAULT_TX] // elements
+        )
+        await localBatch.generateTree()
+        const localBatchHeaderHash = await localBatch.hashBatchHeader()
+        await canonicalTxChain.connect(sequencer).appendSafetyBatch()
+        const batchHeaderHash = await canonicalTxChain.batches(0)
+        batchHeaderHash.should.equal(localBatchHeaderHash)
+      })
+
+      it('should not allow non-sequencer to appendSafetyBatch if less than 10 minutes old', async () => {
+        await canonicalTxChain
+          .appendSafetyBatch()
+          .should.be.revertedWith(
+            'VM Exception while processing transaction: revert Message sender does not have permission to append this batch'
+          )
+      })
+
+      describe('after 10 minutes have elapsed', async () => {
+        let snapshotID
+        beforeEach(async () => {
+          snapshotID = await provider.send('evm_snapshot', [])
+          await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
+        })
+        afterEach(async () => {
+          await provider.send('evm_revert', [snapshotID])
+        })
+        it('should allow non-sequencer to appendSafetyBatch', async () => {
+          await canonicalTxChain.appendSafetyBatch()
+        })
+      })
+    })
+
+    it('should revert when SafetyTxQueue is empty', async () => {
+      await canonicalTxChain
+        .appendSafetyBatch()
+        .should.be.revertedWith(
+          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
+        )
+    })
+  })
+
   describe('verifyElement() ', async () => {
     it('should return true for valid elements for different batches and elements', async () => {
       const numBatches = 3
@@ -348,7 +441,7 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should return true for valid element from a l1ToL2Batch', async () => {
-      const l1ToL2Batch = await enqueueAndGenerateBatch(DEFAULT_TX)
+      const l1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
       await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
       const localBatch = new DefaultRollupBatch(
         l1ToL2Batch.timestamp, //timestamp

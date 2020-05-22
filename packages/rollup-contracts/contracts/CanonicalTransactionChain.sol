@@ -5,12 +5,14 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 import {L1ToL2TransactionQueue} from "./L1ToL2TransactionQueue.sol";
+import {SafetyTransactionQueue} from "./SafetyTransactionQueue.sol";
 
 contract CanonicalTransactionChain {
   address public sequencer;
   uint public sequencerLivenessAssumption;
   RollupMerkleUtils public merkleUtils;
   L1ToL2TransactionQueue public l1ToL2Queue;
+  SafetyTransactionQueue public safetyQueue;
   uint public cumulativeNumElements;
   bytes32[] public batches;
   uint public lastOVMTimestamp;
@@ -24,6 +26,7 @@ contract CanonicalTransactionChain {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     sequencer = _sequencer;
     l1ToL2Queue = new L1ToL2TransactionQueue(_rollupMerkleUtilsAddress, _l1ToL2TransactionPasserAddress, address(this));
+    safetyQueue = new SafetyTransactionQueue(_rollupMerkleUtilsAddress, address(this));
     sequencerLivenessAssumption =_sequencerLivenessAssumption;
     lastOVMTimestamp = 0;
   }
@@ -50,6 +53,17 @@ contract CanonicalTransactionChain {
 
   function appendL1ToL2Batch() public {
     dt.TimestampedHash memory timestampedHash = l1ToL2Queue.peek();
+    _appendQueueBatch(timestampedHash, true);
+    l1ToL2Queue.dequeue();
+  }
+
+  function appendSafetyBatch() public {
+    dt.TimestampedHash memory timestampedHash = safetyQueue.peek();
+    _appendQueueBatch(timestampedHash, false);
+    safetyQueue.dequeue();
+  }
+
+  function _appendQueueBatch(dt.TimestampedHash memory timestampedHash, bool isL1ToL2Tx) internal {
     uint timestamp = timestampedHash.timestamp;
     if (timestamp + sequencerLivenessAssumption > now) {
       require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
@@ -59,14 +73,13 @@ contract CanonicalTransactionChain {
     uint numElementsInBatch = 1;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       timestamp,
-      true, // isL1ToL2Tx
+      isL1ToL2Tx, // isL1ToL2Tx
       elementsMerkleRoot,
       numElementsInBatch,
       cumulativeNumElements // cumulativePrevElements
     ));
     batches.push(batchHeaderHash);
     cumulativeNumElements += numElementsInBatch;
-    l1ToL2Queue.dequeue();
   }
 
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
