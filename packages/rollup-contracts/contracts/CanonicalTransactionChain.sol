@@ -8,7 +8,7 @@ import {L1ToL2TransactionQueue} from "./L1ToL2TransactionQueue.sol";
 
 contract CanonicalTransactionChain {
   address public sequencer;
-  uint public sequencerLivenessAssumption;
+  uint public forceInclusionPeriod;
   RollupMerkleUtils public merkleUtils;
   L1ToL2TransactionQueue public l1ToL2Queue;
   uint public cumulativeNumElements;
@@ -19,12 +19,12 @@ contract CanonicalTransactionChain {
     address _rollupMerkleUtilsAddress,
     address _sequencer,
     address _l1ToL2TransactionPasserAddress,
-    uint _sequencerLivenessAssumption
+    uint _forceInclusionPeriod
   ) public {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     sequencer = _sequencer;
     l1ToL2Queue = new L1ToL2TransactionQueue(_rollupMerkleUtilsAddress, _l1ToL2TransactionPasserAddress, address(this));
-    sequencerLivenessAssumption =_sequencerLivenessAssumption;
+    forceInclusionPeriod =_forceInclusionPeriod;
     lastOVMTimestamp = 0;
   }
 
@@ -51,7 +51,7 @@ contract CanonicalTransactionChain {
   function appendL1ToL2Batch() public {
     dt.TimestampedHash memory timestampedHash = l1ToL2Queue.peek();
     uint timestamp = timestampedHash.timestamp;
-    if (timestamp + sequencerLivenessAssumption > now) {
+    if (timestamp + forceInclusionPeriod > now) {
       require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
     }
     lastOVMTimestamp = timestamp;
@@ -72,7 +72,7 @@ contract CanonicalTransactionChain {
   function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
-    require(_timestamp + sequencerLivenessAssumption > now, "Cannot submit a batch with a timestamp older than the sequencer liveness assumption");
+    require(_timestamp + forceInclusionPeriod > now, "Cannot submit a batch with a timestamp older than the sequencer inclusion period");
     require(_timestamp <= now, "Cannot submit a batch with a timestamp in the future");
     if(!l1ToL2Queue.isEmpty()) {
       require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older queued batches first to enforce timestamp monotonicity");

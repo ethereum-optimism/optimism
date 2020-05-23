@@ -117,14 +117,14 @@ describe('CanonicalTransactionChain', () => {
       )
     })
 
-    it('should rever if submitting a 10 minute old batch', async () => {
+    it('should revert if submitting a batch older than the inclusion period', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       const oldTimestamp = timestamp - (LIVENESS_ASSUMPTION + 1)
       await canonicalTxChain
         .connect(sequencer)
         .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
         .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp older than the sequencer liveness assumption'
+          'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp older than the sequencer inclusion period'
         )
     })
 
@@ -169,7 +169,7 @@ describe('CanonicalTransactionChain', () => {
     it('should update cumulativeNumElements correctly', async () => {
       await appendBatch(DEFAULT_BATCH)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
-      cumulativeNumElements.toNumber().should.equal(2)
+      cumulativeNumElements.toNumber().should.equal(DEFAULT_BATCH.length)
     })
 
     it('should not allow appendTransactionBatch from non-sequencer', async () => {
@@ -276,7 +276,7 @@ describe('CanonicalTransactionChain', () => {
         batchHeaderHash.should.equal(localBatchHeaderHash)
       })
 
-      it('should not allow non-sequencer to appendL1ToL2Batch if less than 10 minutes old', async () => {
+      it('should not allow non-sequencer to appendL1ToL2Batch if less than the inclusion period', async () => {
         await canonicalTxChain
           .appendL1ToL2Batch()
           .should.be.revertedWith(
@@ -284,7 +284,7 @@ describe('CanonicalTransactionChain', () => {
           )
       })
 
-      describe('after 10 minutes have elapsed', async () => {
+      describe('after inclusion period has elapsed', async () => {
         let snapshotID
         beforeEach(async () => {
           snapshotID = await provider.send('evm_snapshot', [])
