@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
@@ -133,11 +133,12 @@ describe('RollupQueue', () => {
     })
 
     it('should revert if dequeueing from empty queue', async () => {
-      await rollupQueue
-        .dequeue()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Cannot dequeue from an empty queue',
+        async () => {
+          await rollupQueue.dequeue()
+        }
+      )
     })
 
     it('should revert if dequeueing from a once populated, now empty queue', async () => {
@@ -146,11 +147,12 @@ describe('RollupQueue', () => {
         await enqueueAndGenerateBatch(DEFAULT_TX)
         await rollupQueue.dequeue()
       }
-      await rollupQueue
-        .dequeue()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot dequeue from an empty queue'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Cannot dequeue from an empty queue',
+        async () => {
+          await rollupQueue.dequeue()
+        }
+      )
     })
   })
   describe('peek() and peekTimestamp()', async () => {
@@ -166,16 +168,18 @@ describe('RollupQueue', () => {
     })
 
     it('should revert when peeking at an empty queue', async () => {
-      await rollupQueue
-        .peek()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
-        )
-      await rollupQueue
-        .peekTimestamp()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Queue is empty, no element to peek at',
+        async () => {
+          await rollupQueue.peek()
+        }
+      )
+      await TestUtils.assertRevertsAsync(
+        'Queue is empty, no element to peek at',
+        async () => {
+          await rollupQueue.peekTimestamp()
+        }
+      )
     })
   })
 })
