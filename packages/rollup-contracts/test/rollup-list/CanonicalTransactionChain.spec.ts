@@ -343,11 +343,12 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should revert when L1ToL2TxQueue is empty', async () => {
-      await canonicalTxChain
-        .appendL1ToL2Batch()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Queue is empty, no element to peek at',
+        async () => {
+          await canonicalTxChain.appendL1ToL2Batch()
+        }
+      )
     })
   })
 
@@ -386,11 +387,12 @@ describe('CanonicalTransactionChain', () => {
       })
 
       it('should not allow non-sequencer to appendSafetyBatch if less than 10 minutes old', async () => {
-        await canonicalTxChain
-          .appendSafetyBatch()
-          .should.be.revertedWith(
-            'VM Exception while processing transaction: revert Message sender does not have permission to append this batch'
-          )
+        await TestUtils.assertRevertsAsync(
+          'Message sender does not have permission to append this batch',
+          async () => {
+            await canonicalTxChain.appendSafetyBatch()
+          }
+        )
       })
 
       describe('after 10 minutes have elapsed', async () => {
@@ -409,11 +411,12 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should revert when SafetyTxQueue is empty', async () => {
-      await canonicalTxChain
-        .appendSafetyBatch()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Queue is empty, no element to peek at',
+        async () => {
+          await canonicalTxChain.appendSafetyBatch()
+        }
+      )
     })
   })
 

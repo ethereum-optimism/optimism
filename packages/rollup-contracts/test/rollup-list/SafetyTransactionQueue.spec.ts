@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Logging */
@@ -60,11 +60,12 @@ describe('SafetyTransactionQueue', () => {
     })
     it('should not allow dequeue from other address', async () => {
       await safetyTxQueue.enqueueTx(defaultTx)
-      await safetyTxQueue
-        .dequeue()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Message sender does not have permission to dequeue'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Message sender does not have permission to dequeue',
+        async () => {
+          await safetyTxQueue.dequeue()
+        }
+      )
     })
   })
 })
