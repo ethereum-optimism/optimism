@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Logging */
@@ -53,11 +53,12 @@ describe('L1ToL2TransactionQueue', () => {
       batchesLength.should.equal(1)
     })
     it('should not allow enqueue from other address', async () => {
-      await l1ToL2TxQueue
-        .enqueueTx(defaultTx)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Message sender does not have permission to enqueue'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Message sender does not have permission to enqueue',
+        async () => {
+          await l1ToL2TxQueue.enqueueTx(defaultTx)
+        }
+      )
     })
   })
 
@@ -77,11 +78,13 @@ describe('L1ToL2TransactionQueue', () => {
     })
     it('should not allow dequeue from other address', async () => {
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
-      await l1ToL2TxQueue
-        .dequeue()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Message sender does not have permission to dequeue'
-        )
+
+      await TestUtils.assertRevertsAsync(
+        'Message sender does not have permission to dequeue',
+        async () => {
+          await l1ToL2TxQueue.dequeue()
+        }
+      )
     })
   })
 })

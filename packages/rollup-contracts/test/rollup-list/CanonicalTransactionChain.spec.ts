@@ -1,7 +1,7 @@
 import '../setup'
 
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract } from 'ethers'
 
@@ -112,20 +112,25 @@ describe('CanonicalTransactionChain', () => {
 
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
-      await appendBatch(emptyBatch).should.be.revertedWith(
-        'VM Exception while processing transaction: revert Cannot submit an empty batch'
+      await TestUtils.assertRevertsAsync(
+        'Cannot submit an empty batch',
+        async () => {
+          await appendBatch(emptyBatch)
+        }
       )
     })
 
     it('should revert if submitting a batch older than the inclusion period', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       const oldTimestamp = timestamp - (LIVENESS_ASSUMPTION + 1)
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp older than the sequencer inclusion period'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Cannot submit a batch with a timestamp older than the sequencer inclusion period',
+        async () => {
+          await canonicalTxChain
+            .connect(sequencer)
+            .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+        }
+      )
     })
 
     it('should not revert if submitting a 5 minute old batch', async () => {
@@ -139,25 +144,29 @@ describe('CanonicalTransactionChain', () => {
     it('should revert if submitting a batch with a future timestamp', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       const futureTimestamp = timestamp + 100
-      // Submit the rollup batch on-chain
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(DEFAULT_BATCH, futureTimestamp)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp in the future'
-        )
+
+      await TestUtils.assertRevertsAsync(
+        'Cannot submit a batch with a timestamp in the future',
+        async () => {
+          await canonicalTxChain
+            .connect(sequencer)
+            .appendTransactionBatch(DEFAULT_BATCH, futureTimestamp)
+        }
+      )
     })
 
     it('should revert if submitting a new batch with a timestamp less than latest batch timestamp', async () => {
       const timestamp = await appendBatch(DEFAULT_BATCH)
       const oldTimestamp = timestamp - 1
-      // Submit the rollup batch on-chain
-      await canonicalTxChain
-        .connect(sequencer)
-        .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Timestamps must monotonically increase'
-        )
+
+      await TestUtils.assertRevertsAsync(
+        'Timestamps must monotonically increase',
+        async () => {
+          await canonicalTxChain
+            .connect(sequencer)
+            .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+        }
+      )
     })
 
     it('should add to batches array', async () => {
@@ -174,12 +183,16 @@ describe('CanonicalTransactionChain', () => {
 
     it('should not allow appendTransactionBatch from non-sequencer', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
-      // Submit the rollup batch on-chain
-      await canonicalTxChain
-        .appendTransactionBatch(DEFAULT_BATCH, timestamp)
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Message sender does not have permission to append a batch'
-        )
+
+      await TestUtils.assertRevertsAsync(
+        'Message sender does not have permission to append a batch',
+        async () => {
+          await canonicalTxChain.appendTransactionBatch(
+            DEFAULT_BATCH,
+            timestamp
+          )
+        }
+      )
     })
 
     it('should calculate batchHeaderHash correctly', async () => {
@@ -232,12 +245,14 @@ describe('CanonicalTransactionChain', () => {
 
       it('should revert when appending a block with a newer timestamp', async () => {
         const newTimestamp = localBatch.timestamp + 1
-        await canonicalTxChain
-          .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
-          .should.be.revertedWith(
-            'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp in the future'
-          )
+        await TestUtils.assertRevertsAsync(
+          'Cannot submit a batch with a timestamp in the future',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
+          }
+        )
       })
     })
   })
@@ -277,11 +292,12 @@ describe('CanonicalTransactionChain', () => {
       })
 
       it('should not allow non-sequencer to appendL1ToL2Batch if less than the inclusion period', async () => {
-        await canonicalTxChain
-          .appendL1ToL2Batch()
-          .should.be.revertedWith(
-            'VM Exception while processing transaction: revert Message sender does not have permission to append this batch'
-          )
+        await TestUtils.assertRevertsAsync(
+          'Message sender does not have permission to append this batch',
+          async () => {
+            await canonicalTxChain.appendL1ToL2Batch()
+          }
+        )
       })
 
       describe('after inclusion period has elapsed', async () => {
@@ -300,11 +316,12 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should revert when L1ToL2TxQueue is empty', async () => {
-      await canonicalTxChain
-        .appendL1ToL2Batch()
-        .should.be.revertedWith(
-          'VM Exception while processing transaction: revert Queue is empty, no element to peek at'
-        )
+      await TestUtils.assertRevertsAsync(
+        'Queue is empty, no element to peek at',
+        async () => {
+          await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
+        }
+      )
     })
   })
 
