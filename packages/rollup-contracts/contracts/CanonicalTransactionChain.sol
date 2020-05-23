@@ -52,18 +52,27 @@ contract CanonicalTransactionChain {
   }
 
   function appendL1ToL2Batch() public {
-    dt.TimestampedHash memory timestampedHash = l1ToL2Queue.peek();
-    _appendQueueBatch(timestampedHash, true);
+    dt.TimestampedHash memory l1ToL2Header = l1ToL2Queue.peek();
+    if(!safetyQueue.isEmpty()) {
+       require(l1ToL2Header.timestamp <= safetyQueue.peekTimestamp(), "Must process older SafetyQueue batches first to enforce timestamp monotonicity");
+    }
+    _appendQueueBatch(l1ToL2Header, true);
     l1ToL2Queue.dequeue();
   }
 
   function appendSafetyBatch() public {
-    dt.TimestampedHash memory timestampedHash = safetyQueue.peek();
-    _appendQueueBatch(timestampedHash, false);
+    dt.TimestampedHash memory safetyHeader = safetyQueue.peek();
+    if(!l1ToL2Queue.isEmpty()) {
+       require(safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity");
+    }
+    _appendQueueBatch(safetyHeader, false);
     safetyQueue.dequeue();
   }
 
-  function _appendQueueBatch(dt.TimestampedHash memory timestampedHash, bool isL1ToL2Tx) internal {
+  function _appendQueueBatch(
+    dt.TimestampedHash memory timestampedHash,
+    bool isL1ToL2Tx
+  ) internal {
     uint timestamp = timestampedHash.timestamp;
     if (timestamp + sequencerLivenessAssumption > now) {
       require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
@@ -88,7 +97,10 @@ contract CanonicalTransactionChain {
     require(_timestamp + sequencerLivenessAssumption > now, "Cannot submit a batch with a timestamp older than the sequencer liveness assumption");
     require(_timestamp <= now, "Cannot submit a batch with a timestamp in the future");
     if(!l1ToL2Queue.isEmpty()) {
-      require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older queued batches first to enforce timestamp monotonicity");
+      require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity");
+    }
+    if(!safetyQueue.isEmpty()) {
+      require(_timestamp <= safetyQueue.peekTimestamp(), "Must process older SafetyQueue batches first to enforce timestamp monotonicity");
     }
     require(_timestamp >= lastOVMTimestamp, "Timestamps must monotonically increase");
     lastOVMTimestamp = _timestamp;

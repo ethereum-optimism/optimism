@@ -257,14 +257,17 @@ describe('CanonicalTransactionChain', () => {
           .appendTransactionBatch(DEFAULT_BATCH, localBatch.timestamp)
       })
 
-      it('should revert when appending a block with a newer timestamp', async () => {
+      it('should revert when there is an older batch in the L1ToL2Queue', async () => {
+        const snapshotID = await provider.send('evm_snapshot', [])
+        await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
         const newTimestamp = localBatch.timestamp + 1
         await canonicalTxChain
           .connect(sequencer)
           .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
           .should.be.revertedWith(
-            'VM Exception while processing transaction: revert Cannot submit a batch with a timestamp in the future'
+            'VM Exception while processing transaction: revert Must process older L1ToL2Queue batches first to enforce timestamp monotonicity'
           )
+        await provider.send('evm_revert', [snapshotID])
       })
     })
   })
