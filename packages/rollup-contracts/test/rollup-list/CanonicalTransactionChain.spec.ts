@@ -31,8 +31,6 @@ describe('CanonicalTransactionChain', () => {
   let rollupMerkleUtils
   let l1ToL2Queue
   let safetyQueue
-  const localL1ToL2Queue = []
-  const localSafetyQueue = []
   const LIVENESS_ASSUMPTION = 600 //600 seconds = 10 minutes
   const DEFAULT_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX = '0x1234'
@@ -344,8 +342,7 @@ describe('CanonicalTransactionChain', () => {
   describe('appendL1ToL2Batch()', async () => {
     describe('when there is a batch in the L1toL2Queue', async () => {
       beforeEach(async () => {
-        const localBatch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
-        localL1ToL2Queue.push(localBatch)
+        await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
       })
 
       it('should successfully dequeue a L1ToL2Batch', async () => {
@@ -428,8 +425,7 @@ describe('CanonicalTransactionChain', () => {
   describe('appendSafetyBatch()', async () => {
     describe('when there is a batch in the SafetyQueue', async () => {
       beforeEach(async () => {
-        const localBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
-        localSafetyQueue.push(localBatch)
+        await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
       })
 
       it('should successfully dequeue a SafetyBatch', async () => {
@@ -572,10 +568,10 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should return true for valid element from a SafetyBatch', async () => {
-      const l1ToL2Batch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      const safetyBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
       await canonicalTxChain.connect(sequencer).appendSafetyBatch()
       const localBatch = new DefaultRollupBatch(
-        l1ToL2Batch.timestamp, //timestamp
+        safetyBatch.timestamp, //timestamp
         false, //isL1ToL2Tx
         0, //batchIndex
         0, //cumulativePrevElements
