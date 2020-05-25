@@ -248,7 +248,8 @@ describe('CanonicalTransactionChain', () => {
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(numBatchs)
     })
-    describe('when the l1ToL2Queue is not empty', async () => {
+
+    describe('when there is a batch in the L1toL2Queue', async () => {
       let localBatch
       beforeEach(async () => {
         localBatch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
@@ -268,7 +269,7 @@ describe('CanonicalTransactionChain', () => {
       })
 
       it('should revert when there is an older batch in the L1ToL2Queue', async () => {
-        const snapshot = await provider.send('evm_snapshot', [])
+        const snapshotID = await provider.send('evm_snapshot', [])
         await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
         const newTimestamp = localBatch.timestamp + 1
         await TestUtils.assertRevertsAsync(
@@ -279,7 +280,63 @@ describe('CanonicalTransactionChain', () => {
               .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
           }
         )
-        await provider.send('evm_revert', [snapshot])
+        await provider.send('evm_revert', [snapshotID])
+      })
+    })
+
+    describe('when there is a batch in the SafetyQueue', async () => {
+      let localBatch
+      beforeEach(async () => {
+        localBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      })
+
+      it('should succesfully append a batch with an older timestamp', async () => {
+        const oldTimestamp = localBatch.timestamp - 1
+        await canonicalTxChain
+          .connect(sequencer)
+          .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+      })
+
+      it('should succesfully append a batch with an equal timestamp', async () => {
+        await canonicalTxChain
+          .connect(sequencer)
+          .appendTransactionBatch(DEFAULT_BATCH, localBatch.timestamp)
+      })
+
+      it('should revert when there is an older batch in the SafetyQueue', async () => {
+        const snapshotID = await provider.send('evm_snapshot', [])
+        await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
+        const newTimestamp = localBatch.timestamp + 1
+        await TestUtils.assertRevertsAsync(
+          'Must process older SafetyQueue batches first to enforce timestamp monotonicity',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
+          }
+        )
+        await provider.send('evm_revert', [snapshotID])
+      })
+    })
+    describe('when both the safetyQueue and l1ToL2Queue are not empty', async () => {
+      let timestamp
+      beforeEach(async () => {
+        const localBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+        timestamp = localBatch.timestamp
+        await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      })
+
+      it('should succesfully append a batch with an older timestamp than the oldest batch', async () => {
+        const oldTimestamp = timestamp - 1
+        await canonicalTxChain
+          .connect(sequencer)
+          .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+      })
+
+      it('should succesfully append a batch with a timestamp equal to the oldest batch', async () => {
+        await canonicalTxChain
+          .connect(sequencer)
+          .appendTransactionBatch(DEFAULT_BATCH, timestamp)
       })
     })
   })
@@ -327,19 +384,35 @@ describe('CanonicalTransactionChain', () => {
         )
       })
 
-      describe('after inclusion period has elapsed', async () => {
-        let snapshotID
-        beforeEach(async () => {
-          snapshotID = await provider.send('evm_snapshot', [])
-          await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
-        })
-        afterEach(async () => {
-          await provider.send('evm_revert', [snapshotID])
-        })
-        it('should allow non-sequencer to appendL1ToL2Batch', async () => {
-          await canonicalTxChain.appendL1ToL2Batch()
-        })
+      it('should allow non-sequencer to appendL1ToL2Batch after inclusion period has elapsed', async () => {
+        const snapshotID = await provider.send('evm_snapshot', [])
+        await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
+        await canonicalTxChain.appendL1ToL2Batch()
+        await provider.send('evm_revert', [snapshotID])
       })
+    })
+
+    it('should revert when there is an older batch in the SafetyQueue ', async () => {
+      const snapshotID = await provider.send('evm_snapshot', [])
+      await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      await provider.send('evm_increaseTime', [10])
+      await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      await TestUtils.assertRevertsAsync(
+        'Must process older SafetyQueue batches first to enforce timestamp monotonicity',
+        async () => {
+          await canonicalTxChain.appendL1ToL2Batch()
+        }
+      )
+      await provider.send('evm_revert', [snapshotID])
+    })
+
+    it('should succeed when there are only newer batches in the SafetyQueue ', async () => {
+      const snapshotID = await provider.send('evm_snapshot', [])
+      await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      await provider.send('evm_increaseTime', [10])
+      await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
+      await provider.send('evm_revert', [snapshotID])
     })
 
     it('should revert when L1ToL2TxQueue is empty', async () => {
@@ -394,20 +467,35 @@ describe('CanonicalTransactionChain', () => {
           }
         )
       })
-
-      describe('after 10 minutes have elapsed', async () => {
-        let snapshotID
-        beforeEach(async () => {
-          snapshotID = await provider.send('evm_snapshot', [])
-          await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
-        })
-        afterEach(async () => {
-          await provider.send('evm_revert', [snapshotID])
-        })
-        it('should allow non-sequencer to appendSafetyBatch', async () => {
-          await canonicalTxChain.appendSafetyBatch()
-        })
+      it('should allow non-sequencer to appendSafetyBatch after 10 minutes have elapsed', async () => {
+        const snapshotID = await provider.send('evm_snapshot', [])
+        await provider.send('evm_increaseTime', [LIVENESS_ASSUMPTION])
+        await canonicalTxChain.appendSafetyBatch()
+        await provider.send('evm_revert', [snapshotID])
       })
+    })
+
+    it('should revert when trying to appendSafetyBatch when there is an older batch in the L1ToL2Queue ', async () => {
+      const snapshotID = await provider.send('evm_snapshot', [])
+      await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      await provider.send('evm_increaseTime', [10])
+      await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      await TestUtils.assertRevertsAsync(
+        'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
+        async () => {
+          await canonicalTxChain.appendSafetyBatch()
+        }
+      )
+      await provider.send('evm_revert', [snapshotID])
+    })
+
+    it('should succeed when there are only newer batches in the L1ToL2Queue ', async () => {
+      const snapshotID = await provider.send('evm_snapshot', [])
+      await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+      await provider.send('evm_increaseTime', [10])
+      await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      await canonicalTxChain.connect(sequencer).appendSafetyBatch()
+      await provider.send('evm_revert', [snapshotID])
     })
 
     it('should revert when SafetyTxQueue is empty', async () => {
