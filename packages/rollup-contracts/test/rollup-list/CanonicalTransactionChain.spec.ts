@@ -18,7 +18,7 @@ import * as SafetyTransactionQueue from '../../build/SafetyTransactionQueue.json
 import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
 
 /* Begin tests */
-describe.only('CanonicalTransactionChain', () => {
+describe('CanonicalTransactionChain', () => {
   const provider = createMockProvider()
   const [wallet, sequencer, l1ToL2TransactionPasser, randomWallet] = getWallets(
     provider
