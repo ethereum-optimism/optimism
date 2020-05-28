@@ -82,7 +82,7 @@ contract CanonicalTransactionChain {
     uint numElementsInBatch = 1;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       timestamp,
-      isL1ToL2Tx, // isL1ToL2Tx
+      isL1ToL2Tx,
       elementsMerkleRoot,
       numElementsInBatch,
       cumulativeNumElements // cumulativePrevElements

@@ -18,6 +18,19 @@ contract DataTypes {
        bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
     }
 
+    struct StateElementInclusionProof {
+       uint batchIndex; // index in batches array (first batch has batchNumber of 0)
+       StateChainBatchHeader batchHeader;
+       uint indexInBatch; // used to verify inclusion of the element in elementsMerkleRoot
+       bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
+    }
+
+    struct StateChainBatchHeader {
+       bytes32 elementsMerkleRoot;
+       uint numElementsInBatch;
+       uint cumulativePrevElements;
+    }
+
     struct TxChainBatchHeader {
        uint timestamp;
        bool isL1ToL2Tx;
