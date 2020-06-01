@@ -50,9 +50,6 @@ describe('RollupQueue', () => {
   }
 
   describe('enqueueTx() ', async () => {
-    it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
-      await rollupQueue.enqueueTx(DEFAULT_TX)
-    })
     it('should add to batchHeaders array', async () => {
       await rollupQueue.enqueueTx(DEFAULT_TX)
       const batchesLength = await rollupQueue.getBatchHeadersLength()

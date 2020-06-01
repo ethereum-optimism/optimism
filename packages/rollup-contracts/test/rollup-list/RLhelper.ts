@@ -94,10 +94,6 @@ export class ChainBatch {
     return siblings
   }
 
-  public async hashBatchHeader(): Promise<string> {
-    return ''
-  }
-
   /*
    * elementIndex is the index in this batch of the element
    * that we want to create an inclusion proof for.
@@ -124,7 +120,7 @@ export class ChainBatch {
  * Rollup batch. This includes all of the transactions in readable form
  * as well as the merkle tree which it generates.
  */
-export class CanonicalTxBatch extends ChainBatch {
+export class TxChainBatch extends ChainBatch {
   public timestamp: number
   public isL1ToL2Tx: boolean
 

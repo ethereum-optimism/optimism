@@ -119,7 +119,7 @@ contract CanonicalTransactionChain {
   function verifyElement(
      bytes memory _element, // the element of the list being proven
      uint _position, // the position in the list of the element being proven
-     dt.ElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
+     dt.TxElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
   ) public view returns (bool) {
     // For convenience, store the batchHeader
     dt.TxChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;

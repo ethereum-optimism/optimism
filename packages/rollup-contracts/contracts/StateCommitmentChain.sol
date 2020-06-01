@@ -54,15 +54,12 @@ contract StateCommitmentChain {
   function verifyElement(
      bytes memory _element, // the element of the list being proven
      uint _position, // the position in the list of the element being proven
-     dt.StateElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
+     dt.StateElementInclusionProof memory _inclusionProof
   ) public view returns (bool) {
-    // For convenience, store the batchHeader
     dt.StateChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;
-    // make sure absolute position equivalent to relative positions
     if(_position != _inclusionProof.indexInBatch +
       batchHeader.cumulativePrevElements)
       return false;
-    // verify elementsMerkleRoot
     if (!merkleUtils.verify(
       batchHeader.elementsMerkleRoot,
       _element,

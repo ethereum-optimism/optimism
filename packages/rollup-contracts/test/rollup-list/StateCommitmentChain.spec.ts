@@ -29,7 +29,7 @@ describe('StateCommitmentChain', () => {
   let stateChain
   let canonicalTxChain
   let rollupMerkleUtils
-  const DEFAULT_BATCH = ['0x1234', '0x5678']
+  const DEFAULT_STATE_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX_BATCH = [
     '0x1234',
     '0x5678',
@@ -43,7 +43,7 @@ describe('StateCommitmentChain', () => {
     '0x5678',
   ]
   const DEFAULT_STATE_ROOT = '0x1234'
-  const LIVENESS_ASSUMPTION = 600
+  const FORCE_INCLUSION_PERIOD = 600
 
   const appendAndGenerateBatch = async (
     batch: string[],
@@ -81,7 +81,7 @@ describe('StateCommitmentChain', () => {
         rollupMerkleUtils.address,
         sequencer.address,
         l1ToL2TransactionPasser.address,
-        LIVENESS_ASSUMPTION,
+        FORCE_INCLUSION_PERIOD,
       ],
       {
         gasLimit: 6700000,
@@ -108,8 +108,10 @@ describe('StateCommitmentChain', () => {
   })
 
   describe('appendStateBatch()', async () => {
-    it('should not throw when appending a batch from any wallet', async () => {
-      await stateChain.connect(randomWallet).appendStateBatch(DEFAULT_BATCH)
+    it('should allow appending of state batches from any wallet', async () => {
+      await stateChain
+        .connect(randomWallet)
+        .appendStateBatch(DEFAULT_STATE_BATCH)
     })
 
     it('should throw if submitting an empty batch', async () => {
@@ -123,19 +125,19 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should add to batches array', async () => {
-      await stateChain.appendStateBatch(DEFAULT_BATCH)
+      await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
       const batchesLength = await stateChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      await stateChain.appendStateBatch(DEFAULT_BATCH)
+      await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
       const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
-      cumulativeNumElements.toNumber().should.equal(DEFAULT_BATCH.length)
+      cumulativeNumElements.toNumber().should.equal(DEFAULT_STATE_BATCH.length)
     })
 
     it('should calculate batchHeaderHash correctly', async () => {
-      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
       const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
       const calculatedBatchHeaderHash = await stateChain.batches(0)
       calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -144,9 +146,9 @@ describe('StateCommitmentChain', () => {
     it('should add multiple batches correctly', async () => {
       const numBatches = 5
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = DEFAULT_BATCH.length * batchIndex
+        const cumulativePrevElements = DEFAULT_STATE_BATCH.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
-          DEFAULT_BATCH,
+          DEFAULT_STATE_BATCH,
           batchIndex,
           cumulativePrevElements
         )
@@ -157,7 +159,7 @@ describe('StateCommitmentChain', () => {
       const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
       cumulativeNumElements
         .toNumber()
-        .should.equal(numBatches * DEFAULT_BATCH.length)
+        .should.equal(numBatches * DEFAULT_STATE_BATCH.length)
       const batchesLength = await stateChain.getBatchesLength()
       batchesLength.toNumber().should.equal(numBatches)
     })
@@ -165,12 +167,12 @@ describe('StateCommitmentChain', () => {
     it('should throw if submitting more state commitments than number of txs in canonical tx chain', async () => {
       const numBatches = 5
       for (let i = 0; i < numBatches; i++) {
-        await stateChain.appendStateBatch(DEFAULT_BATCH)
+        await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
       }
       await TestUtils.assertRevertsAsync(
         'Cannot append more state commitments than total number of transactions in CanonicalTransactionChain',
         async () => {
-          await stateChain.appendStateBatch(DEFAULT_BATCH)
+          await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
         }
       )
     })
@@ -259,13 +261,13 @@ describe('StateCommitmentChain', () => {
   })
 
   describe('deleteAfterInclusive() ', async () => {
-    it('should not allow deletion from non-fraudVerifier', async () => {
+    it('should not allow deletion from address other than fraud verifier', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
-      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
-        numElementsInBatch: DEFAULT_BATCH.length,
+        numElementsInBatch: DEFAULT_STATE_BATCH.length,
         cumulativePrevElements,
       }
       await TestUtils.assertRevertsAsync(
@@ -282,10 +284,10 @@ describe('StateCommitmentChain', () => {
       beforeEach(async () => {
         const cumulativePrevElements = 0
         const batchIndex = 0
-        const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+        const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
         const batchHeader = {
           elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
-          numElementsInBatch: DEFAULT_BATCH.length,
+          numElementsInBatch: DEFAULT_STATE_BATCH.length,
           cumulativePrevElements,
         }
         await stateChain.connect(fraudVerifier).deleteAfterInclusive(
@@ -300,7 +302,7 @@ describe('StateCommitmentChain', () => {
       })
 
       it('should successfully append a batch after deletion', async () => {
-        const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+        const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
         const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
         const calculatedBatchHeaderHash = await stateChain.batches(0)
         calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -311,9 +313,9 @@ describe('StateCommitmentChain', () => {
       const deleteBatchIndex = 0
       const localBatches = []
       for (let batchIndex = 0; batchIndex < 5; batchIndex++) {
-        const cumulativePrevElements = batchIndex * DEFAULT_BATCH.length
+        const cumulativePrevElements = batchIndex * DEFAULT_STATE_BATCH.length
         const localBatch = await appendAndGenerateBatch(
-          DEFAULT_BATCH,
+          DEFAULT_STATE_BATCH,
           batchIndex,
           cumulativePrevElements
         )
@@ -322,7 +324,7 @@ describe('StateCommitmentChain', () => {
       const deleteBatch = localBatches[deleteBatchIndex]
       const batchHeader = {
         elementsMerkleRoot: deleteBatch.elementsMerkleTree.getRootHash(),
-        numElementsInBatch: DEFAULT_BATCH.length,
+        numElementsInBatch: DEFAULT_STATE_BATCH.length,
         cumulativePrevElements: deleteBatch.cumulativePrevElements,
       }
       await stateChain.connect(fraudVerifier).deleteAfterInclusive(
@@ -332,13 +334,14 @@ describe('StateCommitmentChain', () => {
       const batchesLength = await stateChain.getBatchesLength()
       batchesLength.should.equal(0)
     })
-    it('should fail if batchHeader is incorrect', async () => {
+
+    it('should revert if batchHeader is incorrect', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
-      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
-        numElementsInBatch: DEFAULT_BATCH.length + 1, // increment to make header incorrect
+        numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
         cumulativePrevElements,
       }
       await TestUtils.assertRevertsAsync(
@@ -351,22 +354,22 @@ describe('StateCommitmentChain', () => {
         }
       )
     })
-    it('should fail if trying to delete a batch outside of valid range', async () => {
+
+    it('should revert if trying to delete a batch outside of valid range', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 1 // outside of range
-      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
-        numElementsInBatch: DEFAULT_BATCH.length + 1, // increment to make header incorrect
+        numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
         cumulativePrevElements,
       }
       await TestUtils.assertRevertsAsync(
         'Cannot delete batches outside of valid range',
         async () => {
-          await stateChain.connect(fraudVerifier).deleteAfterInclusive(
-            batchIndex, // delete the single appended batch
-            batchHeader
-          )
+          await stateChain
+            .connect(fraudVerifier)
+            .deleteAfterInclusive(batchIndex, batchHeader)
         }
       )
     })

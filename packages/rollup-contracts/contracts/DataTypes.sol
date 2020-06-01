@@ -3,7 +3,6 @@ pragma experimental ABIEncoderV2;
 
 /**
  * @title DataTypes
- * @notice TODO
  */
 contract DataTypes {
     struct L2ToL1Message {
@@ -11,18 +10,18 @@ contract DataTypes {
         bytes callData;
     }
 
-    struct ElementInclusionProof {
-       uint batchIndex; // index in batches array (first batch has batchNumber of 0)
+    struct TxElementInclusionProof {
+       uint batchIndex;
        TxChainBatchHeader batchHeader;
-       uint indexInBatch; // used to verify inclusion of the element in elementsMerkleRoot
-       bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
+       uint indexInBatch;
+       bytes32[] siblings;
     }
 
     struct StateElementInclusionProof {
-       uint batchIndex; // index in batches array (first batch has batchNumber of 0)
+       uint batchIndex;
        StateChainBatchHeader batchHeader;
-       uint indexInBatch; // used to verify inclusion of the element in elementsMerkleRoot
-       bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
+       uint indexInBatch;
+       bytes32[] siblings;
     }
 
     struct StateChainBatchHeader {
