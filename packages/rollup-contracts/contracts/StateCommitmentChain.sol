@@ -9,15 +9,18 @@ import {CanonicalTransactionChain} from "./CanonicalTransactionChain.sol";
 contract StateCommitmentChain {
   CanonicalTransactionChain canonicalTransactionChain;
   RollupMerkleUtils public merkleUtils;
+  address public fraudVerifier;
   uint public cumulativeNumElements;
   bytes32[] public batches;
 
   constructor(
     address _rollupMerkleUtilsAddress,
-    address _canonicalTransactionChain
+    address _canonicalTransactionChain,
+    address _fraudVerifier
   ) public {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
+    fraudVerifier = _fraudVerifier;
   }
 
   function getBatchesLength() public view returns (uint) {
@@ -68,5 +71,17 @@ contract StateCommitmentChain {
     )) return false;
     //compare computed batch header with the batch header in the list.
     return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
+  }
+
+  function deleteAfterInclusive(
+     uint _batchIndex,
+     dt.StateChainBatchHeader memory _batchHeader
+  ) public {
+    require(msg.sender == fraudVerifier, "Only FraudVerifier has permission to delete state batches");
+    require(_batchIndex < batches.length, "Cannot delete batches outside of valid range");
+    bytes32 calculatedBatchHeaderHash = hashBatchHeader(_batchHeader);
+    require(calculatedBatchHeaderHash == batches[_batchIndex], "Calculated batch header is different than expected batch header");
+    batches.length = _batchIndex;
+    cumulativeNumElements = _batchHeader.cumulativePrevElements;
   }
 }

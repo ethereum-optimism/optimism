@@ -221,8 +221,8 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should add multiple batches correctly', async () => {
-      const numBatchs = 10
-      for (let batchIndex = 0; batchIndex < numBatchs; batchIndex++) {
+      const numBatches = 10
+      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = DEFAULT_BATCH.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
           DEFAULT_BATCH,
@@ -238,9 +238,9 @@ describe('CanonicalTransactionChain', () => {
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements
         .toNumber()
-        .should.equal(numBatchs * DEFAULT_BATCH.length)
+        .should.equal(numBatches * DEFAULT_BATCH.length)
       const batchesLength = await canonicalTxChain.getBatchesLength()
-      batchesLength.toNumber().should.equal(numBatchs)
+      batchesLength.toNumber().should.equal(numBatches)
     })
 
     describe('when there is a batch in the L1toL2Queue', async () => {

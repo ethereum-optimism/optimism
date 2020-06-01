@@ -19,9 +19,13 @@ import * as RollupMerkleUtils from '../../build/RollupMerkleUtils.json'
 /* Begin tests */
 describe('StateCommitmentChain', () => {
   const provider = createMockProvider()
-  const [wallet, sequencer, l1ToL2TransactionPasser, randomWallet] = getWallets(
-    provider
-  )
+  const [
+    wallet,
+    sequencer,
+    l1ToL2TransactionPasser,
+    fraudVerifier,
+    randomWallet,
+  ] = getWallets(provider)
   let stateChain
   let canonicalTxChain
   let rollupMerkleUtils
@@ -92,7 +96,11 @@ describe('StateCommitmentChain', () => {
     stateChain = await deployContract(
       wallet,
       StateCommitmentChain,
-      [rollupMerkleUtils.address, canonicalTxChain.address],
+      [
+        rollupMerkleUtils.address,
+        canonicalTxChain.address,
+        fraudVerifier.address,
+      ],
       {
         gasLimit: 6700000,
       }
@@ -134,8 +142,8 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should add multiple batches correctly', async () => {
-      const numBatchs = 5
-      for (let batchIndex = 0; batchIndex < numBatchs; batchIndex++) {
+      const numBatches = 5
+      for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = DEFAULT_BATCH.length * batchIndex
         const localBatch = await appendAndGenerateBatch(
           DEFAULT_BATCH,
@@ -149,14 +157,14 @@ describe('StateCommitmentChain', () => {
       const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
       cumulativeNumElements
         .toNumber()
-        .should.equal(numBatchs * DEFAULT_BATCH.length)
+        .should.equal(numBatches * DEFAULT_BATCH.length)
       const batchesLength = await stateChain.getBatchesLength()
-      batchesLength.toNumber().should.equal(numBatchs)
+      batchesLength.toNumber().should.equal(numBatches)
     })
 
     it('should throw if submitting more state commitments than number of txs in canonical tx chain', async () => {
-      const numBatchs = 5
-      for (let i = 0; i < numBatchs; i++) {
+      const numBatches = 5
+      for (let i = 0; i < numBatches; i++) {
         await stateChain.appendStateBatch(DEFAULT_BATCH)
       }
       await TestUtils.assertRevertsAsync(
@@ -247,6 +255,120 @@ describe('StateCommitmentChain', () => {
         elementInclusionProof
       )
       isIncluded.should.equal(false)
+    })
+  })
+
+  describe('deleteAfterInclusive() ', async () => {
+    it('should not allow deletion from non-fraudVerifier', async () => {
+      const cumulativePrevElements = 0
+      const batchIndex = 0
+      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const batchHeader = {
+        elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
+        numElementsInBatch: DEFAULT_BATCH.length,
+        cumulativePrevElements,
+      }
+      await TestUtils.assertRevertsAsync(
+        'Only FraudVerifier has permission to delete state batches',
+        async () => {
+          await stateChain.connect(randomWallet).deleteAfterInclusive(
+            batchIndex, // delete the single appended batch
+            batchHeader
+          )
+        }
+      )
+    })
+    describe('when a single batch is deleted', async () => {
+      beforeEach(async () => {
+        const cumulativePrevElements = 0
+        const batchIndex = 0
+        const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+        const batchHeader = {
+          elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
+          numElementsInBatch: DEFAULT_BATCH.length,
+          cumulativePrevElements,
+        }
+        await stateChain.connect(fraudVerifier).deleteAfterInclusive(
+          batchIndex, // delete the single appended batch
+          batchHeader
+        )
+      })
+
+      it('should successfully update the batches array', async () => {
+        const batchesLength = await stateChain.getBatchesLength()
+        batchesLength.should.equal(0)
+      })
+
+      it('should successfully append a batch after deletion', async () => {
+        const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+        const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
+        const calculatedBatchHeaderHash = await stateChain.batches(0)
+        calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
+      })
+    })
+
+    it('should delete many batches', async () => {
+      const deleteBatchIndex = 0
+      const localBatches = []
+      for (let batchIndex = 0; batchIndex < 5; batchIndex++) {
+        const cumulativePrevElements = batchIndex * DEFAULT_BATCH.length
+        const localBatch = await appendAndGenerateBatch(
+          DEFAULT_BATCH,
+          batchIndex,
+          cumulativePrevElements
+        )
+        localBatches.push(localBatch)
+      }
+      const deleteBatch = localBatches[deleteBatchIndex]
+      const batchHeader = {
+        elementsMerkleRoot: deleteBatch.elementsMerkleTree.getRootHash(),
+        numElementsInBatch: DEFAULT_BATCH.length,
+        cumulativePrevElements: deleteBatch.cumulativePrevElements,
+      }
+      await stateChain.connect(fraudVerifier).deleteAfterInclusive(
+        deleteBatchIndex, // delete all batches (including and after batch 0)
+        batchHeader
+      )
+      const batchesLength = await stateChain.getBatchesLength()
+      batchesLength.should.equal(0)
+    })
+    it('should fail if batchHeader is incorrect', async () => {
+      const cumulativePrevElements = 0
+      const batchIndex = 0
+      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const batchHeader = {
+        elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
+        numElementsInBatch: DEFAULT_BATCH.length + 1, // increment to make header incorrect
+        cumulativePrevElements,
+      }
+      await TestUtils.assertRevertsAsync(
+        'Calculated batch header is different than expected batch header',
+        async () => {
+          await stateChain.connect(fraudVerifier).deleteAfterInclusive(
+            batchIndex, // delete the single appended batch
+            batchHeader
+          )
+        }
+      )
+    })
+    it('should fail if trying to delete a batch outside of valid range', async () => {
+      const cumulativePrevElements = 0
+      const batchIndex = 1 // outside of range
+      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const batchHeader = {
+        elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
+        numElementsInBatch: DEFAULT_BATCH.length + 1, // increment to make header incorrect
+        cumulativePrevElements,
+      }
+      await TestUtils.assertRevertsAsync(
+        'Cannot delete batches outside of valid range',
+        async () => {
+          await stateChain.connect(fraudVerifier).deleteAfterInclusive(
+            batchIndex, // delete the single appended batch
+            batchHeader
+          )
+        }
+      )
     })
   })
 })
