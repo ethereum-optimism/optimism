@@ -1,12 +1,11 @@
 import '../setup'
 
 /* External Imports */
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger } from '@eth-optimism/core-utils'
-import { utils } from 'ethers'
+import { ContractAddressGeneratorContractDefinition } from '@eth-optimism/rollup-contracts'
 
-/* Contract Imports */
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { utils } from 'ethers'
 
 /* Internal Imports */
 import { create2Tests } from './test-files/create2test.json'
@@ -30,7 +29,7 @@ describe('ContractAddressGenerator', () => {
     // First deploy the contract address
     contractAddressGenerator = await deployContract(
       wallet1,
-      ContractAddressGenerator,
+      ContractAddressGeneratorContractDefinition,
       [],
       {
         gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,

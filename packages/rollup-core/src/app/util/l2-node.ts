@@ -6,23 +6,19 @@ import {
   logError,
 } from '@eth-optimism/core-utils'
 import {
-  GAS_LIMIT,
   L2ExecutionManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
-  CHAIN_ID,
-} from '@eth-optimism/ovm'
-import { Address } from '@eth-optimism/rollup-core'
-
-import { JsonRpcProvider } from 'ethers/providers'
+} from '@eth-optimism/rollup-contracts'
 
 import { Contract, Wallet } from 'ethers'
+import { JsonRpcProvider } from 'ethers/providers'
 import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../index'
+import { Address, L2NodeContext } from '../../types'
 import { Environment } from './environment'
 import { deployContract } from './utils'
-import { L2NodeContext } from '../../types'
+import { CHAIN_ID, DEFAULT_ETHNODE_GAS_LIMIT, GAS_LIMIT } from '../index'
 import * as fs from 'fs'
 
 const log = getLogger('l2-node')

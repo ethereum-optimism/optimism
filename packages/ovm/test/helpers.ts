@@ -1,5 +1,5 @@
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core/'
+import { Address, CHAIN_ID, GAS_LIMIT } from '@eth-optimism/rollup-core'
 import {
   ZERO_ADDRESS,
   getLogger,
@@ -24,11 +24,7 @@ import { Transaction } from 'ethers/utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
-import {
-  GAS_LIMIT,
-  CHAIN_ID,
-  internalTxReceiptToOvmTxReceipt,
-} from '../src/app'
+import { internalTxReceiptToOvmTxReceipt } from '../src/app'
 
 import { OvmTransactionReceipt } from '../src/types'
 

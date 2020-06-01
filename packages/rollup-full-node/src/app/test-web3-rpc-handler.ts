@@ -4,19 +4,23 @@ import {
   numberToHexString,
   castToNumber,
 } from '@eth-optimism/core-utils'
-import { GAS_LIMIT } from '@eth-optimism/ovm'
+import {
+  GAS_LIMIT,
+  getCurrentTime,
+  initializeL2Node,
+  L2NodeContext,
+} from '@eth-optimism/rollup-core'
+
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
 import { DefaultWeb3Handler, latestBlock } from './web3-rpc-handler'
 import {
-  L2NodeContext,
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3RpcMethods,
   Web3RpcTypes,
 } from '../types'
-import { getCurrentTime, initializeL2Node } from './util'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('test-web3-handler')

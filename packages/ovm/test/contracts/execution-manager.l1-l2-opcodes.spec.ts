@@ -1,24 +1,28 @@
 import '../setup'
 
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
+import {
+  Address,
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+} from '@eth-optimism/rollup-core'
 import {
   getLogger,
   getCurrentTime,
-  remove0x,
   add0x,
-  TestUtils,
   bufToHexString,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 
-import { Contract, ContractFactory, ethers } from 'ethers'
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestSimpleCallContractDefinition as SimpleCall,
+} from '@eth-optimism/rollup-contracts'
+
+import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-
-/* Contract Imports */
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as SimpleCall from '../../build/contracts/SimpleCall.json'
 
 /* Internal Imports */
 import {
@@ -31,9 +35,7 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../helpers'
-import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 import { cloneDeep, fromPairs } from 'lodash'
-import { L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS } from '../../src/app/constants'
 
 export const abi = new ethers.utils.AbiCoder()
 

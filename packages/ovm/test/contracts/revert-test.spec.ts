@@ -1,10 +1,9 @@
 import '../setup'
 
 /* External Imports */
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { TestRevertTestContractDefinition as RevertTest } from '@eth-optimism/rollup-contracts'
 
-/* Contract Imports */
-import * as RevertTest from '../../build/contracts/RevertTest.json'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'

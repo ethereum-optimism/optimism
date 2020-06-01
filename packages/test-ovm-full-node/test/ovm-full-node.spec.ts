@@ -3,11 +3,12 @@ import './setup'
 /* External Imports */
 import {
   runFullnode,
-  deployContract,
   Web3RpcMethods,
   TestWeb3Handler,
   FullnodeContext
 } from '@eth-optimism/rollup-full-node'
+import {deployContract} from '@eth-optimism/rollup-core'
+
 import {Contract, Wallet} from 'ethers'
 import {JsonRpcProvider} from 'ethers/providers'
 

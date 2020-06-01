@@ -2,13 +2,12 @@ import '../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
+import { RLPEncodeContractDefinition as RLPEncode } from '@eth-optimism/rollup-contracts'
+
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { rlpTests } from './test-files/rlptest.json'
 
 const log = getLogger('rlp-encode', true)
-
-/* Contract Imports */
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
 
 /* Begin tests */
 describe('RLP Encoder', () => {

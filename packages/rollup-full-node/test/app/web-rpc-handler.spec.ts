@@ -8,7 +8,7 @@ import {
   JSONRPC_ERRORS,
   hexStrToBuf,
 } from '@eth-optimism/core-utils'
-import { CHAIN_ID } from '@eth-optimism/ovm'
+import { CHAIN_ID } from '@eth-optimism/rollup-core'
 
 import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'

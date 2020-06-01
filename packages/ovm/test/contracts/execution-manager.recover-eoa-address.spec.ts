@@ -2,18 +2,17 @@ import '../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
+import {
+  CHAIN_ID,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  GAS_LIMIT,
+} from '@eth-optimism/rollup-core'
+import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-optimism/rollup-contracts'
+
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-/* Contract Imports */
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-
 /* Internal Imports */
-import {
-  GAS_LIMIT,
-  CHAIN_ID,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-} from '../../src/app'
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 export const abi = new ethers.utils.AbiCoder()

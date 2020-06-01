@@ -2,14 +2,16 @@ import '../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
+import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-optimism/rollup-contracts'
+import {
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+} from '@eth-optimism/rollup-core'
+
+import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-/* Contract Imports */
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import { Contract } from 'ethers'
-
 /* Internal Imports */
-import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 const log = getLogger('state-manager', true)

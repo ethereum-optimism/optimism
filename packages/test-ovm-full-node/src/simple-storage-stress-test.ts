@@ -1,6 +1,6 @@
 /* External Imports */
 import {add0x, keccak256} from '@eth-optimism/core-utils'
-import {CHAIN_ID, GAS_LIMIT} from '@eth-optimism/ovm'
+import {CHAIN_ID, GAS_LIMIT} from '@eth-optimism/rollup-core'
 
 import {Contract, Wallet} from 'ethers'
 import {JsonRpcProvider} from 'ethers/providers'
