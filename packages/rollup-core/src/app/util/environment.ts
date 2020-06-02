@@ -174,4 +174,13 @@ export class Environment {
       ? parseInt(process.env.L1_EARLIEST_BLOCK, 10)
       : defaultValue
   }
+
+  // L1 to L2 Tx Processor Config
+  public static l1ToL2TxProcessorPersistentDbPath(defaultValue?: string) {
+    return process.env.L1_TO_L2_TX_PROCESSOR_PERSISTENT_DB_PATH || defaultValue
+  }
+
+  public static l1ToL2TxProcessorPrivateKey(defaultValue?: string) {
+    return process.env.L1_TO_L2_TX_PROCESSOR_PRIVATE_KEY || defaultValue
+  }
 }

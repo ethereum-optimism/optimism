@@ -9,9 +9,9 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "test": "mocha --require source-map-support/register --require ts-node/register 'test/{contracts,app}/*.spec.ts' --timeout 8000 --exit",
+    "test": "echo 'no tests to run'",
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{deploy,src,test}/**/*.ts'",
+    "fix": "prettier --config ../../prettier-config.json --write 'exec/*.ts'",
     "build": "mkdir -p ./build && tsc -p .",
     "clean": "rimraf build/"
   },

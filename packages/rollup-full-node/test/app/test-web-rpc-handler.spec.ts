@@ -7,6 +7,7 @@ import {
   hexStrToBuf,
   TestUtils,
   hexStrToNumber,
+  sleep,
 } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 import { getWallets, deployContract } from 'ethereum-waffle'
@@ -81,6 +82,7 @@ describe('TestHandler', () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
 
       testRpcServer.listen()
+      await sleep(100)
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const executionManagerAddress = await httpProvider.send(
         'ovm_getExecutionManagerAddress',
@@ -130,6 +132,7 @@ describe('TestHandler', () => {
     it('should revert changes to the timestamp', async () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
+      await sleep(100)
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       let latestBlock = await httpProvider.getBlock('latest', false)
       const startTimestamp = await latestBlock['timestamp']
@@ -156,6 +159,7 @@ describe('TestHandler', () => {
     beforeEach(async () => {
       testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
+      await sleep(100)
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       wallet = getWallets(httpProvider)[0]
     })
@@ -212,6 +216,7 @@ describe('TestHandler', () => {
     beforeEach(async () => {
       testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
+      await sleep(100)
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       wallet = getWallets(httpProvider)[0]
     })
@@ -294,6 +299,7 @@ describe('TestHandler', () => {
     beforeEach(async () => {
       testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
+      await sleep(100)
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
     })
 
