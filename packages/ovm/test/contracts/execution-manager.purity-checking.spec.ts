@@ -5,6 +5,7 @@ import { getLogger } from '@eth-optimism/core-utils'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 
 import {
@@ -18,7 +19,6 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
 import {
-  DEFAULT_ETHNODE_GAS_LIMIT,
   manuallyDeployOvmContractReturnReceipt,
   didCreateSucceed,
 } from '../helpers'

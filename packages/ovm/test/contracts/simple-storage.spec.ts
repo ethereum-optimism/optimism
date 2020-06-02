@@ -11,6 +11,7 @@ import {
   CHAIN_ID,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -23,7 +24,6 @@ import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
   executeTransaction,
-  DEFAULT_ETHNODE_GAS_LIMIT,
   gasLimit,
 } from '../helpers'
 

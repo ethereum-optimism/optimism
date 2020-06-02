@@ -17,7 +17,7 @@ import { createMockProvider, deployContract } from 'ethereum-waffle'
 import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
 import { Address, L1NodeContext } from '../../types'
 import { Environment } from './environment'
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../constants'
+import { GAS_LIMIT } from '../constants'
 
 const log = getLogger('local-l1-node')
 
@@ -122,7 +122,7 @@ const getProvider = (wallet: Wallet, doNotDeploy: boolean): Provider => {
  */
 const startLocalL1Node = (sequencerWallet: Wallet, port: number): Provider => {
   const opts = {
-    gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+    gasLimit: GAS_LIMIT,
     allowUnlimitedContractSize: true,
     locked: false,
     port,

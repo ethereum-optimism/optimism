@@ -7,7 +7,6 @@ import {
   hexStrToBuf,
   TestUtils,
   hexStrToNumber,
-  sleep,
 } from '@eth-optimism/core-utils'
 import { ethers, ContractFactory } from 'ethers'
 import { getWallets, deployContract } from 'ethereum-waffle'
@@ -82,7 +81,6 @@ describe('TestHandler', () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
 
       testRpcServer.listen()
-      await sleep(100)
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       const executionManagerAddress = await httpProvider.send(
         'ovm_getExecutionManagerAddress',
@@ -91,6 +89,7 @@ describe('TestHandler', () => {
       const privateKey = '0x' + '60'.repeat(32)
       const wallet = new ethers.Wallet(privateKey, httpProvider)
       log.debug('Wallet address:', wallet.address)
+
       const factory = new ContractFactory(
         SimpleStorage.abi,
         SimpleStorage.bytecode,
@@ -98,6 +97,7 @@ describe('TestHandler', () => {
       )
 
       const simpleStorage = await factory.deploy()
+
       const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
         simpleStorage.deployTransaction.hash
       )
@@ -132,7 +132,6 @@ describe('TestHandler', () => {
     it('should revert changes to the timestamp', async () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
-      await sleep(100)
       const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       let latestBlock = await httpProvider.getBlock('latest', false)
       const startTimestamp = await latestBlock['timestamp']
@@ -159,7 +158,6 @@ describe('TestHandler', () => {
     beforeEach(async () => {
       testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
-      await sleep(100)
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       wallet = getWallets(httpProvider)[0]
     })
@@ -216,7 +214,6 @@ describe('TestHandler', () => {
     beforeEach(async () => {
       testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
-      await sleep(100)
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
       wallet = getWallets(httpProvider)[0]
     })
@@ -299,7 +296,6 @@ describe('TestHandler', () => {
     beforeEach(async () => {
       testRpcServer = new FullnodeRpcServer(testHandler, host, port)
       testRpcServer.listen()
-      await sleep(100)
       httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
     })
 

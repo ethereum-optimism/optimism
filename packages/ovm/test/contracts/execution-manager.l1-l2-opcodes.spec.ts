@@ -6,6 +6,7 @@ import {
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 import {
   getLogger,
@@ -28,10 +29,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-  didCreateSucceed,
   gasLimit,
-  executeOVMCall,
   encodeMethodId,
   encodeRawArguments,
 } from '../helpers'

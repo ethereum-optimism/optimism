@@ -6,13 +6,11 @@ import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-opt
 import {
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 
 import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-
-/* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 const log = getLogger('state-manager', true)
 

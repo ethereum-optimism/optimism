@@ -7,6 +7,7 @@ import {
   CHAIN_ID,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 import {
   ExecutionManagerContractDefinition as ExecutionManager,
@@ -23,7 +24,6 @@ import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
   signTransation,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
 
 const log = getLogger('simple-storage', true)

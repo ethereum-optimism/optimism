@@ -14,6 +14,7 @@ import {
   Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 
 import {
@@ -28,8 +29,6 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-  executeOVMCall,
   encodeRawArguments,
   encodeMethodId,
   gasLimit,

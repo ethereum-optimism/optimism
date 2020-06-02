@@ -18,7 +18,7 @@ import { createMockProvider, getWallets } from 'ethereum-waffle'
 import { Address, L2NodeContext } from '../../types'
 import { Environment } from './environment'
 import { deployContract } from './utils'
-import { CHAIN_ID, DEFAULT_ETHNODE_GAS_LIMIT, GAS_LIMIT } from '../index'
+import { CHAIN_ID, GAS_LIMIT } from '../index'
 import * as fs from 'fs'
 
 const log = getLogger('l2-node')
@@ -71,7 +71,7 @@ export async function initializeL2Node(
 function deployLocalL2Node(): JsonRpcProvider {
   const opts = {
     port: 9876,
-    gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+    gasLimit: GAS_LIMIT,
     allowUnlimitedContractSize: true,
   }
   const persistedGanacheDbPath = Environment.localL2NodePersistentDbPath()
@@ -199,7 +199,7 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
     wallet,
     L2ExecutionManagerContractDefinition,
     [Environment.opcodeWhitelistMask(), wallet.address, GAS_LIMIT, true],
-    { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
+    { gasLimit: GAS_LIMIT }
   )
 
   log.info('Deployed execution manager to address:', executionManager.address)

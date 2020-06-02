@@ -6,13 +6,13 @@ import { L2ExecutionManagerContractDefinition as L2ExecutionManager } from '@eth
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
 
 const log = getLogger('l2-execution-manager-calls', true)
 

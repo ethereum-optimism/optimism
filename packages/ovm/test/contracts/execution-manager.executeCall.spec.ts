@@ -6,6 +6,7 @@ import {
   GAS_LIMIT,
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 import {
   getLogger,
@@ -28,7 +29,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import {
   manuallyDeployOvmContract,
   getUnsignedTransactionCalldata,
-  DEFAULT_ETHNODE_GAS_LIMIT,
   ZERO_UINT,
 } from '../helpers'
 

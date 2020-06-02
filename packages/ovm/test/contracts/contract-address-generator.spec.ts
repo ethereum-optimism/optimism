@@ -3,13 +3,14 @@ import '../setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
 import { ContractAddressGeneratorContractDefinition } from '@eth-optimism/rollup-contracts'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '@eth-optimism/rollup-core'
 
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { utils } from 'ethers'
 
 /* Internal Imports */
 import { create2Tests } from './test-files/create2test.json'
-import { buildCreate2Address, DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
+import { buildCreate2Address } from '../helpers'
 
 const log = getLogger('contract-address-generator', true)
 
