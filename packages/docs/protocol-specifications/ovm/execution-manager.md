@@ -20,7 +20,12 @@ We call this layer-1-compatible EVM that can run within the layer 1 EVM the OVM 
 
 ### Necessary Features
 
-Just like the EVM, the OVM ExecutionManager Contract must: \* Handle all opcodes other than those deeply embedded in the layer 1 protocol \(like COINBASE, DIFFICULTY, block NUMBER, BLOCKHASH\) \* Generically support smart contracts, including those that depend on and even create other smart contracts \* Serve as the entrypoint to all calls, transactions, and state modification \* Store all state created and modified by transaction and smart contract execution
+Just like the EVM, the OVM ExecutionManager Contract must: 
+
+* Handle all opcodes other than those deeply embedded in the layer 1 protocol (like COINBASE, DIFFICULTY, block NUMBER, BLOCKHASH\) 
+* Generically support smart contracts, including those that depend on and even create other smart contracts 
+* Serve as the entrypoint to all calls, transactions, and state modification 
+* Store all state created and modified by transaction and smart contract execution
 
 ### Implementation
 
@@ -44,29 +49,32 @@ There are many contextual differences between layer 1 and layer 2, so we won't g
 
 The last example to highlight is that SSTORE and SLOAD also need to be transpiled into calls to the OVM ExecutionManager Contract. Recall that one of the requirements is that the OVM ExecutionManager Contract needs to store all layer 2 state. This is so rollup blocks can commit to single pre-state and post-state roots and the fraud proof's pre- and post-state can be verified and executed through the OVM ExecutionManager Contract on layer 1 during fraud proofs.
 
-A list of transpiled opcodes and other transpilation details are available [here](https://github.com/ethereum-optimism/optimism-monorepo/tree/37044e22125ed779c51d83d7491dc19fcd7bd1cf/packages/docs/protocol-specifications/ovm/protocol-specifications/ovm/transpiler.md).
+A list of transpiled opcodes and other transpilation details are available [here](./transpiler.md).
 
 ## Example: A user trading ETH for BAT on Uniswap
 
-There are two main parts to this example: \* User transaction calling the layer 2 Uniswap Contract \* The layer 2 Uniswap Contract calling the corresponding ERC-20 Contracts to update balances
+There are two main parts to this example:
+
+* User transaction calling the layer 2 Uniswap Contract
+* The layer 2 Uniswap Contract calling the corresponding ERC-20 Contracts to update balances
 
 ### Steps
 
 ### Sequencer Handles Request
 
-1. It receives a signed transaction from the User calling the Uniswap BAT Exchange address's ethToTokenTransferInput\(...\) function.
-2. It wraps this transaction's calldata in a call to the OVM ExecutionManager Contract's executeCall\(...\) function and sends the wrapped transaction.
+1. It receives a signed transaction from the User calling the Uniswap BAT Exchange address's `ethToTokenTransferInput(...)` function.
+2. It wraps this transaction's calldata in a call to the OVM ExecutionManager Contract's `executeCall(...)` function and sends the wrapped transaction.
 
 ### OVM ExecutionManager Contract handles the transaction in executeCall\(...\)
 
-1. It receives the wrapped transaction, sets the transaction context \(including timestamp, etc.\), and calls the ovmCALL\(...\) opcode replacement function to execute the transaction.
-2. Its ovmCALL\(...\) function sets the call-specific context \(including the CALLER, the ADDRESS of the uniswap contract, etc.\)
+1. It receives the wrapped transaction, sets the transaction context (including timestamp, etc.), and calls the `ovmCALL(...)` opcode replacement function to execute the transaction.
+2. Its `ovmCALL(...)` function sets the call-specific context (including the CALLER, the ADDRESS of the uniswap contract, etc.)
 3. It looks up the EVM address of the Uniswap contract from the OVM address and CALLs the contract with the original transaction data.
 
 ### Uniswap / BAT Contract interaction
 
-1. Uniswap determines the exchange rate based on how much BAT it has by calling the OVM ExecutionManager Contract's ovmCALL\(...\) function to call the layer 2 BAT ERC-20 contract's balanceOf\(...\) function.
-2. The OVM ExecutionManager Contract temporarily updates all of the call context variables in ovmCALL\(...\) to properly reflect that the CALLER is the Uniswap contract, ADDRESS is the BAT address, etc.
+1. Uniswap determines the exchange rate based on how much BAT it has by calling the OVM ExecutionManager Contract's `ovmCALL(...)` function to call the layer 2 BAT ERC-20 contract's `balanceOf(...)` function.
+2. The OVM ExecutionManager Contract temporarily updates all of the call context variables in `ovmCALL(...)` to properly reflect that the CALLER is the Uniswap contract, ADDRESS is the BAT address, etc.
 3. The OVM ExecutionManager Contract calls the BAT contract and it properly returns the balance
 4. The OVM ExecutionManager Contract restores the call context such that the CALLER is the original caller, the ADDRESS is the Uniswap contract, etc.
 5. The OVM ExecutionManager Contract returns the result to the Uniswap contract.
@@ -75,7 +83,7 @@ There are two main parts to this example: \* User transaction calling the layer 
 8. The Uniswap returns the number of tokens bought.
 9. The OVM ExecutionManager Contract restores the original call context before the original call to the Uniswap contract and returns the result.
 
-### OVM ExecutionManager Contract handles the transaction in executeCall\(...\) \(continued\)
+### OVM ExecutionManager Contract handles the transaction in `executeCall(...)` \(continued\)
 
 1. It restores the original transaction context from before the transaction and returns the result
 
@@ -85,7 +93,11 @@ There are two main parts to this example: \* User transaction calling the layer 
 2. It stores a mapping from the original transaction hash to the internal transaction hash for future transaction lookup.
 3. It returns the original transaction hash, in compliance with Web3, to the caller.
 
-Not mentioned above: \* Access of TIMESTAMP, ADDRESS, CALLER, etc. which are actually CALLs to the associated OVM ExecutionManager Contract function. \* Access of all storage, which is actually a CALL to the ovmSLOAD\(...\) OVM ExecutionManager Contract function. \* Storage modification, which is actually a CALL to the ovmSSTORE\(...\) OVM ExecutionManager Contract function. \* All other opcodes handled through the OVM ExecutionManager Contract.
+### Not mentioned above:
 
-\*The layer 2 EVM will be run by the Sequencer that submits new layer 2 "blocks" to layer 1, validators who validate these blocks once submitted to layer 1, and any other interested party. Validation entails executing each individual state transition that is claimed to be valid by the Sequencer and ensuring that it is, in fact, valid \(i.e. the resulting state from executing the state transition match the post-state claimed by the Sequencer\).
+* Access of TIMESTAMP, ADDRESS, CALLER, etc. which are actually CALLs to the associated OVM ExecutionManager Contract function. 
+* Access of all storage, which is actually a CALL to the `ovmSLOAD(...)` OVM ExecutionManager Contract function.
+* Storage modification, which is actually a CALL to the `ovmSSTORE(...)` OVM ExecutionManager Contract function. 
+* All other opcodes handled through the OVM ExecutionManager Contract.
+* The layer 2 EVM will be run by the Sequencer that submits new layer 2 "blocks" to layer 1, validators who validate these blocks once submitted to layer 1, and any other interested party. Validation entails executing each individual state transition that is claimed to be valid by the Sequencer and ensuring that it is, in fact, valid (i.e. the resulting state from executing the state transition match the post-state claimed by the Sequencer).
 
