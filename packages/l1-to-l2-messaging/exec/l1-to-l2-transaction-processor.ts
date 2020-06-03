@@ -1,3 +1,4 @@
+/* External Imports */
 import {
   BaseDB,
   DB,
@@ -16,9 +17,10 @@ import {
   L1ToL2TransactionEventName,
   L1ToL2TransactionListener,
   L1ToL2TransactionListenerSubmitter,
+  CHAIN_ID,
 } from '@eth-optimism/rollup-core'
 
-import { JsonRpcProvider } from 'ethers/providers'
+import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
 import { Wallet } from 'ethers'
@@ -26,42 +28,38 @@ import { getWallets } from 'ethereum-waffle'
 
 const log = getLogger('l1-to-l2-transaction-processor')
 
-export const runTest = async (): Promise<L1ToL2TransactionProcessor> => {
-  return run(true)
+export const runTest = async (
+  l1Provider?: Provider,
+  l2Provider?: JsonRpcProvider
+): Promise<L1ToL2TransactionProcessor> => {
+  return run(true, l1Provider, l2Provider)
 }
 
 export const run = async (
-  testFullNode: boolean = false
+  testFullNode: boolean = false,
+  l1Provider?: Provider,
+  l2Provider?: JsonRpcProvider
 ): Promise<L1ToL2TransactionProcessor> => {
   initializeDBPaths(testFullNode)
 
   let l1NodeContext: L1NodeContext
   log.info(`Attempting to connect to L1 Node.`)
   try {
-    l1NodeContext = await initializeL1Node(true)
+    l1NodeContext = await initializeL1Node(true, l1Provider)
   } catch (e) {
     logError(log, 'Error connecting to L1 Node', e)
     throw e
   }
 
-  let provider: JsonRpcProvider
-  if (!!Environment.l2NodeWeb3Url()) {
+  let provider: JsonRpcProvider = l2Provider
+  if (!provider && !!Environment.l2NodeWeb3Url()) {
     log.info(`Connecting to L2 web3 URL: ${Environment.l2NodeWeb3Url()}`)
-    provider = new JsonRpcProvider(Environment.l2NodeWeb3Url())
-  }
-
-  let l2NodeContext: L2NodeContext
-  log.info(`Attempting to connect to L2 Node.`)
-  try {
-    l2NodeContext = await initializeL2Node(provider, true)
-  } catch (e) {
-    logError(log, 'Error connecting to L2 Node', e)
-    throw e
+    provider = new JsonRpcProvider(Environment.l2NodeWeb3Url(), CHAIN_ID)
   }
 
   const l2TransactionListenerSubmitter = new L1ToL2TransactionListenerSubmitter(
-    getWallet(l2NodeContext.provider),
-    l2NodeContext.provider
+    getWallet(provider),
+    provider
   )
 
   return getL1ToL2TransactionProcessor(

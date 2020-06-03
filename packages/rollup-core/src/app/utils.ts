@@ -1,7 +1,26 @@
 /* External Imports */
 import { bufToHexString } from '@eth-optimism/core-utils'
+
+import { Contract, ContractFactory, Wallet } from 'ethers'
+
 /* Internal Imports */
 import { EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
+
+/**
+ * Creates an unsigned transaction and returns its calldata.
+ *
+ * @param contract The contract containing the function being invoked
+ * @param functionName The function being invoked
+ * @param args The arguments of the function call
+ * @returns The unsigned transaction's calldata
+ */
+export const getUnsignedTransactionCalldata = (
+  contract: Contract | ContractFactory,
+  functionName: string,
+  args: any[] = []
+) => {
+  return contract.interface.functions[functionName].encode(args)
+}
 
 /**
  * Takes EVMBytecode and serializes it into a single Buffer.
@@ -111,4 +130,40 @@ export const getPCOfEVMBytecodeIndex = (
     pc += totalBytesForOperation
   }
   return pc
+}
+
+export function getWallets(httpProvider) {
+  const walletsToReturn = []
+  for (let i = 0; i < 9; i++) {
+    const privateKey = '0x' + ('5' + i).repeat(32)
+    const nextWallet = new Wallet(privateKey, httpProvider)
+    walletsToReturn[i] = nextWallet
+  }
+  return walletsToReturn
+}
+
+export async function deployContract(
+  wallet,
+  contractJSON,
+  args,
+  overrideOptions = {}
+) {
+  const factory = new ContractFactory(
+    contractJSON.abi,
+    contractJSON.bytecode || contractJSON.evm.bytecode,
+    wallet
+  )
+
+  const contract = await factory.deploy(...args)
+  await contract.deployed()
+  return contract
+}
+
+/**
+ * Gets the current number of seconds since the epoch.
+ *
+ * @returns The seconds since epoch.
+ */
+export function getCurrentTime(): number {
+  return Math.round(new Date().getTime() / 1000)
 }

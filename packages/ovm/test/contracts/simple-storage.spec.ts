@@ -4,7 +4,7 @@ import '../setup'
 import { getLogger, add0x, getCurrentTime } from '@eth-optimism/core-utils'
 import {
   ExecutionManagerContractDefinition as ExecutionManager,
-  TestSimpleStorageContractDefinition as SimpleStorage,
+  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
 } from '@eth-optimism/rollup-contracts'
 import {
   Address,
@@ -12,6 +12,7 @@ import {
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  getUnsignedTransactionCalldata,
 } from '@eth-optimism/rollup-core'
 
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
@@ -22,7 +23,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Internal Imports */
 import {
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   executeTransaction,
   gasLimit,
 } from '../helpers'

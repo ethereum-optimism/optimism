@@ -25,13 +25,15 @@ const log = getLogger('local-l1-node')
  * Initializes the L1 node based on configuration, returning the L1NodeContext.
  *
  * @param doNotDeploy Set if this should not deploy a local L1 node if L1 node connection info is not configured.
+ * @param providerToUse Passed to use the given provider instead of connecting to configured one.
  * @returns The L1NodeContext object with all necessary L1 node info.
  */
 export const initializeL1Node = async (
-  doNotDeploy?: boolean
+  doNotDeploy?: boolean,
+  providerToUse?: Provider
 ): Promise<L1NodeContext> => {
   const wallet: Wallet = getSequencerWallet()
-  const provider: Provider = getProvider(wallet, doNotDeploy)
+  const provider: Provider = providerToUse || getProvider(wallet, doNotDeploy)
   const sequencerWallet: Wallet = wallet.connect(provider)
 
   const l2ToL1MessageReceiver: Contract = await getL2ToL1MessageReceiverContract(

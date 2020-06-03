@@ -8,6 +8,7 @@ import {
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  getUnsignedTransactionCalldata,
 } from '@eth-optimism/rollup-core'
 import {
   ExecutionManagerContractDefinition as ExecutionManager,
@@ -22,7 +23,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import {
   addressToBytes32Address,
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   signTransation,
 } from '../helpers'
 

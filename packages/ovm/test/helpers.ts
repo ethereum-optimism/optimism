@@ -190,19 +190,6 @@ export const signTransation = async (
     bufToHexString(bufferUtils.padLeft(hexStrToBuf(s), 32)),
   ]
 }
-/**
- * Creates an unsigned transaction.
- * @param {ethers.Contract} contract
- * @param {String} functionName
- * @param {Array} args
- */
-export const getUnsignedTransactionCalldata = (
-  contract,
-  functionName,
-  args
-) => {
-  return contract.interface.functions[functionName].encode(args)
-}
 
 /**
  * Deterministically computes the smart contract address given

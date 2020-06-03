@@ -4,7 +4,7 @@ import '../setup'
 import { getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
 import {
   ExecutionManagerContractDefinition as ExecutionManager,
-  TestSimpleStorageContractDefinition as SimpleStorage,
+  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
   TestInvalidOpcodesContractDefinition as InvalidOpcodes,
 } from '@eth-optimism/rollup-contracts'
 import {

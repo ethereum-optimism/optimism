@@ -2,10 +2,15 @@ import '../setup'
 
 /* External Imports */
 import { getLogger, add0x } from '@eth-optimism/core-utils'
-import { Address, CHAIN_ID, GAS_LIMIT } from '@eth-optimism/rollup-core'
+import {
+  Address,
+  CHAIN_ID,
+  GAS_LIMIT,
+  getUnsignedTransactionCalldata,
+} from '@eth-optimism/rollup-core'
 import {
   ExecutionManagerContractDefinition as ExecutionManager,
-  TestSimpleStorageContractDefinition as SimpleStorage,
+  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
 } from '@eth-optimism/rollup-contracts'
 
 import { getWallets } from 'ethereum-waffle'
@@ -17,7 +22,6 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import {
   ensureGovmIsConnected,
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   executeTransaction,
 } from '../helpers'
 

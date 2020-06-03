@@ -1,13 +1,12 @@
 /* External Imports */
 import {add0x, keccak256} from '@eth-optimism/core-utils'
-import {CHAIN_ID, GAS_LIMIT} from '@eth-optimism/rollup-core'
+import {CHAIN_ID, GAS_LIMIT, getUnsignedTransactionCalldata} from '@eth-optimism/rollup-core'
 
 import {Contract, Wallet} from 'ethers'
 import {JsonRpcProvider} from 'ethers/providers'
 import {deployContract} from 'ethereum-waffle'
 
 /* Internal Imports */
-import {getUnsignedTransactionCalldata} from './helpers'
 import {FullNodeStressTest} from './stress-test'
 
 /* Contract Imports */

@@ -196,11 +196,16 @@ const startTransactionNode = async (
     [cors]
   )
 
-  const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await getL1ToL2TransactionProcessor(
-    testFullnode,
-    l1NodeContext,
-    fullnodeHandler
-  )
+  let l1ToL2TransactionProcessor: L1ToL2TransactionProcessor
+  if (!Environment.noL1ToL2TransactionProcessor()) {
+    l1ToL2TransactionProcessor = await getL1ToL2TransactionProcessor(
+      testFullnode,
+      l1NodeContext,
+      fullnodeHandler
+    )
+  } else {
+    log.info('Configured to not create an L1ToL2TransactionProcessor.')
+  }
 
   fullnodeRpcServer.listen()
 

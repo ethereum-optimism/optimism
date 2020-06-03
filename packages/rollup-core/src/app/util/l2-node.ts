@@ -17,8 +17,7 @@ import { createMockProvider, getWallets } from 'ethereum-waffle'
 /* Internal Imports */
 import { Address, L2NodeContext } from '../../types'
 import { Environment } from './environment'
-import { deployContract } from './utils'
-import { CHAIN_ID, GAS_LIMIT } from '../index'
+import { CHAIN_ID, deployContract, GAS_LIMIT } from '../index'
 import * as fs from 'fs'
 
 const log = getLogger('l2-node')
@@ -70,7 +69,7 @@ export async function initializeL2Node(
  */
 function deployLocalL2Node(): JsonRpcProvider {
   const opts = {
-    port: 9876,
+    port: Environment.localL2NodePort(),
     gasLimit: GAS_LIMIT,
     allowUnlimitedContractSize: true,
   }

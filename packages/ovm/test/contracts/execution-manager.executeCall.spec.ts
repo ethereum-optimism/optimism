@@ -7,6 +7,7 @@ import {
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
+  getUnsignedTransactionCalldata,
 } from '@eth-optimism/rollup-core'
 import {
   getLogger,
@@ -26,11 +27,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
-import {
-  manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
-  ZERO_UINT,
-} from '../helpers'
+import { manuallyDeployOvmContract, ZERO_UINT } from '../helpers'
 
 export const abi = new ethers.utils.AbiCoder()
 
