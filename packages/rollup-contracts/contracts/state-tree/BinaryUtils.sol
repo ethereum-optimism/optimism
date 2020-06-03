@@ -18,12 +18,13 @@ library Utils {
     /// Returns a label containing the longest common prefix of `check` and `label`
     /// and a label consisting of the remaining part of `label`.
     function splitCommonPrefix(D.Label memory label, D.Label memory check) internal pure returns (D.Label memory prefix, D.Label memory labelSuffix) {
-        return splitAt(label, commonPrefix(check, label));
+        return splitAt(label, commonPrefixLength(check, label));
     }
     /// Splits the label at the given position and returns prefix and suffix,
     /// i.e. prefix.length == pos and prefix.data . suffix.data == l.data.
     function splitAt(D.Label memory l, uint pos) internal pure returns (D.Label memory prefix, D.Label memory suffix) {
-        require(pos <= l.length && pos <= 256, "Bad pos");
+        require(pos <= l.length, "Asked to split label at position exceeding the label length.");
+        require(pos <= 256, "Asked to split label at position exceeding 256 bits.");
         prefix.length = pos;
         if (pos == 0) {
             prefix.data = bytes32(0);
@@ -34,7 +35,7 @@ library Utils {
         suffix.data = l.data << pos;
     }
     /// Returns the length of the longest common prefix of the two labels.
-    function commonPrefix(D.Label memory a, D.Label memory b) internal pure returns (uint prefix) {
+    function commonPrefixLength(D.Label memory a, D.Label memory b) internal pure returns (uint prefix) {
         uint length = a.length < b.length ? a.length : b.length;
         // TODO: This could actually use a "highestBitSet" helper
         uint diff = uint(a.data ^ b.data);
@@ -152,15 +153,15 @@ contract UtilsTest {
         a.length = 16;
         b.data = hex"a000";
         b.length = 16;
-        require(Utils.commonPrefix(a, b) == 4, "testCommonPrefix 1");
+        require(Utils.commonPrefixLength(a, b) == 4, "testCommonPrefix 1");
 
         b.length = 0;
-        require(Utils.commonPrefix(a, b) == 0, "testCommonPrefix 2");
+        require(Utils.commonPrefixLength(a, b) == 0, "testCommonPrefix 2");
 
         b.data = hex"bbcd";
         b.length = 16;
-        require(Utils.commonPrefix(a, b) == 3, "testCommonPrefix 3");
-        require(Utils.commonPrefix(b, b) == b.length, "testCommonPrefix 4");
+        require(Utils.commonPrefixLength(a, b) == 3, "testCommonPrefix 3");
+        require(Utils.commonPrefixLength(b, b) == b.length, "testCommonPrefix 4");
     }
     function testSplitAt() internal pure {
         D.Label memory a;

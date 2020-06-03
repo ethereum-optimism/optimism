@@ -137,10 +137,20 @@ library FullPatriciaTree {
                 _siblings[i] = siblings[i];
         }
     }
-
+    /**
+     * @notice Gets a non inclusion proof for the given key.
+     *         A non inclusion proof is an inclusion proof of a node which would be split if the key were in the tree, but is not split.
+     *         Throws if the given key is actually included.
+     * @param tree The tree to get an inclusion proof for (handled automatically by library, see FullPatriciaTreeImplementation)
+     * @param key The key to get an inclusion proof for.
+     * @return conflictingNodeKeyAsLabel - The key for the conflicting node (i.e. the full prefix that all the conflicting nodes' ancestor keys share) expressed as a label
+     * @return potentialSiblingValue - The hash for the conflicting node
+     * @return branchMask - A bitmask containing 1 wherever the key is split (branches into two children)
+     * @return _siblings - The siblings at each split in the branchmask used to verify inclusion of the conflicting node.
+     */
     function getNonInclusionProof(Tree storage tree, bytes32 key) internal view returns (
-        D.Label memory potentialSiblingCumulativeLabel,
-        bytes32 potentialSiblingValue,
+        D.Label memory conflictingNodeKeyAsLabel,
+        bytes32 conflictingNodeValue,
         uint branchMask,
         bytes32[] memory _siblings
     ){
@@ -150,34 +160,32 @@ library FullPatriciaTree {
         D.Label memory cumulativeKeyLabel = D.Label(key, 256);
 
         // Start from root edge
-        D.Label memory label = cumulativeKeyLabel;
-        D.Edge memory e = tree.rootEdge;
+        D.Label memory remainingLabel = cumulativeKeyLabel;
+        D.Edge memory currentEdge = tree.rootEdge;
         bytes32[256] memory siblings;
 
         while (true) {
-            // Find at edge
-            require(label.length >= e.label.length);
             D.Label memory prefix;
             D.Label memory suffix;
-            (prefix, suffix) = Utils.splitCommonPrefix(label, e.label);
+            (prefix, suffix) = Utils.splitCommonPrefix(remainingLabel, currentEdge.label);
 
             // suffix.length == 0 means that the key exists. Thus the length of the suffix should be not zero
-            require(suffix.length != 0);
+            require(suffix.length != 0, 'Requested non-inclusion proof, the given key is included');
 
-            if (prefix.length >= e.label.length) {
+            if (prefix.length >= currentEdge.label.length) {
                 // Partial matched, keep finding
                 length += prefix.length;
                 branchMask |= uint(1) << (255 - length);
                 length += 1;
                 uint head;
-                (head, label) = Utils.chopFirstBit(suffix);
-                siblings[numSiblings++] = edgeHash(tree.nodes[e.node].children[1 - head]);
-                e = tree.nodes[e.node].children[head];
+                (head, remainingLabel) = Utils.chopFirstBit(suffix);
+                siblings[numSiblings++] = edgeHash(tree.nodes[currentEdge.node].children[1 - head]);
+                currentEdge = tree.nodes[currentEdge.node].children[head];
             } else {
                 // Found the potential sibling. Set data to return
-                (D.Label memory sharedCumulativePrefix, ) = Utils.splitAt(cumulativeKeyLabel, length);
-                potentialSiblingCumulativeLabel = Utils.combineLabels(sharedCumulativePrefix, e.label);
-                potentialSiblingValue = e.node;
+                (D.Label memory parentKeyAsLabel, ) = Utils.splitAt(cumulativeKeyLabel, length);
+                conflictingNodeKeyAsLabel = Utils.combineLabels(parentKeyAsLabel, currentEdge.label);
+                conflictingNodeValue = currentEdge.node;
                 break;
             }
         }
@@ -249,24 +257,24 @@ library FullPatriciaTree {
     function verifyNonInclusionProof(
         bytes32 rootHash,
         bytes32 key,
-        bytes32 conflictingEdgeFullLabelData,
-        uint conflictingEdgeFullLabelLength,
+        bytes32 conflictingEdgeKeyData,
+        uint conflictingEdgeKeyLength,
         bytes32 conflictingEdgeCommitment,
         uint branchMask,
         bytes32[] memory siblings
     ) public pure {
         // first, verify there is a conflict between the key and given edge
-        require(conflictingEdgeFullLabelLength <= 256, 'invalid label specified');
-        D.Label memory fullConflictingEdgeLabel = D.Label(conflictingEdgeFullLabelData, conflictingEdgeFullLabelLength);
+        require(conflictingEdgeKeyLength <= 256, 'invalid label specified--exceeds tree depth.');
+        D.Label memory conflictingEdgeKeyAsLabel = D.Label(conflictingEdgeKeyData, conflictingEdgeKeyLength);
         D.Label memory fullLeafLabel = D.Label(key, 256);
-        uint indexOfConflict = Utils.commonPrefix(fullConflictingEdgeLabel, fullLeafLabel);
-        uint doesBranchAtConflict = branchMask & (1 << 255 - indexOfConflict);
-        
-        require(doesBranchAtConflict == 0, 'The provided conflicting edge is not actually conflicting.');
+        uint indexOfConflict = Utils.commonPrefixLength(conflictingEdgeKeyAsLabel, fullLeafLabel);
+        bool areConflicting = branchMask & (1 << 255 - indexOfConflict) == 0;
+
+        require(areConflicting, 'The provided conflicting edge is not actually conflicting.');
         verifyEdgeInclusionProof(
             rootHash,
             conflictingEdgeCommitment,
-            fullConflictingEdgeLabel,
+            conflictingEdgeKeyAsLabel,
             branchMask,
             siblings
         );
@@ -276,7 +284,6 @@ library FullPatriciaTree {
         D.Label memory k = D.Label(key, 256);
         bytes32 valueHash = keccak256(value);
         tree.values[valueHash] = value;
-        // keys.push(key);
         D.Edge memory e;
         if (tree.rootEdge.node == 0 && tree.rootEdge.label.length == 0)
         {
