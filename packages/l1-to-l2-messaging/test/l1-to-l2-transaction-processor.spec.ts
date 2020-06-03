@@ -64,9 +64,9 @@ describe('L1 To L2 Tx Processor Integration Tests', () => {
       ovmCalldata
     )
 
-    await sleep(5_000)
+    await sleep(8_000)
 
     const res = await l2SimpleStorage.getStorage(storageKey)
     res.should.equal(storageValue, `L1 Transaction did not flow through!`)
-  }).timeout(10_000)
+  })
 })
