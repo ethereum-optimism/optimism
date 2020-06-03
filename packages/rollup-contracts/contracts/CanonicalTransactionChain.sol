@@ -91,7 +91,7 @@ contract CanonicalTransactionChain {
     cumulativeNumElements += numElementsInBatch;
   }
 
-  function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
+  function appendSequencerBatch(bytes[] memory _txBatch, uint _timestamp) public {
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
     require(_timestamp + forceInclusionPeriod > now, "Cannot submit a batch with a timestamp older than the sequencer inclusion period");

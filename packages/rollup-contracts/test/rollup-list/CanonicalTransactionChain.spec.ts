@@ -31,21 +31,21 @@ describe('CanonicalTransactionChain', () => {
   const DEFAULT_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX = '0x1234'
 
-  const appendBatch = async (batch: string[]): Promise<number> => {
+  const appendSequencerBatch = async (batch: string[]): Promise<number> => {
     const timestamp = Math.floor(Date.now() / 1000)
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendTransactionBatch(batch, timestamp)
+      .appendSequencerBatch(batch, timestamp)
     return timestamp
   }
 
-  const appendAndGenerateBatch = async (
+  const appendAndGenerateSequencerBatch = async (
     batch: string[],
     batchIndex: number = 0,
     cumulativePrevElements: number = 0
   ): Promise<TxChainBatch> => {
-    const timestamp = await appendBatch(batch)
+    const timestamp = await appendSequencerBatch(batch)
     // Generate a local version of the rollup batch
     const localBatch = new TxChainBatch(
       timestamp,
@@ -126,9 +126,9 @@ describe('CanonicalTransactionChain', () => {
     )
   })
 
-  describe('appendTransactionBatch()', async () => {
+  describe('appendSequencerBatch()', async () => {
     it('should not throw when appending a batch from the sequencer', async () => {
-      await appendBatch(DEFAULT_BATCH)
+      await appendSequencerBatch(DEFAULT_BATCH)
     })
 
     it('should throw if submitting an empty batch', async () => {
@@ -136,7 +136,7 @@ describe('CanonicalTransactionChain', () => {
       await TestUtils.assertRevertsAsync(
         'Cannot submit an empty batch',
         async () => {
-          await appendBatch(emptyBatch)
+          await appendSequencerBatch(emptyBatch)
         }
       )
     })
@@ -149,7 +149,7 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+            .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
         }
       )
     })
@@ -159,7 +159,7 @@ describe('CanonicalTransactionChain', () => {
       const oldTimestamp = timestamp - FORCE_INCLUSION_PERIOD / 2
       await canonicalTxChain
         .connect(sequencer)
-        .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+        .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
     })
 
     it('should revert if submitting a batch with a future timestamp', async () => {
@@ -170,51 +170,48 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendTransactionBatch(DEFAULT_BATCH, futureTimestamp)
+            .appendSequencerBatch(DEFAULT_BATCH, futureTimestamp)
         }
       )
     })
 
     it('should revert if submitting a new batch with a timestamp older than last batch timestamp', async () => {
-      const timestamp = await appendBatch(DEFAULT_BATCH)
+      const timestamp = await appendSequencerBatch(DEFAULT_BATCH)
       const oldTimestamp = timestamp - 1
       await TestUtils.assertRevertsAsync(
         'Timestamps must monotonically increase',
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+            .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
         }
       )
     })
 
     it('should add to batches array', async () => {
-      await appendBatch(DEFAULT_BATCH)
+      await appendSequencerBatch(DEFAULT_BATCH)
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      await appendBatch(DEFAULT_BATCH)
+      await appendSequencerBatch(DEFAULT_BATCH)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(DEFAULT_BATCH.length)
     })
 
-    it('should not allow appendTransactionBatch from non-sequencer', async () => {
+    it('should not allow appendSequencerBatch from non-sequencer', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       await TestUtils.assertRevertsAsync(
         'Message sender does not have permission to append a batch',
         async () => {
-          await canonicalTxChain.appendTransactionBatch(
-            DEFAULT_BATCH,
-            timestamp
-          )
+          await canonicalTxChain.appendSequencerBatch(DEFAULT_BATCH, timestamp)
         }
       )
     })
 
     it('should calculate batchHeaderHash correctly', async () => {
-      const localBatch = await appendAndGenerateBatch(DEFAULT_BATCH)
+      const localBatch = await appendAndGenerateSequencerBatch(DEFAULT_BATCH)
       const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
       const calculatedBatchHeaderHash = await canonicalTxChain.batches(0)
       calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -224,7 +221,7 @@ describe('CanonicalTransactionChain', () => {
       const numBatches = 10
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = DEFAULT_BATCH.length * batchIndex
-        const localBatch = await appendAndGenerateBatch(
+        const localBatch = await appendAndGenerateSequencerBatch(
           DEFAULT_BATCH,
           batchIndex,
           cumulativePrevElements
@@ -253,13 +250,13 @@ describe('CanonicalTransactionChain', () => {
         const oldTimestamp = localBatch.timestamp - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
       })
 
       it('should succesfully append a batch with an equal timestamp', async () => {
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, localBatch.timestamp)
+          .appendSequencerBatch(DEFAULT_BATCH, localBatch.timestamp)
       })
 
       it('should revert when there is an older batch in the L1ToL2Queue', async () => {
@@ -271,7 +268,7 @@ describe('CanonicalTransactionChain', () => {
           async () => {
             await canonicalTxChain
               .connect(sequencer)
-              .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
+              .appendSequencerBatch(DEFAULT_BATCH, newTimestamp)
           }
         )
         await provider.send('evm_revert', [snapshotID])
@@ -288,13 +285,13 @@ describe('CanonicalTransactionChain', () => {
         const oldTimestamp = localBatch.timestamp - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
       })
 
       it('should succesfully append a batch with an equal timestamp', async () => {
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, localBatch.timestamp)
+          .appendSequencerBatch(DEFAULT_BATCH, localBatch.timestamp)
       })
 
       it('should revert when there is an older batch in the SafetyQueue', async () => {
@@ -306,31 +303,119 @@ describe('CanonicalTransactionChain', () => {
           async () => {
             await canonicalTxChain
               .connect(sequencer)
-              .appendTransactionBatch(DEFAULT_BATCH, newTimestamp)
+              .appendSequencerBatch(DEFAULT_BATCH, newTimestamp)
           }
         )
         await provider.send('evm_revert', [snapshotID])
       })
     })
-    describe('when both the safetyQueue and l1ToL2Queue are not empty', async () => {
-      let timestamp
+    describe('when there is an old batch in the safetyQueue and a recent batch in the l1ToL2Queue', async () => {
+      let safetyTimestamp
+      let l1ToL2Timestamp
+      let snapshotID
       beforeEach(async () => {
-        const localBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
-        timestamp = localBatch.timestamp
-        await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        const localSafetyBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+        safetyTimestamp = localSafetyBatch.timestamp
+        snapshotID = await provider.send('evm_snapshot', [])
+        await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 2])
+        const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        l1ToL2Timestamp = localL1ToL2Batch.timestamp
+      })
+      afterEach(async () => {
+        await provider.send('evm_revert', [snapshotID])
       })
 
       it('should succesfully append a batch with an older timestamp than the oldest batch', async () => {
-        const oldTimestamp = timestamp - 1
+        const oldTimestamp = safetyTimestamp - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, oldTimestamp)
+          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
       })
 
       it('should succesfully append a batch with a timestamp equal to the oldest batch', async () => {
         await canonicalTxChain
           .connect(sequencer)
-          .appendTransactionBatch(DEFAULT_BATCH, timestamp)
+          .appendSequencerBatch(DEFAULT_BATCH, safetyTimestamp)
+      })
+
+      it('should revert when appending a batch with a timestamp in between the two batches', async () => {
+        const middleTimestamp = safetyTimestamp + 1
+        await TestUtils.assertRevertsAsync(
+          'Must process older SafetyQueue batches first to enforce timestamp monotonicity',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendSequencerBatch(DEFAULT_BATCH, middleTimestamp)
+          }
+        )
+      })
+
+      it('should revert when appending a batch with a timestamp newer than both batches', async () => {
+        await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 10]) // increase time by 60 seconds
+        const oldTimestamp = l1ToL2Timestamp + 1
+        await TestUtils.assertRevertsAsync(
+          'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
+          }
+        )
+      })
+    })
+
+    describe('when there is an old batch in the l1ToL2Queue and a recent batch in the safetyQueue', async () => {
+      let l1ToL2Timestamp
+      let safetyTimestamp
+      let snapshotID
+      beforeEach(async () => {
+        const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        l1ToL2Timestamp = localL1ToL2Batch.timestamp
+        snapshotID = await provider.send('evm_snapshot', [])
+        await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 2])
+        const localSafetyBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+        safetyTimestamp = localSafetyBatch.timestamp
+      })
+      afterEach(async () => {
+        await provider.send('evm_revert', [snapshotID])
+      })
+
+      it('should succesfully append a batch with an older timestamp than both batches', async () => {
+        const oldTimestamp = l1ToL2Timestamp - 1
+        await canonicalTxChain
+          .connect(sequencer)
+          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp)
+      })
+
+      it('should succesfully append a batch with a timestamp equal to the older batch', async () => {
+        await canonicalTxChain
+          .connect(sequencer)
+          .appendSequencerBatch(DEFAULT_BATCH, l1ToL2Timestamp)
+      })
+
+      it('should revert when appending a batch with a timestamp in between the two batches', async () => {
+        const middleTimestamp = l1ToL2Timestamp + 1
+        await TestUtils.assertRevertsAsync(
+          'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendSequencerBatch(DEFAULT_BATCH, middleTimestamp)
+          }
+        )
+      })
+
+      it('should revert when appending a batch with a timestamp newer than both batches', async () => {
+        await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 10]) // increase time by 60 seconds
+        const newTimestamp = safetyTimestamp + 1
+        await TestUtils.assertRevertsAsync(
+          'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendSequencerBatch(DEFAULT_BATCH, newTimestamp)
+          }
+        )
       })
     })
   })
@@ -517,7 +602,7 @@ describe('CanonicalTransactionChain', () => {
       ]
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = batch.length * batchIndex
-        const localBatch = await appendAndGenerateBatch(
+        const localBatch = await appendAndGenerateSequencerBatch(
           batch,
           batchIndex,
           cumulativePrevElements
@@ -592,7 +677,7 @@ describe('CanonicalTransactionChain', () => {
 
     it('should return false for wrong position with wrong indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateBatch(batch)
+      const localBatch = await appendAndGenerateSequencerBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -611,7 +696,7 @@ describe('CanonicalTransactionChain', () => {
 
     it('should return false for wrong position and matching indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateBatch(batch)
+      const localBatch = await appendAndGenerateSequencerBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)

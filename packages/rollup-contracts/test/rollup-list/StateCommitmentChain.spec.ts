@@ -45,7 +45,7 @@ describe('StateCommitmentChain', () => {
   const DEFAULT_STATE_ROOT = '0x1234'
   const FORCE_INCLUSION_PERIOD = 600
 
-  const appendAndGenerateBatch = async (
+  const appendAndGenerateStateBatch = async (
     batch: string[],
     batchIndex: number = 0,
     cumulativePrevElements: number = 0
@@ -66,7 +66,7 @@ describe('StateCommitmentChain', () => {
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendTransactionBatch(batch, timestamp)
+      .appendSequencerBatch(batch, timestamp)
   }
 
   before(async () => {
@@ -137,7 +137,7 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should calculate batchHeaderHash correctly', async () => {
-      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
       const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
       const calculatedBatchHeaderHash = await stateChain.batches(0)
       calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -147,7 +147,7 @@ describe('StateCommitmentChain', () => {
       const numBatches = 5
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = DEFAULT_STATE_BATCH.length * batchIndex
-        const localBatch = await appendAndGenerateBatch(
+        const localBatch = await appendAndGenerateStateBatch(
           DEFAULT_STATE_BATCH,
           batchIndex,
           cumulativePrevElements
@@ -180,6 +180,7 @@ describe('StateCommitmentChain', () => {
 
   describe('verifyElement() ', async () => {
     it('should return true for valid elements for different batches and elements', async () => {
+      // add enough transaction batches so # txs > # state roots
       await appendTxBatch(DEFAULT_TX_BATCH)
       await appendTxBatch(DEFAULT_TX_BATCH)
       const numBatches = 3
@@ -194,7 +195,7 @@ describe('StateCommitmentChain', () => {
       ]
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
         const cumulativePrevElements = batch.length * batchIndex
-        const localBatch = await appendAndGenerateBatch(
+        const localBatch = await appendAndGenerateStateBatch(
           batch,
           batchIndex,
           cumulativePrevElements
@@ -221,7 +222,7 @@ describe('StateCommitmentChain', () => {
 
     it('should return false for wrong position with wrong indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateBatch(batch)
+      const localBatch = await appendAndGenerateStateBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -240,7 +241,7 @@ describe('StateCommitmentChain', () => {
 
     it('should return false for wrong position and matching indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateBatch(batch)
+      const localBatch = await appendAndGenerateStateBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -264,7 +265,7 @@ describe('StateCommitmentChain', () => {
     it('should not allow deletion from address other than fraud verifier', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
-      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
         numElementsInBatch: DEFAULT_STATE_BATCH.length,
@@ -284,7 +285,9 @@ describe('StateCommitmentChain', () => {
       beforeEach(async () => {
         const cumulativePrevElements = 0
         const batchIndex = 0
-        const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
+        const localBatch = await appendAndGenerateStateBatch(
+          DEFAULT_STATE_BATCH
+        )
         const batchHeader = {
           elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
           numElementsInBatch: DEFAULT_STATE_BATCH.length,
@@ -302,7 +305,9 @@ describe('StateCommitmentChain', () => {
       })
 
       it('should successfully append a batch after deletion', async () => {
-        const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
+        const localBatch = await appendAndGenerateStateBatch(
+          DEFAULT_STATE_BATCH
+        )
         const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
         const calculatedBatchHeaderHash = await stateChain.batches(0)
         calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -314,7 +319,7 @@ describe('StateCommitmentChain', () => {
       const localBatches = []
       for (let batchIndex = 0; batchIndex < 5; batchIndex++) {
         const cumulativePrevElements = batchIndex * DEFAULT_STATE_BATCH.length
-        const localBatch = await appendAndGenerateBatch(
+        const localBatch = await appendAndGenerateStateBatch(
           DEFAULT_STATE_BATCH,
           batchIndex,
           cumulativePrevElements
@@ -338,7 +343,7 @@ describe('StateCommitmentChain', () => {
     it('should revert if batchHeader is incorrect', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
-      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
         numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
@@ -358,7 +363,7 @@ describe('StateCommitmentChain', () => {
     it('should revert if trying to delete a batch outside of valid range', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 1 // outside of range
-      const localBatch = await appendAndGenerateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
         numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
