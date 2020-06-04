@@ -80,7 +80,7 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     false
   )
 
-  return internalTxReceiptToOvmTxReceipt(receipt)
+  return internalTxReceiptToOvmTxReceipt(receipt, executionManager.address)
 }
 
 /**
@@ -318,7 +318,8 @@ export const didCreateSucceed = async (
 export const buildLog = (
   address: string,
   event: string,
-  data: string[]
+  data: string[],
+  logIndex: number
 ): Log => {
   const types = event.match(/\((.+)\)/)
   const encodedData = types ? abi.encode(types[1].split(','), data) : '0x'
@@ -327,6 +328,7 @@ export const buildLog = (
     address,
     topics: [add0x(keccak256(strToHexStr(event)))],
     data: encodedData,
+    logIndex,
   }
 }
 

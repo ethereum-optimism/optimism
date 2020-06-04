@@ -3,7 +3,7 @@ import { deploy, deployContract } from '@eth-optimism/core-utils'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { deployPurityChecker } from './purity-checker'
+import { deploySafetyChecker } from './safety-checker'
 import * as ExecutionManager from '../build/contracts/ExecutionManager.json'
 import { resolve } from 'path'
 import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../src/app'
@@ -13,13 +13,13 @@ const executionManagerDeploymentFunction = async (
 ): Promise<string> => {
   console.log(`\nDeploying ExecutionManager!\n`)
 
-  const purityCheckerContractAddress = await deployPurityChecker()
+  const safetyCheckerContractAddress = await deploySafetyChecker()
 
   const executionManager = await deployContract(
     ExecutionManager,
     wallet,
     DEFAULT_OPCODE_WHITELIST_MASK,
-    purityCheckerContractAddress,
+    safetyCheckerContractAddress,
     GAS_LIMIT,
     true
   )

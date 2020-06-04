@@ -21,6 +21,10 @@ export const JSONRPC_ERRORS = {
     code: -32603,
     message: 'Internal error',
   },
+  UNSUPPORTED_TOPICS_ERROR: {
+    code: -32604,
+    message: 'Unsupported filter parameters',
+  },
   REVERT_ERROR: {
     code: -32015,
     message: 'revert: requested action reverted',

@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
-import {PurityChecker} from "./PurityChecker.sol";
+import {SafetyChecker} from "./SafetyChecker.sol";
 import {RLPEncode} from "./RLPEncode.sol";
 import {L2ToL1MessagePasser} from "./precompiles/L2ToL1MessagePasser.sol";
 import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
@@ -34,11 +34,11 @@ contract ExecutionManager {
     dt.ExecutionContext executionContext;
     // Add Contract Address Generation contract
     ContractAddressGenerator contractAddressGenerator;
-    // Add Purity Checker contract
-    PurityChecker purityChecker;
+    // Add Safety Checker contract
+    SafetyChecker safetyChecker;
     RLPEncode rlp;
-    // for testing: if true, then do not perform purity checking on init code or deployed bytecode
-    bool overridePurityChecker;
+    // for testing: if true, then do not perform safety checking on init code or deployed bytecode
+    bool overrideSafetyChecker;
 
     // Events
     event ActiveContract(address _activeContract);
@@ -64,21 +64,22 @@ contract ExecutionManager {
     );
 
     /**
-     * @notice Construct a new ExecutionManager with a specified purity checker & owner.
-     * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our purity checker
+     * @notice Construct a new ExecutionManager with a specified safety checker & owner.
+     * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our safety checker
      * @param _owner The owner of this contract.
      * @param _blockGasLimit The block gas limit for OVM blocks
-     * @param _overridePurityChecker Set to true to disable purity checking (WARNING: Only do this in test environments)
+     * @param _overrideSafetyChecker Set to true to disable safety checking (WARNING: Only do this in test environments)
      */
-    constructor(uint256 _opcodeWhitelistMask, address _owner, uint _blockGasLimit, bool _overridePurityChecker) public {
-        stateManager = new FullStateManager();
+    constructor(uint256 _opcodeWhitelistMask, address _owner, uint _blockGasLimit, bool _overrideSafetyChecker) public {
         rlp = new RLPEncode();
-        // Set override purity checker flag
-        overridePurityChecker = _overridePurityChecker;
-        // Set the purity checker address
-        purityChecker = new PurityChecker(_opcodeWhitelistMask, address(this));
+        // Set override safety checker flag
+        overrideSafetyChecker = _overrideSafetyChecker;
+        // Set the safety checker address
+        safetyChecker = new SafetyChecker(_opcodeWhitelistMask, address(this));
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
+        // Deploy a default state manager
+        stateManager = new FullStateManager();
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
@@ -575,15 +576,15 @@ contract ExecutionManager {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
-        // Purity check the initcode -- unless the overridePurityChecker flag is set to true
-        if (!overridePurityChecker && !purityChecker.isBytecodePure(_ovmInitcode)) {
-            // Contract init code is not pure.
+        // Safety check the initcode -- unless the overrideSafetyChecker flag is set to true
+        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmInitcode)) {
+            // Contract init code is not safe.
             return false;
         }
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode, overridePurityChecker, purityChecker);
+        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode, overrideSafetyChecker, safetyChecker);
         // Return false if the contract failed to deploy
         if (codeContractAddress == ZERO_ADDRESS) {
             return false;

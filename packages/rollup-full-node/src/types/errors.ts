@@ -1,3 +1,5 @@
+import { JsonRpcErrorResponse } from '@eth-optimism/core-utils'
+
 export class TreeUpdateError extends Error {
   constructor(message?: string) {
     super(message || 'Error occurred performing a tree update!')
@@ -15,6 +17,12 @@ export class InvalidParametersError extends Error {
     super(
       message || 'The provided params are invalid for the call in question.'
     )
+  }
+}
+
+export class UnsupportedFilterError extends Error {
+  constructor(message?: string) {
+    super(message || 'The provided filter is currently unsupported by the OVM')
   }
 }
 
@@ -60,5 +68,11 @@ export class InvalidTransactionDesinationError extends Error {
         validDestinationAddresses
       )}`
     )
+  }
+}
+
+export class FormattedJsonRpcError extends Error {
+  constructor(public readonly jsonRpcResponse: JsonRpcErrorResponse) {
+    super()
   }
 }

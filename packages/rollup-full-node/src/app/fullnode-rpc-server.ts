@@ -14,6 +14,7 @@ import {
 
 /* Internal Imports */
 import {
+  FormattedJsonRpcError,
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
@@ -21,6 +22,7 @@ import {
   RevertError,
   TransactionLimitError,
   UnsupportedMethodError,
+  UnsupportedFilterError,
 } from '../types'
 
 const log: Logger = getLogger('rollup-fullnode-rpc-server')
@@ -102,6 +104,14 @@ export class FullnodeRpcServer extends ExpressHttpServer {
         result,
       }
     } catch (err) {
+      if (err instanceof FormattedJsonRpcError) {
+        log.debug(
+          `Received formatted JSON RPC Error response. Returning it as is: ${JSON.stringify(
+            err.jsonRpcResponse
+          )}`
+        )
+        return err.jsonRpcResponse
+      }
       if (err instanceof RevertError) {
         log.debug(`Request reverted. Request: ${JSON.stringify(request)}`)
         const errorResponse: JsonRpcErrorResponse = buildJsonRpcError(
@@ -118,6 +128,14 @@ export class FullnodeRpcServer extends ExpressHttpServer {
           )}]`
         )
         return buildJsonRpcError('METHOD_NOT_FOUND', request.id)
+      }
+      if (err instanceof UnsupportedFilterError) {
+        log.debug(
+          `Received request with unsupported filter parameters: [${JSON.stringify(
+            request
+          )}]`
+        )
+        return buildJsonRpcError('UNSUPPORTED_TOPICS_ERROR', request.id)
       }
       if (err instanceof InvalidParametersError) {
         log.debug(

@@ -68,8 +68,15 @@ export class Environment {
   public static contractDeployerAddress(defaultValue?: string) {
     return process.env.CONTRACT_DEPLOYER_ADDRESS || defaultValue
   }
-  public static commaSeparatedToAddressWhitelist(defaultValue?: string) {
-    return process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST || defaultValue
+  public static transactionToAddressWhitelist(defaultValue: string[] = []) {
+    return process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST
+      ? process.env.COMMA_SEPARATED_TO_ADDRESS_WHITELIST.split(',')
+      : defaultValue
+  }
+  public static rateLimitWhitelistIpAddresses(defaultValue: string[] = []) {
+    return process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS
+      ? process.env.COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS.split(',')
+      : defaultValue
   }
 
   // L2 RPC Server Config

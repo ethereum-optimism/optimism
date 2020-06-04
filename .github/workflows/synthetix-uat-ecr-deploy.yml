@@ -35,11 +35,6 @@ jobs:
           AWS_ACCOUNT_NUMBER: ${{ secrets.AWS_CI_AWS_ACCOUNT_ID }}
         run: ./docker/publish-rollup-fullnode-container.sh synthetix-uat
 
-      - name: Stop existing ECS tasks to auto-start task with new image
-        run: |
-          ./.github/scripts/stop-ecs-task.sh synthetix-uat-web synthetix-uat-web
-          ./.github/scripts/stop-ecs-task.sh synthetix-uat-geth synthetix-uat-geth
-
 
       - name: Logout of Amazon ECR
         if: always()

@@ -1,0 +1,9 @@
+version: "3"
+services:
+
+  rollup-full-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+       - .:/mnt/full-node:rw

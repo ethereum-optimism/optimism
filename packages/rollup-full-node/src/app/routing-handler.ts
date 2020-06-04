@@ -1,12 +1,21 @@
 /* External Imports */
 import { Address } from '@eth-optimism/rollup-core'
-import { getLogger, logError, SimpleClient } from '@eth-optimism/core-utils'
+import {
+  areEqual,
+  getLogger,
+  isJsonRpcErrorResponse,
+  JsonRpcErrorResponse,
+  JsonRpcResponse,
+  logError,
+  SimpleClient,
+} from '@eth-optimism/core-utils'
 
 import { parseTransaction, Transaction } from 'ethers/utils'
 
 /* Internal Imports */
 import {
   AccountRateLimiter,
+  FormattedJsonRpcError,
   FullnodeHandler,
   InvalidParametersError,
   InvalidTransactionDesinationError,
@@ -14,6 +23,7 @@ import {
   Web3RpcMethods,
   web3RpcMethodsExcludingTest,
 } from '../types'
+import { Environment } from './util'
 
 const log = getLogger('routing-handler')
 
@@ -39,13 +49,19 @@ export class RoutingHandler implements FullnodeHandler {
   constructor(
     private readonly transactionClient: SimpleClient,
     private readonly readOnlyClient: SimpleClient,
-    private readonly deployAddress: Address,
+    private deployAddress: Address,
     private readonly accountRateLimiter: AccountRateLimiter,
-    private readonly toAddressWhitelist: Address[] = [],
+    private rateLimiterWhitelistedIps: string[] = [],
+    private toAddressWhitelist: Address[] = [],
     private readonly whitelistedMethods: Set<string> = new Set<string>(
       web3RpcMethodsExcludingTest
-    )
-  ) {}
+    ),
+    variableRefreshRateMillis = 300_000
+  ) {
+    setInterval(() => {
+      this.refreshVariables()
+    }, variableRefreshRateMillis)
+  }
 
   /**
    * Handles the provided request by
@@ -56,6 +72,7 @@ export class RoutingHandler implements FullnodeHandler {
    * @param method The Ethereum JSON RPC method.
    * @param params The parameters.
    * @param sourceIpAddress The requesting IP address.
+   * @throws FormattedJsonRpcError if the proxied response is a JsonRpcErrorResponse
    */
   public async handleRequest(
     method: string,
@@ -74,13 +91,19 @@ export class RoutingHandler implements FullnodeHandler {
         tx = parseTransaction(params[0])
       } catch (e) {
         // means improper format -- since we can't get address, add to quota by IP
-        this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+        if (this.rateLimiterWhitelistedIps.indexOf(sourceIpAddress) < 0) {
+          this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+        }
         throw new InvalidParametersError()
       }
 
-      this.accountRateLimiter.validateTransactionRateLimit(tx.from)
+      if (this.rateLimiterWhitelistedIps.indexOf(sourceIpAddress) < 0) {
+        this.accountRateLimiter.validateTransactionRateLimit(tx.from)
+      }
     } else {
-      this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+      if (this.rateLimiterWhitelistedIps.indexOf(sourceIpAddress) < 0) {
+        this.accountRateLimiter.validateRateLimit(sourceIpAddress)
+      }
     }
 
     if (!this.whitelistedMethods.has(method)) {
@@ -94,17 +117,17 @@ export class RoutingHandler implements FullnodeHandler {
 
     this.assertDestinationValid(tx)
 
+    let result: JsonRpcResponse
     try {
-      const result: any =
+      result =
         methodsToRouteWithTransactionHandler.indexOf(method) >= 0
-          ? await this.transactionClient.handle<string>(method, params)
-          : await this.readOnlyClient.handle<string>(method, params)
+          ? await this.transactionClient.makeRpcCall(method, params)
+          : await this.readOnlyClient.makeRpcCall(method, params)
       log.debug(
         `Request for [${method}], params: [${JSON.stringify(
           params
         )}] got result [${JSON.stringify(result)}]`
       )
-      return result
     } catch (e) {
       logError(
         log,
@@ -115,6 +138,11 @@ export class RoutingHandler implements FullnodeHandler {
       )
       throw e
     }
+
+    if (isJsonRpcErrorResponse(result)) {
+      throw new FormattedJsonRpcError(result as JsonRpcErrorResponse)
+    }
+    return result.result
   }
 
   /**
@@ -134,7 +162,53 @@ export class RoutingHandler implements FullnodeHandler {
     ) {
       throw new InvalidTransactionDesinationError(
         tx.to,
-        this.toAddressWhitelist
+        Array.from(this.toAddressWhitelist)
+      )
+    }
+  }
+
+  /**
+   * Refreshes configured member variables from updated Environment Variables.
+   */
+  private refreshVariables(): void {
+    try {
+      const envToWhitelist = Environment.transactionToAddressWhitelist()
+      if (!areEqual(envToWhitelist.sort(), this.toAddressWhitelist.sort())) {
+        const prevValue = this.toAddressWhitelist
+        this.toAddressWhitelist = envToWhitelist
+        log.info(
+          `Transaction 'to' address whitelist updated from ${JSON.stringify(
+            prevValue
+          )} to ${JSON.stringify(this.toAddressWhitelist)}`
+        )
+      }
+
+      const envIpWhitelist = Environment.rateLimitWhitelistIpAddresses()
+      if (
+        !areEqual(envIpWhitelist.sort(), this.rateLimiterWhitelistedIps.sort())
+      ) {
+        const prevValue = this.rateLimiterWhitelistedIps
+        this.rateLimiterWhitelistedIps = envIpWhitelist
+        log.info(
+          `IP whitelist updated from ${JSON.stringify(
+            prevValue
+          )} to ${JSON.stringify(this.rateLimiterWhitelistedIps)}`
+        )
+      }
+
+      const deployerAddress = Environment.contractDeployerAddress()
+      if (!!deployerAddress && deployerAddress !== this.deployAddress) {
+        const prevValue = this.deployAddress
+        this.deployAddress = deployerAddress
+        log.info(
+          `Deployer address updated from ${prevValue} to ${this.deployAddress}`
+        )
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error updating router variables from environment variables`,
+        e
       )
     }
   }

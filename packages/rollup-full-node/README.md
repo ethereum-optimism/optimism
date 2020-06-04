@@ -16,6 +16,9 @@ Config is handled entirely through environment variables. Below are some config 
 * `IS_READ_ONLY_NODE` - (optional) Set this to any value if this container / process is to start in Read-Only Node mode. This will make this server idempotent and horizontally scalable, only serving read-only requests.
 * `IS_ROUTING_SERVER` - (optional) Set this to any value if this container / process is to start in Routing Server mode. The routing server, if configured, sits in front of the read-only node(s) and the transaction node and rate limits (if configured) and routes read-only requests to the Read-Only Node and transaction and transaction-coupled requests to the Transaction Node.
 
+**All Server Types**
+* `NO_L1_NODE` - (optional) Tells the node not to start a Ganache L1 node or try to deploy L1 contracts. Only applicable if `L1_NODE_WEB3_URL` is not set. 
+
 **Routing Server** (only applicable if `IS_ROUTING_SERVER` is set)
 * `TRANSACTION_NODE_URL` - The url of the Transaction Node to route transaction requests to.
 * `READ_ONLY_NODE_URL` - (optional, but encouraged) The url of the Read-Only node to route read-only requests to.
@@ -24,6 +27,7 @@ Config is handled entirely through environment variables. Below are some config 
 * `REQUEST_LIMIT_PERIOD_MILLIS` - (optional) The rolling time period in milliseconds in which the above `MAX...` request limits will be enforced.
 * `CONTRACT_DEPLOYER_ADDRESS` - (optional) Only address that will be allowed to send transactions to any address if a whitelist is configured.
 * `COMMA_SEPARATED_TO_ADDRESS_WHITELIST` - (optional) The comma-separated whitelist of addresses to which transactions may be made. Any transaction sent to another address that is not from the `CONTRACT_DEPLOYER_ADDRESS` will be rejected.
+* `COMMA_SEPARATED_RATE_LIMIT_WHITELISTED_IPS` - (optional) The comma-separated whitelist of IP addresses that will not be rate limited. 
 
 **Rollup Server Data**:
 * `CLEAR_DATA_KEY` - (optional) Set to clear all persisted data in the full node. Data is only cleared on startup when this variable is set _and_ is different from last startup (e.g. last start up it wasn't set, this time it is or last start up it was set to a different value than it is this start up). NOTE: This is only applicable for Transaction Nodes.

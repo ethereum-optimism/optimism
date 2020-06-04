@@ -3,7 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import {StateManager} from "./StateManager.sol";
-import {PurityChecker} from "./PurityChecker.sol";
+import {SafetyChecker} from "./SafetyChecker.sol";
 
 /**
  * @title FullStateManager
@@ -143,11 +143,11 @@ _codeContractAddress) public {
     function deployContract(
       address _newOvmContractAddress,
       bytes memory _ovmContractInitcode,
-      bool overridePurityChecker,
-      PurityChecker purityChecker
+      bool overrideSafetyChecker,
+      SafetyChecker safetyChecker
     ) public returns(address codeContractAddress) {
-        // Purity check the initcode, unless the overridePurityChecker flag is set to true
-        if (!overridePurityChecker && !purityChecker.isBytecodePure(_ovmContractInitcode)) {
+        // Safety check the initcode, unless the overrideSafetyChecker flag is set to true
+        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmContractInitcode)) {
             // Contract initcode is not pure.
             return ZERO_ADDRESS;
         }
@@ -162,9 +162,9 @@ _codeContractAddress) public {
             }
         }
 
-        // Purity check the runtime bytecode, unless the overridePurityChecker flag is set to true
+        // Safety check the runtime bytecode, unless the overrideSafetyChecker flag is set to true
         bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
-        if (!overridePurityChecker && !purityChecker.isBytecodePure(codeContractBytecode)) {
+        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(codeContractBytecode)) {
             // Contract runtime bytecode is not pure.
             return ZERO_ADDRESS;
         }

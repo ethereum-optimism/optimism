@@ -4,7 +4,7 @@ OVM Overview and Architecture
 
 The core functionality of the OVM is to run transactions in such a way that they are "pure" or "deterministic"--that is, no matter what time in the future a dispute about them is triggered on layer 1, the output of the computation is the same--*no matter what the state of the L1.
 
-To accomplish this, there are two critical smart contracts: the Execution Manager, and the Purity Checker.
+To accomplish this, there are two critical smart contracts: the Execution Manager, and the Safety Checker.
 
 *****************
 Execution Manager
@@ -19,10 +19,10 @@ The execution manager interfaces with "code contracts," which are contracts comp
    <img src="../../_static/images/execution-manager.png" alt="The Execution Manager">
 
 **************
-Purity Checker
+Safety Checker
 **************
 
-To ensure that the execution of an OVM transaction is deterministic between L1 and L2, we must enforce that **only** the container interface described above is used.  To accomplish this, we have a "purity checker."  The purity checker analyzes the low-level assembly bytecode of an EVM contract to tell the execution manager whether the code conforms to the OVM interface.  If it does not, then the execution manager does not allow such a contract to be created or used in a fraud proof.
+To ensure that the execution of an OVM transaction is deterministic between L1 and L2, we must enforce that **only** the container interface described above is used.  To accomplish this, we have a "safety checker."  The safety checker analyzes the low-level assembly bytecode of an EVM contract to tell the execution manager whether the code conforms to the OVM interface.  If it does not, then the execution manager does not allow such a contract to be created or used in a fraud proof.
 
 .. raw:: html
 

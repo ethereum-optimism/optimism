@@ -59,4 +59,4 @@ Duplicate above code once for each (compare jumpdest, post-transpile jumpdest) p
 
 **Note on bytecode interpretation**
 
-Note that properly processing these conditions requires preprocessing the code; a particularly pathological use case is ``PUSH2 JUMPDEST PUSH1 PUSH2 JUMPDEST PUSH1 PUSH2 JUMPDEST PUSH1 ...``, as this code has all ``JUMPDEST``s invalid but an alternative piece of code equivalent to this but only with the leading ``PUSH2`` replaced with another op (eg. ``BALANCE``) will have all ``JUMPDESTS`` valid.  We appropriately deal with this, both in our transpiler and purity checker.
+Note that properly processing these conditions requires preprocessing the code; a particularly pathological use case is ``PUSH2 JUMPDEST PUSH1 PUSH2 JUMPDEST PUSH1 PUSH2 JUMPDEST PUSH1 ...``, as this code has all ``JUMPDEST``s invalid but an alternative piece of code equivalent to this but only with the leading ``PUSH2`` replaced with another op (eg. ``BALANCE``) will have all ``JUMPDESTS`` valid.  We appropriately deal with this, both in our transpiler and safety checker.

@@ -46,6 +46,7 @@ jobs:
       - name: Stop existing dev-rollup-full-node ECS task to auto-start task with new image
         run: |
           ./.github/scripts/stop-ecs-task.sh dev-full-node full-node
+          ./.github/scripts/stop-ecs-task.sh synthetix-dev-full-node full-node
 
 
       - name: Logout of Amazon ECR

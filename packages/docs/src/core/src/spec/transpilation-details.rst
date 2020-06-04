@@ -20,7 +20,7 @@ The following opcodes perform stack operations which are constant in terms of L1
 - "Pure" memory modifying operations: 
    - ``MLOAD, MSTORE, MSTORE8, MSIZE``.
 - Permitted execution-context-dependent operations: 
-   - ``CALLVALUE*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY, CODESIZE, RETURNDATASIZE, RETURNDATACOPY``   \*Note: ``CALLVALUE`` will always be 0 because we enforce that all ``CALL`` s always pass 0 in our purity checking.
+   - ``CALLVALUE*, CALLDATALOAD, CALLDATASIZE, CALLDATACOPY, CODESIZE, RETURNDATASIZE, RETURNDATACOPY``   \*Note: ``CALLVALUE`` will always be 0 because we enforce that all ``CALL`` s always pass 0 in our safety checking.
 
 Replaced Opcodes
 ================
@@ -119,7 +119,7 @@ These opcodes are banned simply because we don't want to support them currently.
 ETH-native Value
 -----------------------------------------
 
-We have made the decision for now not to use native ETH, and instead do everything with wrapped ETH (WETH).  Note: ``CALLVALUE`` is actually able to be whitelisted, because our Purity Checker enforces that all Calls are made with a value of 0. Contracts are welcome to use msg.value, it will just always return 0. This means that the following opcodes are banned, not just transpiled:
+We have made the decision for now not to use native ETH, and instead do everything with wrapped ETH (WETH).  Note: ``CALLVALUE`` is actually able to be whitelisted, because our Safety Checker enforces that all Calls are made with a value of 0. Contracts are welcome to use msg.value, it will just always return 0. This means that the following opcodes are banned, not just transpiled:
 - ``BALANCE`` -- gets ``address(this).balance``
 While not a ban, another note here is that all ``value``-related inputs to other opcodes like ``CREATE`` or ``CALL`` are overridden to ``0`` by their transpiled counterparts.  We do have good inline documentation for how a native ``value`` could be added if needed.  Another option is we could even transpile the native ETH opcodes to use ``WETH`` instead.  TBD.
 
