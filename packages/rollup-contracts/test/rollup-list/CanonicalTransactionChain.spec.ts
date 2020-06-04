@@ -7,6 +7,7 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { TxChainBatch, TxQueueBatch } from './RLhelper'
+import { makeRandomBatchOfSize } from '../helpers'
 
 /* Logging */
 const log = getLogger('canonical-tx-chain', true)
@@ -218,11 +219,13 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should add multiple batches correctly', async () => {
-      const numBatches = 10
+      const numBatches = 5
+      let expectedNumElements = 0
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = DEFAULT_BATCH.length * batchIndex
+        const batch = makeRandomBatchOfSize(batchIndex + 1)
+        const cumulativePrevElements = expectedNumElements
         const localBatch = await appendAndGenerateSequencerBatch(
-          DEFAULT_BATCH,
+          batch,
           batchIndex,
           cumulativePrevElements
         )
@@ -231,11 +234,10 @@ describe('CanonicalTransactionChain', () => {
           batchIndex
         )
         calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
+        expectedNumElements += batch.length
       }
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
-      cumulativeNumElements
-        .toNumber()
-        .should.equal(numBatches * DEFAULT_BATCH.length)
+      cumulativeNumElements.toNumber().should.equal(expectedNumElements)
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(numBatches)
     })
@@ -590,27 +592,21 @@ describe('CanonicalTransactionChain', () => {
 
   describe('verifyElement() ', async () => {
     it('should return true for valid elements for different batches and elements', async () => {
-      const numBatches = 3
-      const batch = [
-        '0x1234',
-        '0x4567',
-        '0x890a',
-        '0x4567',
-        '0x890a',
-        '0xabcd',
-        '0x1234',
-      ]
+      const numBatches = 4
+      let cumulativePrevElements = 0
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = batch.length * batchIndex
+        const batchSize = batchIndex * batchIndex + 1 // 1, 2, 5, 10
+        const batch = makeRandomBatchOfSize(batchSize)
         const localBatch = await appendAndGenerateSequencerBatch(
           batch,
           batchIndex,
           cumulativePrevElements
         )
+        cumulativePrevElements += batchSize
         for (
           let elementIndex = 0;
           elementIndex < batch.length;
-          elementIndex += 3
+          elementIndex++
         ) {
           const element = batch[elementIndex]
           const position = localBatch.getPosition(elementIndex)

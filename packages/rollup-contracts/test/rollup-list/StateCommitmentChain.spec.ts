@@ -7,6 +7,7 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { StateChainBatch } from './RLhelper'
+import { makeRandomBatchOfSize } from '../helpers'
 
 /* Logging */
 const log = getLogger('state-commitment-chain', true)
@@ -144,22 +145,23 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should add multiple batches correctly', async () => {
-      const numBatches = 5
+      const numBatches = 3
+      let expectedNumElements = 0
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = DEFAULT_STATE_BATCH.length * batchIndex
+        const batch = makeRandomBatchOfSize(batchIndex + 1)
+        const cumulativePrevElements = expectedNumElements
         const localBatch = await appendAndGenerateStateBatch(
-          DEFAULT_STATE_BATCH,
+          batch,
           batchIndex,
           cumulativePrevElements
         )
         const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
         const calculatedBatchHeaderHash = await stateChain.batches(batchIndex)
         calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
+        expectedNumElements += batch.length
       }
       const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
-      cumulativeNumElements
-        .toNumber()
-        .should.equal(numBatches * DEFAULT_STATE_BATCH.length)
+      cumulativeNumElements.toNumber().should.equal(expectedNumElements)
       const batchesLength = await stateChain.getBatchesLength()
       batchesLength.toNumber().should.equal(numBatches)
     })
@@ -182,28 +184,22 @@ describe('StateCommitmentChain', () => {
     it('should return true for valid elements for different batches and elements', async () => {
       // add enough transaction batches so # txs > # state roots
       await appendTxBatch(DEFAULT_TX_BATCH)
-      await appendTxBatch(DEFAULT_TX_BATCH)
-      const numBatches = 3
-      const batch = [
-        '0x1234',
-        '0x4567',
-        '0x890a',
-        '0x4567',
-        '0x890a',
-        '0xabcd',
-        '0x1234',
-      ]
+
+      const numBatches = 4
+      let cumulativePrevElements = 0
       for (let batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-        const cumulativePrevElements = batch.length * batchIndex
+        const batchSize = batchIndex * batchIndex + 1 // 1, 2, 5, 10
+        const batch = makeRandomBatchOfSize(batchSize)
         const localBatch = await appendAndGenerateStateBatch(
           batch,
           batchIndex,
           cumulativePrevElements
         )
+        cumulativePrevElements += batchSize
         for (
           let elementIndex = 0;
           elementIndex < batch.length;
-          elementIndex += 3
+          elementIndex++
         ) {
           const element = batch[elementIndex]
           const position = localBatch.getPosition(elementIndex)
