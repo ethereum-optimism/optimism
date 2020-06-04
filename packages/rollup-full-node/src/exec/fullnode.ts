@@ -14,9 +14,14 @@ import {
   SimpleClient,
 } from '@eth-optimism/core-utils'
 import {
+  Environment,
+  initializeL1Node,
+  initializeL2Node,
+  L1NodeContext,
   L1ToL2TransactionEventName,
   L1ToL2TransactionListener,
   L1ToL2TransactionProcessor,
+  L2NodeContext,
 } from '@eth-optimism/rollup-core'
 import cors = require('cors')
 
@@ -29,20 +34,15 @@ import {
   FullnodeRpcServer,
   DefaultWeb3Handler,
   TestWeb3Handler,
-  Environment,
-  initializeL1Node,
   RoutingHandler,
   DefaultL2ToL1MessageSubmitter,
   NoOpL2ToL1MessageSubmitter,
-  initializeL2Node,
   NoOpAccountRateLimiter,
   DefaultAccountRateLimiter,
 } from '../app'
 import {
   AccountRateLimiter,
   FullnodeHandler,
-  L1NodeContext,
-  L2NodeContext,
   L2ToL1MessageSubmitter,
   Web3Handler,
 } from '../types'
@@ -196,11 +196,16 @@ const startTransactionNode = async (
     [cors]
   )
 
-  const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await getL1ToL2TransactionProcessor(
-    testFullnode,
-    l1NodeContext,
-    fullnodeHandler
-  )
+  let l1ToL2TransactionProcessor: L1ToL2TransactionProcessor
+  if (!Environment.noL1ToL2TransactionProcessor()) {
+    l1ToL2TransactionProcessor = await getL1ToL2TransactionProcessor(
+      testFullnode,
+      l1NodeContext,
+      fullnodeHandler
+    )
+  } else {
+    log.info('Configured to not create an L1ToL2TransactionProcessor.')
+  }
 
   fullnodeRpcServer.listen()
 

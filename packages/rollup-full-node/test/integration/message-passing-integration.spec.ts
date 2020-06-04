@@ -1,12 +1,12 @@
-import { Address, L2ToL1Message } from '@eth-optimism/rollup-core'
+import {
+  Address,
+  deployContract,
+  getWallets,
+  L2ToL1Message,
+} from '@eth-optimism/rollup-core'
 import { add0x, sleep } from '@eth-optimism/core-utils'
 
-import {
-  TestWeb3Handler,
-  createProviderForHandler,
-  getWallets,
-  deployContract,
-} from '../../src/app'
+import { createProviderForHandler, TestWeb3Handler } from '../../src/app'
 import { FullnodeHandler, L2ToL1MessageSubmitter } from '../../src/types'
 
 import * as SimpleStorage from '../contracts/build/transpiled/SimpleStorage.json'

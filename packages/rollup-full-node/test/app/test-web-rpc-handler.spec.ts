@@ -89,6 +89,7 @@ describe('TestHandler', () => {
       const privateKey = '0x' + '60'.repeat(32)
       const wallet = new ethers.Wallet(privateKey, httpProvider)
       log.debug('Wallet address:', wallet.address)
+
       const factory = new ContractFactory(
         SimpleStorage.abi,
         SimpleStorage.bytecode,
@@ -96,6 +97,7 @@ describe('TestHandler', () => {
       )
 
       const simpleStorage = await factory.deploy()
+
       const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
         simpleStorage.deployTransaction.hash
       )

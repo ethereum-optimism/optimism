@@ -9,7 +9,6 @@ import {
   JsonRpcRequest,
   JsonRpcErrorResponse,
   JsonRpcResponse,
-  JSONRPC_ERRORS,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */

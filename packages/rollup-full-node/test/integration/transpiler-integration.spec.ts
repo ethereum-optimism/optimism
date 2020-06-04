@@ -1,14 +1,9 @@
 import '../setup'
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
+import { Address, deployContract, getWallets } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
-import {
-  createProviderForHandler,
-  deployContract,
-  getWallets,
-  TestWeb3Handler,
-} from '../../src/app'
+import { createProviderForHandler, TestWeb3Handler } from '../../src/app'
 
 /* Contract Imports */
 

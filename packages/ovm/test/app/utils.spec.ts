@@ -1,11 +1,4 @@
-import {
-  abi,
-  add0x,
-  bufToHexString,
-  hexStrToBuf,
-  remove0x,
-  ZERO_ADDRESS,
-} from '@eth-optimism/core-utils'
+import { add0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 /* Contract Imports */
 import { TransactionReceipt } from 'ethers/providers'
 import {

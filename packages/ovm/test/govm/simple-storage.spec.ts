@@ -1,25 +1,29 @@
 import '../setup'
 
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
-import { getWallets } from 'ethereum-waffle'
 import { getLogger, add0x } from '@eth-optimism/core-utils'
+import {
+  Address,
+  CHAIN_ID,
+  GAS_LIMIT,
+  getUnsignedTransactionCalldata,
+} from '@eth-optimism/rollup-core'
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
+} from '@eth-optimism/rollup-contracts'
+
+import { getWallets } from 'ethereum-waffle'
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-
-/* Contract Imports */
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
 
 /* Internal Imports */
 import {
   ensureGovmIsConnected,
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   executeTransaction,
 } from '../helpers'
-import { CHAIN_ID, GAS_LIMIT } from '../../src/app'
 
 const log = getLogger('simple-storage', true)
 

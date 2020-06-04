@@ -1,5 +1,6 @@
 export * from './errors'
 export * from './l1-to-l2-transaction-listener'
+export * from './node-context'
 export * from './opcodes'
 export * from './state-machine'
 export * from './types'

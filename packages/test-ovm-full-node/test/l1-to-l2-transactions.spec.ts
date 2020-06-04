@@ -5,15 +5,12 @@ import {
   runFullnode,
   FullnodeContext
 } from '@eth-optimism/rollup-full-node'
-import {Address} from '@eth-optimism/rollup-core'
+import {Address, getUnsignedTransactionCalldata} from '@eth-optimism/rollup-core'
 import {add0x, getLogger, keccak256, sleep} from '@eth-optimism/core-utils'
 
 import {Contract, Wallet} from 'ethers'
 import {JsonRpcProvider} from 'ethers/providers'
 import {deployContract} from 'ethereum-waffle'
-
-/* Internal Imports */
-import {getUnsignedTransactionCalldata} from '../src'
 
 /* Contract Imports */
 import * as SimpleStorage from '../build/SimpleStorage.json'
