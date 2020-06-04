@@ -5,7 +5,7 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { RollupQueueBatch } from './RLhelper'
+import { TxQueueBatch } from './RLhelper'
 
 /* Logging */
 const log = getLogger('rollup-queue', true)
@@ -38,23 +38,18 @@ describe('RollupQueue', () => {
     )
   })
 
-  const enqueueAndGenerateBatch = async (
-    tx: string
-  ): Promise<RollupQueueBatch> => {
+  const enqueueAndGenerateBatch = async (tx: string): Promise<TxQueueBatch> => {
     // Submit the rollup batch on-chain
     const enqueueTx = await rollupQueue.enqueueTx(tx)
     const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
     const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
     // Generate a local version of the rollup batch
-    const localBatch = new RollupQueueBatch(tx, timestamp)
+    const localBatch = new TxQueueBatch(tx, timestamp)
     await localBatch.generateTree()
     return localBatch
   }
 
   describe('enqueueTx() ', async () => {
-    it('should not throw as long as it gets a bytes array (even if its invalid)', async () => {
-      await rollupQueue.enqueueTx(DEFAULT_TX)
-    })
     it('should add to batchHeaders array', async () => {
       await rollupQueue.enqueueTx(DEFAULT_TX)
       const batchesLength = await rollupQueue.getBatchHeadersLength()

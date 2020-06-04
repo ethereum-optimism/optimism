@@ -34,11 +34,24 @@ contract DataTypes {
         address l1MessageSender;
     }
 
-    struct ElementInclusionProof {
-       uint batchIndex; // index in batches array (first batch has batchNumber of 0)
+    struct TxElementInclusionProof {
+       uint batchIndex;
        TxChainBatchHeader batchHeader;
-       uint indexInBatch; // used to verify inclusion of the element in elementsMerkleRoot
-       bytes32[] siblings; // used to verify inclusion of the element in elementsMerkleRoot
+       uint indexInBatch;
+       bytes32[] siblings;
+    }
+
+    struct StateElementInclusionProof {
+       uint batchIndex;
+       StateChainBatchHeader batchHeader;
+       uint indexInBatch;
+       bytes32[] siblings;
+    }
+
+    struct StateChainBatchHeader {
+       bytes32 elementsMerkleRoot;
+       uint numElementsInBatch;
+       uint cumulativePrevElements;
     }
 
     struct TxChainBatchHeader {

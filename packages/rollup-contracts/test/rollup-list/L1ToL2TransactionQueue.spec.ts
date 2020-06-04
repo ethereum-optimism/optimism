@@ -78,7 +78,6 @@ describe('L1ToL2TransactionQueue', () => {
     })
     it('should not allow dequeue from other address', async () => {
       await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
-
       await TestUtils.assertRevertsAsync(
         'Message sender does not have permission to dequeue',
         async () => {
