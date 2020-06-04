@@ -20,7 +20,7 @@ The opcode `CODECOPY` accepts `memOffset`, `codeOffset`, and `length` inputs fro
 
 This document explains each of these cases and how they're handled transpilation-side.
 
-### Constants
+## Constants
 
 Constants larger than 32 bytes are stored in the bytecode and `CODECOPY` ed to access in execution. Initial investigation shows that the pattern which always occurs leading up to a `CODECOPY` for constants is:
 
@@ -37,7 +37,7 @@ With some memory allocation operations preceding the `PUSH, PUSH, SWAP...` which
 
 To deal with constants, we still want to copy the correct constant--this will just be at a different index once we insert transpiled bytecode above it. So, we just increase the `codeOffset` input to `CODECOPY` in every case that a constant is being loaded into memory. Hopefully, all constants are appended to the end of a file so that we may simply add a fixed offset for every constant.
 
-### Returning deployed bytecode in `CREATE(2)`
+## Returning deployed bytecode in `CREATE(2)`
 
 All constructor logic for initcode is prefixed to the bytecode to be deployed, and this prefix runs `CODECOPY(suffixToDeploy), ..., RETURN` during `CREATE(2)`. If constructor logic is empty \(i.e. no `constructor()` function specified in Solidity\) this prefix is quite simple but still exists. This `CODECOPY` simply puts the prefix into memory so that the deployed byetcode can be deployed. So, what we need to do is increase the `length` input both to `CODECOPY` and the `RETURN`. The `CODECOPY, RETURN` pattern seems to appear in the following format:
 
@@ -53,7 +53,7 @@ RETURN // uses above RETURN offset and DUP'ed length above
 
 So by adding to the consumed bytes of the first `PUSH2` above, in accordance to the extra bytes added by transpilation, we make sure the correct length is both `CODECOPY`ed and `RETURN` ed. Note that, if we have constructor logic which gets transpiled, this will require modifying the `// codecopy's offset` line above as well.
 
-### Constructor Parameters
+## Constructor Parameters
 
 Constructor parameters are passed as bytecode and then are `CODECOPY` ed to memory before being treated like calldata. This is because the EVM execution which is initiated by `CREATE(2)` does not have a calldata parameter, so the inputs must be passed in a different way. For more discussion, check out [this discussion](https://ethereum.stackexchange.com/questions/58866/how-does-a-contracts-constructor-work-and-load-input-values) on stack exchange.
 

@@ -4,11 +4,11 @@ The OVM is an alpha. In trying it out, you're helping us scale Ethereum and pave
 
 While you do so, here is a collection of tips and notes that may help you figure out what's going on.
 
-### Limitations
+## Limitations
 
 Some features of the Ethereum are not yet implemented, or just don't make sense to have, in the OVM. Check out our limitations section \(link\) to get more information to check if this is why you're running into issues.
 
-### Logging
+## Logging
 
 We use the npm package`debug` for logging. To get a better sense of what might be breaking, you can run .. code-block:: none
 
@@ -16,7 +16,7 @@ We use the npm package`debug` for logging. To get a better sense of what might b
 
 in your terminal.
 
-### Getting Wallets
+## Getting Wallets
 
 `rollup-full-node` provides an RPC-based provider, and does not always allow you to getWallets\(\). Instead, use the getWallets\(\) function exported by `rollup-full-node` instead.
 

@@ -1,6 +1,6 @@
 # Block Production
 
-![Overview of Optimistic Rollup block production contracts on L1 Ethereum.](../../.gitbook/assets/rollup-contracts-overview%20%281%29.png)
+![Overview of Optimistic Rollup block production contracts on L1 Ethereum.](https://github.com/ethereum-optimism/optimism-monorepo/tree/f9f7f32f11c35acdf3b1b46ca8d076da09172516/packages/docs/.gitbook/assets/rollup-contracts-overview%20%281%29.png)
 
 ## Canonical Transaction Chain
 

@@ -6,9 +6,9 @@ There are two steps you need to take to get your contracts running on the ovm: u
 
 For reference, example integrations for both Truffle and Waffle can be found [in our monorepo](https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/examples) .
 
-### Integrating the OVM Transpiler
+## Integrating the OVM Transpiler
 
-#### Installing
+### Installing
 
 Both `truffle` and `ethereum-waffle` allow you to specify a custom replacement for `solc-js`. First, you'll need to install `@eth-optimism/solc-transpiler`:
 
@@ -24,7 +24,7 @@ npm install --save @eth-optimism/solc-transpiler
 
 `@eth-optimism/solc-transpiler` Accepts the same compiler options as as `solc`, with one additional option, `executionManagerAddress`. The Execution Manager is a smart contract implementing the OVM's containerization functionality. If you are using an unmodified `rollup-full-node`, the default execution manager address is `0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA`. More info on the execution manager can be found here. \(link\)
 
-#### Using With Waffle
+### Using With Waffle
 
 To use the transpiler with `ethereum-waffle`, set the `solc.version` configuration to `""@eth-optimism/solc-transpiler"` and `compilerOptions.executionManagerAddress` to `"0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"`.
 
@@ -39,7 +39,7 @@ example waffle-config.json:
 }
 ```
 
-#### Using With Truffle
+### Using With Truffle
 
 To use the transpiler with Truffle, set truffle's `compilers.solc.version` configuration to `@eth-optimism/solc-transpiler`, and configure the `EXECUTION_MANAGER_ADDRESS` environment variable.
 

@@ -1,6 +1,6 @@
 # Optimistic Ethereum
 
-![Optimistic Ethereum Protocol Stack](../.gitbook/assets/untitled-diagram-4%20%281%29.png)
+![Optimistic Ethereum Protocol Stack](https://github.com/ethereum-optimism/optimism-monorepo/tree/f9f7f32f11c35acdf3b1b46ca8d076da09172516/packages/docs/.gitbook/assets/untitled-diagram-4%20%281%29.png)
 
 The Optimistic Ethereum protocol consists of three key components:
 
