@@ -584,6 +584,10 @@ contract ExecutionManager {
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
         address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode, overridePurityChecker, purityChecker);
+        // Return false if the contract failed to deploy
+        if (codeContractAddress == ZERO_ADDRESS) {
+            return false;
+        }
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
         bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);

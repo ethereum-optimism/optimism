@@ -144,14 +144,14 @@ _codeContractAddress) public {
       address _newOvmContractAddress,
       bytes memory _ovmContractInitcode,
       bool overridePurityChecker,
-      PurityChecker purityChecker) public returns(address codeContractAddress) {
-        // Get the runtime bytecode
-        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
-        // Purity check the runtime bytecode -- unless the overridePurityChecker flag is set to true
-        if (!overridePurityChecker && !purityChecker.isBytecodePure(codeContractBytecode)) {
-            // Contract runtime bytecode is not pure.
+      PurityChecker purityChecker
+    ) public returns(address codeContractAddress) {
+        // Purity check the initcode, unless the overridePurityChecker flag is set to true
+        if (!overridePurityChecker && !purityChecker.isBytecodePure(_ovmContractInitcode)) {
+            // Contract initcode is not pure.
             return ZERO_ADDRESS;
         }
+
         // Deploy a new contract with this _ovmContractInitCode
         assembly {
             // Set our codeContractAddress to the address returned by our CREATE operation
@@ -160,6 +160,13 @@ _codeContractAddress) public {
             if iszero(extcodesize(codeContractAddress)) {
                 revert(0, 0)
             }
+        }
+
+        // Purity check the runtime bytecode, unless the overridePurityChecker flag is set to true
+        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
+        if (!overridePurityChecker && !purityChecker.isBytecodePure(codeContractBytecode)) {
+            // Contract runtime bytecode is not pure.
+            return ZERO_ADDRESS;
         }
         return codeContractAddress;
     }
