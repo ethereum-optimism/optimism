@@ -1,8 +1,8 @@
+import { getLogger } from '@eth-optimism/core-utils'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
-} from '@eth-optimism/ovm'
-import { getLogger } from '@eth-optimism/core-utils/build/src'
+} from '../constants'
 
 const log = getLogger('environment')
 
@@ -94,6 +94,9 @@ export class Environment {
   public static noL1Node(defaultValue?: boolean) {
     return !!process.env.NO_L1_NODE || defaultValue
   }
+  public static noL1ToL2TransactionProcessor(defaultValue?: boolean) {
+    return !!process.env.NO_L1_TO_L2_TX_PROCESSOR || defaultValue
+  }
 
   // Local Node Config
   public static opcodeWhitelistMask(
@@ -128,6 +131,11 @@ export class Environment {
     defaultValue = L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS
   ): string {
     return process.env.L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS || defaultValue
+  }
+  public static localL2NodePort(defaultValue: number = 9876): number {
+    return process.env.LOCAL_L2_NODE_PORT
+      ? parseInt(process.env.LOCAL_L2_NODE_PORT, 10)
+      : defaultValue
   }
 
   // L1 Infura
@@ -173,5 +181,14 @@ export class Environment {
     return process.env.L1_EARLIEST_BLOCK
       ? parseInt(process.env.L1_EARLIEST_BLOCK, 10)
       : defaultValue
+  }
+
+  // L1 to L2 Tx Processor Config
+  public static l1ToL2TxProcessorPersistentDbPath(defaultValue?: string) {
+    return process.env.L1_TO_L2_TX_PROCESSOR_PERSISTENT_DB_PATH || defaultValue
+  }
+
+  public static l1ToL2TxProcessorPrivateKey(defaultValue?: string) {
+    return process.env.L1_TO_L2_TX_PROCESSOR_PRIVATE_KEY || defaultValue
   }
 }

@@ -8,27 +8,32 @@ import {
 import {
   L1ToL2TransactionPasserContractDefinition,
   L2ToL1MessageReceiverContractDefinition,
-} from '@eth-optimism/ovm'
-import { Address } from '@eth-optimism/rollup-core'
+} from '@eth-optimism/rollup-contracts'
 
 import { Contract, providers, Wallet } from 'ethers'
 import { createMockProvider, deployContract } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DEFAULT_ETHNODE_GAS_LIMIT, Environment } from '../index'
-import { L1NodeContext } from '../../types'
 import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
+import { Address, L1NodeContext } from '../../types'
+import { Environment } from './environment'
+import { GAS_LIMIT } from '../constants'
 
 const log = getLogger('local-l1-node')
 
 /**
  * Initializes the L1 node based on configuration, returning the L1NodeContext.
  *
+ * @param doNotDeploy Set if this should not deploy a local L1 node if L1 node connection info is not configured.
+ * @param providerToUse Passed to use the given provider instead of connecting to configured one.
  * @returns The L1NodeContext object with all necessary L1 node info.
  */
-export const initializeL1Node = async (): Promise<L1NodeContext> => {
+export const initializeL1Node = async (
+  doNotDeploy?: boolean,
+  providerToUse?: Provider
+): Promise<L1NodeContext> => {
   const wallet: Wallet = getSequencerWallet()
-  const provider: Provider = getProvider(wallet)
+  const provider: Provider = providerToUse || getProvider(wallet, doNotDeploy)
   const sequencerWallet: Wallet = wallet.connect(provider)
 
   const l2ToL1MessageReceiver: Contract = await getL2ToL1MessageReceiverContract(
@@ -81,9 +86,10 @@ const getSequencerWallet = (): Wallet => {
  * URL is configured, this will deploy a local node.
  *
  * @param wallet The wallet to initialize with a sufficiently large balance if deploying a test node.
+ * @param doNotDeploy Set if this should not deploy a local L1 node if other L1 node config is not provided.
  * @returns The provider to use.
  */
-const getProvider = (wallet: Wallet): Provider => {
+const getProvider = (wallet: Wallet, doNotDeploy: boolean): Provider => {
   if (
     Environment.l1NodeInfuraNetwork() &&
     Environment.l1NodeInfuraProjectId()
@@ -99,6 +105,11 @@ const getProvider = (wallet: Wallet): Provider => {
     log.info(`Connecting to L1 web3 URL: ${Environment.l1NodeWeb3Url()}`)
     return new JsonRpcProvider(Environment.l1NodeWeb3Url())
   } else {
+    if (doNotDeploy) {
+      const msg = `getProvider() told not to deploy local node, but no other config present!`
+      log.error(msg)
+      throw Error(msg)
+    }
     log.info(`Deploying local L1 node on port ${Environment.localL1NodePort()}`)
     return startLocalL1Node(wallet, Environment.localL1NodePort())
   }
@@ -113,7 +124,7 @@ const getProvider = (wallet: Wallet): Provider => {
  */
 const startLocalL1Node = (sequencerWallet: Wallet, port: number): Provider => {
   const opts = {
-    gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
+    gasLimit: GAS_LIMIT,
     allowUnlimitedContractSize: true,
     locked: false,
     port,

@@ -1,10 +1,11 @@
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
 import { deploy, deployContract, add0x } from '@eth-optimism/core-utils'
+import { Address } from '@eth-optimism/rollup-core'
+import { SafetyCheckerContractDefinition } from '@eth-optimism/rollup-contracts'
+
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import * as SafetyChecker from '../build/contracts/SafetyChecker.json'
 import { resolve } from 'path'
 
 const safetyCheckerDeploymentFunction = async (
@@ -33,7 +34,7 @@ const safetyCheckerDeploymentFunction = async (
     )
     whitelistMask
     const safetyChecker = await deployContract(
-      SafetyChecker,
+      SafetyCheckerContractDefinition,
       wallet,
       whitelistMask,
       executionManagerAddress

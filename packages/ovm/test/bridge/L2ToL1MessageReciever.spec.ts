@@ -1,10 +1,9 @@
 import '../setup'
 
 /* External Imports */
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/rollup-contracts'
 
-/* Contract Imports */
-import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 describe('L2 -> L1 Message Receiver', () => {
   let provider
@@ -26,7 +25,7 @@ describe('L2 -> L1 Message Receiver', () => {
     wallet = getWallets(provider)[0]
     l2ToL1MessageReciever = await deployContract(
       wallet,
-      L2ToL1MessageReceiver,
+      L2ToL1MessageReceiverContractDefinition,
       [wallet.address, finalizationTime]
     )
   })

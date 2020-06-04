@@ -3,10 +3,10 @@ pragma solidity ^0.5.0;
 import {ExecutionManager} from "../ExecutionManager.sol";
 
 /**
- * @title SimpleStorage
+ * @title SimpleStorageArgsFromCalldata
  * @notice A simple contract testing the execution manager's storage.
  */
-contract SimpleStorage {
+contract SimpleStorageArgsFromCalldata {
     address executionManagerAddress;
 
     /**

@@ -11,7 +11,7 @@ import {
   RateLimitError,
   TransactionLimitError,
 } from '../types'
-import { Environment } from './util'
+import { Environment } from '@eth-optimism/rollup-core'
 
 const log = getLogger('routing-handler')
 

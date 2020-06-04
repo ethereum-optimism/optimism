@@ -2,16 +2,17 @@ import '../setup'
 
 /* External Imports */
 import { add0x, getLogger } from '@eth-optimism/core-utils'
+import { L2ExecutionManagerContractDefinition as L2ExecutionManager } from '@eth-optimism/rollup-contracts'
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  GAS_LIMIT,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '@eth-optimism/rollup-core'
+
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-/* Contract Imports */
-import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
-
 /* Internal Imports */
-import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '../helpers'
-import { keccak256 } from 'ethers/utils'
 
 const log = getLogger('l2-execution-manager-calls', true)
 

@@ -1,5 +1,5 @@
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
+import { Address, Environment } from '@eth-optimism/rollup-core'
 import {
   areEqual,
   getLogger,
@@ -23,7 +23,6 @@ import {
   Web3RpcMethods,
   web3RpcMethodsExcludingTest,
 } from '../types'
-import { Environment } from './util'
 
 const log = getLogger('routing-handler')
 

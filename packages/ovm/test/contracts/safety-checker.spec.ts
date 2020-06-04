@@ -1,19 +1,20 @@
 /* Internal Imports */
 import '../setup'
-import { DEFAULT_OPCODE_WHITELIST_MASK } from '../../src/app'
 
 /* External Imports */
-import { EVMOpcode, Opcode } from '@eth-optimism/rollup-core'
 import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  EVMOpcode,
+  Opcode,
+} from '@eth-optimism/rollup-core'
+import { SafetyCheckerContractDefinition as SafetyChecker } from '@eth-optimism/rollup-contracts'
 
 import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Logging */
 const log = getLogger('safety-checker', true)
-
-/* Contract Imports */
-import * as SafetyChecker from '../../build/contracts/SafetyChecker.json'
 
 const executionManagerAddress = add0x('12'.repeat(20)) // Test Execution Manager address 0x121...212
 const notWhitelisted: EVMOpcode[] = [

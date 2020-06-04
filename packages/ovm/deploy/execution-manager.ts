@@ -1,12 +1,16 @@
 /* External Imports */
 import { deploy, deployContract } from '@eth-optimism/core-utils'
+import { ExecutionManagerContractDefinition } from '@eth-optimism/rollup-contracts'
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  GAS_LIMIT,
+} from '@eth-optimism/rollup-core'
+
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
 import { deploySafetyChecker } from './safety-checker'
-import * as ExecutionManager from '../build/contracts/ExecutionManager.json'
 import { resolve } from 'path'
-import { GAS_LIMIT, DEFAULT_OPCODE_WHITELIST_MASK } from '../src/app'
 
 const executionManagerDeploymentFunction = async (
   wallet: Wallet
@@ -16,7 +20,7 @@ const executionManagerDeploymentFunction = async (
   const safetyCheckerContractAddress = await deploySafetyChecker()
 
   const executionManager = await deployContract(
-    ExecutionManager,
+    ExecutionManagerContractDefinition,
     wallet,
     DEFAULT_OPCODE_WHITELIST_MASK,
     safetyCheckerContractAddress,
