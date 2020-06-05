@@ -31,7 +31,7 @@ contract SequencerBatchSubmitter {
   ) public onlySequencer {
     require(_stateBatch.length == _txBatch.length,
       "Must append the same number of state roots and transactions");
-    canonicalTransactionChain.appendTransactionBatch(_txBatch, _txBatchTimestamp);
+    canonicalTransactionChain.appendSequencerBatch(_txBatch, _txBatchTimestamp);
     stateCommitmentChain.appendStateBatch(_stateBatch);
   }
 
