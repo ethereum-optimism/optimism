@@ -1,30 +1,31 @@
 import '../setup'
 
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger, add0x, getCurrentTime } from '@eth-optimism/core-utils'
+import {
+  Address,
+  CHAIN_ID,
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+  getUnsignedTransactionCalldata,
+} from '@eth-optimism/rollup-core'
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  FullStateManagerContractDefinition as StateManager,
+  TestSimpleTxOriginContractDefinition as SimpleTxOrigin,
+} from '@eth-optimism/rollup-contracts'
+
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-
-/* Contract Imports */
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as SimpleTxOrigin from '../../build/contracts/SimpleTxOrigin.json'
-import * as StateManager from '../../build/contracts/StateManager.json'
 
 /* Internal Imports */
 import {
   addressToBytes32Address,
   manuallyDeployOvmContract,
-  getUnsignedTransactionCalldata,
   signTransation,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../helpers'
-import {
-  CHAIN_ID,
-  GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-} from '../../src/app'
 
 const log = getLogger('simple-storage', true)
 

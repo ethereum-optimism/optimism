@@ -1,7 +1,7 @@
 import '../setup'
 
 /* Internal Imports */
-import { makeRepeatedBytes } from '../helpers'
+import { makeRepeatedBytes, makeRandomBlockOfSize } from '../helpers'
 
 /* External Imports */
 import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
@@ -34,14 +34,6 @@ async function createSMTfromDataBlocks(
 
 async function getNewSMT(treeHeight: number): Promise<SparseMerkleTreeImpl> {
   return SparseMerkleTreeImpl.create(newInMemoryDB(), undefined, treeHeight)
-}
-
-function makeRandomBlockOfSize(blockSize: number): string[] {
-  const block = []
-  for (let i = 0; i < blockSize; i++) {
-    block.push(makeRepeatedBytes('' + Math.floor(Math.random() * 500 + 1), 32))
-  }
-  return block
 }
 
 /* Begin tests */

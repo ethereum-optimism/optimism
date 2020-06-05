@@ -2,11 +2,9 @@ import './setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import {
-  deployContract,
-  createMockProvider,
-  getWallets,
-} from '@eth-optimism/rollup-full-node'
+import { createMockProvider } from '@eth-optimism/rollup-full-node'
+import {deployContract, getWallets} from '@eth-optimism/rollup-core'
+
 import solcTranspiler from '@eth-optimism/solc-transpiler'
 import { EXECUTION_MANAGER_ADDRESS } from '@eth-optimism-test/integration-test-utils'
 import { link } from 'ethereum-waffle'

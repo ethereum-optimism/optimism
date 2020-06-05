@@ -1,21 +1,25 @@
 import '../setup'
 
 /* External Imports */
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory } from 'ethers'
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
+  TestInvalidOpcodesContractDefinition as InvalidOpcodes,
+} from '@eth-optimism/rollup-contracts'
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  GAS_LIMIT,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '@eth-optimism/rollup-core'
 
-/* Contract Imports */
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as SimpleStorage from '../../build/contracts/SimpleStorage.json'
-import * as InvalidOpcodes from '../../build/contracts/InvalidOpcodes.json'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { Contract, ContractFactory } from 'ethers'
 
 const log = getLogger('execution-manager-create', true)
 
 /* Internal Imports */
-import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../src/app'
 import {
-  DEFAULT_ETHNODE_GAS_LIMIT,
   gasLimit,
   executeOVMCall,
   encodeMethodId,

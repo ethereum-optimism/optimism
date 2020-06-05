@@ -1,5 +1,5 @@
 /* External Imports */
-import { Address } from '@eth-optimism/rollup-core/'
+import { Address, CHAIN_ID, GAS_LIMIT } from '@eth-optimism/rollup-core'
 import {
   ZERO_ADDRESS,
   getLogger,
@@ -24,11 +24,7 @@ import { Transaction } from 'ethers/utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Contract Imports */
-import {
-  GAS_LIMIT,
-  CHAIN_ID,
-  internalTxReceiptToOvmTxReceipt,
-} from '../src/app'
+import { internalTxReceiptToOvmTxReceipt } from '../src/app'
 
 import { OvmTransactionReceipt } from '../src/types'
 
@@ -36,8 +32,7 @@ type Signature = [string, string, string]
 
 export const ZERO_UINT = '00'.repeat(32)
 
-export const DEFAULT_ETHNODE_GAS_LIMIT = 9_000_000_000
-export const gasLimit = 6_700_000
+export const gasLimit = 15_700_000
 const log = getLogger('helpers', true)
 
 /**
@@ -194,19 +189,6 @@ export const signTransation = async (
     bufToHexString(bufferUtils.padLeft(hexStrToBuf(r), 32)),
     bufToHexString(bufferUtils.padLeft(hexStrToBuf(s), 32)),
   ]
-}
-/**
- * Creates an unsigned transaction.
- * @param {ethers.Contract} contract
- * @param {String} functionName
- * @param {Array} args
- */
-export const getUnsignedTransactionCalldata = (
-  contract,
-  functionName,
-  args
-) => {
-  return contract.interface.functions[functionName].encode(args)
 }
 
 /**

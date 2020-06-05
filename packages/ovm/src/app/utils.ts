@@ -10,50 +10,19 @@ import {
   LOG_NEWLINE_STRING,
   BloomFilter,
 } from '@eth-optimism/core-utils'
-import { Address } from '@eth-optimism/rollup-core'
+import { executionManagerInterface } from '@eth-optimism/rollup-contracts'
 
 import { ethers } from 'ethers'
 import { LogDescription } from 'ethers/utils'
 import { Log, TransactionReceipt } from 'ethers/providers'
 
-/* Contract Imports */
-
-import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
-import * as FullStateManager from '../../build/contracts/FullStateManager.json'
-import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
-import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
-import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
-import * as L2ToL1MessagePasser from '../../build/contracts/L2ToL1MessagePasser.json'
-import * as L1ToL2TransactionPasser from '../../build/contracts/L1ToL2TransactionPasser.json'
-import * as RLPEncode from '../../build/contracts/RLPEncode.json'
-
 /* Internal Imports */
 import { OvmTransactionReceipt } from '../types'
 
-// Contract Exports
-export const L2ExecutionManagerContractDefinition = L2ExecutionManager
-export const FullStateManagerContractDefinition = FullStateManager
-export const ContractAddressGeneratorContractDefinition = ContractAddressGenerator
-export const RLPEncodeContractDefinition = RLPEncode
-export const L2ToL1MessageReceiverContractDefinition = L2ToL1MessageReceiver
-export const L2ToL1MessagePasserContractDefinition = L2ToL1MessagePasser
-export const L1ToL2TransactionPasserContractDefinition = L1ToL2TransactionPasser
+const logger = getLogger('utils')
 
 export const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '
-
-export const executionManagerInterface = new ethers.utils.Interface(
-  ExecutionManager.interface
-)
-
-export const l2ExecutionManagerInterface = new ethers.utils.Interface(
-  L2ExecutionManager.interface
-)
-export const l2ToL1MessagePasserInterface = new ethers.utils.Interface(
-  L2ToL1MessagePasser.interface
-)
-
-const logger = getLogger('utils')
 
 export interface OvmTransactionMetadata {
   ovmTxSucceeded: boolean
@@ -79,8 +48,8 @@ export const convertInternalLogsToOvmLogs = (
   logs: Log[],
   executionManagerAddress: string
 ): Log[] => {
-  const uppercaseExecutionMangerAddress: Address = executionManagerAddress.toUpperCase()
-  let activeContractAddress: Address = logs[0] ? logs[0].address : ZERO_ADDRESS
+  const uppercaseExecutionMangerAddress: string = executionManagerAddress.toUpperCase()
+  let activeContractAddress: string = logs[0] ? logs[0].address : ZERO_ADDRESS
   const stringsToDebugLog = [`Parsing internal logs ${JSON.stringify(logs)}: `]
   const ovmLogs = []
   let numberOfEMLogs = 0

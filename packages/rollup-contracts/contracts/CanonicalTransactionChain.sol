@@ -5,12 +5,14 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 import {L1ToL2TransactionQueue} from "./L1ToL2TransactionQueue.sol";
+import {SafetyTransactionQueue} from "./SafetyTransactionQueue.sol";
 
 contract CanonicalTransactionChain {
   address public sequencer;
   uint public forceInclusionPeriod;
   RollupMerkleUtils public merkleUtils;
   L1ToL2TransactionQueue public l1ToL2Queue;
+  SafetyTransactionQueue public safetyQueue;
   uint public cumulativeNumElements;
   bytes32[] public batches;
   uint public lastOVMTimestamp;
@@ -24,6 +26,7 @@ contract CanonicalTransactionChain {
     merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
     sequencer = _sequencer;
     l1ToL2Queue = new L1ToL2TransactionQueue(_rollupMerkleUtilsAddress, _l1ToL2TransactionPasserAddress, address(this));
+    safetyQueue = new SafetyTransactionQueue(_rollupMerkleUtilsAddress, address(this));
     forceInclusionPeriod =_forceInclusionPeriod;
     lastOVMTimestamp = 0;
   }
@@ -49,34 +52,60 @@ contract CanonicalTransactionChain {
   }
 
   function appendL1ToL2Batch() public {
-    dt.TimestampedHash memory timestampedHash = l1ToL2Queue.peek();
+    dt.TimestampedHash memory l1ToL2Header = l1ToL2Queue.peek();
+    require(
+      safetyQueue.isEmpty() || l1ToL2Header.timestamp <= safetyQueue.peekTimestamp(),
+      "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
+    );
+    _appendQueueBatch(l1ToL2Header, true);
+    l1ToL2Queue.dequeue();
+  }
+
+  function appendSafetyBatch() public {
+    dt.TimestampedHash memory safetyHeader = safetyQueue.peek();
+    require(
+      l1ToL2Queue.isEmpty() || safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(),
+      "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
+    );
+    _appendQueueBatch(safetyHeader, false);
+    safetyQueue.dequeue();
+  }
+
+  function _appendQueueBatch(
+    dt.TimestampedHash memory timestampedHash,
+    bool isL1ToL2Tx
+  ) internal {
     uint timestamp = timestampedHash.timestamp;
-    if (timestamp + forceInclusionPeriod > now) {
-      require(authenticateAppend(msg.sender), "Message sender does not have permission to append this batch");
-    }
+    require(
+      timestamp + forceInclusionPeriod <= now || authenticateAppend(msg.sender),
+      "Message sender does not have permission to append this batch"
+    );
     lastOVMTimestamp = timestamp;
     bytes32 elementsMerkleRoot = timestampedHash.txHash;
     uint numElementsInBatch = 1;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
       timestamp,
-      true, // isL1ToL2Tx
+      isL1ToL2Tx,
       elementsMerkleRoot,
       numElementsInBatch,
       cumulativeNumElements // cumulativePrevElements
     ));
     batches.push(batchHeaderHash);
     cumulativeNumElements += numElementsInBatch;
-    l1ToL2Queue.dequeue();
   }
 
-  function appendTransactionBatch(bytes[] memory _txBatch, uint _timestamp) public {
+  function appendSequencerBatch(bytes[] memory _txBatch, uint _timestamp) public {
     require(authenticateAppend(msg.sender), "Message sender does not have permission to append a batch");
     require(_txBatch.length > 0, "Cannot submit an empty batch");
     require(_timestamp + forceInclusionPeriod > now, "Cannot submit a batch with a timestamp older than the sequencer inclusion period");
     require(_timestamp <= now, "Cannot submit a batch with a timestamp in the future");
-    if(!l1ToL2Queue.isEmpty()) {
-      require(_timestamp <= l1ToL2Queue.peekTimestamp(), "Must process older queued batches first to enforce timestamp monotonicity");
-    }
+    require(
+      l1ToL2Queue.isEmpty() || _timestamp <= l1ToL2Queue.peekTimestamp(),
+      "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
+    );
+    require(
+      safetyQueue.isEmpty() || _timestamp <= safetyQueue.peekTimestamp(),
+      "Must process older SafetyQueue batches first to enforce timestamp monotonicity");
     require(_timestamp >= lastOVMTimestamp, "Timestamps must monotonically increase");
     lastOVMTimestamp = _timestamp;
     bytes32 batchHeaderHash = keccak256(abi.encodePacked(
@@ -94,7 +123,7 @@ contract CanonicalTransactionChain {
   function verifyElement(
      bytes memory _element, // the element of the list being proven
      uint _position, // the position in the list of the element being proven
-     dt.ElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
+     dt.TxElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
   ) public view returns (bool) {
     // For convenience, store the batchHeader
     dt.TxChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;

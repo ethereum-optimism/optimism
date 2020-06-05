@@ -1,11 +1,11 @@
 import '../setup'
 
 /* External Imports */
+import { L1ToL2TransactionPasserContractDefinition } from '@eth-optimism/rollup-contracts'
+
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Contract Imports */
-import * as L1ToL2TransactionPasser from '../../build/contracts/L1ToL2TransactionPasser.json'
-
 describe('L1 -> L2 Transaction Passer', () => {
   let provider
   let wallet
@@ -15,7 +15,7 @@ describe('L1 -> L2 Transaction Passer', () => {
     wallet = getWallets(provider)[0]
     l1ToL2TransactionPasser = await deployContract(
       wallet,
-      L1ToL2TransactionPasser
+      L1ToL2TransactionPasserContractDefinition
     )
   })
   const entryPoint = '0x0000000000000000000000000000000000001234'

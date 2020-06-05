@@ -1,13 +1,13 @@
 /* External Imports */
 import { add0x, sleep } from '@eth-optimism/core-utils'
 import { L2ToL1Message } from '@eth-optimism/rollup-core'
-import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/ovm'
+import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Contract, Wallet } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { DefaultL2ToL1MessageSubmitter } from '../../src/app/message-submitter'
+import { DefaultL2ToL1MessageSubmitter } from '../../src/app'
 import { Provider } from 'ethers/providers'
 
 describe('L2 to L1 Message Submitter', () => {

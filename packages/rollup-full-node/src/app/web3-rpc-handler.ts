@@ -1,8 +1,14 @@
 /* External Imports */
 import {
   Address,
+  CHAIN_ID,
+  GAS_LIMIT,
+  getCurrentTime,
+  initializeL2Node,
+  isErrorEVMRevert,
   L1ToL2Transaction,
   L1ToL2TransactionListener,
+  L2NodeContext,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
 import {
@@ -18,17 +24,17 @@ import {
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import {
-  CHAIN_ID,
-  GAS_LIMIT,
   convertInternalLogsToOvmLogs,
   internalTxReceiptToOvmTxReceipt,
-  l2ToL1MessagePasserInterface,
   OvmTransactionReceipt,
-  executionManagerInterface,
 } from '@eth-optimism/ovm'
+import {
+  executionManagerInterface,
+  l2ToL1MessagePasserInterface,
+} from '@eth-optimism/rollup-contracts'
 
 import AsyncLock from 'async-lock'
-import { Contract, utils, Wallet } from 'ethers'
+import { utils, Wallet } from 'ethers'
 import Web3 from 'web3'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
@@ -36,7 +42,6 @@ import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 import {
   FullnodeHandler,
   InvalidParametersError,
-  L2NodeContext,
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3Handler,
@@ -45,7 +50,6 @@ import {
   RevertError,
   UnsupportedFilterError,
 } from '../types'
-import { initializeL2Node, getCurrentTime, isErrorEVMRevert } from './util'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')
