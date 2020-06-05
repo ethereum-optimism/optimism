@@ -16,7 +16,7 @@ import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager {
-    FullStateManager stateManager;
+    FullStateManager public stateManager;
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // expected queue origin for calls from L1
@@ -1009,6 +1009,6 @@ contract ExecutionManager {
     }
 
     function getStateManagerAddress() public view returns (address){
-      return address(stateManager);
+        return address(stateManager);
     }
 }

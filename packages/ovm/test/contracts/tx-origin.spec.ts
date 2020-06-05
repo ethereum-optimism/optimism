@@ -73,7 +73,11 @@ describe('SimpleTxOrigin', () => {
 
       const innerCallData: string = add0x(`${getStorageMethodId}`)
       const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(stateManagerAddress, StateManager.abi, wallet)
+      const stateManager = new Contract(
+        stateManagerAddress,
+        StateManager.abi,
+        wallet
+      )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,

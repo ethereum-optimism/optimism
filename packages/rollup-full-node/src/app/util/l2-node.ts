@@ -8,6 +8,7 @@ import {
 import {
   GAS_LIMIT,
   L2ExecutionManagerContractDefinition,
+  FullStateManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
   CHAIN_ID,
 } from '@eth-optimism/ovm'
@@ -58,12 +59,19 @@ export async function initializeL2Node(
     wallet,
     doNotDeploy
   )
+  const stateManager: Contract = new Contract(
+    await executionManager.stateManager(),
+    FullStateManagerContractDefinition.abi,
+    wallet
+  )
+
   const l2ToL1MessagePasser: Contract = getL2ToL1MessagePasserContract(wallet)
 
   return {
     wallet,
     provider,
     executionManager,
+    stateManager,
     l2ToL1MessagePasser,
   }
 }

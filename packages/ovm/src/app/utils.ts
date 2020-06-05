@@ -19,6 +19,7 @@ import { Log, TransactionReceipt } from 'ethers/providers'
 /* Contract Imports */
 
 import * as ExecutionManager from '../../build/contracts/ExecutionManager.json'
+import * as FullStateManager from '../../build/contracts/FullStateManager.json'
 import * as L2ExecutionManager from '../../build/contracts/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../../build/contracts/ContractAddressGenerator.json'
 import * as L2ToL1MessageReceiver from '../../build/contracts/L2ToL1MessageReceiver.json'
@@ -31,6 +32,7 @@ import { OvmTransactionReceipt } from '../types'
 
 // Contract Exports
 export const L2ExecutionManagerContractDefinition = L2ExecutionManager
+export const FullStateManagerContractDefinition = FullStateManager
 export const ContractAddressGeneratorContractDefinition = ContractAddressGenerator
 export const RLPEncodeContractDefinition = RLPEncode
 export const L2ToL1MessageReceiverContractDefinition = L2ToL1MessageReceiver

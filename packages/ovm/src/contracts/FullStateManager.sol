@@ -87,8 +87,7 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
-    function associateCodeContract(address _ovmContractAddress, address
-_codeContractAddress) public {
+    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) public {
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
@@ -141,10 +140,10 @@ _codeContractAddress) public {
      * @return the codeContractAddress.
      */
     function deployContract(
-      address _newOvmContractAddress,
-      bytes memory _ovmContractInitcode,
-      bool overrideSafetyChecker,
-      SafetyChecker safetyChecker
+        address _newOvmContractAddress,
+        bytes memory _ovmContractInitcode,
+        bool overrideSafetyChecker,
+        SafetyChecker safetyChecker
     ) public returns(address codeContractAddress) {
         // Safety check the initcode, unless the overrideSafetyChecker flag is set to true
         if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmContractInitcode)) {
