@@ -7,6 +7,11 @@ import {RollupMerkleUtils} from "./RollupMerkleUtils.sol";
 import {CanonicalTransactionChain} from "./CanonicalTransactionChain.sol";
 import {StateCommitmentChain} from "./StateCommitmentChain.sol";
 
+/**
+ * @title SequencerBatchSubmitter
+ * @notice Helper contract that allows the sequencer to submit both a state commitment batch and tx batch in a single transaction.
+ *         This ensures that # state roots == # of txs, preventing other users from submitting state batches to the state chain.
+ */
 contract SequencerBatchSubmitter {
   CanonicalTransactionChain canonicalTransactionChain;
   StateCommitmentChain stateCommitmentChain;
@@ -24,6 +29,12 @@ contract SequencerBatchSubmitter {
     stateCommitmentChain = StateCommitmentChain(_stateCommitmentChain);
   }
 
+  /**
+   * @notice Append equal sized batches of transactions and state roots to their respective chains
+   * @param _txBatch An array of transactions - // *TODO specify transaction format*
+   * @param _txBatchTimestamp The timestamp that will be submitted with the tx batch - this timestamp will likely lag behind the actual time by a few minutes
+   * @param _stateBatch An array of 32 byte state roots
+   */
   function appendTransitionBatch(
     bytes[] memory _txBatch,
     uint _txBatchTimestamp,
