@@ -7,13 +7,15 @@ import {
 } from '@eth-optimism/rollup-core'
 
 import { Wallet } from 'ethers'
+import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import { deploySafetyChecker } from './safety-checker'
 import { resolve } from 'path'
 
 const executionManagerDeploymentFunction = async (
-  wallet: Wallet
+  wallet: Wallet,
+  provider: Provider
 ): Promise<string> => {
   console.log(`\nDeploying ExecutionManager!\n`)
 

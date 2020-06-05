@@ -1,6 +1,7 @@
 /* External Imports */
 import { deploy, deployContract } from '@eth-optimism/core-utils'
-import { Wallet } from 'ethers'
+import { Wallet} from 'ethers'
+import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import * as RollupMerkleUtils from '../build/RollupMerkleUtils.json'
@@ -11,14 +12,15 @@ import * as SequencerBatchSubmitter from '../build/SequencerBatchSubmitter.json'
 import { resolve } from 'path'
 
 const rollupChainDeploymentFunction = async (
-  wallet: Wallet
+  wallet: Wallet,
+  provider: Provider
 ): Promise<string> => {
   console.log(`\nDeploying Rollup Chain!\n`)
 
   const l1ToL2TransactionPasser = wallet // TODO actually deploy l1ToL2TransactionPasser
-  const FORCE_INCLUSION_PERIOD = 600 // TODO set this in the config
+  const sequencer = (process.env.SEQUENCER_PRIVATE_KEY) ? new Wallet(process.env.SEQUENCER_PRIVATE_KEY, provider) : wallet
+  const inclusionPeriod = process.env.FORCE_INCLUSION_PERIOD || 600
   const fraudVerifier = wallet // TODO actually deploy Fraud Verifier
-  const sequencer = wallet // TODO set the sequencer address in the config
 
   console.log(
     `Deploying RollupMerkleUtils...`
@@ -43,7 +45,7 @@ const rollupChainDeploymentFunction = async (
     rollupMerkleUtils.address,
     sequencerBatchSubmitter.address,
     l1ToL2TransactionPasser.address,
-    FORCE_INCLUSION_PERIOD
+    inclusionPeriod
   )
 
   const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
@@ -64,7 +66,9 @@ const rollupChainDeploymentFunction = async (
   console.log(
     `Initializing SequencerBatchSubmitter with chain addresses...`
   )
-  await sequencerBatchSubmitter.initialize(canonicalTxChain.address, stateChain.address)
+  await sequencerBatchSubmitter
+    .connect(sequencer)
+    .initialize(canonicalTxChain.address, stateChain.address)
 
   console.log(
     `\nRollup Merkle Utils deployed to ${rollupMerkleUtils.address}!\n`
