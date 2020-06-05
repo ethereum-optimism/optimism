@@ -1,6 +1,6 @@
 /* External Imports */
 import { deploy, deployContract } from '@eth-optimism/core-utils'
-import { Wallet} from 'ethers'
+import { Wallet } from 'ethers'
 import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
@@ -18,27 +18,23 @@ const rollupChainDeploymentFunction = async (
   console.log(`\nDeploying Rollup Chain!\n`)
 
   const l1ToL2TransactionPasser = wallet // TODO actually deploy l1ToL2TransactionPasser
-  const sequencer = (process.env.SEQUENCER_PRIVATE_KEY) ? new Wallet(process.env.SEQUENCER_PRIVATE_KEY, provider) : wallet
+  const sequencer = process.env.SEQUENCER_PRIVATE_KEY
+    ? new Wallet(process.env.SEQUENCER_PRIVATE_KEY, provider)
+    : wallet
   const inclusionPeriod = process.env.FORCE_INCLUSION_PERIOD || 600
   const fraudVerifier = wallet // TODO actually deploy Fraud Verifier
 
-  console.log(
-    `Deploying RollupMerkleUtils...`
-  )
+  console.log(`Deploying RollupMerkleUtils...`)
   const rollupMerkleUtils = await deployContract(RollupMerkleUtils, wallet)
 
-  console.log(
-    `Deploying SequencerBatchSubmitter...`
-  )
+  console.log(`Deploying SequencerBatchSubmitter...`)
   const sequencerBatchSubmitter = await deployContract(
     SequencerBatchSubmitter,
     wallet,
     sequencer.address
   )
 
-  console.log(
-    `Deploying CanonicalTransactionChain...`
-  )
+  console.log(`Deploying CanonicalTransactionChain...`)
   const canonicalTxChain = await deployContract(
     CanonicalTransactionChain,
     wallet,
@@ -52,9 +48,7 @@ const rollupChainDeploymentFunction = async (
 
   const safetyQueueAddress = await canonicalTxChain.safetyQueue()
 
-  console.log(
-    `Deploying StateCommitmentChain...`
-  )
+  console.log(`Deploying StateCommitmentChain...`)
   const stateChain = await deployContract(
     StateCommitmentChain,
     wallet,
@@ -63,9 +57,7 @@ const rollupChainDeploymentFunction = async (
     fraudVerifier.address
   )
 
-  console.log(
-    `Initializing SequencerBatchSubmitter with chain addresses...`
-  )
+  console.log(`Initializing SequencerBatchSubmitter with chain addresses...`)
   await sequencerBatchSubmitter
     .connect(sequencer)
     .initialize(canonicalTxChain.address, stateChain.address)
@@ -76,12 +68,12 @@ const rollupChainDeploymentFunction = async (
   console.log(
     `Canonical Transaction Chain deployed to ${canonicalTxChain.address}!\n`
   )
-  console.log(
-    `L1-to-L2 Transaction Queue deployed to ${l1ToL2QueueAddress}!\n`
-  )
+  console.log(`L1-to-L2 Transaction Queue deployed to ${l1ToL2QueueAddress}!\n`)
   console.log(`Safety Transaction Queue deployed to ${safetyQueueAddress}!\n`)
   console.log(`State Commitment Chain deployed to ${stateChain.address}!\n`)
-  console.log(`Sequencer Batch Submitter deployed to ${sequencerBatchSubmitter.address}!\n`)
+  console.log(
+    `Sequencer Batch Submitter deployed to ${sequencerBatchSubmitter.address}!\n`
+  )
   return canonicalTxChain.address
 }
 

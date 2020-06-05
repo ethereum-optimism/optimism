@@ -8,4 +8,7 @@ import { Provider } from 'ethers/providers'
  * @param Provider The Provider to deploy to
  * @returns The deployed address as a hex string
  */
-export type ContractDeploymentFunction = (w: Wallet, p: Provider) => Promise<string>
+export type ContractDeploymentFunction = (
+  w: Wallet,
+  p: Provider
+) => Promise<string>
