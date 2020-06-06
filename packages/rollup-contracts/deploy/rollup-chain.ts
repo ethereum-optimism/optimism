@@ -8,6 +8,7 @@ import * as RollupMerkleUtils from '../build/RollupMerkleUtils.json'
 import * as CanonicalTransactionChain from '../build/CanonicalTransactionChain.json'
 import * as StateCommitmentChain from '../build/StateCommitmentChain.json'
 import * as SequencerBatchSubmitter from '../build/SequencerBatchSubmitter.json'
+import * as L1ToL2TransactionPasser from '../build/L1ToL2TransactionPasser.json'
 
 import { resolve } from 'path'
 
@@ -15,26 +16,30 @@ const rollupChainDeploymentFunction = async (
   wallet: Wallet,
   provider: Provider
 ): Promise<string> => {
-  console.log(`\nDeploying Rollup Chain!\n`)
-
-  const l1ToL2TransactionPasser = wallet // TODO actually deploy l1ToL2TransactionPasser
   const sequencer = process.env.SEQUENCER_PRIVATE_KEY
     ? new Wallet(process.env.SEQUENCER_PRIVATE_KEY, provider)
     : wallet
   const inclusionPeriod = process.env.FORCE_INCLUSION_PERIOD || 600
   const fraudVerifier = wallet // TODO actually deploy Fraud Verifier
 
-  console.log(`Deploying RollupMerkleUtils...`)
+  console.log(`\nDeploying Rollup Chain!\n`)
+  console.log(`\nDeploying RollupMerkleUtils...\n`)
   const rollupMerkleUtils = await deployContract(RollupMerkleUtils, wallet)
 
-  console.log(`Deploying SequencerBatchSubmitter...`)
+  console.log(`\nDeploying SequencerBatchSubmitter with Sequencer address: {sequencer.addres}...\n`)
   const sequencerBatchSubmitter = await deployContract(
     SequencerBatchSubmitter,
     wallet,
     sequencer.address
   )
 
-  console.log(`Deploying CanonicalTransactionChain...`)
+  console.log(`\nDeploying L1ToL2TransactionPasser...\n`)
+  const l1ToL2TransactionPasser = await deployContract(
+    L1ToL2TransactionPasser,
+    wallet
+  )
+
+  console.log(`\nDeploying CanonicalTransactionChain...\n`)
   const canonicalTxChain = await deployContract(
     CanonicalTransactionChain,
     wallet,
@@ -43,12 +48,10 @@ const rollupChainDeploymentFunction = async (
     l1ToL2TransactionPasser.address,
     inclusionPeriod
   )
-
   const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
-
   const safetyQueueAddress = await canonicalTxChain.safetyQueue()
 
-  console.log(`Deploying StateCommitmentChain...`)
+  console.log(`\nDeploying StateCommitmentChain...\n`)
   const stateChain = await deployContract(
     StateCommitmentChain,
     wallet,
@@ -57,7 +60,7 @@ const rollupChainDeploymentFunction = async (
     fraudVerifier.address
   )
 
-  console.log(`Initializing SequencerBatchSubmitter with chain addresses...`)
+  console.log(`\nInitializing SequencerBatchSubmitter with chain addresses...\n`)
   await sequencerBatchSubmitter
     .connect(sequencer)
     .initialize(canonicalTxChain.address, stateChain.address)
@@ -67,6 +70,9 @@ const rollupChainDeploymentFunction = async (
   )
   console.log(
     `Canonical Transaction Chain deployed to ${canonicalTxChain.address}!\n`
+  )
+  console.log(
+    `L1-to-L2 Transaction Passer deployed to ${l1ToL2TransactionPasser.address}!\n`
   )
   console.log(`L1-to-L2 Transaction Queue deployed to ${l1ToL2QueueAddress}!\n`)
   console.log(`Safety Transaction Queue deployed to ${safetyQueueAddress}!\n`)
