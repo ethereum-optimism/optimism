@@ -74,7 +74,7 @@ resource "google_storage_bucket" "vpn-store" {
 resource "google_compute_instance" "vpn" {
   name           = "vpn"
   machine_type   = "f1-micro"
-  zone           = data.google_compute_zones.available.names[0] # "us-central1-a"
+  zone           = data.google_compute_zones.available.names[0] # "us-east4-a"
   can_ip_forward = true
 
   tags = ["ssh-access", "vpn"]

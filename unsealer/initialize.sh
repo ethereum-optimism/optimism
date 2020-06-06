@@ -21,7 +21,7 @@ set -e
 #
 
 KEY_SHARES=5
-KEY_THRESHOLD=3
+KEY_THRESHOLD=4
 
 VAULT_DIR=$HOME/etc/vault.unsealer
 
@@ -98,7 +98,7 @@ function gencerts {
 
 	consul tls cert create \
 		-server \
-		-days=120 \
+		-days=1095 \
 		-additional-ipaddress="10.8.0.2" \
 		-additional-ipaddress="192.168.64.1" \
 		-additional-dnsname="omisego-consul-server" \
