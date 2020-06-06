@@ -26,7 +26,9 @@ const rollupChainDeploymentFunction = async (
   console.log(`\nDeploying RollupMerkleUtils...\n`)
   const rollupMerkleUtils = await deployContract(RollupMerkleUtils, wallet)
 
-  console.log(`\nDeploying SequencerBatchSubmitter with Sequencer address: {sequencer.addres}...\n`)
+  console.log(
+    `\nDeploying SequencerBatchSubmitter with Sequencer address: {sequencer.addres}...\n`
+  )
   const sequencerBatchSubmitter = await deployContract(
     SequencerBatchSubmitter,
     wallet,
@@ -60,7 +62,9 @@ const rollupChainDeploymentFunction = async (
     fraudVerifier.address
   )
 
-  console.log(`\nInitializing SequencerBatchSubmitter with chain addresses...\n`)
+  console.log(
+    `\nInitializing SequencerBatchSubmitter with chain addresses...\n`
+  )
   await sequencerBatchSubmitter
     .connect(sequencer)
     .initialize(canonicalTxChain.address, stateChain.address)
