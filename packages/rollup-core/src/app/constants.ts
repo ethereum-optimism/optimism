@@ -4,7 +4,7 @@ import { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 export const CREATOR_CONTRACT_ADDRESS = ZERO_ADDRESS
 export const GAS_LIMIT = 1_000_000_000
-export const DEFAULT_ETHNODE_GAS_LIMIT = 25_000_000
+export const DEFAULT_ETHNODE_GAS_LIMIT = 10_000_000
 
 export const CHAIN_ID = 108
 export const DEFAULT_OPCODE_WHITELIST_MASK =

@@ -32,7 +32,7 @@ type Signature = [string, string, string]
 
 export const ZERO_UINT = '00'.repeat(32)
 
-export const gasLimit = 15_700_000
+export const gasLimit = 6_700_000
 const log = getLogger('helpers', true)
 
 /**
