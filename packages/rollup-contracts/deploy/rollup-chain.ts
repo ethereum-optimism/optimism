@@ -13,9 +13,9 @@ import * as L1ToL2TransactionPasser from '../build/L1ToL2TransactionPasser.json'
 import { resolve } from 'path'
 
 const rollupChainDeploymentFunction = async (
-  wallet: Wallet,
-  provider: Provider
+  wallet: Wallet
 ): Promise<string> => {
+  const provider: Provider = wallet.provider
   const sequencer = process.env.SEQUENCER_PRIVATE_KEY
     ? new Wallet(process.env.SEQUENCER_PRIVATE_KEY, provider)
     : wallet
@@ -27,7 +27,7 @@ const rollupChainDeploymentFunction = async (
   const rollupMerkleUtils = await deployContract(RollupMerkleUtils, wallet)
 
   console.log(
-    `\nDeploying SequencerBatchSubmitter with Sequencer address: {sequencer.addres}...\n`
+    `\nDeploying SequencerBatchSubmitter with Sequencer address: ${sequencer.address}...\n`
   )
   const sequencerBatchSubmitter = await deployContract(
     SequencerBatchSubmitter,
@@ -70,19 +70,19 @@ const rollupChainDeploymentFunction = async (
     .initialize(canonicalTxChain.address, stateChain.address)
 
   console.log(
-    `\nRollup Merkle Utils deployed to ${rollupMerkleUtils.address}!\n`
+    `\nRollup Merkle Utils deployed to ${rollupMerkleUtils.address}\n`
   )
   console.log(
-    `Canonical Transaction Chain deployed to ${canonicalTxChain.address}!\n`
+    `Canonical Transaction Chain deployed to ${canonicalTxChain.address}\n`
   )
   console.log(
-    `L1-to-L2 Transaction Passer deployed to ${l1ToL2TransactionPasser.address}!\n`
+    `L1-to-L2 Transaction Passer deployed to ${l1ToL2TransactionPasser.address}\n`
   )
-  console.log(`L1-to-L2 Transaction Queue deployed to ${l1ToL2QueueAddress}!\n`)
-  console.log(`Safety Transaction Queue deployed to ${safetyQueueAddress}!\n`)
-  console.log(`State Commitment Chain deployed to ${stateChain.address}!\n`)
+  console.log(`L1-to-L2 Transaction Queue deployed to ${l1ToL2QueueAddress}\n`)
+  console.log(`Safety Transaction Queue deployed to ${safetyQueueAddress}\n`)
+  console.log(`State Commitment Chain deployed to ${stateChain.address}\n`)
   console.log(
-    `Sequencer Batch Submitter deployed to ${sequencerBatchSubmitter.address}!\n`
+    `Sequencer Batch Submitter deployed to ${sequencerBatchSubmitter.address}\n`
   )
   return canonicalTxChain.address
 }
