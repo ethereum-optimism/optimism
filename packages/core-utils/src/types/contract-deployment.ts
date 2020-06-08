@@ -1,5 +1,4 @@
 import { Wallet } from 'ethers'
-import { Provider } from 'ethers/providers'
 
 /**
  * Deploys a contract and returns its deployed address.
