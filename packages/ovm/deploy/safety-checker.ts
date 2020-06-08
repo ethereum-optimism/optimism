@@ -16,15 +16,8 @@ const safetyCheckerDeploymentFunction = async (
   if (!safetyCheckerContractAddress) {
     console.log(`\nDeploying Safety Checker!\n`)
 
-    // Default config whitelists all opcodes EXCEPT:
-    //    ADDRESS, BALANCE, BLOCKHASH, CALLCODE, CALLER, COINBASE,
-    //    CREATE, CREATE2, DELEGATECALL, DIFFICULTY, EXTCODECOPY, EXTCODESIZE,
-    //    GASLIMIT, GASPRICE, NUMBER, ORIGIN, SELFDESTRUCT, SLOAD, SSTORE,
-    //    STATICCALL, TIMESTAMP
     // See test/contracts/whitelist-mask-generator.spec.ts for more info
-    const whitelistMask =
-      process.env.OPCODE_WHITELIST_MASK ||
-      '0x600a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
+    const whitelistMask = process.env.OPCODE_WHITELIST_MASK
 
     const executionManagerAddress =
       process.env.EXECUTION_MANAGER_ADDRESS || add0x('12'.repeat(20))

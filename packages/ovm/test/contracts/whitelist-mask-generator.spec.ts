@@ -2,35 +2,14 @@
 import { BigNumber, ZERO } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { EVMOpcode, Opcode } from '@eth-optimism/rollup-core'
-
-const excludedOpCodes: EVMOpcode[] = [
-  Opcode.ADDRESS,
-  Opcode.BALANCE,
-  Opcode.BLOCKHASH,
-  Opcode.CALLCODE,
-  Opcode.CALLER,
-  Opcode.COINBASE,
-  Opcode.CREATE,
-  Opcode.CREATE2,
-  Opcode.DELEGATECALL,
-  Opcode.DIFFICULTY,
-  Opcode.EXTCODESIZE,
-  Opcode.EXTCODECOPY,
-  Opcode.EXTCODEHASH,
-  Opcode.GASLIMIT,
-  Opcode.GASPRICE,
-  Opcode.NUMBER,
-  Opcode.ORIGIN,
-  Opcode.SELFDESTRUCT,
-  Opcode.SLOAD,
-  Opcode.SSTORE,
-  Opcode.STATICCALL,
-  Opcode.TIMESTAMP,
-]
+import {
+  EVMOpcode,
+  Opcode,
+  DEFAULT_UNSAFE_OPCODES,
+} from '@eth-optimism/rollup-core'
 
 const whitelistedOpcodes: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
-  (x) => excludedOpCodes.indexOf(x) < 0
+  (x) => DEFAULT_UNSAFE_OPCODES.indexOf(x) < 0
 )
 
 // TODO: Uncomment this to generate a new whitelist mask

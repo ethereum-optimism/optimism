@@ -5,6 +5,7 @@ import '../setup'
 import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
 } from '@eth-optimism/rollup-core'
@@ -17,30 +18,6 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 const log = getLogger('safety-checker', true)
 
 const executionManagerAddress = add0x('12'.repeat(20)) // Test Execution Manager address 0x121...212
-const notWhitelisted: EVMOpcode[] = [
-  Opcode.ADDRESS,
-  Opcode.BALANCE,
-  Opcode.BLOCKHASH,
-  Opcode.CALLCODE,
-  Opcode.CALLER,
-  Opcode.COINBASE,
-  Opcode.CREATE,
-  Opcode.CREATE2,
-  Opcode.DELEGATECALL,
-  Opcode.DIFFICULTY,
-  Opcode.EXTCODESIZE,
-  Opcode.EXTCODECOPY,
-  Opcode.EXTCODEHASH,
-  Opcode.GASLIMIT,
-  Opcode.GASPRICE,
-  Opcode.NUMBER,
-  Opcode.ORIGIN,
-  Opcode.SELFDESTRUCT,
-  Opcode.SLOAD,
-  Opcode.SSTORE,
-  Opcode.STATICCALL,
-  Opcode.TIMESTAMP,
-]
 const haltingOpcodes: EVMOpcode[] = Opcode.HALTING_OP_CODES
 const haltingOpcodesNoJump: EVMOpcode[] = haltingOpcodes.filter(
   (x) => x.name !== 'JUMP'
@@ -48,7 +25,7 @@ const haltingOpcodesNoJump: EVMOpcode[] = haltingOpcodes.filter(
 const jumps: EVMOpcode[] = [Opcode.JUMP, Opcode.JUMPI]
 const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
   (x) =>
-    notWhitelisted.indexOf(x) < 0 &&
+    DEFAULT_UNSAFE_OPCODES.indexOf(x) < 0 &&
     haltingOpcodes.indexOf(x) < 0 &&
     x.name !== 'CALL'
 )
@@ -78,7 +55,7 @@ describe('Safety Checker', () => {
 
     describe('Single op-code cases', async () => {
       it('should correctly classify non-whitelisted', async () => {
-        for (const opcode of notWhitelisted) {
+        for (const opcode of DEFAULT_UNSAFE_OPCODES) {
           const res: boolean = await safetyChecker.isBytecodeSafe(
             `0x${opcode.code.toString('hex')}`
           )
@@ -106,7 +83,9 @@ describe('Safety Checker', () => {
 
     describe('PUSH cases', async () => {
       it('skips at least specified number of bytes for PUSH cases', async () => {
-        const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
+        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+          'hex'
+        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -124,7 +103,9 @@ describe('Safety Checker', () => {
       })
 
       it('skips at most specified number of bytes for PUSH cases', async () => {
-        const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
+        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+          'hex'
+        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -146,7 +127,9 @@ describe('Safety Checker', () => {
     describe('multiple opcode cases', async () => {
       it('works for whitelisted, non-halting codes', async () => {
         let bytecode: string = '0x'
-        const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
+        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+          'hex'
+        )
 
         for (const opcode of whitelistedNotHaltingOrCALL) {
           bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
@@ -160,14 +143,16 @@ describe('Safety Checker', () => {
 
       it('fails for non-halting whitelisted codes with one not on whitelist at the end', async () => {
         let bytecode: string = '0x'
-        const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
+        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+          'hex'
+        )
 
         for (const opcode of whitelistedNotHaltingOrCALL) {
           bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
             opcode.programBytesConsumed
           )}`
         }
-        for (const opcode of notWhitelisted) {
+        for (const opcode of DEFAULT_UNSAFE_OPCODES) {
           const res: boolean = await safetyChecker.isBytecodeSafe(
             bytecode + opcode.code.toString('hex')
           )
@@ -184,7 +169,7 @@ describe('Safety Checker', () => {
         for (const haltingOp of haltingOpcodes) {
           let bytecode: string = '0x'
           bytecode += haltingOp.code.toString('hex')
-          for (const opcode of notWhitelisted) {
+          for (const opcode of DEFAULT_UNSAFE_OPCODES) {
             bytecode += opcode.code.toString('hex')
           }
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -199,7 +184,7 @@ describe('Safety Checker', () => {
           let bytecode: string = '0x'
           bytecode += haltingOp.code.toString('hex')
           bytecode += Opcode.JUMPDEST.code.toString('hex')
-          for (const opcode of notWhitelisted) {
+          for (const opcode of DEFAULT_UNSAFE_OPCODES) {
             bytecode += opcode.code.toString('hex')
           }
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -218,7 +203,7 @@ describe('Safety Checker', () => {
             bytecode += Opcode.JUMPDEST.code.toString('hex') // JUMPDEST here so that the haltingOp is reachable
             bytecode += haltingOp.code.toString('hex')
             bytecode += Opcode.JUMPDEST.code.toString('hex')
-            for (const opcode of notWhitelisted) {
+            for (const opcode of DEFAULT_UNSAFE_OPCODES) {
               bytecode += opcode.code.toString('hex')
             }
             const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -234,7 +219,7 @@ describe('Safety Checker', () => {
         let bytecode: string = '0x'
         bytecode += Opcode.JUMP.code.toString('hex')
         bytecode += Opcode.JUMPDEST.code.toString('hex')
-        for (const opcode of notWhitelisted) {
+        for (const opcode of DEFAULT_UNSAFE_OPCODES) {
           bytecode += opcode.code.toString('hex')
         }
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -247,7 +232,7 @@ describe('Safety Checker', () => {
       it('parses opcodes after JUMPI', async () => {
         let bytecode: string = '0x'
         bytecode += Opcode.JUMPI.code.toString('hex')
-        for (const opcode of notWhitelisted) {
+        for (const opcode of DEFAULT_UNSAFE_OPCODES) {
           bytecode += opcode.code.toString('hex')
         }
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -267,7 +252,7 @@ describe('Safety Checker', () => {
             for (let i = 0; i < 3; i++) {
               bytecode += haltingOp.code.toString('hex')
               // Unreachable, invalid code
-              for (const opcode of notWhitelisted) {
+              for (const opcode of DEFAULT_UNSAFE_OPCODES) {
                 bytecode += opcode.code.toString('hex')
               }
               bytecode += Opcode.JUMPDEST.code.toString('hex')
@@ -295,7 +280,7 @@ describe('Safety Checker', () => {
             for (let i = 0; i < 3; i++) {
               bytecode += haltingOp.code.toString('hex')
               // Unreachable, invalid code
-              for (const opcode of notWhitelisted) {
+              for (const opcode of DEFAULT_UNSAFE_OPCODES) {
                 bytecode += opcode.code.toString('hex')
               }
               bytecode += Opcode.JUMPDEST.code.toString('hex')
@@ -304,7 +289,7 @@ describe('Safety Checker', () => {
                 bytecode += opcode.code.toString('hex')
               }
             }
-            bytecode += notWhitelisted[0].code.toString('hex')
+            bytecode += DEFAULT_UNSAFE_OPCODES[0].code.toString('hex')
             const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
             res.should.eq(
               false,
@@ -316,7 +301,9 @@ describe('Safety Checker', () => {
     })
     describe('handles CALLs', async () => {
       it(`accepts valid call, PUSHing gas`, async () => {
-        const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
+        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+          'hex'
+        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -343,7 +330,9 @@ describe('Safety Checker', () => {
         }
       })
       it(`accepts valid call, DUPing gas`, async () => {
-        const invalidOpcode: string = notWhitelisted[0].code.toString('hex')
+        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+          'hex'
+        )
         const dup1Code: number = parseInt(Opcode.DUP1.code.toString('hex'), 16)
         // test for DUP1...DUP16
         for (let i = 1; i <= 16; i++) {
