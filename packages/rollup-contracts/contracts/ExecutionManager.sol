@@ -5,7 +5,6 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
-import {SafetyChecker} from "./SafetyChecker.sol";
 import {RLPEncode} from "./RLPEncode.sol";
 import {L2ToL1MessagePasser} from "./precompiles/L2ToL1MessagePasser.sol";
 import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
@@ -16,11 +15,10 @@ import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager {
-    FullStateManager public stateManager;
-    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-
-    // expected queue origin for calls from L1
-    uint constant L1_QUEUE_ORIGIN = 1;
+    /************
+    * Constants *
+    ************/
+    address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
@@ -30,17 +28,21 @@ contract ExecutionManager {
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
     address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
 
-    // Execution storage
-    dt.ExecutionContext executionContext;
-    // Add Contract Address Generation contract
+    /************************
+    * Contract Dependencies *
+    ************************/
+    FullStateManager public stateManager;
     ContractAddressGenerator contractAddressGenerator;
-    // Add Safety Checker contract
-    SafetyChecker safetyChecker;
     RLPEncode rlp;
-    // for testing: if true, then do not perform safety checking on init code or deployed bytecode
-    bool overrideSafetyChecker;
 
-    // Events
+    /***************
+    * Other Fields *
+    ***************/
+    dt.ExecutionContext executionContext;
+
+    /*********
+    * Events *
+    *********/
     event ActiveContract(address _activeContract);
     event CreatedContract(
         address _ovmContractAddress,
@@ -68,18 +70,13 @@ contract ExecutionManager {
      * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our safety checker
      * @param _owner The owner of this contract.
      * @param _blockGasLimit The block gas limit for OVM blocks
-     * @param _overrideSafetyChecker Set to true to disable safety checking (WARNING: Only do this in test environments)
      */
     constructor(uint256 _opcodeWhitelistMask, address _owner, uint _blockGasLimit, bool _overrideSafetyChecker) public {
         rlp = new RLPEncode();
-        // Set override safety checker flag
-        overrideSafetyChecker = _overrideSafetyChecker;
-        // Set the safety checker address
-        safetyChecker = new SafetyChecker(_opcodeWhitelistMask, address(this));
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
         // Deploy a default state manager
-        stateManager = new FullStateManager();
+        stateManager = new FullStateManager(_opcodeWhitelistMask, _overrideSafetyChecker);
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
@@ -576,17 +573,13 @@ contract ExecutionManager {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
-        // Safety check the initcode -- unless the overrideSafetyChecker flag is set to true
-        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmInitcode)) {
-            // Contract init code is not safe.
-            return false;
-        }
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode, overrideSafetyChecker, safetyChecker);
+        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode);
         // Return false if the contract failed to deploy
         if (codeContractAddress == ZERO_ADDRESS) {
+            restoreContractContext(oldMsgSender, oldActiveContract);
             return false;
         }
         // Associate the code contract with our ovm contract

@@ -11,12 +11,29 @@ import {SafetyChecker} from "./SafetyChecker.sol";
  *         of all chain storage.
  */
 contract FullStateManager is StateManager {
+    // Add Safety Checker contract
+    SafetyChecker safetyChecker;
+    // for testing: if true, then do not perform safety checking on init code or deployed bytecode
+    bool overrideSafetyChecker;
+
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
     mapping(address=>address) ovmCodeContracts;
+
+    /**
+     * @notice Construct a new FullStateManager with a specified safety checker.
+     * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our safety checker
+     * @param _overrideSafetyChecker Set to true to disable safety checking (WARNING: Only do this in test environments)
+     */
+    constructor(uint256 _opcodeWhitelistMask, bool _overrideSafetyChecker) public {
+        // Set override safety checker flag
+        overrideSafetyChecker = _overrideSafetyChecker;
+        // Set the safety checker address -- NOTE: we assume this contract is deployed by the ExecutionManager
+        safetyChecker = new SafetyChecker(_opcodeWhitelistMask, msg.sender);
+    }
 
 
     /**********
@@ -141,9 +158,7 @@ contract FullStateManager is StateManager {
      */
     function deployContract(
         address _newOvmContractAddress,
-        bytes memory _ovmContractInitcode,
-        bool overrideSafetyChecker,
-        SafetyChecker safetyChecker
+        bytes memory _ovmContractInitcode
     ) public returns(address codeContractAddress) {
         // Safety check the initcode, unless the overrideSafetyChecker flag is set to true
         if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmContractInitcode)) {
