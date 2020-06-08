@@ -17,8 +17,7 @@ const safetyCheckerDeploymentFunction = async (
     console.log(`\nDeploying Safety Checker!\n`)
 
     // See test/contracts/whitelist-mask-generator.spec.ts for more info
-    const whitelistMask =
-      process.env.OPCODE_WHITELIST_MASK
+    const whitelistMask = process.env.OPCODE_WHITELIST_MASK
 
     const executionManagerAddress =
       process.env.EXECUTION_MANAGER_ADDRESS || add0x('12'.repeat(20))
