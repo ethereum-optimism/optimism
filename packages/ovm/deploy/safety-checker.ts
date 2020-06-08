@@ -4,14 +4,12 @@ import { Address } from '@eth-optimism/rollup-core'
 import { SafetyCheckerContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Wallet } from 'ethers'
-import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
 import { resolve } from 'path'
 
 const safetyCheckerDeploymentFunction = async (
-  wallet: Wallet,
-  provider: Provider
+  wallet: Wallet
 ): Promise<Address> => {
   let safetyCheckerContractAddress =
     process.env.DEPLOY_SAFETY_CHECKER_CONTRACT_ADDRESS

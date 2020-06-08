@@ -109,7 +109,7 @@ export const deploy = async (
     await sleep(5_000)
   }
 
-  return deployContractFunction(wallet, provider)
+  return deployContractFunction(wallet)
 }
 
 /**
