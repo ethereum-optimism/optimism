@@ -45,6 +45,7 @@ const defaultWhitelist: EVMOpcode[] = [
   Opcode.CALLDATASIZE,
   Opcode.CALLER,
   Opcode.CALLVALUE,
+  Opcode.CHAINID,
   Opcode.CODECOPY,
   Opcode.CODESIZE,
   Opcode.CREATE,

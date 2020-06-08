@@ -285,6 +285,16 @@ export class Opcode {
     name: 'GASLIMIT',
     programBytesConsumed: 0,
   }
+  public static readonly CHAINID: EVMOpcode = {
+    code: Buffer.from('46', 'hex'),
+    name: 'CHAINID',
+    programBytesConsumed: 0,
+  }
+  public static readonly SELFBALANCE: EVMOpcode = {
+    code: Buffer.from('47', 'hex'),
+    name: 'SELFBALANCE',
+    programBytesConsumed: 0,
+  }
 
   // gap
 
@@ -812,6 +822,8 @@ export class Opcode {
     Opcode.NUMBER,
     Opcode.DIFFICULTY,
     Opcode.GASLIMIT,
+    Opcode.CHAINID,
+    Opcode.SELFBALANCE,
 
     Opcode.POP,
     Opcode.MLOAD,
