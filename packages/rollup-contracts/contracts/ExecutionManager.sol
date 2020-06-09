@@ -5,7 +5,6 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
-import {SafetyChecker} from "./SafetyChecker.sol";
 import {RLPEncode} from "./RLPEncode.sol";
 import {L2ToL1MessagePasser} from "./precompiles/L2ToL1MessagePasser.sol";
 import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
@@ -15,11 +14,11 @@ import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
  * @notice The execution manager ensures that the execution of each transaction is sandboxed in a distinct environment as defined
  *         by the supplied backend. Only state / contracts from that backend will be accessed.
  */
-contract ExecutionManager is FullStateManager {
-    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-
-    // expected queue origin for calls from L1
-    uint constant L1_QUEUE_ORIGIN = 1;
+contract ExecutionManager {
+    /************
+    * Constants *
+    ************/
+    address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
@@ -29,17 +28,21 @@ contract ExecutionManager is FullStateManager {
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
     address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
 
-    // Execution storage
-    dt.ExecutionContext executionContext;
-    // Add Contract Address Generation contract
+    /************************
+    * Contract Dependencies *
+    ************************/
+    FullStateManager stateManager;
     ContractAddressGenerator contractAddressGenerator;
-    // Add Safety Checker contract
-    SafetyChecker safetyChecker;
     RLPEncode rlp;
-    // for testing: if true, then do not perform safety checking on init code or deployed bytecode
-    bool overrideSafetyChecker;
 
-    // Events
+    /***************
+    * Other Fields *
+    ***************/
+    dt.ExecutionContext executionContext;
+
+    /*********
+    * Events *
+    *********/
     event ActiveContract(address _activeContract);
     event CreatedContract(
         address _ovmContractAddress,
@@ -67,27 +70,24 @@ contract ExecutionManager is FullStateManager {
      * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our safety checker
      * @param _owner The owner of this contract.
      * @param _blockGasLimit The block gas limit for OVM blocks
-     * @param _overrideSafetyChecker Set to true to disable safety checking (WARNING: Only do this in test environments)
      */
     constructor(uint256 _opcodeWhitelistMask, address _owner, uint _blockGasLimit, bool _overrideSafetyChecker) public {
         rlp = new RLPEncode();
-        // Set override safety checker flag
-        overrideSafetyChecker = _overrideSafetyChecker;
-        // Set the safety checker address
-        safetyChecker = new SafetyChecker(_opcodeWhitelistMask, address(this));
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
+        // Deploy a default state manager
+        stateManager = new FullStateManager(_opcodeWhitelistMask, _overrideSafetyChecker);
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
-            associateCodeContract(address(i), address(i));
+            stateManager.associateCodeContract(address(i), address(i));
         }
 
         // Deploy custom precompiles
         L2ToL1MessagePasser l1ToL2MessagePasser = new L2ToL1MessagePasser(address(this));
-        associateCodeContract(l2ToL1MessagePasserOvmAddress, address(l1ToL2MessagePasser));
+        stateManager.associateCodeContract(l2ToL1MessagePasserOvmAddress, address(l1ToL2MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
-        associateCodeContract(l1MsgSenderAddress, address(l1MessageSender));
+        stateManager.associateCodeContract(l1MsgSenderAddress, address(l1MessageSender));
 
         executionContext.gasLimit = _blockGasLimit;
         executionContext.chainId = 108;
@@ -102,7 +102,7 @@ contract ExecutionManager is FullStateManager {
      * @param addr The address of the nonce to increment.
      */
     function incrementNonce(address addr) external {
-        incrementOvmContractNonce(addr);
+        stateManager.incrementOvmContractNonce(addr);
     }
 
     /********************
@@ -137,7 +137,7 @@ contract ExecutionManager is FullStateManager {
         // Require that the EOA signature isn't zero (invalid signature)
         require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
         // Require nonce to be correct
-        require(_nonce == getOvmContractNonce(eoaAddress), "Incorrect nonce!");
+        require(_nonce == stateManager.getOvmContractNonce(eoaAddress), "Incorrect nonce!");
         emit CallingWithEOA(
             eoaAddress,
             _ovmEntrypoint
@@ -166,7 +166,7 @@ contract ExecutionManager is FullStateManager {
         bool _allowRevert
     ) public {
         require(_timestamp > 0, "Timestamp must be greater than 0");
-        uint _nonce = getOvmContractNonce(_fromAddress);
+        uint _nonce = stateManager.getOvmContractNonce(_fromAddress);
         // Initialize our context
         initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
 
@@ -188,7 +188,7 @@ contract ExecutionManager is FullStateManager {
             methodId = ovmCallMethodId;
             callSize = _callBytes.length + 32 + 4;
             // Creates will get incremented, but calls need to be as well!
-            incrementOvmContractNonce(_fromAddress);
+            stateManager.incrementOvmContractNonce(_fromAddress);
         }
 
         assembly {
@@ -479,7 +479,7 @@ contract ExecutionManager is FullStateManager {
 
         // First we need to generate the CREATE address
         address creator = executionContext.ovmActiveContract;
-        uint creatorNonce = getOvmContractNonce(creator);
+        uint creatorNonce = stateManager.getOvmContractNonce(creator);
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
         // Next we need to actually create the contract in our state at that address
         if (!createNewContract(_newOvmContractAddress, _ovmInitcode)) {
@@ -491,7 +491,7 @@ contract ExecutionManager is FullStateManager {
             }
         }
         // We also need to increment the contract nonce
-        incrementOvmContractNonce(creator);
+        stateManager.incrementOvmContractNonce(creator);
 
         // Shifting so that it is left-padded, big-endian ('00'x12 + 20 bytes of address)
         bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
@@ -573,24 +573,18 @@ contract ExecutionManager is FullStateManager {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
-        // Safety check the initcode -- unless the overrideSafetyChecker flag is set to true
-        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmInitcode)) {
-            // Contract init code is not safe.
-            return false;
-        }
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = deployCodeContract(_ovmInitcode);
-        // Get the runtime bytecode
-        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
-        // Safety check the runtime bytecode -- unless the overrideSafetyChecker flag is set to true
-        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(codeContractBytecode)) {
-            // Contract runtime bytecode is not safe.
+        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode);
+        // Return false if the contract failed to deploy
+        if (codeContractAddress == ZERO_ADDRESS) {
+            restoreContractContext(oldMsgSender, oldActiveContract);
             return false;
         }
         // Associate the code contract with our ovm contract
-        associateCodeContract(_newOvmContractAddress, codeContractAddress);
+        stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
+        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
         // Revert to the previous the context
@@ -598,24 +592,6 @@ contract ExecutionManager is FullStateManager {
         // Emit CreatedContract event! We've created a new contract!
         emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
         return true;
-    }
-
-    /**
-     * @notice Deploys a code contract, and then registers it to the state
-     * @param _ovmContractInitcode The bytecode of the contract to be deployed
-     * @return the codeContractAddress.
-     */
-    function deployCodeContract(bytes memory _ovmContractInitcode) internal returns(address codeContractAddress) {
-        // Deploy a new contract with this _ovmContractInitCode
-        assembly {
-            // Set our codeContractAddress to the address returned by our CREATE operation
-            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
-            // Make sure that the CREATE was successful (actually deployed something)
-            if iszero(extcodesize(codeContractAddress)) {
-                revert(0, 0)
-            }
-        }
-        return codeContractAddress;
     }
 
     /************************
@@ -653,7 +629,7 @@ contract ExecutionManager is FullStateManager {
 
         // switch the context to the _targetOvmContractAddress
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
-        address codeAddress = getCodeContractAddress(_targetOvmContractAddress);
+        address codeAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
         bytes memory returnData;
         uint returnSize;
@@ -723,7 +699,7 @@ contract ExecutionManager is FullStateManager {
 
         // switch the context to the _targetOvmContractAddress
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
-        address codeAddress = getCodeContractAddress(_targetOvmContractAddress);
+        address codeAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
         bytes memory returnData;
         uint returnSize;
@@ -788,7 +764,7 @@ contract ExecutionManager is FullStateManager {
 
         address _targetOvmContractAddress = address(bytes20(_targetOvmContractAddressBytes));
         // NOTE: WE DO NOT SWITCH CONTEXTS HERE.
-        address codeAddress = getCodeContractAddress(_targetOvmContractAddress);
+        address codeAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
         // make the call
         assembly {
@@ -833,7 +809,7 @@ contract ExecutionManager is FullStateManager {
             _storageSlot := calldataload(4)
         }
 
-        bytes32 slotValue = getStorage(executionContext.ovmActiveContract, _storageSlot);
+        bytes32 slotValue = stateManager.getStorage(executionContext.ovmActiveContract, _storageSlot);
 
         assembly {
             let ret := mload(0x40)
@@ -864,7 +840,7 @@ contract ExecutionManager is FullStateManager {
             _storageValue := calldataload(0x24)
         }
 
-        setStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
+        stateManager.setStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
         // Emit SetStorage event!
         emit SetStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
     }
@@ -890,7 +866,7 @@ contract ExecutionManager is FullStateManager {
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
-        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+        address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
         assembly {
             let sizeBytes := mload(0x40)
@@ -916,9 +892,9 @@ contract ExecutionManager is FullStateManager {
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
-        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+        address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
-        bytes32 hash = getCodeContractHash(codeContractAddress);
+        bytes32 hash = stateManager.getCodeContractHash(codeContractAddress);
 
         assembly {
             let hashBytes := mload(0x40)
@@ -952,7 +928,7 @@ contract ExecutionManager is FullStateManager {
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
-        address codeContractAddress = getCodeContractAddress(_targetOvmContractAddress);
+        address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
         assembly {
             let codeContractBytecode := mload(0x40)
@@ -1023,5 +999,9 @@ contract ExecutionManager is FullStateManager {
         require(executionContext.l1MessageSender != ZERO_ADDRESS, "L1MessageSender not set!");
         require(executionContext.ovmMsgSender == ZERO_ADDRESS, "L1MessageSender only accessible in entrypoint contract!");
         return executionContext.l1MessageSender;
+    }
+
+    function getStateManagerAddress() public view returns (address){
+        return address(stateManager);
     }
 }

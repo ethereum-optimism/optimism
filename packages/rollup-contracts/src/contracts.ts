@@ -4,6 +4,7 @@ import { ethers } from 'ethers'
 /* Contract Imports */
 
 import * as ExecutionManager from '../build/ExecutionManager.json'
+import * as FullStateManager from '../build/FullStateManager.json'
 import * as L2ExecutionManager from '../build/L2ExecutionManager.json'
 import * as ContractAddressGenerator from '../build/ContractAddressGenerator.json'
 import * as L2ToL1MessageReceiver from '../build/L2ToL1MessageReceiver.json'
@@ -15,6 +16,7 @@ import * as SafetyChecker from '../build/SafetyChecker.json'
 // Contract Exports
 export const ExecutionManagerContractDefinition = ExecutionManager
 export const L2ExecutionManagerContractDefinition = L2ExecutionManager
+export const FullStateManagerContractDefinition = FullStateManager
 export const ContractAddressGeneratorContractDefinition = ContractAddressGenerator
 export const L2ToL1MessageReceiverContractDefinition = L2ToL1MessageReceiver
 export const L2ToL1MessagePasserContractDefinition = L2ToL1MessagePasser

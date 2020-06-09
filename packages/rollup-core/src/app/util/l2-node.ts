@@ -7,6 +7,7 @@ import {
 } from '@eth-optimism/core-utils'
 import {
   L2ExecutionManagerContractDefinition,
+  FullStateManagerContractDefinition,
   L2ToL1MessagePasserContractDefinition,
 } from '@eth-optimism/rollup-contracts'
 
@@ -53,12 +54,19 @@ export async function initializeL2Node(
     wallet,
     doNotDeploy
   )
+  const stateManager: Contract = new Contract(
+    await executionManager.getStateManagerAddress(),
+    FullStateManagerContractDefinition.abi,
+    wallet
+  )
+
   const l2ToL1MessagePasser: Contract = getL2ToL1MessagePasserContract(wallet)
 
   return {
     wallet,
     provider,
     executionManager,
+    stateManager,
     l2ToL1MessagePasser,
   }
 }

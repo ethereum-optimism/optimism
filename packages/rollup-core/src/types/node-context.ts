@@ -12,5 +12,6 @@ export interface L2NodeContext {
   provider: JsonRpcProvider
   wallet: Wallet
   executionManager: Contract
+  stateManager: Contract
   l2ToL1MessagePasser: Contract
 }

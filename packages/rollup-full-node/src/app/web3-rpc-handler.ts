@@ -488,7 +488,7 @@ export class DefaultWeb3Handler
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
     )
     // First get the code contract address at the requested OVM address
-    const codeContractAddress = await this.context.executionManager.getCodeContractAddress(
+    const codeContractAddress = await this.context.stateManager.getCodeContractAddress(
       address
     )
     const response = await this.context.provider.send(Web3RpcMethods.getCode, [
@@ -515,7 +515,7 @@ export class DefaultWeb3Handler
       const codeContractAddresses = []
       for (const address of filter['address']) {
         codeContractAddresses.push(
-          await this.context.executionManager.getCodeContractAddress(address)
+          await this.context.stateManager.getCodeContractAddress(address)
         )
       }
       filter['address'] = [
@@ -611,7 +611,7 @@ export class DefaultWeb3Handler
     log.debug(
       `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
     )
-    const ovmContractNonce = await this.context.executionManager.getOvmContractNonce(
+    const ovmContractNonce = await this.context.stateManager.getOvmContractNonce(
       address
     )
     const response = add0x(ovmContractNonce.toNumber().toString(16))
@@ -1036,7 +1036,7 @@ export class DefaultWeb3Handler
     const ovmFrom = ovmTx.from === undefined ? ZERO_ADDRESS : ovmTx.from
     // Check the nonce
     const expectedNonce = (
-      await this.context.executionManager.getOvmContractNonce(ovmFrom)
+      await this.context.stateManager.getOvmContractNonce(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
       throw new InvalidParametersError(
