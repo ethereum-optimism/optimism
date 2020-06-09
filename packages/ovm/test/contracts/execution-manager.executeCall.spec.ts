@@ -63,7 +63,7 @@ describe('Execution Manager -- Call opcodes', () => {
     )
     // Set the state manager as well
     stateManager = new Contract(
-      (await executionManager.getStateManagerAddress()),
+      await executionManager.getStateManagerAddress(),
       StateManager.abi,
       wallet
     )

@@ -52,7 +52,7 @@ describe('SimpleTxOrigin', () => {
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
     stateManager = new Contract(
-      (await executionManager.getStateManagerAddress()),
+      await executionManager.getStateManagerAddress(),
       StateManager.abi,
       wallet
     )
