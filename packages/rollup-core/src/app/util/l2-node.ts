@@ -55,7 +55,7 @@ export async function initializeL2Node(
     doNotDeploy
   )
   const stateManager: Contract = new Contract(
-    await executionManager.stateManager(),
+    await executionManager.getStateManagerAddress(),
     FullStateManagerContractDefinition.abi,
     wallet
   )

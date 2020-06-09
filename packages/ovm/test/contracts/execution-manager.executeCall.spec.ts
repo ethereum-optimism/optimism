@@ -47,6 +47,7 @@ describe('Execution Manager -- Call opcodes', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
   let executionManager: Contract
+  let stateManager: Contract
   let dummyContract: ContractFactory
   let dummyContractAddress: Address
 
@@ -59,6 +60,12 @@ describe('Execution Manager -- Call opcodes', () => {
       ExecutionManager,
       [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
+    )
+    // Set the state manager as well
+    stateManager = new Contract(
+      (await executionManager.getStateManagerAddress()),
+      StateManager.abi,
+      wallet
     )
 
     // Deploy SimpleCopier with the ExecutionManager
@@ -89,12 +96,6 @@ describe('Execution Manager -- Call opcodes', () => {
         dummyContract,
         'dummyFunction',
         [intParam, bytesParam]
-      )
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
       )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
@@ -138,12 +139,6 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
-      )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
@@ -179,12 +174,6 @@ describe('Execution Manager -- Call opcodes', () => {
         dummyContract,
         'dummyFunction',
         [intParam, bytesParam]
-      )
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
       )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
@@ -223,12 +212,6 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
-      )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
@@ -266,12 +249,6 @@ describe('Execution Manager -- Call opcodes', () => {
         dummyContract,
         'dummyFunction',
         [intParam, bytesParam]
-      )
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
       )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {

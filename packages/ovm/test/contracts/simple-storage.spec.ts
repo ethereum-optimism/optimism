@@ -39,6 +39,7 @@ describe('SimpleStorage', () => {
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple storage contract
   let executionManager: Contract
+  let stateManager: Contract
   let simpleStorage: ContractFactory
   let simpleStorageOvmAddress: Address
 
@@ -51,6 +52,12 @@ describe('SimpleStorage', () => {
       ExecutionManager,
       [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
+    )
+    // Set the state manager as well
+    stateManager = new Contract(
+      (await executionManager.getStateManagerAddress()),
+      StateManager.abi,
+      wallet
     )
 
     // Deploy SimpleStorage with the ExecutionManager
@@ -105,12 +112,6 @@ describe('SimpleStorage', () => {
         .toString('hex')
 
       const innerCallData: string = add0x(`${getStorageMethodId}${slot}`)
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
-      )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,

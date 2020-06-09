@@ -31,7 +31,7 @@ contract ExecutionManager {
     /************************
     * Contract Dependencies *
     ************************/
-    FullStateManager public stateManager;
+    FullStateManager stateManager;
     ContractAddressGenerator contractAddressGenerator;
     RLPEncode rlp;
 
@@ -995,7 +995,7 @@ contract ExecutionManager {
      * @return The L1MessageSender in our current execution context.
      */
     function getL1MessageSender() public returns(address) {
-        /* require(executionContext.ovmActiveContract == l1MsgSenderAddress, "Only the L1MessageSender precompile is allowed to call getL1MessageSender(...)!"); */
+        require(executionContext.ovmActiveContract == l1MsgSenderAddress, "Only the L1MessageSender precompile is allowed to call getL1MessageSender(...)!");
         require(executionContext.l1MessageSender != ZERO_ADDRESS, "L1MessageSender not set!");
         require(executionContext.ovmMsgSender == ZERO_ADDRESS, "L1MessageSender only accessible in entrypoint contract!");
         return executionContext.l1MessageSender;

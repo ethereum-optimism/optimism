@@ -37,6 +37,7 @@ describe('SimpleTxOrigin', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   let executionManager: Contract
+  let stateManager: Contract
   let simpleTxOrigin: ContractFactory
   let simpleTxOriginOvmAddress: Address
 
@@ -49,6 +50,11 @@ describe('SimpleTxOrigin', () => {
       ExecutionManager,
       [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
+    )
+    stateManager = new Contract(
+      (await executionManager.getStateManagerAddress()),
+      StateManager.abi,
+      wallet
     )
 
     // Deploy SimpleTxOrigin with the ExecutionManager
@@ -73,12 +79,6 @@ describe('SimpleTxOrigin', () => {
         .toString('hex')
 
       const innerCallData: string = add0x(`${getStorageMethodId}`)
-      const stateManagerAddress = await executionManager.getStateManagerAddress()
-      const stateManager = new Contract(
-        stateManagerAddress,
-        StateManager.abi,
-        wallet
-      )
       const nonce = await stateManager.getOvmContractNonce(wallet.address)
       const transaction = {
         nonce,
