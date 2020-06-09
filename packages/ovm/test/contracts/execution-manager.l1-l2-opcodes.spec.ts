@@ -110,7 +110,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       }
     )
 
-    // // Deploy SimpleL2ToL1Sender with the ExecutionManager
+    // Deploy SimpleL2ToL1Sender with the ExecutionManager
     callContractAddress = await manuallyDeployOvmContract(
       wallet,
       provider,

@@ -153,6 +153,7 @@ contract FullStateManager is StateManager {
 
     /**
      * @notice Deploys a code contract, and then registers it to the state
+     * @param _newOvmContractAddress The contract address to deploy the new contract to
      * @param _ovmContractInitcode The bytecode of the contract to be deployed
      * @return the codeContractAddress.
      */
