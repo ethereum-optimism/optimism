@@ -2,6 +2,7 @@ version: "3"
 
 services:
 
+  # Look at packages/rollup-full-node/README.md for info on configuration
   rollup-full-node:
     volumes:
       - full-node-data:/mnt/full-node:rw
@@ -35,6 +36,8 @@ services:
       - L2_NODE_WEB3_URL=http://geth_l2:9545/
   #      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/mnt/l2-node/
 
+  # This service is optional -- the rollup-full-node can be configured to run its own ganache instance.
+  # Geth is more performant, but that may not matter for your use case.
   geth_l2:
     volumes:
        - l2-node-data:/mnt/l2-node/l2:rw
