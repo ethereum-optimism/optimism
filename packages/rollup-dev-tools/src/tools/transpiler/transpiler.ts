@@ -561,6 +561,7 @@ export class TranspilerImpl implements Transpiler {
     const jumpdestIndexesBefore: number[] = []
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
+    const replacedOpcodes: Set<EVMOpcode> = new Set<EVMOpcode>()
 
     const [lastOpcodeAndConsumedBytes] = bytecode.slice(-1)
     if (
@@ -658,12 +659,18 @@ export class TranspilerImpl implements Transpiler {
           Opcode.getCodeNumber(opcodeAndBytes.opcode) + 1
         )
       }
+      let transpiledBytecodeReplacement: EVMBytecode
+      if (
+        insideUnreachableCode 
+        || !this.opcodeReplacer.shouldReplaceOpcode(opcodeAndBytes.opcode)
+      ) {
+        transpiledBytecodeReplacement = [opcodeAndBytes]
+      } else {
+        replacedOpcodes.add(opcodeAndBytes.opcode)
+        transpiledBytecodeReplacement = this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
+      }
 
-      const transpiledOpcodeAndBytes = insideUnreachableCode
-        ? [opcodeAndBytes]
-        : this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
-
-      transpiledBytecode.push(...transpiledOpcodeAndBytes)
+      transpiledBytecode.push(...transpiledBytecodeReplacement)
       pc += opcode.programBytesConsumed
     }
 
