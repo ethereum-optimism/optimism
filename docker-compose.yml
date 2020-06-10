@@ -2,6 +2,7 @@ version: "3"
 
 services:
 
+  # Look at packages/rollup-full-node/README.md for info on configuration
   rollup-full-node:
     volumes:
       - full-node-data:/mnt/full-node:rw
@@ -11,7 +12,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 8546:8546
+      - 8545:8545
     environment:
       - IS_TRANSACTION_NODE=1
       - CLEAR_DATA_KEY=35
@@ -29,40 +30,14 @@ services:
       - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
       - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
       - L2_RPC_SERVER_HOST
-      - L2_RPC_SERVER_PORT=8546
+      - L2_RPC_SERVER_PORT=8545
       - L2_RPC_SERVER_PERSISTENT_DB_PATH=/mnt/full-node/level
       - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
       - L2_NODE_WEB3_URL=http://geth_l2:9545/
   #      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/mnt/l2-node/
 
-  router:
-    image: optimism-monorepo_rollup-full-node:latest
-    ports:
-      - 8545:8545
-    environment:
-      - IS_ROUTING_SERVER=1
-      - STARTUP_WAIT_TIMEOUT=30
-      - L2_RPC_SERVER_HOST
-      - L2_RPC_SERVER_PORT=8545
-      - TRANSACTION_NODE_URL=http://rollup-full-node:8546
-      - READ_ONLY_NODE_URL=http://read-only-node:8547
-      - REQUEST_LIMIT_PERIOD_MILLIS=1000
-      - MAX_NON_TRANSACTION_REQUESTS_PER_UNIT_TIME=10
-      - MAX_TRANSACTIONS_PER_UNIT_TIME=10
-
-  read-only-node:
-    image: optimism-monorepo_rollup-full-node:latest
-    ports:
-      - 8547:8547
-    environment:
-      - IS_READ_ONLY_NODE=1
-      - STARTUP_WAIT_TIMEOUT=30
-      - L2_RPC_SERVER_HOST
-      - L2_RPC_SERVER_PORT=8547
-      - L2_EXECUTION_MANAGER_ADDRESS=0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA
-      - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
-      - L2_NODE_WEB3_URL=http://geth_l2:9545/
-
+  # This service is optional -- the rollup-full-node can be configured to run its own ganache instance.
+  # Geth is more performant, but that may not matter for your use case.
   geth_l2:
     volumes:
        - l2-node-data:/mnt/l2-node/l2:rw
@@ -80,55 +55,10 @@ services:
     ports:
       - 9545:9545
 
-  graph-node:
-    build:
-      context: docker/the-graph
-      dockerfile: Dockerfile
-    ports:
-      - '8000:8000'
-      - '8001:8001'
-      - '8020:8020'
-      - '8030:8030'
-      - '8040:8040'
-    environment:
-      postgres_host: postgres:5432
-      postgres_user: graph-node
-      postgres_pass: let-me-in
-      postgres_db: graph-node
-      ipfs: 'ipfs:5001'
-      ethereum: 'ovm:http://router:8545'
-      RUST_LOG: info
-      STARTUP_WAIT_TIMEOUT: 30
-      OVM_URL_WITH_PORT: 'http://router:8545'
-    volumes:
-      - postgres-data:/data/postgres
-      - ipfs-data:/data/ipfs
-
-  ipfs:
-    image: ipfs/go-ipfs:v0.4.23
-    ports:
-      - '5001:5001'
-    volumes:
-      - ipfs-data:/data/ipfs
-
-  postgres:
-    image: postgres
-    ports:
-      - '5432:5432'
-    command: ["postgres", "-cshared_preload_libraries=pg_stat_statements"]
-    environment:
-      POSTGRES_USER: graph-node
-      POSTGRES_PASSWORD: let-me-in
-      POSTGRES_DB: graph-node
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
 volumes:
   full-node-data:
   l1-node-data:
   l2-node-data:
-  postgres-data:
-  ipfs-data:
 
 
 
