@@ -4,6 +4,7 @@ import {
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
+  OpcodeTagReason,
   isValidOpcodeAndBytes,
   Address,
 } from '@eth-optimism/rollup-core'
@@ -42,6 +43,8 @@ import {
   getSSTOREReplacement,
   getTIMESTAMPReplacement,
 } from './static-memory-opcodes'
+import { getPUSHIntegerOp, getPUSHOpcode } from './helpers'
+import { PC_MAX_BYTES } from './constants'
 
 const log = getLogger('transpiler:opcode-replacement')
 
@@ -127,6 +130,34 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     }) !== undefined
     const isReplacementOptional: boolean = this.optionalReplacements.has(opcode)
     return isReplacementMandatory || isReplacementOptional
+  }
+
+  public getJumpToReplacementInFooter(opcode: EVMOpcode): EVMBytecode {
+    return [
+      // push the PC to the stack so that we can JUMP back to it
+      {
+        opcode: Opcode.PC,
+        consumedBytes: undefined
+      },
+      // JUMP to the right location in the footer
+      {
+        opcode: getPUSHOpcode(PC_MAX_BYTES),
+        consumedBytes: undefined,
+        tag: {
+          padPUSH: false,
+          reasonTagged: OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION,
+          metadata: opcode
+        }
+      },
+      {
+        opcode: Opcode.JUMP,
+        consumedBytes: undefined
+      },
+      {
+        opcode: Opcode.JUMPDEST,
+        consumedBytes: undefined
+      }
+    ]
   }
 
   /**

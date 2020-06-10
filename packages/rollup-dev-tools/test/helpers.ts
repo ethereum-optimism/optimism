@@ -15,6 +15,7 @@ import {
   hexStrToBuf,
   Logger,
   remove0x,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import * as abi from 'ethereumjs-abi'
 import { ethers } from 'ethers'
@@ -29,6 +30,7 @@ import {
   ErroredTranspilation,
   TranspilerImpl,
   OpcodeReplacer,
+  OpcodeReplacerImpl
 } from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
@@ -503,6 +505,8 @@ export const transpileAndDeployInitcode = async (
 
 export const getMockSSTOREReplacer = (): OpcodeReplacer => {
   return {
+    getJumpToReplacementInFooter: 
+      new OpcodeReplacerImpl(ZERO_ADDRESS) .getJumpToReplacementInFooter,
     shouldReplaceOpcode(op: EVMOpcode): boolean {
       return op === Opcode.SSTORE
     },
