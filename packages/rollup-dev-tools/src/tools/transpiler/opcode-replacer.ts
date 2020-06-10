@@ -133,10 +133,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   }
 
   /**
-   * Gets a chunk of bytecode which 
-   * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced.
+   * Gets a chunk of bytecode which will JUMP to the location of the given opcode replacement, and allow JUMPing back on completion
+   * @param opcode The opcode whose replacement we should JUMP to
    *
-   * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
+   * @returns The EVMBytecode implementing the above functionality.
    */
   public getJumpToReplacementInFooter(opcode: EVMOpcode): EVMBytecode {
     return [
