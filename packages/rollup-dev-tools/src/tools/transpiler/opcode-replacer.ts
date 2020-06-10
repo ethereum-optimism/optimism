@@ -132,6 +132,12 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     return isReplacementMandatory || isReplacementOptional
   }
 
+  /**
+   * Gets a chunk of bytecode which 
+   * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced.
+   *
+   * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
+   */
   public getJumpToReplacementInFooter(opcode: EVMOpcode): EVMBytecode {
     return [
       // push the PC to the stack so that we can JUMP back to it
@@ -153,10 +159,15 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         opcode: Opcode.JUMP,
         consumedBytes: undefined
       },
-      // allow jumping back once the call is complete
+      // allow jumping back once the replacement opcode was executed
       {
         opcode: Opcode.JUMPDEST,
-        consumedBytes: undefined
+        consumedBytes: undefined,
+        tag: {
+          padPUSH: false,
+          reasonTagged: OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE,
+          metadata: undefined
+        }
       }
     ]
   }

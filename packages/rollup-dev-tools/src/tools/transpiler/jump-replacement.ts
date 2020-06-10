@@ -79,7 +79,7 @@ export const accountForJumps = (
   }
 
   if (jumpdestIndexesBefore.length !== jumpdestIndexesAfter.length) {
-    const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
+    const message: string = `There were ${jumpdestIndexesBefore.length} non-replacement-table JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
     log.debug(message)
     errors.push(
       createError(-1, TranspilationErrors.INVALID_SUBSTITUTION, message)
