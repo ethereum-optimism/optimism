@@ -4,6 +4,7 @@ import {
   bufferToBytecode,
   EVMBytecode,
   EVMOpcode,
+  EVMOpcodeAndBytes,
   formatBytecode,
   Opcode,
 } from '@eth-optimism/rollup-core'
@@ -27,6 +28,7 @@ import {
   SuccessfulTranspilation,
   ErroredTranspilation,
   TranspilerImpl,
+  OpcodeReplacer,
 } from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
@@ -497,4 +499,39 @@ export const transpileAndDeployInitcode = async (
   )
   const deployedViaInitcodeAddress = deployedViaInitcode.result
   return deployedViaInitcodeAddress
+}
+
+export const getMockSSTOREReplacer = (): OpcodeReplacer => {
+  return {
+    shouldReplaceOpcode(op: EVMOpcode): boolean {
+      return op === Opcode.SSTORE
+    },
+    replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
+      if (opcodeAndBytes.opcode === Opcode.SSTORE) {
+        return [
+          getPUSHIntegerOp(1),
+          {
+            opcode: Opcode.POP,
+            consumedBytes: undefined,
+          },
+          getPUSHIntegerOp(2),
+          {
+            opcode: Opcode.POP,
+            consumedBytes: undefined,
+          },
+          getPUSHIntegerOp(3),
+          {
+            opcode: Opcode.POP,
+            consumedBytes: undefined,
+          },
+          {
+            opcode: Opcode.SSTORE,
+            consumedBytes: undefined,
+          },
+        ]
+      } else {
+        return [opcodeAndBytes]
+      }
+    },
+  }
 }

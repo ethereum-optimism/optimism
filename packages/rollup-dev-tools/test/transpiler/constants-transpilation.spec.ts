@@ -44,7 +44,7 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import { transpileAndDeployInitcode } from '../helpers'
+import { transpileAndDeployInitcode, getMockSSTOREReplacer } from '../helpers'
 
 const log = getLogger(`test-constructor-params`)
 const abi = new ethers.utils.AbiCoder()
@@ -68,35 +68,7 @@ const getGetterReturnedVal = async (
 
 describe('Solitity contracts should have constants correctly accessible when using transpiled initcode', () => {
   let evmUtil: EvmIntrospectionUtil
-  const mockReplacer: OpcodeReplacer = {
-    replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
-      if (opcodeAndBytes.opcode === Opcode.SSTORE) {
-        return [
-          getPUSHIntegerOp(1),
-          {
-            opcode: Opcode.POP,
-            consumedBytes: undefined,
-          },
-          getPUSHIntegerOp(2),
-          {
-            opcode: Opcode.POP,
-            consumedBytes: undefined,
-          },
-          getPUSHIntegerOp(3),
-          {
-            opcode: Opcode.POP,
-            consumedBytes: undefined,
-          },
-          {
-            opcode: Opcode.SSTORE,
-            consumedBytes: undefined,
-          },
-        ]
-      } else {
-        return [opcodeAndBytes]
-      }
-    },
-  }
+  const mockReplacer: OpcodeReplacer = getMockSSTOREReplacer()
 
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
   const transpiler = new TranspilerImpl(opcodeWhitelist, mockReplacer)

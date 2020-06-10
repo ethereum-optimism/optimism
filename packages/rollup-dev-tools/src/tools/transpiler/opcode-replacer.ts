@@ -115,6 +115,21 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   }
 
   /**
+   * Gets whether or not the repacer is configured to change functionality of the given opcode.
+   * @param opcodeAndBytes EVM opcode and consumed bytes which might need to be replaced.
+   *
+   * @returns Whether this opcode needs to get replaced.
+   */
+  public shouldReplaceOpcode(opcode: EVMOpcode): boolean {
+    const isReplacementMandatory: boolean = this.getMandatoryReplacement({
+      opcode,
+      consumedBytes: undefined
+    }) !== undefined
+    const isReplacementOptional: boolean = this.optionalReplacements.has(opcode)
+    return isReplacementMandatory || isReplacementOptional
+  }
+
+  /**
    * Gets the specified replacement bytecode for a given EVM opcode and bytes
    * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced.
    *

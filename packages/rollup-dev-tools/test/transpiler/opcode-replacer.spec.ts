@@ -8,6 +8,8 @@ import { Opcode, EVMOpcode, EVMBytecode } from '@eth-optimism/rollup-core'
 import { OpcodeReplacer, InvalidBytesConsumedError } from '../../src/types'
 import { OpcodeReplacerImpl } from '../../src/tools/transpiler'
 
+const zeroAddrBuf: Buffer = hexStrToBuf(ZERO_ADDRESS)
+
 describe('OpcodeReplacer', () => {
   describe('Initialization', () => {
     it('Should throw if given invalid execution manager address', () => {
@@ -30,14 +32,16 @@ describe('OpcodeReplacer', () => {
     })
   })
 
-  describe('Mandatory Replacements', () => {
-    const zeroAddrBuf: Buffer = hexStrToBuf(ZERO_ADDRESS)
+  describe('Mandatory Replacements and Replacement Checking', () => {
     let replacer: OpcodeReplacer
     beforeEach(() => {
       replacer = new OpcodeReplacerImpl(ZERO_ADDRESS)
     })
 
     const assertReplaced = (r: OpcodeReplacer, opcode: EVMOpcode): void => {
+      const shouldReplace = r.shouldReplaceOpcode(opcode)
+      shouldReplace.should.eq(true)
+
       const res = r.replaceIfNecessary({
         opcode,
         consumedBytes: undefined,
