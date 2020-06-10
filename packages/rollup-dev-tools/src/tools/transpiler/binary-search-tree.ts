@@ -216,7 +216,7 @@ const generateNodeEqualityCheckBytecode = (
       consumedBytes: Buffer.alloc(PC_MAX_BYTES),
       tag: {
         padPUSH: false,
-        reasonTagged: OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC,
+        reasonTagged: OpcodeTagReason.IS_PUSH_BST_MATCH_SUCCESS_LOC,
         metadata: undefined,
       },
     },
@@ -288,7 +288,7 @@ const fixJUMPsToNodes = (
   for (const pushMatchSuccessOp of bytecode.filter(
     (x) =>
       !!x.tag &&
-      x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_MATCH_SUCCESS_LOC
+      x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_BST_MATCH_SUCCESS_LOC
   )) {
     pushMatchSuccessOp.consumedBytes = bufferUtils.numberToBuffer(
       indexOfThisBlock,

@@ -2,6 +2,7 @@ import {
   bytecodeToBuffer,
   EVMBytecode,
   Opcode,
+  OpcodeTagReason
 } from '@eth-optimism/rollup-core'
 import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
 import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
@@ -41,7 +42,15 @@ export const accountForJumps = (
   let pc: number = 0
   // Replace all JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
   for (const opcodeAndBytes of transpiledBytecode) {
-    if (opcodeAndBytes.opcode === Opcode.JUMP) {
+    if (
+      opcodeAndBytes.opcode === Opcode.JUMP
+      && (
+        !opcodeAndBytes.tag || (
+          opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION
+          && opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
+        )
+      )
+    ) {
       replacedBytecode.push(
         ...getJumpReplacementBytecode(footerSwitchJumpdestIndex)
       )
@@ -51,7 +60,15 @@ export const accountForJumps = (
         ...getJumpiReplacementBytecode(footerSwitchJumpdestIndex)
       )
       pc += getJumpiReplacementBytecodeLength()
-    } else if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
+    } else if (
+      opcodeAndBytes.opcode === Opcode.JUMPDEST
+      && (
+        !opcodeAndBytes.tag || (
+          opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST
+          && opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE
+        )
+      )
+    ) {
       replacedBytecode.push(opcodeAndBytes)
       jumpdestIndexesAfter.push(pc)
       pc += 1

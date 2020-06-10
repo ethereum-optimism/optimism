@@ -666,6 +666,7 @@ export class TranspilerImpl implements Transpiler {
       ) {
         transpiledBytecodeReplacement = [opcodeAndBytes]
       } else {
+        // record that we will need to add this opcode to the replacement table
         replacedOpcodes.add(opcodeAndBytes.opcode)
         transpiledBytecodeReplacement = this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
       }

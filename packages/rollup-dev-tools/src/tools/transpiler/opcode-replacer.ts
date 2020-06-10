@@ -153,6 +153,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         opcode: Opcode.JUMP,
         consumedBytes: undefined
       },
+      // allow jumping back once the call is complete
       {
         opcode: Opcode.JUMPDEST,
         consumedBytes: undefined

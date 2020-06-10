@@ -506,7 +506,7 @@ export const transpileAndDeployInitcode = async (
 export const getMockSSTOREReplacer = (): OpcodeReplacer => {
   return {
     getJumpToReplacementInFooter: 
-      new OpcodeReplacerImpl(ZERO_ADDRESS) .getJumpToReplacementInFooter,
+      new OpcodeReplacerImpl(ZERO_ADDRESS).getJumpToReplacementInFooter,
     shouldReplaceOpcode(op: EVMOpcode): boolean {
       return op === Opcode.SSTORE
     },
