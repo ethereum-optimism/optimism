@@ -689,14 +689,21 @@ export class TranspilerImpl implements Transpiler {
     // TODO make sure accountForJumps STOPs after, should do
     errors.push(...(res.errors || []))
     const bytecodeWithExistingJumpsFixed = res.bytecode
+
+    log.debug(
+      `Bytecode after replacement and fixed existing JUMP logic: \n${formatBytecode(
+        bytecodeWithExistingJumpsFixed
+      )}`
+    )
     
     const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeReplacementFooter(replacedOpcodes)
-    const bytecodeWithBrokenReplacementTable: EVMBytecode = [
+    log.debug(`Inserting opcode replacement footer: ${formatBytecode(opcodeReplacementFooter)}`)
+    transpiledBytecode = [
       ...bytecodeWithExistingJumpsFixed,
       ...opcodeReplacementFooter
     ]
 
-    
+    transpiledBytecode = this.opcodeReplacer.fixOpcodeReplacementJUMPs(transpiledBytecode)
 
     if (!!errors.length) {
       return {
@@ -721,6 +728,9 @@ export class TranspilerImpl implements Transpiler {
         errors: transpilationResult.errors,
       }
     }
+    log.debug(`successfully executed transpileRawBytecode, got result: \n${formatBytecode(
+      transpilationResult.bytecodeWithTags
+    )}`)
     return {
       succeeded: true,
       bytecode: bytecodeToBuffer(transpilationResult.bytecodeWithTags),

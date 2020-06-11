@@ -37,6 +37,7 @@ export const accountForJumps = (
   const footerSwitchJumpdestIndex: number = getExpectedFooterSwitchStatementJumpdestIndex(
     transpiledBytecode
   )
+  log.debug(`expected PC of footer switch jumpdest: 0x${footerSwitchJumpdestIndex.toString(16)}`)
   const jumpdestIndexesAfter: number[] = []
   const replacedBytecode: EVMBytecode = []
   let pc: number = 0
@@ -44,6 +45,7 @@ export const accountForJumps = (
   for (const opcodeAndBytes of transpiledBytecode) {
     if (
       opcodeAndBytes.opcode === Opcode.JUMP
+      // todo replace these checks with a nice isTaggedWithReason
       && (
         !opcodeAndBytes.tag || (
           opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION
@@ -51,14 +53,17 @@ export const accountForJumps = (
         )
       )
     ) {
+      log.debug(`replacing jump for opcodeandbytes: ${JSON.stringify(opcodeAndBytes)}`)
       replacedBytecode.push(
         ...getJumpReplacementBytecode(footerSwitchJumpdestIndex)
       )
+      log.debug(`inserted JUMP replacement at PC 0x${pc.toString(16)}`)
       pc += getJumpReplacementBytecodeLength()
     } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
       replacedBytecode.push(
         ...getJumpiReplacementBytecode(footerSwitchJumpdestIndex)
       )
+      log.debug(`inserted JUMPI replacement at PC 0x${pc.toString(16)}`)
       pc += getJumpiReplacementBytecodeLength()
     } else if (
       opcodeAndBytes.opcode === Opcode.JUMPDEST
@@ -88,6 +93,7 @@ export const accountForJumps = (
   }
 
   // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
+  log.debug(`inserting JUMP BST at PC 0x${bytecodeToBuffer(replacedBytecode).length.toString(16)}`)
   replacedBytecode.push(
     ...buildJumpBSTBytecode(
       jumpdestIndexesBefore,
@@ -194,7 +200,16 @@ export const getExpectedFooterSwitchStatementJumpdestIndex = (
 ): number => {
   let length: number = 0
   for (const opcodeAndBytes of bytecode) {
-    if (opcodeAndBytes.opcode === Opcode.JUMP) {
+    if (
+      opcodeAndBytes.opcode === Opcode.JUMP
+      // todo use helper function here too
+      && (
+        !opcodeAndBytes.tag || (
+          opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION
+          && opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
+        )
+      )
+     ) {
       length += getJumpReplacementBytecodeLength()
     } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
       length += getJumpiReplacementBytecodeLength()

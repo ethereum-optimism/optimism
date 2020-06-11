@@ -515,6 +515,7 @@ export const getMockSSTOREReplacer = (): OpcodeReplacer => {
     replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
       if (opcodeAndBytes.opcode === Opcode.SSTORE) {
         return [
+          // Do random PUSH POPs to increase codesize
           getPUSHIntegerOp(1),
           {
             opcode: Opcode.POP,
@@ -530,6 +531,19 @@ export const getMockSSTOREReplacer = (): OpcodeReplacer => {
             opcode: Opcode.POP,
             consumedBytes: undefined,
           },
+          // get return dest to third in stack so original SSTORE args are first two stack vals
+          // expected stack: [pc to return to after replacement, key, val]
+          {
+            opcode: Opcode.SWAP2,
+            consumedBytes: undefined
+          },
+          // expected stack: [val, key, return PC]
+          {
+            opcode: Opcode.SWAP1,
+            consumedBytes: undefined
+          },
+          // expected stack: [key, val, return PC]
+          // now do the SSTORE
           {
             opcode: Opcode.SSTORE,
             consumedBytes: undefined,

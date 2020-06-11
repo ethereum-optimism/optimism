@@ -86,7 +86,7 @@ describe('JUMP table solidity integration', () => {
       hexStrToBuf(transpiledJumperAddr)
     )
   })
-  it('should handle an if(true)', async () => {
+  it.only('should handle an if(true)', async () => {
     await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,

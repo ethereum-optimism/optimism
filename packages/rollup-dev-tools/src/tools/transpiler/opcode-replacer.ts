@@ -8,6 +8,8 @@ import {
   isValidOpcodeAndBytes,
   Address,
   bytecodeToBuffer,
+  formatBytecode,
+  getPCOfEVMBytecodeIndex
 } from '@eth-optimism/rollup-core'
 import {
   bufToHexString,
@@ -149,7 +151,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
       // JUMP to the right location in the footer
       {
         opcode: getPUSHOpcode(PC_MAX_BYTES),
-        consumedBytes: undefined,
+        consumedBytes: Buffer.alloc(PC_MAX_BYTES),
         tag: {
           padPUSH: false,
           reasonTagged: OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION,
@@ -158,7 +160,12 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
       },
       {
         opcode: Opcode.JUMP,
-        consumedBytes: undefined
+        consumedBytes: undefined,
+        tag: {
+          padPUSH: false,
+          reasonTagged: OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION,
+          metadata: opcode
+        }
       },
       // allow jumping back once the replacement opcode was executed
       {
@@ -189,8 +196,8 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
           consumedBytes: undefined,
           tag: {
             padPUSH: false,
-            reasonTagged: OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE,
-            metadata: undefined
+            reasonTagged: OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST,
+            metadata: opcode
           }
         },
         // replacement logic - TODO replace this with new getters which account for the extra stack elemnt
@@ -228,26 +235,35 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    * @returns The final EVMBytecode with the correct PUSH(jumpdest PC) for all replacement jumps.
    */
   public fixOpcodeReplacementJUMPs(taggedBytecode: EVMBytecode): EVMBytecode {
+    // todo delete these debugss
+    log.debug(`push replacement reason is: ${OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION}`)
+    log.debug(`is oppcode replacement reason is: ${OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST}`)
+    log.debug(`asked to fix replacement jumps for ${formatBytecode(taggedBytecode)}`)
     for (const PUSHOpcodeReplacementLocation of taggedBytecode.filter(
       (x) =>
         !!x.tag &&
         x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION
     )) {
-      const destination = taggedBytecode.findIndex(
+      const indexInBytecode = taggedBytecode.findIndex(
         (toCheck: EVMOpcodeAndBytes) => {
           return (
             !!toCheck.tag &&
             toCheck.tag.reasonTagged ===
-              OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST &&
-            toCheck.tag.metadata === PUSHOpcodeReplacementLocation.opcode
+              OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST &&
+            toCheck.tag.metadata === PUSHOpcodeReplacementLocation.tag.metadata
           )
         }
       )
+      if (indexInBytecode == -1) {
+        throw new Error(`unable to find replacment location for opcode ${PUSHOpcodeReplacementLocation.tag.metadata.name}`)
+      }
+      const PCOfBytecode = getPCOfEVMBytecodeIndex(indexInBytecode, taggedBytecode)
       const destinationBuf = bufferUtils.numberToBuffer(
-        destination,
+        PCOfBytecode,
         PC_MAX_BYTES,
         PC_MAX_BYTES
       )
+      log.debug(`fixed replacement jump with new destination ${bufToHexString(destinationBuf)}`)
       PUSHOpcodeReplacementLocation.consumedBytes = destinationBuf
     }
     return taggedBytecode
