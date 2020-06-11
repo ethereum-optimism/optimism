@@ -48,8 +48,8 @@ export const accountForJumps = (
       && !isTaggedWithReason(
         opcodeAndBytes,
         [
-          OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION,
-          OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
+          OpcodeTagReason.IS_JUMP_TO_OPCODE_FUNCTION,
+          OpcodeTagReason.IS_OPCODE_FUNCTION_RETURN_JUMP
         ]
       )
     ) {
@@ -70,8 +70,8 @@ export const accountForJumps = (
       && !isTaggedWithReason(
         opcodeAndBytes,
         [
-          OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST,
-          OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE
+          OpcodeTagReason.IS_OPCODE_FUNCTION_JUMPDEST,
+          OpcodeTagReason.IS_OPCODE_FUNCTION_RETURN_JUMPDEST
         ]
       )
     ) {
@@ -85,7 +85,7 @@ export const accountForJumps = (
   }
 
   if (jumpdestIndexesBefore.length !== jumpdestIndexesAfter.length) {
-    const message: string = `There were ${jumpdestIndexesBefore.length} non-replacement-table JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
+    const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} non-replacement-table JUMPDESTs after.`
     log.debug(message)
     errors.push(
       createError(-1, TranspilationErrors.INVALID_SUBSTITUTION, message)
@@ -94,7 +94,7 @@ export const accountForJumps = (
   }
 
   // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
-  log.debug(`inserting JUMP BST at PC 0x${bytecodeToBuffer(replacedBytecode).length.toString(16)}`)
+  log.debug(`inserting JUMP BST at PC ${numberToHexString(bytecodeToBuffer(replacedBytecode).length)}`)
   replacedBytecode.push(
     ...buildJumpBSTBytecode(
       jumpdestIndexesBefore,
@@ -206,8 +206,8 @@ export const getExpectedFooterSwitchStatementJumpdestIndex = (
       && !isTaggedWithReason(
         opcodeAndBytes,
         [
-          OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION,
-          OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
+          OpcodeTagReason.IS_JUMP_TO_OPCODE_FUNCTION,
+          OpcodeTagReason.IS_OPCODE_FUNCTION_RETURN_JUMP
         ]
       )
      ) {

@@ -6,8 +6,9 @@ import { EVMOpcodeAndBytes, EVMBytecode, EVMOpcode } from '@eth-optimism/rollup-
  */
 export interface OpcodeReplacer {
   shouldReplaceOpcode(opcode: EVMOpcode): boolean
-  getJUMPToReplacementInFooter(opcode: EVMOpcode): EVMBytecode
-  getOpcodeReplacementFooter(opcodes: Set<EVMOpcode>): EVMBytecode
-  fixOpcodeReplacementJUMPs(taggedBytecode: EVMBytecode): EVMBytecode
+  getJUMPToOpcodeFunction(opcode: EVMOpcode): EVMBytecode
+  getJUMPOnOpcodeFunctionReturn(opcode: EVMOpcode): EVMBytecode
+  getOpcodeFunctionTable(opcodes: Set<EVMOpcode>): EVMBytecode
+  populateOpcodeFunctionJUMPs(taggedBytecode: EVMBytecode): EVMBytecode
   replaceIfNecessary(opcode: EVMOpcodeAndBytes): EVMBytecode
 }

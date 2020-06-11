@@ -50,16 +50,15 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import { transpileAndDeployInitcode, stripAuxData, getMockSSTOREReplacer } from '../helpers'
+import { transpileAndDeployInitcode, stripAuxData, mockSSTOREReplacer } from '../helpers'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger(`constructor-transpilation`)
 
 describe('Solitity contracts with constructors that take inputs should be correctly deployed', () => {
   let evmUtil: EvmIntrospectionUtil
-  const mockReplacer: OpcodeReplacer = getMockSSTOREReplacer()
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
-  const transpiler = new TranspilerImpl(opcodeWhitelist, mockReplacer)
+  const transpiler = new TranspilerImpl(opcodeWhitelist, mockSSTOREReplacer)
 
   beforeEach(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()

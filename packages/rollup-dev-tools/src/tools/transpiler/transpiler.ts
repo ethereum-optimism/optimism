@@ -668,7 +668,7 @@ export class TranspilerImpl implements Transpiler {
         // record that we will need to add this opcode to the replacement table
         replacedOpcodes.add(opcodeAndBytes.opcode)
         // jump to the footer where the logic of the replacement will be executed
-        transpiledBytecodeReplacement = this.opcodeReplacer.getJUMPToReplacementInFooter(opcodeAndBytes.opcode)
+        transpiledBytecodeReplacement = this.opcodeReplacer.getJUMPToOpcodeFunction(opcodeAndBytes.opcode)
       }
 
       transpiledBytecode.push(...transpiledBytecodeReplacement)
@@ -687,22 +687,22 @@ export class TranspilerImpl implements Transpiler {
     )
     // TODO make sure accountForJumps STOPs after, should do
     errors.push(...(res.errors || []))
-    const bytecodeWithExistingJumpsFixed = res.bytecode
+    const bytecodeWithTranspiledJumpsPopulated = res.bytecode
 
     log.debug(
       `Bytecode after replacement and fixed existing JUMP logic: \n${formatBytecode(
-        bytecodeWithExistingJumpsFixed
+        bytecodeWithTranspiledJumpsPopulated
       )}`
     )
     
-    const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeReplacementFooter(replacedOpcodes)
+    const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeFunctionTable(replacedOpcodes)
     log.debug(`Inserting opcode replacement footer: ${formatBytecode(opcodeReplacementFooter)}`)
     transpiledBytecode = [
-      ...bytecodeWithExistingJumpsFixed,
+      ...bytecodeWithTranspiledJumpsPopulated,
       ...opcodeReplacementFooter
     ]
 
-    transpiledBytecode = this.opcodeReplacer.fixOpcodeReplacementJUMPs(transpiledBytecode)
+    transpiledBytecode = this.opcodeReplacer.populateOpcodeFunctionJUMPs(transpiledBytecode)
 
     if (!!errors.length) {
       return {
