@@ -54,7 +54,7 @@ import {
 const log = getLogger(`test-solidity-JUMPs`)
 const abi = new ethers.utils.AbiCoder()
 
-describe('JUMP table solidity integration', () => {
+describe.only('JUMP table solidity integration', () => {
   let evmUtil: EvmIntrospectionUtil
   const mockReplacer: OpcodeReplacer = getMockSSTOREReplacer()
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
@@ -86,7 +86,7 @@ describe('JUMP table solidity integration', () => {
       hexStrToBuf(transpiledJumperAddr)
     )
   })
-  it.only('should handle an if(true)', async () => {
+  it('should handle an if(true)', async () => {
     await assertCallsProduceSameResult(
       evmUtil,
       originalJumperAddr,

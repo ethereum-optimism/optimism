@@ -46,7 +46,7 @@ import {
   getSSTOREReplacement,
   getTIMESTAMPReplacement,
 } from './static-memory-opcodes'
-import { getPUSHIntegerOp, getPUSHOpcode } from './helpers'
+import { getPUSHIntegerOp, getPUSHOpcode, isTaggedWithReason } from './helpers'
 import { PC_MAX_BYTES } from './constants'
 
 const log = getLogger('transpiler:opcode-replacement')
@@ -240,17 +240,13 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     log.debug(`is oppcode replacement reason is: ${OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST}`)
     log.debug(`asked to fix replacement jumps for ${formatBytecode(taggedBytecode)}`)
     for (const PUSHOpcodeReplacementLocation of taggedBytecode.filter(
-      (x) =>
-        !!x.tag &&
-        x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION
+      (op) => isTaggedWithReason(op, [OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION])
     )) {
       const indexInBytecode = taggedBytecode.findIndex(
         (toCheck: EVMOpcodeAndBytes) => {
           return (
-            !!toCheck.tag &&
-            toCheck.tag.reasonTagged ===
-              OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST &&
-            toCheck.tag.metadata === PUSHOpcodeReplacementLocation.tag.metadata
+            isTaggedWithReason(toCheck, [OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST])
+            && toCheck.tag.metadata === PUSHOpcodeReplacementLocation.tag.metadata
           )
         }
       )

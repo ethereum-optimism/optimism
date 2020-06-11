@@ -4,6 +4,7 @@ import {
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
+  OpcodeTagReason,
 } from '@eth-optimism/rollup-core'
 import { getLogger, BigNumber } from '@eth-optimism/core-utils'
 
@@ -237,4 +238,12 @@ export const getSWAPNOp = (indexToSWAP: number): EVMOpcodeAndBytes => {
     opcode: Opcode.parseByNumber(144 + indexToSWAP - 1),
     consumedBytes: undefined,
   }
+}
+
+// returns whether the given EVMOpcodeAndBytes has a tag reason matching one of the given ones
+export const isTaggedWithReason = (opcodeAndBytes: EVMOpcodeAndBytes, tags: (string | OpcodeTagReason)[]): boolean => {
+  if (opcodeAndBytes.tag === undefined) {
+    return false
+  }
+  return tags.includes(opcodeAndBytes.tag.reasonTagged)
 }

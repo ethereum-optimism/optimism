@@ -32,6 +32,7 @@ import {
   JumpReplacementResult,
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
+import { isTaggedWithReason } from './helpers'
 
 const log = getLogger('transpiler-impl')
 
@@ -211,10 +212,8 @@ export class TranspilerImpl implements Transpiler {
       : constantsUsedByConstructor.byteLength
 
     for (const [index, op] of transpiledConstructorInitLogic.entries()) {
-      const tag = op.tag
       if (
-        !!tag &&
-        tag.reasonTagged === OpcodeTagReason.IS_CONSTRUCTOR_INPUTS_OFFSET
+        isTaggedWithReason(op, [OpcodeTagReason.IS_CONSTRUCTOR_INPUTS_OFFSET])
       ) {
         // this should be the total length of the bytecode we're about to have generated!
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
@@ -223,14 +222,15 @@ export class TranspilerImpl implements Transpiler {
             constantsUsedByConstructorLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
       }
-      if (!!tag && tag.reasonTagged === OpcodeTagReason.IS_DEPLOY_CODE_LENGTH) {
+      if (
+        isTaggedWithReason(op, [OpcodeTagReason.IS_DEPLOY_CODE_LENGTH])
+      ) {
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledDeployedBytecodeByteLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
       }
       if (
-        !!tag &&
-        tag.reasonTagged === OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET
+        isTaggedWithReason(op, [OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET])
       ) {
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledInitLogicByteLength
@@ -272,8 +272,7 @@ export class TranspilerImpl implements Transpiler {
         consumedBytes: taggedBytecode[index].consumedBytes,
       }
       if (
-        !!op.tag &&
-        op.tag.reasonTagged === OpcodeTagReason.IS_CONSTANT_OFFSET
+        isTaggedWithReason(op, [OpcodeTagReason.IS_CONSTANT_OFFSET])
       ) {
         const theConstant: Buffer = op.tag.metadata
         const newConstantOffset: number = inputAsBuf.indexOf(theConstant)

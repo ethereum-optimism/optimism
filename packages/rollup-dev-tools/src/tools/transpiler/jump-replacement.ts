@@ -4,8 +4,8 @@ import {
   Opcode,
   OpcodeTagReason
 } from '@eth-optimism/rollup-core'
-import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
-import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
+import { bufferUtils, getLogger, numberToHexString } from '@eth-optimism/core-utils'
+import { getPUSHOpcode, getPUSHIntegerOp, isTaggedWithReason } from './helpers'
 import {
   JumpReplacementResult,
   TranspilationError,
@@ -37,20 +37,20 @@ export const accountForJumps = (
   const footerSwitchJumpdestIndex: number = getExpectedFooterSwitchStatementJumpdestIndex(
     transpiledBytecode
   )
-  log.debug(`expected PC of footer switch jumpdest: 0x${footerSwitchJumpdestIndex.toString(16)}`)
+  log.debug(`Generating jump table with exepected PC of footer switch jumpdest: ${numberToHexString(footerSwitchJumpdestIndex)}`)
   const jumpdestIndexesAfter: number[] = []
   const replacedBytecode: EVMBytecode = []
   let pc: number = 0
-  // Replace all JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
+  // Replace all original JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
   for (const opcodeAndBytes of transpiledBytecode) {
     if (
       opcodeAndBytes.opcode === Opcode.JUMP
-      // todo replace these checks with a nice isTaggedWithReason
-      && (
-        !opcodeAndBytes.tag || (
-          opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION
-          && opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
-        )
+      && !isTaggedWithReason(
+        opcodeAndBytes,
+        [
+          OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION,
+          OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
+        ]
       )
     ) {
       log.debug(`replacing jump for opcodeandbytes: ${JSON.stringify(opcodeAndBytes)}`)
@@ -67,11 +67,12 @@ export const accountForJumps = (
       pc += getJumpiReplacementBytecodeLength()
     } else if (
       opcodeAndBytes.opcode === Opcode.JUMPDEST
-      && (
-        !opcodeAndBytes.tag || (
-          opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST
-          && opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE
-        )
+      && !isTaggedWithReason(
+        opcodeAndBytes,
+        [
+          OpcodeTagReason.IS_OPCODE_REPLACEMENT_JUMPDEST,
+          OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE
+        ]
       )
     ) {
       replacedBytecode.push(opcodeAndBytes)
@@ -202,12 +203,12 @@ export const getExpectedFooterSwitchStatementJumpdestIndex = (
   for (const opcodeAndBytes of bytecode) {
     if (
       opcodeAndBytes.opcode === Opcode.JUMP
-      // todo use helper function here too
-      && (
-        !opcodeAndBytes.tag || (
-          opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION
-          && opcodeAndBytes.tag.reasonTagged !== OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
-        )
+      && !isTaggedWithReason(
+        opcodeAndBytes,
+        [
+          OpcodeTagReason.IS_JUMP_TO_OPCODE_REPLACEMENT_LOCATION,
+          OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE
+        ]
       )
      ) {
       length += getJumpReplacementBytecodeLength()

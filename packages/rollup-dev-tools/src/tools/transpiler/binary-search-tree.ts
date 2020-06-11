@@ -8,7 +8,7 @@ import {
   OpcodeTagReason,
 } from '@eth-optimism/rollup-core'
 import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
-import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
+import { getPUSHOpcode, getPUSHIntegerOp, isTaggedWithReason } from './helpers'
 import { BinarySearchTreeNode } from '../../types/transpiler'
 import { PC_MAX_BYTES } from './constants'
 
@@ -216,7 +216,7 @@ const generateNodeEqualityCheckBytecode = (
       consumedBytes: Buffer.alloc(PC_MAX_BYTES),
       tag: {
         padPUSH: false,
-        reasonTagged: OpcodeTagReason.IS_PUSH_BST_MATCH_SUCCESS_LOC,
+        reasonTagged: OpcodeTagReason.IS_PUSH_JUMPDEST_MATCH_SUCCESS_LOCATION,
         metadata: undefined,
       },
     },
@@ -286,9 +286,7 @@ const fixJUMPsToNodes = (
   indexOfThisBlock: number
 ): EVMBytecode => {
   for (const pushMatchSuccessOp of bytecode.filter(
-    (x) =>
-      !!x.tag &&
-      x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_BST_MATCH_SUCCESS_LOC
+    (op) => isTaggedWithReason(op, [OpcodeTagReason.IS_PUSH_JUMPDEST_MATCH_SUCCESS_LOCATION])
   )) {
     pushMatchSuccessOp.consumedBytes = bufferUtils.numberToBuffer(
       indexOfThisBlock,
@@ -297,9 +295,7 @@ const fixJUMPsToNodes = (
     )
   }
   for (const pushBSTNodeOp of bytecode.filter(
-    (x) =>
-      !!x.tag &&
-      x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION
+    (op) => isTaggedWithReason(op, [OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION])
   )) {
     const rightChild: BinarySearchTreeNode =
       pushBSTNodeOp.tag.metadata.node.right
@@ -307,10 +303,8 @@ const fixJUMPsToNodes = (
     const rightChildJumpdestIndexInBytecodeBlock = bytecode.findIndex(
       (toCheck: EVMOpcodeAndBytes) => {
         return (
-          !!toCheck.tag &&
-          toCheck.tag.reasonTagged ===
-            OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST &&
-          toCheck.tag.metadata.node === rightChild
+          isTaggedWithReason(toCheck, [OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST])
+          && toCheck.tag.metadata.node === rightChild
         )
       }
     )
