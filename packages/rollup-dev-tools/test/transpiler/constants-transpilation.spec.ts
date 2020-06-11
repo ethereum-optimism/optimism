@@ -66,7 +66,7 @@ const getGetterReturnedVal = async (
   return callRes.result
 }
 
-describe('Solitity contracts should have constants correctly accessible when using transpiled initcode', () => {
+describe.only('Solitity contracts should have constants correctly accessible when using transpiled initcode', () => {
   let evmUtil: EvmIntrospectionUtil
 
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
