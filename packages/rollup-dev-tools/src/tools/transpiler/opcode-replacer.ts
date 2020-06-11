@@ -7,10 +7,11 @@ import {
   OpcodeTagReason,
   isValidOpcodeAndBytes,
   Address,
+  bytecodeToBuffer,
 } from '@eth-optimism/rollup-core'
 import {
   bufToHexString,
-  remove0x,
+  bufferUtils,
   getLogger,
   isValidHexAddress,
   hexStrToBuf,
@@ -138,7 +139,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    *
    * @returns The EVMBytecode implementing the above functionality.
    */
-  public getJumpToReplacementInFooter(opcode: EVMOpcode): EVMBytecode {
+  public getJUMPToReplacementInFooter(opcode: EVMOpcode): EVMBytecode {
     return [
       // push the PC to the stack so that we can JUMP back to it
       {
@@ -170,6 +171,86 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         }
       }
     ]
+  }
+
+  /**
+   * Gets a piece of bytecode containing replacements for the given set of opcodes 
+   * @param opcodeAndBytes The set of opcodes to provide replacements for in the returned bytcode.
+   *
+   * @returns Bytecode which can be JUMPed to, executing the opcodes' replacements, and returning back to the original PC.
+   */
+  public getOpcodeReplacementFooter(opcodes: Set<EVMOpcode>): EVMBytecode {
+    const bytecodeToReturn: EVMBytecode = []
+    opcodes.forEach((opcode: EVMOpcode) => {
+      bytecodeToReturn.push(...[
+        // jumpdest to reach
+        {
+          opcode: Opcode.JUMPDEST,
+          consumedBytes: undefined,
+          tag: {
+            padPUSH: false,
+            reasonTagged: OpcodeTagReason.IS_JUMPDEST_OF_REPLACED_OPCODE,
+            metadata: undefined
+          }
+        },
+        // replacement logic - TODO replace this with new getters which account for the extra stack elemnt
+        ...this.replaceIfNecessary({opcode, consumedBytes: undefined}),
+        // Last thing on the stack should be where we jumped from, add the correct amount and JUMP back to the dest
+        getPUSHIntegerOp(
+          bytecodeToBuffer(
+            this.getJUMPToReplacementInFooter(opcode)
+          ).length - 1 // - 1 for the PC opcode
+        ),
+        {
+          opcode: Opcode.ADD,
+          consumedBytes: undefined
+        },
+        {
+          opcode: Opcode.JUMP,
+          consumedBytes: undefined,
+          tag: {
+            padPUSH: false,
+            reasonTagged: OpcodeTagReason.IS_JUMP_BACK_TO_REPLACED_OPCODE,
+            metadata: undefined
+          }
+        }
+
+      ])
+    })
+    return bytecodeToReturn
+  }
+
+  /**
+   * Takes some bytecode which has had opcodes replaced, and the replacement table appended, 
+   * but with tagged PUSHes of the replacement's jumpdest PC not yet set, and sets them
+   * @param taggedBytecode EVM bytecode with some IS_PUSH_OPCODE_REPLACEMENT_LOCATION tags
+   *
+   * @returns The final EVMBytecode with the correct PUSH(jumpdest PC) for all replacement jumps.
+   */
+  public fixOpcodeReplacementJUMPs(taggedBytecode: EVMBytecode): EVMBytecode {
+    for (const PUSHOpcodeReplacementLocation of taggedBytecode.filter(
+      (x) =>
+        !!x.tag &&
+        x.tag.reasonTagged === OpcodeTagReason.IS_PUSH_OPCODE_REPLACEMENT_LOCATION
+    )) {
+      const destination = taggedBytecode.findIndex(
+        (toCheck: EVMOpcodeAndBytes) => {
+          return (
+            !!toCheck.tag &&
+            toCheck.tag.reasonTagged ===
+              OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST &&
+            toCheck.tag.metadata === PUSHOpcodeReplacementLocation.opcode
+          )
+        }
+      )
+      const destinationBuf = bufferUtils.numberToBuffer(
+        destination,
+        PC_MAX_BYTES,
+        PC_MAX_BYTES
+      )
+      PUSHOpcodeReplacementLocation.consumedBytes = destinationBuf
+    }
+    return taggedBytecode
   }
 
   /**

@@ -668,7 +668,8 @@ export class TranspilerImpl implements Transpiler {
       } else {
         // record that we will need to add this opcode to the replacement table
         replacedOpcodes.add(opcodeAndBytes.opcode)
-        transpiledBytecodeReplacement = this.opcodeReplacer.replaceIfNecessary(opcodeAndBytes)
+        // jump to the footer where the logic of the replacement will be executed
+        transpiledBytecodeReplacement = this.opcodeReplacer.getJUMPToReplacementInFooter(opcodeAndBytes.opcode)
       }
 
       transpiledBytecode.push(...transpiledBytecodeReplacement)
@@ -685,8 +686,17 @@ export class TranspilerImpl implements Transpiler {
       transpiledBytecode,
       jumpdestIndexesBefore
     )
+    // TODO make sure accountForJumps STOPs after, should do
     errors.push(...(res.errors || []))
-    transpiledBytecode = res.bytecode
+    const bytecodeWithExistingJumpsFixed = res.bytecode
+    
+    const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeReplacementFooter(replacedOpcodes)
+    const bytecodeWithBrokenReplacementTable: EVMBytecode = [
+      ...bytecodeWithExistingJumpsFixed,
+      ...opcodeReplacementFooter
+    ]
+
+    
 
     if (!!errors.length) {
       return {
