@@ -5,6 +5,7 @@ import {
   remove0x,
   getLogger,
   hexStrToBuf,
+  bufferUtils,
 } from '@eth-optimism/core-utils'
 import {
   Address,
@@ -31,7 +32,7 @@ import {
   callContractWithStackElementsAndReturnWordToStack,
 } from '../../src'
 
-const log = getLogger(`test-static-memory-opcodes`)
+const log = getLogger(`test-static-memory-opcodes`, true)
 const abi = new ethers.utils.AbiCoder()
 
 /* Contracts */
@@ -101,7 +102,7 @@ describe('Static Memory Opcode Replacement', () => {
   })
 
   describe('storeStackElementsAsMemoryWords', () => {
-    it('Should store three stack elements in the memory', async () => {
+    it('Should store three stack elements in the memory, including the first stack element', async () => {
       const stackElements: Buffer[] = [
         Buffer.alloc(32).fill(hexStrToBuf('0xaa')),
         Buffer.alloc(32).fill(hexStrToBuf('0xbb')),
@@ -122,7 +123,7 @@ describe('Static Memory Opcode Replacement', () => {
       )
       const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
         bytecodeToBuffer(pushAndStore),
-        108
+        bytecodeToBuffer(pushAndStore).length - 1
       )
       // memory should be the concatenation of the 32 byte words we previously pushed to the stack
       finalContext.memory.should.deep.equal(Buffer.concat(stackElements))
@@ -158,7 +159,7 @@ describe('Static Memory Opcode Replacement', () => {
 
       finalContext.memory.should.deep.equal(expectedMemorySlice)
     })
-    it('Should return the result of a simple contract getter with 2 stack params to memory successfully', async () => {
+    it('Should return the result of a simple contract getter with with stack params 0 and 1 to memory successfully', async () => {
       const numStackElementsToPass: number = 3
 
       let callGetterAndStoreWithStackParams: EVMBytecode = callContractWithStackElementsAndReturnWordToMemory(
@@ -182,7 +183,7 @@ describe('Static Memory Opcode Replacement', () => {
         bytecodeToBuffer(callGetterAndStoreWithStackParams),
         181
       )
-      // the resulting memory should be: [0000s proceeding method Id, methodId], [stack param 1], [stack param 2], [stack param 3] [deadbeef, 0000...]
+      // the resulting memory should be: [0000s proceeding method Id, methodId], [stack param 0], [stack param 1], [stack param 2] [deadbeef, 0000...]
       // where [] above indicates a 32 byte word.
       const expectedMemorySlice: Buffer = hexStrToBuf(
         '0x000000000000000000000000000000000000000000000000000000006d4ce63c000000000000000000000000000000000000000000000000000000000000000001010101010101010101010101010101010101010101010101010101010101010202020202020202020202020202020202020202020202020202020202020202' +
@@ -192,7 +193,7 @@ describe('Static Memory Opcode Replacement', () => {
       finalContext.memory.should.deep.equal(expectedMemorySlice)
     })
   })
-  describe('callContractWithStackElementsAndReturnWordToStack', () => {
+  describe.only('callContractWithStackElementsAndReturnWordToStack', () => {
     const initialMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
     const aBigStack: Buffer[] = Array.from({ length: 10 }, (v, k) =>
       Buffer.from(new Array<number>(32).fill(k))
@@ -200,7 +201,7 @@ describe('Static Memory Opcode Replacement', () => {
 
     for (const numStackElsToPass of [0, 1, 2]) {
       for (const numWordsToReturn of [0, 1]) {
-        const thisStack: Buffer[] = aBigStack.slice(0, numStackElsToPass)
+        const thisStack: Buffer[] = aBigStack.slice(0, numStackElsToPass + 1) // +1 since first stack element preserved
         it(`Should successfully pass ${numStackElsToPass} concatenated stack elements and methodId as calldata and return ${numWordsToReturn} words to the stack`, async () => {
           const setupContextAndExecuteCall: EVMBytecode = setupAndExecuteStaticMemoryCall(
             getterAddress,
@@ -210,14 +211,19 @@ describe('Static Memory Opcode Replacement', () => {
             numWordsToReturn as 0 | 1
           )
 
+
+          log.debug(`setupAndExecuteStaticMemoryCall(...) bytecode for ${numStackElsToPass} numStackElsToPass and ${numWordsToReturn} numWordsToReturn is: \n${formatBytecode(setupContextAndExecuteCall)}`)
+
           const callContext: CallContext = await evmUtil.getCallContext(
             bytecodeToBuffer(setupContextAndExecuteCall)
           )
-          // make sure the calldata is [methodId, thisStack[0], thisStack[1], ...]
+          // make sure the calldata is [methodId, thisStack[1], thisStack[2], ...]
           callContext.callData.should.deep.equal(
-            Buffer.concat([getterMethodId, ...thisStack]),
+            Buffer.concat([getterMethodId, ...thisStack.slice(1)]),
             'Calldata should always be [bytes4 methodId], [stack el 1], [stack el 2]'
           )
+
+          log.debug(`getting final cntexts`)
 
           const finalContext: StepContext = await evmUtil.getStepContextBeforeStep(
             bytecodeToBuffer(setupContextAndExecuteCall),
@@ -230,11 +236,12 @@ describe('Static Memory Opcode Replacement', () => {
           )
           // make sure the returnData was pushed to stack if needed
           finalContext.stackDepth.should.equal(
-            numWordsToReturn,
-            `Stack does not match requested number of words returned(${numWordsToReturn})`
+            numWordsToReturn + 1,
+            `Stack does not match requested number of words returned(${numWordsToReturn}) + 1 for preserved first stack element`
           )
+          bufferUtils.padLeft(finalContext.stack[0], 32).should.deep.eq(thisStack[0], 'Operation did not preserve the first stack element correctly')
           if (numWordsToReturn === 1) {
-            finalContext.stack[0].should.deep.equal(
+            finalContext.stack[1].should.deep.equal(
               valToReturn,
               'Word returned to stack was not what the getter was told to return!'
             )
@@ -260,7 +267,7 @@ const setupAndExecuteStaticMemoryCall = (
   const replacementOperation: EVMBytecode = callContractWithStackElementsAndReturnWordToStack(
     callTarget,
     targetMethodName,
-    initialStack.length,
+    initialStack.length - 1, // since we are not passing the first stack element
     numWordsToBeReturned
   )
   // push to stack in  reverse order so that we stack[0] is pushed last

@@ -15,7 +15,7 @@ import * as OriginGetter from '../contracts/build/transpiled/OriginGetter.json'
 import * as CallerReturner from '../contracts/build/transpiled/CallerReturner.json'
 import * as TimeGetter from '../contracts/build/transpiled/TimeGetter.json'
 
-describe(`Various opcodes should be usable in combination with transpiler and full node`, () => {
+describe.only(`Various opcodes should be usable in combination with transpiler and full node`, () => {
   let handler: TestWeb3Handler
   let provider
   let wallet
@@ -44,13 +44,13 @@ describe(`Various opcodes should be usable in combination with transpiler and fu
     )
     res.should.equal(storageValue)
   })
-  it('should work for address(this)', async () => {
+  it.only('should work for address(this)', async () => {
     const selfAware = await deployContract(wallet, SelfAware, [], [])
     const deployedAddress: Address = selfAware.address
     const returnedAddress: Address = await selfAware.getMyAddress()
     deployedAddress.should.equal(returnedAddress)
   })
-  it('should work for block.timestamp', async () => {
+  it.only('should work for block.timestamp', async () => {
     const timeGetter = await deployContract(wallet, TimeGetter, [], [])
     const contractTime = await timeGetter.getTimestamp()
     contractTime.toNumber().should.be.gt(0)
@@ -61,14 +61,14 @@ describe(`Various opcodes should be usable in combination with transpiler and fu
     const result = await callerGetter.getMsgSenderFrom(callerReturner.address)
     result.should.equal(callerGetter.address)
   })
-  it('should work for tx.origin', async () => {
+  it.only('should work for tx.origin', async () => {
     const originGetter = await deployContract(wallet, OriginGetter, [], [])
     const result = await originGetter.getTxOrigin()
     result.should.equal(wallet.address)
   })
 
   // SIMPLE STORAGE TEST
-  it('should set storage & retrieve the value', async () => {
+  it.only('should set storage & retrieve the value', async () => {
     const simpleStorage = await deployContract(wallet, SimpleStorage, [], [])
     // Create some constants we will use for storage
     const storageKey = '0x' + '01'.repeat(32)

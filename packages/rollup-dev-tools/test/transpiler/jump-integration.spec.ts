@@ -54,7 +54,7 @@ import {
 const log = getLogger(`test-solidity-JUMPs`)
 const abi = new ethers.utils.AbiCoder()
 
-describe.only('JUMP table solidity integration', () => {
+describe('JUMP table solidity integration', () => {
   let evmUtil: EvmIntrospectionUtil
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
   const transpiler = new TranspilerImpl(opcodeWhitelist, mockSSTOREReplacer)

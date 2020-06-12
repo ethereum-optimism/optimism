@@ -13,6 +13,7 @@ import {
   duplicateStackAt,
   POPNTimes,
   storeStackElementsAsMemoryWords,
+  getDUPNOp,
 } from './helpers'
 
 const log = getLogger(`static-memory-opcodes`)
@@ -213,6 +214,9 @@ export const callContractWithStackElementsAndReturnWordToMemory = (
  * 5. Load the returned word from memory into the stack.
  * 6. Replace the original memory by unstashing.
  *
+ * NOTE // This operation preserves the first stack element.  So if the input is
+ * [(first element), (second), (third), ...] then the output stack should be
+ * [(first element), (returned value), ...] with the contract call recieving (second), (third), ...
  *
  * @param address The address to call.
  * @param methodName The human readable name of the ABI method to call
@@ -238,7 +242,8 @@ export const callContractWithStackElementsAndReturnWordToStack = (
     // Based on the contiguous memory space we expect to utilize, stash the original memory so it can be recovered.
     ...pushMemoryAtIndexOntoStack(memoryIndexToUse, numWordsToStash),
     // Now that the stashed memory is first on the stack, recover the original stack elements we expected to consume/pass to execution manager
-    ...duplicateStackAt(numWordsToStash, numStackArgumentsToPass),
+    // +1 so that we do not duplicate the first stack element, as we do not intend to pass it.
+    ...duplicateStackAt(numWordsToStash + 1, numStackArgumentsToPass),
     // Do the call, with the returned word being put into memory.
     ...callContractWithStackElementsAndReturnWordToMemory(
       address,
@@ -256,17 +261,31 @@ export const callContractWithStackElementsAndReturnWordToStack = (
     ...duplicateStackAt(1, numWordsToStash),
     // Now that stack is prepared, unstash the memory to its original state
     ...storeStackInMemoryAtIndex(memoryIndexToUse, numWordsToStash),
-    // The above duplications need to be eliminated, but the returned word needs to be maintained.  SWAP it out of the way.
-    getSWAPNOp(numWordsToStash + numStackArgumentsToPass),
+    // The above duplications need to be eliminated, but the returned word and original first stack element need to be maintained.
+    // DUP the original stack element
+    getDUPNOp(1 + numWordsToStash + 1),
+    // SWAP it to the second to last
+    getSWAPNOp(1 + numWordsToStash + numStackArgumentsToPass),
+    // POP the garbage we just switched
+    ...POPNTimes(1),
+    // swap the return value to be right after
+    getSWAPNOp(numWordsToStash + numStackArgumentsToPass + 1),
     // POP the extra elements that came from the above duplications
     ...POPNTimes(numWordsToStash + numStackArgumentsToPass),
+
   ]
   if (numStackValuesReturned === 0) {
     // if we don't care about a return value just pop whatever was randomly grabbed from memory
-    op.push({
-      opcode: Opcode.POP,
-      consumedBytes: undefined,
-    })
+    op.push(...[
+      {
+        opcode: Opcode.SWAP1,
+        consumedBytes: undefined
+      },
+      {
+        opcode: Opcode.POP,
+        consumedBytes: undefined,
+      }
+    ])
   }
   return op
 }
