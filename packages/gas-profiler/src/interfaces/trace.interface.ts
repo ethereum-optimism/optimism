@@ -1,5 +1,6 @@
 export interface CodeLine {
   line: number;
+  chunk: SourceMapChunk;
 }
 
 export interface InstructionTrace {

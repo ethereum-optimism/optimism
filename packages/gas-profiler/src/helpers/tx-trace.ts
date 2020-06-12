@@ -125,11 +125,13 @@ const parseSourceLines = (source: string, sourceMap: string): CodeLine[] => {
       const line = parseLineNumber(source, sourceMapChunk.start)
       sourceLines.push({
         line: line,
+        chunk: sourceMapChunk,
       });
       lastGoodLine = line;
     } else {
       sourceLines.push({
         line: lastGoodLine,
+        chunk: sourceMapChunk,
       });
     }
   }
@@ -189,6 +191,37 @@ const parseCodeLines = (source: string): CodeTrace => {
   return codeTrace;
 }
 
+const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sourceLines: CodeLine[], start: number): InstructionTrace[] => {
+  let intermediateLogs: StructLog[] = [];
+  let logIndex = start;
+
+  let structLog: StructLog;
+  let instructionIndex: number;
+  let sourceLine: CodeLine;
+  do {
+    structLog = structLogs[logIndex];
+    instructionIndex = instructionIndices[structLog.pc];
+    sourceLine = sourceLines[instructionIndex];
+    
+    intermediateLogs.push(structLog);
+    logIndex++;
+  }
+  while (structLog.op !== 'JUMPDEST' || sourceLine.chunk.index !== sourceLines[0].chunk.index);
+
+  let intermediateTraces: InstructionTrace[] = [];
+  for (const intermediateLog of intermediateLogs) {
+    intermediateTraces.push({
+      line: sourceLine.line,
+      pc: intermediateLog.pc,
+      op: intermediateLog.op,
+      idx: instructionIndex,
+      gasCost: intermediateLog.gasCost,
+    });
+  }
+
+  return intermediateTraces;
+}
+
 /**
  * Helper; prettifies a code trace into a convenient string.
  * @param trace code trace to prettify.
@@ -223,17 +256,25 @@ export const getTransactionTrace = async (
   const binary = contract.evm.deployedBytecode.object;
   const instructionIndices = parseInstructionIndices(binary);
 
-  const instructionTraces: InstructionTrace[] = [];
-  for (const structLog of structLogs) {
+  let instructionTraces: InstructionTrace[] = [];
+  for (let i = 0; i < structLogs.length; i++) {
+    const structLog = structLogs[i];
     const instructionIndex = instructionIndices[structLog.pc];
     const sourceLine = sourceLines[instructionIndex];
-    instructionTraces.push({
-      line: sourceLine.line,
-      pc: structLog.pc,
-      op: structLog.op,
-      idx: instructionIndex,
-      gasCost: structLog.gasCost,
-    });
+
+    if (structLog.op === 'JUMP' && sourceLine.chunk.index === sourceLines[0].chunk.index) {
+      const intermediateTraces = seekJumpDest(structLogs, instructionIndices, sourceLines, i);
+      instructionTraces = instructionTraces.concat(intermediateTraces);
+      i += intermediateTraces.length - 1;
+    } else {
+      instructionTraces.push({
+        line: sourceLine.line,
+        pc: structLog.pc,
+        op: structLog.op,
+        idx: instructionIndex,
+        gasCost: structLog.gasCost,
+      });
+    }
   }
 
   const codeTrace: CodeTrace = parseCodeLines(source);
