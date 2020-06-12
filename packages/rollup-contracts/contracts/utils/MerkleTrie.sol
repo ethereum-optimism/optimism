@@ -4,12 +4,13 @@ import './BytesLib.sol';
 import './RLPReader.sol';
 
 /**
- * @notice Library for dealing with Merkle tries.
+ * @notice Contract for dealing with Merkle tries.
  */
-contract MerkleTrieLib {
+contract MerkleTrie {
     using BytesLib for bytes;
 
     uint256 constant TREE_RADIX = 16;
+    uint256 constant BRANCH_NODE_LENGTH = TREE_RADIX + 1;
 
     uint8 constant PREFIX_EVEN_EXTENSION = 0;
     uint8 constant PREFIX_ODD_EXTENSION = 1;
@@ -45,7 +46,7 @@ contract MerkleTrieLib {
         // Convert the key into a series of half-packed bytes.
         bytes memory key = _key.toNibbles();
 
-        bytes32 currentHash = _root;
+        bytes32 currentNodeID = _root;
         uint256 keyIndex = 0;
         for (uint256 i = 0; i < proof.length; i++) {
             ProofElement memory node = ProofElement({
@@ -56,25 +57,24 @@ contract MerkleTrieLib {
             if (keyIndex == 0) {
                 // First proof element is always the root node.
                 require(
-                    keccak256(node.encoded) == currentHash,
+                    keccak256(node.encoded) == currentNodeID,
                     "Invalid root hash"
                 );
             } else if (node.encoded.length >= 32) {
                 // Nodes 32 bytes or larger are hashed inside branch nodes.
                 require(
-                    keccak256(node.encoded) == currentHash,
+                    keccak256(node.encoded) == currentNodeID,
                     "Invalid large internal hash"
                 );
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
-                    node.encoded.toBytes32() == currentHash,
+                    node.encoded.toBytes32() == currentNodeID,
                     "Invalid internal node hash"
                 );
             }
 
-            // Nodes with `TREE_RADIX + 1` elements are branches.
-            if (node.decoded.length == TREE_RADIX + 1) {
+            if (node.decoded.length == BRANCH_NODE_LENGTH) {
                 if (keyIndex >= key.length) {
                     // Value may sometimes be included at a branch node.
                     return (
@@ -83,7 +83,7 @@ contract MerkleTrieLib {
                 } else {
                     // Find the next node within the branch node and repeat.
                     RLPReader.RLPItem memory next = node.decoded[uint8(key[keyIndex])];
-                    currentHash = getCorrectBytes(next).toBytes32();
+                    currentNodeID = getNodeID(next).toBytes32();
                     keyIndex++;
                     continue;
                 }
@@ -93,7 +93,7 @@ contract MerkleTrieLib {
             if (node.decoded.length == 2) {
                 // Throw this step into a new function to avoid `STACK_TOO_DEEP`.
                 bool done;
-                (done, currentHash, keyIndex) = checkNonBranchNode(
+                (done, currentNodeID, keyIndex) = checkNonBranchNode(
                     node,
                     key,
                     _value,
@@ -141,7 +141,7 @@ contract MerkleTrieLib {
             // Return "done" and fill the rest with empty values.
             return (true, bytes32(0), 0);
         } else if (prefix == PREFIX_EVEN_EXTENSION || prefix == PREFIX_ODD_EXTENSION) {
-            bytes memory value = getCorrectBytes(_node.decoded[1]);
+            bytes memory value = getNodeID(_node.decoded[1]);
             bytes memory shared = path.slice(offset);
             uint256 extension = shared.length;
 
@@ -157,7 +157,7 @@ contract MerkleTrieLib {
         revert("Bad prefix");
     }
 
-    function getCorrectBytes(
+    function getNodeID(
         RLPReader.RLPItem memory _item
     ) internal pure returns (bytes memory) {
         if (_item.len < 32) {

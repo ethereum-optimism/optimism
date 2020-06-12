@@ -3,14 +3,14 @@ import { expect } from '../setup';
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle';
 import { Contract } from 'ethers';
 
-import * as MerkleTrieLib from '../../build/MerkleTrieLib.json';
+import * as MerkleTrie from '../../build/MerkleTrie.json';
 import { makeAllProofTests, makeRandomProofTests } from '../helpers/trie-helpers';
 
-describe('BinaryMerkleTreeLib', () => {
+describe('MerkleTrie', () => {
   const [wallet] = getWallets(createMockProvider());
   let trie: Contract;
   beforeEach(async () => {
-    trie = await deployContract(wallet, MerkleTrieLib);
+    trie = await deployContract(wallet, MerkleTrie);
   });
 
   describe('verifyInclusionProof', async () => {
