@@ -44,10 +44,8 @@
   "dependencies": {
     "@types/argparse": "^1.0.38",
     "argparse": "^1.0.10",
-    "chai": "^4.2.0",
     "ethers": "^4.0.37",
     "ganache-core": "^2.10.2",
-    "get-port": "^5.1.1",
-    "scrypt": "^6.0.3"
+    "get-port": "^5.1.1"
   }
 }
