@@ -65,6 +65,5 @@ export const makeRandomProofTests = async (germ: string, count: number, keySize:
       val: randomBytes(valSize).toString('hex'),
     };
   });
-  const r = randomInt(germ, 0, count);
   return makeProofTest(nodes, nodes[randomInt(germ, 0, count)].key);
 }
