@@ -127,7 +127,6 @@ describe('BinaryMerkleTreeLib', () => {
 
     it('should verify random data (2048 nodes)', async () => {
       const test = await makeRandomProofTests('seed2048', 2048);
-      console.log(test.key, test.val, test.root, test.proof)
       expect(await trie.verifyInclusionProof(test.key, test.val, test.root, test.proof)).to.equal(true);
     });
   });
