@@ -21,6 +21,11 @@ contract MerkleTrieLib {
         RLPReader.RLPItem[] decoded;
     }
 
+
+    /*
+     * Internal Functions
+     */
+
     /**
      * @notice Checks a trie inclusion proof.
      * @param _key Key of the node to verify.
@@ -105,6 +110,11 @@ contract MerkleTrieLib {
 
         return false;
     }
+
+
+    /*
+     * Private Functions
+     */
 
     function checkNonBranchNode(
         ProofElement memory _node,

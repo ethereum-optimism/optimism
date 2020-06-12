@@ -85,42 +85,24 @@ library BytesLib {
         return slice(_bytes, _start, _bytes.length - _start);
     }
 
-    function toBytes32(bytes memory _bytes, uint256 _start) internal pure returns (bytes32) {
-        require(_bytes.length >= (_start + 32), "Read out of bounds");
-        bytes32 tempBytes32;
-
-        assembly {
-            tempBytes32 := mload(add(add(_bytes, 0x20), _start))
-        }
-
-        return tempBytes32;
-    }
-
     function toBytes32(bytes memory _bytes) internal pure returns (bytes32) {
-        return toBytes32(_bytes, 0);
-    }
-
-    function toUint256(bytes memory _bytes, uint256 _start) internal pure returns (uint256) {
-        require(_bytes.length >= (_start + 32), "Read out of bounds");
-        uint256 tempUint;
-
+        bytes32 ret;
         assembly {
-            tempUint := mload(add(add(_bytes, 0x20), _start))
+            ret := mload(add(_bytes, 32))
         }
-
-        return tempUint;
+        return ret;
     }
 
     function toUint256(bytes memory _bytes) internal pure returns (uint256) {
-        return toUint256(_bytes, 0);
+        return uint256(toBytes32(_bytes));
     }
 
     function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
-        bytes memory nibbles = new bytes(_b.length * 2);
+        bytes memory nibbles = new bytes(_bytes.length * 2);
 
-        for (uint256 i = 0; i < _b.length; i++) {
-            nibbles[i * 2] = _b[i] >> 4;
-            nibbles[i * 2 + 1] = bytes1(uint8(_b[i]) % 16);
+        for (uint256 i = 0; i < _bytes.length; i++) {
+            nibbles[i * 2] = _bytes[i] >> 4;
+            nibbles[i * 2 + 1] = bytes1(uint8(_bytes[i]) % 16);
         }
 
         return nibbles;

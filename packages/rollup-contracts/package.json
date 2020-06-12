@@ -13,7 +13,8 @@
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{deploy,test}/**/*.ts'",
     "build": "waffle waffle-config.json && tsc -p .",
     "clean": "rimraf build/",
-    "deploy:rollup-chain": "yarn build && node ./build/deploy/rollup-chain.js"
+    "deploy:rollup-chain": "yarn build && node ./build/deploy/rollup-chain.js",
+    "womp": "mocha --require ts-node/register 'test/merklization/MerkleTrieLib.spec.ts' --timeout 20000"
   },
   "keywords": [
     "optimistic",
@@ -50,8 +51,12 @@
     "chai": "^4.2.0",
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37",
+    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
     "merkletreejs": "^0.1.7",
-    "openzeppelin-solidity": "^2.2.0"
+    "openzeppelin-solidity": "^2.2.0",
+    "random-bytes-seed": "^1.0.3",
+    "rlp": "^2.2.5",
+    "seedrandom": "^3.0.5"
   },
   "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }
