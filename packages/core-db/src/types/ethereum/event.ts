@@ -3,4 +3,7 @@ export interface EthereumEvent {
   name: string
   signature: string
   values: {}
+  blockHash: string
+  blockNumber: number
+  transactionHash: string
 }

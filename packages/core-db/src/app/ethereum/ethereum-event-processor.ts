@@ -154,7 +154,7 @@ export class EthereumEventProcessor {
     const logs: Log[] = await contract.provider.getLogs(filter)
     const events: EthereumEvent[] = logs.map((l) => {
       const logDesc: LogDescription = contract.interface.parseLog(l)
-      return EthereumEventProcessor.createEventFromLogDesc(logDesc, eventId)
+      return EthereumEventProcessor.createEventFromLogDesc(l, logDesc, eventId)
     })
 
     for (const event of events) {
@@ -222,11 +222,13 @@ export class EthereumEventProcessor {
   /**
    * Creates a local EthereumEvent from the provided Ethers LogDesc.
    *
+   * @param logObj The Log in question
    * @param logDesc The LogDesc in question
    * @param eventID The local event ID
    * @returns The local EthereumEvent
    */
   private static createEventFromLogDesc(
+    logObj: Log,
     logDesc: LogDescription,
     eventID: string
   ): EthereumEvent {
@@ -236,6 +238,9 @@ export class EthereumEventProcessor {
       name: logDesc.name,
       signature: logDesc.signature,
       values,
+      blockHash: logObj.blockHash,
+      blockNumber: logObj.blockNumber,
+      transactionHash: logObj.transactionHash,
     }
   }
 
@@ -252,6 +257,9 @@ export class EthereumEventProcessor {
       name: event.event,
       signature: event.eventSignature,
       values,
+      blockHash: event.blockHash,
+      blockNumber: event.blockNumber,
+      transactionHash: event.transactionHash,
     }
   }
 

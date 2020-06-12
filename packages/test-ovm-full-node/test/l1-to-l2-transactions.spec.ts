@@ -20,7 +20,7 @@ const log = getLogger('l1-to-l2-transactions', true)
 const storageKey: string = '0x' + '01'.repeat(32)
 const storageValue: string = '0x' + '22'.repeat(32)
 
-describe('L1 To L2 Transaction Passing', () => {
+describe.only('L1 To L2 Transaction Passing', () => {
   let wallet: Wallet
   let simpleStorage: Contract
   let provider: JsonRpcProvider

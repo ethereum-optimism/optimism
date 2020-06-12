@@ -58,6 +58,9 @@ describe('L1 to L2 Transaction Processor', () => {
         _target,
         _callData,
       },
+      blockNumber: 1,
+      blockHash: keccak256(Buffer.from('block hash').toString('hex')),
+      transactionHash: keccak256(Buffer.from('tx hash').toString('hex')),
     })
 
     await sleep(100)
@@ -95,6 +98,9 @@ describe('L1 to L2 Transaction Processor', () => {
         _target,
         _callData,
       },
+      blockNumber: 1,
+      blockHash: keccak256(Buffer.from('block hash').toString('hex')),
+      transactionHash: keccak256(Buffer.from('tx hash').toString('hex')),
     })
 
     await l1ToL2TransactionProcessor.handle({
@@ -107,6 +113,9 @@ describe('L1 to L2 Transaction Processor', () => {
         _target: target2,
         _callData: callData2,
       },
+      blockNumber: 1,
+      blockHash: keccak256(Buffer.from('block hash').toString('hex')),
+      transactionHash: keccak256(Buffer.from('tx hash').toString('hex')),
     })
 
     await sleep(100)
@@ -161,6 +170,9 @@ describe('L1 to L2 Transaction Processor', () => {
         _target: target2,
         _callData: callData2,
       },
+      blockNumber: 1,
+      blockHash: keccak256(Buffer.from('block hash').toString('hex')),
+      transactionHash: keccak256(Buffer.from('tx hash').toString('hex')),
     })
 
     await l1ToL2TransactionProcessor.handle({
@@ -173,6 +185,9 @@ describe('L1 to L2 Transaction Processor', () => {
         _target,
         _callData,
       },
+      blockNumber: 1,
+      blockHash: keccak256(Buffer.from('block hash').toString('hex')),
+      transactionHash: keccak256(Buffer.from('tx hash').toString('hex')),
     })
 
     await sleep(100)

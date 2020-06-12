@@ -25,6 +25,24 @@ export interface L1ToL2Transaction {
   callData: string
 }
 
+// TODO: Update when the format is known
+export type StateCommitment = string
+export interface RollupTransition {
+  nonce: number
+  transaction: L1ToL2Transaction
+  stateCommitment: StateCommitment
+}
+export interface L1ToL2TransactionBatch {
+  nonce: number
+  timestamp: number
+  transactions: L1ToL2Transaction[]
+  calldata: string
+}
+export interface L1ToL2StateCommitmentBatch {
+  nonce: number
+  stateCommitments: StateCommitment[]
+}
+
 /* Types */
 export type Address = string
 export type StorageSlot = string
