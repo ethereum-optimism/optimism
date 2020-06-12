@@ -206,7 +206,11 @@ const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sou
     intermediateLogs.push(structLog);
     logIndex++;
   }
-  while (structLog.op !== 'JUMPDEST' || sourceLine.chunk.index !== sourceLines[0].chunk.index);
+  while (
+    structLog.op !== 'JUMPDEST' ||
+    sourceLine.chunk.index !== sourceLines[0].chunk.index ||
+    sourceLine.line === sourceLines[0].line
+  );
 
   let intermediateTraces: InstructionTrace[] = [];
   for (const intermediateLog of intermediateLogs) {
