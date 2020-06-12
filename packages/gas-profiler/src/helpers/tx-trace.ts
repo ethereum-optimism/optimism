@@ -232,10 +232,11 @@ const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sou
  * @returns a pretty trace.
  */
 export const prettifyTransactionTrace = (trace: CodeTrace): string => {
-  let pretty = '';
+  let pretty = 'Gas\t┋ Code\n' + '┉┉┉┉┉┉┉┉┋┉┉┉┉┉┉┉┉\n';
   for (const key in trace) {
     pretty += `${trace[key].gasUsed}\t┋ ${trace[key].code}\n`;
   }
+
   return pretty;
 }
 
