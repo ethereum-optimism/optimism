@@ -3,6 +3,7 @@ module github.com/omisego/immutability-eth-plugin
 go 1.13
 
 require (
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/ethereum/go-ethereum v1.9.9
 	github.com/hashicorp/errwrap v1.0.0
 	github.com/hashicorp/go-hclog v0.8.0
