@@ -193,7 +193,7 @@ describe('Static Memory Opcode Replacement', () => {
       finalContext.memory.should.deep.equal(expectedMemorySlice)
     })
   })
-  describe.only('callContractWithStackElementsAndReturnWordToStack', () => {
+  describe('callContractWithStackElementsAndReturnWordToStack', () => {
     const initialMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
     const aBigStack: Buffer[] = Array.from({ length: 10 }, (v, k) =>
       Buffer.from(new Array<number>(32).fill(k))

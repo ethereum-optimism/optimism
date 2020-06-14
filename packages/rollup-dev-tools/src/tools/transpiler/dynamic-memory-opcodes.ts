@@ -8,6 +8,7 @@ import {
   pushMemoryOntoStack,
   getPUSHBuffer,
   storeStackInMemory,
+  getPUSHOpcode,
 } from './helpers'
 import * as abi from 'ethereumjs-abi'
 
@@ -83,7 +84,7 @@ export const getDELEGATECALLReplacement = (
 /**
  * This replaces CALL-type Opcodes with CALLs to our ExecutionManager.
  * Notably, this:
- *  * Assumes the proper stack is in place to do the un-transpiled CALL
+ *  * Assumes the input stack is: [(PC of replaced opcode), ...[CALL arguments], ...]
  *  * Replaces the call address in the stack with the executionManagerAddress
  *  * Safely prepends method id and arguments to CALL argument memory
  *  * Updates CALL memory index and length to account for prepended arguments
@@ -110,28 +111,28 @@ const getCallTypeReplacement = (
   const op: EVMBytecode = [
     // we will subtract the number of words we will prepend to get the index of memory we're pushing to stack to recover later
     getPUSHIntegerOp(callMemoryBytesToPrepend),
-    getDUPNOp(1 + stackPositionOfCallArgsMemOffset + 1), // dup modified calldata arg index so it can be stored there
+    getDUPNOp(1 + 1 + stackPositionOfCallArgsMemOffset + 1), // dup modified calldata arg index so it can be stored there
     { opcode: Opcode.SUB, consumedBytes: undefined }, // do subtraction
     // actually push it to the stack
     ...pushMemoryOntoStack(callMemoryWordsToPrepend),
   ]
 
-  // stack should now be [(index of mem pushed to stack), ...[mem words pushed to stack], ...[original stack]]]
+  // stack should now be [(index of mem pushed to stack), ...[mem words pushed to stack], (PC of replaced opcode), ...[CALL params], ...]
   // duplicate the four memory-related params from the original CALL to front of stack
   op.push(
     ...new Array(4).fill(
-      getDUPNOp(1 + callMemoryWordsToPrepend + totalCALLTypeStackArguments)
+      getDUPNOp(1 + callMemoryWordsToPrepend + totalCALLTypeStackArguments + 1)
     )
   )
 
-  // stack should now be [argOffstet, argLen, retOffst, retLength, (index of mem pushed to stack), ...[mem words pushed to stack], ...[original stack]]]
+  // stack should now be [argOffstet, argLen, retOffst, retLength, (index of mem pushed to stack), ...[mem words pushed to stack], (PC of replaced opcode), ...[CALL params], ...]
   // where those first four memory params are un-modified from the pre-transpiled CALL.
 
   // now, we need to push the additional calldata to stack and store stack in memory.
   // NOTE: if we needed to pass the call value in the future alongside addr, we would dup that additional val to stack here.
 
-  // dup the ADDR param from the initial stack. based on the expected stack above (and that PUSHBuffer), its index is 4 + 1 + callMemoryWordsToPrepend + 2
-  op.push(getDUPNOp(callMemoryWordsToPrepend + 7))
+  // dup the ADDR param from the initial stack. based on the expected stack above (and that PUSHBuffer), its index is 4 + 1 + callMemoryWordsToPrepend + 1 + 2
+  op.push(getDUPNOp(callMemoryWordsToPrepend + 8))
   // PUSH the method data to stack
   op.push(getPUSHBuffer(methodData))
 
@@ -167,7 +168,7 @@ const getCallTypeReplacement = (
     // address
     getPUSHBuffer(hexStrToBuf(executionManagerAddress)),
     // Gas -- just use the original gas from abov
-    getDUPNOp(8 + callMemoryWordsToPrepend), // 1 (address) + 1 (value) + 4 (memory args) + 1 (replacement index) + callMemoryWordsToPrepend (the preserved words themselves) + 1 (gas was first element of original stack)
+    getDUPNOp(9 + callMemoryWordsToPrepend), // 1 (address) + 1 (value) + 4 (memory args) + 1 (replacement index) + callMemoryWordsToPrepend (the preserved words themselves) + 1 (PC to return to) +1 (gas is element of a CALL stack)
     // CALL!
     {
       opcode: Opcode.CALL,
@@ -175,19 +176,30 @@ const getCallTypeReplacement = (
     }
   )
   // now we have the success result at the top of the stack, so we swap it out to where it will be first after we put back the old memory and pop the original params.
-  // this index should be (1 for memory replacment index + callMemoryWordsToPrepend + numStackArgumentsToPass + 4 for memory offset and calldata for arg vals and return vals))
+  // this index should be:
+  //  +1 for memory replacment index 
+  //  + callMemoryWordsToPrepend 
+  //  +1 for PC of replaced opcode
+  //  + number of args to the original CALL-type
   op.push(
-    getSWAPNOp(1 + callMemoryWordsToPrepend + totalCALLTypeStackArguments)
+    getSWAPNOp(1 + callMemoryWordsToPrepend + 1 + totalCALLTypeStackArguments)
   )
 
   // we swapped with garbage stack which we no longer need since CALL has been executed, so POP
   op.push({ opcode: Opcode.POP, consumedBytes: undefined })
   // now that the success result is out of the way we can return memory to original state, the index and words are first on stack now!
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
+  // POP the index just used to store stack back in memory
+  op.push({opcode: Opcode.POP, consumedBytes: undefined})
+  // expected stack is now: [(PC of replaced opcode), ...[call args missing 1 element from the garbage POP above], (success), ...].  We need to preserve the PC, so swap it to right before the success.
+  op.push(
+    getSWAPNOp(totalCALLTypeStackArguments - 1)
+  )
+
 
   // lastly, POP all the original CALL params which were previously DUPed and modified appropriately.
   op.push(
-    ...new Array(1 + totalCALLTypeStackArguments - 1).fill({
+    ...new Array(totalCALLTypeStackArguments - 1).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
     })

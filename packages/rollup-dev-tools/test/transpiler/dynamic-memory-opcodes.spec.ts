@@ -6,12 +6,14 @@ import {
   getLogger,
   hexStrToBuf,
   bufferUtils,
+  hexStrToNumber,
 } from '@eth-optimism/core-utils'
 import {
   Address,
   bytecodeToBuffer,
   EVMBytecode,
   Opcode,
+  formatBytecode,
 } from '@eth-optimism/rollup-core'
 import * as abiForMethod from 'ethereumjs-abi'
 
@@ -30,7 +32,7 @@ import {
   BIG_ENOUGH_GAS_LIMIT,
 } from '../../src'
 
-const log = getLogger(`test-static-memory-opcodes`)
+const log = getLogger(`static-memory-opcodes`, true)
 
 const abi = new ethers.utils.AbiCoder()
 
@@ -55,6 +57,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
   const retoffset: number = 8 * 32
   const originalArgOffset: number = 4 * 32 + 17 // must exceed 4 * 32 for prepend to be possible
   const originalArgLength: number = 15
+  const PCtoReturnTo: Buffer = hexStrToBuf('0x696969')
 
   const setupStackForCALL: EVMBytecode = setupStackAndCALL(
     BIG_ENOUGH_GAS_LIMIT,
@@ -66,6 +69,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
     retLength
   )
   setupStackForCALL.pop() // pop the CALL itself
+  setupStackForCALL.push(getPUSHBuffer(PCtoReturnTo)) // push a val to represent the PC to jump back to
 
   const deployGetterContract = async (
     util: EvmIntrospectionUtil
@@ -85,12 +89,13 @@ describe('Memory-dynamic Opcode Replacement', () => {
   beforeEach(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()
     getterAddress = await deployGetterContract(evmUtil)
+    log.debug(`deployed getter contract to EVM introspection util.`)
   })
 
   describe('Call-type opcode replacements', () => {
-    it('should parse a CALL replacement', async () => {
+    it.only('should parse a CALL replacement', async () => {
       // mock a transpiler-output replaced CALL
-      const mockMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
+      const mockMemory: Buffer = Buffer.alloc(32 * 10)//.fill(25)
       const mockCallReplacement: EVMBytecode = [
         // fill memory with some random data so that we can confirm it was not modified
         ...setMemory(mockMemory),
@@ -98,6 +103,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
         ...getCALLReplacement(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
+      log.debug(`executings mock CALL replacement with bytecode: \n${formatBytecode(mockCallReplacement)}`)
       const callContext: CallContext = await evmUtil.getCallContext(
         bytecodeToBuffer(mockCallReplacement)
       )
@@ -128,8 +134,9 @@ describe('Memory-dynamic Opcode Replacement', () => {
       finalContext.memory.equals(expectedFinalMemory).should.be.true
 
       // check that (success) bool is only thing left on the stack
-      finalContext.stackDepth.should.equal(1)
-      finalContext.stack[0].should.deep.equal(hexStrToBuf('0x01'))
+      finalContext.stackDepth.should.equal(2)
+      finalContext.stack[0].should.deep.equal(PCtoReturnTo)
+      finalContext.stack[1].should.deep.equal(hexStrToBuf('0x01'))
     })
     it('should parse a STATICCALL replacement', async () => {
       // mock a transpiler-output replaced CALL
