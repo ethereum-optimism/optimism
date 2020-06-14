@@ -95,7 +95,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
   describe('Call-type opcode replacements', () => {
     it.only('should parse a CALL replacement', async () => {
       // mock a transpiler-output replaced CALL
-      const mockMemory: Buffer = Buffer.alloc(32 * 10)//.fill(25)
+      const mockMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
       const mockCallReplacement: EVMBytecode = [
         // fill memory with some random data so that we can confirm it was not modified
         ...setMemory(mockMemory),
@@ -103,7 +103,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
         ...getCALLReplacement(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
-      log.debug(`executings mock CALL replacement with bytecode: \n${formatBytecode(mockCallReplacement)}`)
+
       const callContext: CallContext = await evmUtil.getCallContext(
         bytecodeToBuffer(mockCallReplacement)
       )
@@ -133,12 +133,12 @@ describe('Memory-dynamic Opcode Replacement', () => {
 
       finalContext.memory.equals(expectedFinalMemory).should.be.true
 
-      // check that (success) bool is only thing left on the stack
+      // check that the remaining stack is (PC to return to), (success)
       finalContext.stackDepth.should.equal(2)
       finalContext.stack[0].should.deep.equal(PCtoReturnTo)
       finalContext.stack[1].should.deep.equal(hexStrToBuf('0x01'))
     })
-    it('should parse a STATICCALL replacement', async () => {
+    it.only('should parse a STATICCALL replacement', async () => {
       // mock a transpiler-output replaced CALL
       const mockMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
       // remove the VALUE param from the call
@@ -179,9 +179,10 @@ describe('Memory-dynamic Opcode Replacement', () => {
       ])
       finalContext.memory.equals(expectedFinalMemory).should.be.true
 
-      // check that (success) bool is only thing left on the stack
-      finalContext.stackDepth.should.equal(1)
-      finalContext.stack[0].should.deep.equal(hexStrToBuf('0x01'))
+      // check that the remaining stack is (PC to return to), (success)
+      finalContext.stackDepth.should.equal(2)
+      finalContext.stack[0].should.deep.equal(PCtoReturnTo)
+      finalContext.stack[1].should.deep.equal(hexStrToBuf('0x01'))
     })
   })
   describe('EXTCODECOPY replacement', () => {
