@@ -185,7 +185,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
       finalContext.stack[1].should.deep.equal(hexStrToBuf('0x01'))
     })
   })
-  describe.only('EXTCODECOPY replacement', () => {
+  describe('EXTCODECOPY replacement', () => {
     const addressToRequest: Address =
       '0xbeeebeeebeeebeeebeeebeeebeeebeeeeeeeeeee'
     const length: number = 4
