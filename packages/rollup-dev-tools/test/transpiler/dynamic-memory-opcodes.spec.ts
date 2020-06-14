@@ -93,7 +93,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
   })
 
   describe('Call-type opcode replacements', () => {
-    it.only('should parse a CALL replacement', async () => {
+    it('should parse a CALL replacement', async () => {
       // mock a transpiler-output replaced CALL
       const mockMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
       const mockCallReplacement: EVMBytecode = [
@@ -138,7 +138,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
       finalContext.stack[0].should.deep.equal(PCtoReturnTo)
       finalContext.stack[1].should.deep.equal(hexStrToBuf('0x01'))
     })
-    it.only('should parse a STATICCALL replacement', async () => {
+    it('should parse a STATICCALL replacement', async () => {
       // mock a transpiler-output replaced CALL
       const mockMemory: Buffer = Buffer.alloc(32 * 10).fill(25)
       // remove the VALUE param from the call
@@ -185,12 +185,13 @@ describe('Memory-dynamic Opcode Replacement', () => {
       finalContext.stack[1].should.deep.equal(hexStrToBuf('0x01'))
     })
   })
-  describe('EXTCODECOPY replacement', () => {
+  describe.only('EXTCODECOPY replacement', () => {
     const addressToRequest: Address =
       '0xbeeebeeebeeebeeebeeebeeebeeebeeeeeeeeeee'
     const length: number = 4
     const offset: number = 3
     const destOffset: number = 2
+    const PCtoReturnTo: Buffer = hexStrToBuf('0x696969')
     const setupStackForEXTCODECOPY: EVMBytecode = [
       // fill memory with some random data so that we can confirm it was not modified
       ...setMemory(Buffer.alloc(32 * 10).fill(25)),
@@ -198,6 +199,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
       getPUSHIntegerOp(offset),
       getPUSHIntegerOp(destOffset),
       getPUSHBuffer(hexStrToBuf(addressToRequest)), // address
+      getPUSHBuffer(PCtoReturnTo) // PC to return to
     ]
 
     it('should correctly parse an EXTCODECOPY replacement', async () => {
@@ -227,6 +229,14 @@ describe('Memory-dynamic Opcode Replacement', () => {
       // should call with the correct return memory values
       callContext.input.retOffset.should.equal(destOffset)
       callContext.input.retLength.should.equal(length)
+
+      // check stack has preserved the PC to jump back to
+      const finalContext = await evmUtil.getStepContextBeforeStep(
+        bytecodeToBuffer(extcodesizeReplacement),
+        bytecodeToBuffer(extcodesizeReplacement).length - 1
+      )
+      finalContext.stackDepth.should.equal(1)
+      finalContext.stack[0].should.deep.equal(PCtoReturnTo)
     })
   })
 })

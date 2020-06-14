@@ -22,7 +22,8 @@ export const ovmCREATE2Name = 'ovmCREATE2'
 /**
  * This replaces CREATE Opcode with a CALL to our ExecutionManager.
  * Notably, this:
- *  * Assumes the proper stack and memory is in place to do the un-transpiled CREATE
+ *  * Assumes the proper memory for create and a stack of (PC to return to), (untranspiled CREATE args), ...
+ * STOPPING TODO HEERE DELETE ME and COMPLETE
  *  * Stores memory that will be modified during the proxy operation to the stack
  *  * Safely stores ovmCREATE method id and arguments to memory so it can be passed with the proxy CALL.
  *  * CALLs the specified ovmCREATE function

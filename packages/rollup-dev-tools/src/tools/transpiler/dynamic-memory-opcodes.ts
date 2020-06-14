@@ -211,7 +211,7 @@ const getCallTypeReplacement = (
 /**
  * This replaces EXTCODECOPY Opcode with a CALL to our ExecutionManager.
  * Notably, this:
- *  * Assumes the proper stack is in place to do the un-transpiled EXTCODECOPY
+ *  * Assumes the stack is: [(PPC to return to), ...[EXTCODECOPY untranspiled args], ...]
  *  * Stores memory to be modified to the stack
  *  * Safely stores method id and arguments to CALL argument memory
  *  * CALLs the specified ovmEXTCODECOPY function
@@ -240,12 +240,12 @@ export const getEXTCODECOPYReplacement = (
   // first, we push the memory we're gonna overwrite with calldata onto the stack, so that it may be parsed later.
   // to make sure there is not a collision between call and return data locations, we will store this AFTER (destOffset + length)
   op.push(
-    getDUPNOp(4), // DUP length
-    getDUPNOp(3), // DUP destOffset
+    getDUPNOp(5), // DUP length
+    getDUPNOp(4), // DUP destOffset
     { opcode: Opcode.ADD, consumedBytes: undefined }, // add them to get where we expect to store
     ...pushMemoryOntoStack(callMemoryWordsToPass)
   )
-  // Now, the stack should be [(index of memory to replace), ...[pushed memory to swap back], ...[original stack]]
+  // Now, the stack should be [(index of memory to replace), ...[pushed memory to swap back], (PC to return to), ...[original EXTCODECOPY args], ...]
 
   // We now store the stack params needed by the execution manager into memory to pass as calldata.
   // ovmEXTCODSIZE expects the following raw bytes as parameters:
@@ -255,7 +255,7 @@ export const getEXTCODECOPYReplacement = (
   // *       [length (uint (32))]
   // so we will push thse in reverse order.
 
-  const indexOfOriginalStack: number = 1 + callMemoryWordsToPass
+  const indexOfOriginalStack: number = 1 + callMemoryWordsToPass + 1
   op.push(
     // the final params of addition here (+0, +1, +2) account for the increased stack caused by each preceeding DUP
     getDUPNOp(indexOfOriginalStack + 4 + 0), // length
@@ -270,14 +270,14 @@ export const getEXTCODECOPYReplacement = (
       consumedBytes: undefined,
     }
   )
-  // the stack should now be [(mem index to recover memory to), ...[memory words to recover], ...[original stack]]
+  // the stack should now be [(mem index to recover memory to), ...[memory words to recover], (PC to return to), ...[original EXTCODECOPY args], ...]
   // Now we need to set up the CALL!
   const numBytesForCalldata: number = 4 + numStackWordsToPass * 32 // methodId + (Num params)* 32 bytes/word
   // CALL expects:
   // [gas, addr, value, argsOffset, argsLength, retOffset, retLength, …] -> [success, …]
   op.push(
-    getDUPNOp(0 + 1 + callMemoryWordsToPass + 4), // retLength is same as original stack's `len` (4th element)
-    getDUPNOp(1 + 1 + callMemoryWordsToPass + 2), // retOffset is second stack item of original stack
+    getDUPNOp(0 + 1 + callMemoryWordsToPass + 4 + 1), // retLength is same as original stack's `len` (4th element)
+    getDUPNOp(1 + 1 + callMemoryWordsToPass + 2 + 1), // retOffset is second stack item of original stack
     getPUSHIntegerOp(numBytesForCalldata), // argsLen
     // argsOffset is wherever we stored the params in memory, with added 32-4 = 28 bytes of 0s when methodId was MSTORE'd which we don't want to pass
     getDUPNOp(3 + 1), // three elements were just pushed, next is th index we stored at
@@ -300,7 +300,11 @@ export const getEXTCODECOPYReplacement = (
   // Cleanup time is all that's left!
   op.push(
     ...storeStackInMemory(callMemoryWordsToPass), // recover the original memory we pushed the stack
-    // pop the original stack args which have now served their purpose.  RIP
+    // POP the index of stored memory, no longer needed.
+    {opcode: Opcode.POP, consumedBytes: undefined},
+    // stack should now be [(PC to return to), ...[EXTCODECOPY args], ...].  We need to preserve it so swap it to the end
+    getSWAPNOp(4),
+    // pop the rest of the args which have now served their purpose.  RIP
     ...new Array(4).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
