@@ -19,6 +19,13 @@ vault write immutability-eth-plugin/config rpc_url="$RPC_URL" chain_id="$CHAIN_I
 vault write -output-curl-string immutability-eth-plugin/config rpc_url="$RPC_URL" chain_id="$CHAIN_ID"
 echo ""
 echo "------------------------------------------------------------------"
+echo "READ MOUNT CONFIGURATION"
+echo "vault read immutability-eth-plugin/config"
+vault read immutability-eth-plugin/config
+
+vault read -output-curl-string immutability-eth-plugin/config
+echo ""
+echo "------------------------------------------------------------------"
 echo "CREATE WALLET WITHOUT MNEMONIC"
 echo "vault write -f immutability-eth-plugin/wallets/test-wallet-1"
 vault write -f immutability-eth-plugin/wallets/test-wallet-1

@@ -62,6 +62,24 @@ func AccountPaths(b *PluginBackend) []*framework.Path {
 			`,
 		},
 		&framework.Path{
+			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address") + "/balance"),
+			HelpSynopsis: "Return the balance for an address",
+			HelpDescription: `
+
+Return the balance in wei for an address.
+
+`,
+			Fields: map[string]*framework.FieldSchema{
+				"name":    &framework.FieldSchema{Type: framework.TypeString},
+				"address": &framework.FieldSchema{Type: framework.TypeString},
+			},
+			ExistenceCheck: pathExistenceCheck,
+			Callbacks: map[logical.Operation]framework.OperationFunc{
+				logical.ReadOperation: b.pathReadBalance,
+			},
+		},
+
+		&framework.Path{
 			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address")),
 			HelpSynopsis: "Create an address.",
 			HelpDescription: `

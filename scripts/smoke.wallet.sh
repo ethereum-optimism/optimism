@@ -12,17 +12,24 @@ TEST_AMOUNT=10000000000000000
 
 banner
 echo "CONFIGURE MOUNT"
-echo "vault write immutability-eth-plugin/config  rpc_url='$RPC_URL' chain_id='$CHAIN_ID'"
-vault write immutability-eth-plugin/config rpc_url="$RPC_URL" chain_id="$CHAIN_ID"
+echo "vault write -format=json immutability-eth-plugin/config  rpc_url='$RPC_URL' chain_id='$CHAIN_ID'"
+vault write -format=json immutability-eth-plugin/config rpc_url="$RPC_URL" chain_id="$CHAIN_ID"
 banner
-vault write -output-curl-string immutability-eth-plugin/config rpc_url="$RPC_URL" chain_id="$CHAIN_ID"
+vault write  -output-curl-string immutability-eth-plugin/config rpc_url="$RPC_URL" chain_id="$CHAIN_ID"
+
+banner
+echo "READ MOUNT CONFIGURATION"
+echo "vault read -format=json immutability-eth-plugin/config"
+vault read -format=json immutability-eth-plugin/config
+banner
+vault read  -output-curl-string immutability-eth-plugin/config
 
 banner
 echo "CREATE WALLET WITHOUT MNEMONIC"
-echo "vault write -f immutability-eth-plugin/wallets/test-wallet-1"
-vault write -f immutability-eth-plugin/wallets/test-wallet-1
+echo "vault write -format=json -f immutability-eth-plugin/wallets/test-wallet-1"
+vault write -format=json -f immutability-eth-plugin/wallets/test-wallet-1
 banner
-vault write -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-1
+vault write -format=json -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-1
 
 banner
 echo "LIST WALLETS"
@@ -33,10 +40,10 @@ vault list -output-curl-string immutability-eth-plugin/wallets
 
 banner
 echo "CREATE WALLET WITH MNEMONIC"
-echo "vault write immutability-eth-plugin/wallets/test-wallet-2 mnemonic='$MNEMONIC'"
-vault write immutability-eth-plugin/wallets/test-wallet-2 mnemonic="$MNEMONIC"
+echo "vault write -format=json immutability-eth-plugin/wallets/test-wallet-2 mnemonic='$MNEMONIC'"
+vault write -format=json immutability-eth-plugin/wallets/test-wallet-2 mnemonic="$MNEMONIC"
 banner
-vault write -output-curl-string immutability-eth-plugin/wallets/test-wallet-2 mnemonic="$MNEMONIC"
+vault write  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2 mnemonic="$MNEMONIC"
 
 banner
 echo "LIST WALLETS"
@@ -47,50 +54,50 @@ vault list -output-curl-string immutability-eth-plugin/wallets
 
 banner
 echo "CREATE NEW ACCOUNT IN WALLET"
-echo "vault write -f immutability-eth-plugin/wallets/test-wallet-2/accounts"
+echo "vault write -format=json -f immutability-eth-plugin/wallets/test-wallet-2/accounts"
 ACCOUNT0=$(vault write -f -field=address immutability-eth-plugin/wallets/test-wallet-2/accounts)
 banner
-vault write -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts
+vault write -format=json -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts
 
 banner
 echo "CHECK BALANCE FOR ACCOUNT IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
+echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
+vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
 banner
-vault read -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
+vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
 
 banner
 echo "CREATE SECOND NEW ACCOUNT IN WALLET"
-echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts"
+echo "vault write -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts"
 ACCOUNT1=$(vault write -f -field=address immutability-eth-plugin/wallets/test-wallet-2/accounts)
 banner
-vault write -output-curl-string -f immutability-eth-plugin/wallets/test-wallet-2/accounts
+vault write  -output-curl-string -f immutability-eth-plugin/wallets/test-wallet-2/accounts
 
 banner
 echo "CHECK BALANCE FOR $ACCOUNT1 IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
+echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance"
+vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
 banner
-vault read -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
+vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
 
 banner
 echo "TRANSFER FUNDS FROM $ACCOUNT0 TO $ACCOUNT1" 
-echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT"
-vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT
+echo "vault write -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT"
+vault write -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT
 banner
-vault write -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT
+vault write  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT
 
 banner
 echo "CHECK NEW BALANCE FOR $ACCOUNT0 IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
+echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
+vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
 banner
-vault read -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
+vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
 
 banner
 echo "CHECK NEW BALANCE FOR $ACCOUNT1 IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
+echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance"
+vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
 banner
-vault read -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
+vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
 
