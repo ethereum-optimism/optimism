@@ -94,3 +94,10 @@ vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_A
 banner
 vault write -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT
 
+banner
+echo "*** SHOULD SUCCEED ***" 
+echo "AUTHORIZED SUBMISSION OF BLOCK BY $ORIGINAL_AUTHORITY - USER SUPPLIED GAS PRICE" 
+echo "vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT"
+vault write immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock gas_price=$GAS_PRICE_HIGH block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT
+banner
+vault write -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/submitBlock gas_price=$GAS_PRICE_HIGH block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT

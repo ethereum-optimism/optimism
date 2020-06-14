@@ -94,16 +94,3 @@ vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/bala
 banner
 vault read -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
 
-banner
-echo "SIGN RAW TX FROM ACCOUNT"
-echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to='$ACCOUNT1' data='hello' amount=1000000000000000"
-vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="hello" amount=1000000000000000
-banner
-vault write -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="hello" amount=1000000000000000
-
-banner
-echo "SIGN RAW TX FROM ACCOUNT WITH HEX ENCODING OF DATA"
-echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to='$ACCOUNT1' data='fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19' encoding='hex'  amount=1000000000000000"
-vault write immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19" encoding="hex"  amount=1000000000000000
-banner
-vault write -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/sign-tx to="$ACCOUNT1" data="fad9c8855b740a0b7ed4c221dbad0f33a83a49cad6b3fe8d5817ac83d38b6a19" encoding="hex"  amount=1000000000000000

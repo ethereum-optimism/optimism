@@ -62,10 +62,6 @@ function test_plugin {
 	test_banner
 	/home/vault/scripts/smoke.blacklist.sh
 	test_banner
-	echo "SMOKE TEST ERC20 FUNCTIONALITY"
-	test_banner
-	/home/vault/scripts/smoke.erc20.sh
-	test_banner
 	echo "SMOKE TEST PLASMA FUNCTIONALITY"
 	test_banner
 	/home/vault/scripts/smoke.plasma.sh
