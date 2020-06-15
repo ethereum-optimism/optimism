@@ -177,8 +177,8 @@ const getCallTypeReplacement = (
   )
   // now we have the success result at the top of the stack, so we swap it out to where it will be first after we put back the old memory and pop the original params.
   // this index should be:
-  //  +1 for memory replacment index 
-  //  + callMemoryWordsToPrepend 
+  //  +1 for memory replacment index
+  //  + callMemoryWordsToPrepend
   //  +1 for PC of replaced opcode
   //  + number of args to the original CALL-type
   op.push(
@@ -190,12 +190,9 @@ const getCallTypeReplacement = (
   // now that the success result is out of the way we can return memory to original state, the index and words are first on stack now!
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
   // POP the index just used to store stack back in memory
-  op.push({opcode: Opcode.POP, consumedBytes: undefined})
+  op.push({ opcode: Opcode.POP, consumedBytes: undefined })
   // expected stack is now: [(PC of replaced opcode), ...[call args missing 1 element from the garbage POP above], (success), ...].  We need to preserve the PC, so swap it to right before the success.
-  op.push(
-    getSWAPNOp(totalCALLTypeStackArguments - 1)
-  )
-
+  op.push(getSWAPNOp(totalCALLTypeStackArguments - 1))
 
   // lastly, POP all the original CALL params which were previously DUPed and modified appropriately.
   op.push(
@@ -301,7 +298,7 @@ export const getEXTCODECOPYReplacement = (
   op.push(
     ...storeStackInMemory(callMemoryWordsToPass), // recover the original memory we pushed the stack
     // POP the index of stored memory, no longer needed.
-    {opcode: Opcode.POP, consumedBytes: undefined},
+    { opcode: Opcode.POP, consumedBytes: undefined },
     // stack should now be [(PC to return to), ...[EXTCODECOPY args], ...].  We need to preserve it so swap it to the end
     getSWAPNOp(4),
     // pop the rest of the args which have now served their purpose.  RIP

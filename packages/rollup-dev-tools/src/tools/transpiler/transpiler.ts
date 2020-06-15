@@ -222,16 +222,12 @@ export class TranspilerImpl implements Transpiler {
             constantsUsedByConstructorLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
       }
-      if (
-        isTaggedWithReason(op, [OpcodeTagReason.IS_DEPLOY_CODE_LENGTH])
-      ) {
+      if (isTaggedWithReason(op, [OpcodeTagReason.IS_DEPLOY_CODE_LENGTH])) {
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledDeployedBytecodeByteLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
       }
-      if (
-        isTaggedWithReason(op, [OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET])
-      ) {
+      if (isTaggedWithReason(op, [OpcodeTagReason.IS_DEPLOY_CODECOPY_OFFSET])) {
         transpiledConstructorInitLogic[index].consumedBytes = new BigNum(
           transpiledInitLogicByteLength
         ).toBuffer('be', op.opcode.programBytesConsumed)
@@ -271,9 +267,7 @@ export class TranspilerImpl implements Transpiler {
         opcode: taggedBytecode[index].opcode,
         consumedBytes: taggedBytecode[index].consumedBytes,
       }
-      if (
-        isTaggedWithReason(op, [OpcodeTagReason.IS_CONSTANT_OFFSET])
-      ) {
+      if (isTaggedWithReason(op, [OpcodeTagReason.IS_CONSTANT_OFFSET])) {
         const theConstant: Buffer = op.tag.metadata
         const newConstantOffset: number = inputAsBuf.indexOf(theConstant)
         if (newConstantOffset === -1) {
@@ -660,15 +654,17 @@ export class TranspilerImpl implements Transpiler {
       }
       let transpiledBytecodeReplacement: EVMBytecode
       if (
-        insideUnreachableCode 
-        || !this.opcodeReplacer.shouldReplaceOpcode(opcodeAndBytes.opcode)
+        insideUnreachableCode ||
+        !this.opcodeReplacer.shouldReplaceOpcode(opcodeAndBytes.opcode)
       ) {
         transpiledBytecodeReplacement = [opcodeAndBytes]
       } else {
         // record that we will need to add this opcode to the replacement table
         replacedOpcodes.add(opcodeAndBytes.opcode)
         // jump to the footer where the logic of the replacement will be executed
-        transpiledBytecodeReplacement = this.opcodeReplacer.getJUMPToOpcodeFunction(opcodeAndBytes.opcode)
+        transpiledBytecodeReplacement = this.opcodeReplacer.getJUMPToOpcodeFunction(
+          opcodeAndBytes.opcode
+        )
       }
 
       transpiledBytecode.push(...transpiledBytecodeReplacement)
@@ -694,15 +690,23 @@ export class TranspilerImpl implements Transpiler {
         bytecodeWithTranspiledJumpsPopulated
       )}`
     )
-    
-    const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeFunctionTable(replacedOpcodes)
-    log.debug(`Inserting opcode replacement footer: ${formatBytecode(opcodeReplacementFooter)}`)
+
+    const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeFunctionTable(
+      replacedOpcodes
+    )
+    log.debug(
+      `Inserting opcode replacement footer: ${formatBytecode(
+        opcodeReplacementFooter
+      )}`
+    )
     transpiledBytecode = [
       ...bytecodeWithTranspiledJumpsPopulated,
-      ...opcodeReplacementFooter
+      ...opcodeReplacementFooter,
     ]
 
-    transpiledBytecode = this.opcodeReplacer.populateOpcodeFunctionJUMPs(transpiledBytecode)
+    transpiledBytecode = this.opcodeReplacer.populateOpcodeFunctionJUMPs(
+      transpiledBytecode
+    )
 
     if (!!errors.length) {
       return {
@@ -727,9 +731,11 @@ export class TranspilerImpl implements Transpiler {
         errors: transpilationResult.errors,
       }
     }
-    log.debug(`successfully executed transpileRawBytecode, got result: \n${formatBytecode(
-      transpilationResult.bytecodeWithTags
-    )}`)
+    log.debug(
+      `successfully executed transpileRawBytecode, got result: \n${formatBytecode(
+        transpilationResult.bytecodeWithTags
+      )}`
+    )
     return {
       succeeded: true,
       bytecode: bytecodeToBuffer(transpilationResult.bytecodeWithTags),

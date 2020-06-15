@@ -15,7 +15,7 @@ import * as OriginGetter from '../contracts/build/transpiled/OriginGetter.json'
 import * as CallerReturner from '../contracts/build/transpiled/CallerReturner.json'
 import * as TimeGetter from '../contracts/build/transpiled/TimeGetter.json'
 
-describe.only(`Various opcodes should be usable in combination with transpiler and full node`, () => {
+describe(`Various opcodes should be usable in combination with transpiler and full node`, () => {
   let handler: TestWeb3Handler
   let provider
   let wallet

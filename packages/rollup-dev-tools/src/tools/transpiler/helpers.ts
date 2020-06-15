@@ -168,16 +168,18 @@ export const storeStackInMemoryAtIndex = (
  */
 export const storeStackElementsAsMemoryWords = (
   numStackElementsToStore: number,
-  memoryIndexToStoreAt: number = 0,
+  memoryIndexToStoreAt: number = 0
 ): EVMBytecode => {
-  let op: EVMBytecode = []
+  const op: EVMBytecode = []
   for (let i = 0; i < numStackElementsToStore; i++) {
-    op.push(...[
-      // push storage index
-      getPUSHIntegerOp(i * 32 + memoryIndexToStoreAt),
-      // store the stack item
-      { opcode: Opcode.MSTORE, consumedBytes: undefined },
-    ])
+    op.push(
+      ...[
+        // push storage index
+        getPUSHIntegerOp(i * 32 + memoryIndexToStoreAt),
+        // store the stack item
+        { opcode: Opcode.MSTORE, consumedBytes: undefined },
+      ]
+    )
   }
   return op
 }
@@ -242,7 +244,10 @@ export const getSWAPNOp = (indexToSWAP: number): EVMOpcodeAndBytes => {
 }
 
 // returns whether the given EVMOpcodeAndBytes has a tag reason matching one of the given ones
-export const isTaggedWithReason = (opcodeAndBytes: EVMOpcodeAndBytes, tags: (string | OpcodeTagReason)[]): boolean => {
+export const isTaggedWithReason = (
+  opcodeAndBytes: EVMOpcodeAndBytes,
+  tags: Array<(string | OpcodeTagReason)>
+): boolean => {
   if (opcodeAndBytes.tag === undefined) {
     return false
   }

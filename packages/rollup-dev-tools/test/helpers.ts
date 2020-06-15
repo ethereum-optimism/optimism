@@ -30,7 +30,7 @@ import {
   ErroredTranspilation,
   TranspilerImpl,
   OpcodeReplacer,
-  OpcodeReplacerImpl
+  OpcodeReplacerImpl,
 } from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
@@ -535,12 +535,12 @@ export const mockSSTOREReplacer: OpcodeReplacer = {
         // expected stack: [pc to return to after replacement, key, val]
         {
           opcode: Opcode.SWAP2,
-          consumedBytes: undefined
+          consumedBytes: undefined,
         },
         // expected stack: [val, key, return PC]
         {
           opcode: Opcode.SWAP1,
-          consumedBytes: undefined
+          consumedBytes: undefined,
         },
         // expected stack: [key, val, return PC]
         // now do the SSTORE

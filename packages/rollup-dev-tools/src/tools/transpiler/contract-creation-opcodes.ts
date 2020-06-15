@@ -149,12 +149,11 @@ export const getCREATEReplacement = (
   // now that the success result is out of the way we can return memory to original state, the index and words are first on stack now!
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
   // POP the index used to storeStackInMemeorry
-  op.push({opcode: Opcode.POP, consumedBytes: undefined}),
-
+  op.push({ opcode: Opcode.POP, consumedBytes: undefined })
+  
   // now, the stack should be [(PC to JUMP back to), value, offset, addr] (note that length was swapped and popped with create)
   // swap the PC with value so that we preserve it
   op.push(getSWAPNOp(2))
-
   // lastly, POP the value and offset
   op.push(
     ...new Array(2).fill({
@@ -300,7 +299,7 @@ export const getCREATE2Replacement = (
   // now that the success result is out of the way we can return memory to original state, the index and words are first on stack now!
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
   // POP the index used by storeStackInMemory
-  op.push({opcode: Opcode.POP, consumedBytes: undefined})
+  op.push({ opcode: Opcode.POP, consumedBytes: undefined })
   // stack should now be  [(PC to return to), value, offset, length, (addr of CREATE2ed account)] (note salt was swapped and popped for addr above)
   // SWAP (PC to return to) to preserve it as first element
   op.push(getSWAPNOp(3))

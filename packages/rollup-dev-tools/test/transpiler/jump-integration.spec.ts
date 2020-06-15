@@ -47,9 +47,7 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import {
-  mockSSTOREReplacer
-} from '../helpers'
+import { mockSSTOREReplacer } from '../helpers'
 
 const log = getLogger(`test-solidity-JUMPs`)
 const abi = new ethers.utils.AbiCoder()

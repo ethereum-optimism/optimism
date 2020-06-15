@@ -272,20 +272,21 @@ export const callContractWithStackElementsAndReturnWordToStack = (
     getSWAPNOp(numWordsToStash + numStackArgumentsToPass + 1),
     // POP the extra elements that came from the above duplications
     ...POPNTimes(numWordsToStash + numStackArgumentsToPass),
-
   ]
   if (numStackValuesReturned === 0) {
     // if we don't care about a return value just pop whatever was randomly grabbed from memory
-    op.push(...[
-      {
-        opcode: Opcode.SWAP1,
-        consumedBytes: undefined
-      },
-      {
-        opcode: Opcode.POP,
-        consumedBytes: undefined,
-      }
-    ])
+    op.push(
+      ...[
+        {
+          opcode: Opcode.SWAP1,
+          consumedBytes: undefined,
+        },
+        {
+          opcode: Opcode.POP,
+          consumedBytes: undefined,
+        },
+      ]
+    )
   }
   return op
 }

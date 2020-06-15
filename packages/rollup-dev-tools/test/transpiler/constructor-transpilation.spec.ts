@@ -50,7 +50,11 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import { transpileAndDeployInitcode, stripAuxData, mockSSTOREReplacer } from '../helpers'
+import {
+  transpileAndDeployInitcode,
+  stripAuxData,
+  mockSSTOREReplacer,
+} from '../helpers'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger(`constructor-transpilation`)

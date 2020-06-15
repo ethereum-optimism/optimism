@@ -285,8 +285,10 @@ const fixJUMPsToNodes = (
   bytecode: EVMBytecode,
   indexOfThisBlock: number
 ): EVMBytecode => {
-  for (const pushMatchSuccessOp of bytecode.filter(
-    (op) => isTaggedWithReason(op, [OpcodeTagReason.IS_PUSH_JUMPDEST_MATCH_SUCCESS_LOCATION])
+  for (const pushMatchSuccessOp of bytecode.filter((op) =>
+    isTaggedWithReason(op, [
+      OpcodeTagReason.IS_PUSH_JUMPDEST_MATCH_SUCCESS_LOCATION,
+    ])
   )) {
     pushMatchSuccessOp.consumedBytes = bufferUtils.numberToBuffer(
       indexOfThisBlock,
@@ -294,8 +296,10 @@ const fixJUMPsToNodes = (
       PC_MAX_BYTES
     )
   }
-  for (const pushBSTNodeOp of bytecode.filter(
-    (op) => isTaggedWithReason(op, [OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION])
+  for (const pushBSTNodeOp of bytecode.filter((op) =>
+    isTaggedWithReason(op, [
+      OpcodeTagReason.IS_PUSH_BINARY_SEARCH_NODE_LOCATION,
+    ])
   )) {
     const rightChild: BinarySearchTreeNode =
       pushBSTNodeOp.tag.metadata.node.right
@@ -303,8 +307,9 @@ const fixJUMPsToNodes = (
     const rightChildJumpdestIndexInBytecodeBlock = bytecode.findIndex(
       (toCheck: EVMOpcodeAndBytes) => {
         return (
-          isTaggedWithReason(toCheck, [OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST])
-          && toCheck.tag.metadata.node === rightChild
+          isTaggedWithReason(toCheck, [
+            OpcodeTagReason.IS_BINARY_SEARCH_NODE_JUMPDEST,
+          ]) && toCheck.tag.metadata.node === rightChild
         )
       }
     )

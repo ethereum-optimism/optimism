@@ -211,8 +211,11 @@ describe('Static Memory Opcode Replacement', () => {
             numWordsToReturn as 0 | 1
           )
 
-
-          log.debug(`setupAndExecuteStaticMemoryCall(...) bytecode for ${numStackElsToPass} numStackElsToPass and ${numWordsToReturn} numWordsToReturn is: \n${formatBytecode(setupContextAndExecuteCall)}`)
+          log.debug(
+            `setupAndExecuteStaticMemoryCall(...) bytecode for ${numStackElsToPass} numStackElsToPass and ${numWordsToReturn} numWordsToReturn is: \n${formatBytecode(
+              setupContextAndExecuteCall
+            )}`
+          )
 
           const callContext: CallContext = await evmUtil.getCallContext(
             bytecodeToBuffer(setupContextAndExecuteCall)
@@ -239,7 +242,12 @@ describe('Static Memory Opcode Replacement', () => {
             numWordsToReturn + 1,
             `Stack does not match requested number of words returned(${numWordsToReturn}) + 1 for preserved first stack element`
           )
-          bufferUtils.padLeft(finalContext.stack[0], 32).should.deep.eq(thisStack[0], 'Operation did not preserve the first stack element correctly')
+          bufferUtils
+            .padLeft(finalContext.stack[0], 32)
+            .should.deep.eq(
+              thisStack[0],
+              'Operation did not preserve the first stack element correctly'
+            )
           if (numWordsToReturn === 1) {
             finalContext.stack[1].should.deep.equal(
               valToReturn,

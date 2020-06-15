@@ -191,7 +191,6 @@ describe('Memory-dynamic Opcode Replacement', () => {
     const length: number = 4
     const offset: number = 3
     const destOffset: number = 2
-    const PCtoReturnTo: Buffer = hexStrToBuf('0x696969')
     const setupStackForEXTCODECOPY: EVMBytecode = [
       // fill memory with some random data so that we can confirm it was not modified
       ...setMemory(Buffer.alloc(32 * 10).fill(25)),
@@ -199,7 +198,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
       getPUSHIntegerOp(offset),
       getPUSHIntegerOp(destOffset),
       getPUSHBuffer(hexStrToBuf(addressToRequest)), // address
-      getPUSHBuffer(PCtoReturnTo) // PC to return to
+      getPUSHBuffer(PCtoReturnTo), // PC to return to
     ]
 
     it('should correctly parse an EXTCODECOPY replacement', async () => {

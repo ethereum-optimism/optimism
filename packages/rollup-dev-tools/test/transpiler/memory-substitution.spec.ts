@@ -227,7 +227,7 @@ describe('Memory Replacement Operations', () => {
       finalContext.memory.should.deep.equal(fourRandomWords)
     })
 
-    it.only('Memory operations between a pushtoStack and storeInMemory operation should not have any effect', async () => {
+    it('Memory operations between a pushtoStack and storeInMemory operation should not have any effect', async () => {
       const numWordsToStore = 10
       const memoryModifyingBytecode: EVMBytecode = [
         ...storeNWordsInMemorySequential(numWordsToStore),
