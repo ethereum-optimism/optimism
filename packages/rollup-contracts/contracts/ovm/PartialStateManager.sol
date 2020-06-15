@@ -25,6 +25,7 @@ contract PartialStateManager {
     mapping(address=>address) ovmCodeContracts;
 
     bool public existsInvalidStateAccess;
+    bool public isTransactionSuccessfullyExecuted;
 
     mapping(address=>mapping(bytes32=>bool)) isVerifiedStorage;
     mapping(address=>bool) isVerifiedContract;
@@ -32,11 +33,23 @@ contract PartialStateManager {
     uint updatedStorageCounter;
     mapping(uint=>address) updatedContracts;
     uint updatedContractsCounter;
+    bytes32 stateRoot;
+
+    modifier preExecution {
+        require(!isTransactionSuccessfullyExecuted, "Function only callable before tx execution.");
+        _;
+    }
+
+    modifier postExecution {
+        require(isTransactionSuccessfullyExecuted, "Function only callable after tx execution.");
+        _;
+    }
 
     /**
      * @notice Construct a new FullStateManager with a specified safety checker.
      */
-    constructor(address _safetyCheckerAddress, address _fraudVerifierAddress) public {
+    constructor(bytes32 _stateRoot, address _safetyCheckerAddress, address _fraudVerifierAddress) public {
+        stateRoot = _stateRoot;
         safetyChecker = SafetyChecker(_safetyCheckerAddress);
         fraudVerifier = FraudVerifier(_fraudVerifierAddress);
     }
@@ -57,6 +70,13 @@ contract PartialStateManager {
     function initNewTransactionExecution() external {
         require(msg.sender == address(fraudVerifier));
         existsInvalidStateAccess = false;
+        updatedStorageCounter = 0;
+        updatedContractsCounter = 0;
+    }
+
+    function setIsTransitionSuccessfullyExecuted(bool _isTransactionSuccessfullyExecuted) external {
+        require(msg.sender == address(fraudVerifier));
+        isTransactionSuccessfullyExecuted = _isTransactionSuccessfullyExecuted;
     }
 
     function ensureVerifiedStorage(address _ovmContractAddress, bytes32 _slot) private {
@@ -70,6 +90,48 @@ contract PartialStateManager {
             existsInvalidStateAccess = true;
         }
     }
+
+    /****************
+    * Pre-Execution *
+    ****************/
+
+    function verifyStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external preExecution {
+        // TODO: Verify inclusion proof against root
+
+        isVerifiedStorage[_ovmContractAddress][_slot] = true;
+        ovmContractStorage[_ovmContractAddress][_slot] = _value;
+    }
+
+    function verifyContract(address _ovmContractAddress, bytes32 _codeHash, uint _nonce) external preExecution {
+        // TODO: Verify inclusion proof against root
+        // TODO: Get the actual code contract addr from the registry
+        address _codeContractAddress = 0x0000000000000000000000000000000000000000;
+
+        isVerifiedContract[_ovmContractAddress] = true;
+        ovmContractNonces[_ovmContractAddress] = _nonce;
+        associateCodeContract(_ovmContractAddress, _codeContractAddress);
+    }
+
+    /*****************
+    * Post-Execution *
+    *****************/
+
+    // TODO:
+    function updateStorageNode(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external postExecution {
+        // TODO: Finish filling out this function...
+        // Get the next storage we need to update using the updatedStorageCounter
+        address contractAddressToUpdate = address(bytes20(updatedStorage[updatedStorageCounter - 1]));
+        bytes32 storageKeyToUpdate = updatedStorage[updatedStorageCounter];
+        bytes32 storageValueToUpdate = getStorage(contractAddressToUpdate, storageKeyToUpdate);
+
+        // Update the storage / store the new root
+
+        // Then decrement the updatedStorageCounter (we go reverse through the updated storage).
+        // Note that when this hits zero we'll have updated all storage slots that were changed during
+        // transaction execution.
+        updatedStorageCounter -= 2;
+    }
+    // function updateContractNode(...) external postExecution {}
 
     /**********
     * Storage *
@@ -111,7 +173,6 @@ contract PartialStateManager {
     /*********
     * Nonces *
     *********/
-    // This is used during contract creation to determine the contract address
 
     /**
      * @notice Get the nonce for a particular OVM contract
@@ -262,7 +323,6 @@ contract PartialStateManager {
         // Add this contract to the list of updated contracts
         updatedContracts[updatedContractsCounter] = _newOvmContractAddress;
         updatedContractsCounter += 1;
-
 
         return codeContractAddress;
     }
