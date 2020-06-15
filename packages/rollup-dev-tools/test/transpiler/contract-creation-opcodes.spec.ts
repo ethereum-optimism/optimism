@@ -21,8 +21,8 @@ import {
   ExecutionResult,
   CallContext,
   EvmIntrospectionUtilImpl,
-  getCREATEReplacement,
-  getCREATE2Replacement,
+  getCREATESubstitute,
+  getCREATE2Substitute,
   getPUSHBuffer,
   getPUSHIntegerOp,
 } from '../../src'
@@ -81,7 +81,7 @@ describe('Contract Creation Opcode Replacements', () => {
       getPUSHIntegerOp(initcodeOffset),
       getPUSHIntegerOp(0), // value input, will be ignored by transpiled bytecode
       getPUSHBuffer(PCtoReturnTo),
-      ...getCREATEReplacement(getterAddress, getMethodName),
+      ...getCREATESubstitute(getterAddress, getMethodName),
       { opcode: Opcode.RETURN, consumedBytes: undefined },
     ]
     // mock a transpiler-output replaced CREATE
@@ -93,7 +93,7 @@ describe('Contract Creation Opcode Replacements', () => {
       getPUSHIntegerOp(initcodeOffset),
       getPUSHIntegerOp(0), // value input, will be ignored by transpiled bytecode
       getPUSHBuffer(PCtoReturnTo),
-      ...getCREATE2Replacement(getterAddress, getMethodName),
+      ...getCREATE2Substitute(getterAddress, getMethodName),
       { opcode: Opcode.RETURN, consumedBytes: undefined },
     ]
   })

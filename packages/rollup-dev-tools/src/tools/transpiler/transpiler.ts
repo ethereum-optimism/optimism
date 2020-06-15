@@ -544,7 +544,7 @@ export class TranspilerImpl implements Transpiler {
 
   // This function transpiles "deployed bytecode"-type bytecode, operating on potentially tagged EVMBytecode (==EVMOpcodeAndBytes[]).
   // It preserves all .tags values of the EVMOpcodeAndBytes UNLESS:
-  // 1. The opcode is replaced by the replacer. (aka replaceIfNecessary() does not just return the input
+  // 1. The opcode is replaced by the replacer. (aka getSubstituedFunctionFor() does not just return the input
   // 2. The EVMOpcodeAndBytes is a JUMP/JUMPI/JUMPDEST (aka affected by the JUMP table)
   private transpileBytecodePreservingTags(
     bytecode: EVMBytecode
@@ -655,7 +655,7 @@ export class TranspilerImpl implements Transpiler {
       let transpiledBytecodeReplacement: EVMBytecode
       if (
         insideUnreachableCode ||
-        !this.opcodeReplacer.shouldReplaceOpcode(opcodeAndBytes.opcode)
+        !this.opcodeReplacer.shouldSubstituteOpcodeForFunction(opcodeAndBytes.opcode)
       ) {
         transpiledBytecodeReplacement = [opcodeAndBytes]
       } else {

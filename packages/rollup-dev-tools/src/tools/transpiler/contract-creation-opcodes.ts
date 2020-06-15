@@ -32,7 +32,7 @@ export const ovmCREATE2Name = 'ovmCREATE2'
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmCREATEFunctionName (ONLY USED FOR TESTING) The function name in the Execution Manager to handle CREATEs.
  */
-export const getCREATEReplacement = (
+export const getCREATESubstitute = (
   executionManagerAddress: Address,
   ovmCREATEFunctionName: string = ovmCREATEName
 ): EVMBytecode => {
@@ -178,7 +178,7 @@ export const getCREATEReplacement = (
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmCREATE2FunctionName The function name in the Execution Manager to handle CREATE2s.
  */
-export const getCREATE2Replacement = (
+export const getCREATE2Substitute = (
   executionManagerAddress: Address,
   ovmCREATE2FunctionName: string = ovmCREATE2Name
 ): EVMBytecode => {

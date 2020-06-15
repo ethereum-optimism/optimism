@@ -26,9 +26,9 @@ import {
 import { EvmIntrospectionUtilImpl } from '../../src/tools/vm'
 import { setMemory, setupStackAndCALL } from '../helpers'
 import {
-  getCALLReplacement,
-  getSTATICCALLReplacement,
-  getEXTCODECOPYReplacement,
+  getCALLSubstitute,
+  getSTATICCALLSubstitute,
+  getEXTCODECOPYSubstitute,
   BIG_ENOUGH_GAS_LIMIT,
 } from '../../src'
 
@@ -100,7 +100,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
         // fill memory with some random data so that we can confirm it was not modified
         ...setMemory(mockMemory),
         ...setupStackForCALL,
-        ...getCALLReplacement(getterAddress, getMethodName),
+        ...getCALLSubstitute(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
 
@@ -147,7 +147,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
         // fill memory with some random data so that we can confirm it was not modified
         ...setMemory(mockMemory),
         ...setupStackForCALL,
-        ...getSTATICCALLReplacement(getterAddress, getMethodName),
+        ...getSTATICCALLSubstitute(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const callContext: CallContext = await evmUtil.getCallContext(
@@ -204,7 +204,7 @@ describe('Memory-dynamic Opcode Replacement', () => {
     it('should correctly parse an EXTCODECOPY replacement', async () => {
       const extcodesizeReplacement: EVMBytecode = [
         ...setupStackForEXTCODECOPY,
-        ...getEXTCODECOPYReplacement(getterAddress, getMethodName),
+        ...getEXTCODECOPYSubstitute(getterAddress, getMethodName),
         { opcode: Opcode.RETURN, consumedBytes: undefined },
       ]
       const callContext: CallContext = await evmUtil.getCallContext(

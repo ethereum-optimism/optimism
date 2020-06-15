@@ -27,24 +27,24 @@ import {
   UnsupportedOpcodeError,
 } from '../../index'
 import {
-  getCALLReplacement,
-  getSTATICCALLReplacement,
-  getDELEGATECALLReplacement,
-  getEXTCODECOPYReplacement,
+  getCALLSubstitute,
+  getSTATICCALLSubstitute,
+  getDELEGATECALLSubstitute,
+  getEXTCODECOPYSubstitute,
 } from './dynamic-memory-opcodes'
 import {
-  getCREATEReplacement,
-  getCREATE2Replacement,
+  getCREATESubstitute,
+  getCREATE2Substitute,
 } from './contract-creation-opcodes'
 import {
-  getADDRESSReplacement,
-  getCALLERReplacement,
-  getEXTCODEHASHReplacement,
-  getEXTCODESIZEReplacement,
-  getORIGINReplacement,
-  getSLOADReplacement,
-  getSSTOREReplacement,
-  getTIMESTAMPReplacement,
+  getADDRESSSubstitute,
+  getCALLERSubstitute,
+  getEXTCODEHASHSubstitute,
+  getEXTCODESIZESubstitute,
+  getORIGINSubstitute,
+  getSLOADSubstitute,
+  getSSTORESubstitute,
+  getTIMESTAMPSubstitute,
 } from './static-memory-opcodes'
 import { getPUSHIntegerOp, getPUSHOpcode, isTaggedWithReason } from './helpers'
 import { PC_MAX_BYTES } from './constants'
@@ -121,14 +121,14 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   }
 
   /**
-   * Gets whether or not the repacer is configured to change functionality of the given opcode.
+   * Gets whether or not the opcode replacer is configured to change functionality of the given opcode.
    * @param opcodeAndBytes EVM opcode and consumed bytes which might need to be replaced.
    *
    * @returns Whether this opcode needs to get replaced.
    */
-  public shouldReplaceOpcode(opcode: EVMOpcode): boolean {
+  public shouldSubstituteOpcodeForFunction(opcode: EVMOpcode): boolean {
     return (
-      !!this.getMandatoryReplacement({
+      !!this.getManadatorySubstitutedFunction({
         opcode,
         consumedBytes: undefined,
       }) || this.optionalReplacements.has(opcode)
@@ -231,7 +231,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
             },
           },
           // replacement logic - TODO replace this with new getters which account for the extra stack elemnt
-          ...this.replaceIfNecessary({ opcode, consumedBytes: undefined }),
+          ...this.getSubstituedFunctionFor({ opcode, consumedBytes: undefined }),
           ...this.getJUMPOnOpcodeFunctionReturn(opcode),
         ]
       )
@@ -295,13 +295,14 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   }
 
   /**
-   * Gets the specified replacement bytecode for a given EVM opcode and bytes
-   * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced.
+   * Gets the specified function bytecode meant to be substituted for a given EVM opcode and bytes.
+   * The function will be JUMPed to, and back from, in place of executing the un-transpiled opcode.
+   * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced with JUMPing to the returned function.
    *
    * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
    */
-  public replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
-    const replacement: EVMBytecode = this.getMandatoryReplacement(
+  public getSubstituedFunctionFor(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
+    const replacement: EVMBytecode = this.getManadatorySubstitutedFunction(
       opcodeAndBytes
     )
     if (!!replacement) {
@@ -315,64 +316,64 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     }
   }
 
-  private getMandatoryReplacement(
+  private getManadatorySubstitutedFunction(
     opcodeAndBytes: EVMOpcodeAndBytes
   ): EVMBytecode {
     switch (opcodeAndBytes.opcode) {
       case Opcode.ADDRESS:
-        return getADDRESSReplacement(
+        return getADDRESSSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.CALL:
-        return getCALLReplacement(
+        return getCALLSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.CALLER:
-        return getCALLERReplacement(
+        return getCALLERSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.CREATE:
-        return getCREATEReplacement(
+        return getCREATESubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.CREATE2:
-        return getCREATE2Replacement(
+        return getCREATE2Substitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.DELEGATECALL:
-        return getDELEGATECALLReplacement(
+        return getDELEGATECALLSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.EXTCODECOPY:
-        return getEXTCODECOPYReplacement(
+        return getEXTCODECOPYSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.EXTCODEHASH:
-        return getEXTCODEHASHReplacement(
+        return getEXTCODEHASHSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.EXTCODESIZE:
-        return getEXTCODESIZEReplacement(
+        return getEXTCODESIZESubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.ORIGIN:
-        return getORIGINReplacement(
+        return getORIGINSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.SLOAD:
-        return getSLOADReplacement(
+        return getSLOADSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.SSTORE:
-        return getSSTOREReplacement(
+        return getSSTORESubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.STATICCALL:
-        return getSTATICCALLReplacement(
+        return getSTATICCALLSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.TIMESTAMP:
-        return getTIMESTAMPReplacement(
+        return getTIMESTAMPSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       default:

@@ -30,7 +30,7 @@ export const ovmEXTCODECOPYName: string = 'ovmEXTCODECOPY'
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmCALLFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle DELEGTECALLs.
  */
-export const getCALLReplacement = (
+export const getCALLSubstitute = (
   executionManagerAddress: Address,
   ovmCALLFunctionName: string = ovmCALLName
 ): EVMBytecode => {
@@ -48,7 +48,7 @@ export const getCALLReplacement = (
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmSTATICCALLFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle DELEGTECALLs.
  */
-export const getSTATICCALLReplacement = (
+export const getSTATICCALLSubstitute = (
   executionManagerAddress: Address,
   ovmSTATICCALLFunctionName: string = ovmSTATICCALLName
 ): EVMBytecode => {
@@ -70,7 +70,7 @@ export const getSTATICCALLReplacement = (
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmDELEGATECALLFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle DELEGTECALLs.
  */
-export const getDELEGATECALLReplacement = (
+export const getDELEGATECALLSubstitute = (
   executionManagerAddress: Address,
   ovmDELEGATECALLFunctionName: string = ovmDELEGATECALLName
 ): EVMBytecode => {
@@ -218,7 +218,7 @@ const getCallTypeReplacement = (
  * @param ovmEXTCODECOPYFunctionName (ONLY USE FOR TESTING) The function name in the Execution Manager to handle EXTCODECOPYs.
  */
 
-export const getEXTCODECOPYReplacement = (
+export const getEXTCODECOPYSubstitute = (
   executionManagerAddress: Address,
   ovmEXTCODECOPYFunctionName: string = ovmEXTCODECOPYName
 ) => {

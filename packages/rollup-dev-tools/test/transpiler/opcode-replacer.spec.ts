@@ -39,10 +39,10 @@ describe('OpcodeReplacer', () => {
     })
 
     const assertReplaced = (r: OpcodeReplacer, opcode: EVMOpcode): void => {
-      const shouldReplace = r.shouldReplaceOpcode(opcode)
+      const shouldReplace = r.shouldSubstituteOpcodeForFunction(opcode)
       shouldReplace.should.eq(true)
 
-      const res = r.replaceIfNecessary({
+      const res = r.getSubstituedFunctionFor({
         opcode,
         consumedBytes: undefined,
       })
@@ -130,7 +130,7 @@ describe('OpcodeReplacer', () => {
 
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.MUL, // different opcode
         consumedBytes: undefined,
       })
@@ -151,7 +151,7 @@ describe('OpcodeReplacer', () => {
 
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })
@@ -169,7 +169,7 @@ describe('OpcodeReplacer', () => {
       ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })
@@ -186,7 +186,7 @@ describe('OpcodeReplacer', () => {
       ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })
@@ -219,7 +219,7 @@ describe('OpcodeReplacer', () => {
       const executionManagerAddress = ZERO_ADDRESS
       const replacer = new OpcodeReplacerImpl(executionManagerAddress, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })

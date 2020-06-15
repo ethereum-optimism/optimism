@@ -27,7 +27,7 @@ export const ovmSLOADName: string = 'ovmSLOAD'
 export const ovmSSTOREName: string = 'ovmSSTORE'
 export const ovmTIMESTAMPName: string = 'ovmTIMESTAMP'
 
-export const getADDRESSReplacement = (
+export const getADDRESSSubstitute = (
   executionManagerAddress: Address,
   ovmADDRESSFunctionName: string = ovmADDRESSName
 ): EVMBytecode => {
@@ -39,7 +39,7 @@ export const getADDRESSReplacement = (
   )
 }
 
-export const getCALLERReplacement = (
+export const getCALLERSubstitute = (
   executionManagerAddress: Address,
   ovmCALLERFunctionName: string = ovmCALLERName
 ): EVMBytecode => {
@@ -51,7 +51,7 @@ export const getCALLERReplacement = (
   )
 }
 
-export const getEXTCODEHASHReplacement = (
+export const getEXTCODEHASHSubstitute = (
   executionManagerAddress: Address,
   ovmEXTCODEHASHFunctionName: string = ovmEXTCODEHASHName
 ): EVMBytecode => {
@@ -63,7 +63,7 @@ export const getEXTCODEHASHReplacement = (
   )
 }
 
-export const getEXTCODESIZEReplacement = (
+export const getEXTCODESIZESubstitute = (
   executionManagerAddress: Address,
   ovmEXTCODESIZEFunctionName: string = ovmEXTCODESIZEName
 ): EVMBytecode => {
@@ -75,7 +75,7 @@ export const getEXTCODESIZEReplacement = (
   )
 }
 
-export const getORIGINReplacement = (
+export const getORIGINSubstitute = (
   executionManagerAddress: Address,
   ovmORIGINFunctionName: string = ovmORIGINName
 ): EVMBytecode => {
@@ -87,7 +87,7 @@ export const getORIGINReplacement = (
   )
 }
 
-export const getSLOADReplacement = (
+export const getSLOADSubstitute = (
   executionManagerAddress: Address,
   ovmSLOADFunctionName: string = ovmSLOADName
 ): EVMBytecode => {
@@ -99,7 +99,7 @@ export const getSLOADReplacement = (
   )
 }
 
-export const getSSTOREReplacement = (
+export const getSSTORESubstitute = (
   executionManagerAddress: Address,
   ovmSSTOREFunctionName: string = ovmSSTOREName
 ): EVMBytecode => {
@@ -111,7 +111,7 @@ export const getSSTOREReplacement = (
   )
 }
 
-export const getTIMESTAMPReplacement = (
+export const getTIMESTAMPSubstitute = (
   executionManagerAddress: Address,
   ovmTIMESTAMPFunctionName: string = ovmTIMESTAMPName
 ): EVMBytecode => {

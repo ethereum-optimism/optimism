@@ -509,10 +509,10 @@ export const mockSSTOREReplacer: OpcodeReplacer = {
   getJUMPOnOpcodeFunctionReturn: defaultReplacer.getJUMPOnOpcodeFunctionReturn,
   getOpcodeFunctionTable: defaultReplacer.getOpcodeFunctionTable,
   populateOpcodeFunctionJUMPs: defaultReplacer.populateOpcodeFunctionJUMPs,
-  shouldReplaceOpcode(op: EVMOpcode): boolean {
+  shouldSubstituteOpcodeForFunction(op: EVMOpcode): boolean {
     return op === Opcode.SSTORE
   },
-  replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
+  getSubstituedFunctionFor(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
     if (opcodeAndBytes.opcode === Opcode.SSTORE) {
       return [
         // Do random PUSH POPs to increase codesize
