@@ -104,7 +104,7 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
-    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) external {
+    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) public {
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
@@ -183,6 +183,10 @@ contract FullStateManager is StateManager {
             // Contract runtime bytecode is not pure.
             return ZERO_ADDRESS;
         }
+
+        // Associate the code contract with our ovm contract
+        associateCodeContract(_newOvmContractAddress, codeContractAddress);
+
         return codeContractAddress;
     }
 }

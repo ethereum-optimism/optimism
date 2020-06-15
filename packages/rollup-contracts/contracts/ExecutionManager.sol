@@ -582,8 +582,6 @@ contract ExecutionManager {
             restoreContractContext(oldMsgSender, oldActiveContract);
             return false;
         }
-        // Associate the code contract with our ovm contract
-        stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
         bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
