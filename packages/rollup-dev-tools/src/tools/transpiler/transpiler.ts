@@ -655,7 +655,9 @@ export class TranspilerImpl implements Transpiler {
       let transpiledBytecodeReplacement: EVMBytecode
       if (
         insideUnreachableCode ||
-        !this.opcodeReplacer.shouldSubstituteOpcodeForFunction(opcodeAndBytes.opcode)
+        !this.opcodeReplacer.shouldSubstituteOpcodeForFunction(
+          opcodeAndBytes.opcode
+        )
       ) {
         transpiledBytecodeReplacement = [opcodeAndBytes]
       } else {

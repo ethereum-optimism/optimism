@@ -65,10 +65,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    */
   constructor(
     executionManagerAddress: Address,
-    private readonly optionalSubstitutes: Map<
+    private readonly optionalSubstitutes: Map<EVMOpcode, EVMBytecode> = new Map<
       EVMOpcode,
       EVMBytecode
-    > = new Map<EVMOpcode, EVMBytecode>()
+    >()
   ) {
     // check and store address
     if (!isValidHexAddress(executionManagerAddress)) {
@@ -230,7 +230,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
               metadata: opcode,
             },
           },
-          ...this.getSubstituedFunctionFor({ opcode, consumedBytes: undefined }),
+          ...this.getSubstituedFunctionFor({
+            opcode,
+            consumedBytes: undefined,
+          }),
           ...this.getJUMPOnOpcodeFunctionReturn(opcode),
         ]
       )
@@ -290,7 +293,9 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    *
    * @returns The EVMBytecode we have decided to substitute the opcodeAndBytes with.
    */
-  public getSubstituedFunctionFor(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
+  public getSubstituedFunctionFor(
+    opcodeAndBytes: EVMOpcodeAndBytes
+  ): EVMBytecode {
     const substitute: EVMBytecode = this.getManadatorySubstitutedFunction(
       opcodeAndBytes
     )
