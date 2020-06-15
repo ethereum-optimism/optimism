@@ -61,11 +61,11 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    * Creates an OpcodeReplacer, validating the provided address and any given replacements.
    *
    * @param executionManagerAddress The address of the ExecutionManager -- all calls get routed through this contract.
-   * @param optionalReplacements Optional opcodes to replace with bytecode.
+   * @param optionalSubstitutes Optional opcodes to replace with bytecode.
    */
   constructor(
     executionManagerAddress: Address,
-    private readonly optionalReplacements: Map<
+    private readonly optionalSubstitutes: Map<
       EVMOpcode,
       EVMBytecode
     > = new Map<EVMOpcode, EVMBytecode>()
@@ -80,39 +80,39 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
     this.excutionManagerAddressBuffer = hexStrToBuf(executionManagerAddress)
 
     for (const [
-      toReplace,
-      bytecodeToReplaceWith,
-    ] of optionalReplacements.entries()) {
+      toSubstitute,
+      bytecodeToSubstituteWith,
+    ] of optionalSubstitutes.entries()) {
       // Make sure we're not attempting to overwrite PUSHN, not yet supported
-      if (toReplace.programBytesConsumed > 0) {
-        const msg: string = `Transpilation currently does not support opcodes which consume bytes, but config specified a replacement for ${JSON.stringify(
-          toReplace
+      if (toSubstitute.programBytesConsumed > 0) {
+        const msg: string = `Transpilation currently does not support opcodes which consume bytes, but config specified a substitute for ${JSON.stringify(
+          toSubstitute
         )}.`
         log.error(msg)
         throw new UnsupportedOpcodeError(msg)
       }
 
-      // for each operation in the replacement bytecode for this toReplace...
-      for (const replacementBytes of bytecodeToReplaceWith) {
+      // for each operation in the substituted function's bytecode for this toSubstitute...
+      for (const substituteBytes of bytecodeToSubstituteWith) {
         // ... replace execution manager placeholder
         if (
-          !!replacementBytes.consumedBytes &&
-          replacementBytes.consumedBytes.equals(
+          !!substituteBytes.consumedBytes &&
+          substituteBytes.consumedBytes.equals(
             OpcodeReplacerImpl.EX_MGR_PLACEHOLDER
           )
         ) {
-          replacementBytes.consumedBytes = this.excutionManagerAddressBuffer
+          substituteBytes.consumedBytes = this.excutionManagerAddressBuffer
         }
 
         // ...type check consumed bytes are the right length
-        if (!isValidOpcodeAndBytes(replacementBytes)) {
+        if (!isValidOpcodeAndBytes(substituteBytes)) {
           const msg: string = `Replacement config specified a ${
-            replacementBytes.opcode.name
+            substituteBytes.opcode.name
           } as an operation in the replacement bytecode for ${
-            toReplace.name
+            toSubstitute.name
           }, but the consumed bytes specified was ${bufToHexString(
-            replacementBytes.consumedBytes
-          )}--invalid length! (length ${replacementBytes.consumedBytes.length})`
+            substituteBytes.consumedBytes
+          )}--invalid length! (length ${substituteBytes.consumedBytes.length})`
           log.error(msg)
           throw new InvalidBytesConsumedError(msg)
         }
@@ -131,13 +131,13 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
       !!this.getManadatorySubstitutedFunction({
         opcode,
         consumedBytes: undefined,
-      }) || this.optionalReplacements.has(opcode)
+      }) || this.optionalSubstitutes.has(opcode)
     )
   }
 
   /**
-   * Gets a chunk of bytecode which will JUMP to the location of the given opcode replacement, and allow JUMPing back on completion
-   * @param opcode The opcode whose replacement we should JUMP to
+   * Gets a chunk of bytecode which will JUMP to the location of the given opcode substitute, and allow JUMPing back on completion
+   * @param opcode The opcode whose substitute we should JUMP to
    *
    * @returns The EVMBytecode implementing the above functionality.
    */
@@ -167,7 +167,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
           metadata: opcode,
         },
       },
-      // allow jumping back once the replacement opcode was executed
+      // allow jumping back once the substituted function was executed
       {
         opcode: Opcode.JUMPDEST,
         consumedBytes: undefined,
@@ -210,10 +210,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   }
 
   /**
-   * Gets a piece of bytecode containing replacements for the given set of opcodes
-   * @param opcodeAndBytes The set of opcodes to provide replacements for in the returned bytcode.
+   * Gets a piece of bytecode containing substitutes for the given set of opcodes
+   * @param opcodeAndBytes The set of opcodes to provide substitutes for in the returned bytcode.
    *
-   * @returns Bytecode which can be JUMPed to, executing the opcodes' replacements, and returning back to the original PC.
+   * @returns Bytecode which can be JUMPed to, executing the opcodes' substitutes, and returning back to the original PC.
    */
   public getOpcodeFunctionTable(opcodes: Set<EVMOpcode>): EVMBytecode {
     const bytecodeToReturn: EVMBytecode = []
@@ -230,7 +230,6 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
               metadata: opcode,
             },
           },
-          // replacement logic - TODO replace this with new getters which account for the extra stack elemnt
           ...this.getSubstituedFunctionFor({ opcode, consumedBytes: undefined }),
           ...this.getJUMPOnOpcodeFunctionReturn(opcode),
         ]
@@ -240,24 +239,14 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
   }
 
   /**
-   * Takes some bytecode which has had opcodes replaced, and the replacement table appended,
-   * but with tagged PUSHes of the replacement's jumpdest PC not yet set, and sets them
+   * Takes some bytecode which has had opcodes substituted, and the substitute table appended,
+   * but with tagged PUSHes of the substitutes jumpdest PC not yet set, and sets them
    * @param taggedBytecode EVM bytecode with some IS_PUSH_OPCODE_FUNCTION_LOCATION tags
    *
-   * @returns The final EVMBytecode with the correct PUSH(jumpdest PC) for all replacement jumps.
+   * @returns The final EVMBytecode with the correct PUSH(jumpdest PC) for all substituted jumps.
    */
   public populateOpcodeFunctionJUMPs(taggedBytecode: EVMBytecode): EVMBytecode {
-    // todo delete these debugss
-    log.debug(
-      `push replacement reason is: ${OpcodeTagReason.IS_PUSH_OPCODE_FUNCTION_LOCATION}`
-    )
-    log.debug(
-      `is oppcode replacement reason is: ${OpcodeTagReason.IS_OPCODE_FUNCTION_JUMPDEST}`
-    )
-    log.debug(
-      `asked to fix replacement jumps for ${formatBytecode(taggedBytecode)}`
-    )
-    for (const PUSHOpcodeReplacementLocation of taggedBytecode.filter((op) =>
+    for (const PUSHOpcodeSubstituteLocation of taggedBytecode.filter((op) =>
       isTaggedWithReason(op, [OpcodeTagReason.IS_PUSH_OPCODE_FUNCTION_LOCATION])
     )) {
       const indexInBytecode = taggedBytecode.findIndex(
@@ -266,13 +255,13 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
             isTaggedWithReason(toCheck, [
               OpcodeTagReason.IS_OPCODE_FUNCTION_JUMPDEST,
             ]) &&
-            toCheck.tag.metadata === PUSHOpcodeReplacementLocation.tag.metadata
+            toCheck.tag.metadata === PUSHOpcodeSubstituteLocation.tag.metadata
           )
         }
       )
       if (indexInBytecode === -1) {
         throw new Error(
-          `unable to find replacment location for opcode ${PUSHOpcodeReplacementLocation.tag.metadata.name}`
+          `unable to find replacment location for opcode ${PUSHOpcodeSubstituteLocation.tag.metadata.name}`
         )
       }
       const PCOfBytecode = getPCOfEVMBytecodeIndex(
@@ -289,7 +278,7 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
           destinationBuf
         )}`
       )
-      PUSHOpcodeReplacementLocation.consumedBytes = destinationBuf
+      PUSHOpcodeSubstituteLocation.consumedBytes = destinationBuf
     }
     return taggedBytecode
   }
@@ -299,20 +288,20 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
    * The function will be JUMPed to, and back from, in place of executing the un-transpiled opcode.
    * @param opcodeAndBytes EVM opcode and consumed bytes which is supposed to be replaced with JUMPing to the returned function.
    *
-   * @returns The EVMBytecode we have decided to replace opcodeAndBytes with.
+   * @returns The EVMBytecode we have decided to substitute the opcodeAndBytes with.
    */
   public getSubstituedFunctionFor(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
-    const replacement: EVMBytecode = this.getManadatorySubstitutedFunction(
+    const substitute: EVMBytecode = this.getManadatorySubstitutedFunction(
       opcodeAndBytes
     )
-    if (!!replacement) {
-      return replacement
+    if (!!substitute) {
+      return substitute
     }
 
-    if (!this.optionalReplacements.has(opcodeAndBytes.opcode)) {
+    if (!this.optionalSubstitutes.has(opcodeAndBytes.opcode)) {
       return [opcodeAndBytes]
     } else {
-      return this.optionalReplacements.get(opcodeAndBytes.opcode)
+      return this.optionalSubstitutes.get(opcodeAndBytes.opcode)
     }
   }
 
