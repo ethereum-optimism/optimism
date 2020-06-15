@@ -150,7 +150,7 @@ export const getCREATEReplacement = (
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
   // POP the index used to storeStackInMemeorry
   op.push({ opcode: Opcode.POP, consumedBytes: undefined })
-  
+
   // now, the stack should be [(PC to JUMP back to), value, offset, addr] (note that length was swapped and popped with create)
   // swap the PC with value so that we preserve it
   op.push(getSWAPNOp(2))

@@ -246,7 +246,7 @@ export const getSWAPNOp = (indexToSWAP: number): EVMOpcodeAndBytes => {
 // returns whether the given EVMOpcodeAndBytes has a tag reason matching one of the given ones
 export const isTaggedWithReason = (
   opcodeAndBytes: EVMOpcodeAndBytes,
-  tags: Array<(string | OpcodeTagReason)>
+  tags: Array<string | OpcodeTagReason>
 ): boolean => {
   if (opcodeAndBytes.tag === undefined) {
     return false
