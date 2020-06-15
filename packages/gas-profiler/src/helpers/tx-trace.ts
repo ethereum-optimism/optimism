@@ -191,6 +191,36 @@ const parseCodeLines = (source: string): CodeTrace => {
   return codeTrace;
 }
 
+/**
+ * Utility; checks that a given line is part of the main contract.
+ * @param sourceLine code line / source map chunk to check.
+ * @param sourceLines list of all source map chunks.
+ * @returns `true` if the line is part of the main contract, `false` otherwise.
+ */
+const isMainContract = (sourceLine: CodeLine, sourceLines: CodeLine[]): boolean => {
+  return sourceLine.chunk.index === sourceLines[0].chunk.index;
+}
+
+/**
+ * Utility; mainly necessary for Solidity < 0.6.0; checks whether a line of
+ * code is actually a trampoline to a different line.
+ * @param sourceLine code line / source map chunk to check.
+ * @param sourceLines list of all source map chunks.
+ * @returns `true` if the line is a trampoline, `false` otherwise.
+ */
+const isTrampoline = (sourceLine: CodeLine, sourceLines: CodeLine[]): boolean => {
+  return sourceLine.line === sourceLines[0].line;
+}
+
+/**
+ * Seeks the next JUMPDEST instruction that brings execution back to the parent contract.
+ * Sets the line number for intermediate instructions to equal the final JUMPDEST line.
+ * @param structLogs parsed source map.
+ * @param instructionIndices mapping between the source map and instruction indices.
+ * @param sourceLines mapping between instruction indices and code lines.
+ * @param start position of the JUMP instruction to seek from.
+ * @returns traces for instructions from the JUMP to the final JUMPDEST.
+ */
 const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sourceLines: CodeLine[], start: number): InstructionTrace[] => {
   let intermediateLogs: StructLog[] = [];
   let logIndex = start;
@@ -208,8 +238,12 @@ const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sou
   }
   while (
     structLog.op !== 'JUMPDEST' ||
-    sourceLine.chunk.index !== sourceLines[0].chunk.index ||
-    sourceLine.line === sourceLines[0].line
+    // Make sure this JUMPDEST brings us back to the main contract.
+    !isMainContract(sourceLine, sourceLines) ||
+    // Solidity <0.6.0 uses trampolines when returning from external contract calls.
+    // First JUMPDEST will therefore have an incorrect line number.
+    // Instead, we need to wait until we're out of the trampoline.
+    isTrampoline(sourceLine, sourceLines)
   );
 
   let intermediateTraces: InstructionTrace[] = [];
@@ -267,7 +301,8 @@ export const getTransactionTrace = async (
     const instructionIndex = instructionIndices[structLog.pc];
     const sourceLine = sourceLines[instructionIndex];
 
-    if (structLog.op === 'JUMP' && sourceLine.chunk.index === sourceLines[0].chunk.index) {
+    if (structLog.op === 'JUMP' && isMainContract(sourceLine, sourceLines)) {
+      // Instructions between JUMP and JUMPDEST should be attributed to JUMPDEST's line.
       const intermediateTraces = seekJumpDest(structLogs, instructionIndices, sourceLines, i);
       instructionTraces = instructionTraces.concat(intermediateTraces);
       i += intermediateTraces.length - 1;
@@ -282,6 +317,7 @@ export const getTransactionTrace = async (
     }
   }
 
+  // Clean things up a bit and collect traces by line.
   const codeTrace: CodeTrace = parseCodeLines(source);
   for (const instructionTrace of instructionTraces) {
     codeTrace[instructionTrace.line].instructions.push(instructionTrace);

@@ -82,17 +82,6 @@ export class GasProfiler {
   }
 
   /**
-   * Prettifies a code trace.
-   * @param trace trace to print.
-   * @returns prettified trace
-   */
-  public prettify(
-    trace: CodeTrace
-  ): string {
-    return prettifyTransactionTrace(trace);
-  }
-
-  /**
    * Executes a set of given method calls and returns gas used and the result.
    * Does not generate a full profile.
    * @param target compiled contract JSON object.
@@ -101,16 +90,22 @@ export class GasProfiler {
    */
   public async execute(
     target: ContractJson,
-    parameters: ProfileParameters[],
-  ): Promise<ProfileResult[]> {
+    parameters: ProfileParameters,
+  ): Promise<ProfileResult> {
     this._checkReady();
 
-    const profiles: ProfileResult[] = [];
-    for (const parameter of parameters) {
-      profiles.push(await this._runTransaction(target, parameter));
-    }
+    return this._runTransaction(target, parameters)
+  }
 
-    return profiles;
+  /**
+   * Prettifies a code trace.
+   * @param trace trace to print.
+   * @returns prettified trace
+   */
+  public prettify(
+    trace: CodeTrace
+  ): string {
+    return prettifyTransactionTrace(trace);
   }
 
   /**

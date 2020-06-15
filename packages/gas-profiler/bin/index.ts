@@ -47,7 +47,7 @@ parser.addArgument(
  [ '-t', '--trace' ],
  {
    action: 'storeTrue',
-   help: `Generates a full gas trace. Source file must be specified.`,
+   help: `(Optional) Generates a full gas trace. Source file must be specified.`,
    dest: 'trace',
  },
 );
@@ -73,12 +73,10 @@ const main = async () => {
     console.log(pretty);
     console.log('Total gas used: ', profile.gasUsed);
   } else {
-    const profile = await profiler.execute(contract, [
-      {
-        method: args.method,
-        params: args.params,
-      }
-    ])[0];
+    const profile = await profiler.execute(contract, {
+      method: args.method,
+      params: args.params,
+    });
     console.log('Total gas used: ', profile.gasUsed);
   }
 
