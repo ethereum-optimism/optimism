@@ -98,7 +98,7 @@ describe('Contract Creation Opcode Replacements', () => {
     ]
   })
 
-  describe.only('CREATE replacement', () => {
+  describe('CREATE replacement', () => {
     it('should pass the right calldata', async () => {
       const callContext: CallContext = await evmUtil.getCallContext(
         bytecodeToBuffer(mockCREATEReplacement)
@@ -126,7 +126,7 @@ describe('Contract Creation Opcode Replacements', () => {
     })
   })
 
-  describe('CREATE2 replacement', () => {
+  describe.only('CREATE2 replacement', () => {
     it('should pass the right calldata', async () => {
       const callContext: CallContext = await evmUtil.getCallContext(
         bytecodeToBuffer(mockCREATE2Replacement)
@@ -149,8 +149,9 @@ describe('Contract Creation Opcode Replacements', () => {
       finalContext.memory.equals(mockMemory).should.be.true
 
       // check that returned address is only thing left on the stack
-      finalContext.stackDepth.should.equal(1)
-      finalContext.stack[0].should.deep.equal(hexStrToBuf(valToReturn))
+      finalContext.stackDepth.should.equal(2)
+      finalContext.stack[0].should.deep.equal(PCtoReturnTo)
+      finalContext.stack[1].should.deep.equal(hexStrToBuf(valToReturn))
     })
   })
 })
