@@ -126,7 +126,7 @@ describe('Contract Creation Opcode Replacements', () => {
     })
   })
 
-  describe.only('CREATE2 replacement', () => {
+  describe('CREATE2 replacement', () => {
     it('should pass the right calldata', async () => {
       const callContext: CallContext = await evmUtil.getCallContext(
         bytecodeToBuffer(mockCREATE2Replacement)
