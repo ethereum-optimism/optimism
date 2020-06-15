@@ -187,8 +187,16 @@ export class Environment {
   public static l1ToL2TxProcessorPersistentDbPath(defaultValue?: string) {
     return process.env.L1_TO_L2_TX_PROCESSOR_PERSISTENT_DB_PATH || defaultValue
   }
-
   public static l1ToL2TxProcessorPrivateKey(defaultValue?: string) {
     return process.env.L1_TO_L2_TX_PROCESSOR_PRIVATE_KEY || defaultValue
   }
+
+  // L1 to L2 Tx Batch Processor Config
+  public static transactionBatchSubmissionToAddress(defaultValue?: string) {
+    return process.env.TRANSACTION_BATCH_SUBMISSION_TO_ADDRESS || defaultValue
+  }
+  public static transactionBatchSubmissionMethodId(defaultValue?: string) {
+    return process.env.TRANSACTION_BATCH_SUBMISSION_METHOD_ID || defaultValue
+  }
+
 }

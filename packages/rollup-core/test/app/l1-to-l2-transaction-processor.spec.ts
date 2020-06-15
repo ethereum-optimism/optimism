@@ -81,7 +81,7 @@ describe('L1 to L2 Transaction Processor', () => {
       _target,
       `Incorrect target!`
     )
-    listener.receivedTransactions[0].callData.should.equal(
+    listener.receivedTransactions[0].calldata.should.equal(
       _callData,
       `Incorrect calldata!`
     )
@@ -136,7 +136,7 @@ describe('L1 to L2 Transaction Processor', () => {
       _target,
       `Incorrect target!`
     )
-    listener.receivedTransactions[0].callData.should.equal(
+    listener.receivedTransactions[0].calldata.should.equal(
       _callData,
       `Incorrect calldata!`
     )
@@ -153,7 +153,7 @@ describe('L1 to L2 Transaction Processor', () => {
       target2,
       `Incorrect target 2!`
     )
-    listener.receivedTransactions[1].callData.should.equal(
+    listener.receivedTransactions[1].calldata.should.equal(
       callData2,
       `Incorrect calldata 2!`
     )
@@ -208,7 +208,7 @@ describe('L1 to L2 Transaction Processor', () => {
       _target,
       `Incorrect target!`
     )
-    listener.receivedTransactions[0].callData.should.equal(
+    listener.receivedTransactions[0].calldata.should.equal(
       _callData,
       `Incorrect calldata!`
     )
@@ -225,7 +225,7 @@ describe('L1 to L2 Transaction Processor', () => {
       target2,
       `Incorrect target 2!`
     )
-    listener.receivedTransactions[1].callData.should.equal(
+    listener.receivedTransactions[1].calldata.should.equal(
       callData2,
       `Incorrect calldata 2!`
     )

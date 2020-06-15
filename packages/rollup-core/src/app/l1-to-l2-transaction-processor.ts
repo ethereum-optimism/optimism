@@ -59,7 +59,7 @@ export class L1ToL2TransactionProcessor
       nonce: event.values['_nonce'].toNumber(),
       sender: event.values['_sender'],
       target: event.values['_target'],
-      callData: event.values['_callData'],
+      calldata: event.values['_callData'],
     }
 
     await this.add(transaction.nonce, transaction)

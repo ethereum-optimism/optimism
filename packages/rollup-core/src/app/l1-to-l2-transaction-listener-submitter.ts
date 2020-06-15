@@ -72,7 +72,7 @@ export class L1ToL2TransactionListenerSubmitter
       gasLimit: GAS_LIMIT,
       to: transaction.target,
       value: 0,
-      data: add0x(transaction.callData),
+      data: add0x(transaction.calldata),
       chainId: CHAIN_ID,
     }
 

@@ -1,6 +1,8 @@
 /* External Imports */
 import { BigNumber } from '@eth-optimism/core-utils'
 
+import {TransactionResponse} from 'ethers/providers/abstract-provider'
+
 // TODO: Probably not necessary?
 //  Maybe just a map from token -> contract slot index (e.g. {ETH: 1, BAT: 2, REP: 3})?
 export type TokenType = number
@@ -22,7 +24,16 @@ export interface L1ToL2Transaction {
   nonce: number
   sender: Address
   target: Address
-  callData: string
+  calldata: string
+}
+
+export interface TimestampedL1ToL2Transactions {
+  timestamp: number
+  transactions: L1ToL2Transaction[]
+}
+
+export interface L1ToL2CalldataTransactionParser {
+  parseTransactions(transaction: TransactionResponse): Promise<L1ToL2Transaction[]>
 }
 
 // TODO: Update when the format is known

@@ -95,6 +95,13 @@ export class L1ToL2TransactionBatchListenerSubmitter
     log.debug(`L1 to L2 Transaction applied to L2. Tx hash: ${receipt.hash}`)
   }
 
+  /**
+   * Builds the necessary Transaction to send the provided L1ToL2TransactionBatch
+   * to the L2 node.
+   *
+   * @param transactionBatch The transaction batch to wrap in a signed Transaction
+   * @return The signed Transaction.
+   */
   private async getSignedBatchTransaction(
     transactionBatch: L1ToL2TransactionBatch
   ): Promise<string> {
@@ -111,6 +118,13 @@ export class L1ToL2TransactionBatchListenerSubmitter
     return this.wallet.sign(tx)
   }
 
+  /**
+   * Gets the calldata for the Transaction to send to the L2 node. Specifically, this
+   * swaps out the first 4 bytes (Method ID) of the calldata in favor of the Method ID
+   * of the L2 node method to call to submit the batch.
+   *
+   * @param l1Calldata The L1 Calldata for the Transaction Batch.
+   */
   private async getL2TransactionBatchCalldata(
     l1Calldata: string
   ): Promise<string> {

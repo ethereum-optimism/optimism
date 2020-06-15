@@ -826,7 +826,7 @@ export class DefaultWeb3Handler
       this.getTimestamp(),
       0,
       transaction.target,
-      transaction.callData,
+      transaction.calldata,
       ZERO_ADDRESS,
       transaction.sender,
       false,

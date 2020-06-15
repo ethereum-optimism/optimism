@@ -30,7 +30,8 @@ export class EthereumEventProcessor {
 
   constructor(
     private readonly db: DB,
-    private readonly earliestBlock: number = 0
+    private readonly earliestBlock: number = 0,
+    private readonly confirmsUntilFinal: number = 1
   ) {
     this.subscriptions = new Map<string, Set<EthereumListener<EthereumEvent>>>()
     this.currentBlockNumber = 0
@@ -74,6 +75,33 @@ export class EthereumEventProcessor {
       log.debug(`Received live event: ${JSON.stringify(data)}`)
       const ethersEvent: ethers.Event = data[data.length - 1]
       const event: EthereumEvent = this.createEventFromEthersEvent(ethersEvent)
+
+      if (this.confirmsUntilFinal > 1) {
+        log.debug(
+          `Waiting for ${
+            this.confirmsUntilFinal
+          } confirms before disseminating event: ${JSON.stringify(data)}`
+        )
+        // TODO: What happens on re-org? I think we're stuck waiting on this confirmation that will never come forever.
+        try {
+          await contract.provider.waitForTransaction(
+            event.transactionHash,
+            this.confirmsUntilFinal
+          )
+        } catch (e) {
+          logError(
+            log,
+            `Error waiting for ${
+              this.confirmsUntilFinal
+            } confirms on event ${JSON.stringify(data)}`,
+            e
+          )
+          // TODO: If this is not a re-org, this may require a restart or some other action.
+          //  Monitor what actually happens and re-throw here if necessary.
+          return
+        }
+      }
+
       await this.handleEvent(event)
       try {
         await this.db.put(
