@@ -1,9 +1,10 @@
-pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import {StateManager} from "../StateManager.sol";
 import {SafetyChecker} from "../SafetyChecker.sol";
+import {FraudVerifier} from "./FraudVerifier.sol";
+import {ExecutionManager} from "../ExecutionManager.sol";
 
 /**
  * @title PartialStateManager
@@ -11,24 +12,63 @@ import {SafetyChecker} from "../SafetyChecker.sol";
  *         It is supplied with only the state which is used to execute a single transaction. This
  *         is unlike the FullStateManager which has access to every storage slot.
  */
-contract PartialStateManager is StateManager {
+contract PartialStateManager {
+    address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+
     SafetyChecker safetyChecker;
+    FraudVerifier fraudVerifier;
+    ExecutionManager executionManager;
 
-    address owner;
 
-    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-    // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
     mapping(address=>address) ovmCodeContracts;
 
+    bool public existsInvalidStateAccess;
+
+    mapping(address=>mapping(bytes32=>bool)) isVerifiedStorage;
+    mapping(address=>bool) isVerifiedContract;
+    mapping(uint=>bytes32) updatedStorage;
+    uint updatedStorageCounter;
+    mapping(uint=>address) updatedContracts;
+    uint updatedContractsCounter;
+
     /**
      * @notice Construct a new FullStateManager with a specified safety checker.
-     * @param _safetyCheckerAddress The address of the safety checker we will be using
      */
-    constructor(address _safetyCheckerAddress, address _owner) public {
+    constructor(address _safetyCheckerAddress, address _fraudVerifierAddress) public {
         safetyChecker = SafetyChecker(_safetyCheckerAddress);
-        owner = _owner;
+        fraudVerifier = FraudVerifier(_fraudVerifierAddress);
+    }
+
+    /**
+     * @notice This is a seperate function because it allows us to first deploy the state manager,
+     * then deploy the execution manager (passing in the state manager address), and then set the execution manager
+     * address in the state manager. This is a bit ugly & probably should be thought through a bit more.
+     */
+    function setExecutionManager(address _executionManagerAddress) public {
+        require(msg.sender == address(fraudVerifier));
+        executionManager = ExecutionManager(_executionManagerAddress);
+    }
+
+    /**
+     * @notice Initialize a new transaction execution
+     */
+    function initNewTransactionExecution() external {
+        require(msg.sender == address(fraudVerifier));
+        existsInvalidStateAccess = false;
+    }
+
+    function ensureVerifiedStorage(address _ovmContractAddress, bytes32 _slot) private {
+        if (!isVerifiedStorage[_ovmContractAddress][_slot]) {
+            existsInvalidStateAccess = true;
+        }
+    }
+
+    function ensureVerifiedContract(address _ovmContractAddress) private {
+        if (!isVerifiedContract[_ovmContractAddress]) {
+            existsInvalidStateAccess = true;
+        }
     }
 
     /**********
@@ -41,7 +81,10 @@ contract PartialStateManager is StateManager {
      * @param _slot The slot we're querying.
      * @return The bytes32 value stored at the particular slot.
      */
-    function getStorage(address _ovmContractAddress, bytes32 _slot) public view returns(bytes32) {
+    function getStorage(address _ovmContractAddress, bytes32 _slot) public returns(bytes32) {
+        require(msg.sender == address(executionManager));
+        ensureVerifiedStorage(_ovmContractAddress, _slot);
+
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
@@ -52,6 +95,15 @@ contract PartialStateManager is StateManager {
      * @param _value The value we will set the storage to.
      */
     function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) public {
+        require(msg.sender == address(executionManager));
+        ensureVerifiedStorage(_ovmContractAddress, _slot);
+
+        // Add this storage slot to the list of updated storage
+        updatedStorage[updatedStorageCounter] = bytes32(bytes20(_ovmContractAddress));
+        updatedStorage[updatedStorageCounter+1] = _slot;
+        updatedStorageCounter += 2;
+
+        // Set the new storage value
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
@@ -66,7 +118,10 @@ contract PartialStateManager is StateManager {
      * @param _ovmContractAddress The contract we're getting the nonce of.
      * @return The contract nonce used for contract creation.
      */
-    function getOvmContractNonce(address _ovmContractAddress) public view returns(uint) {
+    function getOvmContractNonce(address _ovmContractAddress) public returns(uint) {
+        require(msg.sender == address(executionManager));
+        ensureVerifiedContract(_ovmContractAddress);
+
         return ovmContractNonces[_ovmContractAddress];
     }
 
@@ -76,6 +131,14 @@ contract PartialStateManager is StateManager {
      * @param _value The new nonce.
      */
     function setOvmContractNonce(address _ovmContractAddress, uint _value) public {
+        require(msg.sender == address(executionManager));
+        ensureVerifiedContract(_ovmContractAddress);
+
+        // Add this contract to the list of updated contracts
+        updatedContracts[updatedContractsCounter] = _ovmContractAddress;
+        updatedContractsCounter += 1;
+
+        // Return the nonce
         ovmContractNonces[_ovmContractAddress] = _value;
     }
 
@@ -84,6 +147,14 @@ contract PartialStateManager is StateManager {
      * @param _ovmContractAddress The contract we're incrementing by 1 the nonce of.
      */
     function incrementOvmContractNonce(address _ovmContractAddress) public {
+        require(msg.sender == address(executionManager));
+        ensureVerifiedContract(_ovmContractAddress);
+
+        // Add this contract to the list of updated contracts
+        updatedContracts[updatedContractsCounter] = _ovmContractAddress;
+        updatedContractsCounter += 1;
+
+        // Increment the nonce
         ovmContractNonces[_ovmContractAddress] += 1;
     }
 
@@ -100,6 +171,8 @@ contract PartialStateManager is StateManager {
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
     function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) public {
+        require(msg.sender == address(executionManager));
+
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
@@ -108,7 +181,9 @@ contract PartialStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
-    function getCodeContractAddress(address _ovmContractAddress) public view returns(address) {
+    function getCodeContractAddress(address _ovmContractAddress) public returns(address) {
+        ensureVerifiedContract(_ovmContractAddress);
+
         return ovmCodeContracts[_ovmContractAddress];
     }
 
@@ -155,6 +230,9 @@ contract PartialStateManager is StateManager {
         address _newOvmContractAddress,
         bytes memory _ovmContractInitcode
     ) public returns(address codeContractAddress) {
+        require(msg.sender == address(executionManager));
+        ensureVerifiedContract(_newOvmContractAddress);
+
         // Safety check the initcode
         if (!safetyChecker.isBytecodeSafe(_ovmContractInitcode)) {
             // Contract initcode is not safe.
@@ -177,6 +255,15 @@ contract PartialStateManager is StateManager {
             // Contract runtime bytecode is not safe.
             return ZERO_ADDRESS;
         }
+
+        // Associate the code contract with the ovm contract
+        associateCodeContract(_newOvmContractAddress, codeContractAddress);
+
+        // Add this contract to the list of updated contracts
+        updatedContracts[updatedContractsCounter] = _newOvmContractAddress;
+        updatedContractsCounter += 1;
+
+
         return codeContractAddress;
     }
 }
