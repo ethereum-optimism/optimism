@@ -98,6 +98,8 @@ export class L1ToL2TransactionSynchronizer
       topics: this.topics,
     })
 
+    logs.sort((a, b) => a.logIndex - b.logIndex)
+
     const l1ToL2TransactionArrays: L1ToL2Transaction[][] = await Promise.all(
       logs.map((l) => this.getTransactionsFromLog(l))
     )

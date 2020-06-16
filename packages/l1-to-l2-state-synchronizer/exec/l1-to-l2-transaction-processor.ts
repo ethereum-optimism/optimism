@@ -10,9 +10,7 @@ import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
 import {
   Environment,
   initializeL1Node,
-  initializeL2Node,
   L1NodeContext,
-  L2NodeContext,
   L1ToL2TransactionProcessor,
   L1ToL2TransactionEventName,
   L1ToL2TransactionListener,
@@ -20,7 +18,7 @@ import {
   CHAIN_ID,
 } from '@eth-optimism/rollup-core'
 
-import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
+import { JsonRpcProvider, Provider } from 'ethers/providers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
 import { Wallet } from 'ethers'
@@ -116,7 +114,7 @@ const getDB = (isTestMode: boolean = false): DB => {
   if (isTestMode) {
     return newInMemoryDB()
   } else {
-    if (!Environment.l1ToL2TxProcessorPersistentDbPath()) {
+    if (!Environment.stateSynchronizerPersistentDbPath()) {
       log.error(
         `No L1_TO_L2_TX_PROCESSOR_PERSISTENT_DB_PATH environment variable present. Please set one!`
       )
@@ -124,7 +122,7 @@ const getDB = (isTestMode: boolean = false): DB => {
     }
 
     return new BaseDB(
-      getLevelInstance(Environment.l1ToL2TxProcessorPersistentDbPath())
+      getLevelInstance(Environment.stateSynchronizerPersistentDbPath())
     )
   }
 }
@@ -139,9 +137,9 @@ const getDB = (isTestMode: boolean = false): DB => {
  */
 const getWallet = (provider: JsonRpcProvider): Wallet => {
   let wallet: Wallet
-  if (!!Environment.l1ToL2TxProcessorPrivateKey()) {
+  if (!!Environment.stateSynchronizerPrivateKey()) {
     wallet = new Wallet(
-      add0x(Environment.l1ToL2TxProcessorPrivateKey()),
+      add0x(Environment.stateSynchronizerPrivateKey()),
       provider
     )
     log.info(
@@ -178,9 +176,9 @@ const initializeDBPaths = (isTestMode: boolean) => {
   } else {
     if (Environment.clearDataKey() && !fs.existsSync(getClearDataFilePath())) {
       log.info(`Detected change in CLEAR_DATA_KEY. Purging data...`)
-      rimraf.sync(`${Environment.l1ToL2TxProcessorPersistentDbPath()}/{*,.*}`)
+      rimraf.sync(`${Environment.stateSynchronizerPersistentDbPath()}/{*,.*}`)
       log.info(
-        `L2 RPC Server data purged from '${Environment.l1ToL2TxProcessorPersistentDbPath()}/{*,.*}'`
+        `L2 RPC Server data purged from '${Environment.stateSynchronizerPersistentDbPath()}/{*,.*}'`
       )
       makeDataDirectory()
     }
@@ -191,7 +189,7 @@ const initializeDBPaths = (isTestMode: boolean) => {
  * Makes the data directory for this full node and adds a clear data key file if it is configured to use one.
  */
 const makeDataDirectory = () => {
-  fs.mkdirSync(Environment.l1ToL2TxProcessorPersistentDbPath(), {
+  fs.mkdirSync(Environment.stateSynchronizerPersistentDbPath(), {
     recursive: true,
   })
   if (Environment.clearDataKey()) {
@@ -200,7 +198,7 @@ const makeDataDirectory = () => {
 }
 
 const getClearDataFilePath = () => {
-  return `${Environment.l1ToL2TxProcessorPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
+  return `${Environment.stateSynchronizerPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
 }
 
 if (typeof require !== 'undefined' && require.main === module) {
