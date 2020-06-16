@@ -198,5 +198,4 @@ export class Environment {
   public static transactionBatchSubmissionMethodId(defaultValue?: string) {
     return process.env.TRANSACTION_BATCH_SUBMISSION_METHOD_ID || defaultValue
   }
-
 }

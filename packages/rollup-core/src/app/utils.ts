@@ -1,10 +1,10 @@
 /* External Imports */
-import {bufToHexString, remove0x} from '@eth-optimism/core-utils'
+import { bufToHexString, remove0x } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
-import {Address, EVMBytecode, EVMOpcodeAndBytes, Opcode} from '../types'
+import { Address, EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
 
 /**
  * Creates an unsigned transaction and returns its calldata.

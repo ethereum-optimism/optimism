@@ -4,7 +4,12 @@ import {
   DB,
   EthereumListener,
 } from '@eth-optimism/core-db'
-import {getLogger, Logger, numberToHexString, remove0x} from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  Logger,
+  numberToHexString,
+  remove0x,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -12,15 +17,20 @@ import {
   TimestampedL1ToL2Transactions,
   L1ToL2TransactionLogParserContext,
 } from '../types'
-import {Block, JsonRpcProvider, Provider, TransactionResponse} from 'ethers/providers'
-import {Log} from 'ethers/providers/abstract-provider'
-import {Wallet} from 'ethers'
-import {addressesAreEqual} from './utils'
+import {
+  Block,
+  JsonRpcProvider,
+  Provider,
+  TransactionResponse,
+} from 'ethers/providers'
+import { Log } from 'ethers/providers/abstract-provider'
+import { Wallet } from 'ethers'
+import { addressesAreEqual } from './utils'
 
 const log: Logger = getLogger('l1-to-l2-transition-synchronizer')
 
 // params: [timestampHex, transactionsArrayJSON, signedTransactionsArrayJSON]
-const sendL1ToL2TransactionsMethod: string = "optimism_sendL1ToL2Transactions"
+const sendL1ToL2TransactionsMethod: string = 'optimism_sendL1ToL2Transactions'
 
 export class L1ToL2TransactionSynchronizer
   extends BaseQueuedPersistedProcessor<TimestampedL1ToL2Transactions>
@@ -68,31 +78,47 @@ export class L1ToL2TransactionSynchronizer
     persistenceKey: string = L1ToL2TransactionSynchronizer.persistenceKey
   ) {
     super(db, persistenceKey)
-    this.topicMap = new Map<string, L1ToL2TransactionLogParserContext>(logContexts.map(x => [x.topic, x]))
+    this.topicMap = new Map<string, L1ToL2TransactionLogParserContext>(
+      logContexts.map((x) => [x.topic, x])
+    )
     this.topics = Array.from(this.topicMap.keys())
-    this.l2Provider = (l2Wallet.provider as JsonRpcProvider)
+    this.l2Provider = l2Wallet.provider as JsonRpcProvider
   }
 
   /**
    * @inheritDoc
    */
   public async handle(block: Block): Promise<void> {
-    log.debug(`Received block ${block.number}. Searching for any contained L1toL2Transactions.`)
+    log.debug(
+      `Received block ${block.number}. Searching for any contained L1toL2Transactions.`
+    )
 
-    const logs: Log[] = await this.l1Provider.getLogs({blockHash: block.hash, topics: this.topics})
+    const logs: Log[] = await this.l1Provider.getLogs({
+      blockHash: block.hash,
+      topics: this.topics,
+    })
 
-    const l1ToL2TransactionArrays: L1ToL2Transaction[][] = await Promise.all(logs.map(l => this.getTransactionsFromLog(l)))
-    const transactions: L1ToL2Transaction[] = l1ToL2TransactionArrays.reduce((res, curr) => [...res, ...curr], [])
+    const l1ToL2TransactionArrays: L1ToL2Transaction[][] = await Promise.all(
+      logs.map((l) => this.getTransactionsFromLog(l))
+    )
+    const transactions: L1ToL2Transaction[] = l1ToL2TransactionArrays.reduce(
+      (res, curr) => [...res, ...curr],
+      []
+    )
 
     if (!transactions.length) {
       log.debug(`There were no L1toL2Transactions in block ${block.number}.`)
     } else {
-      log.debug(`Parsed L1ToL2Transactions from block ${block.number}: ${JSON.stringify(transactions)}`)
+      log.debug(
+        `Parsed L1ToL2Transactions from block ${block.number}: ${JSON.stringify(
+          transactions
+        )}`
+      )
     }
 
     this.add(block.number, {
       timestamp: block.timestamp,
-      transactions: transactions
+      transactions,
     })
   }
 
@@ -111,22 +137,33 @@ export class L1ToL2TransactionSynchronizer
     timestampedTransactions: TimestampedL1ToL2Transactions
   ): Promise<void> {
     try {
-      if (!timestampedTransactions.transactions || !timestampedTransactions.transactions.length) {
+      if (
+        !timestampedTransactions.transactions ||
+        !timestampedTransactions.transactions.length
+      ) {
         log.debug(`Moving past empty block ${blockNumber}.`)
         await this.markProcessed(blockNumber)
         return
       }
 
-      const timestamp: string = numberToHexString(timestampedTransactions.timestamp)
-      const txs = JSON.stringify(timestampedTransactions.transactions.map(x => {
-        return {
-          nonce: x.nonce > 0 ? numberToHexString(x.nonce) : '',
-          sender: x.sender,
-          calldata: x.calldata
-        }
-      }))
+      const timestamp: string = numberToHexString(
+        timestampedTransactions.timestamp
+      )
+      const txs = JSON.stringify(
+        timestampedTransactions.transactions.map((x) => {
+          return {
+            nonce: x.nonce > 0 ? numberToHexString(x.nonce) : '',
+            sender: x.sender,
+            calldata: x.calldata,
+          }
+        })
+      )
       const signedTxsArray: string = await this.l2Wallet.signMessage(txs)
-      await this.l2Provider.send(sendL1ToL2TransactionsMethod, [timestamp, txs, signedTxsArray])
+      await this.l2Provider.send(sendL1ToL2TransactionsMethod, [
+        timestamp,
+        txs,
+        signedTxsArray,
+      ])
 
       await this.markProcessed(blockNumber)
     } catch (e) {
@@ -144,7 +181,9 @@ export class L1ToL2TransactionSynchronizer
   /**
    * @inheritDoc
    */
-  protected async serializeItem(item: TimestampedL1ToL2Transactions): Promise<Buffer> {
+  protected async serializeItem(
+    item: TimestampedL1ToL2Transactions
+  ): Promise<Buffer> {
     return Buffer.from(JSON.stringify(item), 'utf-8')
   }
 
@@ -157,19 +196,29 @@ export class L1ToL2TransactionSynchronizer
     return JSON.parse(itemBuffer.toString('utf-8'))
   }
 
-  private async getTransactionsFromLog(l: Log): Promise<Array<L1ToL2Transaction>> {
-    const matchedTopics: string[] = l.topics.filter(x => this.topics.indexOf(x) >= 0)
+  private async getTransactionsFromLog(l: Log): Promise<L1ToL2Transaction[]> {
+    const matchedTopics: string[] = l.topics.filter(
+      (x) => this.topics.indexOf(x) >= 0
+    )
     if (matchedTopics.length === 0) {
-      log.error(`Received log with topics: ${l.topics.join(',')} for subscription to topics: ${this.topics.join(',')}. Transaction: ${l.transactionHash}`)
+      log.error(
+        `Received log with topics: ${l.topics.join(
+          ','
+        )} for subscription to topics: ${this.topics.join(',')}. Transaction: ${
+          l.transactionHash
+        }`
+      )
       return []
     }
 
-    const transaction: TransactionResponse = await this.l1Provider.getTransaction(l.transactionHash)
+    const transaction: TransactionResponse = await this.l1Provider.getTransaction(
+      l.transactionHash
+    )
 
     const parsedTransactions: L1ToL2Transaction[] = []
     for (const topic of matchedTopics) {
       const context = this.topicMap.get(topic)
-      if (!addressesAreEqual(l.address,context.contractAddress)) {
+      if (!addressesAreEqual(l.address, context.contractAddress)) {
         continue
       }
       const transactions = await context.parseL2Transactions(transaction)

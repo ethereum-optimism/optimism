@@ -17,7 +17,9 @@ import {
   L1ToL2TransactionEventName,
   L1ToL2TransactionListener,
   L1ToL2TransactionBatchListenerSubmitter,
-  CHAIN_ID, L1ToL2TransactionBatchEventName, L1ToL2TransactionBatchListener,
+  CHAIN_ID,
+  L1ToL2TransactionBatchEventName,
+  L1ToL2TransactionBatchListener,
 } from '@eth-optimism/rollup-core'
 
 import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
