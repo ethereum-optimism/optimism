@@ -94,9 +94,6 @@ export class Environment {
   public static noL1Node(defaultValue?: boolean) {
     return !!process.env.NO_L1_NODE || defaultValue
   }
-  public static noL1ToL2TransactionProcessor(defaultValue?: boolean) {
-    return !!process.env.NO_L1_TO_L2_TX_PROCESSOR || defaultValue
-  }
 
   // Local Node Config
   public static opcodeWhitelistMask(

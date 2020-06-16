@@ -4,42 +4,28 @@ import {
   DB,
   EthereumListener,
 } from '@eth-optimism/core-db'
-import {
-  getLogger,
-  Logger,
-  numberToHexString,
-  remove0x,
-} from '@eth-optimism/core-utils'
+import { getLogger, Logger } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
   L1ToL2Transaction,
-  TimestampedL1ToL2Transactions,
+  L1ToL2TransactionBatch,
+  L1ToL2TransactionBatchListener,
   L1ToL2TransactionLogParserContext,
-} from '../types'
-import {
-  Block,
-  JsonRpcProvider,
-  Provider,
-  TransactionResponse,
-} from 'ethers/providers'
+} from '../../types'
+import { Block, Provider, TransactionResponse } from 'ethers/providers'
 import { Log } from 'ethers/providers/abstract-provider'
-import { Wallet } from 'ethers'
-import { addressesAreEqual } from './utils'
+import { addressesAreEqual } from '../utils'
 
 const log: Logger = getLogger('l1-to-l2-transition-synchronizer')
 
-// params: [timestampHex, transactionsArrayJSON, signedTransactionsArrayJSON]
-const sendL1ToL2TransactionsMethod: string = 'optimism_sendL1ToL2Transactions'
-
-export class L1ToL2TransactionSynchronizer
-  extends BaseQueuedPersistedProcessor<TimestampedL1ToL2Transactions>
+export class L1TransactionBatchProcessor
+  extends BaseQueuedPersistedProcessor<L1ToL2TransactionBatch>
   implements EthereumListener<Block> {
   public static readonly persistenceKey = 'L1ToL2TransactionSynchronizer'
 
   private readonly topics: string[]
   private readonly topicMap: Map<string, L1ToL2TransactionLogParserContext>
-  private readonly l2Provider: JsonRpcProvider
 
   /**
    * Creates a L1ToL2TransactionSynchronizer that subscribes to blocks, processes all
@@ -47,23 +33,23 @@ export class L1ToL2TransactionSynchronizer
    *
    * @param db The DB to use to persist the queue of L1ToL2Transaction[] objects.
    * @param l1Provider The provider to use to connect to L1 to subscribe & fetch block / tx / log data.
-   * @param l2Wallet The L2 wallet to use to submit transactions ** ASSUMED TO BE CONNECTED TO THE L2 JSON RPC PROVIDER **
    * @param logContexts The collection of L1ToL2TransactionLogParserContext that uniquely identify the log event and
    *        provide the ability to create L2 transactions from the L1 transaction that emitted it.
+   * @param listeners The downstream subscribers to the L1ToL2TransactionBatch objects this processor creates.
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
     db: DB,
     l1Provider: Provider,
-    l2Wallet: Wallet,
     logContexts: L1ToL2TransactionLogParserContext[],
-    persistenceKey: string = L1ToL2TransactionSynchronizer.persistenceKey
-  ): Promise<L1ToL2TransactionSynchronizer> {
-    const processor = new L1ToL2TransactionSynchronizer(
+    listeners: L1ToL2TransactionBatchListener[],
+    persistenceKey: string = L1TransactionBatchProcessor.persistenceKey
+  ): Promise<L1TransactionBatchProcessor> {
+    const processor = new L1TransactionBatchProcessor(
       db,
       l1Provider,
-      l2Wallet,
       logContexts,
+      listeners,
       persistenceKey
     )
     await processor.init()
@@ -73,16 +59,15 @@ export class L1ToL2TransactionSynchronizer
   private constructor(
     db: DB,
     private readonly l1Provider: Provider,
-    private readonly l2Wallet: Wallet,
     logContexts: L1ToL2TransactionLogParserContext[],
-    persistenceKey: string = L1ToL2TransactionSynchronizer.persistenceKey
+    private readonly listeners: L1ToL2TransactionBatchListener[],
+    persistenceKey: string = L1TransactionBatchProcessor.persistenceKey
   ) {
     super(db, persistenceKey)
     this.topicMap = new Map<string, L1ToL2TransactionLogParserContext>(
       logContexts.map((x) => [x.topic, x])
     )
     this.topics = Array.from(this.topicMap.keys())
-    this.l2Provider = l2Wallet.provider as JsonRpcProvider
   }
 
   /**
@@ -97,6 +82,11 @@ export class L1ToL2TransactionSynchronizer
       blockHash: block.hash,
       topics: this.topics,
     })
+    log.debug(
+      `Got ${logs.length} logs from block ${block.number}: ${JSON.stringify(
+        logs
+      )}`
+    )
 
     logs.sort((a, b) => a.logIndex - b.logIndex)
 
@@ -119,6 +109,7 @@ export class L1ToL2TransactionSynchronizer
     }
 
     this.add(block.number, {
+      blockNumber: block.number,
       timestamp: block.timestamp,
       transactions,
     })
@@ -136,42 +127,19 @@ export class L1ToL2TransactionSynchronizer
    */
   protected async handleNextItem(
     blockNumber: number,
-    timestampedTransactions: TimestampedL1ToL2Transactions
+    transactionBatch: L1ToL2TransactionBatch
   ): Promise<void> {
     try {
-      if (
-        !timestampedTransactions.transactions ||
-        !timestampedTransactions.transactions.length
-      ) {
-        log.debug(`Moving past empty block ${blockNumber}.`)
-        await this.markProcessed(blockNumber)
-        return
+      if (!!transactionBatch.transactions.length) {
+        this.listeners.map((x) =>
+          x.handleL1ToL2TransactionBatch(transactionBatch)
+        )
       }
-
-      const timestamp: string = numberToHexString(
-        timestampedTransactions.timestamp
-      )
-      const txs = JSON.stringify(
-        timestampedTransactions.transactions.map((x) => {
-          return {
-            nonce: x.nonce > 0 ? numberToHexString(x.nonce) : '',
-            sender: x.sender,
-            calldata: x.calldata,
-          }
-        })
-      )
-      const signedTxsArray: string = await this.l2Wallet.signMessage(txs)
-      await this.l2Provider.send(sendL1ToL2TransactionsMethod, [
-        timestamp,
-        txs,
-        signedTxsArray,
-      ])
-
       await this.markProcessed(blockNumber)
     } catch (e) {
       this.logError(
         `Error processing L1ToL2Transactions. Txs: ${JSON.stringify(
-          timestampedTransactions
+          transactionBatch
         )}`,
         e
       )
@@ -183,9 +151,7 @@ export class L1ToL2TransactionSynchronizer
   /**
    * @inheritDoc
    */
-  protected async serializeItem(
-    item: TimestampedL1ToL2Transactions
-  ): Promise<Buffer> {
+  protected async serializeItem(item: L1ToL2TransactionBatch): Promise<Buffer> {
     return Buffer.from(JSON.stringify(item), 'utf-8')
   }
 
@@ -194,7 +160,7 @@ export class L1ToL2TransactionSynchronizer
    */
   protected async deserializeItem(
     itemBuffer: Buffer
-  ): Promise<TimestampedL1ToL2Transactions> {
+  ): Promise<L1ToL2TransactionBatch> {
     return JSON.parse(itemBuffer.toString('utf-8'))
   }
 
@@ -216,6 +182,9 @@ export class L1ToL2TransactionSynchronizer
     const transaction: TransactionResponse = await this.l1Provider.getTransaction(
       l.transactionHash
     )
+    log.debug(
+      `Fetched tx by hash ${l.transactionHash}: ${JSON.stringify(transaction)}`
+    )
 
     const parsedTransactions: L1ToL2Transaction[] = []
     for (const topic of matchedTopics) {
@@ -223,7 +192,7 @@ export class L1ToL2TransactionSynchronizer
       if (!addressesAreEqual(l.address, context.contractAddress)) {
         continue
       }
-      const transactions = await context.parseL2Transactions(transaction)
+      const transactions = await context.parseL2Transactions(l, transaction)
       parsedTransactions.push(...transactions)
     }
 

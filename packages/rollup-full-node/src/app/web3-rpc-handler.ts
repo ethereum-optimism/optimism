@@ -7,7 +7,6 @@ import {
   initializeL2Node,
   isErrorEVMRevert,
   L1ToL2Transaction,
-  L1ToL2TransactionListener,
   L2NodeContext,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
@@ -63,8 +62,7 @@ for (const eventKey of Object.keys(EMEvents)) {
   ALL_EXECUTION_MANAGER_EVENT_TOPICS.push(EMEvents[eventKey].topic)
 }
 
-export class DefaultWeb3Handler
-  implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
+export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private readonly ovmHashToOvmTransactionCache: Object = {}
   protected blockTimestamps: Object = {}
   private lock: AsyncLock

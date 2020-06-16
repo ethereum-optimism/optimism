@@ -12,7 +12,7 @@ import {
   initializeL1Node,
   L1NodeContext,
   CHAIN_ID,
-  L1ToL2TransactionSynchronizer,
+  L1TransactionBatchProcessor,
 } from '@eth-optimism/rollup-core'
 
 import { JsonRpcProvider, Provider } from 'ethers/providers'
@@ -23,18 +23,18 @@ import { getWallets } from 'ethereum-waffle'
 
 const log = getLogger('l1-to-l2-transaction-batch-processor')
 
-export const runTestStateSynchronizer = async (
+export const runTest = async (
   l1Provider?: Provider,
   l2Provider?: JsonRpcProvider
-): Promise<L1ToL2TransactionSynchronizer> => {
-  return runStateSynchronizer(true, l1Provider, l2Provider)
+): Promise<L1TransactionBatchProcessor> => {
+  return run(true, l1Provider, l2Provider)
 }
 
-export const runStateSynchronizer = async (
+export const run = async (
   testMode: boolean = false,
   l1Provider?: Provider,
   l2Provider?: JsonRpcProvider
-): Promise<L1ToL2TransactionSynchronizer> => {
+): Promise<L1TransactionBatchProcessor> => {
   initializeDBPaths(testMode)
 
   let l1NodeContext: L1NodeContext
@@ -67,14 +67,14 @@ const getL1ToL2TransactionBatchProcessor = async (
   testMode: boolean,
   l1NodeContext: L1NodeContext,
   l2Provider: JsonRpcProvider
-): Promise<L1ToL2TransactionSynchronizer> => {
+): Promise<L1TransactionBatchProcessor> => {
   const db: DB = getDB(testMode)
 
-  const stateSynchronizer = await L1ToL2TransactionSynchronizer.create(
+  const stateSynchronizer = await L1TransactionBatchProcessor.create(
     db,
     l1NodeContext.provider,
-    getL2Wallet(l2Provider),
-    [] // TODO: fill this in
+    [], // TODO: fill this in
+    [] // TODO: Fill this in
   )
 
   const earliestBlock = Environment.l1EarliestBlock()

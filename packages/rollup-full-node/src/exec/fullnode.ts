@@ -2,7 +2,6 @@
 import {
   BaseDB,
   DB,
-  EthereumEventProcessor,
   getLevelInstance,
   newInMemoryDB,
 } from '@eth-optimism/core-db'
@@ -18,9 +17,6 @@ import {
   initializeL1Node,
   initializeL2Node,
   L1NodeContext,
-  L1ToL2TransactionEventName,
-  L1ToL2TransactionListener,
-  L1ToL2TransactionProcessor,
   L2NodeContext,
 } from '@eth-optimism/rollup-core'
 import cors = require('cors')
@@ -53,7 +49,6 @@ export interface FullnodeContext {
   fullnodeHandler: FullnodeHandler & Web3Handler
   fullnodeRpcServer: ExpressHttpServer
   l2ToL1MessageSubmitter: L2ToL1MessageSubmitter
-  l1ToL2TransactionProcessor: L1ToL2TransactionProcessor
   l1NodeContext: L1NodeContext
 }
 
@@ -144,7 +139,6 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
     fullnodeHandler: undefined,
     fullnodeRpcServer,
     l2ToL1MessageSubmitter: undefined,
-    l1ToL2TransactionProcessor: undefined,
     l1NodeContext: undefined,
   }
 }
@@ -196,17 +190,6 @@ const startTransactionNode = async (
     [cors]
   )
 
-  let l1ToL2TransactionProcessor: L1ToL2TransactionProcessor
-  if (!Environment.noL1ToL2TransactionProcessor()) {
-    l1ToL2TransactionProcessor = await getL1ToL2TransactionProcessor(
-      testFullnode,
-      l1NodeContext,
-      fullnodeHandler
-    )
-  } else {
-    log.info('Configured to not create an L1ToL2TransactionProcessor.')
-  }
-
   fullnodeRpcServer.listen()
 
   const baseUrl = `http://${Environment.l2RpcServerHost()}:${Environment.l2RpcServerPort()}`
@@ -216,7 +199,6 @@ const startTransactionNode = async (
     fullnodeHandler,
     fullnodeRpcServer,
     l2ToL1MessageSubmitter,
-    l1ToL2TransactionProcessor,
     l1NodeContext,
   }
 }
@@ -271,7 +253,6 @@ const startReadOnlyNode = async (
     fullnodeHandler,
     fullnodeRpcServer,
     l2ToL1MessageSubmitter: undefined,
-    l1ToL2TransactionProcessor: undefined,
     l1NodeContext: undefined,
   }
 }
@@ -308,47 +289,6 @@ const initializeDBPaths = (isTestMode: boolean) => {
       makeDataDirectory()
     }
   }
-}
-
-/**
- * Gets an L1ToL2TransactionProcessor based on configuration and the provided arguments.
- *
- * Notably this will return undefined if configuration says not to connect to the L1 node.
- *
- * @param testFullnode Whether or not this is a test full node.
- * @param l1NodeContext The L1 node context.
- * @param listener The listener to listen to the processor.
- * @returns The L1ToL2TransactionProcessor or undefined.
- */
-const getL1ToL2TransactionProcessor = async (
-  testFullnode: boolean,
-  l1NodeContext: L1NodeContext,
-  listener: L1ToL2TransactionListener
-): Promise<L1ToL2TransactionProcessor> => {
-  if (Environment.noL1Node()) {
-    return undefined
-  }
-
-  const db: DB = getDB(testFullnode)
-  const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(
-    db,
-    EthereumEventProcessor.getEventID(
-      l1NodeContext.l1ToL2TransactionPasser.address,
-      L1ToL2TransactionEventName
-    ),
-    [listener]
-  )
-
-  const earliestBlock = Environment.l1EarliestBlock()
-
-  const eventProcessor = new EthereumEventProcessor(db, earliestBlock)
-  await eventProcessor.subscribe(
-    l1NodeContext.l1ToL2TransactionPasser,
-    L1ToL2TransactionEventName,
-    l1ToL2TransactionProcessor
-  )
-
-  return l1ToL2TransactionProcessor
 }
 
 /**

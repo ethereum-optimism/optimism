@@ -1,7 +1,7 @@
 /* External Imports */
 import { BigNumber } from '@eth-optimism/core-utils'
 
-import { TransactionResponse } from 'ethers/providers/abstract-provider'
+import { Log, TransactionResponse } from 'ethers/providers/abstract-provider'
 
 // TODO: Probably not necessary?
 //  Maybe just a map from token -> contract slot index (e.g. {ETH: 1, BAT: 2, REP: 3})?
@@ -27,36 +27,21 @@ export interface L1ToL2Transaction {
   calldata: string
 }
 
-export interface TimestampedL1ToL2Transactions {
+export interface L1ToL2TransactionBatch {
   timestamp: number
+  blockNumber: number
   transactions: L1ToL2Transaction[]
 }
 
 export type L1ToL2TransactionParser = (
+  l: Log,
   transaction: TransactionResponse
 ) => Promise<L1ToL2Transaction[]>
+
 export interface L1ToL2TransactionLogParserContext {
   topic: string
   contractAddress: Address
   parseL2Transactions: L1ToL2TransactionParser
-}
-
-// TODO: Update when the format is known
-export type StateCommitment = string
-export interface RollupTransition {
-  nonce: number
-  transaction: L1ToL2Transaction
-  stateCommitment: StateCommitment
-}
-export interface L1ToL2TransactionBatch {
-  nonce: number
-  timestamp: number
-  transactions: L1ToL2Transaction[]
-  calldata: string
-}
-export interface L1ToL2StateCommitmentBatch {
-  nonce: number
-  stateCommitments: StateCommitment[]
 }
 
 /* Types */
