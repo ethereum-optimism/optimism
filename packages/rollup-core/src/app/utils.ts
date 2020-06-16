@@ -1,10 +1,10 @@
 /* External Imports */
-import { bufToHexString } from '@eth-optimism/core-utils'
+import {bufToHexString, remove0x} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
-import { EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
+import {Address, EVMBytecode, EVMOpcodeAndBytes, Opcode} from '../types'
 
 /**
  * Creates an unsigned transaction and returns its calldata.
@@ -132,7 +132,7 @@ export const getPCOfEVMBytecodeIndex = (
   return pc
 }
 
-export function getWallets(httpProvider) {
+export const getWallets = (httpProvider) => {
   const walletsToReturn = []
   for (let i = 0; i < 9; i++) {
     const privateKey = '0x' + ('5' + i).repeat(32)
@@ -142,12 +142,12 @@ export function getWallets(httpProvider) {
   return walletsToReturn
 }
 
-export async function deployContract(
+export const deployContract = async (
   wallet,
   contractJSON,
   args,
   overrideOptions = {}
-) {
+) => {
   const factory = new ContractFactory(
     contractJSON.abi,
     contractJSON.bytecode || contractJSON.evm.bytecode,
@@ -164,6 +164,23 @@ export async function deployContract(
  *
  * @returns The seconds since epoch.
  */
-export function getCurrentTime(): number {
+export const getCurrentTime = (): number => {
   return Math.round(new Date().getTime() / 1000)
+}
+
+/**
+ * Returns whether or not the provided addresses are equal, ignoring case and prefix.
+ *
+ * @param one The first address.
+ * @param two The second address
+ */
+export const addressesAreEqual = (one: Address, two: Address): boolean => {
+  if (!one && !two) {
+    return true
+  }
+  if (!one || !two) {
+    return false
+  }
+
+  return remove0x(one).toLowerCase() === remove0x(two).toLowerCase()
 }

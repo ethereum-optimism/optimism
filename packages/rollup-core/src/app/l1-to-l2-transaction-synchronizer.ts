@@ -4,16 +4,18 @@ import {
   DB,
   EthereumListener,
 } from '@eth-optimism/core-db'
-import {getLogger, Logger, numberToHexString} from '@eth-optimism/core-utils'
+import {getLogger, Logger, numberToHexString, remove0x} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
   L1ToL2Transaction,
-  L1ToL2CalldataTransactionParser, TimestampedL1ToL2Transactions,
+  TimestampedL1ToL2Transactions,
+  L1ToL2TransactionLogParserContext,
 } from '../types'
 import {Block, JsonRpcProvider, Provider, TransactionResponse} from 'ethers/providers'
 import {Log} from 'ethers/providers/abstract-provider'
 import {Wallet} from 'ethers'
+import {addressesAreEqual} from './utils'
 
 const log: Logger = getLogger('l1-to-l2-transition-synchronizer')
 
@@ -26,6 +28,7 @@ export class L1ToL2TransactionSynchronizer
   public static readonly persistenceKey = 'L1ToL2TransactionSynchronizer'
 
   private readonly topics: string[]
+  private readonly topicMap: Map<string, L1ToL2TransactionLogParserContext>
   private readonly l2Provider: JsonRpcProvider
 
   /**
@@ -35,22 +38,22 @@ export class L1ToL2TransactionSynchronizer
    * @param db The DB to use to persist the queue of L1ToL2Transaction[] objects.
    * @param l1Provider The provider to use to connect to L1 to subscribe & fetch block / tx / log data.
    * @param l2Wallet The L2 wallet to use to submit transactions ** ASSUMED TO BE CONNECTED TO THE L2 JSON RPC PROVIDER **
-   * @param logTopicToCalldataParserMap The map of Log Topics -> L1ToL2CalldataTransactionParser to indicate
-   *        which logs should be fetched and parsed as well as how.
+   * @param logContexts The collection of L1ToL2TransactionLogParserContext that uniquely identify the log event and
+   *        provide the ability to create L2 transactions from the L1 transaction that emitted it.
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
     db: DB,
     l1Provider: Provider,
     l2Wallet: Wallet,
-    logTopicToCalldataParserMap: Map<string, L1ToL2CalldataTransactionParser>,
+    logContexts: L1ToL2TransactionLogParserContext[],
     persistenceKey: string = L1ToL2TransactionSynchronizer.persistenceKey
   ): Promise<L1ToL2TransactionSynchronizer> {
     const processor = new L1ToL2TransactionSynchronizer(
       db,
       l1Provider,
       l2Wallet,
-      logTopicToCalldataParserMap,
+      logContexts,
       persistenceKey
     )
     await processor.init()
@@ -61,11 +64,12 @@ export class L1ToL2TransactionSynchronizer
     db: DB,
     private readonly l1Provider: Provider,
     private readonly l2Wallet: Wallet,
-    private readonly logTopicToCalldataParserMap: Map<string, L1ToL2CalldataTransactionParser>,
+    logContexts: L1ToL2TransactionLogParserContext[],
     persistenceKey: string = L1ToL2TransactionSynchronizer.persistenceKey
   ) {
     super(db, persistenceKey)
-    this.topics = Array.from(this.logTopicToCalldataParserMap.keys())
+    this.topicMap = new Map<string, L1ToL2TransactionLogParserContext>(logContexts.map(x => [x.topic, x]))
+    this.topics = Array.from(this.topicMap.keys())
     this.l2Provider = (l2Wallet.provider as JsonRpcProvider)
   }
 
@@ -164,7 +168,11 @@ export class L1ToL2TransactionSynchronizer
 
     const parsedTransactions: L1ToL2Transaction[] = []
     for (const topic of matchedTopics) {
-      const transactions = await this.logTopicToCalldataParserMap.get(topic).parseTransactions(transaction)
+      const context = this.topicMap.get(topic)
+      if (!addressesAreEqual(l.address,context.contractAddress)) {
+        continue
+      }
+      const transactions = await context.parseL2Transactions(transaction)
       parsedTransactions.push(...transactions)
     }
 

@@ -32,8 +32,11 @@ export interface TimestampedL1ToL2Transactions {
   transactions: L1ToL2Transaction[]
 }
 
-export interface L1ToL2CalldataTransactionParser {
-  parseTransactions(transaction: TransactionResponse): Promise<L1ToL2Transaction[]>
+export type L1ToL2TransactionParser = (transaction: TransactionResponse) => Promise<L1ToL2Transaction[]>
+export interface L1ToL2TransactionLogParserContext {
+  topic: string
+  contractAddress: Address
+  parseL2Transactions: L1ToL2TransactionParser
 }
 
 // TODO: Update when the format is known
