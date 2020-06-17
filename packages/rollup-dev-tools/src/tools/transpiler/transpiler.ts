@@ -35,6 +35,7 @@ import { accountForJumps } from './jump-replacement'
 import { isTaggedWithReason } from './helpers'
 
 const log = getLogger('transpiler-impl')
+const statsLog = getLogger('transpiler-stats')
 
 export class TranspilerImpl implements Transpiler {
   constructor(
@@ -544,7 +545,7 @@ export class TranspilerImpl implements Transpiler {
 
   // This function transpiles "deployed bytecode"-type bytecode, operating on potentially tagged EVMBytecode (==EVMOpcodeAndBytes[]).
   // It preserves all .tags values of the EVMOpcodeAndBytes UNLESS:
-  // 1. The opcode is replaced by the replacer. (aka getSubstituedFunctionFor() does not just return the input
+  // 1. The opcode is substituted by the replacer. In that case, it will use the tags related to JUMPing to the substituted opcode function,
   // 2. The EVMOpcodeAndBytes is a JUMP/JUMPI/JUMPDEST (aka affected by the JUMP table)
   private transpileBytecodePreservingTags(
     bytecode: EVMBytecode
@@ -554,7 +555,7 @@ export class TranspilerImpl implements Transpiler {
     const jumpdestIndexesBefore: number[] = []
     let lastOpcode: EVMOpcode
     let insideUnreachableCode: boolean = false
-    const replacedOpcodes: Set<EVMOpcode> = new Set<EVMOpcode>()
+    const substitutedOpcodes: Set<EVMOpcode> = new Set<EVMOpcode>()
 
     const [lastOpcodeAndConsumedBytes] = bytecode.slice(-1)
     if (
@@ -577,6 +578,7 @@ export class TranspilerImpl implements Transpiler {
       )
     }
 
+    let sizeIncreaseDueToOpcodeFunctionJUMPs: number = 0 // used for codesize stats
     const bytecodeBuf: Buffer = bytecodeToBuffer(bytecode)
     // todo remove once confirmed with Kevin?
     let seenJump: boolean = false
@@ -652,29 +654,32 @@ export class TranspilerImpl implements Transpiler {
           Opcode.getCodeNumber(opcodeAndBytes.opcode) + 1
         )
       }
-      let transpiledBytecodeReplacement: EVMBytecode
+      let transpiledBytecodeSubstitute: EVMBytecode
       if (
         insideUnreachableCode ||
         !this.opcodeReplacer.shouldSubstituteOpcodeForFunction(
           opcodeAndBytes.opcode
         )
       ) {
-        transpiledBytecodeReplacement = [opcodeAndBytes]
+        transpiledBytecodeSubstitute = [opcodeAndBytes]
       } else {
         // record that we will need to add this opcode to the replacement table
-        replacedOpcodes.add(opcodeAndBytes.opcode)
+        substitutedOpcodes.add(opcodeAndBytes.opcode)
         // jump to the footer where the logic of the replacement will be executed
-        transpiledBytecodeReplacement = this.opcodeReplacer.getJUMPToOpcodeFunction(
+        transpiledBytecodeSubstitute = this.opcodeReplacer.getJUMPToOpcodeFunction(
           opcodeAndBytes.opcode
         )
+        sizeIncreaseDueToOpcodeFunctionJUMPs += bytecodeToBuffer(
+          transpiledBytecodeSubstitute
+        ).byteLength
       }
 
-      transpiledBytecode.push(...transpiledBytecodeReplacement)
+      transpiledBytecode.push(...transpiledBytecodeSubstitute)
       pc += opcode.programBytesConsumed
     }
 
     log.debug(
-      `Bytecode after replacement before JUMP logic: \n${formatBytecode(
+      `Bytecode after substitution before JUMP table logic: \n${formatBytecode(
         transpiledBytecode
       )}`
     )
@@ -688,26 +693,50 @@ export class TranspilerImpl implements Transpiler {
     const bytecodeWithTranspiledJumpsPopulated = res.bytecode
 
     log.debug(
-      `Bytecode after replacement and fixed existing JUMP logic: \n${formatBytecode(
+      `Bytecode after substitution and JUMP table added: \n${formatBytecode(
         bytecodeWithTranspiledJumpsPopulated
       )}`
     )
 
-    const opcodeReplacementFooter: EVMBytecode = this.opcodeReplacer.getOpcodeFunctionTable(
-      replacedOpcodes
+    const inputSize: number = bytecodeToBuffer(bytecode).byteLength
+    const sizeDueToJUMPFixes: number =
+      bytecodeToBuffer(bytecodeWithTranspiledJumpsPopulated).byteLength -
+      sizeIncreaseDueToOpcodeFunctionJUMPs
+    statsLog.info(
+      `Codesize increase due to JUMP correction: ${inputSize} --> ${sizeDueToJUMPFixes} (factor of ${sizeDueToJUMPFixes /
+        inputSize}x vs input)`
+    )
+
+    const substitutedOpcodeFunctionFooter: EVMBytecode = this.opcodeReplacer.getOpcodeFunctionTable(
+      substitutedOpcodes
     )
     log.debug(
-      `Inserting opcode replacement footer: ${formatBytecode(
-        opcodeReplacementFooter
+      `Inserting opcode substitution footer: ${formatBytecode(
+        substitutedOpcodeFunctionFooter
       )}`
     )
     transpiledBytecode = [
       ...bytecodeWithTranspiledJumpsPopulated,
-      ...opcodeReplacementFooter,
+      ...substitutedOpcodeFunctionFooter,
     ]
 
     transpiledBytecode = this.opcodeReplacer.populateOpcodeFunctionJUMPs(
       transpiledBytecode
+    )
+
+    const finalSize: number = bytecodeToBuffer(transpiledBytecode).byteLength
+    const sizeDueToSubstitutions: number =
+      finalSize - sizeDueToJUMPFixes + sizeIncreaseDueToOpcodeFunctionJUMPs
+    statsLog.info(
+      `Codesize increase due to opcode substitutions: +${sizeDueToSubstitutions} bytes (factor of ${sizeDueToSubstitutions /
+        inputSize}x vs input).  Of this, ${sizeIncreaseDueToOpcodeFunctionJUMPs} bytes were due to JUMPs, and ${sizeDueToSubstitutions -
+        sizeIncreaseDueToOpcodeFunctionJUMPs} bytes were due to the ${
+        substitutedOpcodes.size
+      } opcode functions used.`
+    )
+    statsLog.info(
+      `Total codesize increase: ${inputSize} --> ${finalSize} bytes (factor of ${finalSize /
+        inputSize}x)`
     )
 
     if (!!errors.length) {
