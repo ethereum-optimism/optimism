@@ -1,25 +1,54 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.5.0;
 
 import './BytesLib.sol';
 import './RLPReader.sol';
+import './RLPWriter.sol';
 
-/**
- * @notice Contract for dealing with Merkle tries.
- */
 contract MerkleTrie {
-    using BytesLib for bytes;
-
     uint256 constant TREE_RADIX = 16;
     uint256 constant BRANCH_NODE_LENGTH = TREE_RADIX + 1;
+    uint256 constant LEAF_OR_EXTENSION_NODE_LENGTH = 2;
 
-    uint8 constant PREFIX_EVEN_EXTENSION = 0;
-    uint8 constant PREFIX_ODD_EXTENSION = 1;
-    uint8 constant PREFIX_EVEN_LEAF = 2;
-    uint8 constant PREFIX_ODD_LEAF = 3;
+    uint8 constant PREFIX_EXTENSION_EVEN = 0;
+    uint8 constant PREFIX_EXTENSION_ODD = 1;
+    uint8 constant PREFIX_LEAF_EVEN = 2;
+    uint8 constant PREFIX_LEAF_ODD = 3;
 
-    struct ProofElement {
+    bytes1 constant RLP_NULL = bytes1(0x80);
+
+    enum NodeType {
+        BranchNode,
+        ExtensionNode,
+        LeafNode
+    }
+
+    struct TrieNode {
         bytes encoded;
         RLPReader.RLPItem[] decoded;
+    }
+
+
+    /*
+     * Public Functions
+     */
+
+    function verifyInclusionProof(
+        bytes memory _key,
+        bytes memory _value,
+        bytes memory _proof,
+        bytes32 _root
+    ) public pure returns (bool) {
+        return verifyProof(_key, _value, _proof, _root, true);
+    }
+
+    function verifyExclusionProof(
+        bytes memory _key,
+        bytes memory _value,
+        bytes memory _proof,
+        bytes32 _root
+    ) public pure returns (bool) {
+        return verifyProof(_key, _value, _proof, _root, false);
     }
 
 
@@ -27,145 +56,157 @@ contract MerkleTrie {
      * Internal Functions
      */
 
-    /**
-     * @notice Checks a trie inclusion proof.
-     * @param _key Key of the node to verify.
-     * @param _value Value of the node to verify.
-     * @param _root Root of the trie.
-     * @param _proof Encoded proof.
-     * @return `true` if the node is in the trie, `false` otherwise.
-     */
-    function verifyInclusionProof(
+    function verifyProof(
         bytes memory _key,
         bytes memory _value,
+        bytes memory _proof,
         bytes32 _root,
-        bytes memory _proof
+        bool _inclusion
     ) public pure returns (bool) {
-        RLPReader.RLPItem[] memory proof = RLPReader.toList(RLPReader.toRlpItem(_proof));
+        TrieNode[] memory proof = parseProof(_proof);
+        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = getNodePath(proof, _key, _root);
 
-        // Convert the key into a series of half-packed bytes.
-        bytes memory key = _key.toNibbles();
+        if (_inclusion) {
+            return (
+                keyRemainder.length == 0 &&
+                BytesLib.equal(getNodeValue(proof[pathLength - 1]), _value)
+            );
+        } else {
+            return (
+                (keyRemainder.length == 0 && !BytesLib.equal(getNodeValue(proof[pathLength - 1]), _value)) ||
+                (keyRemainder.length != 0 && isFinalNode)
+            );
+        }
+    }
+
+    function getNodePath(
+        TrieNode[] memory _proof,
+        bytes memory _key,
+        bytes32 _root
+    ) internal pure returns (
+        uint256,
+        bytes memory,
+        bool
+    ) {
+        uint256 pathLength = 0;
+        bytes memory key = BytesLib.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
-        uint256 keyIndex = 0;
-        for (uint256 i = 0; i < proof.length; i++) {
-            ProofElement memory node = ProofElement({
-                encoded: RLPReader.toBytes(proof[i]),
-                decoded: RLPReader.toList(RLPReader.toRlpItem(RLPReader.toBytes(proof[i])))
-            });
+        uint256 currentKeyIndex = 0;
+        uint256 currentKeyIncrement = 0;
+        TrieNode memory currentNode;
 
-            if (keyIndex == 0) {
+        for (uint256 i = 0; i < _proof.length; i++) {
+            currentNode = _proof[i];
+            currentKeyIndex += currentKeyIncrement;
+            pathLength += 1;
+
+            if (currentKeyIndex == 0) {
                 // First proof element is always the root node.
                 require(
-                    keccak256(node.encoded) == currentNodeID,
+                    keccak256(currentNode.encoded) == currentNodeID,
                     "Invalid root hash"
                 );
-            } else if (node.encoded.length >= 32) {
+            } else if (currentNode.encoded.length >= 32) {
                 // Nodes 32 bytes or larger are hashed inside branch nodes.
                 require(
-                    keccak256(node.encoded) == currentNodeID,
+                    keccak256(currentNode.encoded) == currentNodeID,
                     "Invalid large internal hash"
                 );
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
-                    node.encoded.toBytes32() == currentNodeID,
+                    BytesLib.toBytes32(currentNode.encoded) == currentNodeID,
                     "Invalid internal node hash"
                 );
             }
 
-            if (node.decoded.length == BRANCH_NODE_LENGTH) {
-                if (keyIndex >= key.length) {
-                    // Value may sometimes be included at a branch node.
-                    return (
-                        RLPReader.toBytes(node.decoded[node.decoded.length-1]).equal(_value)
-                    );
+            if (currentNode.decoded.length == BRANCH_NODE_LENGTH) {
+                if (currentKeyIndex == key.length) {
+                    break;
                 } else {
-                    // Find the next node within the branch node and repeat.
-                    RLPReader.RLPItem memory next = node.decoded[uint8(key[keyIndex])];
-                    currentNodeID = getNodeID(next).toBytes32();
-                    keyIndex++;
+                    uint8 branchKey = uint8(key[currentKeyIndex]);
+                    RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
+                    currentNodeID = getNodeID(nextNode);
+                    currentKeyIncrement = 1;
                     continue;
                 }
-            }
+            } else if (currentNode.decoded.length == LEAF_OR_EXTENSION_NODE_LENGTH) {
+                bytes memory path = getNodePath(currentNode);
+                uint8 prefix = uint8(path[0]);
+                uint8 offset = 2 - prefix % 2;
+                bytes memory sharedNibbles = BytesLib.slice(path, offset);
 
-            // Nodes with two elements are either leaves or extensions.
-            if (node.decoded.length == 2) {
-                // Throw this step into a new function to avoid `STACK_TOO_DEEP`.
-                bool done;
-                (done, currentNodeID, keyIndex) = checkNonBranchNode(
-                    node,
-                    key,
-                    _value,
-                    keyIndex
-                );
+                if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
+                    currentKeyIndex += sharedNibbles.length;
+                    currentNodeID = bytes32(RLP_NULL);
+                    break;
+                } else if (prefix == PREFIX_EXTENSION_EVEN || prefix == PREFIX_EXTENSION_ODD) {
+                    if (sharedNibbles.length == 0) {
+                        break;
+                    } else {
+                        require (
+                            BytesLib.equal(
+                                sharedNibbles,
+                                BytesLib.slice(key, currentKeyIndex, sharedNibbles.length)
+                            ),
+                            "Invalid extension node in provided path."
+                        );
 
-                if (done) {
-                    return true;
-                } else {
-                    continue;
+                        currentNodeID = getNodeID(currentNode.decoded[1]);
+                        currentKeyIncrement = sharedNibbles.length;
+                        continue;
+                    }
                 }
             }
         }
 
-        return false;
+        bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
+        return (pathLength, BytesLib.slice(key, currentKeyIndex), isFinalNode);
     }
 
+    function parseProof(
+        bytes memory _proof
+    ) internal pure returns (TrieNode[] memory) {
+        RLPReader.RLPItem[] memory nodes = RLPReader.toList(RLPReader.toRlpItem(_proof));
+        TrieNode[] memory proof = new TrieNode[](nodes.length);
 
-    /*
-     * Private Functions
-     */
-
-    function checkNonBranchNode(
-        ProofElement memory _node,
-        bytes memory _key,
-        bytes memory _value,
-        uint256 _keyIndex
-    ) private pure returns (bool, bytes32, uint256) {
-        // First element of the node is its path.
-        bytes memory path = RLPReader.toBytes(_node.decoded[0]).toNibbles();
-        // First nibble of the path is its prefix.
-        uint8 prefix = uint8(path[0]);
-        // Even prefixes include an extra nibble.
-        uint8 offset = 2 - prefix % 2;
-
-        if (prefix == PREFIX_EVEN_LEAF || prefix == PREFIX_ODD_LEAF) {
-            bytes memory value = RLPReader.toBytes(_node.decoded[1]);
-
-            require (
-                path.slice(offset).equal(_key.slice(_keyIndex)) &&
-                value.equal(_value),
-                "Invalid leaf node"
-            );
-
-            // Return "done" and fill the rest with empty values.
-            return (true, bytes32(0), 0);
-        } else if (prefix == PREFIX_EVEN_EXTENSION || prefix == PREFIX_ODD_EXTENSION) {
-            bytes memory value = getNodeID(_node.decoded[1]);
-            bytes memory shared = path.slice(offset);
-            uint256 extension = shared.length;
-
-            require (
-                shared.equal(_key.slice(_keyIndex, extension)),
-                "Invalid extension node"
-            );
-
-            // Return "not done", set the next value, increment the key index.
-            return (false, value.toBytes32(), _keyIndex + extension);
+        for (uint256 i = 0; i < nodes.length; i++) {
+            bytes memory encoded = RLPReader.toBytes(nodes[i]);
+            proof[i] = TrieNode({
+                encoded: encoded,
+                decoded: RLPReader.toList(RLPReader.toRlpItem(encoded))
+            });
         }
 
-        revert("Bad prefix");
+        return proof;
     }
 
     function getNodeID(
-        RLPReader.RLPItem memory _item
-    ) internal pure returns (bytes memory) {
-        if (_item.len < 32) {
+        RLPReader.RLPItem memory _node
+    ) internal pure returns (bytes32) {
+        bytes memory nodeID;
+
+        if (_node.len < 32) {
             // Nodes smaller than 32 bytes are RLP encoded.
-            return RLPReader.toRlpBytes(_item);
+            nodeID = RLPReader.toRlpBytes(_node);
         } else {
             // Nodes 32 bytes or larger are hashed.
-            return RLPReader.toBytes(_item);
+            nodeID = RLPReader.toBytes(_node);
         }
+
+        return BytesLib.toBytes32(nodeID);
+    }
+
+    function getNodePath(
+        TrieNode memory _node
+    ) internal pure returns (bytes memory) {
+        return BytesLib.toNibbles(RLPReader.toBytes(_node.decoded[0]));
+    }
+
+    function getNodeValue(
+        TrieNode memory _node
+    ) internal pure returns (bytes memory) {
+        return RLPReader.toBytes(_node.decoded[_node.decoded.length - 1]);
     }
 }
