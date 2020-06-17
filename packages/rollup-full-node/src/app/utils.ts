@@ -40,11 +40,35 @@ export const createProviderForHandler = (
   return provider
 }
 
+/**
+ * Creates a fullnodeHandler to handle the given Provider's `send`s.
+ *
+ * @param provider The provider to modify
+ * @return The provider with modified `send`s
+ */
+export async function addHandlerToProvider(
+  provider: any,
+): Promise<any> {
+  const messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
+  const fullnodeHandler: FullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
+  // Then we replace `send()` with our modified send that uses the execution manager as a proxy
+  provider.send = async (method: string, params: any) => {
+    log.debug('Sending -- Method:', method, 'Params:', params)
+
+    // Convert the message or response if we need to
+    const response = await fullnodeHandler.handleRequest(method, params)
+
+    log.debug('Received Response --', response)
+    return response
+  }
+
+  // The return our slightly modified provider & the execution manager address
+  return provider
+}
+
 export async function createMockProvider(
-  port: number = 9999,
   messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
 ) {
-  const host = '0.0.0.0'
   const fullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
   const web3Provider = createProviderForHandler(fullnodeHandler)
 
