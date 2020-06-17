@@ -46,11 +46,11 @@ export const createProviderForHandler = (
  * @param provider The provider to modify
  * @return The provider with modified `send`s
  */
-export async function addHandlerToProvider(
-  provider: any,
-): Promise<any> {
+export async function addHandlerToProvider(provider: any): Promise<any> {
   const messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
-  const fullnodeHandler: FullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
+  const fullnodeHandler: FullnodeHandler = await DefaultWeb3Handler.create(
+    messageSubmitter
+  )
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   provider.send = async (method: string, params: any) => {
     log.debug('Sending -- Method:', method, 'Params:', params)
