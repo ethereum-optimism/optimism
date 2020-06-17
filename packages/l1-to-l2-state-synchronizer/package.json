@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "test": "mocha --require ts-node/register 'test/*.spec.ts' --timeout 20000 --exit",
+    "test": "echo 'no tests here '",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ../../prettier-config.json --write '{exec,test}/*.ts'",
     "build": "mkdir -p ./build && tsc -p .",
@@ -33,16 +33,11 @@
     "access": "public"
   },
   "devDependencies": {
-    "@types/chai": "^4.1.7",
-    "@types/mocha": "^5.2.6",
     "@types/node": "^11.11.3",
     "@eth-optimism/rollup-full-node": "^0.0.1-alpha.25",
-    "chai": "^4.2.0",
-    "chai-bignumber": "^3.0.0",
     "ethereumjs-abi": "^0.6.8",
     "lodash": "^4.17.15",
     "memdown": "^5.0.0",
-    "mocha": "^6.0.2",
     "rimraf": "^2.6.3",
     "typescript": "^3.3.3333"
   },
@@ -51,8 +46,6 @@
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.25",
     "@eth-optimism/rollup-contracts": "^0.0.1-alpha.25",
-    "@types/sinon-chai": "^3.2.2",
-    "chai": "^4.2.0",
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37"
   }
