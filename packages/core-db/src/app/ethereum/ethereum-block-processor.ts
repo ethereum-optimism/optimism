@@ -92,7 +92,7 @@ export class EthereumBlockProcessor {
     blockNumber: number
   ): Promise<void> {
     log.debug(`Fetching block [${blockNumber}].`)
-    const block: Block = await provider.getBlock(blockNumber, true)
+    let block: Block = await provider.getBlock(blockNumber, true)
     log.debug(`Received block: [${JSON.stringify(block)}].`)
 
     if (
@@ -121,8 +121,10 @@ export class EthereumBlockProcessor {
       }
 
       log.debug(
-        `Received ${this.confirmsUntilFinal} confirms for block ${blockNumber}`
+        `Received ${this.confirmsUntilFinal} confirms for block ${blockNumber}. Refetching block`
       )
+
+      block = await provider.getBlock(blockNumber, true)
     }
 
     this.subscriptions.forEach((h) => {

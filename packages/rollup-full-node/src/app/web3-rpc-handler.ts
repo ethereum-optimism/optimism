@@ -6,7 +6,7 @@ import {
   getCurrentTime,
   initializeL2Node,
   isErrorEVMRevert,
-  L1ToL2Transaction,
+  RollupTransaction,
   L2NodeContext,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
@@ -814,7 +814,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @inheritDoc
    */
   public async handleL1ToL2Transaction(
-    transaction: L1ToL2Transaction
+    transaction: RollupTransaction
   ): Promise<void> {
     log.debug(`Executing L1 to L2 Transaction ${JSON.stringify(transaction)}`)
 

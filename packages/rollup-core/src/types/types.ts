@@ -20,28 +20,29 @@ export interface L2ToL1Message {
   callData: string
 }
 
-export interface L1ToL2Transaction {
+export interface RollupTransaction {
   nonce: number
   sender: Address
   target: Address
   calldata: string
 }
 
-export interface L1ToL2TransactionBatch {
+export type L1Batch = RollupTransaction[]
+export interface BlockBatches {
   timestamp: number
   blockNumber: number
-  transactions: L1ToL2Transaction[]
+  batches: L1Batch[]
 }
 
-export type L1ToL2TransactionParser = (
+export type L1BatchParser = (
   l: Log,
   transaction: TransactionResponse
-) => Promise<L1ToL2Transaction[]>
+) => Promise<L1Batch>
 
-export interface L1ToL2TransactionLogParserContext {
+export interface BatchLogParserContext {
   topic: string
   contractAddress: Address
-  parseL2Transactions: L1ToL2TransactionParser
+  parseL1Batch: L1BatchParser
 }
 
 /* Types */

@@ -180,20 +180,23 @@ export class Environment {
       : defaultValue
   }
 
-  // State Synchronizer Config
-  public static stateSynchronizerPersistentDbPath(
+  // Block Batch Processor Config
+  public static blockBatchProcessorPersistentDbPath(
     defaultValue?: string
   ): string {
-    return process.env.STATE_SYNCHRONIZER_PERSISTENT_DB_PATH || defaultValue
+    return (
+      process.env.L1_BLOCK_BATCH_PROCESSOR_PERSISTENT_DB_PATH || defaultValue
+    )
   }
-  public static stateSynchronizerPrivateKey(defaultValue?: string): string {
-    return process.env.STATE_SYNCHRONIZER_PRIVATE_KEY || defaultValue
+  public static blockBatchProcessorPrivateKey(defaultValue?: string): string {
+    return process.env.L1_BLOCK_BATCH_PROCESSOR_PRIVATE_KEY || defaultValue
   }
-  public static stateSynchronizerNumConfirmsRequired(
+  public static blockBatchProcessorNumConfirmsRequired(
     defaultValue: string = '1'
   ): number {
     return parseInt(
-      process.env.STATE_SYNCHRONIZER_NUM_CONFIRMS_REQUIRED || defaultValue,
+      process.env.L1_BLOCK_BATCH_PROCESSOR_NUM_CONFIRMS_REQUIRED ||
+        defaultValue,
       10
     )
   }

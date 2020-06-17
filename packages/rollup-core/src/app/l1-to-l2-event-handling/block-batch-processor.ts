@@ -6,29 +6,30 @@ import {
 } from '@eth-optimism/core-db'
 import { getLogger, Logger } from '@eth-optimism/core-utils'
 
-/* Internal Imports */
-import {
-  L1ToL2Transaction,
-  L1ToL2TransactionBatch,
-  L1ToL2TransactionBatchListener,
-  L1ToL2TransactionLogParserContext,
-} from '../../types'
 import { Block, Provider, TransactionResponse } from 'ethers/providers'
 import { Log } from 'ethers/providers/abstract-provider'
+
+/* Internal Imports */
+import {
+  BlockBatches,
+  BlockBatchListener,
+  BatchLogParserContext,
+  L1Batch,
+} from '../../types'
 import { addressesAreEqual } from '../utils'
 
-const log: Logger = getLogger('l1-to-l2-transition-synchronizer')
+const log: Logger = getLogger('block-batch-processor')
 
-export class L1TransactionBatchProcessor
-  extends BaseQueuedPersistedProcessor<L1ToL2TransactionBatch>
+export class BlockBatchProcessor
+  extends BaseQueuedPersistedProcessor<BlockBatches>
   implements EthereumListener<Block> {
-  public static readonly persistenceKey = 'L1ToL2TransactionSynchronizer'
+  public static readonly persistenceKey = 'BlockBatchProcessor'
 
   private readonly topics: string[]
-  private readonly topicMap: Map<string, L1ToL2TransactionLogParserContext>
+  private readonly topicMap: Map<string, BatchLogParserContext>
 
   /**
-   * Creates a L1ToL2TransactionSynchronizer that subscribes to blocks, processes all
+   * Creates a BlockBatchProcessor that subscribes to blocks, processes all
    * L1ToL2Transaction events, parses L1ToL2Transactions and submits them to L2.
    *
    * @param db The DB to use to persist the queue of L1ToL2Transaction[] objects.
@@ -41,11 +42,11 @@ export class L1TransactionBatchProcessor
   public static async create(
     db: DB,
     l1Provider: Provider,
-    logContexts: L1ToL2TransactionLogParserContext[],
-    listeners: L1ToL2TransactionBatchListener[],
-    persistenceKey: string = L1TransactionBatchProcessor.persistenceKey
-  ): Promise<L1TransactionBatchProcessor> {
-    const processor = new L1TransactionBatchProcessor(
+    logContexts: BatchLogParserContext[],
+    listeners: BlockBatchListener[],
+    persistenceKey: string = BlockBatchProcessor.persistenceKey
+  ): Promise<BlockBatchProcessor> {
+    const processor = new BlockBatchProcessor(
       db,
       l1Provider,
       logContexts,
@@ -59,12 +60,12 @@ export class L1TransactionBatchProcessor
   private constructor(
     db: DB,
     private readonly l1Provider: Provider,
-    logContexts: L1ToL2TransactionLogParserContext[],
-    private readonly listeners: L1ToL2TransactionBatchListener[],
-    persistenceKey: string = L1TransactionBatchProcessor.persistenceKey
+    logContexts: BatchLogParserContext[],
+    private readonly listeners: BlockBatchListener[],
+    persistenceKey: string = BlockBatchProcessor.persistenceKey
   ) {
     super(db, persistenceKey)
-    this.topicMap = new Map<string, L1ToL2TransactionLogParserContext>(
+    this.topicMap = new Map<string, BatchLogParserContext>(
       logContexts.map((x) => [x.topic, x])
     )
     this.topics = Array.from(this.topicMap.keys())
@@ -90,28 +91,26 @@ export class L1TransactionBatchProcessor
 
     logs.sort((a, b) => a.logIndex - b.logIndex)
 
-    const l1ToL2TransactionArrays: L1ToL2Transaction[][] = await Promise.all(
-      logs.map((l) => this.getTransactionsFromLog(l))
-    )
-    const transactions: L1ToL2Transaction[] = l1ToL2TransactionArrays.reduce(
-      (res, curr) => [...res, ...curr],
-      []
+    let batches: L1Batch[] = await Promise.all(
+      logs.map((l) => this.getBatchFromLog(l))
     )
 
-    if (!transactions.length) {
+    batches = batches.filter((x) => x.length > 0)
+
+    if (!batches.length) {
       log.debug(`There were no L1toL2Transactions in block ${block.number}.`)
     } else {
       log.debug(
-        `Parsed L1ToL2Transactions from block ${block.number}: ${JSON.stringify(
-          transactions
-        )}`
+        `Parsed ${batches.length} batches from block ${
+          block.number
+        }: ${JSON.stringify(batches)}`
       )
     }
 
     this.add(block.number, {
       blockNumber: block.number,
       timestamp: block.timestamp,
-      transactions,
+      batches,
     })
   }
 
@@ -127,19 +126,17 @@ export class L1TransactionBatchProcessor
    */
   protected async handleNextItem(
     blockNumber: number,
-    transactionBatch: L1ToL2TransactionBatch
+    blockBatches: BlockBatches
   ): Promise<void> {
     try {
-      if (!!transactionBatch.transactions.length) {
-        this.listeners.map((x) =>
-          x.handleL1ToL2TransactionBatch(transactionBatch)
-        )
+      if (!!blockBatches.batches.length) {
+        this.listeners.map((x) => x.handleBlockBatches(blockBatches))
       }
       await this.markProcessed(blockNumber)
     } catch (e) {
       this.logError(
         `Error processing L1ToL2Transactions. Txs: ${JSON.stringify(
-          transactionBatch
+          blockBatches
         )}`,
         e
       )
@@ -151,20 +148,18 @@ export class L1TransactionBatchProcessor
   /**
    * @inheritDoc
    */
-  protected async serializeItem(item: L1ToL2TransactionBatch): Promise<Buffer> {
+  protected async serializeItem(item: BlockBatches): Promise<Buffer> {
     return Buffer.from(JSON.stringify(item), 'utf-8')
   }
 
   /**
    * @inheritDoc
    */
-  protected async deserializeItem(
-    itemBuffer: Buffer
-  ): Promise<L1ToL2TransactionBatch> {
+  protected async deserializeItem(itemBuffer: Buffer): Promise<BlockBatches> {
     return JSON.parse(itemBuffer.toString('utf-8'))
   }
 
-  private async getTransactionsFromLog(l: Log): Promise<L1ToL2Transaction[]> {
+  private async getBatchFromLog(l: Log): Promise<L1Batch> {
     const matchedTopics: string[] = l.topics.filter(
       (x) => this.topics.indexOf(x) >= 0
     )
@@ -186,16 +181,16 @@ export class L1TransactionBatchProcessor
       `Fetched tx by hash ${l.transactionHash}: ${JSON.stringify(transaction)}`
     )
 
-    const parsedTransactions: L1ToL2Transaction[] = []
+    const parsedBatch: L1Batch = []
     for (const topic of matchedTopics) {
       const context = this.topicMap.get(topic)
       if (!addressesAreEqual(l.address, context.contractAddress)) {
         continue
       }
-      const transactions = await context.parseL2Transactions(l, transaction)
-      parsedTransactions.push(...transactions)
+      const transactions = await context.parseL1Batch(l, transaction)
+      parsedBatch.push(...transactions)
     }
 
-    return parsedTransactions
+    return parsedBatch
   }
 }

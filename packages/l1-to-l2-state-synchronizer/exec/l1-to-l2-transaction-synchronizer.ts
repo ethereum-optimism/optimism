@@ -12,7 +12,7 @@ import {
   initializeL1Node,
   L1NodeContext,
   CHAIN_ID,
-  L1TransactionBatchProcessor,
+  BlockBatchProcessor,
 } from '@eth-optimism/rollup-core'
 
 import { JsonRpcProvider, Provider } from 'ethers/providers'
@@ -21,12 +21,12 @@ import * as rimraf from 'rimraf'
 import { Wallet } from 'ethers'
 import { getWallets } from 'ethereum-waffle'
 
-const log = getLogger('l1-to-l2-transaction-batch-processor')
+const log = getLogger('l1-block-batch-processor')
 
 export const runTest = async (
   l1Provider?: Provider,
   l2Provider?: JsonRpcProvider
-): Promise<L1TransactionBatchProcessor> => {
+): Promise<BlockBatchProcessor> => {
   return run(true, l1Provider, l2Provider)
 }
 
@@ -34,7 +34,7 @@ export const run = async (
   testMode: boolean = false,
   l1Provider?: Provider,
   l2Provider?: JsonRpcProvider
-): Promise<L1TransactionBatchProcessor> => {
+): Promise<BlockBatchProcessor> => {
   initializeDBPaths(testMode)
 
   let l1NodeContext: L1NodeContext
@@ -52,25 +52,25 @@ export const run = async (
     provider = new JsonRpcProvider(Environment.l2NodeWeb3Url(), CHAIN_ID)
   }
 
-  return getL1ToL2TransactionBatchProcessor(testMode, l1NodeContext, provider)
+  return getL1BlockBatchProcessor(testMode, l1NodeContext, provider)
 }
 
 /**
- * Gets an L1ToL2TransactionSynchronizer based on configuration and the provided arguments.
+ * Gets an BlockBatchProcessor based on configuration and the provided arguments.
  *
  * @param testMode Whether or not this is running as a test
  * @param l1NodeContext The L1 node context.
  * @param l2Provider The L2 JSON RPC Provider to use to communicate with the L2 node.
- * @returns The L1ToL2TransactionSynchronizer.
+ * @returns The BlockBatchProcessor.
  */
-const getL1ToL2TransactionBatchProcessor = async (
+const getL1BlockBatchProcessor = async (
   testMode: boolean,
   l1NodeContext: L1NodeContext,
   l2Provider: JsonRpcProvider
-): Promise<L1TransactionBatchProcessor> => {
+): Promise<BlockBatchProcessor> => {
   const db: DB = getDB(testMode)
 
-  const stateSynchronizer = await L1TransactionBatchProcessor.create(
+  const blockBatchProcessor = await BlockBatchProcessor.create(
     db,
     l1NodeContext.provider,
     [], // TODO: fill this in
@@ -82,15 +82,15 @@ const getL1ToL2TransactionBatchProcessor = async (
   const blockProcessor = new EthereumBlockProcessor(
     db,
     earliestBlock,
-    Environment.stateSynchronizerNumConfirmsRequired()
+    Environment.blockBatchProcessorNumConfirmsRequired()
   )
   await blockProcessor.subscribe(
     l1NodeContext.provider,
-    stateSynchronizer,
+    blockBatchProcessor,
     true
   )
 
-  return stateSynchronizer
+  return blockBatchProcessor
 }
 
 /**
@@ -103,15 +103,15 @@ const getDB = (isTestMode: boolean = false): DB => {
   if (isTestMode) {
     return newInMemoryDB()
   } else {
-    if (!Environment.stateSynchronizerPersistentDbPath()) {
+    if (!Environment.blockBatchProcessorPersistentDbPath()) {
       log.error(
-        `No L1_TO_L2_STATE_SYNCHRONIZER_PERSISTENT_DB_PATH environment variable present. Please set one!`
+        `No L1_BLOCK_BATCH_PROCESSOR_PERSISTENT_DB_PATH environment variable present. Please set one!`
       )
       process.exit(1)
     }
 
     return new BaseDB(
-      getLevelInstance(Environment.stateSynchronizerPersistentDbPath())
+      getLevelInstance(Environment.blockBatchProcessorPersistentDbPath())
     )
   }
 }
@@ -126,13 +126,13 @@ const getDB = (isTestMode: boolean = false): DB => {
  */
 const getL2Wallet = (provider: JsonRpcProvider): Wallet => {
   let wallet: Wallet
-  if (!!Environment.stateSynchronizerPrivateKey()) {
+  if (!!Environment.blockBatchProcessorPrivateKey()) {
     wallet = new Wallet(
-      add0x(Environment.stateSynchronizerPrivateKey()),
+      add0x(Environment.blockBatchProcessorPrivateKey()),
       provider
     )
     log.info(
-      `Initialized State Synchronizer wallet from private key. Address: ${wallet.address}`
+      `Initialized Block Batch Processor wallet from private key. Address: ${wallet.address}`
     )
   } else {
     wallet = getWallets(provider)[0]
@@ -142,11 +142,11 @@ const getL2Wallet = (provider: JsonRpcProvider): Wallet => {
   }
 
   if (!wallet) {
-    const msg: string = `Wallet not created! Specify the L1_TO_L2_STATE_SYNCHRONIZER_PRIVATE_KEY environment variable to set one!`
+    const msg: string = `Wallet not created! Specify the L1_BLOCK_BATCH_PROCESSOR_PRIVATE_KEY environment variable to set one!`
     log.error(msg)
     throw Error(msg)
   } else {
-    log.info(`State Synchronizer wallet created. Address: ${wallet.address}`)
+    log.info(`Block Batch Processor wallet created. Address: ${wallet.address}`)
   }
 
   return wallet
@@ -165,9 +165,9 @@ const initializeDBPaths = (isTestMode: boolean) => {
   } else {
     if (Environment.clearDataKey() && !fs.existsSync(getClearDataFilePath())) {
       log.info(`Detected change in CLEAR_DATA_KEY. Purging data...`)
-      rimraf.sync(`${Environment.stateSynchronizerPersistentDbPath()}/{*,.*}`)
+      rimraf.sync(`${Environment.blockBatchProcessorPersistentDbPath()}/{*,.*}`)
       log.info(
-        `L2 RPC Server data purged from '${Environment.stateSynchronizerPersistentDbPath()}/{*,.*}'`
+        `L2 RPC Server data purged from '${Environment.blockBatchProcessorPersistentDbPath()}/{*,.*}'`
       )
       makeDataDirectory()
     }
@@ -178,7 +178,7 @@ const initializeDBPaths = (isTestMode: boolean) => {
  * Makes the data directory for this full node and adds a clear data key file if it is configured to use one.
  */
 const makeDataDirectory = () => {
-  fs.mkdirSync(Environment.stateSynchronizerPersistentDbPath(), {
+  fs.mkdirSync(Environment.blockBatchProcessorPersistentDbPath(), {
     recursive: true,
   })
   if (Environment.clearDataKey()) {
@@ -187,7 +187,7 @@ const makeDataDirectory = () => {
 }
 
 const getClearDataFilePath = () => {
-  return `${Environment.stateSynchronizerPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
+  return `${Environment.blockBatchProcessorPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
 }
 
 if (typeof require !== 'undefined' && require.main === module) {
