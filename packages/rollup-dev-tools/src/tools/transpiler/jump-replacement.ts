@@ -2,9 +2,14 @@ import {
   bytecodeToBuffer,
   EVMBytecode,
   Opcode,
+  OpcodeTagReason,
 } from '@eth-optimism/rollup-core'
-import { bufferUtils, getLogger } from '@eth-optimism/core-utils'
-import { getPUSHOpcode, getPUSHIntegerOp } from './helpers'
+import {
+  bufferUtils,
+  getLogger,
+  numberToHexString,
+} from '@eth-optimism/core-utils'
+import { getPUSHOpcode, getPUSHIntegerOp, isTaggedWithReason } from './helpers'
 import {
   JumpReplacementResult,
   TranspilationError,
@@ -36,22 +41,44 @@ export const accountForJumps = (
   const footerSwitchJumpdestIndex: number = getExpectedFooterSwitchStatementJumpdestIndex(
     transpiledBytecode
   )
+  log.debug(
+    `Generating jump table with exepected PC of footer switch jumpdest: ${numberToHexString(
+      footerSwitchJumpdestIndex
+    )}`
+  )
   const jumpdestIndexesAfter: number[] = []
   const replacedBytecode: EVMBytecode = []
   let pc: number = 0
-  // Replace all JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
+  // Replace all original JUMP, JUMPI, and JUMPDEST, and build the post-transpilation JUMPDEST index array.
   for (const opcodeAndBytes of transpiledBytecode) {
-    if (opcodeAndBytes.opcode === Opcode.JUMP) {
+    if (
+      opcodeAndBytes.opcode === Opcode.JUMP &&
+      !isTaggedWithReason(opcodeAndBytes, [
+        OpcodeTagReason.IS_JUMP_TO_OPCODE_FUNCTION,
+        OpcodeTagReason.IS_OPCODE_FUNCTION_RETURN_JUMP,
+      ])
+    ) {
+      log.debug(
+        `replacing jump for opcodeandbytes: ${JSON.stringify(opcodeAndBytes)}`
+      )
       replacedBytecode.push(
         ...getJumpReplacementBytecode(footerSwitchJumpdestIndex)
       )
+      log.debug(`inserted JUMP replacement at PC 0x${pc.toString(16)}`)
       pc += getJumpReplacementBytecodeLength()
     } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
       replacedBytecode.push(
         ...getJumpiReplacementBytecode(footerSwitchJumpdestIndex)
       )
+      log.debug(`inserted JUMPI replacement at PC 0x${pc.toString(16)}`)
       pc += getJumpiReplacementBytecodeLength()
-    } else if (opcodeAndBytes.opcode === Opcode.JUMPDEST) {
+    } else if (
+      opcodeAndBytes.opcode === Opcode.JUMPDEST &&
+      !isTaggedWithReason(opcodeAndBytes, [
+        OpcodeTagReason.IS_OPCODE_FUNCTION_JUMPDEST,
+        OpcodeTagReason.IS_OPCODE_FUNCTION_RETURN_JUMPDEST,
+      ])
+    ) {
       replacedBytecode.push(opcodeAndBytes)
       jumpdestIndexesAfter.push(pc)
       pc += 1
@@ -62,7 +89,7 @@ export const accountForJumps = (
   }
 
   if (jumpdestIndexesBefore.length !== jumpdestIndexesAfter.length) {
-    const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} JUMPDESTs after.`
+    const message: string = `There were ${jumpdestIndexesBefore.length} JUMPDESTs before transpilation, but there are ${jumpdestIndexesAfter.length} non-replacement-table JUMPDESTs after.`
     log.debug(message)
     errors.push(
       createError(-1, TranspilationErrors.INVALID_SUBSTITUTION, message)
@@ -71,6 +98,11 @@ export const accountForJumps = (
   }
 
   // Add the logic to handle the pre-transpilation to post-transpilation jump dest mapping.
+  log.debug(
+    `inserting JUMP BST at PC ${numberToHexString(
+      bytecodeToBuffer(replacedBytecode).length
+    )}`
+  )
   replacedBytecode.push(
     ...buildJumpBSTBytecode(
       jumpdestIndexesBefore,
@@ -177,7 +209,13 @@ export const getExpectedFooterSwitchStatementJumpdestIndex = (
 ): number => {
   let length: number = 0
   for (const opcodeAndBytes of bytecode) {
-    if (opcodeAndBytes.opcode === Opcode.JUMP) {
+    if (
+      opcodeAndBytes.opcode === Opcode.JUMP &&
+      !isTaggedWithReason(opcodeAndBytes, [
+        OpcodeTagReason.IS_JUMP_TO_OPCODE_FUNCTION,
+        OpcodeTagReason.IS_OPCODE_FUNCTION_RETURN_JUMP,
+      ])
+    ) {
       length += getJumpReplacementBytecodeLength()
     } else if (opcodeAndBytes.opcode === Opcode.JUMPI) {
       length += getJumpiReplacementBytecodeLength()

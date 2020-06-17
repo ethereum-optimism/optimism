@@ -4,6 +4,7 @@ import {
   bufferToBytecode,
   EVMBytecode,
   EVMOpcode,
+  EVMOpcodeAndBytes,
   formatBytecode,
   Opcode,
 } from '@eth-optimism/rollup-core'
@@ -14,6 +15,7 @@ import {
   hexStrToBuf,
   Logger,
   remove0x,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import * as abi from 'ethereumjs-abi'
 import { ethers } from 'ethers'
@@ -27,6 +29,8 @@ import {
   SuccessfulTranspilation,
   ErroredTranspilation,
   TranspilerImpl,
+  OpcodeReplacer,
+  OpcodeReplacerImpl,
 } from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
@@ -497,4 +501,56 @@ export const transpileAndDeployInitcode = async (
   )
   const deployedViaInitcodeAddress = deployedViaInitcode.result
   return deployedViaInitcodeAddress
+}
+
+const defaultReplacer = new OpcodeReplacerImpl(ZERO_ADDRESS)
+export const mockSSTOREReplacer: OpcodeReplacer = {
+  getJUMPToOpcodeFunction: defaultReplacer.getJUMPToOpcodeFunction,
+  getJUMPOnOpcodeFunctionReturn: defaultReplacer.getJUMPOnOpcodeFunctionReturn,
+  getOpcodeFunctionTable: defaultReplacer.getOpcodeFunctionTable,
+  populateOpcodeFunctionJUMPs: defaultReplacer.populateOpcodeFunctionJUMPs,
+  shouldSubstituteOpcodeForFunction(op: EVMOpcode): boolean {
+    return op === Opcode.SSTORE
+  },
+  getSubstituedFunctionFor(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
+    if (opcodeAndBytes.opcode === Opcode.SSTORE) {
+      return [
+        // Do random PUSH POPs to increase codesize
+        getPUSHIntegerOp(1),
+        {
+          opcode: Opcode.POP,
+          consumedBytes: undefined,
+        },
+        getPUSHIntegerOp(2),
+        {
+          opcode: Opcode.POP,
+          consumedBytes: undefined,
+        },
+        getPUSHIntegerOp(3),
+        {
+          opcode: Opcode.POP,
+          consumedBytes: undefined,
+        },
+        // get return dest to third in stack so original SSTORE args are first two stack vals
+        // expected stack: [pc to return to after replacement, key, val]
+        {
+          opcode: Opcode.SWAP2,
+          consumedBytes: undefined,
+        },
+        // expected stack: [val, key, return PC]
+        {
+          opcode: Opcode.SWAP1,
+          consumedBytes: undefined,
+        },
+        // expected stack: [key, val, return PC]
+        // now do the SSTORE
+        {
+          opcode: Opcode.SSTORE,
+          consumedBytes: undefined,
+        },
+      ]
+    } else {
+      return [opcodeAndBytes]
+    }
+  },
 }

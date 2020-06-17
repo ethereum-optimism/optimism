@@ -4,6 +4,7 @@ import {
   EVMOpcode,
   EVMOpcodeAndBytes,
   EVMBytecode,
+  OpcodeTagReason,
 } from '@eth-optimism/rollup-core'
 import { getLogger, BigNumber } from '@eth-optimism/core-utils'
 
@@ -156,26 +157,29 @@ export const storeStackInMemoryAtIndex = (
 }
 
 /**
- * Stores the first `numWords` elements on the stack to memory at the specified index.
+ * Stores the first `numWords` elements on the stack to memory at the specified index, optionally ignoring the first stack element.
  *
  * Used to pass stack params into the Execution manager as calldata.
  *
  * @param numStackElementsToStore The number of stack elements to put in the memory
  * @param memoryIndexToStoreAt The byte index in the memory to store the stack elements to.
+ * @param numStackElementsToIgnore The number of stack elements which should be preserved, but not stored.
  * @returns Btyecode which results in the storage operation described above.
  */
 export const storeStackElementsAsMemoryWords = (
   numStackElementsToStore: number,
   memoryIndexToStoreAt: number = 0
 ): EVMBytecode => {
-  let op: EVMBytecode = []
+  const op: EVMBytecode = []
   for (let i = 0; i < numStackElementsToStore; i++) {
-    op = op.concat([
-      // push storage index
-      getPUSHIntegerOp(i * 32 + memoryIndexToStoreAt),
-      // store the stack item
-      { opcode: Opcode.MSTORE, consumedBytes: undefined },
-    ])
+    op.push(
+      ...[
+        // push storage index
+        getPUSHIntegerOp(i * 32 + memoryIndexToStoreAt),
+        // store the stack item
+        { opcode: Opcode.MSTORE, consumedBytes: undefined },
+      ]
+    )
   }
   return op
 }
@@ -237,4 +241,15 @@ export const getSWAPNOp = (indexToSWAP: number): EVMOpcodeAndBytes => {
     opcode: Opcode.parseByNumber(144 + indexToSWAP - 1),
     consumedBytes: undefined,
   }
+}
+
+// returns whether the given EVMOpcodeAndBytes has a tag reason matching one of the given ones
+export const isTaggedWithReason = (
+  opcodeAndBytes: EVMOpcodeAndBytes,
+  tags: Array<string | OpcodeTagReason>
+): boolean => {
+  if (opcodeAndBytes.tag === undefined) {
+    return false
+  }
+  return tags.includes(opcodeAndBytes.tag.reasonTagged)
 }

@@ -21,8 +21,8 @@ import {
   ExecutionResult,
   CallContext,
   EvmIntrospectionUtilImpl,
-  getCREATEReplacement,
-  getCREATE2Replacement,
+  getCREATESubstitute,
+  getCREATE2Substitute,
   getPUSHBuffer,
   getPUSHIntegerOp,
 } from '../../src'
@@ -63,6 +63,7 @@ describe('Contract Creation Opcode Replacements', () => {
   let getterAddress: Address
   let mockCREATEReplacement: EVMBytecode
   let mockCREATE2Replacement: EVMBytecode
+  const PCtoReturnTo: Buffer = hexStrToBuf('0x696969')
   const mockMemory: Buffer = Buffer.alloc(32 * 10).fill(28)
   const initcodeOffset: number = 1 + 32 * 2 // must exceed 32 * 2 to do CREATE2 word prepending (methodId and salt)
   const initcodeLength: number = 2
@@ -79,7 +80,8 @@ describe('Contract Creation Opcode Replacements', () => {
       getPUSHIntegerOp(initcodeLength),
       getPUSHIntegerOp(initcodeOffset),
       getPUSHIntegerOp(0), // value input, will be ignored by transpiled bytecode
-      ...getCREATEReplacement(getterAddress, getMethodName),
+      getPUSHBuffer(PCtoReturnTo),
+      ...getCREATESubstitute(getterAddress, getMethodName),
       { opcode: Opcode.RETURN, consumedBytes: undefined },
     ]
     // mock a transpiler-output replaced CREATE
@@ -90,7 +92,8 @@ describe('Contract Creation Opcode Replacements', () => {
       getPUSHIntegerOp(initcodeLength),
       getPUSHIntegerOp(initcodeOffset),
       getPUSHIntegerOp(0), // value input, will be ignored by transpiled bytecode
-      ...getCREATE2Replacement(getterAddress, getMethodName),
+      getPUSHBuffer(PCtoReturnTo),
+      ...getCREATE2Substitute(getterAddress, getMethodName),
       { opcode: Opcode.RETURN, consumedBytes: undefined },
     ]
   })
@@ -117,8 +120,9 @@ describe('Contract Creation Opcode Replacements', () => {
       finalContext.memory.equals(mockMemory).should.be.true
 
       // check that returned address is only thing left on the stack
-      finalContext.stackDepth.should.equal(1)
-      finalContext.stack[0].should.deep.equal(hexStrToBuf(valToReturn))
+      finalContext.stackDepth.should.equal(2)
+      finalContext.stack[0].should.deep.equal(PCtoReturnTo)
+      finalContext.stack[1].should.deep.equal(hexStrToBuf(valToReturn))
     })
   })
 
@@ -145,8 +149,9 @@ describe('Contract Creation Opcode Replacements', () => {
       finalContext.memory.equals(mockMemory).should.be.true
 
       // check that returned address is only thing left on the stack
-      finalContext.stackDepth.should.equal(1)
-      finalContext.stack[0].should.deep.equal(hexStrToBuf(valToReturn))
+      finalContext.stackDepth.should.equal(2)
+      finalContext.stack[0].should.deep.equal(PCtoReturnTo)
+      finalContext.stack[1].should.deep.equal(hexStrToBuf(valToReturn))
     })
   })
 })

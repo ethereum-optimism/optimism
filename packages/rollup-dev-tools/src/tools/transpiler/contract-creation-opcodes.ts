@@ -22,7 +22,7 @@ export const ovmCREATE2Name = 'ovmCREATE2'
 /**
  * This replaces CREATE Opcode with a CALL to our ExecutionManager.
  * Notably, this:
- *  * Assumes the proper stack and memory is in place to do the un-transpiled CREATE
+ *  * Assumes the proper memory for create and a stack of (PC to return to), (untranspiled CREATE args), ...
  *  * Stores memory that will be modified during the proxy operation to the stack
  *  * Safely stores ovmCREATE method id and arguments to memory so it can be passed with the proxy CALL.
  *  * CALLs the specified ovmCREATE function
@@ -32,13 +32,14 @@ export const ovmCREATE2Name = 'ovmCREATE2'
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmCREATEFunctionName (ONLY USED FOR TESTING) The function name in the Execution Manager to handle CREATEs.
  */
-export const getCREATEReplacement = (
+export const getCREATESubstitute = (
   executionManagerAddress: Address,
   ovmCREATEFunctionName: string = ovmCREATEName
 ): EVMBytecode => {
   // CREATE params and execution do the following to the stack:
   // [value, offset, length, ...] --> 	[addr, ...]
   // Where offset and length are memory indices of the initcode.
+  // additionally we expect the PC to JUMP back to to be preserved, so input stack on entering this function's bytcode is [(PC to jump back to), value, offset, length, ...]
 
   // The execution manager expects th following calldata: (variable-length bytes)
   //  *       [methodID (bytes4)]
@@ -55,21 +56,21 @@ export const getCREATEReplacement = (
   const op: EVMBytecode = [
     // we will subtract the number of words we will prepend to get the index of memory we're pushing to stack to recover later (this will be reused as retOffset)
     getPUSHIntegerOp(callMemoryBytesToPrepend),
-    getDUPNOp(3), // dup memory offset of initcode, this is expected at index 2 after what we just pushed -> 3
+    getDUPNOp(4), // dup memory offset of initcode, this is expected at index 3, after what we just pushed -> 4
     { opcode: Opcode.SUB, consumedBytes: undefined }, // do subtraction
     // actually push it to the stack
     ...pushMemoryOntoStack(callMemoryWordsToPrepend),
   ]
 
-  // stack should now be [retOffset, ...[mem words pushed to stack], ...[value, offset, length, ...]]]
+  // stack should now be [retOffset, ...[mem words pushed to stack], (PC to return to), ...[value, offset, length, ...]]]
   // duplicate the two memory-related params from the original CREATE to front of stack
   op.push(
     ...new Array(2).fill(
-      getDUPNOp(1 + callMemoryWordsToPrepend + 3) // this will DUP length then offset
+      getDUPNOp(1 + callMemoryWordsToPrepend + 1 + 3) // this will DUP length then offset
     )
   )
 
-  // stack should now be [offset, length, retOffset, ...[mem words pushed to stack], ...[value, offset, length, ...]]
+  // stack should now be [offset, length, retOffset, ...[mem words pushed to stack], (PC to return to), ...[value, offset, length, ...]]
   // where the first two memory params are un-modified from the pre-transpiled CALL.
 
   // now, we need to store the prepended calldata in memory right before the original offset.
@@ -86,7 +87,7 @@ export const getCREATEReplacement = (
   // pop the index we were just using to store stack in memory
   op.push({ opcode: Opcode.POP, consumedBytes: undefined })
 
-  // at this point the stack should be back to [offset, length, retOffset, ...[mem words pushed to stack], ...[value, offset, length, ...]]
+  // at this point the stack should be back to [offset, length, retOffset, ...[mem words pushed to stack], (PC to return to), ...[value, offset, length, ...]]
   // now that we have prepended the correct calldata to memory, we need to update the args length and offset appropriately to actually pass the prepended data.
   const numBytesForExtraArgs: number = 4 + 0 * 32 // methodId + (Num params )* 32 bytes/word // NOTE: if we want to pass value param down the line, increment this "0"
   op.push(
@@ -132,7 +133,7 @@ export const getCREATEReplacement = (
       consumedBytes: undefined,
     }
   )
-  // stack should now be [retOffset, ...[mem pushed to stack], ...[value, offset, length, ...]]
+  // stack should now be [retOffset, ...[mem pushed to stack], (PC to return to), ...[value, offset, length, ...]]
   // We need to pull the addr from memory at retOffset before overwriting it back to the original memory.
   op.push(getDUPNOp(1), {
     opcode: Opcode.MLOAD,
@@ -140,17 +141,22 @@ export const getCREATEReplacement = (
   })
 
   // now we have the addr result at the top of the stack, so we swap it out to where it will be first after we put back the old memory and pop the original params.
-  // this index should be (1 for memory replacment index + callMemoryWordsToPrepend + 3 for original [value offset, length])
-  op.push(getSWAPNOp(1 + callMemoryWordsToPrepend + 3))
+  // this index should be (1 for memory replacment index + callMemoryWordsToPrepend + 4 for original [(PC to return to), value, offset, length])
+  op.push(getSWAPNOp(1 + callMemoryWordsToPrepend + 4))
 
   // we swapped with garbage stack which we no longer need since CALL has been executed, so POP
   op.push({ opcode: Opcode.POP, consumedBytes: undefined })
   // now that the success result is out of the way we can return memory to original state, the index and words are first on stack now!
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
+  // POP the index used to storeStackInMemeorry
+  op.push({ opcode: Opcode.POP, consumedBytes: undefined })
 
-  // lastly, POP the index and original CREATE params, ignoring the 1 that just got swapped and popped
+  // now, the stack should be [(PC to JUMP back to), value, offset, addr] (note that length was swapped and popped with create)
+  // swap the PC with value so that we preserve it
+  op.push(getSWAPNOp(2))
+  // lastly, POP the value and offset
   op.push(
-    ...new Array(1 + 3 - 1).fill({
+    ...new Array(2).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
     })
@@ -162,7 +168,7 @@ export const getCREATEReplacement = (
 /**
  * This replaces CREATE2 Opcode with a CALL to our ExecutionManager.
  * Notably, this:
- *  * Assumes the proper stack and memory is in place to do the un-transpiled CREATE
+ *  * Assumes the proper memory for create and a stack of (PC to return to), (untranspiled CREATE2 args), ...
  *  * Stores memory that will be modified during the proxy operation to the stack
  *  * Safely stores ovmCREATE2 method id and salt to memory so it can be passed with the proxy CALL.
  *  * CALLs the specified ovmCREATE2 function
@@ -172,13 +178,14 @@ export const getCREATEReplacement = (
  * @param executionManagerAddress The address of the Execution Manager contract.
  * @param ovmCREATE2FunctionName The function name in the Execution Manager to handle CREATE2s.
  */
-export const getCREATE2Replacement = (
+export const getCREATE2Substitute = (
   executionManagerAddress: Address,
   ovmCREATE2FunctionName: string = ovmCREATE2Name
 ): EVMBytecode => {
   // CREATE2 params and execution do the following to the stack:
   // [value, offset, length, salt, ...] --> 	[addr, ...]
   // Where offset and length are memory indices of the initcode.
+  // additionally we expect the PC to JUMP back to to be preserved, so input stack on entering this function's bytcode is [(PC to jump back to), value, offset, length, salt, ...]
 
   // The execution manager expects th following calldata: (variable-length bytes)
   // *       [methodID (bytes4)]
@@ -196,17 +203,17 @@ export const getCREATE2Replacement = (
   const op: EVMBytecode = [
     // we will subtract the number of words we will prepend to get the index of memory we're pushing to stack to recover later (this will be reused as retOffset)
     getPUSHIntegerOp(callMemoryBytesToPrepend),
-    getDUPNOp(3), // dup memory offset of initcode, this is expected at index 2 after what we just pushed -> 3
+    getDUPNOp(4), // dup memory offset of initcode, this is expected at index 3, after what we just pushed -> 4
     { opcode: Opcode.SUB, consumedBytes: undefined }, // do subtraction
     // actually push it to the stack
     ...pushMemoryOntoStack(callMemoryWordsToPrepend),
   ]
 
-  // stack should now be [retOffset, ...[mem words pushed to stack], ...[value, offset, length, salt, ...]]]
+  // stack should now be [retOffset, ...[mem words pushed to stack], (pc to return to), ...[value, offset, length, salt, ...]]]
   // duplicate the two memory-related params from the original CREATE to front of stack
   op.push(
     ...new Array(2).fill(
-      getDUPNOp(1 + callMemoryWordsToPrepend + 3) // this will DUP length then offset
+      getDUPNOp(1 + callMemoryWordsToPrepend + 1 + 3) // this will DUP length then offset
     )
   )
 
@@ -217,7 +224,7 @@ export const getCREATE2Replacement = (
   // NOTE: if we needed to pass the call value in the future alongside addr, we would dup that additional val to stack here and MSTORE it.
 
   // DUP the salt
-  op.push(getDUPNOp(2 + 1 + callMemoryWordsToPrepend + 4)) // see "stack should now be" section above for justification of this indexing
+  op.push(getDUPNOp(2 + 1 + callMemoryWordsToPrepend + 1 + 4)) // see "stack should now be" section above for justification of this indexing
   // PUSH the method data to stack
   op.push(getPUSHBuffer(methodId))
 
@@ -229,9 +236,9 @@ export const getCREATE2Replacement = (
   // pop the index we were just using to store stack in memory
   op.push({ opcode: Opcode.POP, consumedBytes: undefined })
 
-  // at this point the stack should be back to [offset, length, retOffset, ...[mem words pushed to stack], ...[value, offset, length, salt, ...]]
+  // at this point the stack should be back to [offset, length, retOffset, ...[mem words pushed to stack], (PC to return to), ...[value, offset, length, salt, ...]]
   // now that we have prepended the correct calldata to memory, we need to update the args length and offset appropriately to actually pass the prepended data.
-  const numBytesForExtraArgs: number = 4 + 1 * 32 // methodId + (Num params AKA salt)* 32 bytes/word // NOTE: if we want to pass value param down the line, increment this "0"
+  const numBytesForExtraArgs: number = 4 + 1 * 32 // methodId + (Num params AKA salt)* 32 bytes/word
   op.push(
     // subtract number of additional bytes from the initial offseet, should be the first thing on the stack
     getPUSHIntegerOp(numBytesForExtraArgs),
@@ -276,7 +283,7 @@ export const getCREATE2Replacement = (
       consumedBytes: undefined,
     }
   )
-  // stack should now be [retOffset, ...[mem pushed to stack], ...[value, offset, length, salt, ...]]
+  // stack should now be [retOffset, ...[mem pushed to stack], (PC to return to), ...[value, offset, length, salt, ...]]
   // We need to pull the addr from memory at retLength before overwriting it back to the original memory.
   op.push(getDUPNOp(1), {
     opcode: Opcode.MLOAD,
@@ -284,17 +291,22 @@ export const getCREATE2Replacement = (
   })
 
   // now we have the addr result at the top of the stack, so we swap it out to where it will be first after we put back the old memory and pop the original params.
-  // this index should be (1 for memory replacment index + callMemoryWordsToPrepend + 3 for original [value offset, length])
-  op.push(getSWAPNOp(1 + callMemoryWordsToPrepend + 4))
+  // this index should be (1 for memory replacment index + callMemoryWordsToPrepend + 5 for original [(PC to return to), value, offset, length, salt])
+  op.push(getSWAPNOp(1 + callMemoryWordsToPrepend + 5))
 
   // we swapped with garbage stack which we no longer need since CALL has been executed, so POP
   op.push({ opcode: Opcode.POP, consumedBytes: undefined })
   // now that the success result is out of the way we can return memory to original state, the index and words are first on stack now!
   op.push(...storeStackInMemory(callMemoryWordsToPrepend))
+  // POP the index used by storeStackInMemory
+  op.push({ opcode: Opcode.POP, consumedBytes: undefined })
+  // stack should now be  [(PC to return to), value, offset, length, (addr of CREATE2ed account)] (note salt was swapped and popped for addr above)
+  // SWAP (PC to return to) to preserve it as first element
+  op.push(getSWAPNOp(3))
 
-  // lastly, POP the index and original CREATE params, ignoring the 1 that just got swapped and popped
+  // POP the remaining value, offset, length
   op.push(
-    ...new Array(1 + 4 - 1).fill({
+    ...new Array(3).fill({
       opcode: Opcode.POP,
       consumedBytes: undefined,
     })

@@ -47,52 +47,15 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import {
-  invalidBytesConsumedBytecode,
-  invalidOpcode,
-  multipleErrors,
-  multipleNonWhitelisted,
-  singleNonWhitelisted,
-  stateManagerAddress,
-  validBytecode,
-} from '../helpers'
+import { mockSSTOREReplacer } from '../helpers'
 
 const log = getLogger(`test-solidity-JUMPs`)
 const abi = new ethers.utils.AbiCoder()
 
 describe('JUMP table solidity integration', () => {
   let evmUtil: EvmIntrospectionUtil
-  const mockReplacer: OpcodeReplacer = {
-    replaceIfNecessary(opcodeAndBytes: EVMOpcodeAndBytes): EVMBytecode {
-      if (opcodeAndBytes.opcode === Opcode.TIMESTAMP) {
-        return [
-          getPUSHIntegerOp(1),
-          {
-            opcode: Opcode.POP,
-            consumedBytes: undefined,
-          },
-          getPUSHIntegerOp(2),
-          {
-            opcode: Opcode.POP,
-            consumedBytes: undefined,
-          },
-          getPUSHIntegerOp(3),
-          {
-            opcode: Opcode.POP,
-            consumedBytes: undefined,
-          },
-          {
-            opcode: Opcode.TIMESTAMP,
-            consumedBytes: undefined,
-          },
-        ]
-      } else {
-        return [opcodeAndBytes]
-      }
-    },
-  }
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
-  const transpiler = new TranspilerImpl(opcodeWhitelist, mockReplacer)
+  const transpiler = new TranspilerImpl(opcodeWhitelist, mockSSTOREReplacer)
 
   const originalJumperAddr: Address =
     '0x1234123412341234123412341234123412341234'
