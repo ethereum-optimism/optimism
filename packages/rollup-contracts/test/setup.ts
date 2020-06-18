@@ -5,9 +5,9 @@ import bignum = require('chai-bignumber')
 import { solidity } from 'ethereum-waffle'
 
 chai.use(bignum())
-chai.use(chaiAsPromised);
+chai.use(chaiAsPromised)
 chai.use(solidity)
 const should = chai.should()
-const expect = chai.expect;
+const expect = chai.expect
 
 export { should, expect }
