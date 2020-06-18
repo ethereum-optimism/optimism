@@ -8,6 +8,7 @@ import {
   sleep,
   TestUtils,
   ZERO_ADDRESS,
+  numberToHexString,
 } from '@eth-optimism/core-utils'
 
 import { Wallet } from 'ethers'
@@ -27,7 +28,7 @@ import {
   BatchLogParserContext,
   L1Batch,
 } from '../../src/types'
-import { CHAIN_ID, BlockBatchProcessor } from '../../src/app'
+import { CHAIN_ID, BlockBatchProcessor, GAS_LIMIT } from '../../src/app'
 
 class DummyListener implements BlockBatchListener {
   public readonly receivedBlockBatches: BlockBatches[] = []
@@ -130,6 +131,7 @@ const throwOnParsing: L1Batch = [
     sender: ZERO_ADDRESS,
     target: ZERO_ADDRESS,
     calldata: '0xdeadbeef',
+    gasLimit:'0x1234'
   },
 ]
 
@@ -163,11 +165,13 @@ const nonce: number = 0
 const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
 const calldata: string = keccak256(Buffer.from('calldata').toString('hex'))
+const gasLimit: string = numberToHexString(GAS_LIMIT)
 const rollupTx: RollupTransaction = {
   nonce,
   sender,
   target,
   calldata,
+  gasLimit
 }
 
 const nonce2: number = 1
@@ -179,6 +183,7 @@ const rollupTx2: RollupTransaction = {
   sender: sender2,
   target: target2,
   calldata: calldata2,
+  gasLimit
 }
 
 const rollupTxsEqual = (

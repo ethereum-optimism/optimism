@@ -99,6 +99,7 @@ describe('SimpleTxOrigin', () => {
           transaction.nonce,
           transaction.to,
           transaction.data,
+          transaction.gasLimit,
           v,
           r,
           s,

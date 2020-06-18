@@ -42,7 +42,7 @@ describe('Message Passing Integration Tests', () => {
   })
 
   describe('L1 Message Passing Tests', () => {
-    it('Should not queue any messages if ', async () => {
+    it('Should not queue any messages if none are sent', async () => {
       const simpleStorage = await deployContract(wallet, SimpleStorage, [], [])
       const simpleCaller = await deployContract(wallet, SimpleCaller, [], [])
 

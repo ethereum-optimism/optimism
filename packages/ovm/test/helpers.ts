@@ -121,6 +121,7 @@ export const executeTransaction = async (
     data,
     wallet.address,
     ZERO_ADDRESS,
+    GAS_LIMIT,
     allowRevert
   )
   // Return the parsed transaction values
@@ -165,6 +166,7 @@ export const executeEOACall = async (
     ovmTx.nonce,
     ovmTo,
     ovmTx.data,
+    ovmTx.gasLimit,
     ovmTx.v,
     ovmTx.r,
     ovmTx.s

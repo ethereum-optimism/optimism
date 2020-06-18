@@ -1,14 +1,14 @@
 import '../setup'
 
 /* External Imports */
-import { hexStrToNumber, keccak256, TestUtils } from '@eth-optimism/core-utils'
+import { hexStrToNumber, keccak256, TestUtils, numberToHexString } from '@eth-optimism/core-utils'
 
 import { Wallet } from 'ethers'
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
 import { RollupTransaction } from '../../src/types'
-import { BlockBatchSubmitter } from '../../src/app'
+import { BlockBatchSubmitter, GAS_LIMIT } from '../../src/app'
 import { verifyMessage } from 'ethers/utils'
 
 interface Payload {
@@ -40,11 +40,13 @@ const nonce: number = 0
 const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
 const calldata: string = keccak256(Buffer.from('calldata').toString('hex'))
+const gasLimit: string = numberToHexString(GAS_LIMIT)
 const rollupTx: RollupTransaction = {
   nonce,
   sender,
   target,
   calldata,
+  gasLimit
 }
 
 const nonce2: number = 1
@@ -56,6 +58,7 @@ const rollupTx2: RollupTransaction = {
   sender: sender2,
   target: target2,
   calldata: calldata2,
+  gasLimit
 }
 
 const rollupTxsEqual = (
@@ -108,7 +111,7 @@ describe('L2 Transaction Batch Submitter', () => {
     )
   })
 
-  it('should send single-tx batch properly', async () => {
+  it.only('should send single-tx batch properly', async () => {
     await blockBatchSubmitter.handleBlockBatches({
       timestamp,
       blockNumber,
@@ -144,7 +147,7 @@ describe('L2 Transaction Batch Submitter', () => {
     )
   })
 
-  it('should send multi-tx batch properly', async () => {
+  it.only('should send multi-tx batch properly', async () => {
     await blockBatchSubmitter.handleBlockBatches({
       timestamp,
       blockNumber,

@@ -451,6 +451,7 @@ describe('Execution Manager -- Call opcodes', () => {
       callBytes,
       ZERO_ADDRESS,
       ZERO_ADDRESS,
+      GAS_LIMIT,
       true,
     ])
 
@@ -478,6 +479,7 @@ describe('Execution Manager -- Call opcodes', () => {
       callBytes,
       ZERO_ADDRESS,
       ZERO_ADDRESS,
+      GAS_LIMIT,
       true,
     ])
     return executionManager.provider.call({

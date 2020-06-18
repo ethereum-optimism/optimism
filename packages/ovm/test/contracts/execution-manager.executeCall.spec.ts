@@ -120,6 +120,7 @@ describe('Execution Manager -- Call opcodes', () => {
             transaction.nonce,
             transaction.to,
             transaction.data,
+            transaction.gasLimit,
             padToLength(v, 4),
             padToLength(r, 64),
             padToLength(s, 64)
@@ -158,6 +159,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.data,
         wallet.address,
         ZERO_ADDRESS,
+        GAS_LIMIT,
         true
       )
       await provider.waitForTransaction(tx.hash)
@@ -195,6 +197,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        transaction.gasLimit,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -232,6 +235,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        transaction.gasLimit,
         v,
         r,
         s
@@ -270,6 +274,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        transaction.gasLimit,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -295,6 +300,7 @@ describe('Execution Manager -- Call opcodes', () => {
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )
@@ -337,6 +343,7 @@ describe('Execution Manager -- Call opcodes', () => {
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )

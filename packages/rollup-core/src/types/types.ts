@@ -25,6 +25,7 @@ export interface RollupTransaction {
   sender: Address
   target: Address
   calldata: string
+  gasLimit: string
 }
 
 export type L1Batch = RollupTransaction[]

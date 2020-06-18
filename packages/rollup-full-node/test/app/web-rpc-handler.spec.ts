@@ -7,8 +7,9 @@ import {
   keccak256,
   JSONRPC_ERRORS,
   hexStrToBuf,
+  numberToHexString,
 } from '@eth-optimism/core-utils'
-import { CHAIN_ID } from '@eth-optimism/rollup-core'
+import { CHAIN_ID, GAS_LIMIT } from '@eth-optimism/rollup-core'
 
 import { ethers, ContractFactory, Wallet, Contract, utils } from 'ethers'
 import { resolve } from 'path'
@@ -636,6 +637,7 @@ describe('Web3Handler', () => {
           calldata: callData,
           sender: wallet.address,
           target: simpleStorage.address,
+          gasLimit: numberToHexString(GAS_LIMIT)
         })
 
         await getAndVerifyStorage(
@@ -651,11 +653,13 @@ describe('Web3Handler', () => {
           'justRevert',
           []
         )
+        const gasLimit: string = numberToHexString(GAS_LIMIT)
         await web3Handler.handleL1ToL2Transaction({
           nonce: 0,
           calldata: callData,
           sender: wallet.address,
           target: simpleStorage.address,
+          gasLimit
         })
       })
     })

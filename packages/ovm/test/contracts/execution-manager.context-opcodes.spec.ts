@@ -236,6 +236,7 @@ describe('Execution Manager -- Context opcodes', () => {
       callBytes,
       ZERO_ADDRESS,
       ZERO_ADDRESS,
+      GAS_LIMIT,
       true,
     ])
     return executionManager.provider.call({

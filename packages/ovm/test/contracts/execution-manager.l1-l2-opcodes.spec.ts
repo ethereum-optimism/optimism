@@ -143,6 +143,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         callBytes,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
+        GAS_LIMIT,
         true,
       ])
 
@@ -191,6 +192,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           getL1MessageSenderMethodId,
           ZERO_ADDRESS,
           testL1MsgSenderAddress,
+          GAS_LIMIT,
           true,
         ],
         ['address']
@@ -217,6 +219,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
             getL1MessageSenderMethodId,
             '0x' + '66'.repeat(20),
             testL1MsgSenderAddress,
+            GAS_LIMIT,
             true,
           ],
           ['address']
@@ -244,6 +247,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
             getL1MessageSenderMethodId,
             '0x' + '66'.repeat(20),
             ZERO_ADDRESS,
+            GAS_LIMIT,
             true,
           ],
           ['address']

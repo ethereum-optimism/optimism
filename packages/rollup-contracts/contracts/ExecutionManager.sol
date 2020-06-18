@@ -142,6 +142,7 @@ contract ExecutionManager {
      * @param _nonce The current nonce of the EOA.
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
+     * @param _gasLimit The max gas this OVM transaction has been allotted.
      * @param _v The v value of the ECDSA signature + CHAIN_ID.
      * @param _r The r value of the ECDSA signature.
      * @param _s The s value of the ECDSA signature.
@@ -152,6 +153,7 @@ contract ExecutionManager {
         uint _nonce,
         address _ovmEntrypoint,
         bytes memory _callBytes,
+        uint _gasLimit,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
@@ -167,7 +169,7 @@ contract ExecutionManager {
             _ovmEntrypoint
         );
         // Make the EOA call for the account
-        executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, false);
+        executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, _gasLimit, false);
     }
 
     /**
@@ -178,6 +180,7 @@ contract ExecutionManager {
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
      * @param _fromAddress The address which this call should originate from--the msg.sender.
+     * @param _gasLimit The max gas this OVM transaction has been allotted.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
     function executeTransaction(
@@ -187,6 +190,7 @@ contract ExecutionManager {
         bytes memory _callBytes,
         address _fromAddress,
         address _l1MsgSenderAddress,
+        uint _gasLimit,
         bool _allowRevert
     ) public {
         require(_timestamp > 0, "Timestamp must be greater than 0");
