@@ -16,7 +16,6 @@ describe('MerkleTrie', () => {
     trie = await deployContract(wallet, MerkleTrie);
   });
 
-  /*
   describe('updateTrieRoot', async () => {
     it(`should handle a basic leaf update`, async () => {
       const nodes = [
@@ -36,7 +35,7 @@ describe('MerkleTrie', () => {
       const t = await makeTrie(nodes);
       const test = await makeProofTest(nodes, nodes[0].key, t);
       await t.put(Buffer.from(nodes[0].key), Buffer.from('supervalue'));
-      expect(await trie.updateTrieRoot(test.key, '0x' + Buffer.from('supervalue').toString('hex'), test.proof)).to.equal('0x' + t.root.toString('hex'));
+      expect(await trie.update(test.key, '0x' + Buffer.from('supervalue').toString('hex'), test.proof, test.root)).to.equal('0x' + t.root.toString('hex'));
     });
 
     it(`should handle a new leaf`, async () => {
@@ -55,14 +54,16 @@ describe('MerkleTrie', () => {
         },
       ];
       const t = await makeTrie(nodes);
+      const root = '0x' + t.root.toString('hex');
       const proof = await BaseTrie.prove(t, Buffer.from('key4dd'));
       await t.put(Buffer.from('key4dd'), Buffer.from('supervalue'));
       const test = {
         key: '0x' + Buffer.from('key4dd').toString('hex'),
         val: '0x' + Buffer.from('supervalue').toString('hex'),
-        proof: '0x' + rlp.encode(proof).toString('hex')
+        proof: '0x' + rlp.encode(proof).toString('hex'),
+        root: root,
       }
-      expect(await trie.updateTrieRoot(test.key, test.val, test.proof)).to.equal('0x' + t.root.toString('hex'));
+      expect(await trie.update(test.key, test.val, test.proof, test.root)).to.equal('0x' + t.root.toString('hex'));
     });
 
     it(`should handle a new leaf modifying extension`, async () => {
@@ -81,22 +82,88 @@ describe('MerkleTrie', () => {
         },
       ];
       const t = await makeTrie(nodes);
+      const root = '0x' + t.root.toString('hex');
       const proof = await BaseTrie.prove(t, Buffer.from('key1ab'));
       await t.put(Buffer.from('key1ab'), Buffer.from('supervalue'));
-      const s = await t.findPath(Buffer.from('key1ab'));
-      for (const a of s.stack) {
-        console.log(a.serialize().toString('hex'));
-      }
       const test = {
         key: '0x' + Buffer.from('key1ab').toString('hex'),
         val: '0x' + Buffer.from('supervalue').toString('hex'),
-        proof: '0x' + rlp.encode(proof).toString('hex')
+        proof: '0x' + rlp.encode(proof).toString('hex'),
+        root: root,
       }
-      console.log(test.key + ',', test.val + ',', test.proof)
-      expect(await trie.updateTrieRoot(test.key, test.val, test.proof)).to.equal('0x' + t.root.toString('hex'));
+      expect(await trie.update(test.key, test.val, test.proof, test.root)).to.equal('0x' + t.root.toString('hex'));
+    });
+    
+    it(`should handle a new leaf modifying old key to branch value`, async () => {
+      const nodes = [
+        {
+          key: 'key1aa',
+          val: '0123456789012345678901234567890123456789xx',
+        },
+        {
+          key: 'key2bb',
+          val: 'aval2',
+        },
+        {
+          key: 'key3cc',
+          val: 'aval3',
+        },
+      ];
+      const t = await makeTrie(nodes);
+      const root = '0x' + t.root.toString('hex');
+      const proof = await BaseTrie.prove(t, Buffer.from('key1aaa'));
+      await t.put(Buffer.from('key1aaa'), Buffer.from('supervalue'));
+      const test = {
+        key: '0x' + Buffer.from('key1aaa').toString('hex'),
+        val: '0x' + Buffer.from('supervalue').toString('hex'),
+        proof: '0x' + rlp.encode(proof).toString('hex'),
+        root: root,
+      }
+      expect(await trie.update(test.key, test.val, test.proof, test.root)).to.equal('0x' + t.root.toString('hex'));
+    });
+
+    it(`should handle a new leaf modifying new key to branch value`, async () => {
+      const nodes = [
+        {
+          key: 'key1aa',
+          val: '0123456789012345678901234567890123456789xx',
+        },
+        {
+          key: 'key2bb',
+          val: 'aval2',
+        },
+        {
+          key: 'key3cc',
+          val: 'aval3',
+        },
+      ];
+      const t = await makeTrie(nodes);
+      const root = '0x' + t.root.toString('hex');
+      const proof = await BaseTrie.prove(t, Buffer.from('key1a'));
+      await t.put(Buffer.from('key1a'), Buffer.from('supervalue'));
+      const s = await t.findPath(Buffer.from('key1a'));
+      for (const a of s.stack) {
+        if (a instanceof BranchNode) {
+          console.log('BRANCH')
+        }
+        if (a instanceof ExtensionNode) {
+          console.log('EXTENSION')
+        }
+        if (a instanceof LeafNode) {
+          console.log('LEAF')
+        }
+        console.log(a.serialize().toString('hex'));
+      }
+      const test = {
+        key: '0x' + Buffer.from('key1a').toString('hex'),
+        val: '0x' + Buffer.from('supervalue').toString('hex'),
+        proof: '0x' + rlp.encode(proof).toString('hex'),
+        root: root,
+      }
+      console.log(test.key + ',', test.val + ',', test.proof + ',', test.root);
+      expect(await trie.update(test.key, test.val, test.proof, test.root)).to.equal('0x' + t.root.toString('hex'));
     });
   });
-  */
 
   describe('verifyInclusionProof', async () => {
     it(`should verify basic proofs`, async () => {
@@ -114,6 +181,7 @@ describe('MerkleTrie', () => {
           val: 'aval3',
         },
       ])).forEach(async (test, idx) => {
+        console.log(`${test.key}, ${test.val}, ${test.proof}, ${test.root}`)
         expect((await trie.verifyInclusionProof(test.key, test.val, test.proof, test.root))).to.equal(true);
       });
     });
