@@ -22,6 +22,7 @@ export interface L2ToL1Message {
 
 export interface RollupTransaction {
   nonce: number
+  gasLimit: number
   sender: Address
   target: Address
   calldata: string
