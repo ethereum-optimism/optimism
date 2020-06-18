@@ -109,6 +109,26 @@ contract MerkleTrie {
         return getUpdatedTrieRoot(newPath, _key);
     }
 
+    /**
+     * @notice Retrieves the value associated with a given key.
+     * @param _key Key to search for, as hex bytes.
+     * @param _proof Merkle trie inclusion proof for the key.
+     * @param _root Known root of the Merkle trie.
+     * @return Value associated with the key.
+     */
+    function get(
+        bytes memory _key,
+        bytes memory _proof,
+        bytes32 _root
+    ) public pure returns (bytes memory) {
+        TrieNode[] memory proof = parseProof(_proof);
+        (uint256 pathLength, bytes memory keyRemainder, ) = walkNodePath(proof, _key, _root);
+
+        require(keyRemainder.length == 0, "Could not find node in provided path.");
+
+        return getNodeValue(proof[pathLength]);
+    }
+
 
     /*
      * Internal Functions
