@@ -2,7 +2,7 @@
 import {
   BaseDB,
   DB,
-  EthereumEventProcessor,
+  EthereumBlockProcessor,
   getLevelInstance,
   newInMemoryDB,
 } from '@eth-optimism/core-db'
@@ -10,37 +10,32 @@ import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
 import {
   Environment,
   initializeL1Node,
-  initializeL2Node,
   L1NodeContext,
-  L2NodeContext,
-  L1ToL2TransactionProcessor,
-  L1ToL2TransactionEventName,
-  L1ToL2TransactionListener,
-  L1ToL2TransactionListenerSubmitter,
   CHAIN_ID,
+  BlockBatchProcessor,
 } from '@eth-optimism/rollup-core'
 
-import { JsonRpcProvider, Provider, Web3Provider } from 'ethers/providers'
+import { JsonRpcProvider, Provider } from 'ethers/providers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
 import { Wallet } from 'ethers'
 import { getWallets } from 'ethereum-waffle'
 
-const log = getLogger('l1-to-l2-transaction-processor')
+const log = getLogger('l1-block-batch-processor')
 
 export const runTest = async (
   l1Provider?: Provider,
   l2Provider?: JsonRpcProvider
-): Promise<L1ToL2TransactionProcessor> => {
+): Promise<BlockBatchProcessor> => {
   return run(true, l1Provider, l2Provider)
 }
 
 export const run = async (
-  testFullNode: boolean = false,
+  testMode: boolean = false,
   l1Provider?: Provider,
   l2Provider?: JsonRpcProvider
-): Promise<L1ToL2TransactionProcessor> => {
-  initializeDBPaths(testFullNode)
+): Promise<BlockBatchProcessor> => {
+  initializeDBPaths(testMode)
 
   let l1NodeContext: L1NodeContext
   log.info(`Attempting to connect to L1 Node.`)
@@ -57,53 +52,45 @@ export const run = async (
     provider = new JsonRpcProvider(Environment.l2NodeWeb3Url(), CHAIN_ID)
   }
 
-  const l2TransactionListenerSubmitter = new L1ToL2TransactionListenerSubmitter(
-    getWallet(provider),
-    provider
-  )
-
-  return getL1ToL2TransactionProcessor(
-    testFullNode,
-    l1NodeContext,
-    l2TransactionListenerSubmitter
-  )
+  return getL1BlockBatchProcessor(testMode, l1NodeContext, provider)
 }
 
 /**
- * Gets an L1ToL2TransactionProcessor based on configuration and the provided arguments.
+ * Gets an BlockBatchProcessor based on configuration and the provided arguments.
  *
- * Notably this will return undefined if configuration says not to connect to the L1 node.
- *
- * @param testFullnode Whether or not this is a test full node.
+ * @param testMode Whether or not this is running as a test
  * @param l1NodeContext The L1 node context.
- * @param listener The listener to listen to the processor.
- * @returns The L1ToL2TransactionProcessor or undefined.
+ * @param l2Provider The L2 JSON RPC Provider to use to communicate with the L2 node.
+ * @returns The BlockBatchProcessor.
  */
-const getL1ToL2TransactionProcessor = async (
-  testFullnode: boolean,
+const getL1BlockBatchProcessor = async (
+  testMode: boolean,
   l1NodeContext: L1NodeContext,
-  listener: L1ToL2TransactionListener
-): Promise<L1ToL2TransactionProcessor> => {
-  const db: DB = getDB(testFullnode)
-  const l1ToL2TransactionProcessor: L1ToL2TransactionProcessor = await L1ToL2TransactionProcessor.create(
+  l2Provider: JsonRpcProvider
+): Promise<BlockBatchProcessor> => {
+  const db: DB = getDB(testMode)
+
+  const blockBatchProcessor = await BlockBatchProcessor.create(
     db,
-    EthereumEventProcessor.getEventID(
-      l1NodeContext.l1ToL2TransactionPasser.address,
-      L1ToL2TransactionEventName
-    ),
-    [listener]
+    l1NodeContext.provider,
+    [], // TODO: fill this in
+    [] // TODO: Fill this in
   )
 
   const earliestBlock = Environment.l1EarliestBlock()
 
-  const eventProcessor = new EthereumEventProcessor(db, earliestBlock)
-  await eventProcessor.subscribe(
-    l1NodeContext.l1ToL2TransactionPasser,
-    L1ToL2TransactionEventName,
-    l1ToL2TransactionProcessor
+  const blockProcessor = new EthereumBlockProcessor(
+    db,
+    earliestBlock,
+    Environment.blockBatchProcessorNumConfirmsRequired()
+  )
+  await blockProcessor.subscribe(
+    l1NodeContext.provider,
+    blockBatchProcessor,
+    true
   )
 
-  return l1ToL2TransactionProcessor
+  return blockBatchProcessor
 }
 
 /**
@@ -116,15 +103,15 @@ const getDB = (isTestMode: boolean = false): DB => {
   if (isTestMode) {
     return newInMemoryDB()
   } else {
-    if (!Environment.l1ToL2TxProcessorPersistentDbPath()) {
+    if (!Environment.blockBatchProcessorPersistentDbPath()) {
       log.error(
-        `No L1_TO_L2_TX_PROCESSOR_PERSISTENT_DB_PATH environment variable present. Please set one!`
+        `No L1_BLOCK_BATCH_PROCESSOR_PERSISTENT_DB_PATH environment variable present. Please set one!`
       )
       process.exit(1)
     }
 
     return new BaseDB(
-      getLevelInstance(Environment.l1ToL2TxProcessorPersistentDbPath())
+      getLevelInstance(Environment.blockBatchProcessorPersistentDbPath())
     )
   }
 }
@@ -137,15 +124,15 @@ const getDB = (isTestMode: boolean = false): DB => {
  * @param provider The provider with which the wallet will be associated.
  * @returns The wallet to use with the L2 node.
  */
-const getWallet = (provider: JsonRpcProvider): Wallet => {
+const getL2Wallet = (provider: JsonRpcProvider): Wallet => {
   let wallet: Wallet
-  if (!!Environment.l1ToL2TxProcessorPrivateKey()) {
+  if (!!Environment.blockBatchProcessorPrivateKey()) {
     wallet = new Wallet(
-      add0x(Environment.l1ToL2TxProcessorPrivateKey()),
+      add0x(Environment.blockBatchProcessorPrivateKey()),
       provider
     )
     log.info(
-      `Initialized L1-to-L2 Tx processor wallet from private key. Address: ${wallet.address}`
+      `Initialized Block Batch Processor wallet from private key. Address: ${wallet.address}`
     )
   } else {
     wallet = getWallets(provider)[0]
@@ -155,11 +142,11 @@ const getWallet = (provider: JsonRpcProvider): Wallet => {
   }
 
   if (!wallet) {
-    const msg: string = `Wallet not created! Specify the L1_TO_L2_TX_PROCESSOR_PRIVATE_KEY environment variable to set one!`
+    const msg: string = `Wallet not created! Specify the L1_BLOCK_BATCH_PROCESSOR_PRIVATE_KEY environment variable to set one!`
     log.error(msg)
     throw Error(msg)
   } else {
-    log.info(`L1-to-L2 Tx processor wallet created. Address: ${wallet.address}`)
+    log.info(`Block Batch Processor wallet created. Address: ${wallet.address}`)
   }
 
   return wallet
@@ -178,9 +165,9 @@ const initializeDBPaths = (isTestMode: boolean) => {
   } else {
     if (Environment.clearDataKey() && !fs.existsSync(getClearDataFilePath())) {
       log.info(`Detected change in CLEAR_DATA_KEY. Purging data...`)
-      rimraf.sync(`${Environment.l1ToL2TxProcessorPersistentDbPath()}/{*,.*}`)
+      rimraf.sync(`${Environment.blockBatchProcessorPersistentDbPath()}/{*,.*}`)
       log.info(
-        `L2 RPC Server data purged from '${Environment.l1ToL2TxProcessorPersistentDbPath()}/{*,.*}'`
+        `L2 RPC Server data purged from '${Environment.blockBatchProcessorPersistentDbPath()}/{*,.*}'`
       )
       makeDataDirectory()
     }
@@ -191,7 +178,7 @@ const initializeDBPaths = (isTestMode: boolean) => {
  * Makes the data directory for this full node and adds a clear data key file if it is configured to use one.
  */
 const makeDataDirectory = () => {
-  fs.mkdirSync(Environment.l1ToL2TxProcessorPersistentDbPath(), {
+  fs.mkdirSync(Environment.blockBatchProcessorPersistentDbPath(), {
     recursive: true,
   })
   if (Environment.clearDataKey()) {
@@ -200,7 +187,7 @@ const makeDataDirectory = () => {
 }
 
 const getClearDataFilePath = () => {
-  return `${Environment.l1ToL2TxProcessorPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
+  return `${Environment.blockBatchProcessorPersistentDbPath()}/.clear_data_key_${Environment.clearDataKey()}`
 }
 
 if (typeof require !== 'undefined' && require.main === module) {

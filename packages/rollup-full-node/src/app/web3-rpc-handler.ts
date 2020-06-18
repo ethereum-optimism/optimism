@@ -6,8 +6,7 @@ import {
   getCurrentTime,
   initializeL2Node,
   isErrorEVMRevert,
-  L1ToL2Transaction,
-  L1ToL2TransactionListener,
+  RollupTransaction,
   L2NodeContext,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
@@ -63,8 +62,7 @@ for (const eventKey of Object.keys(EMEvents)) {
   ALL_EXECUTION_MANAGER_EVENT_TOPICS.push(EMEvents[eventKey].topic)
 }
 
-export class DefaultWeb3Handler
-  implements Web3Handler, FullnodeHandler, L1ToL2TransactionListener {
+export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
   private readonly ovmHashToOvmTransactionCache: Object = {}
   protected blockTimestamps: Object = {}
   private lock: AsyncLock
@@ -816,7 +814,7 @@ export class DefaultWeb3Handler
    * @inheritDoc
    */
   public async handleL1ToL2Transaction(
-    transaction: L1ToL2Transaction
+    transaction: RollupTransaction
   ): Promise<void> {
     log.debug(`Executing L1 to L2 Transaction ${JSON.stringify(transaction)}`)
 
@@ -826,7 +824,7 @@ export class DefaultWeb3Handler
       this.getTimestamp(),
       0,
       transaction.target,
-      transaction.callData,
+      transaction.calldata,
       ZERO_ADDRESS,
       transaction.sender,
       false,

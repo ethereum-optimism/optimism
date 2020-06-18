@@ -35,8 +35,15 @@ export class TestListener<T> implements EthereumListener<T> {
     return this.received.splice(0)
   }
 
-  public async waitForReceive(num: number = 1): Promise<T[]> {
-    while (this.received.length < num) {
+  public async waitForReceive(
+    num: number = 1,
+    timeoutMillis: number = -1
+  ): Promise<T[]> {
+    const startTime = new Date().getTime()
+    while (
+      this.received.length < num &&
+      (timeoutMillis < 0 || new Date().getTime() - startTime < timeoutMillis)
+    ) {
       await sleep(this.sleepMillis)
     }
     return this.getReceived()
