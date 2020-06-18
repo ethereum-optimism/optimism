@@ -10,7 +10,8 @@ import { BlockBatches, BlockBatchListener } from '../../types'
 const log: Logger = getLogger('block-batch-submitter')
 
 export class BlockBatchSubmitter implements BlockBatchListener {
-  // params: [timestampHex, batchesArrayJSON, signedBatchesArrayJSON]
+  // params: [blockBatchesJSONString, signedBlockBatchesJSONString]
+  // -- note all numbers are replaces with hex strings when serialized
   public static readonly sendBlockBatchesMethod: string = 'eth_sendBlockBatches'
 
   private readonly l2Provider: JsonRpcProvider
