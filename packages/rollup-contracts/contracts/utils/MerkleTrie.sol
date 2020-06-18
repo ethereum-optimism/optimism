@@ -139,11 +139,14 @@ contract MerkleTrie {
         (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = walkNodePath(proof, _key, _root);
 
         if (_inclusion) {
+            // Included leaf nodes should have no key remainder, values should match.
             return (
                 keyRemainder.length == 0 &&
                 BytesLib.equal(getNodeValue(proof[pathLength - 1]), _value)
             );
         } else {
+            // If there's no key remainder then a leaf with the given key exists and the value should differ.
+            // Otherwise, we need to make sure that we've hit a dead end.
             return (
                 (keyRemainder.length == 0 && !BytesLib.equal(getNodeValue(proof[pathLength - 1]), _value)) ||
                 (keyRemainder.length != 0 && isFinalNode)
@@ -179,9 +182,13 @@ contract MerkleTrie {
         uint256 currentKeyIncrement = 0;
         TrieNode memory currentNode;
 
+        // Proof is top-down, so we start at the first element (root).
         for (uint256 i = 0; i < _proof.length; i++) {
             currentNode = _proof[i];
             currentKeyIndex += currentKeyIncrement;
+
+            // Keep track of the proof elements we actually need.
+            // It's expensive to resize arrays, so this simply reduces gas costs.
             pathLength += 1;
 
             if (currentKeyIndex == 0) {
@@ -206,8 +213,11 @@ contract MerkleTrie {
 
             if (currentNode.decoded.length == BRANCH_NODE_LENGTH) {
                 if (currentKeyIndex == key.length) {
+                    // We've hit the end of the key, meaning the value should be within this branch node.
                     break;
                 } else {
+                    // We're not at the end of the key yet.
+                    // Figure out what the next node ID should be and continue.
                     uint8 branchKey = uint8(key[currentKeyIndex]);
                     RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
                     currentNodeID = getNodeID(nextNode);
@@ -223,16 +233,27 @@ contract MerkleTrie {
                 uint256 sharedNibbleLength = getSharedNibbleLength(pathRemainder, keyRemainder);
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
-                    if (pathRemainder.length == sharedNibbleLength && keyRemainder.length == sharedNibbleLength) {
+                    if (
+                        pathRemainder.length == sharedNibbleLength &&
+                        keyRemainder.length == sharedNibbleLength
+                    ) {
+                        // The key within this leaf matches our key exactly.
+                        // Increment the key index to reflect that we have no remainder.
                         currentKeyIndex += sharedNibbleLength;
                     }
+
+                    // We've hit a leaf node, so our next node should be NULL.
                     currentNodeID = bytes32(RLP_NULL);
                     break;
                 } else if (prefix == PREFIX_EXTENSION_EVEN || prefix == PREFIX_EXTENSION_ODD) {
                     if (sharedNibbleLength == 0) {
+                        // Our extension node doesn't share any part of our key.
+                        // We've hit the end of this path, updates will need to modify this extension.
                         currentNodeID = bytes32(RLP_NULL);
                         break;
                     } else {
+                        // Our extension shares some nibbles.
+                        // Carry on to the next node.
                         currentNodeID = getNodeID(currentNode.decoded[1]);
                         currentKeyIncrement = sharedNibbleLength;
                         continue;
@@ -241,6 +262,7 @@ contract MerkleTrie {
             }
         }
 
+        // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
         return (pathLength, BytesLib.slice(key, currentKeyIndex), isFinalNode);
     }
@@ -265,66 +287,111 @@ contract MerkleTrie {
     ) internal pure returns (TrieNode[] memory) {
         bytes memory keyRemainder = _keyRemainder;
 
+        // Most of our logic depends on the status of the last node in the path.
         TrieNode memory lastNode = _path[_pathLength - 1];
         NodeType lastNodeType = getNodeType(lastNode);
 
+        // Create an array for newly created nodes.
+        // We need up to three new nodes, depending on the contents of the last node.
+        // Since array resizing is expensive, we'll keep track of the size manually.
+        // We're using an explicit `totalNewNodes += 1` after insertions for clarity.
         TrieNode[] memory newNodes = new TrieNode[](3);
         uint256 totalNewNodes = 0;
 
         if (keyRemainder.length == 0 && lastNodeType == NodeType.LeafNode) {
+            // We've found a leaf node with the given key.
+            // Simply need to update the value of the node to match.
             newNodes[totalNewNodes] = makeLeafNode(getNodeKey(lastNode), _value);
             totalNewNodes += 1;
         } else if (lastNodeType == NodeType.BranchNode) {
             if (keyRemainder.length == 0) {
+                // We've found a branch node with the given key.
+                // Simply need to update the value of the node to match.
                 newNodes[totalNewNodes] = editBranchValue(lastNode, _value);
                 totalNewNodes += 1;
             } else {
+                // We've found a branch node, but it doesn't contain our key.
+                // Reinsert the old branch for now.
                 newNodes[totalNewNodes] = lastNode;
                 totalNewNodes += 1;
+                // Create a new leaf node, slicing our remainder since the first byte points
+                // to our branch node.
                 newNodes[totalNewNodes] = makeLeafNode(BytesLib.slice(keyRemainder, 1), _value);
                 totalNewNodes += 1;
             }
         } else {
+            // Our last node is either an extension node or a leaf node with a different key.
             bytes memory lastNodeKey = getNodeKey(lastNode);
             uint256 sharedNibbleLength = getSharedNibbleLength(lastNodeKey, keyRemainder);
 
             if (sharedNibbleLength != 0) {
+                // We've got some shared nibbles between the last node and our key remainder.
+                // We'll need to insert an extension node that covers these shared nibbles.
                 bytes memory nextNodeKey = BytesLib.slice(lastNodeKey, 0, sharedNibbleLength);
                 newNodes[totalNewNodes] = makeExtensionNode(nextNodeKey, getNodeHash(_value));
                 totalNewNodes += 1;
+
+                // Cut down the keys since we've just covered these shared nibbles.
                 lastNodeKey = BytesLib.slice(lastNodeKey, sharedNibbleLength);
                 keyRemainder = BytesLib.slice(keyRemainder, sharedNibbleLength);
             }
 
+            // Create an empty branch to fill in.
             TrieNode memory newBranch = makeEmptyBranchNode();
 
             if (lastNodeKey.length == 0) {
+                // Key remainder was larger than the key for our last node.
+                // The value within our last node is therefore going to be shifted into
+                // a branch value slot.
                 newBranch = editBranchValue(newBranch, getNodeValue(lastNode));
             } else {
+                // Last node key was larger than the key remainder.
+                // We're going to modify some index of our branch.
                 uint8 branchKey = uint8(lastNodeKey[0]);
+                // Move on to the next nibble.
                 lastNodeKey = BytesLib.slice(lastNodeKey, 1);
 
-                if (lastNodeKey.length != 0 || lastNodeType == NodeType.LeafNode) {
+                if (lastNodeType == NodeType.LeafNode) {
+                    // We're dealing with a leaf node.
+                    // We'll modify the key and insert the old leaf node into the branch index.
                     TrieNode memory modifiedLastNode = makeLeafNode(lastNodeKey, getNodeValue(lastNode));
                     newBranch = editBranchIndex(newBranch, branchKey, getNodeHash(modifiedLastNode.encoded));
+                } else if (lastNodeKey.length != 0) {
+                    // We're dealing with a shrinking extension node.
+                    // We need to modify the node to decrease the size of the key.
+                    TrieNode memory modifiedLastNode = makeExtensionNode(lastNodeKey, getNodeValue(lastNode));
+                    newBranch = editBranchIndex(newBranch, branchKey, getNodeHash(modifiedLastNode.encoded));
                 } else {
+                    // We're dealing with an unnecessary extension node.
+                    // We're going to delete the node entirely.
+                    // Simply insert its current value into the branch index.
                     newBranch = editBranchIndex(newBranch, branchKey, getNodeValue(lastNode));
                 }
             }
 
             if (keyRemainder.length == 0) {
+                // We've got nothing left in the key remainder.
+                // Simply insert the value into the branch value slot.
                 newBranch = editBranchValue(newBranch, _value);
+                // Push the branch into the list of new nodes.
                 newNodes[totalNewNodes] = newBranch;
                 totalNewNodes += 1;
             } else {
+                // We've got some key remainder to work with.
+                // We'll be inserting a leaf node into the trie.
+                // First, move on to the next nibble.
                 keyRemainder = BytesLib.slice(keyRemainder, 1);
+                // Push the branch into the list of new nodes.
                 newNodes[totalNewNodes] = newBranch;
                 totalNewNodes += 1;
+                // Push a new leaf node for our k/v pair.
                 newNodes[totalNewNodes] = makeLeafNode(keyRemainder, _value);
                 totalNewNodes += 1;
             }
         }
 
+        // Finally, join the old path with our newly created nodes.
+        // Since we're overwriting the last node in the path, we use `_pathLength - 1`.
         return joinNodeArrays(_path, _pathLength - 1, newNodes, totalNewNodes);
     }
 
@@ -340,35 +407,50 @@ contract MerkleTrie {
     ) internal pure returns (bytes32) {
         bytes memory key = BytesLib.toNibbles(_key);
 
+        // Some variables to keep track of during iteration.
         TrieNode memory currentNode;
         NodeType currentNodeType;
         bytes memory previousNodeHash;
 
+        // Run through the path backwards to rebuild our root hash.
         for (uint256 i = _nodes.length; i > 0; i--) {
+            // Pick out the current node.
             currentNode = _nodes[i - 1];
             currentNodeType = getNodeType(currentNode);
 
             if (currentNodeType == NodeType.LeafNode) {
+                // Leaf nodes are already correctly encoded.
+                // Shift the key over to account for the nodes key.
                 bytes memory nodeKey = getNodeKey(currentNode);
                 key = BytesLib.slice(key, 0, key.length - nodeKey.length);
             } else if (currentNodeType == NodeType.ExtensionNode) {
+                // Shift the key over to account for the nodes key.
                 bytes memory nodeKey = getNodeKey(currentNode);
                 key = BytesLib.slice(key, 0, key.length - nodeKey.length);
 
+                // If this node is the last element in the path, it'll be correctly encoded
+                // and we can skip this part.
                 if (previousNodeHash.length > 0) {
+                    // Re-encode the node based on the previous node.
                     currentNode = makeExtensionNode(nodeKey, previousNodeHash);
                 }
             } else if (currentNodeType == NodeType.BranchNode) {
+                // If this node is the last element in the path, it'll be correctly encoded
+                // and we can skip this part.
                 if (previousNodeHash.length > 0) {
+                    // Re-encode the node based on the previous node.
                     uint8 branchKey = uint8(key[key.length - 1]);
                     key = BytesLib.slice(key, 0, key.length - 1);
                     currentNode = editBranchIndex(currentNode, branchKey, previousNodeHash);
                 }
             }
 
+            // Compute the node hash for the next iteration.
             previousNodeHash = getNodeHash(currentNode.encoded);
         }
 
+        // Current node should be the root at this point.
+        // Simply return the hash of its encoding.
         return keccak256(currentNode.encoded);
     }
 
@@ -480,6 +562,7 @@ contract MerkleTrie {
         } else if (_node.decoded.length == LEAF_OR_EXTENSION_NODE_LENGTH) {
             bytes memory path = getNodePath(_node);
             uint8 prefix = uint8(path[0]);
+
             if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
                 return NodeType.LeafNode;
             } else if (prefix == PREFIX_EXTENSION_EVEN || prefix == PREFIX_EXTENSION_ODD) {
@@ -536,6 +619,8 @@ contract MerkleTrie {
         return makeNode(raw);
     }
 
+
+
     /**
      * @notice Creates a new extension node.
      * @param _key Key for the extension node, unprefixed.
@@ -555,6 +640,9 @@ contract MerkleTrie {
 
     /**
      * @notice Creates a new leaf node.
+     * @dev This function is essentially identical to `makeExtensionNode`.
+     * Although we could route both to a single method with a flag, it's
+     * more gas efficient to keep them separate and duplicate the logic.
      * @param _key Key for the leaf node, unprefixed.
      * @param _value Value for the leaf node.
      * @return New leaf node with the given k/v pair.
@@ -664,10 +752,12 @@ contract MerkleTrie {
     ) internal pure returns (TrieNode[] memory) {
         TrieNode[] memory ret = new TrieNode[](_aLength + _bLength);
 
+        // Copy elements from the first array.
         for (uint256 i = 0; i < _aLength; i++) {
             ret[i] = _a[i];
         }
 
+        // Copy elements from the second array.
         for (uint256 i = 0; i < _bLength; i++) {
             ret[i + _aLength] = _b[i];
         }
