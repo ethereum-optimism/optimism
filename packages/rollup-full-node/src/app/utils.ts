@@ -8,7 +8,7 @@ import * as waffle from 'ethereum-waffle'
 /* Internal Imports */
 import { FullnodeHandler, L2ToL1MessageSubmitter } from '../types'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
-import { DefaultWeb3Handler } from './web3-rpc-handler'
+import { TestWeb3Handler } from './test-web3-rpc-handler'
 import { FullnodeRpcServer } from './fullnode-rpc-server'
 
 const log = getLogger('utils')
@@ -48,7 +48,7 @@ export const createProviderForHandler = (
  */
 export async function addHandlerToProvider(provider: any): Promise<any> {
   const messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
-  const fullnodeHandler: FullnodeHandler = await DefaultWeb3Handler.create(
+  const fullnodeHandler: FullnodeHandler = await TestWeb3Handler.create(
     messageSubmitter
   )
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
@@ -68,7 +68,7 @@ export async function addHandlerToProvider(provider: any): Promise<any> {
 
 export async function createMockProvider() {
   const messageSubmitter = new NoOpL2ToL1MessageSubmitter()
-  const fullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
+  const fullnodeHandler = await TestWeb3Handler.create(messageSubmitter)
   const web3Provider = createProviderForHandler(fullnodeHandler)
 
   return web3Provider
