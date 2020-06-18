@@ -15,7 +15,6 @@ describe('ERC20 smart contract', () => {
     wallet = wallets[0]
     walletTo = wallets[1]
   })
-  after(() => {provider.closeOVM()}) 
   // parameters to use for our test coin
   const COIN_NAME = 'OVM Test Coin'
   const TICKER = 'OVM'
