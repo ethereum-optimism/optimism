@@ -10,9 +10,9 @@ import { BlockBatches, BlockBatchListener } from '../../types'
 const log: Logger = getLogger('block-batch-submitter')
 
 export class BlockBatchSubmitter implements BlockBatchListener {
-  // params: [timestampHex, batchesArrayJSON, signedBatchesArrayJSON]
-  public static readonly sendBlockBatchesMethod: string =
-    'optimism_sendBlockBatches'
+  // params: [blockBatchesJSONString, signedBlockBatchesJSONString]
+  // -- note all numbers are replaces with hex strings when serialized
+  public static readonly sendBlockBatchesMethod: string = 'eth_sendBlockBatches'
 
   private readonly l2Provider: JsonRpcProvider
 
@@ -35,24 +35,17 @@ export class BlockBatchSubmitter implements BlockBatchListener {
       return
     }
 
-    const timestamp: string = numberToHexString(blockBatches.timestamp)
-    const txs = JSON.stringify(
-      blockBatches.batches.map((y) =>
-        y.map((x) => {
-          return {
-            nonce: x.nonce >= 0 ? numberToHexString(x.nonce) : undefined,
-            sender: x.sender,
-            target: x.target,
-            calldata: x.calldata,
-          }
-        })
-      )
-    )
-    const signedTxsArray: string = await this.l2Wallet.signMessage(txs)
+    const payload = JSON.stringify(blockBatches, (k, v) => {
+      if (typeof v === 'number') {
+        return v >= 0 ? numberToHexString(v) : undefined
+      }
+      return v
+    })
+
+    const signedPayload: string = await this.l2Wallet.signMessage(payload)
     await this.l2Provider.send(BlockBatchSubmitter.sendBlockBatchesMethod, [
-      timestamp,
-      txs,
-      signedTxsArray,
+      payload,
+      signedPayload,
     ])
   }
 }

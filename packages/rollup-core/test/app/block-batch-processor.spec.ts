@@ -4,6 +4,7 @@ import '../setup'
 import { newInMemoryDB } from '@eth-optimism/core-db'
 import {
   add0x,
+  BigNumber,
   keccak256,
   sleep,
   TestUtils,
@@ -86,6 +87,7 @@ const getTransactionResponse = (
   timestamp: number,
   data: string,
   hash: string,
+  _gasLimit: number,
   blockNumber: number = 1,
   blockHash: string = getHashFromString('block hash')
 ): TransactionResponse => {
@@ -95,10 +97,10 @@ const getTransactionResponse = (
     hash,
     blockNumber,
     blockHash,
+    gasLimit: new BigNumber(_gasLimit, 10) as any,
     confirmations: 1,
     from: ZERO_ADDRESS,
     nonce: 1,
-    gasLimit: undefined,
     gasPrice: undefined,
     value: undefined,
     chainId: CHAIN_ID,
@@ -127,6 +129,7 @@ const getBlock = (timestamp: number, number: number = 1) => {
 const throwOnParsing: L1Batch = [
   {
     nonce: -1,
+    gasLimit: -1,
     sender: ZERO_ADDRESS,
     target: ZERO_ADDRESS,
     calldata: '0xdeadbeef',
@@ -160,22 +163,26 @@ const singleTxLogContext: BatchLogParserContext = {
 }
 
 const nonce: number = 0
+const gasLimit: number = 10_000
 const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
 const calldata: string = keccak256(Buffer.from('calldata').toString('hex'))
 const rollupTx: RollupTransaction = {
   nonce,
+  gasLimit,
   sender,
   target,
   calldata,
 }
 
 const nonce2: number = 1
+const gasLimit2: number = 20_000
 const sender2: string = Wallet.createRandom().address
 const target2: string = Wallet.createRandom().address
 const calldata2: string = keccak256(Buffer.from('calldata 2').toString('hex'))
 const rollupTx2: RollupTransaction = {
   nonce: nonce2,
+  gasLimit: gasLimit2,
   sender: sender2,
   target: target2,
   calldata: calldata2,
@@ -238,7 +245,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -283,7 +290,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       const txHash2 = getHashFromString('derp derp derp2')
@@ -291,7 +298,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash2,
-        getTransactionResponse(timestamp, calldata2, txHash2)
+        getTransactionResponse(timestamp, calldata2, txHash2, gasLimit2)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -347,7 +354,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       const txHash2 = getHashFromString('derp derp derp2')
@@ -355,7 +362,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash2,
-        getTransactionResponse(timestamp, calldata2, txHash2)
+        getTransactionResponse(timestamp, calldata2, txHash2, gasLimit2)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -411,7 +418,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -429,7 +436,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash2,
-        getTransactionResponse(timestamp2, calldata2, txHash2)
+        getTransactionResponse(timestamp2, calldata2, txHash2, gasLimit2)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -499,7 +506,7 @@ describe('Block Batch Processor', () => {
 
     mockedLogsProvider.transactionsByHash.set(
       txHash2,
-      getTransactionResponse(timestamp2, calldata2, txHash2)
+      getTransactionResponse(timestamp2, calldata2, txHash2, gasLimit2)
     )
 
     mockedLogsProvider.logsToReturn.push([
@@ -517,7 +524,7 @@ describe('Block Batch Processor', () => {
 
     mockedLogsProvider.transactionsByHash.set(
       txHash,
-      getTransactionResponse(timestamp, calldata, txHash)
+      getTransactionResponse(timestamp, calldata, txHash, gasLimit)
     )
 
     mockedLogsProvider.logsToReturn.push([
@@ -587,7 +594,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -612,7 +619,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       mockedLogsProvider.logsToReturn.push([
@@ -637,7 +644,7 @@ describe('Block Batch Processor', () => {
 
       mockedLogsProvider.transactionsByHash.set(
         txHash,
-        getTransactionResponse(timestamp, calldata, txHash)
+        getTransactionResponse(timestamp, calldata, txHash, gasLimit)
       )
 
       mockedLogsProvider.logsToReturn.push([
