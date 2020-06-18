@@ -111,7 +111,7 @@ describe('L2 Transaction Batch Submitter', () => {
     )
   })
 
-  it.only('should send single-tx batch properly', async () => {
+  it('should send single-tx batch properly', async () => {
     await blockBatchSubmitter.handleBlockBatches({
       timestamp,
       blockNumber,
@@ -147,7 +147,7 @@ describe('L2 Transaction Batch Submitter', () => {
     )
   })
 
-  it.only('should send multi-tx batch properly', async () => {
+  it('should send multi-tx batch properly', async () => {
     await blockBatchSubmitter.handleBlockBatches({
       timestamp,
       blockNumber,
