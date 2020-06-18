@@ -41,14 +41,12 @@ const gasLimit: number = 10_000
 const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
 const calldata: string = keccak256(Buffer.from('calldata').toString('hex'))
-const gasLimit: string = numberToHexString(GAS_LIMIT)
 const rollupTx: RollupTransaction = {
   gasLimit,
   nonce,
   sender,
   target,
   calldata,
-  gasLimit
 }
 
 const nonce2: number = 1
@@ -62,7 +60,6 @@ const rollupTx2: RollupTransaction = {
   sender: sender2,
   target: target2,
   calldata: calldata2,
-  gasLimit
 }
 
 const rollupTxsEqual = (

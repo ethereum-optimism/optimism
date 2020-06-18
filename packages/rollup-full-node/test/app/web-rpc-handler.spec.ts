@@ -638,7 +638,6 @@ describe('Web3Handler', () => {
           calldata: callData,
           sender: wallet.address,
           target: simpleStorage.address,
-          gasLimit: numberToHexString(GAS_LIMIT)
         })
 
         await getAndVerifyStorage(
@@ -661,7 +660,6 @@ describe('Web3Handler', () => {
           calldata: callData,
           sender: wallet.address,
           target: simpleStorage.address,
-          gasLimit
         })
       })
     })

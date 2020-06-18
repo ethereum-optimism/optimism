@@ -133,8 +133,7 @@ const throwOnParsing: L1Batch = [
     gasLimit: -1,
     sender: ZERO_ADDRESS,
     target: ZERO_ADDRESS,
-    calldata: '0xdeadbeef',
-    gasLimit:'0x1234'
+    calldata: '0xdeadbeef'
   },
 ]
 
@@ -169,14 +168,12 @@ const gasLimit: number = 10_000
 const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
 const calldata: string = keccak256(Buffer.from('calldata').toString('hex'))
-const gasLimit: string = numberToHexString(GAS_LIMIT)
 const rollupTx: RollupTransaction = {
   nonce,
   gasLimit,
   sender,
   target,
   calldata,
-  gasLimit
 }
 
 const nonce2: number = 1
@@ -190,7 +187,6 @@ const rollupTx2: RollupTransaction = {
   sender: sender2,
   target: target2,
   calldata: calldata2,
-  gasLimit
 }
 
 const rollupTxsEqual = (
