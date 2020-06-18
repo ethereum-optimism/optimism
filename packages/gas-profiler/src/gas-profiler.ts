@@ -1,35 +1,38 @@
-import { ethers, Wallet, Contract } from 'ethers';
-import { Provider, JsonRpcProvider } from 'ethers/providers';
-import { keccak256, FunctionDescription } from 'ethers/utils';
+import { ethers, Wallet, Contract } from 'ethers'
+import { Provider, JsonRpcProvider } from 'ethers/providers'
+import { keccak256, FunctionDescription } from 'ethers/utils'
 
-import { CodeTrace } from './interfaces/trace.interface';
-import { ContractJson } from './interfaces/contract.interface';
-import { getTransactionTrace, prettifyTransactionTrace } from './helpers/tx-trace';
-import { getToolbox, getInterface, Toolbox } from './helpers/utils';
+import { CodeTrace } from './interfaces/trace.interface'
+import { ContractJson } from './interfaces/contract.interface'
+import {
+  getTransactionTrace,
+  prettifyTransactionTrace,
+} from './helpers/tx-trace'
+import { getToolbox, getInterface, Toolbox } from './helpers/utils'
 
 interface ProfileResult {
-  hash: string;
-  gasUsed: number;
-  trace?: CodeTrace;
+  hash: string
+  gasUsed: number
+  trace?: CodeTrace
 }
 
 interface ProfileParameters {
-  method: string;
-  params: any[];
+  method: string
+  params: any[]
 }
 
 interface GasProfilerOptions {
-  provider: Provider;
-  wallet: Wallet;
+  provider: Provider
+  wallet: Wallet
 }
 
 /**
  * Utility for generating gas profiles of contract executions.
  */
 export class GasProfiler {
-  private _ready: boolean;
-  private _toolbox: Toolbox;
-  private _cache: { [hash: string]: Contract } = {};
+  private _ready: boolean
+  private _toolbox: Toolbox
+  private _cache: { [hash: string]: Contract } = {}
 
   /**
    * Initializes the profiler. Must be called at least once.
@@ -37,16 +40,11 @@ export class GasProfiler {
    */
   public async init(options?: GasProfilerOptions): Promise<void> {
     if (this._ready) {
-      return;
+      return
     }
 
-    if (options) {
-      this._toolbox = options;
-    } else {
-      this._toolbox = await getToolbox();
-    }
-
-    this._ready = true;
+    this._toolbox = options ? options : await getToolbox()
+    this._ready = true
   }
 
   /**
@@ -54,7 +52,7 @@ export class GasProfiler {
    */
   public async kill(): Promise<void> {
     if (this._toolbox.ganache && this._toolbox.ganache.running) {
-      await this._toolbox.ganache.stop();
+      await this._toolbox.ganache.stop()
     }
   }
 
@@ -68,17 +66,22 @@ export class GasProfiler {
   public async profile(
     target: ContractJson,
     sourcePath: string,
-    parameters: ProfileParameters,
+    parameters: ProfileParameters
   ): Promise<ProfileResult> {
-    this._checkReady();
-    
-    const result = await this._runTransaction(target, parameters);
-    const trace = await getTransactionTrace(this._toolbox.provider as JsonRpcProvider, sourcePath, target, result.hash);
+    this._checkReady()
+
+    const result = await this._runTransaction(target, parameters)
+    const trace = await getTransactionTrace(
+      this._toolbox.provider as JsonRpcProvider,
+      sourcePath,
+      target,
+      result.hash
+    )
 
     return {
       ...result,
       trace,
-    };
+    }
   }
 
   /**
@@ -90,9 +93,9 @@ export class GasProfiler {
    */
   public async execute(
     target: ContractJson,
-    parameters: ProfileParameters,
+    parameters: ProfileParameters
   ): Promise<ProfileResult> {
-    this._checkReady();
+    this._checkReady()
 
     return this._runTransaction(target, parameters)
   }
@@ -102,10 +105,8 @@ export class GasProfiler {
    * @param trace trace to print.
    * @returns prettified trace
    */
-  public prettify(
-    trace: CodeTrace
-  ): string {
-    return prettifyTransactionTrace(trace);
+  public prettify(trace: CodeTrace): string {
+    return prettifyTransactionTrace(trace)
   }
 
   /**
@@ -113,7 +114,7 @@ export class GasProfiler {
    */
   private _checkReady(): void {
     if (!this._ready) {
-      throw new Error("GasProfiler not initialized (call .init)");
+      throw new Error('GasProfiler not initialized (call .init)')
     }
   }
 
@@ -125,19 +126,25 @@ export class GasProfiler {
    */
   private async _runTransaction(
     target: ContractJson,
-    parameters: ProfileParameters,
+    parameters: ProfileParameters
   ): Promise<ProfileResult> {
-    const deployed = await this._deploy(target);
-    const subject = getInterface(deployed).functions[parameters.method];
+    const deployed = await this._deploy(target)
+    const subject = getInterface(deployed).functions[parameters.method]
 
-    const transaction = await this._makeSignedTransaction(deployed, subject, parameters.params);
-    const response = await this._toolbox.provider.sendTransaction(transaction);
-    const receipt = await this._toolbox.provider.getTransactionReceipt(response.hash);
+    const transaction = await this._makeSignedTransaction(
+      deployed,
+      subject,
+      parameters.params
+    )
+    const response = await this._toolbox.provider.sendTransaction(transaction)
+    const receipt = await this._toolbox.provider.getTransactionReceipt(
+      response.hash
+    )
 
     return {
       hash: response.hash,
       gasUsed: receipt.gasUsed.toNumber(),
-    };
+    }
   }
 
   /**
@@ -150,18 +157,20 @@ export class GasProfiler {
   private async _makeSignedTransaction(
     target: Contract,
     method: FunctionDescription,
-    params: any[],
+    params: any[]
   ): Promise<string> {
-    const nonce = await this._toolbox.provider.getTransactionCount(this._toolbox.wallet.address);
-    const calldata = method.encode(params);
+    const nonce = await this._toolbox.provider.getTransactionCount(
+      this._toolbox.wallet.address
+    )
+    const calldata = method.encode(params)
     const transaction = {
       gasLimit: 8000000,
       data: calldata,
       to: target.address,
-      nonce: nonce,
-    };
-    return this._toolbox.wallet.sign(transaction);
-  } 
+      nonce,
+    }
+    return this._toolbox.wallet.sign(transaction)
+  }
 
   /**
    * Deploys a contract.
@@ -169,14 +178,18 @@ export class GasProfiler {
    * @returns deployed `ethers` contract object.
    */
   private async _deploy(target: ContractJson): Promise<Contract> {
-    const hash = keccak256('0x' + target.evm.bytecode.object);
+    const hash = keccak256('0x' + target.evm.bytecode.object)
     if (hash in this._cache) {
-      return this._cache[hash];
+      return this._cache[hash]
     }
 
-    const targetFactory = new ethers.ContractFactory(target.abi, target.evm.bytecode.object, this._toolbox.wallet);
-    const deployed = await targetFactory.deploy();
-    this._cache[hash] = deployed;
-    return deployed;
+    const targetFactory = new ethers.ContractFactory(
+      target.abi,
+      target.evm.bytecode.object,
+      this._toolbox.wallet
+    )
+    const deployed = await targetFactory.deploy()
+    this._cache[hash] = deployed
+    return deployed
   }
 }

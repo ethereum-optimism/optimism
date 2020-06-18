@@ -1,14 +1,20 @@
-import * as fs from 'fs';
-import * as colors from 'colors';
-import { JsonRpcProvider } from 'ethers/providers';
-import { ContractJson } from '../interfaces/contract.interface';
-import { JumpType, StructLog, SourceMapChunk, CodeLine, CodeTrace, InstructionTrace } from '../interfaces/trace.interface';
+import * as fs from 'fs'
+import { JsonRpcProvider } from 'ethers/providers'
+import { ContractJson } from '../interfaces/contract.interface'
+import {
+  JumpType,
+  StructLog,
+  SourceMapChunk,
+  CodeLine,
+  CodeTrace,
+  InstructionTrace,
+} from '../interfaces/trace.interface'
 
 const JUMP_TYPES = {
-  'i': JumpType.FUNCTION_IN,
-  'o': JumpType.FUNCTION_OUT,
+  i: JumpType.FUNCTION_IN,
+  o: JumpType.FUNCTION_OUT,
   '-': JumpType.STANDARD,
-};
+}
 
 /**
  * Pulls structlogs via `debug_traceTransaction`.
@@ -16,19 +22,22 @@ const JUMP_TYPES = {
  * @param txhash Hash of the transaction to pull logs for.
  * @returns Array of structlogs.
  */
-const getStructLogs = async (provider: JsonRpcProvider, txhash: string): Promise<StructLog[]> => {
+const getStructLogs = async (
+  provider: JsonRpcProvider,
+  txhash: string
+): Promise<StructLog[]> => {
   const response = await provider.send('debug_traceTransaction', [
     txhash,
     {
       // Disable some optional return values we don't really need.
       disableStack: true,
       disableMemory: true,
-      disableStorage: true
-    }
-  ]);
+      disableStorage: true,
+    },
+  ])
 
-  return response.structLogs;
-};
+  return response.structLogs
+}
 
 /**
  * Parses encoded source map chunks (s:l:f:j;) into a more useful format.
@@ -36,14 +45,14 @@ const getStructLogs = async (provider: JsonRpcProvider, txhash: string): Promise
  * @returns standardized source map chunk.
  */
 const parseSourceMapChunk = (encodedChunk: string): SourceMapChunk => {
-  const splitChunk = encodedChunk.split(':');
+  const splitChunk = encodedChunk.split(':')
   return {
     start: parseInt(splitChunk[0], 10),
     length: parseInt(splitChunk[1], 10),
     index: parseInt(splitChunk[2], 10),
     jump: JUMP_TYPES[splitChunk[3]],
-  };
-};
+  }
+}
 
 /**
  * Picks "good" pieces out of either the current source map chunk or the previous one.
@@ -54,18 +63,18 @@ const parseSourceMapChunk = (encodedChunk: string): SourceMapChunk => {
  * @returns a normalized source map chunk.
  */
 const pickGoodChunk = (previousChunk: string, currentChunk: string): string => {
-  const previousChunkSplit = previousChunk.split(':');
-  const currentChunkSplit = currentChunk.split(':');
+  const previousChunkSplit = previousChunk.split(':')
+  const currentChunkSplit = currentChunk.split(':')
 
   if (currentChunkSplit[0] === '') {
-    return previousChunk;
+    return previousChunk
   }
 
-  const goodChunks: string[] = [];
+  const goodChunks: string[] = []
   for (let i = 0; i < 4; i++) {
-    goodChunks.push(currentChunkSplit[i] || previousChunkSplit[i]);
+    goodChunks.push(currentChunkSplit[i] || previousChunkSplit[i])
   }
-  return goodChunks.join(':');
+  return goodChunks.join(':')
 }
 
 /**
@@ -74,17 +83,17 @@ const pickGoodChunk = (previousChunk: string, currentChunk: string): string => {
  * @returns parsed source map.
  */
 const parseSourceMap = (sourceMap: string): SourceMapChunk[] => {
-  let previousChunk: string = ':::';
+  let previousChunk: string = ':::'
   const sourceMapChunks: SourceMapChunk[] = []
   for (const currentChunk of sourceMap.split(';')) {
-    const chunk = pickGoodChunk(previousChunk, currentChunk);
-    const parsed = parseSourceMapChunk(chunk);
-    sourceMapChunks.push(parsed);
-    previousChunk = chunk;
+    const chunk = pickGoodChunk(previousChunk, currentChunk)
+    const parsed = parseSourceMapChunk(chunk)
+    sourceMapChunks.push(parsed)
+    previousChunk = chunk
   }
 
-  return sourceMapChunks;
-};
+  return sourceMapChunks
+}
 
 /**
  * Determines the line number for a given index within a string.
@@ -94,17 +103,17 @@ const parseSourceMap = (sourceMap: string): SourceMapChunk[] => {
  */
 const parseLineNumber = (source: string, index: number): number => {
   if (index === 0) {
-    return 0;
+    return 0
   }
 
-  const lines = source.split('\n');
-  let offset = 0;
+  const lines = source.split('\n')
+  let offset = 0
   for (let i = 0; i < lines.length; i++) {
     if (index <= offset) {
-      return i - 1;
+      return i - 1
     }
 
-    offset += Buffer.byteLength(lines[i] + '\n', 'utf8');
+    offset += Buffer.byteLength(lines[i] + '\n', 'utf8')
   }
 }
 
@@ -115,28 +124,28 @@ const parseLineNumber = (source: string, index: number): number => {
  * @returns corresponding code line numbers.
  */
 const parseSourceLines = (source: string, sourceMap: string): CodeLine[] => {
-  const sourceMapChunks = parseSourceMap(sourceMap);
-  const firstSourceIndex = sourceMapChunks[0].index;
+  const sourceMapChunks = parseSourceMap(sourceMap)
+  const firstSourceIndex = sourceMapChunks[0].index
 
-  let lastGoodLine: number;
-  const sourceLines: CodeLine[] = [];
+  let lastGoodLine: number
+  const sourceLines: CodeLine[] = []
   for (const sourceMapChunk of sourceMapChunks) {
     if (sourceMapChunk.index === firstSourceIndex) {
       const line = parseLineNumber(source, sourceMapChunk.start)
       sourceLines.push({
-        line: line,
+        line,
         chunk: sourceMapChunk,
-      });
-      lastGoodLine = line;
+      })
+      lastGoodLine = line
     } else {
       sourceLines.push({
         line: lastGoodLine,
         chunk: sourceMapChunk,
-      });
+      })
     }
   }
 
-  return sourceLines;
+  return sourceLines
 }
 
 /**
@@ -146,31 +155,31 @@ const parseSourceLines = (source: string, sourceMap: string): CodeLine[] => {
  */
 const parseInstructionIndices = (binary: Buffer | string): number[] => {
   if (typeof binary === 'string') {
-    binary = Buffer.from(binary, 'hex');
+    binary = Buffer.from(binary, 'hex')
   }
 
-  const instructionIndices: number[] = [];
+  const instructionIndices: number[] = []
 
-  let instructionIndex = 0;
-  let byteIndex = 0;
+  let instructionIndex = 0
+  let byteIndex = 0
   while (byteIndex < binary.length) {
-    const instruction = binary[byteIndex];
+    const instruction = binary[byteIndex]
 
-    let instructionLength = 1;
+    let instructionLength = 1
     if (instruction >= 0x60 && instruction <= 0x7f) {
-      instructionLength = 1 + instruction - 0x5f;
+      instructionLength = 1 + instruction - 0x5f
     }
 
     for (let i = 0; i < instructionLength; i++) {
-      instructionIndices.push(instructionIndex);
+      instructionIndices.push(instructionIndex)
     }
 
-    byteIndex += instructionLength;
-    instructionIndex += 1;
+    byteIndex += instructionLength
+    instructionIndex += 1
   }
 
-  return instructionIndices;
-};
+  return instructionIndices
+}
 
 /**
  * Utility; produces a useful structure representing a trace for a given file.
@@ -178,17 +187,17 @@ const parseInstructionIndices = (binary: Buffer | string): number[] => {
  * @returns an empty code trace.
  */
 const parseCodeLines = (source: string): CodeTrace => {
-  const codeTrace: CodeTrace = {};
-  const lines = source.split('\n');
+  const codeTrace: CodeTrace = {}
+  const lines = source.split('\n')
   for (let i = 0; i < lines.length; i++) {
     codeTrace[i] = {
       line: i,
       code: lines[i],
       gasUsed: 0,
       instructions: [],
-    };
+    }
   }
-  return codeTrace;
+  return codeTrace
 }
 
 /**
@@ -197,8 +206,11 @@ const parseCodeLines = (source: string): CodeTrace => {
  * @param sourceLines list of all source map chunks.
  * @returns `true` if the line is part of the main contract, `false` otherwise.
  */
-const isMainContract = (sourceLine: CodeLine, sourceLines: CodeLine[]): boolean => {
-  return sourceLine.chunk.index === sourceLines[0].chunk.index;
+const isMainContract = (
+  sourceLine: CodeLine,
+  sourceLines: CodeLine[]
+): boolean => {
+  return sourceLine.chunk.index === sourceLines[0].chunk.index
 }
 
 /**
@@ -208,8 +220,11 @@ const isMainContract = (sourceLine: CodeLine, sourceLines: CodeLine[]): boolean 
  * @param sourceLines list of all source map chunks.
  * @returns `true` if the line is a trampoline, `false` otherwise.
  */
-const isTrampoline = (sourceLine: CodeLine, sourceLines: CodeLine[]): boolean => {
-  return sourceLine.line === sourceLines[0].line;
+const isTrampoline = (
+  sourceLine: CodeLine,
+  sourceLines: CodeLine[]
+): boolean => {
+  return sourceLine.line === sourceLines[0].line
 }
 
 /**
@@ -221,22 +236,26 @@ const isTrampoline = (sourceLine: CodeLine, sourceLines: CodeLine[]): boolean =>
  * @param start position of the JUMP instruction to seek from.
  * @returns traces for instructions from the JUMP to the final JUMPDEST.
  */
-const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sourceLines: CodeLine[], start: number): InstructionTrace[] => {
-  let intermediateLogs: StructLog[] = [];
-  let logIndex = start;
+const seekJumpDest = (
+  structLogs: StructLog[],
+  instructionIndices: number[],
+  sourceLines: CodeLine[],
+  start: number
+): InstructionTrace[] => {
+  const intermediateLogs: StructLog[] = []
+  let logIndex = start
 
-  let structLog: StructLog;
-  let instructionIndex: number;
-  let sourceLine: CodeLine;
+  let structLog: StructLog
+  let instructionIndex: number
+  let sourceLine: CodeLine
   do {
-    structLog = structLogs[logIndex];
-    instructionIndex = instructionIndices[structLog.pc];
-    sourceLine = sourceLines[instructionIndex];
-    
-    intermediateLogs.push(structLog);
-    logIndex++;
-  }
-  while (
+    structLog = structLogs[logIndex]
+    instructionIndex = instructionIndices[structLog.pc]
+    sourceLine = sourceLines[instructionIndex]
+
+    intermediateLogs.push(structLog)
+    logIndex++
+  } while (
     structLog.op !== 'JUMPDEST' ||
     // Make sure this JUMPDEST brings us back to the main contract.
     !isMainContract(sourceLine, sourceLines) ||
@@ -244,9 +263,9 @@ const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sou
     // First JUMPDEST will therefore have an incorrect line number.
     // Instead, we need to wait until we're out of the trampoline.
     isTrampoline(sourceLine, sourceLines)
-  );
+  )
 
-  let intermediateTraces: InstructionTrace[] = [];
+  const intermediateTraces: InstructionTrace[] = []
   for (const intermediateLog of intermediateLogs) {
     intermediateTraces.push({
       line: sourceLine.line,
@@ -254,10 +273,10 @@ const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sou
       op: intermediateLog.op,
       idx: instructionIndex,
       gasCost: intermediateLog.gasCost,
-    });
+    })
   }
 
-  return intermediateTraces;
+  return intermediateTraces
 }
 
 /**
@@ -266,12 +285,12 @@ const seekJumpDest = (structLogs: StructLog[], instructionIndices: number[], sou
  * @returns a pretty trace.
  */
 export const prettifyTransactionTrace = (trace: CodeTrace): string => {
-  let pretty = 'Gas\t┋ Code\n' + '┉┉┉┉┉┉┉┉┋┉┉┉┉┉┉┉┉\n';
-  for (const key in trace) {
-    pretty += `${trace[key].gasUsed}\t┋ ${trace[key].code}\n`;
+  let pretty = 'Gas\t┋ Code\n' + '┉┉┉┉┉┉┉┉┋┉┉┉┉┉┉┉┉\n'
+  for (const key of Object.keys(trace)) {
+    pretty += `${trace[key].gasUsed}\t┋ ${trace[key].code}\n`
   }
 
-  return pretty;
+  return pretty
 }
 
 /**
@@ -286,26 +305,31 @@ export const getTransactionTrace = async (
   provider: JsonRpcProvider,
   sourcePath: string,
   contract: ContractJson,
-  txhash: string,
+  txhash: string
 ): Promise<CodeTrace> => {
-  const source = fs.readFileSync(sourcePath, 'utf8');
-  const structLogs = await getStructLogs(provider, txhash);
-  const sourceMap = contract.evm.deployedBytecode.sourceMap;
-  const sourceLines = parseSourceLines(source, sourceMap);
-  const binary = contract.evm.deployedBytecode.object;
-  const instructionIndices = parseInstructionIndices(binary);
+  const source = fs.readFileSync(sourcePath, 'utf8')
+  const structLogs = await getStructLogs(provider, txhash)
+  const sourceMap = contract.evm.deployedBytecode.sourceMap
+  const sourceLines = parseSourceLines(source, sourceMap)
+  const binary = contract.evm.deployedBytecode.object
+  const instructionIndices = parseInstructionIndices(binary)
 
-  let instructionTraces: InstructionTrace[] = [];
+  let instructionTraces: InstructionTrace[] = []
   for (let i = 0; i < structLogs.length; i++) {
-    const structLog = structLogs[i];
-    const instructionIndex = instructionIndices[structLog.pc];
-    const sourceLine = sourceLines[instructionIndex];
+    const structLog = structLogs[i]
+    const instructionIndex = instructionIndices[structLog.pc]
+    const sourceLine = sourceLines[instructionIndex]
 
     if (structLog.op === 'JUMP' && isMainContract(sourceLine, sourceLines)) {
       // Instructions between JUMP and JUMPDEST should be attributed to JUMPDEST's line.
-      const intermediateTraces = seekJumpDest(structLogs, instructionIndices, sourceLines, i);
-      instructionTraces = instructionTraces.concat(intermediateTraces);
-      i += intermediateTraces.length - 1;
+      const intermediateTraces = seekJumpDest(
+        structLogs,
+        instructionIndices,
+        sourceLines,
+        i
+      )
+      instructionTraces = instructionTraces.concat(intermediateTraces)
+      i += intermediateTraces.length - 1
     } else {
       instructionTraces.push({
         line: sourceLine.line,
@@ -313,16 +337,16 @@ export const getTransactionTrace = async (
         op: structLog.op,
         idx: instructionIndex,
         gasCost: structLog.gasCost,
-      });
+      })
     }
   }
 
   // Clean things up a bit and collect traces by line.
-  const codeTrace: CodeTrace = parseCodeLines(source);
+  const codeTrace: CodeTrace = parseCodeLines(source)
   for (const instructionTrace of instructionTraces) {
-    codeTrace[instructionTrace.line].instructions.push(instructionTrace);
-    codeTrace[instructionTrace.line].gasUsed += instructionTrace.gasCost;
+    codeTrace[instructionTrace.line].instructions.push(instructionTrace)
+    codeTrace[instructionTrace.line].gasUsed += instructionTrace.gasCost
   }
 
-  return codeTrace;
-};
+  return codeTrace
+}

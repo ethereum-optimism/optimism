@@ -1,1 +1,1 @@
-export { GasProfiler } from './gas-profiler';
+export { GasProfiler } from './gas-profiler'

@@ -1,20 +1,20 @@
 export interface ContractJson {
-  abi: any;
+  abi: any
   evm: {
     bytecode: {
-      linkReferences: any;
-      object: string;
-      opcodes: string;
-      sourceMap: string;
-    },
-    deployedBytecode: {
-      immutableReferences: any;
-      linkReferences: any;
-      object: string;
-      opcodes: string;
-      sourceMap: string;
+      linkReferences: any
+      object: string
+      opcodes: string
+      sourceMap: string
     }
-  };
-  interface: any;
-  bytecode: string;
+    deployedBytecode: {
+      immutableReferences: any
+      linkReferences: any
+      object: string
+      opcodes: string
+      sourceMap: string
+    }
+  }
+  interface: any
+  bytecode: string
 }
