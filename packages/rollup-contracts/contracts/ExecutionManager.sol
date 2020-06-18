@@ -28,6 +28,30 @@ contract ExecutionManager {
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
     address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
 
+    // Gas rate limiting parameters:
+    // The flat gas fee imposed on all transactions
+    uint constant TX_GAS_FLAT_FEE = 30000;
+    // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
+    uint constant GAS_RATE_LIMIT_EPOCH_LENGTH = 1000;
+    // The max gas which sequenced tansactions consume per rate limit epoch
+    uint constant MAX_SEQUENCED_GAS_PER_EPOCH = 100000000;
+    // The max gas which queued tansactions consume per rate limit epoch
+    uint constant MAX_QUEUED_GAS_PER_EPOCH = 100000000;
+    // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
+    address constant METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
+
+    // Storage keys which the EM will directly use to persist the different pieces of metadata:
+    // Storage slot where we will store the cumulative sequencer tx gas spent
+    bytes32 constant CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    // Storage slot where we will store the cumulative queued tx gas spent
+    bytes32 constant CUMULATIVE_QUEUED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000002;
+    // Storage slot where we will store the start of the current gas rate limit epoch
+    bytes32 constant GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000003;
+    // Storage slot where we will store what the cumulative sequencer gas was at the start of the last epoch
+    bytes32 constant CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000004;
+    // Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
+    bytes32 constant CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000005;
+
     /************************
     * Contract Dependencies *
     ************************/
@@ -939,6 +963,29 @@ contract ExecutionManager {
         }
     }
 
+    /*****************************
+    * OVM (non-EVM) State Access *
+    *****************************/
+
+    /**
+     * @notice Getter for the execution context's L1MessageSender. Used by the L1MessageSender precompile.
+     * @return The L1MessageSender in our current execution context.
+     */
+    function getL1MessageSender() public returns(address) {
+        require(executionContext.ovmActiveContract == l1MsgSenderAddress, "Only the L1MessageSender precompile is allowed to call getL1MessageSender(...)!");
+        require(executionContext.l1MessageSender != ZERO_ADDRESS, "L1MessageSender not set!");
+        require(executionContext.ovmMsgSender == ZERO_ADDRESS, "L1MessageSender only accessible in entrypoint contract!");
+        return executionContext.l1MessageSender;
+    }
+    
+    function getCumulativeSequencedGas() public view returns(uint) {
+        return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
+    }
+
+    function getCumulativeQueuedGas() public view returns(uint) {
+        return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
+    }
+
     /********
     * Utils *
     ********/
@@ -991,17 +1038,51 @@ contract ExecutionManager {
     }
 
     /**
-     * @notice Getter for the execution context's L1MessageSender. Used by the L1MessageSender precompile.
-     * @return The L1MessageSender in our current execution context.
+     * @notice Gets the state manager address for this EM.
      */
-    function getL1MessageSender() public returns(address) {
-        require(executionContext.ovmActiveContract == l1MsgSenderAddress, "Only the L1MessageSender precompile is allowed to call getL1MessageSender(...)!");
-        require(executionContext.l1MessageSender != ZERO_ADDRESS, "L1MessageSender not set!");
-        require(executionContext.ovmMsgSender == ZERO_ADDRESS, "L1MessageSender only accessible in entrypoint contract!");
-        return executionContext.l1MessageSender;
-    }
-
     function getStateManagerAddress() public view returns (address){
         return address(stateManager);
+    }
+
+    /**
+     * @notice Sets the new cumulative sequenced gas as a result of tx execution.
+     */
+    function setCumulativeSequencedGas(uint _value) internal {
+        stateManager.setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Sets the new cumulative queued gas as a result of this new tx.
+     */
+    function setCumulativeQueuedGas(uint _value) internal {
+        stateManager.setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
+     */
+    function getGasRateLimitEpochStart() internal returns (uint) {
+        return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
+    }
+
+    /**
+     * @notice Used to store the current time at the start of a new gas rate limit epoch.
+     */
+    function setGasRateLimitEpochStart(uint _value) internal {
+        stateManager.setStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
+     */
+    function getCumulativeSequencedGasAtEpochStart() internal returns (uint) {
+        return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    }
+
+    /**
+     * @notice Gets what the cumulative queued gas was at the start of this gas rate limit epoch.
+     */
+    function getCumulativeQueuedGasAtEpochStart() internal returns (uint) {
+        return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 }
