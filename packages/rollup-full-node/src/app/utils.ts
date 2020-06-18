@@ -66,9 +66,8 @@ export async function addHandlerToProvider(provider: any): Promise<any> {
   return provider
 }
 
-export async function createMockProvider(
-  messageSubmitter: L2ToL1MessageSubmitter = new NoOpL2ToL1MessageSubmitter()
-) {
+export async function createMockProvider() {
+  const messageSubmitter = new NoOpL2ToL1MessageSubmitter()
   const fullnodeHandler = await DefaultWeb3Handler.create(messageSubmitter)
   const web3Provider = createProviderForHandler(fullnodeHandler)
 
