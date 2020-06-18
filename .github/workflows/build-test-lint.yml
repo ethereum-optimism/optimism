@@ -97,6 +97,13 @@ jobs:
           path: packages/solc-transpiler/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
+      - name: Cache state-synchronizer deps
+        uses: actions/cache@v1
+        id: cache_state-synchronizer
+        with:
+          path: packages/state-synchronizer/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/state-synchronizer/package.json') }}
+
       - name: Cache ovm-truffle-provider-wrapper deps
         uses: actions/cache@v1
         id: cache_ovm-truffle-provider-wrapper

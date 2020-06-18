@@ -1,7 +1,7 @@
 {
-  "name": "@eth-optimism/l1-to-l2-state-synchronizer",
+  "name": "@eth-optimism/state-synchronizer",
   "version": "0.0.1-alpha.25",
-  "description": "Configurable application for listening for specific L1 state changes and relaying them to L2",
+  "description": "Configurable application for listening for L1 Rollup Transaction events and relaying the Rollup Transactions to L2",
   "main": "build/index.js",
   "files": [
     "build/**/*.js",
