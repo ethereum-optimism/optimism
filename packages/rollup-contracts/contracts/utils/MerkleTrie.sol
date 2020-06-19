@@ -25,6 +25,7 @@ contract MerkleTrie {
 
     // Just a utility constant. RLP represents `NULL` as 0x80.
     bytes1 constant RLP_NULL = bytes1(0x80);
+    bytes constant RLP_NULL_BYTES = hex'80';
 
     enum NodeType {
         BranchNode,
@@ -126,7 +127,7 @@ contract MerkleTrie {
 
         require(keyRemainder.length == 0, "Could not find node in provided path.");
 
-        return getNodeValue(proof[pathLength]);
+        return getNodeValue(proof[pathLength - 1]);
     }
 
 
@@ -639,8 +640,6 @@ contract MerkleTrie {
         return makeNode(raw);
     }
 
-
-
     /**
      * @notice Creates a new extension node.
      * @param _key Key for the extension node, unprefixed.
@@ -685,7 +684,7 @@ contract MerkleTrie {
     function makeEmptyBranchNode() internal pure returns (TrieNode memory) {
         bytes[] memory raw = new bytes[](BRANCH_NODE_LENGTH);
         for (uint256 i = 0; i < raw.length; i++) {
-            raw[i] = hex'80';
+            raw[i] = RLP_NULL_BYTES;
         }
         return makeNode(raw);
     }
