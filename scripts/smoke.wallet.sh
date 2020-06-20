@@ -29,7 +29,22 @@ echo "CREATE WALLET WITHOUT MNEMONIC"
 echo "vault write -format=json -f immutability-eth-plugin/wallets/test-wallet-1"
 vault write -format=json -f immutability-eth-plugin/wallets/test-wallet-1
 banner
-vault write -format=json -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-1
+vault write -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-1
+
+banner
+echo "CREATE TEMPORARY WALLET WITHOUT MNEMONIC"
+echo "vault write -format=json -f immutability-eth-plugin/wallets/temp-wallet"
+vault write -format=json -f immutability-eth-plugin/wallets/temp-wallet
+banner
+vault write -f -output-curl-string immutability-eth-plugin/wallets/temp-wallet
+
+banner
+echo "DELETE TEMPORARY WALLET"
+echo "vault delete immutability-eth-plugin/wallets/temp-wallet"
+vault delete immutability-eth-plugin/wallets/temp-wallet
+banner
+vault delete -output-curl-string immutability-eth-plugin/wallets/temp-wallet
+
 
 banner
 echo "LIST WALLETS"
@@ -60,25 +75,11 @@ banner
 vault write -format=json -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts
 
 banner
-echo "CHECK BALANCE FOR ACCOUNT IN WALLET"
-echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
-banner
-vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
-
-banner
 echo "CREATE SECOND NEW ACCOUNT IN WALLET"
 echo "vault write -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts"
 ACCOUNT1=$(vault write -f -field=address immutability-eth-plugin/wallets/test-wallet-2/accounts)
 banner
 vault write  -output-curl-string -f immutability-eth-plugin/wallets/test-wallet-2/accounts
-
-banner
-echo "CHECK BALANCE FOR $ACCOUNT1 IN WALLET"
-echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance"
-vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
-banner
-vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
 
 banner
 echo "TRANSFER FUNDS FROM $ACCOUNT0 TO $ACCOUNT1" 
@@ -88,16 +89,16 @@ banner
 vault write  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/debit to=$ACCOUNT1 amount=$FUNDING_AMOUNT
 
 banner
-echo "CHECK NEW BALANCE FOR $ACCOUNT0 IN WALLET"
-echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
+echo "CREATE TEMPORARY NEW ACCOUNT IN WALLET"
+echo "vault write -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts"
+TEMP_ACCOUNT=$(vault write -f -field=address immutability-eth-plugin/wallets/test-wallet-2/accounts)
 banner
-vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
+vault write  -output-curl-string -f immutability-eth-plugin/wallets/test-wallet-2/accounts
 
 banner
-echo "CHECK NEW BALANCE FOR $ACCOUNT1 IN WALLET"
-echo "vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance"
-vault read -format=json immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
+echo "DELETE TEMPORARY ACCOUNT IN WALLET"
+echo "vault delete immutability-eth-plugin/wallets/test-wallet-2/accounts/$TEMP_ACCOUNT"
+vault delete immutability-eth-plugin/wallets/test-wallet-2/accounts/$TEMP_ACCOUNT
 banner
-vault read  -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT1/balance
+vault delete -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$TEMP_ACCOUNT
 

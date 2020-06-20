@@ -23,47 +23,13 @@ A PUT to the `/config` path is used configure the mount.
 
 #### INPUTS
 
-* chain_id:
-
-```
-Ethereum network - can be one of the following values:
-
-1 - Ethereum mainnet
-2 - Morden (disused), Expanse mainnet
-3 - Ropsten
-4 - Rinkeby (Default)
-30 - Rootstock mainnet
-31 - Rootstock testnet
-42 - Kovan
-61 - Ethereum Classic mainnet
-62 - Ethereum Classic testnet
-1337 - Geth private chains
-```
-
-* rpc_url:
-
-```
-The RPC address of the Ethereum network. Default = https://rinkeby.infura.io
-```
-
-* whitelist:
-
-```
-The list of accounts that any account can send ETH to.
-```
-
-* blacklist:
-
-```
-The list of accounts that any account can't send ETH to.
-```
-
-* bound_cidr_list:
-
-```
-Comma separated string or list of CIDR blocks. If set, specifies the blocks of
-IPs which are allowed to use the plugin.
-```
+| Parameter | Description |
+| --- | ----------- |
+| chain_id | Ethereum network. Default = 4 (Rinkeby) |
+| rpc_url | The RPC address of the Ethereum network. Default = `https://rinkeby.infura.io` |
+| whitelist | The list of accounts that any account can send ETH to. |
+| blacklist | The list of accounts that any account can't send ETH to. |
+| bound_cidr_list | Comma separated string or list of CIDR blocks. If set, specifies the blocks of IPs which are allowed to use the plugin. |
 
 #### EXAMPLE
 
@@ -121,31 +87,14 @@ A wallet contains the BIP44 key used to derive accounts.
 
 A PUT to the `/wallets/<NAME>` enpoint creates (or updates) an Ethereum wallet: an wallet controlled by a private key. Also The generator produces a high-entropy passphrase.
 
-#### INPUTS
+### INPUTS
 
-*name:
-
-```
-Name of the wallet - provided in the URI.
-```
-
-*mnemonic:
-
-```
-The mnemonic to use to create the account. If not provided, one is generated.
-```
-
-*whitelist:
-
-```
-The list of the only Ethereum accounts that accounts in this wallet can send transactions to.
-```
-
-*blacklist:
-
-```
-The list of Ethereum accounts that accounts in this wallet can't send transactions to.
-```
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| mnemonic | The mnemonic to use to create the account. If not provided, one is generated. |
+| whitelist | The list of the only Ethereum accounts that accounts in this wallet can send transactions to. |
+| blacklist | The list of Ethereum accounts that accounts in this wallet can't send transactions to. |
 
 ### EXAMPLE
 
@@ -168,6 +117,22 @@ curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" 
 }
 ```
 
+### DELETE WALLET
+
+A DELETE to the `/wallets/<NAME>` endpoint deletes a wallet.
+
+#### INPUTS
+
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet to be deleted - provided in the URI. |
+
+### EXAMPLE
+
+```sh
+curl -X DELETE -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/temp-wallet
+```
+
 ## ACCOUNTS
 
 An Ethereum account with a BIP44 derived key.
@@ -178,22 +143,11 @@ A PUT to the `/wallets/<NAME>/accounts` endpoint creates an Ethereum account.
 
 #### INPUTS
 
-*name:
-
-```
-Name of the wallet - provided in the URI.
-```
-
-*whitelist:
-
-```
-The list of the only Ethereum accounts that this account can send transactions to.
-```
-
-*blacklist:
-
-```
-The list of Ethereum accounts that this account can't send transactions to.
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| whitelist | The list of the only Ethereum accounts that this account can send transactions to. |
+| blacklist |  The list of Ethereum accounts that this account can't send transactions to. |
 
 ### EXAMPLE
 
@@ -215,7 +169,139 @@ curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" 
 }
 ```
 
-### CHECK ACCOUNT BALANCE
+### DEBIT ACCOUNT
 
-A GET to the `/wallets/<NAME>/accounts/<ADDRESS>/balance` endpoint returns the balance for an Ethereum account.
+A PUT to the `/wallets/<NAME>/accounts/<ACCOUNT>/debit` endpoint debits an Ethereum account.
 
+#### INPUTS
+
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| address | Account address **from** which the funds will be transferred - provided in the URI. |
+| to |  Account address **to** which the funds will be transferred. |
+| amount |  Amount of ETH (in wei). |
+| gas_limit | The gas limit for the transaction - defaults to 21000. |
+| gas_price | The gas price for the transaction in wei - will be estimated if not supplied. |
+
+### EXAMPLE
+
+```sh
+curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"amount":"100000000000000000","to":"0x9A1Db13bAb531Ea41C30b97E160f7aDe9efb02c8"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/test-wallet-2/accounts/0x71f8f93D25C5A56e2B6810cB84D23E8a2e760D68/debit
+
+{
+  "request_id": "8565f6cf-6082-fe02-2793-2aca669fd6c8",
+  "lease_id": "",
+  "lease_duration": 0,
+  "renewable": false,
+  "data": {
+    "amount": "100000000000000000",
+    "from": "0x71f8f93D25C5A56e2B6810cB84D23E8a2e760D68",
+    "gas_limit": "21000",
+    "gas_price": "20000000000",
+    "nonce": "41",
+    "signed_transaction": "0xf86c298504a817c800825208949a1db13bab531ea41c30b97e160f7ade9efb02c888016345785d8a0000801ba0b351bbe2ae6e7f8401fa8ca35f6bf3eba5aa5db527384d5a0b1aa1f24b67c911a028665a1550e6fb706933cc03d173d7321084a050cd054eeebc040723f44da20b",
+    "to": "0x9A1Db13bAb531Ea41C30b97E160f7aDe9efb02c8",
+    "transaction_hash": "0xca12f0e2cc9ffcd1c42a472eb5baeeabe0c98bd87ae3cae0726a6cedcb68b047"
+  },
+  "warnings": null
+}
+```
+
+### DELETE ACCOUNT
+
+A DELETE to the `/wallets/<NAME>/accounts/<ACCOUNT>` endpoint deletes an Ethereum account.
+
+#### INPUTS
+
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| address | Account address which will be deleted - provided in the URI. |
+
+### EXAMPLE
+
+```sh
+curl -X DELETE -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/test-wallet-2/accounts/0x4BC91c7fA64017a94007B7452B75888cD82185F7
+```
+
+## PLASMA
+
+OMG Networks plasma contract.
+
+### SUBMIT BLOCK
+
+Submits the Merkle root of a Plasma block
+
+#### INPUTS
+
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| address | Account address which will submit the block - provided in the URI. |
+| contract | The address of the Block Controller contract. |
+| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
+| block_root | The Merkle root of a Plasma block. |
+
+### EXAMPLE
+
+```sh
+curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/submitBlock
+
+{
+  "request_id": "00a614f3-9bd3-60f4-25be-384a8d3cc5ff",
+  "lease_id": "",
+  "lease_duration": 0,
+  "renewable": false,
+  "data": {
+    "contract": "0xd185AFF7fB18d2045Ba766287cA64992fDd79B1e",
+    "from": "0x4BC91c7fA64017a94007B7452B75888cD82185F7",
+    "gas_limit": 73623,
+    "gas_price": 20000000000,
+    "nonce": 1,
+    "signed_transaction": "0xf889018504a817c80083011f9794d185aff7fb18d2045ba766287ca64992fdd79b1e80a4baa4769431323334717765726164676631323334717765726164676600000000000000001ca04b14e95372a41a74585c04c7967c45f2d1d51e4f5cd59b7c95a2c16ecbd63e79a04fcc461cfd165d8ba1f9cafe37ce7c025c0cec0533880abda3df754c9c749d9a",
+    "transaction_hash": "0x6cfad4034bf147accb815922bb4f71ed8ae676e65580ab259d9d1d8713047c7f"
+  },
+  "warnings": null
+}
+```
+
+### ACTIVATE CHILD CHAIN
+
+Activates the child chain so that child chain can start to submit child blocks to root chain.
+
+#### INPUTS
+
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| address | Account address which will submit the block - provided in the URI. |
+| contract | The address of the Block Controller contract. |
+| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
+
+### EXAMPLE
+
+```sh
+curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/activateChildChain
+```
+
+### SUBMIT DEPOSIT BLOCK
+
+Submits a block for deposit
+
+#### INPUTS
+
+| Parameter | Description |
+| --- | ----------- |
+| name | Name of the wallet - provided in the URI. |
+| address | Account address which will submit the block - provided in the URI. |
+| contract | The address of the Block Controller contract. |
+| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
+| block_root | The Merkle root of a Plasma block. |
+
+### EXAMPLE
+
+```sh
+curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x4BC91c7fA64017a94007B7452B75888cD82185F7/plasma/submitDepositBlock
+
+```

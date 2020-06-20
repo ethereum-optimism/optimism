@@ -61,23 +61,6 @@ ACCOUNT0=$(vault write -f -field=address immutability-eth-plugin/wallets/test-wa
 vault write -f -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts
 echo ""
 echo "------------------------------------------------------------------"
-echo "CHECK BALANCE FOR ACCOUNT IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
-
-vault read -output-curl-string immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
-echo ""
-echo "------------------------------------------------------------------"
-echo "CHECK BALANCE FOR ACCOUNT IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
-echo ""
-echo "------------------------------------------------------------------"
-echo "CHECK BALANCE FOR ACCOUNT IN WALLET"
-echo "vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance"
-vault read immutability-eth-plugin/wallets/test-wallet-2/accounts/$ACCOUNT0/balance
-echo ""
-echo "------------------------------------------------------------------"
 echo "CREATE SECOND NEW ACCOUNT IN WALLET WITH WHITELIST == $ACCOUNT0"
 echo "vault write immutability-eth-plugin/wallets/test-wallet-2/accounts whitelist=$ACCOUNT0"
 ACCOUNT1=$(vault write -field=address immutability-eth-plugin/wallets/test-wallet-2/accounts whitelist=$ACCOUNT0)

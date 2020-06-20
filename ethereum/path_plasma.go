@@ -28,7 +28,7 @@ func PlasmaPaths(b *PluginBackend) []*framework.Path {
 
 		&framework.Path{
 			Pattern:      ContractPath(plasmaContract, "submitBlock"),
-			HelpSynopsis: "Allows the authority to submit the Merkle root of a Plasma block",
+			HelpSynopsis: "Submits the Merkle root of a Plasma block",
 			HelpDescription: `
 
 Allows the authority to submit the Merkle root of a Plasma block.

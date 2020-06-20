@@ -61,23 +61,6 @@ func AccountPaths(b *PluginBackend) []*framework.Path {
 			All the accounts for an Ethereum wallet will be listed.
 			`,
 		},
-		&framework.Path{
-			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address") + "/balance"),
-			HelpSynopsis: "Return the balance for an address",
-			HelpDescription: `
-
-Return the balance in wei for an address.
-
-`,
-			Fields: map[string]*framework.FieldSchema{
-				"name":    &framework.FieldSchema{Type: framework.TypeString},
-				"address": &framework.FieldSchema{Type: framework.TypeString},
-			},
-			ExistenceCheck: pathExistenceCheck,
-			Callbacks: map[logical.Operation]framework.OperationFunc{
-				logical.ReadOperation: b.pathReadBalance,
-			},
-		},
 
 		&framework.Path{
 			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address")),
@@ -401,29 +384,4 @@ func (b *PluginBackend) pathDebit(ctx context.Context, req *logical.Request, dat
 			"gas_limit":          strconv.FormatUint(transactionParams.GasLimit, 10),
 		},
 	}, nil
-}
-
-func (b *PluginBackend) pathReadBalance(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	config, err := b.configured(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	address := data.Get("address").(string)
-
-	client, err := ethclient.Dial(config.getRPCURL())
-	if err != nil {
-		return nil, err
-	}
-	balance, err := client.BalanceAt(context.Background(), common.HexToAddress(address), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &logical.Response{
-		Data: map[string]interface{}{
-			"balance": balance.String(),
-		},
-	}, nil
-
 }
