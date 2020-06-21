@@ -35,6 +35,16 @@ contract PartialStateManager {
     uint updatedContractsCounter;
     bytes32 stateRoot;
 
+    modifier onlyFraudVerifier {
+        require(msg.sender == address(fraudVerifier));
+        _;
+    }
+
+    modifier onlyExecutionManager {
+        require(msg.sender == address(executionManager));
+        _;
+    }
+
     modifier preExecution {
         require(!isTransactionSuccessfullyExecuted, "Function only callable before tx execution.");
         _;
@@ -59,23 +69,20 @@ contract PartialStateManager {
      * then deploy the execution manager (passing in the state manager address), and then set the execution manager
      * address in the state manager. This is a bit ugly & probably should be thought through a bit more.
      */
-    function setExecutionManager(address _executionManagerAddress) public {
-        require(msg.sender == address(fraudVerifier));
+    function setExecutionManager(address _executionManagerAddress) onlyFraudVerifier public {
         executionManager = ExecutionManager(_executionManagerAddress);
     }
 
     /**
      * @notice Initialize a new transaction execution
      */
-    function initNewTransactionExecution() external {
-        require(msg.sender == address(fraudVerifier));
+    function initNewTransactionExecution() onlyFraudVerifier external {
         existsInvalidStateAccess = false;
         updatedStorageCounter = 0;
         updatedContractsCounter = 0;
     }
 
-    function setIsTransitionSuccessfullyExecuted(bool _isTransactionSuccessfullyExecuted) external {
-        require(msg.sender == address(fraudVerifier));
+    function setIsTransitionSuccessfullyExecuted(bool _isTransactionSuccessfullyExecuted) onlyFraudVerifier external {
         isTransactionSuccessfullyExecuted = _isTransactionSuccessfullyExecuted;
     }
 
@@ -143,8 +150,7 @@ contract PartialStateManager {
      * @param _slot The slot we're querying.
      * @return The bytes32 value stored at the particular slot.
      */
-    function getStorage(address _ovmContractAddress, bytes32 _slot) public returns(bytes32) {
-        require(msg.sender == address(executionManager));
+    function getStorage(address _ovmContractAddress, bytes32 _slot) onlyExecutionManager public returns(bytes32) {
         ensureVerifiedStorage(_ovmContractAddress, _slot);
 
         return ovmContractStorage[_ovmContractAddress][_slot];
@@ -156,8 +162,7 @@ contract PartialStateManager {
      * @param _slot The slot we're setting.
      * @param _value The value we will set the storage to.
      */
-    function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) public {
-        require(msg.sender == address(executionManager));
+    function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) onlyExecutionManager public {
         ensureVerifiedStorage(_ovmContractAddress, _slot);
 
         // Add this storage slot to the list of updated storage
@@ -179,8 +184,7 @@ contract PartialStateManager {
      * @param _ovmContractAddress The contract we're getting the nonce of.
      * @return The contract nonce used for contract creation.
      */
-    function getOvmContractNonce(address _ovmContractAddress) public returns(uint) {
-        require(msg.sender == address(executionManager));
+    function getOvmContractNonce(address _ovmContractAddress) onlyExecutionManager public returns(uint) {
         ensureVerifiedContract(_ovmContractAddress);
 
         return ovmContractNonces[_ovmContractAddress];
@@ -191,8 +195,7 @@ contract PartialStateManager {
      * @param _ovmContractAddress The contract we're setting the nonce of.
      * @param _value The new nonce.
      */
-    function setOvmContractNonce(address _ovmContractAddress, uint _value) public {
-        require(msg.sender == address(executionManager));
+    function setOvmContractNonce(address _ovmContractAddress, uint _value) onlyExecutionManager public {
         ensureVerifiedContract(_ovmContractAddress);
 
         // Add this contract to the list of updated contracts
@@ -207,8 +210,7 @@ contract PartialStateManager {
      * @notice Increment the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're incrementing by 1 the nonce of.
      */
-    function incrementOvmContractNonce(address _ovmContractAddress) public {
-        require(msg.sender == address(executionManager));
+    function incrementOvmContractNonce(address _ovmContractAddress) onlyExecutionManager public {
         ensureVerifiedContract(_ovmContractAddress);
 
         // Add this contract to the list of updated contracts
@@ -231,9 +233,7 @@ contract PartialStateManager {
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
-    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) public {
-        require(msg.sender == address(executionManager));
-
+    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) onlyExecutionManager public {
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
@@ -242,7 +242,7 @@ contract PartialStateManager {
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
-    function getCodeContractAddress(address _ovmContractAddress) public returns(address) {
+    function getCodeContractAddress(address _ovmContractAddress) onlyExecutionManager public returns(address) {
         ensureVerifiedContract(_ovmContractAddress);
 
         return ovmCodeContracts[_ovmContractAddress];
@@ -290,8 +290,7 @@ contract PartialStateManager {
     function deployContract(
         address _newOvmContractAddress,
         bytes memory _ovmContractInitcode
-    ) public returns(address codeContractAddress) {
-        require(msg.sender == address(executionManager));
+    ) onlyExecutionManager public returns(address codeContractAddress) {
         ensureVerifiedContract(_newOvmContractAddress);
 
         // Safety check the initcode
