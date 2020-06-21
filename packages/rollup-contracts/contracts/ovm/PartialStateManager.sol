@@ -2,7 +2,6 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import {StateManager} from "../StateManager.sol";
-import {SafetyChecker} from "../SafetyChecker.sol";
 import {FraudVerifier} from "./FraudVerifier.sol";
 import {ExecutionManager} from "../ExecutionManager.sol";
 
@@ -15,7 +14,6 @@ import {ExecutionManager} from "../ExecutionManager.sol";
 contract PartialStateManager {
     address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-    SafetyChecker safetyChecker;
     FraudVerifier fraudVerifier;
     ExecutionManager executionManager;
 
@@ -56,20 +54,11 @@ contract PartialStateManager {
     }
 
     /**
-     * @notice Construct a new FullStateManager with a specified safety checker.
+     * @notice Construct a new PartialStateManager
      */
-    constructor(bytes32 _stateRoot, address _safetyCheckerAddress, address _fraudVerifierAddress) public {
+    constructor(bytes32 _stateRoot, address _fraudVerifierAddress, address _executionManagerAddress) public {
         stateRoot = _stateRoot;
-        safetyChecker = SafetyChecker(_safetyCheckerAddress);
         fraudVerifier = FraudVerifier(_fraudVerifierAddress);
-    }
-
-    /**
-     * @notice This is a seperate function because it allows us to first deploy the state manager,
-     * then deploy the execution manager (passing in the state manager address), and then set the execution manager
-     * address in the state manager. This is a bit ugly & probably should be thought through a bit more.
-     */
-    function setExecutionManager(address _executionManagerAddress) onlyFraudVerifier public {
         executionManager = ExecutionManager(_executionManagerAddress);
     }
 
@@ -293,12 +282,6 @@ contract PartialStateManager {
     ) onlyExecutionManager public returns(address codeContractAddress) {
         ensureVerifiedContract(_newOvmContractAddress);
 
-        // Safety check the initcode
-        if (!safetyChecker.isBytecodeSafe(_ovmContractInitcode)) {
-            // Contract initcode is not safe.
-            return ZERO_ADDRESS;
-        }
-
         // Deploy a new contract with this _ovmContractInitCode
         assembly {
             // Set our codeContractAddress to the address returned by our CREATE operation
@@ -307,13 +290,6 @@ contract PartialStateManager {
             if iszero(extcodesize(codeContractAddress)) {
                 revert(0, 0)
             }
-        }
-
-        // Safety check the runtime bytecode
-        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
-        if (!safetyChecker.isBytecodeSafe(codeContractBytecode)) {
-            // Contract runtime bytecode is not safe.
-            return ZERO_ADDRESS;
         }
 
         // Associate the code contract with the ovm contract

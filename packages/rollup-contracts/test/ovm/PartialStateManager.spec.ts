@@ -10,27 +10,20 @@ const log = getLogger('l1-to-l2-tx-queue', true)
 
 /* Contract Imports */
 import * as PartialStateManager from '../../build/PartialStateManager.json'
-import * as StubSafetyChecker from '../../build/StubSafetyChecker.json'
 
 /* Begin tests */
 describe('PartialStateManager', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
-  let stubSafetyChecker
   let partialStateManager
-
-  before(async () => {
-    stubSafetyChecker = await deployContract(wallet, StubSafetyChecker, [])
-  })
 
   /* Deploy contracts before tests */
   beforeEach(async () => {
     partialStateManager = await deployContract(wallet, PartialStateManager, [
       '0x' + '00'.repeat(32),
-      stubSafetyChecker.address,
+      wallet.address,
       wallet.address,
     ])
-    await partialStateManager.setExecutionManager(wallet.address)
   })
 
   describe('Pre-Execution', async () => {

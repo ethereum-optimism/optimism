@@ -97,6 +97,14 @@ contract ExecutionManager {
     }
 
     /**
+     * @notice Sets a new state manager to be associated with the execution manager.
+     * This is used when we want to swap out a new backend to be used for a different execution.
+     */
+    function setStateManager(address _stateManagerAddress) external {
+        stateManager = FullStateManager(_stateManagerAddress);
+    }
+
+    /**
      * @notice Increments the provided address's nonce.
      * This is only used by the sequencer to correct nonces when transactions fail.
      * @param addr The address of the nonce to increment.
