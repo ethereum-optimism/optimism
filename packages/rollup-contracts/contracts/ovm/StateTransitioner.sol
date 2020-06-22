@@ -33,6 +33,20 @@ contract StateTransitioner {
         stateManager = new PartialStateManager(address(this), address(executionManager));
     }
 
+    /****************************
+    * Pre-Transaction Execution *
+    ****************************/
+    function proveContractInclusion(address _ovmContractAddress, bytes32 _codeHash, uint _nonce) external {
+        stateManager.insertVerifiedContract(_ovmContractAddress, _codeHash, _nonce);
+    }
+
+    function proveStorageSlotInclusion(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external {
+        stateManager.insertVerifiedStorage(_ovmContractAddress, _slot, _value);
+    }
+
+    /************************
+    * Transaction Execution *
+    ************************/
     function applyTransaction() public returns(bool) {
         // TODO:
         // First, call stateManager.initNewTransactionExecution()
@@ -43,6 +57,10 @@ contract StateTransitioner {
         // This will allow people to start updating the state root!
         return true;
     }
+
+    /****************************
+    * Post-Transaction Execution *
+    ****************************/
 
     function verifyFraud() public returns(bool) {
         // TODO:
