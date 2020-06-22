@@ -14,7 +14,7 @@ import * as PartialStateManager from '../../build/PartialStateManager.json'
 import * as StubExecutionManager from '../../build/StubExecutionManager.json'
 
 /* Begin tests */
-describe.only('StateTransitioner', () => {
+describe('StateTransitioner', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let executionManager
@@ -26,7 +26,7 @@ describe.only('StateTransitioner', () => {
     stateTransitioner = await deployContract(wallet, StateTransitioner, [
       10, // Some fake transition index
       '0x' + '00'.repeat(32), // Some fake state root
-      executionManager.address // Some fake execution manager address
+      executionManager.address, // Some fake execution manager address
     ])
   })
 
@@ -38,9 +38,17 @@ describe.only('StateTransitioner', () => {
     const storageSlot2 = '0x' + '22'.repeat(32)
     const storageValue2 = '0x' + '22'.repeat(32)
     await stateTransitioner.proveContractInclusion(contract1, contract1, 1)
-    await stateTransitioner.proveStorageSlotInclusion(contract1, storageSlot1, storageValue1)
+    await stateTransitioner.proveStorageSlotInclusion(
+      contract1,
+      storageSlot1,
+      storageValue1
+    )
     await stateTransitioner.proveContractInclusion(contract2, contract2, 5)
-    await stateTransitioner.proveStorageSlotInclusion(contract2, storageSlot2, storageValue2)
+    await stateTransitioner.proveStorageSlotInclusion(
+      contract2,
+      storageSlot2,
+      storageValue2
+    )
   }
 
   describe('Initialization', async () => {
@@ -54,10 +62,20 @@ describe.only('StateTransitioner', () => {
     it('proves contract inclusion which allows us to query the isVerifiedContract in the state manager', async () => {
       const ovmContractAddress = '0x' + '01'.repeat(20)
       const codeContractAddress = stateTransitioner.address
-      await stateTransitioner.proveContractInclusion(ovmContractAddress, codeContractAddress, 5)
-      const stateManager = new Contract(await stateTransitioner.stateManager(), PartialStateManager.abi, wallet)
+      await stateTransitioner.proveContractInclusion(
+        ovmContractAddress,
+        codeContractAddress,
+        5
+      )
+      const stateManager = new Contract(
+        await stateTransitioner.stateManager(),
+        PartialStateManager.abi,
+        wallet
+      )
 
-      const isVerified = await stateManager.isVerifiedContract(ovmContractAddress)
+      const isVerified = await stateManager.isVerifiedContract(
+        ovmContractAddress
+      )
       isVerified.should.equal(true)
     })
 
@@ -65,15 +83,30 @@ describe.only('StateTransitioner', () => {
       // First prove the contract
       const ovmContractAddress = '0x' + '01'.repeat(20)
       const codeContractAddress = stateTransitioner.address
-      await stateTransitioner.proveContractInclusion(ovmContractAddress, codeContractAddress, 5)
-      const stateManager = new Contract(await stateTransitioner.stateManager(), PartialStateManager.abi, wallet)
+      await stateTransitioner.proveContractInclusion(
+        ovmContractAddress,
+        codeContractAddress,
+        5
+      )
+      const stateManager = new Contract(
+        await stateTransitioner.stateManager(),
+        PartialStateManager.abi,
+        wallet
+      )
 
       // Next prove the storage
       const storageSlot = '0x' + '01'.repeat(32)
       const storageValue = '0x' + '11'.repeat(32)
-      await stateTransitioner.proveStorageSlotInclusion(ovmContractAddress, storageSlot, storageValue)
+      await stateTransitioner.proveStorageSlotInclusion(
+        ovmContractAddress,
+        storageSlot,
+        storageValue
+      )
 
-      const isVerified = await stateManager.isVerifiedStorage(ovmContractAddress, storageSlot)
+      const isVerified = await stateManager.isVerifiedStorage(
+        ovmContractAddress,
+        storageSlot
+      )
       isVerified.should.equal(true)
     })
   })
@@ -82,7 +115,7 @@ describe.only('StateTransitioner', () => {
     it('fails if there was no state that was supplied', async () => {
       let didFail = false
       try {
-      await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction()
       } catch (e) {
         didFail = true
       }
