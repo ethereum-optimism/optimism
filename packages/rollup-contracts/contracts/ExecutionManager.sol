@@ -283,9 +283,10 @@ contract ExecutionManager {
         }
 
         // record the current gas so we can measure how much execution took
-        uint gasBeforeExecution;
+        // note that later we subtract the post-call gas(), would call this a different var but we're out of stack!
+        uint gasConsumedByExecution;
         assembly {
-            gasBeforeExecution := gas()
+            gasConsumedByExecution := gas()
         }
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= chainParams.OvmTxFlatGasFee;
@@ -293,20 +294,23 @@ contract ExecutionManager {
         bool success = false;
         address addr = address(this);
         bytes memory result;
+        uint ovmCallReturnDataSize;
         assembly {
             success := call(
                 _ovmTxGasLimit,
                 addr, 0, _callBytes, callSize, 0, 0
             )
+            ovmCallReturnDataSize := returndatasize
             result := mload(0x40)
             let resultData := add(result, 0x20)
-            returndatacopy(resultData, 0, returndatasize)
+            returndatacopy(resultData, 0, ovmCallReturnDataSize)
+            mstore(result, ovmCallReturnDataSize)
+            mstore(0x40, add(resultData, ovmCallReturnDataSize))
         }
 
-        // get the consumed by execution itself and add to cumulative gas
-        uint gasAfterExecution;
+        // get the consumed by execution itself
         assembly {
-            gasAfterExecution := gas()
+            gasConsumedByExecution := sub(gasConsumedByExecution, gas())
         }
 
         // set the new cumulative gas
@@ -314,28 +318,24 @@ contract ExecutionManager {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
                 + chainParams.OvmTxFlatGasFee
-                + gasBeforeExecution
-                - gasAfterExecution
+                + gasConsumedByExecution
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
                 + chainParams.OvmTxFlatGasFee
-                + gasBeforeExecution
-                - gasAfterExecution
+                + gasConsumedByExecution
             );
         }
 
         assembly {
             let resultData := add(result, 0x20)
             if eq(success, 1) {
-                return(resultData, returndatasize)
+                return(resultData, ovmCallReturnDataSize)
             }
             if eq(_allowRevert, 1) {
-                revert(resultData, returndatasize)
+                revert(resultData, ovmCallReturnDataSize)
             }
-            mstore(result, returndatasize)
-            mstore(0x40, add(resultData, returndatasize))
         }
 
         if (!success) {
