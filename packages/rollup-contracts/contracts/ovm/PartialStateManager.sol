@@ -80,8 +80,7 @@ contract PartialStateManager {
     }
 
     function insertVerifiedContract(address _ovmContractAddress, bytes32 _codeHash, uint _nonce) external onlyStateTransitioner {
-        // TODO: Get the actual code contract addr from the registry
-        address _codeContractAddress = 0x0000000000000000000000000000000000000000;
+        address _codeContractAddress = ovmCodeContracts[_ovmContractAddress];
 
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;

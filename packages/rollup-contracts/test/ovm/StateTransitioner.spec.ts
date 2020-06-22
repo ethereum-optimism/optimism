@@ -12,7 +12,7 @@ const log = getLogger('state-transitioner', true)
 import * as StateTransitioner from '../../build/StateTransitioner.json'
 
 /* Begin tests */
-describe.only('StateTransitioner', () => {
+describe('StateTransitioner', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let stateTransitioner
