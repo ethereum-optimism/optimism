@@ -2,7 +2,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import {StateManager} from "../StateManager.sol";
-import {FraudVerifier} from "./FraudVerifier.sol";
+import {StateTransitioner} from "./StateTransitioner.sol";
 import {ExecutionManager} from "../ExecutionManager.sol";
 
 /**
@@ -14,27 +14,25 @@ import {ExecutionManager} from "../ExecutionManager.sol";
 contract PartialStateManager {
     address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-    FraudVerifier fraudVerifier;
+    StateTransitioner stateTransitioner;
     ExecutionManager executionManager;
-
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
     mapping(address=>address) ovmCodeContracts;
 
     bool public existsInvalidStateAccess;
-    bool public isTransactionSuccessfullyExecuted;
 
     mapping(address=>mapping(bytes32=>bool)) isVerifiedStorage;
     mapping(address=>bool) isVerifiedContract;
-    mapping(uint=>bytes32) updatedStorage;
-    uint updatedStorageCounter;
+    mapping(uint=>bytes32) updatedStorageSlotContract;
+    mapping(uint=>bytes32) updatedStorageSlotKey;
+    uint updatedStorageSlotCounter;
     mapping(uint=>address) updatedContracts;
     uint updatedContractsCounter;
-    bytes32 stateRoot;
 
-    modifier onlyFraudVerifier {
-        require(msg.sender == address(fraudVerifier));
+    modifier onlyStateTransitioner {
+        require(msg.sender == address(stateTransitioner));
         _;
     }
 
@@ -43,36 +41,21 @@ contract PartialStateManager {
         _;
     }
 
-    modifier preExecution {
-        require(!isTransactionSuccessfullyExecuted, "Function only callable before tx execution.");
-        _;
-    }
-
-    modifier postExecution {
-        require(isTransactionSuccessfullyExecuted, "Function only callable after tx execution.");
-        _;
-    }
-
     /**
      * @notice Construct a new PartialStateManager
      */
-    constructor(bytes32 _stateRoot, address _fraudVerifierAddress, address _executionManagerAddress) public {
-        stateRoot = _stateRoot;
-        fraudVerifier = FraudVerifier(_fraudVerifierAddress);
+    constructor(address _stateTransitionerAddress, address _executionManagerAddress) public {
+        stateTransitioner = StateTransitioner(_stateTransitionerAddress);
         executionManager = ExecutionManager(_executionManagerAddress);
     }
 
     /**
      * @notice Initialize a new transaction execution
      */
-    function initNewTransactionExecution() onlyFraudVerifier external {
+    function initNewTransactionExecution() onlyStateTransitioner external {
         existsInvalidStateAccess = false;
-        updatedStorageCounter = 0;
+        updatedStorageSlotCounter = 0;
         updatedContractsCounter = 0;
-    }
-
-    function setIsTransitionSuccessfullyExecuted(bool _isTransactionSuccessfullyExecuted) onlyFraudVerifier external {
-        isTransactionSuccessfullyExecuted = _isTransactionSuccessfullyExecuted;
     }
 
     function ensureVerifiedStorage(address _ovmContractAddress, bytes32 _slot) private {
@@ -91,15 +74,12 @@ contract PartialStateManager {
     * Pre-Execution *
     ****************/
 
-    function verifyStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external preExecution {
-        // TODO: Verify inclusion proof against root
-
+    function insertVerifiedStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external onlyStateTransitioner {
         isVerifiedStorage[_ovmContractAddress][_slot] = true;
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
-    function verifyContract(address _ovmContractAddress, bytes32 _codeHash, uint _nonce) external preExecution {
-        // TODO: Verify inclusion proof against root
+    function insertVerifiedContract(address _ovmContractAddress, bytes32 _codeHash, uint _nonce) external onlyStateTransitioner {
         // TODO: Get the actual code contract addr from the registry
         address _codeContractAddress = 0x0000000000000000000000000000000000000000;
 
@@ -112,22 +92,21 @@ contract PartialStateManager {
     * Post-Execution *
     *****************/
 
-    // TODO:
-    function updateStorageNode(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external postExecution {
-        // TODO: Finish filling out this function...
-        // Get the next storage we need to update using the updatedStorageCounter
-        address contractAddressToUpdate = address(bytes20(updatedStorage[updatedStorageCounter - 1]));
-        bytes32 storageKeyToUpdate = updatedStorage[updatedStorageCounter];
-        bytes32 storageValueToUpdate = getStorage(contractAddressToUpdate, storageKeyToUpdate);
+    function popUpdatedStorageSlot(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external onlyStateTransitioner returns(address storageSlotContract, bytes32 storageSlotKey) {
+        require(updatedStorageSlotCounter > 0, "No more elements to pop!");
 
-        // Update the storage / store the new root
+        // Get the next storage we need to update using the updatedStorageSlotCounter
+        storageSlotContract = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter]));
+        storageSlotKey = updatedStorageSlotKey[updatedStorageSlotCounter];
 
-        // Then decrement the updatedStorageCounter (we go reverse through the updated storage).
+        // Decrement the updatedStorageSlotCounter (we go reverse through the updated storage).
         // Note that when this hits zero we'll have updated all storage slots that were changed during
         // transaction execution.
-        updatedStorageCounter -= 2;
+        updatedStorageSlotCounter -= 1;
+
+        return (storageSlotContract, storageSlotKey);
     }
-    // function updateContractNode(...) external postExecution {}
+    // function popUpdatedContract(...) external onlyStateTransitioner {}
 
     /**********
     * Storage *
@@ -155,9 +134,9 @@ contract PartialStateManager {
         ensureVerifiedStorage(_ovmContractAddress, _slot);
 
         // Add this storage slot to the list of updated storage
-        updatedStorage[updatedStorageCounter] = bytes32(bytes20(_ovmContractAddress));
-        updatedStorage[updatedStorageCounter+1] = _slot;
-        updatedStorageCounter += 2;
+        updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
+        updatedStorageSlotKey[updatedStorageSlotCounter] = _slot;
+        updatedStorageSlotCounter += 1;
 
         // Set the new storage value
         ovmContractStorage[_ovmContractAddress][_slot] = _value;

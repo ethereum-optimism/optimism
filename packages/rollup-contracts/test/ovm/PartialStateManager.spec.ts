@@ -6,7 +6,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract } from 'ethers'
 
 /* Logging */
-const log = getLogger('l1-to-l2-tx-queue', true)
+const log = getLogger('partial-state-manager', true)
 
 /* Contract Imports */
 import * as PartialStateManager from '../../build/PartialStateManager.json'
@@ -20,7 +20,6 @@ describe('PartialStateManager', () => {
   /* Deploy contracts before tests */
   beforeEach(async () => {
     partialStateManager = await deployContract(wallet, PartialStateManager, [
-      '0x' + '00'.repeat(32),
       wallet.address,
       wallet.address,
     ])
@@ -34,7 +33,7 @@ describe('PartialStateManager', () => {
         const value = '0x' + '01'.repeat(32)
 
         // First verify the value
-        await partialStateManager.verifyStorage(address, key, value)
+        await partialStateManager.insertVerifiedStorage(address, key, value)
         // Then access
         await partialStateManager.getStorage(address, key)
 

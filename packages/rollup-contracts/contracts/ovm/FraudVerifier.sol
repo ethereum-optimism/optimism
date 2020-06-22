@@ -1,33 +1,27 @@
 pragma solidity ^0.5.0;
 
+import {StateTransitioner} from "./StateTransitioner.sol";
+
 /**
  * @title FraudVerifier
  * @notice The contract which is able to delete invalid state roots.
  */
 contract FraudVerifier {
-    function initNewFraudProof() public returns(bool) {
-        // TODO:
-        // Create a new stateManager & executionManager which both point at each other.
-        return true;
-    }
+    mapping(uint=>StateTransitioner) stateTransitioners;
 
-    function applyTransaction() public returns(bool) {
+    function initNewStateTransitioner(uint _transitionIndex) public returns(bool) {
         // TODO:
-        // First, call stateManager.initNewTransactionExecution()
-        // (probably do the same with the ExecutionManager)
-        // Then actually call `executeTransaction(tx)` with the tx in question!
-        // Now check to make sure stateManager.existsInvalidStateAccess == false
-        // BOOM. Successful tx execution, so now call stateManager.setIsTransitionSuccessfullyExecuted(true)
-        // This will allow people to start updating the state root in the partial state manager.
+        // Create a new state transitioner for some specific transition index (assuming one hasn't already been made).
+        // Note that the invalid state root that we are verifying is at _transitionIndex+1.
+        // Add it to the stateTransitioners mapping! -- stateTransitioners[_transitionIndex] = newStateTransitioner;
         return true;
     }
 
 
-    function verifyFraud() public returns(bool) {
+    function verifyFraud(uint _transitionIndex) public returns(bool) {
         // TODO:
-        // Check to make sure that the stateManager root has had all elements in `updatedStorage`
-        // and `updatedContracts` accounted for. All of these must update the root.
-        // After that, simply compare the computed root to the posted root, if not equal, FRAUD!
+        // Simply verify that the state transitioner has completed, and that the state root
+        // at _transitionIndex+1 is not equal to the state root which was committed for that index.
         return true;
     }
 }
