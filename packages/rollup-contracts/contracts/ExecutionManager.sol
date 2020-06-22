@@ -590,6 +590,7 @@ contract ExecutionManager {
             restoreContractContext(oldMsgSender, oldActiveContract);
             return false;
         }
+        // TODO: Replace `getCodeContractBytecode(...) with `getOvmContractBytecode(...)
         bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
@@ -900,6 +901,7 @@ contract ExecutionManager {
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
         address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
+        // TODO: Replace `getCodeContractHash(...) with `getOvmContractHash(...)
         bytes32 hash = stateManager.getCodeContractHash(codeContractAddress);
 
         assembly {

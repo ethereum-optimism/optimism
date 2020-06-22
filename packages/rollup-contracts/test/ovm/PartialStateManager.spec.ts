@@ -27,7 +27,7 @@ describe('PartialStateManager', () => {
 
   describe('Pre-Execution', async () => {
     describe('Storage Verification', async () => {
-      it('does not set existsInvalidStateAccess=true if getStorage(contract, key) is called with a verified value', async () => {
+      it('does not set existsInvalidStateAccessFlag=true if getStorage(contract, key) is called with a verified value', async () => {
         const address = '0x' + '01'.repeat(20)
         const key = '0x' + '01'.repeat(32)
         const value = '0x' + '01'.repeat(32)
@@ -37,22 +37,22 @@ describe('PartialStateManager', () => {
         // Then access
         await partialStateManager.getStorage(address, key)
 
-        const existsInvalidStateAccess = await partialStateManager.existsInvalidStateAccess()
-        existsInvalidStateAccess.should.equal(false)
+        const existsInvalidStateAccessFlag = await partialStateManager.existsInvalidStateAccessFlag()
+        existsInvalidStateAccessFlag.should.equal(false)
       })
 
-      it('sets existsInvalidStateAccess=true if getStorage(contract, key) is called without being verified', async () => {
+      it('sets existsInvalidStateAccessFlag=true if getStorage(contract, key) is called without being verified', async () => {
         const address = '0x' + '01'.repeat(20)
         const key = '0x' + '01'.repeat(32)
 
         // Attempt to get unverified storage!
         await partialStateManager.getStorage(address, key)
 
-        const existsInvalidStateAccess = await partialStateManager.existsInvalidStateAccess()
-        existsInvalidStateAccess.should.equal(true)
+        const existsInvalidStateAccessFlag = await partialStateManager.existsInvalidStateAccessFlag()
+        existsInvalidStateAccessFlag.should.equal(true)
       })
 
-      it('sets existsInvalidStateAccess=true if setStorage(contract, key, value) is called without being verified', async () => {
+      it('sets existsInvalidStateAccessFlag=true if setStorage(contract, key, value) is called without being verified', async () => {
         const address = '0x' + '01'.repeat(20)
         const key = '0x' + '01'.repeat(32)
         const value = '0x' + '01'.repeat(32)
@@ -60,8 +60,8 @@ describe('PartialStateManager', () => {
         // Attempt to set unverified storage!
         await partialStateManager.setStorage(address, key, value)
 
-        const existsInvalidStateAccess = await partialStateManager.existsInvalidStateAccess()
-        existsInvalidStateAccess.should.equal(true)
+        const existsInvalidStateAccessFlag = await partialStateManager.existsInvalidStateAccessFlag()
+        existsInvalidStateAccessFlag.should.equal(true)
       })
     })
 

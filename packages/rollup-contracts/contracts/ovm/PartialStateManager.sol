@@ -21,7 +21,7 @@ contract PartialStateManager {
     mapping(address=>uint) ovmContractNonces;
     mapping(address=>address) ovmCodeContracts;
 
-    bool public existsInvalidStateAccess;
+    bool public existsInvalidStateAccessFlag;
 
     mapping(address=>mapping(bytes32=>bool)) public isVerifiedStorage;
     mapping(address=>bool) public isVerifiedContract;
@@ -53,20 +53,20 @@ contract PartialStateManager {
      * @notice Initialize a new transaction execution
      */
     function initNewTransactionExecution() onlyStateTransitioner external {
-        existsInvalidStateAccess = false;
+        existsInvalidStateAccessFlag = false;
         updatedStorageSlotCounter = 0;
         updatedContractsCounter = 0;
     }
 
-    function ensureVerifiedStorage(address _ovmContractAddress, bytes32 _slot) private {
+    function flagIfNotVerifiedStorage(address _ovmContractAddress, bytes32 _slot) private {
         if (!isVerifiedStorage[_ovmContractAddress][_slot]) {
-            existsInvalidStateAccess = true;
+            existsInvalidStateAccessFlag = true;
         }
     }
 
-    function ensureVerifiedContract(address _ovmContractAddress) private {
+    function flagIfNotVerifiedContract(address _ovmContractAddress) private {
         if (!isVerifiedContract[_ovmContractAddress]) {
-            existsInvalidStateAccess = true;
+            existsInvalidStateAccessFlag = true;
         }
     }
 
@@ -127,7 +127,7 @@ contract PartialStateManager {
      * @return The bytes32 value stored at the particular slot.
      */
     function getStorage(address _ovmContractAddress, bytes32 _slot) onlyExecutionManager public returns(bytes32) {
-        ensureVerifiedStorage(_ovmContractAddress, _slot);
+        flagIfNotVerifiedStorage(_ovmContractAddress, _slot);
 
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
@@ -139,7 +139,7 @@ contract PartialStateManager {
      * @param _value The value we will set the storage to.
      */
     function setStorage(address _ovmContractAddress, bytes32 _slot, bytes32 _value) onlyExecutionManager public {
-        ensureVerifiedStorage(_ovmContractAddress, _slot);
+        flagIfNotVerifiedStorage(_ovmContractAddress, _slot);
 
         // Add this storage slot to the list of updated storage
         updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
@@ -161,7 +161,7 @@ contract PartialStateManager {
      * @return The contract nonce used for contract creation.
      */
     function getOvmContractNonce(address _ovmContractAddress) onlyExecutionManager public returns(uint) {
-        ensureVerifiedContract(_ovmContractAddress);
+        flagIfNotVerifiedContract(_ovmContractAddress);
 
         return ovmContractNonces[_ovmContractAddress];
     }
@@ -172,7 +172,7 @@ contract PartialStateManager {
      * @param _value The new nonce.
      */
     function setOvmContractNonce(address _ovmContractAddress, uint _value) onlyExecutionManager public {
-        ensureVerifiedContract(_ovmContractAddress);
+        flagIfNotVerifiedContract(_ovmContractAddress);
 
         // Add this contract to the list of updated contracts
         updatedContracts[updatedContractsCounter] = _ovmContractAddress;
@@ -187,7 +187,7 @@ contract PartialStateManager {
      * @param _ovmContractAddress The contract we're incrementing by 1 the nonce of.
      */
     function incrementOvmContractNonce(address _ovmContractAddress) onlyExecutionManager public {
-        ensureVerifiedContract(_ovmContractAddress);
+        flagIfNotVerifiedContract(_ovmContractAddress);
 
         // Add this contract to the list of updated contracts
         updatedContracts[updatedContractsCounter] = _ovmContractAddress;
@@ -219,13 +219,25 @@ contract PartialStateManager {
      * @return The associated code contract address.
      */
     function getCodeContractAddress(address _ovmContractAddress) onlyExecutionManager public returns(address) {
-        ensureVerifiedContract(_ovmContractAddress);
+        flagIfNotVerifiedContract(_ovmContractAddress);
 
         return ovmCodeContracts[_ovmContractAddress];
     }
 
     /**
-     * @notice Get the bytecode at some contract address. NOTE: This is code taken from Solidity docs here:
+     * @notice Get the bytecode at some OVM contract address.
+     * @param _ovmContractAddress The address of the OVM contract.
+     * @return The bytecode at this address.
+     */
+    function getOvmContractBytecode(address _ovmContractAddress) public onlyExecutionManager returns(bytes memory) {
+        // First we've got to make sure the contract has been verified.
+        flagIfNotVerifiedContract(_ovmContractAddress);
+
+        return getCodeContractBytecode(ovmCodeContracts[_ovmContractAddress]);
+    }
+
+    /**
+     * @notice Get the bytecode at some code  address. NOTE: This is code taken from Solidity docs here:
      *         https://solidity.readthedocs.io/en/v0.5.0/assembly.html#example
      * @param _codeContractAddress The address of the code contract.
      * @return The bytecode at this address.
@@ -247,12 +259,26 @@ contract PartialStateManager {
     }
 
     /**
+     * @notice Get the hash of the deployed bytecode of some OVM contract.
+     * @param _ovmContractAddress The address of the OVM contract.
+     * @return The hash of the bytecode at this address.
+     */
+    function getOvmContractHash(address _ovmContractAddress) public onlyExecutionManager returns(bytes32 _ovmContractHash) {
+        flagIfNotVerifiedContract(_ovmContractAddress);
+
+        // TODO: Use EXTCODEHASH instead of this really inefficient stuff.
+        bytes memory codeContractBytecode = getCodeContractBytecode(ovmCodeContracts[_ovmContractAddress]);
+        _ovmContractHash = keccak256(codeContractBytecode);
+        return _ovmContractHash;
+    }
+
+    /**
      * @notice Get the hash of the deployed bytecode of some code contract.
      * @param _codeContractAddress The address of the code contract.
      * @return The hash of the bytecode at this address.
      */
     function getCodeContractHash(address _codeContractAddress) public view returns (bytes32 _codeContractHash) {
-        // TODO: Look up cached hash values eventually to avoid having to load all of this bytecode
+        // TODO: Use EXTCODEHASH instead of this really inefficient stuff.
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);
         return _codeContractHash;
@@ -267,7 +293,7 @@ contract PartialStateManager {
         address _newOvmContractAddress,
         bytes memory _ovmContractInitcode
     ) onlyExecutionManager public returns(address codeContractAddress) {
-        ensureVerifiedContract(_newOvmContractAddress);
+        flagIfNotVerifiedContract(_newOvmContractAddress);
 
         // Deploy a new contract with this _ovmContractInitCode
         assembly {

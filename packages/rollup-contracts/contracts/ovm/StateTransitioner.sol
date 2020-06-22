@@ -97,7 +97,7 @@ contract StateTransitioner {
             0x1212121212121212121212121212121212121212,
             false
         );
-        require(stateManager.existsInvalidStateAccess() == false, "Detected invalid state access!");
+        require(stateManager.existsInvalidStateAccessFlag() == false, "Detected invalid state access!");
         currentTransitionPhase = TransitionPhases.PostExecution;
 
         // This will allow people to start updating the state root!
