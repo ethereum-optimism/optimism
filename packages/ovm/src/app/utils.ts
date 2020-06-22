@@ -63,6 +63,7 @@ export const convertInternalLogsToOvmLogs = (
       numberOfEMLogs++
       prevEMLogIndex = log.logIndex
       const executionManagerLog = executionManagerInterface.parseLog(log)
+      stringsToDebugLog.push(`Parsed internal EM log with topic: ${executionManagerLog.name}`)
       if (!executionManagerLog) {
         stringsToDebugLog.push(
           `Execution manager emitted log with topics: ${log.topics}.  These were unrecognized by the interface parser-but definitely not an ActiveContract event, ignoring...`

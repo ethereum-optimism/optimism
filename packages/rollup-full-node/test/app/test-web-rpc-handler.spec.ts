@@ -76,7 +76,7 @@ describe('TestHandler', () => {
     })
   })
 
-  describe('Snapshot and revert', () => {
+  describe.only('Snapshot and revert', () => {
     it('should revert state', async () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
 
@@ -121,8 +121,27 @@ describe('TestHandler', () => {
         storageValue2
       )
       const receipt = await httpProvider.getTransactionReceipt(tx.hash)
+      console.log(`tx1 receipt is: ${JSON.stringify(receipt)}`)
+
       const receipt2 = await httpProvider.getTransactionReceipt(tx2.hash)
+      console.log(`receipt2 is: ${JSON.stringify(receipt2)}`)
+
       const response2 = await httpProvider.send('evm_revert', [snapShotId])
+
+      const transactionData = await simpleStorage.interface.functions[
+        'getStorage'
+      ].encode([executionManagerAddress, storageKey])
+      const transaction = {
+        from: wallet.address,
+        to: simpleStorage.address,
+        data: transactionData,
+      }
+
+      const txres = await httpProvider.send('eth_sendTransaction', [transaction])
+      console.log(`txres is: ${txres}`)
+      const mytxreceipt = await httpProvider.send('eth_getTransactionReceipt', [txres])
+      console.log(`mytxreceipt is: ${JSON.stringify(mytxreceipt)}`)
+
       const res = await simpleStorage.getStorage(
         executionManagerAddress,
         storageKey

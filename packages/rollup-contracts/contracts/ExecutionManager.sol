@@ -204,13 +204,13 @@ contract ExecutionManager {
         switchActiveContract(_fromAddress);
 
         // Check for individual tx gas limit violation
-        if (_ovmTxGasLimit > chainParams.OvmTxMaxGas) {
-            // todo handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
-            emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit");
-            assembly {
-                return(0,0)
-            }
-        }
+        // if (_ovmTxGasLimit > chainParams.OvmTxMaxGas) {
+        //     // todo handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
+        //     emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit");
+        //     assembly {
+        //         return(0,0)
+        //     }
+        // }
 
         // If we are at the start of a new epoch, the current gas is the new start!
         if (_timestamp > chainParams.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {

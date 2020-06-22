@@ -191,7 +191,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
     })
   })
   describe('Multi-transaction gas rate limiting', async () => {
-    describe.only('Should properly track cumulative gas', async () => {
+    describe('Should properly track cumulative gas', async () => {
       const gasToConsume: number = 500_000
       const timestamp = 1
       it('Should properly track sequenced consumed gas', async () => {
