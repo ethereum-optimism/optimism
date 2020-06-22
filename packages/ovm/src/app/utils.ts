@@ -140,6 +140,8 @@ export const getSuccessfulOvmTransactionMetadata = (
         metadata.revertMessage = revertMessagePrefix
       } else {
         // decode revert message from event
+        logger.debug(`here is the thing we fail to decode:`)
+        logger.debug(ethers.utils.hexDataSlice(revertEvents[0].values['_revertMessage'], 4))
         const msgBuf: any = abi.decode(
           ['bytes'],
           // Remove the first 4 bytes of the revert message that is a sighash

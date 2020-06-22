@@ -279,6 +279,8 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         },
         defaultBlock,
       ])
+      // todo delete this log
+      log.debug(`internal eth_call response is: ${JSON.stringify(response)}`)
     } catch (e) {
       log.debug(
         `Internal error executing call: ${JSON.stringify(

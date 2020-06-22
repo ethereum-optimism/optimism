@@ -30,16 +30,18 @@ contract ExecutionManager {
 
     // Gas rate limiting parameters:
     // The flat gas fee imposed on all transactions
-    uint constant TX_GAS_FLAT_FEE = 30000;
+    uint constant OVM_TX_FLAT_GAS_FEE = 30000;
+    // Max gas a single transaction is allowed
+    uint constant OVM_TX_MAX_GAS = 2000000000;
     // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
     uint constant GAS_RATE_LIMIT_EPOCH_LENGTH = 1000;
     // The max gas which sequenced tansactions consume per rate limit epoch
-    uint constant MAX_SEQUENCED_GAS_PER_EPOCH = 100000000;
+    uint constant MAX_SEQUENCED_GAS_PER_EPOCH = 2000000000;
     // The max gas which queued tansactions consume per rate limit epoch
-    uint constant MAX_QUEUED_GAS_PER_EPOCH = 100000000;
+    uint constant MAX_QUEUED_GAS_PER_EPOCH = 2000000000;
+
     // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
     address constant METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
-
     // Storage keys which the EM will directly use to persist the different pieces of metadata:
     // Storage slot where we will store the cumulative sequencer tx gas spent
     bytes32 constant CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
@@ -120,15 +122,6 @@ contract ExecutionManager {
         // TODO
     }
 
-    /**
-     * @notice Increments the provided address's nonce.
-     * This is only used by the sequencer to correct nonces when transactions fail.
-     * @param addr The address of the nonce to increment.
-     */
-    function incrementNonce(address addr) external {
-        stateManager.incrementOvmContractNonce(addr);
-    }
-
     /********************
     * Execute EOA Calls *
     ********************/
@@ -142,7 +135,7 @@ contract ExecutionManager {
      * @param _nonce The current nonce of the EOA.
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
-     * @param _gasLimit The max gas this OVM transaction has been allotted.
+     * @param _ovmTxGasLimit The max gas this OVM transaction has been allotted.
      * @param _v The v value of the ECDSA signature + CHAIN_ID.
      * @param _r The r value of the ECDSA signature.
      * @param _s The s value of the ECDSA signature.
@@ -153,7 +146,7 @@ contract ExecutionManager {
         uint _nonce,
         address _ovmEntrypoint,
         bytes memory _callBytes,
-        uint _gasLimit,
+        uint _ovmTxGasLimit,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
@@ -169,7 +162,7 @@ contract ExecutionManager {
             _ovmEntrypoint
         );
         // Make the EOA call for the account
-        executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, _gasLimit, false);
+        executeTransaction(_timestamp, _queueOrigin, _ovmEntrypoint, _callBytes, eoaAddress, ZERO_ADDRESS, _ovmTxGasLimit, false);
     }
 
     /**
@@ -180,7 +173,7 @@ contract ExecutionManager {
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
      * @param _fromAddress The address which this call should originate from--the msg.sender.
-     * @param _gasLimit The max gas this OVM transaction has been allotted.
+     * @param _ovmTxGasLimit The max gas this OVM transaction has been allotted.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
     function executeTransaction(
@@ -190,16 +183,58 @@ contract ExecutionManager {
         bytes memory _callBytes,
         address _fromAddress,
         address _l1MsgSenderAddress,
-        uint _gasLimit,
+        uint _ovmTxGasLimit,
         bool _allowRevert
     ) public {
         require(_timestamp > 0, "Timestamp must be greater than 0");
-        uint _nonce = stateManager.getOvmContractNonce(_fromAddress);
         // Initialize our context
         initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
+
+        // Check for individual tx gas limit violation
+        if (_ovmTxGasLimit > OVM_TX_MAX_GAS) {
+            // todo handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
+            emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit");
+            assembly {
+                return(0,0)
+            }
+        }
+
+        // If we are at the start of a new epoch, the current gas is the new start!
+        if (_timestamp > GAS_RATE_LIMIT_EPOCH_LENGTH + getGasRateLimitEpochStart()) {
+            setGasRateLimitEpochStart(_timestamp);
+        }
+
+        // check for gas rate limit
+        // TODO: split up EM somehow?  We are at max stack depth so can't use vars here yet
+        // TODO: make queue origin an enum?  or just configure better?
+        // if (_queueOrigin == 0) {
+        //     if (
+        //         getCumulativeSequencedGas()
+        //         + _ovmTxGasLimit
+        //         >
+        //         MAX_SEQUENCED_GAS_PER_EPOCH
+        //     ) {
+        //         emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+        //         assembly {
+        //             return(0,0)
+        //         }
+        //     }
+        // } else {
+        //     if (
+        //         getCumulativeQueuedGas()
+        //         + _ovmTxGasLimit
+        //         >
+        //         MAX_QUEUED_GAS_PER_EPOCH
+        //     ) {
+        //         emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+        //         assembly {
+        //             return(0,0)
+        //         }
+        //     }
+        // }
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -210,7 +245,10 @@ contract ExecutionManager {
             methodId = ovmCreateMethodId;
             callSize = _callBytes.length + 4;
             // Emit event that we are creating a contract with an EOA
-            address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
+            address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(
+                _fromAddress,
+                stateManager.getOvmContractNonce(_fromAddress)
+            );
             emit EOACreatedContract(_newOvmContractAddress);
         } else {
             methodId = ovmCallMethodId;
@@ -234,15 +272,50 @@ contract ExecutionManager {
             mstore8(add(_callBytes, 3), methodId)
         }
 
+        // record the current gas so we can measure how much execution took
+        uint gasBeforeExecution;
+        assembly {
+            gasBeforeExecution := gas()
+        }
+
         bool success = false;
         address addr = address(this);
         bytes memory result;
         assembly {
-            success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
+            success := call(
+                sub(_ovmTxGasLimit,OVM_TX_FLAT_GAS_FEE),
+                addr, 0, _callBytes, callSize, 0, 0
+            )
             result := mload(0x40)
             let resultData := add(result, 0x20)
             returndatacopy(resultData, 0, returndatasize)
+        }
 
+        // get the consumed by execution itself and add to cumulative gas
+        uint gasAfterExecution;
+        assembly {
+            gasAfterExecution := gas()
+        }
+
+        // // set the new cumulative gas
+        // if (_queueOrigin == 0) {
+        //     setCumulativeSequencedGas(
+        //         getCumulativeSequencedGas()
+        //         + OVM_TX_FLAT_GAS_FEE
+        //         + gasBeforeExecution
+        //         - gasAfterExecution
+        //     );
+        // } else {
+        //     setCumulativeSequencedGas(
+        //         getCumulativeQueuedGas()
+        //         + OVM_TX_FLAT_GAS_FEE
+        //         + gasBeforeExecution
+        //         - gasAfterExecution
+        //     );
+        // }
+
+        assembly {
+            let resultData := add(result, 0x20)
             if eq(success, 1) {
                 return(resultData, returndatasize)
             }
@@ -968,7 +1041,7 @@ contract ExecutionManager {
     }
 
     /*****************************
-    * OVM (non-EVM) State Access *
+    * OVM (non-EVM-equivalent) State Access *
     *****************************/
 
     /**
@@ -1039,6 +1112,15 @@ contract ExecutionManager {
         // Revert back to the old context
         executionContext.ovmActiveContract = _activeContract;
         executionContext.ovmMsgSender = _msgSender;
+    }
+
+    /**
+     * @notice Increments the provided address's nonce.
+     * This is only used by the sequencer to correct nonces when transactions fail.
+     * @param addr The address of the nonce to increment.
+     */
+    function incrementNonce(address addr) external {
+        stateManager.incrementOvmContractNonce(addr);
     }
 
     /**

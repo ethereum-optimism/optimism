@@ -233,7 +233,7 @@ describe('Web3Handler', () => {
         const revertingTx = {
           nonce: await wallet.getTransactionCount(),
           gasPrice: 0,
-          gasLimit: 9999999999,
+          gasLimit: 9999999,
           to: simpleReversion.address,
           chainId: CHAIN_ID,
           data: simpleReversion.interface.functions['doRevert'].encode([]),
@@ -653,7 +653,6 @@ describe('Web3Handler', () => {
           'justRevert',
           []
         )
-        const gasLimit: string = numberToHexString(GAS_LIMIT)
         await web3Handler.handleL1ToL2Transaction({
           nonce: 0,
           gasLimit: 0,

@@ -98,6 +98,8 @@ describe('TestHandler', () => {
 
       const simpleStorage = await factory.deploy()
 
+      log.debug(`deployed`)
+
       const deploymentTxReceipt = await wallet.provider.getTransactionReceipt(
         simpleStorage.deployTransaction.hash
       )
