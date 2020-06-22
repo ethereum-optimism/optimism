@@ -19,14 +19,14 @@ contract StateTransitioner {
 
     constructor(
         uint _transitionIndex,
-        bytes32 _stateRoot,
+        bytes32 _preStateRoot,
         address _executionManagerAddress
     ) public {
         // The FraudVerifier always initializes a StateTransitioner in order to evaluate fraud.
         fraudVerifier = FraudVerifier(msg.sender);
         // Store the transitionIndex & state root which will be used during the proof.
         transitionIndex = _transitionIndex;
-        stateRoot = _stateRoot;
+        stateRoot = _preStateRoot;
         // And of course set the ExecutionManager pointer.
         executionManager = ExecutionManager(_executionManagerAddress);
         // Finally we'll initialize a new state manager!
@@ -43,7 +43,6 @@ contract StateTransitioner {
         // This will allow people to start updating the state root!
         return true;
     }
-
 
     function verifyFraud() public returns(bool) {
         // TODO:
