@@ -28,17 +28,18 @@ contract ExecutionManager {
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
     address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
 
-    // Gas rate limiting parameters:
-    // The flat gas fee imposed on all transactions
-    uint constant OVM_TX_FLAT_GAS_FEE = 30000;
-    // Max gas a single transaction is allowed
-    uint constant OVM_TX_MAX_GAS = 2000000000;
-    // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
-    uint constant GAS_RATE_LIMIT_EPOCH_LENGTH = 1000;
-    // The max gas which sequenced tansactions consume per rate limit epoch
-    uint constant MAX_SEQUENCED_GAS_PER_EPOCH = 2000000000;
-    // The max gas which queued tansactions consume per rate limit epoch
-    uint constant MAX_QUEUED_GAS_PER_EPOCH = 2000000000;
+    // // Gas rate limiting parameters:
+
+    // // The flat gas fee imposed on all transactions
+    // uint constant OVM_TX_FLAT_GAS_FEE = 30000;
+    // // Max gas a single transaction is allowed
+    // uint constant OVM_TX_MAX_GAS = 2000000000;
+    // // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
+    // uint constant GAS_RATE_LIMIT_EPOCH_LENGTH = 1000;
+    // // The max gas which sequenced tansactions consume per rate limit epoch
+    // uint constant MAX_SEQUENCED_GAS_PER_EPOCH = 2000000000;
+    // // The max gas which queued tansactions consume per rate limit epoch
+    // uint constant MAX_QUEUED_GAS_PER_EPOCH = 2000000000;
 
     // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
     address constant METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
@@ -64,6 +65,7 @@ contract ExecutionManager {
     /***************
     * Other Fields *
     ***************/
+    dt.ChainParams chainParams;
     dt.ExecutionContext executionContext;
 
     /*********
@@ -95,9 +97,15 @@ contract ExecutionManager {
      * @notice Construct a new ExecutionManager with a specified safety checker & owner.
      * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our safety checker
      * @param _owner The owner of this contract.
-     * @param _blockGasLimit The block gas limit for OVM blocks
+     * @param _chainParams The various gas-related parameters of the instantiated chain.
+     * @param _overrideSafetyChecker Whether to safety check.
      */
-    constructor(uint256 _opcodeWhitelistMask, address _owner, uint _blockGasLimit, bool _overrideSafetyChecker) public {
+    constructor(
+        uint256 _opcodeWhitelistMask,
+        address _owner,
+        dt.ChainParams memory _chainParams,
+        bool _overrideSafetyChecker
+    ) public {
         rlp = new RLPEncode();
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
@@ -109,13 +117,15 @@ contract ExecutionManager {
             stateManager.associateCodeContract(address(i), address(i));
         }
 
+        // Store Gas Metering Params
+        chainParams = _chainParams;
+
         // Deploy custom precompiles
         L2ToL1MessagePasser l1ToL2MessagePasser = new L2ToL1MessagePasser(address(this));
         stateManager.associateCodeContract(l2ToL1MessagePasserOvmAddress, address(l1ToL2MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(l1MsgSenderAddress, address(l1MessageSender));
 
-        executionContext.gasLimit = _blockGasLimit;
         executionContext.chainId = 108;
 
         // Set our owner
@@ -188,13 +198,13 @@ contract ExecutionManager {
     ) public {
         require(_timestamp > 0, "Timestamp must be greater than 0");
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
+        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
 
         // Check for individual tx gas limit violation
-        if (_ovmTxGasLimit > OVM_TX_MAX_GAS) {
+        if (_ovmTxGasLimit > chainParams.OvmTxMaxGas) {
             // todo handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
             emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit");
             assembly {
@@ -203,7 +213,7 @@ contract ExecutionManager {
         }
 
         // If we are at the start of a new epoch, the current gas is the new start!
-        if (_timestamp > GAS_RATE_LIMIT_EPOCH_LENGTH + getGasRateLimitEpochStart()) {
+        if (_timestamp > chainParams.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {
             setGasRateLimitEpochStart(_timestamp);
         }
 
@@ -277,13 +287,15 @@ contract ExecutionManager {
         assembly {
             gasBeforeExecution := gas()
         }
+        // subtract the flat gas fee off the tx gas limit which we will pass as gas
+        _ovmTxGasLimit -= chainParams.OvmTxFlatGasFee;
 
         bool success = false;
         address addr = address(this);
         bytes memory result;
         assembly {
             success := call(
-                sub(_ovmTxGasLimit,OVM_TX_FLAT_GAS_FEE),
+                _ovmTxGasLimit,
                 addr, 0, _callBytes, callSize, 0, 0
             )
             result := mload(0x40)
@@ -297,22 +309,22 @@ contract ExecutionManager {
             gasAfterExecution := gas()
         }
 
-        // // set the new cumulative gas
-        // if (_queueOrigin == 0) {
-        //     setCumulativeSequencedGas(
-        //         getCumulativeSequencedGas()
-        //         + OVM_TX_FLAT_GAS_FEE
-        //         + gasBeforeExecution
-        //         - gasAfterExecution
-        //     );
-        // } else {
-        //     setCumulativeSequencedGas(
-        //         getCumulativeQueuedGas()
-        //         + OVM_TX_FLAT_GAS_FEE
-        //         + gasBeforeExecution
-        //         - gasAfterExecution
-        //     );
-        // }
+        // set the new cumulative gas
+        if (_queueOrigin == 0) {
+            setCumulativeSequencedGas(
+                getCumulativeSequencedGas()
+                + chainParams.OvmTxFlatGasFee
+                + gasBeforeExecution
+                - gasAfterExecution
+            );
+        } else {
+            setCumulativeQueuedGas(
+                getCumulativeQueuedGas()
+                + chainParams.OvmTxFlatGasFee
+                + gasBeforeExecution
+                - gasAfterExecution
+            );
+        }
 
         assembly {
             let resultData := add(result, 0x20)
@@ -357,7 +369,7 @@ contract ExecutionManager {
         bytes[] memory message = new bytes[](9);
         message[0] = rlp.encodeUint(_nonce); // Nonce
         message[1] = rlp.encodeUint(0); // Gas price
-        message[2] = rlp.encodeUint(executionContext.gasLimit); // Gas limit
+        message[2] = rlp.encodeUint(chainParams.OvmTxMaxGas); // Gas limit
         // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
         if (_to == ZERO_ADDRESS) {
             message[3] = rlp.encodeUint(0);
@@ -459,7 +471,7 @@ contract ExecutionManager {
      * returndata: uint256 representing the current gas limit.
      */
     function ovmGASLIMIT() public view {
-        uint g = executionContext.gasLimit;
+        uint g = executionContext.txGasLimit;
 
         assembly {
             let gasLimitMemory := mload(0x40)
@@ -477,7 +489,7 @@ contract ExecutionManager {
      * returndata: uint256 representing the fraud proof gas limit.
      */
     function ovmBlockGasLimit() public view {
-        uint g = executionContext.gasLimit;
+        uint g = chainParams.OvmTxMaxGas;
 
         assembly {
             let gasLimitMemory := mload(0x40)
@@ -1075,7 +1087,7 @@ contract ExecutionManager {
      * @param _queueOrigin The queue which this context's transaction was sent from.
      * @param _ovmTxOrigin The tx.origin for the currently executing transaction. It will be ZERO_ADDRESS if it's not an EOA call.
      */
-    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin, address _l1MsgSender) internal {
+    function initializeContext(uint _timestamp, uint _queueOrigin, address _ovmTxOrigin, address _l1MsgSender, uint _gasLimit) internal {
         // First zero out the context for good measure (Note ZERO_ADDRESS is reserved for the genesis contract & initial msgSender)
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
         // And finally set the timestamp, queue origin, tx origin, and l1MessageSender
@@ -1083,6 +1095,7 @@ contract ExecutionManager {
         executionContext.queueOrigin = _queueOrigin;
         executionContext.ovmTxOrigin = _ovmTxOrigin;
         executionContext.l1MessageSender = _l1MsgSender;
+        executionContext.txGasLimit = _gasLimit;
     }
 
     /**

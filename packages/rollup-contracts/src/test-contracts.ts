@@ -7,6 +7,7 @@ import * as SimpleCall from '../build/SimpleCall.json'
 import * as SimpleStorage from '../build/SimpleStorage.json'
 import * as SimpleStorageArgsFromCalldata from '../build/SimpleStorageArgsFromCalldata.json'
 import * as SimpleTxOrigin from '../build/SimpleTxOrigin.json'
+import * as SimpleGas from '../build/SimpleGas.json'
 
 export const TestAddThreeContractDefinition = AddThree
 export const TestContextContractDefinition = ContextContract
@@ -17,3 +18,4 @@ export const TestSimpleCallContractDefinition = SimpleCall
 export const TestSimpleStorageContractDefinition = SimpleStorage
 export const TestSimpleStorageArgsFromCalldataDefinition = SimpleStorageArgsFromCalldata
 export const TestSimpleTxOriginContractDefinition = SimpleTxOrigin
+export const TestSimpleConsumeGasConractDefinition = SimpleGas

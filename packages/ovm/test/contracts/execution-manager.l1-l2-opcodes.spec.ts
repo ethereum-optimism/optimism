@@ -4,6 +4,7 @@ import '../setup'
 import {
   Address,
   GAS_LIMIT,
+  DEFAULT_CHAIN_PARAMS,
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
   DEFAULT_ETHNODE_GAS_LIMIT,
@@ -104,7 +105,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
       {
         gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       }

@@ -11,6 +11,7 @@ import {
   Address,
   CHAIN_ID,
   GAS_LIMIT,
+  DEFAULT_CHAIN_PARAMS,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
   getUnsignedTransactionCalldata,
@@ -50,7 +51,7 @@ describe('SimpleStorage', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
     // Set the state manager as well

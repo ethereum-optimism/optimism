@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import {ExecutionManager} from "./ExecutionManager.sol";
+import {DataTypes as dt} from "./DataTypes.sol";
 
 /**
  * @title L2ExecutionManager
@@ -17,9 +18,9 @@ contract L2ExecutionManager is ExecutionManager {
     constructor(
         uint256 _opcodeWhitelistMask,
         address _owner,
-        uint _gasLimit,
+        dt.ChainParams memory _chainParams,
         bool _overrideSafetyChecker
-    ) ExecutionManager(_opcodeWhitelistMask, _owner, _gasLimit, _overrideSafetyChecker) public {}
+    ) ExecutionManager(_opcodeWhitelistMask, _owner, _chainParams, _overrideSafetyChecker) public {}
 
     /**
     @notice Stores the provided OVM transaction, mapping its hash to its value and its hash to the EVM tx hash

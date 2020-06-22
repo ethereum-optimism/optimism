@@ -13,7 +13,7 @@ import {
   bufToHexString,
   bufferUtils,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
+import { Contract, ContractFactory, Wallet, ethers, providers } from 'ethers'
 import {
   Provider,
   TransactionReceipt,
@@ -113,6 +113,14 @@ export const executeTransaction = async (
   // Get the `to` field -- NOTE: We have to set `to` to equal ZERO_ADDRESS if this is a contract create
   const ovmTo = to === null || to === undefined ? ZERO_ADDRESS : to
 
+  // get the max gas limit allowed by the EM
+  const getMaxGasLimitCalldata = executionManager.interface.functions['ovmBlockGasLimit'].sighash
+  const maxTxGasLimit = await wallet.provider.call({
+    to: executionManager.address,
+    data: getMaxGasLimitCalldata,
+    gasLimit: GAS_LIMIT,
+  })
+
   // Actually make the call
   const tx = await executionManager.executeTransaction(
     getCurrentTime(),
@@ -121,7 +129,7 @@ export const executeTransaction = async (
     data,
     wallet.address,
     ZERO_ADDRESS,
-    GAS_LIMIT,
+    maxTxGasLimit,
     allowRevert
   )
   // Return the parsed transaction values

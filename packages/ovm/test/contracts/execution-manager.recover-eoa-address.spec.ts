@@ -6,6 +6,7 @@ import {
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
+  DEFAULT_CHAIN_PARAMS,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-optimism/rollup-contracts'
@@ -36,7 +37,7 @@ describe('Execution Manager -- Recover EOA Address', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

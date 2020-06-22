@@ -6,6 +6,7 @@ import { L2ExecutionManagerContractDefinition as L2ExecutionManager } from '@eth
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
+  DEFAULT_CHAIN_PARAMS,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
 
@@ -38,7 +39,7 @@ describe('L2 Execution Manager', () => {
     l2ExecutionManager = await deployContract(
       wallet,
       L2ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

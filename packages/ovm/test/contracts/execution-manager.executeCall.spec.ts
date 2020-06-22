@@ -4,6 +4,7 @@ import '../setup'
 import {
   Address,
   GAS_LIMIT,
+  DEFAULT_CHAIN_PARAMS,
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
@@ -42,7 +43,7 @@ const unsignedCallMethodId: string = ethereumjsAbi
   .methodID('executeTransaction', [])
   .toString('hex')
 
-describe('Execution Manager -- Call opcodes', () => {
+describe('Execution Manager -- Call execution', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)
   // Create pointers to our execution manager & simple copier contract
@@ -58,7 +59,7 @@ describe('Execution Manager -- Call opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
     // Set the state manager as well

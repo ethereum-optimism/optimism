@@ -5,6 +5,7 @@ import { getLogger } from '@eth-optimism/core-utils'
 import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-optimism/rollup-contracts'
 import {
   GAS_LIMIT,
+  DEFAULT_CHAIN_PARAMS,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
@@ -26,7 +27,7 @@ describe('ExecutionManager', () => {
     executionManager = await deployContract(
       wallet1,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), GAS_LIMIT, true],
+      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
