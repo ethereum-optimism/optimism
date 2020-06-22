@@ -11,21 +11,37 @@ const log = getLogger('state-transitioner', true)
 /* Contract Imports */
 import * as StateTransitioner from '../../build/StateTransitioner.json'
 import * as PartialStateManager from '../../build/PartialStateManager.json'
+import * as StubExecutionManager from '../../build/StubExecutionManager.json'
 
 /* Begin tests */
 describe.only('StateTransitioner', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
+  let executionManager
   let stateTransitioner
 
   /* Deploy contracts before tests */
   beforeEach(async () => {
+    executionManager = await deployContract(wallet, StubExecutionManager, [])
     stateTransitioner = await deployContract(wallet, StateTransitioner, [
       10, // Some fake transition index
       '0x' + '00'.repeat(32), // Some fake state root
-      '0x' + '00'.repeat(20) // Some fake execution manager address
+      executionManager.address // Some fake execution manager address
     ])
   })
+
+  const prepareStateForTransactionExecution = async () => {
+    const contract1 = '0x' + '11'.repeat(20)
+    const storageSlot1 = '0x' + '11'.repeat(32)
+    const storageValue1 = '0x' + '11'.repeat(32)
+    const contract2 = '0x' + '22'.repeat(20)
+    const storageSlot2 = '0x' + '22'.repeat(32)
+    const storageValue2 = '0x' + '22'.repeat(32)
+    await stateTransitioner.proveContractInclusion(contract1, contract1, 1)
+    await stateTransitioner.proveStorageSlotInclusion(contract1, storageSlot1, storageValue1)
+    await stateTransitioner.proveContractInclusion(contract2, contract2, 5)
+    await stateTransitioner.proveStorageSlotInclusion(contract2, storageSlot2, storageValue2)
+  }
 
   describe('Initialization', async () => {
     it('sets the fraud verifier address to the deployer', async () => {
@@ -59,6 +75,39 @@ describe.only('StateTransitioner', () => {
 
       const isVerified = await stateManager.isVerifiedStorage(ovmContractAddress, storageSlot)
       isVerified.should.equal(true)
+    })
+  })
+
+  describe('applyTransaction(...)', async () => {
+    it('fails if there was no state that was supplied', async () => {
+      let didFail = false
+      try {
+      await stateTransitioner.applyTransaction()
+      } catch (e) {
+        didFail = true
+      }
+      didFail.should.equal(true)
+    })
+
+    it('does not fail if all the state is supplied', async () => {
+      await prepareStateForTransactionExecution()
+      await stateTransitioner.applyTransaction()
+    })
+  })
+  describe('Post-Execution', async () => {
+    it('moves between phases correctly', async () => {
+      // TODO: Add real tests
+      await prepareStateForTransactionExecution()
+      await stateTransitioner.applyTransaction()
+      await stateTransitioner.proveUpdatedStorageSlot()
+      // Check that the phase is still post execution
+      let phase = await stateTransitioner.currentTransitionPhase()
+      phase.should.equal(1)
+      await stateTransitioner.proveUpdatedStorageSlot()
+      await stateTransitioner.completeTransition()
+      phase = await stateTransitioner.currentTransitionPhase()
+      // Check that the phase is now complete!
+      phase.should.equal(2)
     })
   })
 })

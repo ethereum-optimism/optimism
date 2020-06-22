@@ -27,9 +27,9 @@ contract PartialStateManager {
     mapping(address=>bool) public isVerifiedContract;
     mapping(uint=>bytes32) updatedStorageSlotContract;
     mapping(uint=>bytes32) updatedStorageSlotKey;
-    uint updatedStorageSlotCounter;
+    uint public updatedStorageSlotCounter;
     mapping(uint=>address) updatedContracts;
-    uint updatedContractsCounter;
+    uint public updatedContractsCounter;
 
     modifier onlyStateTransitioner {
         require(msg.sender == address(stateTransitioner));
@@ -89,21 +89,32 @@ contract PartialStateManager {
     * Post-Execution *
     *****************/
 
-    function popUpdatedStorageSlot(address _ovmContractAddress, bytes32 _slot, bytes32 _value) external onlyStateTransitioner returns(address storageSlotContract, bytes32 storageSlotKey) {
+    function popUpdatedStorageSlot() external onlyStateTransitioner returns(address storageSlotContract, bytes32 storageSlotKey, bytes32 storageSlotValue) {
         require(updatedStorageSlotCounter > 0, "No more elements to pop!");
 
         // Get the next storage we need to update using the updatedStorageSlotCounter
         storageSlotContract = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter]));
         storageSlotKey = updatedStorageSlotKey[updatedStorageSlotCounter];
+        storageSlotValue = ovmContractStorage[storageSlotContract][storageSlotKey];
 
         // Decrement the updatedStorageSlotCounter (we go reverse through the updated storage).
         // Note that when this hits zero we'll have updated all storage slots that were changed during
         // transaction execution.
         updatedStorageSlotCounter -= 1;
 
-        return (storageSlotContract, storageSlotKey);
+        return (storageSlotContract, storageSlotKey, storageSlotValue);
     }
-    // function popUpdatedContract(...) external onlyStateTransitioner {}
+    function popUpdatedContract() external onlyStateTransitioner returns(address ovmContractAddress, uint contractNonce) {
+        require(updatedContractsCounter > 0, "No more elements to pop!");
+
+        // Get the next storage we need to update using the updatedStorageSlotCounter
+        ovmContractAddress = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter]));
+        contractNonce = ovmContractNonces[ovmContractAddress];
+
+        updatedContractsCounter -= 1;
+
+        return (ovmContractAddress, contractNonce);
+    }
 
     /**********
     * Storage *

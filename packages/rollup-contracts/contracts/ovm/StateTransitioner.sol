@@ -85,11 +85,21 @@ contract StateTransitioner {
     ************************/
     function applyTransaction() public returns(bool) {
         // TODO:
-        // First, call stateManager.initNewTransactionExecution()
-        // Then, call executionManager.setStateManager(stateManager.address)
-        // Then actually call `exectuionManager.executeTransaction(tx)` with the tx in question!
-        // Now check to make sure stateManager.existsInvalidStateAccess == false
-        // BOOM. Successful tx execution, so now set isTransitionSuccessfullyExecuted = true
+        stateManager.initNewTransactionExecution();
+        executionManager.setStateManager(address(stateManager));
+        // TODO: Get the transaction from the _transitionIndex. For now this'll just be dummy data
+        executionManager.executeTransaction(
+            0,
+            0,
+            0x1212121212121212121212121212121212121212,
+            "0x12",
+            0x1212121212121212121212121212121212121212,
+            0x1212121212121212121212121212121212121212,
+            false
+        );
+        require(stateManager.existsInvalidStateAccess() == false, "Detected invalid state access!");
+        currentTransitionPhase = TransitionPhases.PostExecution;
+
         // This will allow people to start updating the state root!
         return true;
     }
@@ -97,12 +107,19 @@ contract StateTransitioner {
     /****************************
     * Post-Transaction Execution *
     ****************************/
+    function proveUpdatedStorageSlot() public postExecutionPhase {
+        (address storageSlotContract, bytes32 storageSlotKey, bytes32 storageSlotValue) = stateManager.popUpdatedStorageSlot();
+        // TODO: Prove inclusion / make this update to the root
+    }
+    function proveUpdatedContract() public postExecutionPhase {
+        (address ovmContractAddress, uint contractNonce) = stateManager.popUpdatedContract();
+        // TODO: Prove inclusion / make this update to the root
+    }
+    function completeTransition() public postExecutionPhase {
+        require(stateManager.updatedStorageSlotCounter() == 0, "There's still updated storage to account for!");
+        require(stateManager.updatedStorageSlotCounter() == 0, "There's still updated contracts to account for!");
+        // Tada! We did it reddit!
 
-    function verifyFraud() public returns(bool) {
-        // TODO:
-        // Check to make sure that the stateManager root has had all elements in `updatedStorage`
-        // and `updatedContracts` accounted for. All of these must update the root.
-        // After that, simply compare the computed root to the posted root, if not equal, FRAUD!
-        return true;
+        currentTransitionPhase = TransitionPhases.Complete;
     }
 }
