@@ -311,30 +311,31 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         txObject
       )}], defaultBlock: [${defaultBlock}]`
     )
-    // First generate the internalTx calldata
-    const internalCalldata = this.getTransactionCalldata(
-      this.getTimestamp(),
-      0,
-      txObject['to'],
-      txObject['data'],
-      txObject['from'],
-      ZERO_ADDRESS,
-      true
-    )
+    // // First generate the internalTx calldata
+    // const internalCalldata = this.getTransactionCalldata(
+    //   this.getTimestamp(),
+    //   0,
+    //   txObject['to'],
+    //   txObject['data'],
+    //   txObject['from'],
+    //   ZERO_ADDRESS,
+    //   true
+    // )
 
-    log.debug(internalCalldata)
-    // Then estimate the gas
-    const response = await this.context.provider.send(
-      Web3RpcMethods.estimateGas,
-      [
-        {
-          from: this.context.wallet.address,
-          to: this.context.executionManager.address,
-          data: internalCalldata,
-        },
-      ]
-    )
+    // log.debug(internalCalldata)
+    // // Then estimate the gas
+    // const response = await this.context.provider.send(
+    //   Web3RpcMethods.estimateGas,
+    //   [
+    //     {
+    //       from: this.context.wallet.address,
+    //       to: this.context.executionManager.address,
+    //       data: internalCalldata,
+    //     },
+    //   ]
+    // )
     // TODO: Make sure gas limit is below max
+    const response = `hard-coded return: ${GAS_LIMIT}`
     log.debug(
       `Estimated gas: request: [${JSON.stringify(
         txObject
