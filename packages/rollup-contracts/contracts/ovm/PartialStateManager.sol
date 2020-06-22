@@ -23,8 +23,8 @@ contract PartialStateManager {
 
     bool public existsInvalidStateAccess;
 
-    mapping(address=>mapping(bytes32=>bool)) isVerifiedStorage;
-    mapping(address=>bool) isVerifiedContract;
+    mapping(address=>mapping(bytes32=>bool)) public isVerifiedStorage;
+    mapping(address=>bool) public isVerifiedContract;
     mapping(uint=>bytes32) updatedStorageSlotContract;
     mapping(uint=>bytes32) updatedStorageSlotKey;
     uint updatedStorageSlotCounter;
@@ -79,12 +79,10 @@ contract PartialStateManager {
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
-    function insertVerifiedContract(address _ovmContractAddress, bytes32 _codeHash, uint _nonce) external onlyStateTransitioner {
-        address _codeContractAddress = ovmCodeContracts[_ovmContractAddress];
-
+    function insertVerifiedContract(address _ovmContractAddress, address _codeContractAddress, uint _nonce) external onlyStateTransitioner {
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;
-        associateCodeContract(_ovmContractAddress, _codeContractAddress);
+        ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
     /*****************
