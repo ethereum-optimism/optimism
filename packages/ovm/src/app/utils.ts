@@ -63,7 +63,9 @@ export const convertInternalLogsToOvmLogs = (
       numberOfEMLogs++
       prevEMLogIndex = log.logIndex
       const executionManagerLog = executionManagerInterface.parseLog(log)
-      stringsToDebugLog.push(`Parsed internal EM log with topic: ${executionManagerLog.name}`)
+      stringsToDebugLog.push(
+        `Parsed internal EM log with topic: ${executionManagerLog.name}`
+      )
       if (!executionManagerLog) {
         stringsToDebugLog.push(
           `Execution manager emitted log with topics: ${log.topics}.  These were unrecognized by the interface parser-but definitely not an ActiveContract event, ignoring...`
@@ -142,7 +144,9 @@ export const getSuccessfulOvmTransactionMetadata = (
       } else {
         // decode revert message from event
         logger.debug(`here is the thing we fail to decode:`)
-        logger.debug(ethers.utils.hexDataSlice(revertEvents[0].values['_revertMessage'], 4))
+        logger.debug(
+          ethers.utils.hexDataSlice(revertEvents[0].values['_revertMessage'], 4)
+        )
         const msgBuf: any = abi.decode(
           ['bytes'],
           // Remove the first 4 bytes of the revert message that is a sighash

@@ -28,19 +28,7 @@ contract ExecutionManager {
     address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
     address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
 
-    // // Gas rate limiting parameters:
-
-    // // The flat gas fee imposed on all transactions
-    // uint constant OVM_TX_FLAT_GAS_FEE = 30000;
-    // // Max gas a single transaction is allowed
-    // uint constant OVM_TX_MAX_GAS = 2000000000;
-    // // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
-    // uint constant GAS_RATE_LIMIT_EPOCH_LENGTH = 1000;
-    // // The max gas which sequenced tansactions consume per rate limit epoch
-    // uint constant MAX_SEQUENCED_GAS_PER_EPOCH = 2000000000;
-    // // The max gas which queued tansactions consume per rate limit epoch
-    // uint constant MAX_QUEUED_GAS_PER_EPOCH = 2000000000;
-
+    // Gas rate limiting parameters:
     // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
     address constant METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
     // Storage keys which the EM will directly use to persist the different pieces of metadata:
@@ -128,6 +116,8 @@ contract ExecutionManager {
 
         executionContext.chainId = 108;
 
+        // TODO start off the initial gas rate limit epoch once we configure a start time
+
         // Set our owner
         // TODO
     }
@@ -211,40 +201,49 @@ contract ExecutionManager {
                 return(0,0)
             }
         }
+        // emit EOACallRevert(abi.encodePacked(stateManager.getStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY)));//,chainParams.GasRateLimitEpochLength, getGasRateLimitEpochStart()));
 
-        // If we are at the start of a new epoch, the current gas is the new start!
-        if (_timestamp > chainParams.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {
+        // If we are at the start of a new epoch, the current tiime is the new start and curent cumulative gas is the new cumulative gas at stat!
+        if (_timestamp >= chainParams.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {
             setGasRateLimitEpochStart(_timestamp);
+            setCumulativeSequencedGasAtEpochStart(
+                getCumulativeSequencedGas()
+            );
+            setCumulativeQueuedGasAtEpochStart(
+                getCumulativeQueuedGas()
+            );
         }
 
         // check for gas rate limit
         // TODO: split up EM somehow?  We are at max stack depth so can't use vars here yet
         // TODO: make queue origin an enum?  or just configure better?
-        // if (_queueOrigin == 0) {
-        //     if (
-        //         getCumulativeSequencedGas()
-        //         + _ovmTxGasLimit
-        //         >
-        //         MAX_SEQUENCED_GAS_PER_EPOCH
-        //     ) {
-        //         emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
-        //         assembly {
-        //             return(0,0)
-        //         }
-        //     }
-        // } else {
-        //     if (
-        //         getCumulativeQueuedGas()
-        //         + _ovmTxGasLimit
-        //         >
-        //         MAX_QUEUED_GAS_PER_EPOCH
-        //     ) {
-        //         emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
-        //         assembly {
-        //             return(0,0)
-        //         }
-        //     }
-        // }
+        if (_queueOrigin == 0) {
+            if (
+                getCumulativeSequencedGas()
+                - getCumulativeSequencedGasAtEpochStart()
+                + _ovmTxGasLimit
+                >
+                chainParams.MaxSequencedGasPerEpoch
+            ) {
+                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+                assembly {
+                    return(0,0)
+                }
+            }
+        } else {
+            if (
+                getCumulativeQueuedGas()
+                - getCumulativeQueuedGasAtEpochStart()
+                + _ovmTxGasLimit
+                >
+                chainParams.MaxQueuedGasPerEpoch
+            ) {
+                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+                assembly {
+                    return(0,0)
+                }
+            }
+        }
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -1160,7 +1159,7 @@ contract ExecutionManager {
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getGasRateLimitEpochStart() internal returns (uint) {
+    function getGasRateLimitEpochStart() internal view returns (uint) {
         return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
     }
 
@@ -1172,16 +1171,30 @@ contract ExecutionManager {
     }
 
     /**
+     * @notice Sets the cumulative sequenced gas at the start of a new gas rate limit epoch.
+     */
+    function setCumulativeSequencedGasAtEpochStart(uint _value) internal {
+        stateManager.setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getCumulativeSequencedGasAtEpochStart() internal returns (uint) {
+    function getCumulativeSequencedGasAtEpochStart() internal view returns (uint) {
         return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
-     * @notice Gets what the cumulative queued gas was at the start of this gas rate limit epoch.
+     * @notice Sets what the cumulative queued gas is at the start of a new gas rate limit epoch.
      */
-    function getCumulativeQueuedGasAtEpochStart() internal returns (uint) {
+    function setCumulativeQueuedGasAtEpochStart(uint _value) internal {
+        stateManager.setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Gets the cumulative queued gas was at the start of this gas rate limit epoch.
+     */
+    function getCumulativeQueuedGasAtEpochStart() internal view returns (uint) {
         return uint(stateManager.getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 }

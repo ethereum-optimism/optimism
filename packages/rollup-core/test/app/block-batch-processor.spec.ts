@@ -133,7 +133,7 @@ const throwOnParsing: L1Batch = [
     gasLimit: -1,
     sender: ZERO_ADDRESS,
     target: ZERO_ADDRESS,
-    calldata: '0xdeadbeef'
+    calldata: '0xdeadbeef',
   },
 ]
 

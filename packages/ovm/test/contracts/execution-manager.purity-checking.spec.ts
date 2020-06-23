@@ -42,7 +42,12 @@ describe('Execution Manager -- Safety Checking', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, false],
+      [
+        DEFAULT_OPCODE_WHITELIST_MASK,
+        '0x' + '00'.repeat(20),
+        DEFAULT_CHAIN_PARAMS,
+        false,
+      ],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

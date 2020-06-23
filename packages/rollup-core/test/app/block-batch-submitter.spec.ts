@@ -1,7 +1,12 @@
 import '../setup'
 
 /* External Imports */
-import { hexStrToNumber, keccak256, TestUtils, numberToHexString } from '@eth-optimism/core-utils'
+import {
+  hexStrToNumber,
+  keccak256,
+  TestUtils,
+  numberToHexString,
+} from '@eth-optimism/core-utils'
 
 import { Wallet } from 'ethers'
 import { JsonRpcProvider } from 'ethers/providers'

@@ -43,7 +43,12 @@ describe('ExecutionManager -- Storage opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
+      [
+        DEFAULT_OPCODE_WHITELIST_MASK,
+        '0x' + '00'.repeat(20),
+        DEFAULT_CHAIN_PARAMS,
+        true,
+      ],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })

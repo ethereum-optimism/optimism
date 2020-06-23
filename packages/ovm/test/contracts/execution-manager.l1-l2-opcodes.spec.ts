@@ -105,7 +105,12 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
     executionManager = await deployContract(
       wallet,
       ExecutionManager,
-      [DEFAULT_OPCODE_WHITELIST_MASK, '0x' + '00'.repeat(20), DEFAULT_CHAIN_PARAMS, true],
+      [
+        DEFAULT_OPCODE_WHITELIST_MASK,
+        '0x' + '00'.repeat(20),
+        DEFAULT_CHAIN_PARAMS,
+        true,
+      ],
       {
         gasLimit: DEFAULT_ETHNODE_GAS_LIMIT,
       }

@@ -27,6 +27,7 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import { internalTxReceiptToOvmTxReceipt } from '../src/app'
 
 import { OvmTransactionReceipt } from '../src/types'
+import { timeStamp } from 'console'
 
 type Signature = [string, string, string]
 
@@ -60,7 +61,8 @@ export const manuallyDeployOvmContractReturnReceipt = async (
   provider: Provider,
   executionManager: Contract,
   contractDefinition,
-  constructorArguments: any[]
+  constructorArguments: any[],
+  timestamp: number = getCurrentTime()
 ): Promise<OvmTransactionReceipt> => {
   const initCode = new ContractFactory(
     contractDefinition.abi,
@@ -72,7 +74,8 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     wallet,
     undefined,
     initCode,
-    false
+    false,
+    timestamp
   )
 
   return internalTxReceiptToOvmTxReceipt(receipt, executionManager.address)
@@ -86,14 +89,16 @@ export const manuallyDeployOvmContract = async (
   provider: Provider,
   executionManager: Contract,
   contractDefinition,
-  constructorArguments: any[]
+  constructorArguments: any[],
+  timestamp: number = getCurrentTime()
 ): Promise<Address> => {
   const receipt = await manuallyDeployOvmContractReturnReceipt(
     wallet,
     provider,
     executionManager,
     contractDefinition,
-    constructorArguments
+    constructorArguments,
+    timestamp
   )
   return receipt.contractAddress
 }
@@ -103,7 +108,8 @@ export const executeTransaction = async (
   wallet: Wallet,
   to: Address,
   data: string,
-  allowRevert: boolean
+  allowRevert: boolean,
+  timestamp: number = getCurrentTime()
 ): Promise<TransactionReceipt> => {
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
@@ -114,7 +120,8 @@ export const executeTransaction = async (
   const ovmTo = to === null || to === undefined ? ZERO_ADDRESS : to
 
   // get the max gas limit allowed by the EM
-  const getMaxGasLimitCalldata = executionManager.interface.functions['ovmBlockGasLimit'].sighash
+  const getMaxGasLimitCalldata =
+    executionManager.interface.functions['ovmBlockGasLimit'].sighash
   const maxTxGasLimit = await wallet.provider.call({
     to: executionManager.address,
     data: getMaxGasLimitCalldata,
@@ -123,7 +130,7 @@ export const executeTransaction = async (
 
   // Actually make the call
   const tx = await executionManager.executeTransaction(
-    getCurrentTime(),
+    timestamp,
     0,
     ovmTo,
     data,
