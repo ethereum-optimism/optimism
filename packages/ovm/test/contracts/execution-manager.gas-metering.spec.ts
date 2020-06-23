@@ -54,34 +54,7 @@ const QUEUED_ORIGIN = 1
  * TESTS *
  *********/
 
-const getConsumeGasTx = (
-  timestamp: number,
-  queueOrigin: number,
-  gasToConsume: number,
-  executionManager: any,
-  gasConsumerAddress: any,
-  gasConsumerContract: any,
-  wallet: any
-): Promise<any> => {
-  const internalCalldata = getUnsignedTransactionCalldata(
-    gasConsumerContract,
-    'consumeGasExceeding',
-    [gasToConsume]
-  )
-  // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-  const gasPad: number = 50_000
-  const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
-  return executionManager.executeTransaction(
-    timestamp,
-    queueOrigin,
-    gasConsumerAddress,
-    internalCalldata,
-    wallet.address,
-    ZERO_ADDRESS,
-    ovmTxGasLimit,
-    false
-  )
-}
+
 
 
 describe.only('Execution Manager -- Gas Metering', () => {
@@ -98,13 +71,10 @@ describe.only('Execution Manager -- Gas Metering', () => {
     msg: string,
     wallet: any
   ) => {
-    console.log(`in assert fn`)
     const reciept = await wallet.provider.getTransactionReceipt(tx.hash)
-    console.log(`got receipt`)
     const revertTopic = ethers.utils.id(
       'EOACallRevert(bytes)'
     )
-
     const revertEvent = reciept.logs.find((logged) => {
       return logged.topics.includes(revertTopic)
     })
@@ -118,6 +88,31 @@ describe.only('Execution Manager -- Gas Metering', () => {
     return
   }
 
+  const getConsumeGasTx = (
+    timestamp: number,
+    queueOrigin: number,
+    gasToConsume: number,
+  ): Promise<any> => {
+    const internalCalldata = getUnsignedTransactionCalldata(
+      gasConsumerContract,
+      'consumeGasExceeding',
+      [gasToConsume]
+    )
+    // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
+    const gasPad: number = 50_000
+    const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
+    return executionManager.executeTransaction(
+      timestamp,
+      queueOrigin,
+      gasConsumerAddress,
+      internalCalldata,
+      wallet.address,
+      ZERO_ADDRESS,
+      ovmTxGasLimit,
+      false
+    )
+  }
+
   const getCumulativeQueuedGas = async (): Promise<number> => {
     return hexStrToNumber((await executionManager.getCumulativeQueuedGas())._hex)
   }
@@ -126,11 +121,11 @@ describe.only('Execution Manager -- Gas Metering', () => {
     return hexStrToNumber((await executionManager.getCumulativeSequencedGas())._hex)
   }
 
-  const getChangeInCumulativeGas = async (call: ()=> Promise<any>): Promise<{sequenced: number, queued: number}> => {
+  const getChangeInCumulativeGas = async (call: Promise<any>): Promise<{sequenced: number, queued: number}> => {
     // record value before
     const queuedBefore: number = await getCumulativeQueuedGas()
     const sequencedBefore: number = await getCumulativeSequencedGas()
-    await call()
+    await call
     const queuedAfter: number = await getCumulativeQueuedGas()
     const sequencedAfter: number = await getCumulativeSequencedGas()
 
@@ -141,8 +136,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
   }
 
   beforeEach(async () => {
-    // Before each test let's deploy a fresh ExecutionManager and DummyContract
-
+    // Before each test let's deploy a fresh ExecutionManager and GasConsumer
     // Deploy ExecutionManager the normal way
     executionManager = await deployContract(
       wallet,
@@ -161,15 +155,12 @@ describe.only('Execution Manager -- Gas Metering', () => {
       ],
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
-    console.log(`deploued EM`)
     // Set the state manager as well
     stateManager = new Contract(
       await executionManager.getStateManagerAddress(),
       StateManager.abi,
       wallet
     )
-    console.log(`deploued SM`)
-
     // Deploy SimpleCopier with the ExecutionManager
     gasConsumerAddress = await manuallyDeployOvmContract(
       wallet,
@@ -178,9 +169,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
       SimpleGas,
       []
     )
-    console.log(`deploued GC`)
-
-
     log.debug(`Gas consumer contract address: [${gasConsumerAddress}]`)
 
     // Also set our simple copier Ethers contract so we can generate unsigned transactions
@@ -192,95 +180,84 @@ describe.only('Execution Manager -- Gas Metering', () => {
 
 
 
-  const assertEOACallRevertsWithMsg = async (call: () => Promise<any>,expectedEventMsg: string ) => {
-    const tx = await call as any
-    const reciept = await provider.getTransactionReceipt(tx.hash)
-        const revertTopic = ethers.utils.id(
-          'EOACallRevert(bytes)'
-        )
-        const revertEvent = reciept.logs.find((logged) => {
-          return logged.topics.includes(revertTopic)
-        })
-        revertEvent.data.should.equal(
-          abi.encode(
-            ['bytes'],
-            [Buffer.from(expectedEventMsg)]
-          )
-        )
-  }
+  // const assertEOACallRevertsWithMsg = async (call: () => Promise<any>,expectedEventMsg: string ) => {
+  //   const tx = await call as any
+  //   const reciept = await provider.getTransactionReceipt(tx.hash)
+  //       const revertTopic = ethers.utils.id(
+  //         'EOACallRevert(bytes)'
+  //       )
+  //       const revertEvent = reciept.logs.find((logged) => {
+  //         return logged.topics.includes(revertTopic)
+  //       })
+  //       revertEvent.data.should.equal(
+  //         abi.encode(
+  //           ['bytes'],
+  //           [Buffer.from(expectedEventMsg)]
+  //         )
+  //       )
+  // }
 
   const dummyCalldata = '0x123412341234'
   describe('Per-transaction gas limit', async () => {
     it('Should emit EOACallRevert event if the gas limit is higher than the max allowed', async () =>{
       const gasToConsume = OVM_TX_MAX_GAS + 1
       const timestamp = 1
-      const internalCalldata = getUnsignedTransactionCalldata(
-        gasConsumerContract,
-        'consumeGasExceeding',
-        [gasToConsume]
-      )
-      // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-      const gasPad: number = 50_000
-      const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
-      const tx = await executionManager.executeTransaction(
+
+      const doTx = await getConsumeGasTx(
         timestamp,
         SEQUENCER_ORIGIN,
-        gasConsumerAddress,
-        internalCalldata,
-        wallet.address,
-        ZERO_ADDRESS,
-        ovmTxGasLimit,
-        false
+        gasToConsume
       )
+      const tx = await doTx
       await assertOvmTxRevertedWithMessage(
         tx,
         'Transaction gas limit exceeds max OVM tx gas limit',
         wallet
       )
-    }).timeout(20000)
+    })
   })
   describe('Cumulative gas tracking', async () => {
     const gasToConsume: number = 500_000
     const timestamp = 1
     it('Should properly track sequenced consumed gas', async () => {
-      // const consumeTx = getConsumeGasTx(timestamp, SEQUENCER_ORIGIN, gasToConsume)
-      // const change = await getChangeInCumulativeGas(consumeTx)
+      const consumeTx = getConsumeGasTx(timestamp, SEQUENCER_ORIGIN, gasToConsume)
+      const change = await getChangeInCumulativeGas(consumeTx)
 
-      // change.queued.should.equal(0)
-      // // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
-      // change.sequenced.should.be.gt(gasToConsume)
+      change.queued.should.equal(0)
+      // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
+      change.sequenced.should.be.gt(gasToConsume)
     })
     it('Should properly track queued consumed gas', async () => {
-      // const consumeTx = getConsumeGasTx(timestamp, QUEUED_ORIGIN, gasToConsume)
-      // const change = await getChangeInCumulativeGas(consumeTx)
+      const consumeTx = getConsumeGasTx(timestamp, QUEUED_ORIGIN, gasToConsume)
+      const change = await getChangeInCumulativeGas(consumeTx)
 
-      // change.sequenced.should.equal(0)
-      // // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
-      // change.queued.should.be.gt(gasToConsume)
+      change.sequenced.should.equal(0)
+      // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
+      change.queued.should.be.gt(gasToConsume)
     })
     it('Should properly track both queue and sequencer consumed gas', async () => {
-      // const queuedBefore: number = await getCumulativeQueuedGas()
-      // const sequencedBefore: number = await getCumulativeSequencedGas()
+      const queuedBefore: number = await getCumulativeQueuedGas()
+      const sequencedBefore: number = await getCumulativeSequencedGas()
 
-      // const sequencerGasToConsume = 100_000
-      // const queueGasToConsume = 200_000
+      const sequencerGasToConsume = 100_000
+      const queueGasToConsume = 200_000
       
-      // const consumeQueueGasTx = await getConsumeGasTx(timestamp, QUEUED_ORIGIN, queueGasToConsume)
-      // await consumeQueueGasTx()
-      // // const consumeSequencerGasTx = await getConsumeGasTx(timestamp, SEQUENCER_ORIGIN, sequencerGasToConsume)
-      // // await consumeSequencerGasTx()
+      const consumeQueueGasTx = await getConsumeGasTx(timestamp, QUEUED_ORIGIN, queueGasToConsume)
+      await consumeQueueGasTx
+      const consumeSequencerGasTx = await getConsumeGasTx(timestamp, SEQUENCER_ORIGIN, sequencerGasToConsume)
+      await consumeSequencerGasTx
 
-      // const queuedAfter: number = await getCumulativeQueuedGas()
-      // const sequencedAfter: number = await getCumulativeSequencedGas()
-      // const change = {
-      //   sequenced: sequencedAfter - sequencedBefore,
-      //   queued: queuedAfter - queuedBefore
-      // }
+      const queuedAfter: number = await getCumulativeQueuedGas()
+      const sequencedAfter: number = await getCumulativeSequencedGas()
+      const change = {
+        sequenced: sequencedAfter - sequencedBefore,
+        queued: queuedAfter - queuedBefore
+      }
 
-      // change.sequenced.should.not.equal(0)
-      // change.queued.should.not.equal(0)
-      // // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
-      // change.queued.should.be.gt(change.sequenced)
+      change.sequenced.should.not.equal(0)
+      change.queued.should.not.equal(0)
+      // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
+      change.queued.should.be.gt(change.sequenced)
     })
     describe('Gas rate limiting over multiple transactions', async () => {
 
