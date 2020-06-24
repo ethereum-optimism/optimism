@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
-pragma experimental ABIEncoderV2;
 
-import {ExecutionManager} from "../rollup/execution/ExecutionManager.sol";
+import { ExecutionManager } from "../rollup/execution/ExecutionManager.sol";
 
 /**
  * @title SimpleCall

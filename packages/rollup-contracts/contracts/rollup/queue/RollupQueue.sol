@@ -2,24 +2,20 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import {DataTypes as dt} from "../utils/DataTypes.sol";
-import {RollupMerkleUtils} from "../utils/RollupMerkleUtils.sol";
+import { DataTypes } from "../utils/DataTypes.sol";
 
 contract RollupQueue {
-  // List of batch header hashes
-  dt.TimestampedHash[] public batchHeaders;
-  uint256 public front; //Index of the first batchHeaderHash in the list
+  /*
+   * Contract Variables
+   */
 
-  // The Rollup Merkle Tree library (currently a contract for ease of testing)
-  RollupMerkleUtils merkleUtils;
+  DataTypes.TimestampedHash[] public batchHeaders;
+  uint256 public front;
 
-  /***************
-   * Constructor *
-   **************/
-  constructor(address _rollupMerkleUtilsAddress) public {
-    merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
-    front = 0;
-  }
+
+  /*
+   * Public Functions
+   */
 
   function getBatchHeadersLength() public view returns (uint) {
     return batchHeaders.length;
@@ -29,31 +25,50 @@ contract RollupQueue {
     return front >= batchHeaders.length;
   }
 
-  function peek() public view returns (dt.TimestampedHash memory) {
+  function peek() public view returns (DataTypes.TimestampedHash memory) {
     require(!isEmpty(), "Queue is empty, no element to peek at");
     return batchHeaders[front];
   }
 
   function peekTimestamp() public view returns (uint) {
-    dt.TimestampedHash memory frontBatch = peek();
+    DataTypes.TimestampedHash memory frontBatch = peek();
     return frontBatch.timestamp;
   }
 
-  function authenticateEnqueue(address _sender) public view returns (bool) { return true; }
-  function authenticateDequeue(address _sender) public view returns (bool) { return true; }
+  function authenticateEnqueue(
+    address _sender
+  ) public view returns (bool) {
+    return true;
+  }
+
+  function authenticateDequeue(
+    address _sender
+  ) public view returns (bool) {
+    return true;
+  }
 
   function enqueueTx(bytes memory _tx) public {
-    require(authenticateEnqueue(msg.sender), "Message sender does not have permission to enqueue");
-    dt.TimestampedHash memory timestampedHash = dt.TimestampedHash(
-      now,
-      keccak256(_tx)
+    // Authentication.
+    require(
+      authenticateEnqueue(msg.sender),
+      "Message sender does not have permission to enqueue"
     );
-    batchHeaders.push(timestampedHash);
+
+    batchHeaders.push(DataTypes.TimestampedHash({
+      timestamp: block.timestamp,
+      txHash: keccak256(_tx)
+    }));
   }
 
   function dequeue() public {
-    require(authenticateDequeue(msg.sender), "Message sender does not have permission to dequeue");
-    require(front < batchHeaders.length, "Cannot dequeue from an empty queue");
+    // Authentication.
+    require(
+      authenticateDequeue(msg.sender),
+      "Message sender does not have permission to dequeue"
+    );
+
+    require(front < batchHeaders.length, "Queue is empty.");
+
     delete batchHeaders[front];
     front++;
   }

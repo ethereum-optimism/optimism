@@ -5,7 +5,7 @@ import { getLogger } from '@eth-optimism/core-utils'
 import { RLPEncodeContractDefinition as RLPEncode } from '@eth-optimism/rollup-contracts'
 
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { rlpTests } from '../../test-helpers/data/rlptest.json'
+import { rlpTests } from '../../test-helpers/data/rlp.test.json'
 
 const log = getLogger('rlp-encode', true)
 

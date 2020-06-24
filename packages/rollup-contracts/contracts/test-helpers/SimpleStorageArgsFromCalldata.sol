@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import {ExecutionManager} from "../rollup/execution/ExecutionManager.sol";
+import { ExecutionManager } from "../rollup/execution/ExecutionManager.sol";
 
 /**
  * @title SimpleStorageArgsFromCalldata

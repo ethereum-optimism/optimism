@@ -1,5 +1,4 @@
 pragma solidity ^0.5.0;
-pragma experimental ABIEncoderV2;
 
 
 contract DummyContract {
@@ -9,16 +8,19 @@ contract DummyContract {
         someVal = keccak256("derp");
     }
 
-    function dummyFunction(uint testInt, bytes memory testBytes) public pure returns (bool success, bytes memory output) {
+    function dummyFunction(
+        uint testInt,
+        bytes memory testBytes
+    ) public pure returns (bool success, bytes memory output) {
         success = testInt != 0;
         output = testBytes;
     }
 
-    function dummyRevert() public {
+    function dummyRevert() public pure {
         revert("This is a test revert");
     }
 
-    function dummyFailingRequire() public {
+    function dummyFailingRequire() public pure {
         require(false, "This is a test revert");
     }
 }

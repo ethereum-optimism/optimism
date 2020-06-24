@@ -9,7 +9,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { utils } from 'ethers'
 
 /* Internal Imports */
-import { create2Tests } from '../../test-helpers/data/create2test.json'
+import { create2Tests } from '../../test-helpers/data/create2.test.json'
 import { buildCreate2Address } from '../../test-helpers'
 
 const log = getLogger('contract-address-generator', true)
