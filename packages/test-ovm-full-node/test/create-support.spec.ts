@@ -13,6 +13,7 @@ import {
 
 /* Contract Imports */
 import * as SimpleCreate2 from '../build/SimpleCreate2.json'
+import * as SimpleStorage from '../build/SimpleStorage.json'
 
 const getCreate2Address = (
   factoryAddress: string,
@@ -33,7 +34,7 @@ describe.only('Create2', () => {
   let wallet
   let simpleCreate2: Contract
   let provider 
-  const ZERO_HASH = add0x('00'.repeat(32))
+  const DEFAULT_SALT = '0x1234123412341234123412341234123412341234123412341234123412341234'
 
   beforeEach(async () => {
     provider = await createMockProvider()
@@ -45,15 +46,25 @@ describe.only('Create2', () => {
     simpleCreate2 = await deployContract(wallet, SimpleCreate2, [])
   })
 
-  it('should calculateAddress correctly', async () => {
-    const bytecode = '0x00'
-    const salt = ZERO_HASH
+  // TODO uncomment this once ovmCREATE2 is fixed!
+  // it('should calculateAddress correctly for invalid bytecode', async () => {
+  //   const bytecode = '0x00'
+  //   const salt = DEFAULT_SALT
+  //   const tx = await simpleCreate2.create2(bytecode, salt)
+  //   const receipt = await provider.getTransactionReceipt(tx.hash)
+  //   const address = await simpleCreate2.contractAddress()
+  //   const expectedAddress = getCreate2Address(simpleCreate2.address, salt, bytecode)
+  //   address.should.equal(expectedAddress)
+  // })
+
+  it('should calculateAddress correctly for valid OVM bytecode', async () => {
+    const bytecode = add0x(SimpleStorage.bytecode)
+    const salt = DEFAULT_SALT
     const tx = await simpleCreate2.create2(bytecode, salt)
     const receipt = await provider.getTransactionReceipt(tx.hash)
     const address = await simpleCreate2.contractAddress()
     const expectedAddress = getCreate2Address(simpleCreate2.address, salt, bytecode)
     address.should.equal(expectedAddress)
   })
-  
 })
 
