@@ -47,6 +47,7 @@
     "argparse": "^1.0.10",
     "ethers": "^4.0.37",
     "ganache-core": "^2.10.2",
-    "get-port": "^5.1.1"
+    "get-port": "^5.1.1",
+    "web3-core": "^1.2.9"
   }
 }

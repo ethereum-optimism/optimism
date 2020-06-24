@@ -5,10 +5,6 @@
     "baseUrl": "./",
     "resolveJsonModule": true,
     "esModuleInterop": true,
-    "typeRoots": [
-      "node_modules/@types",
-      "typings"
-    ]
   },
   "include": ["index.ts", "src/**/*.ts", "bin/**/*.ts"]
 }
