@@ -2,12 +2,11 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * Source: https://github.com/omisego/plasma-mvp/blob/master/plasma/root_chain/contracts/RLPEncode.sol
- * @title RLPEncode
+ * @title RLPWriter
  * @dev A simple RLP encoding library.
  * @author Bakaoh
  */
-contract RLPEncode {
+contract RLPWriter {
     /*
      * Public functions
      */
