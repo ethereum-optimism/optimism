@@ -26,6 +26,7 @@ import {
   pushMemoryAtIndexOntoStack,
   storeStackInMemoryAtIndex,
   getPUSHIntegerOp,
+  getSWAPNOp,
 } from '../../src/tools/transpiler'
 import { stateManagerAddress, whitelistedOpcodes } from '../helpers'
 import { EvmIntrospectionUtil, StepContext } from '../../src/types/vm'
@@ -253,11 +254,14 @@ describe('Memory Replacement Operations', () => {
         EVMOpcode,
         EVMBytecode
       >().set(Opcode.POP, [
+        // SWAP the PC to be returned to with the element originally to be popped
+        getSWAPNOp(1),
+        // still do the POP we will be replacing so that the PUSH POP still has no effect
         {
-          // retain the POP we will be replacing so that the PUSH POP still has no effect
           opcode: Opcode.POP,
           consumedBytes: undefined,
         },
+        // do the operation which should have no effect
         ...pushModifyLoad,
       ])
 
@@ -282,7 +286,7 @@ describe('Memory Replacement Operations', () => {
         memoryModifyingBytecodeBuf,
         673,
         transpiledMemoryModifyingBytecodeBuf,
-        775
+        679
       )
 
       comparisonBeforeReturns.firstContext.memory.should.deep.equal(

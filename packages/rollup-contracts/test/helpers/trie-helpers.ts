@@ -2,7 +2,6 @@ import * as rlp from 'rlp'
 import * as seedbytes from 'random-bytes-seed'
 import * as seedfloat from 'seedrandom'
 import { BaseTrie } from 'merkle-patricia-tree'
-import { encode } from 'punycode'
 
 interface UpdateTest {
   proof: string

@@ -130,7 +130,6 @@ contract MerkleTrie {
         return getNodeValue(proof[pathLength - 1]);
     }
 
-
     /*
      * Internal Functions
      */

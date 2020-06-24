@@ -5,6 +5,7 @@ import { Block, Provider } from 'ethers/providers'
 /* Internal Imports */
 import { EthereumListener } from '../../types/ethereum'
 import { DB } from '../../types/db'
+import { Transaction } from 'ethers/utils'
 
 const log = getLogger('ethereum-block-processor')
 const blockKey: Buffer = Buffer.from('latestBlock')
@@ -22,7 +23,8 @@ export class EthereumBlockProcessor {
 
   constructor(
     private readonly db: DB,
-    private readonly earliestBlock: number = 0
+    private readonly earliestBlock: number = 0,
+    private readonly confirmsUntilFinal: number = 1
   ) {
     this.subscriptions = new Set<EthereumListener<Block>>()
     this.currentBlockNumber = 0
@@ -49,6 +51,7 @@ export class EthereumBlockProcessor {
 
     provider.on('block', async (blockNumber) => {
       log.debug(`Block [${blockNumber}] was mined!`)
+
       await this.fetchAndDisseminateBlock(provider, blockNumber)
       this.currentBlockNumber = blockNumber
       try {
@@ -89,8 +92,40 @@ export class EthereumBlockProcessor {
     blockNumber: number
   ): Promise<void> {
     log.debug(`Fetching block [${blockNumber}].`)
-    const block: Block = await provider.getBlock(blockNumber, true)
+    let block: Block = await provider.getBlock(blockNumber, true)
     log.debug(`Received block: [${JSON.stringify(block)}].`)
+
+    if (
+      this.confirmsUntilFinal > 1 &&
+      !!block.transactions &&
+      !!block.transactions.length
+    ) {
+      log.debug(
+        `Waiting for ${this.confirmsUntilFinal} confirms before disseminating block ${blockNumber}`
+      )
+      // TODO: What happens on re-org? I think we're stuck waiting on this confirmation that will never come forever.
+      try {
+        await provider.waitForTransaction(
+          (block.transactions[0] as any).hash,
+          this.confirmsUntilFinal
+        )
+      } catch (e) {
+        logError(
+          log,
+          `Error waiting for ${this.confirmsUntilFinal} confirms on block ${blockNumber}`,
+          e
+        )
+        // TODO: If this is not a re-org, this may require a restart or some other action.
+        //  Monitor what actually happens and re-throw here if necessary.
+        return
+      }
+
+      log.debug(
+        `Received ${this.confirmsUntilFinal} confirms for block ${blockNumber}. Refetching block`
+      )
+
+      block = await provider.getBlock(blockNumber, true)
+    }
 
     this.subscriptions.forEach((h) => {
       try {

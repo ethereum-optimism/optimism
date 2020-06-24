@@ -8,6 +8,8 @@ import { Opcode, EVMOpcode, EVMBytecode } from '@eth-optimism/rollup-core'
 import { OpcodeReplacer, InvalidBytesConsumedError } from '../../src/types'
 import { OpcodeReplacerImpl } from '../../src/tools/transpiler'
 
+const zeroAddrBuf: Buffer = hexStrToBuf(ZERO_ADDRESS)
+
 describe('OpcodeReplacer', () => {
   describe('Initialization', () => {
     it('Should throw if given invalid execution manager address', () => {
@@ -30,15 +32,17 @@ describe('OpcodeReplacer', () => {
     })
   })
 
-  describe('Mandatory Replacements', () => {
-    const zeroAddrBuf: Buffer = hexStrToBuf(ZERO_ADDRESS)
+  describe('Mandatory Substitutions and Substitutions Checking', () => {
     let replacer: OpcodeReplacer
     beforeEach(() => {
       replacer = new OpcodeReplacerImpl(ZERO_ADDRESS)
     })
 
-    const assertReplaced = (r: OpcodeReplacer, opcode: EVMOpcode): void => {
-      const res = r.replaceIfNecessary({
+    const assertSubstituted = (r: OpcodeReplacer, opcode: EVMOpcode): void => {
+      const shouldReplace = r.shouldSubstituteOpcodeForFunction(opcode)
+      shouldReplace.should.eq(true)
+
+      const res = r.getSubstituedFunctionFor({
         opcode,
         consumedBytes: undefined,
       })
@@ -60,60 +64,60 @@ describe('OpcodeReplacer', () => {
       }
     }
 
-    it('replaces ADDRESS', async () => {
-      assertReplaced(replacer, Opcode.ADDRESS)
+    it('substitutes ADDRESS', async () => {
+      assertSubstituted(replacer, Opcode.ADDRESS)
     })
 
-    it('replaces CALL', async () => {
-      assertReplaced(replacer, Opcode.CALL)
+    it('substitutes CALL', async () => {
+      assertSubstituted(replacer, Opcode.CALL)
     })
 
-    it('replaces CALLER', async () => {
-      assertReplaced(replacer, Opcode.CALLER)
+    it('substitutes CALLER', async () => {
+      assertSubstituted(replacer, Opcode.CALLER)
     })
 
-    it('replaces CREATE', async () => {
-      assertReplaced(replacer, Opcode.CREATE)
+    it('substitutes CREATE', async () => {
+      assertSubstituted(replacer, Opcode.CREATE)
     })
 
-    it('replaces CREATE2', async () => {
-      assertReplaced(replacer, Opcode.CREATE2)
+    it('substitutes CREATE2', async () => {
+      assertSubstituted(replacer, Opcode.CREATE2)
     })
 
-    it('replaces DELEGATECALL', async () => {
-      assertReplaced(replacer, Opcode.DELEGATECALL)
+    it('substitutes DELEGATECALL', async () => {
+      assertSubstituted(replacer, Opcode.DELEGATECALL)
     })
 
-    it('replaces EXTCODECOPY', async () => {
-      assertReplaced(replacer, Opcode.EXTCODECOPY)
+    it('substitutes EXTCODECOPY', async () => {
+      assertSubstituted(replacer, Opcode.EXTCODECOPY)
     })
 
-    it('replaces EXTCODEHASH', async () => {
-      assertReplaced(replacer, Opcode.EXTCODEHASH)
+    it('substitutes EXTCODEHASH', async () => {
+      assertSubstituted(replacer, Opcode.EXTCODEHASH)
     })
 
-    it('replaces EXTCODESIZE', async () => {
-      assertReplaced(replacer, Opcode.EXTCODESIZE)
+    it('substitutes EXTCODESIZE', async () => {
+      assertSubstituted(replacer, Opcode.EXTCODESIZE)
     })
 
-    it('replaces ORIGIN', async () => {
-      assertReplaced(replacer, Opcode.ORIGIN)
+    it('substitutes ORIGIN', async () => {
+      assertSubstituted(replacer, Opcode.ORIGIN)
     })
 
-    it('replaces SLOAD', async () => {
-      assertReplaced(replacer, Opcode.SLOAD)
+    it('substitutes SLOAD', async () => {
+      assertSubstituted(replacer, Opcode.SLOAD)
     })
 
-    it('replaces SSTORE', async () => {
-      assertReplaced(replacer, Opcode.SSTORE)
+    it('substitutes SSTORE', async () => {
+      assertSubstituted(replacer, Opcode.SSTORE)
     })
 
-    it('replaces STATICCALL', async () => {
-      assertReplaced(replacer, Opcode.STATICCALL)
+    it('substitutes STATICCALL', async () => {
+      assertSubstituted(replacer, Opcode.STATICCALL)
     })
 
-    it('replaces TIMESTAMP', async () => {
-      assertReplaced(replacer, Opcode.TIMESTAMP)
+    it('substitutes TIMESTAMP', async () => {
+      assertSubstituted(replacer, Opcode.TIMESTAMP)
     })
   })
 
@@ -126,7 +130,7 @@ describe('OpcodeReplacer', () => {
 
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.MUL, // different opcode
         consumedBytes: undefined,
       })
@@ -139,7 +143,7 @@ describe('OpcodeReplacer', () => {
       replacedBytecode.should.deep.equal(expected)
     })
 
-    it('correctly parses and replaces a single opcode with another', () => {
+    it('correctly parses and substitutes a single opcode with another', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
         EVMBytecode
@@ -147,7 +151,7 @@ describe('OpcodeReplacer', () => {
 
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })
@@ -155,7 +159,7 @@ describe('OpcodeReplacer', () => {
       replacedBytecode.should.deep.equal(cfg.get(Opcode.ADD))
     })
 
-    it('correctly parses and replaces a single opcode with two others', () => {
+    it('correctly parses and substitutes a single opcode with two others', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
         EVMBytecode
@@ -165,7 +169,7 @@ describe('OpcodeReplacer', () => {
       ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })
@@ -173,7 +177,7 @@ describe('OpcodeReplacer', () => {
       replacedBytecode.should.deep.equal(cfg.get(Opcode.ADD))
     })
 
-    it('correctly parses and replaces a single PUSH1', () => {
+    it('correctly parses and substitutes a single PUSH1', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
         EVMBytecode
@@ -182,7 +186,7 @@ describe('OpcodeReplacer', () => {
       ])
       const replacer = new OpcodeReplacerImpl(ZERO_ADDRESS, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })
@@ -202,7 +206,7 @@ describe('OpcodeReplacer', () => {
       }, InvalidBytesConsumedError)
     })
 
-    it('correctly parses and replaces a push for the execution manager', () => {
+    it('correctly parses and substitutes a push for the execution manager', () => {
       const cfg: Map<EVMOpcode, EVMBytecode> = new Map<
         EVMOpcode,
         EVMBytecode
@@ -215,7 +219,7 @@ describe('OpcodeReplacer', () => {
       const executionManagerAddress = ZERO_ADDRESS
       const replacer = new OpcodeReplacerImpl(executionManagerAddress, cfg)
 
-      const replacedBytecode: EVMBytecode = replacer.replaceIfNecessary({
+      const replacedBytecode: EVMBytecode = replacer.getSubstituedFunctionFor({
         opcode: Opcode.ADD,
         consumedBytes: undefined,
       })

@@ -633,7 +633,8 @@ describe('Web3Handler', () => {
         )
         await web3Handler.handleL1ToL2Transaction({
           nonce: 0,
-          callData,
+          gasLimit: 0,
+          calldata: callData,
           sender: wallet.address,
           target: simpleStorage.address,
         })
@@ -653,7 +654,8 @@ describe('Web3Handler', () => {
         )
         await web3Handler.handleL1ToL2Transaction({
           nonce: 0,
-          callData,
+          gasLimit: 0,
+          calldata: callData,
           sender: wallet.address,
           target: simpleStorage.address,
         })

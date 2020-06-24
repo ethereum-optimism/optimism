@@ -96,4 +96,4 @@ The OVM provides a fresh new take on layer 2 development: it's identical to laye
 ## Troubleshooting
 Not working for you? It might help to check out this [easy to read Diff](https://i.imgur.com/DEU7wXC.png) to show you exactly which lines you should be altering. You can also check out the final working codebase that we have added to a seperate branch [here](https://github.com/ethereum-optimism/ERC20-Example/tree/final_result)
 
-Still not working? [Create a Github Issue](https://github.com/ethereum-optimism/ERC20-Example/issues), or hop in our [Discord](https://discordapp.com/invite/jrnFEvq) channel and ask away.
+Still not working? [Create a Github Issue](https://github.com/ethereum-optimism/ERC20-Example/issues), or hop in our [Discord](https://discord.gg/cf4AErQ) channel and ask away.

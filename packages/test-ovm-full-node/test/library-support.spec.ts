@@ -58,7 +58,7 @@ describe('Library usage tests', () => {
   beforeEach(async function() {
     // NOTE: if we run this test in isolation on default port, it works, but in multi-package tests it fails.
     // Hypothesis for why this is: multi-package tests are run in parallel, so we need to use a separate port per package.
-    provider = await createMockProvider(9998)
+    provider = await createMockProvider()
     const wallets = getWallets(provider)
     wallet = wallets[0]
 
@@ -103,9 +103,6 @@ describe('Library usage tests', () => {
     // Deploy library user
     deployedLibUser = await deployContract(wallet, libUserJSON, [], [])
     log.debug(`deployed library user to: ${deployedLibUser.address}`)
-  })
-  afterEach(async () => {
-    await provider.closeOVM()
   })
 
   it('should allow us to transpile, link, and query contract methods which use a single library', async () => {

@@ -4,6 +4,7 @@ pragma solidity ^0.5.1;
 contract TestToken {
   mapping (address => uint256) private _balances;
   uint256 private _totalSupply;
+  bytes32 _meaninglessHash;
 
   event Transfer(
     address indexed from,
@@ -35,5 +36,9 @@ contract TestToken {
     _balances[sender] -= amount;
     _balances[recipient] += amount;
     emit Transfer(sender, recipient, amount, block.timestamp);
+  }
+
+  function updateMeaninglessHash(bytes memory input) public {
+    _meaninglessHash = keccak256(input);
   }
 }
