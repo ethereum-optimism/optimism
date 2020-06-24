@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "install": "sed -ie 's!import { Provider as Web3Provider } from \"web3/providers\";!import { Provider as Web3Provider } from \"web3\";!' node_modules/ganache-core/typings/index.d.ts",
+    "install": "sed -ie 's!import { Provider as Web3Provider } from \"web3/providers\";!import * as Web3Provider from \"web3\";!' node_modules/ganache-core/typings/index.d.ts",
     "pkgparse": "echo ${PKGS:-'*'} | sed -e 's#,# @eth-optimism*/#g' -e 's#^#@eth-optimism*/#'",
     "pkgparse:core": "echo ${PKGS:-'*'} | sed -e 's#,# @eth-optimism/#g' -e 's#^#@eth-optimism/#'",
     "pkgparse:integration": "echo ${PKGS:-'*'} | sed -e 's#,# @eth-optimism-test/#g' -e 's#^#@eth-optimism-test/#'",
