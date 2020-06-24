@@ -9,7 +9,6 @@
   "bin": "./bin/index.js",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "test": "mocha --require ts-node/register 'test/*/*.spec.ts' --timeout 20000",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ../../prettier-config.json --write \"index.ts\" \"{deploy,test,src,bin}/**/*.ts\"",
     "build": "tsc -p .",

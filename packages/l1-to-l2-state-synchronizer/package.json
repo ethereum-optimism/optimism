@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
-    "test": "mocha --require ts-node/register 'test/*.spec.ts' --timeout 20000 --exit",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 20000 --exit",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config ../../prettier-config.json --write '{exec,test}/*.ts'",
     "build": "mkdir -p ./build && tsc -p .",
