@@ -53,11 +53,16 @@
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "2.1.0",
     "ethers": "^4.0.37",
+    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
     "merkletreejs": "^0.1.7",
     "openzeppelin-solidity": "^2.2.0",
-    "solhint": "^3.0.0"
+    "solhint": "^3.0.0",
+    "random-bytes-seed": "^1.0.3",
+    "rlp": "^2.2.5",
+    "seedrandom": "^3.0.5"
   },
   "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }
