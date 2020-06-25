@@ -21,10 +21,7 @@ import {
   DEFAULT_ETHNODE_GAS_LIMIT,
   getUnsignedTransactionCalldata,
 } from '../../../test-helpers/core-helpers'
-import {
-  manuallyDeployOvmContract,
-  ZERO_UINT,
-} from '../../../test-helpers'
+import { manuallyDeployOvmContract, ZERO_UINT } from '../../../test-helpers'
 
 /* Contract Imports */
 import {

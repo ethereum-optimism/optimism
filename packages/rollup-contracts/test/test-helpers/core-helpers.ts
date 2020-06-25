@@ -1,5 +1,8 @@
-import { ZERO_ADDRESS } from '@eth-optimism/core-utils'
-import { bufToHexString, remove0x } from '@eth-optimism/core-utils'
+import {
+  ZERO_ADDRESS,
+  bufToHexString,
+  remove0x,
+} from '@eth-optimism/core-utils'
 
 export type Address = string
 

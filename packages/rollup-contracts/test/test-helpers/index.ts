@@ -1,6 +1,5 @@
 import { Transaction } from 'ethers/utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import { logError, BloomFilter, numberToHexString } from '@eth-optimism/core-utils'
 import { executionManagerInterface } from '../../src'
 
 /**********************************
@@ -40,6 +39,9 @@ import {
   hexStrToBuf,
   bufToHexString,
   bufferUtils,
+  logError,
+  BloomFilter,
+  numberToHexString,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
 import {
@@ -53,7 +55,6 @@ import {
 import { Address, CHAIN_ID, GAS_LIMIT } from './core-helpers'
 
 type Signature = [string, string, string]
-
 
 /**
  * Convert internal transaction logs into OVM logs. Or in other words, take the logs which
@@ -108,7 +109,6 @@ export const convertInternalLogsToOvmLogs = (
 export const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '
 
-
 /**
  * Gets ovm transaction metadata from an internal transaction receipt.
  *
@@ -132,9 +132,7 @@ export const getSuccessfulOvmTransactionMetadata = (
     .filter((log) => log != null)
   const callingWithEoaLog = logs.find((log) => log.name === 'CallingWithEOA')
 
-  const revertEvents: any[] = logs.filter(
-    (x) => x.name === 'EOACallRevert'
-  )
+  const revertEvents: any[] = logs.filter((x) => x.name === 'EOACallRevert')
   ovmTxSucceeded = !revertEvents.length
 
   if (callingWithEoaLog) {
@@ -173,10 +171,10 @@ export const getSuccessfulOvmTransactionMetadata = (
         )
         const revertMsg: string = hexStrToBuf(msgBuf[0]).toString('utf8')
         metadata.revertMessage = `${revertMessagePrefix}${revertMsg}`
-        log.debug(`Decoded revert message: [${metadata.revertMessage}]`)
+        logger.debug(`Decoded revert message: [${metadata.revertMessage}]`)
       }
     } catch (e) {
-      logError(log, `Error decoding revert event!`, e)
+      logError(logger, `Error decoding revert event!`, e)
     }
   }
 
@@ -226,7 +224,7 @@ export const internalTxReceiptToOvmTxReceipt = async (
     ovmTxReceipt.revertMessage = ovmTransactionMetadata.revertMessage
   }
 
-  log.debug('Ovm parsed logs:', ovmTxReceipt.logs)
+  logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   const logsBloom = new BloomFilter()
   ovmTxReceipt.logs.forEach((log, index) => {
     logsBloom.add(hexStrToBuf(log.address))
@@ -243,7 +241,7 @@ export const internalTxReceiptToOvmTxReceipt = async (
 export const ZERO_UINT = '00'.repeat(32)
 
 export const gasLimit = 6_700_000
-const log = getLogger('helpers', true)
+const logger = getLogger('helpers', true)
 
 /**
  * Helper function to ensure GoVM is connected

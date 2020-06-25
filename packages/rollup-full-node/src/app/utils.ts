@@ -6,7 +6,7 @@ import {
   logError,
   BloomFilter,
   numberToHexString,
-  bufToHexString
+  bufToHexString,
 } from '@eth-optimism/core-utils'
 import { getLogger } from '@eth-optimism/core-utils/build/src'
 import { executionManagerInterface } from '@eth-optimism/rollup-contracts'
@@ -16,12 +16,16 @@ import { Web3Provider, TransactionReceipt, Log } from 'ethers/providers'
 import * as waffle from 'ethereum-waffle'
 
 /* Internal Imports */
-import { FullnodeHandler, L2ToL1MessageSubmitter, OvmTransactionReceipt } from '../types'
+import {
+  FullnodeHandler,
+  L2ToL1MessageSubmitter,
+  OvmTransactionReceipt,
+} from '../types'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 import { DefaultWeb3Handler } from './web3-rpc-handler'
 import { FullnodeRpcServer } from './fullnode-rpc-server'
 
-const log = getLogger('utils')
+const logger = getLogger('utils')
 
 export interface OvmTransactionMetadata {
   ovmTxSucceeded: boolean
@@ -48,12 +52,12 @@ export const createProviderForHandler = (
 
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   provider.send = async (method: string, params: any) => {
-    log.debug('Sending -- Method:', method, 'Params:', params)
+    logger.debug('Sending -- Method:', method, 'Params:', params)
 
     // Convert the message or response if we need to
     const response = await fullnodeHandler.handleRequest(method, params)
 
-    log.debug('Received Response --', response)
+    logger.debug('Received Response --', response)
     return response
   }
 
@@ -74,12 +78,12 @@ export async function addHandlerToProvider(provider: any): Promise<any> {
   )
   // Then we replace `send()` with our modified send that uses the execution manager as a proxy
   provider.send = async (method: string, params: any) => {
-    log.debug('Sending -- Method:', method, 'Params:', params)
+    logger.debug('Sending -- Method:', method, 'Params:', params)
 
     // Convert the message or response if we need to
     const response = await fullnodeHandler.handleRequest(method, params)
 
-    log.debug('Received Response --', response)
+    logger.debug('Received Response --', response)
     return response
   }
 
@@ -247,10 +251,10 @@ export const getSuccessfulOvmTransactionMetadata = (
         )
         const revertMsg: string = hexStrToBuf(msgBuf[0]).toString('utf8')
         metadata.revertMessage = `${revertMessagePrefix}${revertMsg}`
-        log.debug(`Decoded revert message: [${metadata.revertMessage}]`)
+        logger.debug(`Decoded revert message: [${metadata.revertMessage}]`)
       }
     } catch (e) {
-      logError(log, `Error decoding revert event!`, e)
+      logError(logger, `Error decoding revert event!`, e)
     }
   }
 
@@ -300,7 +304,7 @@ export const internalTxReceiptToOvmTxReceipt = async (
     ovmTxReceipt.revertMessage = ovmTransactionMetadata.revertMessage
   }
 
-  log.debug('Ovm parsed logs:', ovmTxReceipt.logs)
+  logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
   const logsBloom = new BloomFilter()
   ovmTxReceipt.logs.forEach((log, index) => {
     logsBloom.add(hexStrToBuf(log.address))
