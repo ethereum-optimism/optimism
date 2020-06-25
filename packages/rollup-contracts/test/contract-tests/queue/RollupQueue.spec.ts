@@ -24,14 +24,9 @@ describe('RollupQueue', () => {
   let rollupQueue
 
   beforeEach(async () => {
-    rollupQueue = await deployContract(
-      wallet,
-      RollupQueue,
-      [],
-      {
-        gasLimit: 6700000,
-      }
-    )
+    rollupQueue = await deployContract(wallet, RollupQueue, [], {
+      gasLimit: 6700000,
+    })
   })
 
   const enqueueAndGenerateBatch = async (tx: string): Promise<TxQueueBatch> => {

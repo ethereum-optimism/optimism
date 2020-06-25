@@ -18,7 +18,7 @@ const log = getLogger('rlp-encode', true)
 describe('RLP Encoder', () => {
   const provider = createMockProvider()
   const [wallet1] = getWallets(provider)
-  let rlpWriter: Contract;
+  let rlpWriter: Contract
 
   before(async () => {
     rlpWriter = await deployContract(wallet1, RLPWriter, [], {
@@ -36,7 +36,7 @@ describe('RLP Encoder', () => {
         const encodedElement = encode(element)
         encodedElements.push(encodedElement)
       }
-  
+
       // Encode the list of encoded elements.
       const encodedList = await rlpWriter.encodeList(encodedElements)
       return encodedList

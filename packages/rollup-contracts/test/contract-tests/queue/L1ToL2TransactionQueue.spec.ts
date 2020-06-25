@@ -27,10 +27,7 @@ describe('L1ToL2TransactionQueue', () => {
     l1ToL2TxQueue = await deployContract(
       wallet,
       L1ToL2TransactionQueue,
-      [
-        l1ToL2TransactionPasser.address,
-        canonicalTransactionChain.address,
-      ],
+      [l1ToL2TransactionPasser.address, canonicalTransactionChain.address],
       {
         gasLimit: 6700000,
       }
