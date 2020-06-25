@@ -26,8 +26,6 @@ import {
   convertInternalLogsToOvmLogs,
   internalTxReceiptToOvmTxReceipt,
   OvmTransactionReceipt,
-} from '@eth-optimism/ovm'
-import {
   executionManagerInterface,
   l2ToL1MessagePasserInterface,
 } from '@eth-optimism/rollup-contracts'

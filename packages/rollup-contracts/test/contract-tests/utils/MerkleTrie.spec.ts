@@ -1,16 +1,16 @@
-import { expect } from '../setup'
+import { expect } from '../../setup'
 
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract } from 'ethers'
 
-import * as MerkleTrie from '../../build/MerkleTrie.json'
+import * as MerkleTrie from '../../../build/contracts/MerkleTrie.json'
 import {
   makeAllProofTests,
   makeRandomProofTest,
   makeProofTest,
   makeUpdateTest,
   makeRandomUpdateTest,
-} from '../helpers/trie-helpers'
+} from '../../test-helpers/trie-helpers'
 
 describe('MerkleTrie', () => {
   const [wallet] = getWallets(createMockProvider())
