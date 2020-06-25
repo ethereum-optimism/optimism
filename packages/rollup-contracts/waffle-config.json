@@ -1,5 +1,5 @@
 {
   "sourcesPath": "./contracts",
-  "targetPath": "./build",
+  "targetPath": "./build/contracts",
   "npmPath": "../../node_modules"
 }

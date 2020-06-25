@@ -14,12 +14,6 @@ import {
   remove0x,
   keccak256,
 } from '@eth-optimism/core-utils'
-
-import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  TestDummyContractDefinition as DummyContract,
-} from '@eth-optimism/rollup-contracts'
-
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
@@ -30,14 +24,18 @@ import {
   addressToBytes32Address,
 } from '../../../test-helpers'
 
-export const abi = new ethers.utils.AbiCoder()
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestDummyContractDefinition as DummyContract,
+} from '../../../../src'
 
+/* Logging */
 const log = getLogger('execution-manager-code-opcodes', true)
 
-/*********
- * TESTS *
- *********/
+export const abi = new ethers.utils.AbiCoder()
 
+/* Tests */
 describe('Execution Manager -- Code-related opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

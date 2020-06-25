@@ -2,32 +2,28 @@ import '../../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { ContractAddressGeneratorContractDefinition } from '@eth-optimism/rollup-contracts'
 import { DEFAULT_ETHNODE_GAS_LIMIT } from '@eth-optimism/rollup-core'
-
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
-import { utils } from 'ethers'
+import { utils, Contract } from 'ethers'
 
 /* Internal Imports */
 import { create2Tests } from '../../test-helpers/data/create2.test.json'
 import { buildCreate2Address } from '../../test-helpers'
 
+/* Contract Imports */
+import { ContractAddressGeneratorContractDefinition } from '../../../src'
+
+/* Logging */
 const log = getLogger('contract-address-generator', true)
 
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('ContractAddressGenerator', () => {
   const [wallet1, wallet2] = getWallets(
     createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   )
-  // Create pointers to our contractAddressGenerator
-  let contractAddressGenerator
+  let contractAddressGenerator: Contract
 
-  /* Deploy contracts before each test */
   beforeEach(async () => {
-    // First deploy the contract address
     contractAddressGenerator = await deployContract(
       wallet1,
       ContractAddressGeneratorContractDefinition,
@@ -38,9 +34,6 @@ describe('ContractAddressGenerator', () => {
     )
   })
 
-  /*
-   * Test getAddressFromCREATE
-   */
   describe('getAddressFromCREATE', async () => {
     it('returns expected address, nonce: 1', async () => {
       const nonce = 1
@@ -54,6 +47,7 @@ describe('ContractAddressGenerator', () => {
       )
       computedAddress.should.equal(expectedAddress)
     })
+
     it('returns expected address, nonce: 1, different origin address', async () => {
       const nonce = 1
       const expectedAddress = utils.getContractAddress({
@@ -66,6 +60,7 @@ describe('ContractAddressGenerator', () => {
       )
       computedAddress.should.equal(expectedAddress)
     })
+
     it('returns expected address, nonce: 999999999 ', async () => {
       const nonce = 999999999
       const expectedAddress = utils.getContractAddress({
@@ -78,6 +73,7 @@ describe('ContractAddressGenerator', () => {
       )
       computedAddress.should.equal(expectedAddress)
     })
+
     // test around nonce 128, or 0x80, due to edge cases. See https://github.com/ethereum/wiki/wiki/RLP#definition
     for (let nonce = 127; nonce < 129; nonce++) {
       it(`returns expected address, nonce: ${nonce}`, async () => {
@@ -94,9 +90,6 @@ describe('ContractAddressGenerator', () => {
     }
   })
 
-  /*
-   * Test buildCreate2Address helper function
-   */
   describe('buildCreate2Address helper', async () => {
     for (const test of Object.keys(create2Tests)) {
       it(`should properly generate CREATE2 address from ${test}`, async () => {
@@ -107,9 +100,6 @@ describe('ContractAddressGenerator', () => {
     }
   })
 
-  /*
-   * Test getAddressFromCREATE2
-   */
   describe('getAddressFromCREATE2', async () => {
     for (const test of Object.keys(create2Tests)) {
       it(`should properly generate CREATE2 address from ${test}`, async () => {

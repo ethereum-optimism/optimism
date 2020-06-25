@@ -4,32 +4,25 @@ import '../../setup'
 import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
+/* Contract Imports */
+import * as SafetyTransactionQueue from '../../../build/contracts/SafetyTransactionQueue.json'
+import * as RollupMerkleUtils from '../../../build/contracts/RollupMerkleUtils.json'
+
 /* Logging */
 const log = getLogger('safety-tx-queue', true)
 
-/* Contract Imports */
-import * as SafetyTransactionQueue from '../../../build/SafetyTransactionQueue.json'
-import * as RollupMerkleUtils from '../../../build/RollupMerkleUtils.json'
-
+/* Tests */
 describe('SafetyTransactionQueue', () => {
   const provider = createMockProvider()
   const [wallet, canonicalTransactionChain, randomWallet] = getWallets(provider)
   const defaultTx = '0x1234'
   let safetyTxQueue
-  let rollupMerkleUtils
-
-  /* Link libraries before tests */
-  before(async () => {
-    rollupMerkleUtils = await deployContract(wallet, RollupMerkleUtils, [], {
-      gasLimit: 6700000,
-    })
-  })
 
   beforeEach(async () => {
     safetyTxQueue = await deployContract(
       wallet,
       SafetyTransactionQueue,
-      [rollupMerkleUtils.address, canonicalTransactionChain.address],
+      [canonicalTransactionChain.address],
       {
         gasLimit: 6700000,
       }
@@ -58,6 +51,7 @@ describe('SafetyTransactionQueue', () => {
       const front = await safetyTxQueue.front()
       front.should.equal(1)
     })
+
     it('should not allow dequeue from other address', async () => {
       await safetyTxQueue.enqueueTx(defaultTx)
       await TestUtils.assertRevertsAsync(

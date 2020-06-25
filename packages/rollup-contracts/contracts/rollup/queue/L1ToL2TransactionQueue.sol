@@ -1,4 +1,5 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import { RollupQueue } from "./RollupQueue.sol";

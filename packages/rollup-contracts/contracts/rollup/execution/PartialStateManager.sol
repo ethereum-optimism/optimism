@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import {StateManager} from "./StateManager.sol";
+import { StateManager } from "./StateManager.sol";
 
 /**
  * @title PartialStateManager

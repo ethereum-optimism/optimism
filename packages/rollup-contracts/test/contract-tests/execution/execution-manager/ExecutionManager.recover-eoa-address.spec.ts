@@ -8,21 +8,18 @@ import {
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-optimism/rollup-contracts'
-
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-/* Internal Imports */
+/* Contract Imports */
+import { ExecutionManagerContractDefinition as ExecutionManager } from '../../../../src'
+
+/* Logging */
+const log = getLogger('execution-manager-recover-eoa-address', true)
 
 export const abi = new ethers.utils.AbiCoder()
 
-const log = getLogger('execution-manager-recover-eoa-address', true)
-
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('Execution Manager -- Recover EOA Address', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

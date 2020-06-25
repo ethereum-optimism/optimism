@@ -4,11 +4,11 @@ import { Wallet } from 'ethers'
 import { Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import * as RollupMerkleUtils from '../build/RollupMerkleUtils.json'
-import * as CanonicalTransactionChain from '../build/CanonicalTransactionChain.json'
-import * as StateCommitmentChain from '../build/StateCommitmentChain.json'
-import * as SequencerBatchSubmitter from '../build/SequencerBatchSubmitter.json'
-import * as L1ToL2TransactionPasser from '../build/L1ToL2TransactionPasser.json'
+import * as RollupMerkleUtils from '../build/contracts/RollupMerkleUtils.json'
+import * as CanonicalTransactionChain from '../build/contracts/CanonicalTransactionChain.json'
+import * as StateCommitmentChain from '../build/contracts/StateCommitmentChain.json'
+import * as SequencerBatchSubmitter from '../build/contracts/SequencerBatchSubmitter.json'
+import * as L1ToL2TransactionPasser from '../build/contracts/L1ToL2TransactionPasser.json'
 
 import { resolve } from 'path'
 

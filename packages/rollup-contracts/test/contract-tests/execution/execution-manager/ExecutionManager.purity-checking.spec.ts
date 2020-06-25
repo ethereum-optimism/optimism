@@ -7,14 +7,8 @@ import {
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-
-import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  TestAddThreeContractDefinition as AddThree,
-  TestDummyContractDefinition as DummyContract,
-} from '@eth-optimism/rollup-contracts'
-
 import { Contract } from 'ethers'
+import { TransactionReceipt } from 'ethers/providers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
@@ -22,14 +16,18 @@ import {
   manuallyDeployOvmContractReturnReceipt,
   didCreateSucceed,
 } from '../../../test-helpers'
-import { TransactionReceipt } from 'ethers/providers'
 
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestAddThreeContractDefinition as AddThree,
+  TestDummyContractDefinition as DummyContract,
+} from '../../../../src'
+
+/* Logging */
 const log = getLogger('execution-manager-safety-checking', true)
 
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('Execution Manager -- Safety Checking', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

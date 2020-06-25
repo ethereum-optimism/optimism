@@ -16,14 +16,9 @@ import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-
-import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  TestContextContractDefinition as ContextContract,
-} from '@eth-optimism/rollup-contracts'
-
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
@@ -33,11 +28,17 @@ import {
   encodeMethodId,
   gasLimit,
 } from '../../../test-helpers'
-import { fromPairs } from 'lodash'
+
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestContextContractDefinition as ContextContract,
+} from '../../../../src'
+
+/* Logging */
+const log = getLogger('execution-manager-context', true)
 
 export const abi = new ethers.utils.AbiCoder()
-
-const log = getLogger('execution-manager-context', true)
 
 const methodIds = fromPairs(
   [
@@ -52,10 +53,7 @@ const methodIds = fromPairs(
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
 
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('Execution Manager -- Context opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

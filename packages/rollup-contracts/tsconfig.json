@@ -5,5 +5,6 @@
     "baseUrl": "./",
     "resolveJsonModule": true
   },
-  "include": ["*.ts", "**/*.ts"]
+  "include": ["*.ts", "**/*.ts"],
+  "exclude": ["./build", "node_modules"]
 }

@@ -55,7 +55,7 @@ contract RollupQueue {
     );
 
     batchHeaders.push(DataTypes.TimestampedHash({
-      timestamp: block.timestamp,
+      timestamp: now,
       txHash: keccak256(_tx)
     }));
   }
@@ -67,7 +67,7 @@ contract RollupQueue {
       "Message sender does not have permission to dequeue"
     );
 
-    require(front < batchHeaders.length, "Queue is empty.");
+    require(front < batchHeaders.length, "Cannot dequeue from an empty queue");
 
     delete batchHeaders[front];
     front++;

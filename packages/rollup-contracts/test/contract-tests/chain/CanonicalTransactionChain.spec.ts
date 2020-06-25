@@ -9,16 +9,16 @@ import { Contract } from 'ethers'
 import { TxChainBatch, TxQueueBatch } from '../../test-helpers/RLhelper'
 import { makeRandomBatchOfSize } from '../../test-helpers'
 
+/* Contract Imports */
+import * as CanonicalTransactionChain from '../../../build/contracts/CanonicalTransactionChain.json'
+import * as L1ToL2TransactionQueue from '../../../build/contracts/L1ToL2TransactionQueue.json'
+import * as SafetyTransactionQueue from '../../../build/contracts/SafetyTransactionQueue.json'
+import * as RollupMerkleUtils from '../../../build/contracts/RollupMerkleUtils.json'
+
 /* Logging */
 const log = getLogger('canonical-tx-chain', true)
 
-/* Contract Imports */
-import * as CanonicalTransactionChain from '../../../build/CanonicalTransactionChain.json'
-import * as L1ToL2TransactionQueue from '../../../build/L1ToL2TransactionQueue.json'
-import * as SafetyTransactionQueue from '../../../build/SafetyTransactionQueue.json'
-import * as RollupMerkleUtils from '../../../build/RollupMerkleUtils.json'
-
-/* Begin tests */
+/* Tests */
 describe('CanonicalTransactionChain', () => {
   const provider = createMockProvider()
   const [wallet, sequencer, l1ToL2TransactionPasser, randomWallet] = getWallets(

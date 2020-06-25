@@ -10,14 +10,13 @@ import {
   LOG_NEWLINE_STRING,
   BloomFilter,
 } from '@eth-optimism/core-utils'
-import { executionManagerInterface } from '@eth-optimism/rollup-contracts'
-
 import { ethers } from 'ethers'
 import { LogDescription } from 'ethers/utils'
 import { Log, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
 import { OvmTransactionReceipt } from '../types'
+import { executionManagerInterface } from '../../src'
 
 const logger = getLogger('utils')
 

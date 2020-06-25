@@ -8,16 +8,16 @@ import { Contract } from 'ethers'
 /* Internal Imports */
 import { StateChainBatch, TxChainBatch } from '../../test-helpers/RLhelper'
 
+/* Contract Imports */
+import * as StateCommitmentChain from '../../../build/contracts/StateCommitmentChain.json'
+import * as CanonicalTransactionChain from '../../../build/contracts/CanonicalTransactionChain.json'
+import * as RollupMerkleUtils from '../../../build/contracts/RollupMerkleUtils.json'
+import * as SequencerBatchSubmitter from '../../../build/contracts/SequencerBatchSubmitter.json'
+
 /* Logging */
 const log = getLogger('batch-submitter', true)
 
-/* Contract Imports */
-import * as StateCommitmentChain from '../../../build/StateCommitmentChain.json'
-import * as CanonicalTransactionChain from '../../../build/CanonicalTransactionChain.json'
-import * as RollupMerkleUtils from '../../../build/RollupMerkleUtils.json'
-import * as SequencerBatchSubmitter from '../../../build/SequencerBatchSubmitter.json'
-
-/* Begin tests */
+/* Tests */
 describe('SequencerBatchSubmitter', () => {
   const provider = createMockProvider()
   const [

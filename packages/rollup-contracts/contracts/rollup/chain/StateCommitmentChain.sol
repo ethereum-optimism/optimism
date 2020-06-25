@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import { DataTypes } from "../utils/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/RollupMerkleUtils.sol";
 import { CanonicalTransactionChain } from "./CanonicalTransactionChain.sol";
 
 contract StateCommitmentChain {
@@ -11,6 +12,7 @@ contract StateCommitmentChain {
     */
 
     CanonicalTransactionChain canonicalTransactionChain;
+    RollupMerkleUtils public merkleUtils;
     address public fraudVerifier;
     uint public cumulativeNumElements;
     bytes32[] public batches;
@@ -21,9 +23,11 @@ contract StateCommitmentChain {
     */
 
     constructor(
+        address _rollupMerkleUtilsAddress,
         address _canonicalTransactionChain,
         address _fraudVerifier
     ) public {
+        merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
         canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
         fraudVerifier = _fraudVerifier;
     }

@@ -1,4 +1,5 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 /**
  * @title DataTypes
@@ -61,7 +62,7 @@ contract DataTypes {
        uint cumulativePrevElements;
     }
 
-   struct TimestampedHash {
+    struct TimestampedHash {
        uint timestamp;
        bytes32 txHash;
     }

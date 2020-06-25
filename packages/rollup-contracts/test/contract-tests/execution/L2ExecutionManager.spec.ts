@@ -2,26 +2,21 @@ import '../../setup'
 
 /* External Imports */
 import { add0x, getLogger } from '@eth-optimism/core-utils'
-import { L2ExecutionManagerContractDefinition as L2ExecutionManager } from '@eth-optimism/rollup-contracts'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
-/* Internal Imports */
+/* Contract Imports */
+import { L2ExecutionManagerContractDefinition as L2ExecutionManager } from '../../../src'
 
+/* Logging */
 const log = getLogger('l2-execution-manager-calls', true)
 
 export const abi = new ethers.utils.AbiCoder()
-
-/*********
- * TESTS *
- *********/
-
 const zero32: string = add0x('00'.repeat(32))
 const key: string = add0x('01'.repeat(32))
 const value: string = add0x('02'.repeat(32))
@@ -49,6 +44,7 @@ describe('L2 Execution Manager', () => {
         .toString('hex')
         .repeat(20)
     )
+
     it('properly maps OVM tx hash to internal tx hash', async () => {
       await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
     })

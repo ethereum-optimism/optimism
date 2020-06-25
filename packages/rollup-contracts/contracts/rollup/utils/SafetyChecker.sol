@@ -1,19 +1,23 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 /**
  * @title SafetyChecker
- * @notice Safety Checker contract used to check whether or not bytecode is safe, meaning:
- * 1. It uses only whitelisted opcodes
- * 2. All CALLs are to the Execution Manager and have no value set (no ETH sent)
+ * @notice Safety Checker contract used to check whether or not bytecode is
+ *         safe, meaning:
+ *              1. It uses only whitelisted opcodes.
+ *              2. All CALLs are to the Execution Manager and have no value.
  */
 contract SafetyChecker {
     uint256 public opcodeWhitelistMask;
     address public executionManagerAddress;
 
     /**
-     * @notice Construct a new Safety Checker with the specified whitelist mask
-     * @param _opcodeWhitelistMask A hex number of 256 bits where each bit represents an opcode, 0 - 255, which is set if whitelisted and unset otherwise.
-     * @param _executionManagerAddress The address of the ExecutionManager.sol contract
+     * @notice Create a new Safety Checker with the specified whitelist mask.
+     * @param _opcodeWhitelistMask A hex number of 256 bits where each bit
+     *                             represents an opcode, 0 - 255, which is set
+     *                             if whitelisted and unset otherwise.
+     * @param _executionManagerAddress Execution manager contract address.
      */
     constructor(uint256 _opcodeWhitelistMask, address _executionManagerAddress) public {
         opcodeWhitelistMask = _opcodeWhitelistMask;
@@ -21,12 +25,18 @@ contract SafetyChecker {
     }
 
     /**
-     * @notice Converts the 20 bytes at _start of _bytes into an address
-     * @param _bytes The bytes to extract the address from
-     * @param _start The start index from which to extract the address from (e.g. 0 if _bytes starts with the address)
+     * @notice Converts the 20 bytes at _start of _bytes into an address.
+     * @param _bytes The bytes to extract the address from.
+     * @param _start The start index from which to extract the address from
+     *               (e.g. 0 if _bytes starts with the address).
+     * @return Bytes converted to an address.
      */
-    function toAddress(bytes memory _bytes, uint256 _start) internal pure returns (address addr) {
+    function toAddress(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (address addr) {
         require(_bytes.length >= (_start + 20), "Addresses must be at least 20 bytes");
+
         assembly {
             addr := mload(add(add(_bytes, 20), _start))
         }
@@ -34,8 +44,14 @@ contract SafetyChecker {
 
     /**
      * @notice Returns whether or not all of the provided bytecode is safe.
-     * @param _bytecode The bytecode to safety check. This can be either creation bytecode (aka initcode) or runtime bytecode (aka contract code).
-     * More info on creation vs. runtime bytecode: https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904
+     * @dev More info on creation vs. runtime bytecode:
+     * https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904.
+     * @param _bytecode The bytecode to safety check. This can be either
+     *                  creation bytecode (aka initcode) or runtime bytecode
+     *                  (aka cont
+     * More info on creation vs. runtime bytecode:
+     * https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904ract code).
+     * @return `true` if the bytecode is safe, `false` otherwise.
      */
     function isBytecodeSafe(
         bytes memory _bytecode
@@ -89,7 +105,12 @@ contract SafetyChecker {
                     insideUnreachableCode = true;
                 // CALL
                 } else if (op == 0xf1) {
-                    // Minimum 4 total ops: 1. PUSH1 value, 2. PUSH20 execution manager address,3. PUSH or DUP gas, 4. CALL
+                    // Minimum 4 total ops:
+                    // 1. PUSH1 value
+                    // 2. PUSH20 execution manager address
+                    // 3. PUSH or DUP gas
+                    // 4. CALL
+
                     if (opIndex < 3) {
                         return false;
                     }
@@ -109,8 +130,13 @@ contract SafetyChecker {
                         if (gasOp >= 0x60 && gasOp <= 0x7f) {
                             pushedBytes = gasOp - 0x5f;
                         }
-                        byte callValue = _bytecode[pc - (23 + pushedBytes)]; // 23 is from 1 + PUSH20 + 20 bytes of address + PUSH or DUP gas
-                        address callAddress = toAddress(_bytecode, (pc - (21 + pushedBytes))); // 21 is from 1 + 19 bytes of address + PUSH or DUP gas
+
+                        // 23 is from 1 + PUSH20 + 20 bytes of address + PUSH or DUP gas
+                        byte callValue = _bytecode[pc - (23 + pushedBytes)];
+
+                        // 21 is from 1 + 19 bytes of address + PUSH or DUP gas
+                        address callAddress = toAddress(_bytecode, (pc - (21 + pushedBytes)));
+
                         // CALL is made to the execution manager with msg.value of 0 ETH
                         if (callAddress != executionManagerAddress || callValue != 0 ) {
                             return false;

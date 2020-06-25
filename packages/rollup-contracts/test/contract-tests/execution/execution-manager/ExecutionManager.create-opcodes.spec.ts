@@ -3,20 +3,13 @@ import '../../../setup'
 /* External Imports */
 import { getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
 import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
-  TestInvalidOpcodesContractDefinition as InvalidOpcodes,
-} from '@eth-optimism/rollup-contracts'
-import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract, ContractFactory } from 'ethers'
-
-const log = getLogger('execution-manager-create', true)
+import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
@@ -25,7 +18,16 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
-import { fromPairs } from 'lodash'
+
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestSimpleStorageArgsFromCalldataDefinition as SimpleStorage,
+  TestInvalidOpcodesContractDefinition as InvalidOpcodes,
+} from '../../../../src'
+
+/* Logging */
+const log = getLogger('execution-manager-create', true)
 
 const methodIds = fromPairs(
   ['ovmCREATE', 'ovmCREATE2'].map((methodId) => [
@@ -34,10 +36,7 @@ const methodIds = fromPairs(
   ])
 )
 
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('ExecutionManager -- Create opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

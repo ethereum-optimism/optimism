@@ -7,31 +7,27 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 /* Internal Imports */
 import { TxQueueBatch } from '../../test-helpers/RLhelper'
 
+/* Contract Imports */
+import * as RollupQueue from '../../../build/contracts/RollupQueue.json'
+import * as RollupMerkleUtils from '../../../build/contracts/RollupMerkleUtils.json'
+
 /* Logging */
 const log = getLogger('rollup-queue', true)
 
-/* Contract Imports */
-import * as RollupQueue from '../../../build/RollupQueue.json'
-import * as RollupMerkleUtils from '../../../build/RollupMerkleUtils.json'
-
+/* Helpers */
 const DEFAULT_TX = '0x1234'
 
+/* Tests */
 describe('RollupQueue', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let rollupQueue
-  let rollupMerkleUtils
 
-  before(async () => {
-    rollupMerkleUtils = await deployContract(wallet, RollupMerkleUtils, [], {
-      gasLimit: 6700000,
-    })
-  })
   beforeEach(async () => {
     rollupQueue = await deployContract(
       wallet,
       RollupQueue,
-      [rollupMerkleUtils.address],
+      [],
       {
         gasLimit: 6700000,
       }
@@ -55,6 +51,7 @@ describe('RollupQueue', () => {
       const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(1)
     })
+
     it('should set the TimestampedHash correctly', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
       const { txHash, timestamp } = await rollupQueue.batchHeaders(0)
@@ -150,6 +147,7 @@ describe('RollupQueue', () => {
       )
     })
   })
+
   describe('peek() and peekTimestamp()', async () => {
     it('should peek successfully with single element', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)

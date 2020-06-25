@@ -1,9 +1,11 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 /**
  * @title StateManager
- * @notice The StateManager is a simple abstraction which can be extended by either the Stateful client
- *         or the stateless client so that both can share the same Execution Manager.
+ * @notice The StateManager is a simple abstraction which can be extended by
+ *         either the Stateful client or the stateless client so that both can
+ *         share the same Execution Manager.
  */
 contract StateManager {
     // Storage
@@ -16,9 +18,14 @@ contract StateManager {
     function incrementOvmContractNonce(address _ovmContractAddress) external;
 
     // Contract code storage / contract address retrieval
-    function deployContract(address _newOvmContractAddress, bytes memory _ovmContractInitcode) public returns(address codeContractAddress);
+    function deployContract(
+        address _newOvmContractAddress,
+        bytes memory _ovmContractInitcode
+    ) public returns(address codeContractAddress);
     function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) external;
     function getCodeContractAddress(address _ovmContractAddress) external view returns(address);
-    function getCodeContractBytecode(address _codeContractAddress) public view returns (bytes memory codeContractBytecode);
+    function getCodeContractBytecode(
+        address _codeContractAddress
+    ) public view returns (bytes memory codeContractBytecode);
     function getCodeContractHash(address _codeContractAddress) external view returns (bytes32 _codeContractHash);
 }

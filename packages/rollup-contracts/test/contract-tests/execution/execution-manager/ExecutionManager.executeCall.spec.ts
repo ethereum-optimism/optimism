@@ -16,13 +16,6 @@ import {
   TestUtils,
   getCurrentTime,
 } from '@eth-optimism/core-utils'
-
-import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  FullStateManagerContractDefinition as StateManager,
-  TestDummyContractDefinition as DummyContract,
-} from '@eth-optimism/rollup-contracts'
-
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
@@ -30,18 +23,23 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Internal Imports */
 import { manuallyDeployOvmContract, ZERO_UINT } from '../../../test-helpers'
 
-export const abi = new ethers.utils.AbiCoder()
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  FullStateManagerContractDefinition as StateManager,
+  TestDummyContractDefinition as DummyContract,
+} from '../../../../src'
 
+/* Logging */
 const log = getLogger('execution-manager-calls', true)
 
-/*********
- * TESTS *
- *********/
+export const abi = new ethers.utils.AbiCoder()
 
 const unsignedCallMethodId: string = ethereumjsAbi
   .methodID('executeTransaction', [])
   .toString('hex')
 
+/* Tests */
 describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

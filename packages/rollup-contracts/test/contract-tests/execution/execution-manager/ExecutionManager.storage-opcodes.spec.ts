@@ -7,10 +7,9 @@ import {
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-import { ExecutionManagerContractDefinition as ExecutionManager } from '@eth-optimism/rollup-contracts'
-
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract } from 'ethers'
+import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
@@ -18,9 +17,13 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
-import { fromPairs } from 'lodash'
 
+/* Contract Imports */
+import { ExecutionManagerContractDefinition as ExecutionManager } from '../../../../src'
+
+/* Logging */
 const log = getLogger('execution-manager-storage', true)
+
 const methodIds = fromPairs(
   ['ovmSSTORE', 'ovmSLOAD'].map((methodId) => [
     methodId,
@@ -28,10 +31,7 @@ const methodIds = fromPairs(
   ])
 )
 
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('ExecutionManager -- Storage opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

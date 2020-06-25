@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import { DataTypes } from "../utils/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/RollupMerkleUtils.sol";
 import { L1ToL2TransactionQueue } from "../queue/L1ToL2TransactionQueue.sol";
 import { SafetyTransactionQueue } from "../queue/SafetyTransactionQueue.sol";
 
@@ -13,6 +14,7 @@ contract CanonicalTransactionChain {
 
     address public sequencer;
     uint public forceInclusionPeriod;
+    RollupMerkleUtils public merkleUtils;
     L1ToL2TransactionQueue public l1ToL2Queue;
     SafetyTransactionQueue public safetyQueue;
     uint public cumulativeNumElements;
@@ -25,10 +27,12 @@ contract CanonicalTransactionChain {
      */
 
     constructor(
+        address _rollupMerkleUtilsAddress,
         address _sequencer,
         address _l1ToL2TransactionPasserAddress,
         uint _forceInclusionPeriod
     ) public {
+        merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
         sequencer = _sequencer;
         forceInclusionPeriod = _forceInclusionPeriod;
         lastOVMTimestamp = 0;
@@ -80,7 +84,7 @@ contract CanonicalTransactionChain {
     }
 
     function appendSafetyBatch() public {
-        dt.TimestampedHash memory safetyHeader = safetyQueue.peek();
+        DataTypes.TimestampedHash memory safetyHeader = safetyQueue.peek();
 
         require(
             l1ToL2Queue.isEmpty() || safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(),
@@ -162,7 +166,7 @@ contract CanonicalTransactionChain {
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
             false, // isL1ToL2Tx
-            //merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
+            merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
             _txBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));

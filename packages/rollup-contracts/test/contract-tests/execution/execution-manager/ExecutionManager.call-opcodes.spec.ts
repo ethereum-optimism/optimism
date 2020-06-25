@@ -9,21 +9,15 @@ import {
   getCurrentTime,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-
-import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  TestSimpleCallContractDefinition as SimpleCall,
-  TestDummyContractDefinition as DummyContract,
-} from '@eth-optimism/rollup-contracts'
 import {
   Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '@eth-optimism/rollup-core'
-
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
@@ -34,15 +28,18 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
-import { fromPairs } from 'lodash'
 
-export const abi = new ethers.utils.AbiCoder()
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestSimpleCallContractDefinition as SimpleCall,
+  TestDummyContractDefinition as DummyContract,
+} from '../../../../src'
 
+/* Logging */
 const log = getLogger('execution-manager-calls', true)
 
-/*********
- * TESTS *
- *********/
+export const abi = new ethers.utils.AbiCoder()
 
 const methodIds = fromPairs(
   [
@@ -61,6 +58,7 @@ const sloadKey: string = '11'.repeat(32)
 const unpopultedSLOADResult: string = '00'.repeat(32)
 const populatedSLOADResult: string = '22'.repeat(32)
 
+/* Tests */
 describe('Execution Manager -- Call opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT })
   const [wallet] = getWallets(provider)

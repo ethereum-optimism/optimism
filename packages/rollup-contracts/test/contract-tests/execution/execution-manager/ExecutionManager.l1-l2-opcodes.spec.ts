@@ -15,15 +15,10 @@ import {
   bufToHexString,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-
-import {
-  ExecutionManagerContractDefinition as ExecutionManager,
-  TestSimpleCallContractDefinition as SimpleCall,
-} from '@eth-optimism/rollup-contracts'
-
 import { Contract, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
+import { cloneDeep, fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
@@ -33,11 +28,18 @@ import {
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
-import { cloneDeep, fromPairs } from 'lodash'
+
+/* Contract Imports */
+import {
+  ExecutionManagerContractDefinition as ExecutionManager,
+  TestSimpleCallContractDefinition as SimpleCall,
+} from '../../../../src'
+
+/* Logging */
+const log = getLogger('l2-to-l1-messaging', true)
 
 export const abi = new ethers.utils.AbiCoder()
 
-const log = getLogger('l2-to-l1-messaging', true)
 const methodIds = fromPairs(
   ['makeCall'].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
@@ -89,10 +91,7 @@ function callExecutionManagerExecuteTransaction(
   return callableExecutionManager.executeTransaction.apply(null, parameters)
 }
 
-/*********
- * TESTS *
- *********/
-
+/* Tests */
 describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
   const provider = createMockProvider({ gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }) // debug: true, logger: console })
   const [wallet] = getWallets(provider)

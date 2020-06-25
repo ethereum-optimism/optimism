@@ -1,4 +1,3 @@
-/* Internal Imports */
 import '../../setup'
 
 /* External Imports */
@@ -9,14 +8,16 @@ import {
   EVMOpcode,
   Opcode,
 } from '@eth-optimism/rollup-core'
-import { SafetyCheckerContractDefinition as SafetyChecker } from '@eth-optimism/rollup-contracts'
-
 import { Contract } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+
+/* Contract Imports */
+import { SafetyCheckerContractDefinition as SafetyChecker } from '../../../src'
 
 /* Logging */
 const log = getLogger('safety-checker', true)
 
+/* Helpers */
 const executionManagerAddress = add0x('12'.repeat(20)) // Test Execution Manager address 0x121...212
 const haltingOpcodes: EVMOpcode[] = Opcode.HALTING_OP_CODES
 const haltingOpcodesNoJump: EVMOpcode[] = haltingOpcodes.filter(
@@ -30,12 +31,12 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
     x.name !== 'CALL'
 )
 
+/* Tests */
 describe('Safety Checker', () => {
   const provider = createMockProvider()
   const [wallet] = getWallets(provider)
   let safetyChecker: Contract
 
-  /* Deploy a new whitelist contract before each test */
   beforeEach(async () => {
     safetyChecker = await deployContract(
       wallet,

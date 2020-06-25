@@ -1,12 +1,12 @@
-import * as AddThree from '../build/AddThree.json'
-import * as ContextContract from '../build/ContextContract.json'
-import * as DummyContract from '../build/DummyContract.json'
-import * as InvalidOpcodes from '../build/InvalidOpcodes.json'
-import * as RevertTest from '../build/RevertTest.json'
-import * as SimpleCall from '../build/SimpleCall.json'
-import * as SimpleStorage from '../build/SimpleStorage.json'
-import * as SimpleStorageArgsFromCalldata from '../build/SimpleStorageArgsFromCalldata.json'
-import * as SimpleTxOrigin from '../build/SimpleTxOrigin.json'
+import * as AddThree from '../build/contracts/AddThree.json'
+import * as ContextContract from '../build/contracts/ContextContract.json'
+import * as DummyContract from '../build/contracts/DummyContract.json'
+import * as InvalidOpcodes from '../build/contracts/InvalidOpcodes.json'
+import * as RevertTest from '../build/contracts/RevertTest.json'
+import * as SimpleCall from '../build/contracts/SimpleCall.json'
+import * as SimpleStorage from '../build/contracts/SimpleStorage.json'
+import * as SimpleStorageArgsFromCalldata from '../build/contracts/SimpleStorageArgsFromCalldata.json'
+import * as SimpleTxOrigin from '../build/contracts/SimpleTxOrigin.json'
 
 export const TestAddThreeContractDefinition = AddThree
 export const TestContextContractDefinition = ContextContract

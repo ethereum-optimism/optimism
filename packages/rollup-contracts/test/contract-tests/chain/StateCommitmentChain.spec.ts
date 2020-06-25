@@ -9,15 +9,15 @@ import { Contract } from 'ethers'
 import { StateChainBatch } from '../../test-helpers/RLhelper'
 import { makeRandomBatchOfSize } from '../../test-helpers'
 
+/* Contract Imports */
+import * as StateCommitmentChain from '../../../build/contracts/StateCommitmentChain.json'
+import * as CanonicalTransactionChain from '../../../build/contracts/CanonicalTransactionChain.json'
+import * as RollupMerkleUtils from '../../../build/contracts/RollupMerkleUtils.json'
+
 /* Logging */
 const log = getLogger('state-commitment-chain', true)
 
-/* Contract Imports */
-import * as StateCommitmentChain from '../../../build/StateCommitmentChain.json'
-import * as CanonicalTransactionChain from '../../../build/CanonicalTransactionChain.json'
-import * as RollupMerkleUtils from '../../../build/RollupMerkleUtils.json'
-
-/* Begin tests */
+/* Tests */
 describe('StateCommitmentChain', () => {
   const provider = createMockProvider()
   const [

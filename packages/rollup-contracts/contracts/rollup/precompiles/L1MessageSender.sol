@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 import { ExecutionManager } from "../execution/ExecutionManager.sol";
-
 
 contract L1MessageSender {
     ExecutionManager executionManager;
