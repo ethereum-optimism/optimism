@@ -30,7 +30,7 @@ const getCreate2Address = (
   return getAddress(`0x${keccak256(sanitizedInputs).slice(-40)}`)
 }
 
-describe.only('Create2', () => {
+describe('Create2', () => {
   let wallet
   let simpleCreate2: Contract
   let provider 
@@ -47,7 +47,7 @@ describe.only('Create2', () => {
   })
 
   // TODO uncomment this once ovmCREATE2 is fixed!
-  // it('should calculateAddress correctly for invalid bytecode', async () => {
+  // it('should calculate address correctly for invalid bytecode', async () => {
   //   const bytecode = '0x00'
   //   const salt = DEFAULT_SALT
   //   const tx = await simpleCreate2.create2(bytecode, salt)
@@ -57,7 +57,7 @@ describe.only('Create2', () => {
   //   address.should.equal(expectedAddress)
   // })
 
-  it('should calculateAddress correctly for valid OVM bytecode', async () => {
+  it('should calculate address correctly for valid OVM bytecode', async () => {
     const bytecode = add0x(SimpleStorage.bytecode)
     const salt = DEFAULT_SALT
     const tx = await simpleCreate2.create2(bytecode, salt)
