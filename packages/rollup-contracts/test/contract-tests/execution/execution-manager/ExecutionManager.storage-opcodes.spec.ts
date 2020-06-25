@@ -2,16 +2,16 @@ import '../../../setup'
 
 /* External Imports */
 import { abi, getLogger, add0x } from '@eth-optimism/core-utils'
-import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '@eth-optimism/rollup-core'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract } from 'ethers'
 import { fromPairs } from 'lodash'
 
 /* Internal Imports */
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  GAS_LIMIT,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../../../test-helpers/core-helpers'
 import {
   gasLimit,
   encodeMethodId,

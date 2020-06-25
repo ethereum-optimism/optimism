@@ -2,14 +2,16 @@ import '../../../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
+import { Contract, ethers } from 'ethers'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+
+/* Internal Imports */
 import {
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
-} from '@eth-optimism/rollup-core'
-import { Contract, ethers } from 'ethers'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+} from '../../../test-helpers/core-helpers'
 
 /* Contract Imports */
 import { ExecutionManagerContractDefinition as ExecutionManager } from '../../../../src'

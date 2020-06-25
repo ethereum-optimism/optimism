@@ -51,7 +51,6 @@
   "dependencies": {
     "@eth-optimism/core-db": "^0.0.1-alpha.25",
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
-    "@eth-optimism/rollup-core": "^0.0.1-alpha.25",
     "@types/sinon-chai": "^3.2.2",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",

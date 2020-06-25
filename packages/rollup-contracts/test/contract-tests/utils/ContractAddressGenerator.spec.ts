@@ -2,12 +2,12 @@ import '../../setup'
 
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
-import { DEFAULT_ETHNODE_GAS_LIMIT } from '@eth-optimism/rollup-core'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { utils, Contract } from 'ethers'
 
 /* Internal Imports */
 import { create2Tests } from '../../test-helpers/data/create2.test.json'
+import { DEFAULT_ETHNODE_GAS_LIMIT } from '../../test-helpers/core-helpers'
 import { buildCreate2Address } from '../../test-helpers'
 
 /* Contract Imports */

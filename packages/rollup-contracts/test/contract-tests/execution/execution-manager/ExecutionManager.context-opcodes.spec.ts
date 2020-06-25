@@ -10,17 +10,17 @@ import {
   TestUtils,
   getCurrentTime,
 } from '@eth-optimism/core-utils'
-import {
-  Address,
-  GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '@eth-optimism/rollup-core'
 import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { fromPairs } from 'lodash'
 
 /* Internal Imports */
+import {
+  Address,
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../../../test-helpers/core-helpers'
 import {
   manuallyDeployOvmContract,
   addressToBytes32Address,

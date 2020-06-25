@@ -2,14 +2,6 @@ import '../../../setup'
 
 /* External Imports */
 import {
-  Address,
-  GAS_LIMIT,
-  CHAIN_ID,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-  getUnsignedTransactionCalldata,
-} from '@eth-optimism/rollup-core'
-import {
   getLogger,
   padToLength,
   ZERO_ADDRESS,
@@ -21,7 +13,18 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
-import { manuallyDeployOvmContract, ZERO_UINT } from '../../../test-helpers'
+import {
+  Address,
+  GAS_LIMIT,
+  CHAIN_ID,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+  getUnsignedTransactionCalldata,
+} from '../../../test-helpers/core-helpers'
+import {
+  manuallyDeployOvmContract,
+  ZERO_UINT,
+} from '../../../test-helpers'
 
 /* Contract Imports */
 import {

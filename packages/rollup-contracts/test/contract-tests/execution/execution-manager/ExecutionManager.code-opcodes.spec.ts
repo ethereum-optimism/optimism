@@ -2,12 +2,6 @@ import '../../../setup'
 
 /* External Imports */
 import {
-  Address,
-  GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '@eth-optimism/rollup-core'
-import {
   getLogger,
   BigNumber,
   hexStrToBuf,
@@ -18,6 +12,12 @@ import { Contract, ContractFactory, ethers } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
+import {
+  Address,
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../../../test-helpers/core-helpers'
 import {
   manuallyDeployOvmContract,
   executeOVMCall,

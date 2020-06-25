@@ -23,9 +23,6 @@ import {
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import {
-  convertInternalLogsToOvmLogs,
-  internalTxReceiptToOvmTxReceipt,
-  OvmTransactionReceipt,
   executionManagerInterface,
   l2ToL1MessagePasserInterface,
 } from '@eth-optimism/rollup-contracts'
@@ -46,7 +43,12 @@ import {
   Web3RpcMethods,
   RevertError,
   UnsupportedFilterError,
+  OvmTransactionReceipt,
 } from '../types'
+import {
+  convertInternalLogsToOvmLogs,
+  internalTxReceiptToOvmTxReceipt,
+} from './utils'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
 const log = getLogger('web3-handler')

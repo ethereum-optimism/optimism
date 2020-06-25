@@ -2,14 +2,16 @@ import '../../setup'
 
 /* External Imports */
 import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
+import { Contract } from 'ethers'
+import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+
+/* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
-} from '@eth-optimism/rollup-core'
-import { Contract } from 'ethers'
-import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
+} from '../../test-helpers/core-helpers'
 
 /* Contract Imports */
 import { SafetyCheckerContractDefinition as SafetyChecker } from '../../../src'

@@ -2,13 +2,6 @@ import '../../../setup'
 
 /* External Imports */
 import {
-  Address,
-  GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '@eth-optimism/rollup-core'
-import {
   getLogger,
   getCurrentTime,
   add0x,
@@ -21,6 +14,13 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 import { cloneDeep, fromPairs } from 'lodash'
 
 /* Internal Imports */
+import {
+  Address,
+  GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
+  DEFAULT_ETHNODE_GAS_LIMIT,
+} from '../../../test-helpers/core-helpers'
 import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
