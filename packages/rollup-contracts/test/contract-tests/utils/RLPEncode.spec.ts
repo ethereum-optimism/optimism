@@ -9,7 +9,7 @@ import { Contract } from 'ethers'
 import { rlpTests } from '../../test-helpers/data/rlp.test.json'
 
 /* Contract Imports */
-import { RLPWriterContractDefinition as RLPWriter } from '../../../src'
+import { RLPEncodeContractDefinition as RLPEncode } from '../../../src'
 
 /* Logging */
 const log = getLogger('rlp-encode', true)
@@ -21,7 +21,7 @@ describe('RLP Encoder', () => {
   let rlpWriter: Contract
 
   before(async () => {
-    rlpWriter = await deployContract(wallet1, RLPWriter, [], {
+    rlpWriter = await deployContract(wallet1, RLPEncode, [], {
       gasLimit: 6700000,
     })
   })

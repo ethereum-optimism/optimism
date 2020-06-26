@@ -9,7 +9,7 @@ import * as ContractAddressGenerator from '../build/contracts/ContractAddressGen
 import * as L2ToL1MessageReceiver from '../build/contracts/L2ToL1MessageReceiver.json'
 import * as L2ToL1MessagePasser from '../build/contracts/L2ToL1MessagePasser.json'
 import * as L1ToL2TransactionPasser from '../build/contracts/L1ToL2TransactionPasser.json'
-import * as RLPWriter from '../build/contracts/RLPWriter.json'
+import * as RLPEncode from '../build/contracts/RLPEncode.json'
 import * as SafetyChecker from '../build/contracts/SafetyChecker.json'
 
 /* Contract Exports */
@@ -20,7 +20,7 @@ export const ContractAddressGeneratorContractDefinition = ContractAddressGenerat
 export const L2ToL1MessageReceiverContractDefinition = L2ToL1MessageReceiver
 export const L2ToL1MessagePasserContractDefinition = L2ToL1MessagePasser
 export const L1ToL2TransactionPasserContractDefinition = L1ToL2TransactionPasser
-export const RLPWriterContractDefinition = RLPWriter
+export const RLPEncodeContractDefinition = RLPEncode
 export const SafetyCheckerContractDefinition = SafetyChecker
 
 export const executionManagerInterface = new ethers.utils.Interface(

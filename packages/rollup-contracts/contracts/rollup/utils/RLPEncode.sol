@@ -2,12 +2,11 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * Source: https://github.com/omisego/plasma-mvp/blob/master/plasma/root_chain/contracts/RLPEncode.sol
  * @title RLPEncode
  * @dev A simple RLP encoding library.
  * @author Bakaoh
  */
-library RLPWriter {
+contract RLPEncode {
     /*
      * Public functions
      */
@@ -17,7 +16,7 @@ library RLPWriter {
      * @param self The byte string to encode.
      * @return The RLP encoded string in bytes.
      */
-    function encodeBytes(bytes memory self) internal pure returns (bytes memory) {
+    function encodeBytes(bytes memory self) public pure returns (bytes memory) {
         bytes memory encoded;
         if (self.length == 1 && uint8(self[0]) < 128) {
             encoded = self;
@@ -32,7 +31,7 @@ library RLPWriter {
      * @param self The list of RLP encoded byte strings.
      * @return The RLP encoded list of items in bytes.
      */
-    function encodeList(bytes[] memory self) internal pure returns (bytes memory) {
+    function encodeList(bytes[] memory self) public pure returns (bytes memory) {
         bytes memory list = flatten(self);
         return concat(encodeLength(list.length, 192), list);
     }
@@ -42,7 +41,7 @@ library RLPWriter {
      * @param self The string to encode.
      * @return The RLP encoded string in bytes.
      */
-    function encodeString(string memory self) internal pure returns (bytes memory) {
+    function encodeString(string memory self) public pure returns (bytes memory) {
         return encodeBytes(bytes(self));
     }
 
@@ -51,7 +50,7 @@ library RLPWriter {
      * @param self The address to encode.
      * @return The RLP encoded address in bytes.
      */
-    function encodeAddress(address self) internal pure returns (bytes memory) {
+    function encodeAddress(address self) public pure returns (bytes memory) {
         bytes memory inputBytes;
         assembly {
             let m := mload(0x40)
@@ -67,7 +66,7 @@ library RLPWriter {
      * @param self The uint to encode.
      * @return The RLP encoded uint in bytes.
      */
-    function encodeUint(uint self) internal pure returns (bytes memory) {
+    function encodeUint(uint self) public pure returns (bytes memory) {
         return encodeBytes(toBinary(self));
     }
 
@@ -76,7 +75,7 @@ library RLPWriter {
      * @param self The int to encode.
      * @return The RLP encoded int in bytes.
      */
-    function encodeInt(int self) internal pure returns (bytes memory) {
+    function encodeInt(int self) public pure returns (bytes memory) {
         return encodeUint(uint(self));
     }
 
@@ -85,7 +84,7 @@ library RLPWriter {
      * @param self The bool to encode.
      * @return The RLP encoded bool in bytes.
      */
-    function encodeBool(bool self) internal pure returns (bytes memory) {
+    function encodeBool(bool self) public pure returns (bytes memory) {
         bytes memory encoded = new bytes(1);
         encoded[0] = (self ? bytes1(0x01) : bytes1(0x80));
         return encoded;

@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { RLPWriter } from "./RLPWriter.sol";
+import { RLPEncode } from "./RLPEncode.sol";
 
 /**
  * @title ContractAddressGenerator
@@ -11,10 +11,10 @@ import { RLPWriter } from "./RLPWriter.sol";
  *         Ethereum mainchain.
  */
 contract ContractAddressGenerator {
-    RLPWriter rlp;
+    RLPEncode rlp;
 
     constructor() public {
-        rlp = new RLPWriter();
+        rlp = new RLPEncode();
     }
 
     /**

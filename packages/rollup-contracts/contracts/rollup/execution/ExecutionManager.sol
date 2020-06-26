@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 /* Internal Imports */
 import { DataTypes } from "../utils/DataTypes.sol";
 import { ContractAddressGenerator } from "../utils/ContractAddressGenerator.sol";
-import { RLPWriter } from "../utils/RLPWriter.sol";
+import { RLPEncode } from "../utils/RLPEncode.sol";
 import { L2ToL1MessagePasser } from "../precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "../precompiles/L1MessageSender.sol";
 import { FullStateManager } from "./FullStateManager.sol";
@@ -37,7 +37,7 @@ contract ExecutionManager {
 
     FullStateManager stateManager;
     ContractAddressGenerator contractAddressGenerator;
-    RLPWriter rlp;
+    RLPEncode rlp;
     DataTypes.ExecutionContext executionContext;
 
 
@@ -86,7 +86,7 @@ contract ExecutionManager {
         uint _blockGasLimit,
         bool _overrideSafetyChecker
     ) public {
-        rlp = new RLPWriter();
+        rlp = new RLPEncode();
 
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
