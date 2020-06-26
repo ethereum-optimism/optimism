@@ -186,6 +186,13 @@ export const addressesAreEqual = (one: Address, two: Address): boolean => {
   return remove0x(one).toLowerCase() === remove0x(two).toLowerCase()
 }
 
+/**
+ * Converts the provided Provider into a Provider capable of parsing L1MessageSender off of
+ * Ethers Transactions and blocks that contain Transactions (for use in consuming L2 blocks).
+ *
+ * @param baseProvider The provider to modify.
+ * @returns The modified provider, capable of parsing L1MessageSender off of transactions.
+ */
 export const monkeyPatchL2Provider = (baseProvider) => {
   const checkTransactionResponse = BaseProvider.checkTransactionResponse
 
