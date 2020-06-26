@@ -5,12 +5,12 @@ import {
   runFullnode,
   Web3RpcMethods,
   TestWeb3Handler,
-  FullnodeContext
+  FullnodeContext,
 } from '@eth-optimism/rollup-full-node'
-import {deployContract} from '@eth-optimism/rollup-core'
+import { deployContract } from '@eth-optimism/rollup-core'
 
-import {Contract, Wallet} from 'ethers'
-import {JsonRpcProvider} from 'ethers/providers'
+import { Contract, Wallet } from 'ethers'
+import { JsonRpcProvider } from 'ethers/providers'
 
 /* Contract Imports */
 import * as TimestampCheckerContract from '../build/TimestampChecker.json'
@@ -41,7 +41,12 @@ describe('Timestamp Checker', () => {
     provider = new JsonRpcProvider('http://0.0.0.0:8545')
     wallet = new Wallet(Wallet.createRandom().privateKey, provider)
     const deployWallet = new Wallet(Wallet.createRandom().privateKey, provider)
-    timestampChecker = await deployContract(deployWallet, TimestampCheckerContract, [], {})
+    timestampChecker = await deployContract(
+      deployWallet,
+      TimestampCheckerContract,
+      [],
+      {}
+    )
   })
 
   it('should retrieve initial timestamp correctly', async () => {
@@ -55,20 +60,26 @@ describe('Timestamp Checker', () => {
     const timestamp = (await timestampChecker.blockTimestamp()).toNumber()
     const afterTimestamp = secondsSinceEopch()
 
-    const inequality = beforeTimestamp <= timestamp && timestamp <= afterTimestamp
+    const inequality =
+      beforeTimestamp <= timestamp && timestamp <= afterTimestamp
     inequality.should.equal(true, 'Block timestamp mismatch!')
   })
 
   it('should retrieve the block timestamp correctly after increasing it', async () => {
-    const previousTimestamp = (await timestampChecker.blockTimestamp()).toNumber()
+    const previousTimestamp = (
+      await timestampChecker.blockTimestamp()
+    ).toNumber()
 
     const increase: number = 9999
-    const res = await provider.send(Web3RpcMethods.increaseTimestamp, [`0x${increase.toString(16)}`])
+    const res = await provider.send(Web3RpcMethods.increaseTimestamp, [
+      `0x${increase.toString(16)}`,
+    ])
     res.should.equal(TestWeb3Handler.successString)
 
     const timestamp = (await timestampChecker.blockTimestamp()).toNumber()
-    timestamp.should.be.gte(previousTimestamp + increase, '[Set] block timestamp mismatch!')
+    timestamp.should.be.gte(
+      previousTimestamp + increase,
+      '[Set] block timestamp mismatch!'
+    )
   })
-  
 })
-
