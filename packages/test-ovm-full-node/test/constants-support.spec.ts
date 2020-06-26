@@ -46,7 +46,7 @@ describe.only('Large Constant deployment', () => {
     simpleConstantCreate2 = await deployContract(wallet, SimpleConstantCreate2, [])
   })
 
-  it('should calculate address correctly for valid OVM bytecode in a', async () => {
+  it('should calculate address correctly for valid OVM bytecode in a constant', async () => {
     const salt = DEFAULT_SALT
     const bytecode = add0x(SimpleStorage.bytecode)
     await simpleConstantCreate2.create2(salt)
