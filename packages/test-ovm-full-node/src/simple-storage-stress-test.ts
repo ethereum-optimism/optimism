@@ -1,22 +1,25 @@
 /* External Imports */
-import {add0x, keccak256} from '@eth-optimism/core-utils'
-import {CHAIN_ID, GAS_LIMIT, getUnsignedTransactionCalldata} from '@eth-optimism/rollup-core'
+import { add0x, keccak256 } from '@eth-optimism/core-utils'
+import {
+  CHAIN_ID,
+  GAS_LIMIT,
+  getUnsignedTransactionCalldata,
+} from '@eth-optimism/rollup-core'
 
-import {Contract, Wallet} from 'ethers'
-import {JsonRpcProvider} from 'ethers/providers'
-import {deployContract} from 'ethereum-waffle'
+import { Contract, Wallet } from 'ethers'
+import { JsonRpcProvider } from 'ethers/providers'
+import { deployContract } from 'ethereum-waffle'
 
 /* Internal Imports */
-import {FullNodeStressTest} from './stress-test'
+import { FullNodeStressTest } from './stress-test'
 
 /* Contract Imports */
 import * as SimpleStorage from '../build/SimpleStorage.json'
 
-
 class SimpleStorageStressTest extends FullNodeStressTest {
   private contract: Contract
   constructor(numberOfRequests: number, nodeUrl: string) {
-    super(numberOfRequests, nodeUrl);
+    super(numberOfRequests, nodeUrl)
   }
 
   /**
@@ -33,9 +36,12 @@ class SimpleStorageStressTest extends FullNodeStressTest {
    * @inheritDoc
    */
   protected getSignedTransaction(): Promise<string> {
-
-    const key = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
-    const value = keccak256(Math.floor(Math.random()* 100_000_000_000).toString(16))
+    const key = keccak256(
+      Math.floor(Math.random() * 100_000_000_000).toString(16)
+    )
+    const value = keccak256(
+      Math.floor(Math.random() * 100_000_000_000).toString(16)
+    )
 
     const calldata = getUnsignedTransactionCalldata(
       this.contract,
@@ -51,7 +57,7 @@ class SimpleStorageStressTest extends FullNodeStressTest {
       to: this.contract.address,
       value: 0,
       data: calldata,
-      chainId: CHAIN_ID
+      chainId: CHAIN_ID,
     })
   }
 }
