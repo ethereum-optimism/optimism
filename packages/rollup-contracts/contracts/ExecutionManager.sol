@@ -5,6 +5,8 @@ pragma experimental ABIEncoderV2;
 import {DataTypes as dt} from "./DataTypes.sol";
 import {FullStateManager} from "./FullStateManager.sol";
 import {ContractAddressGenerator} from "./ContractAddressGenerator.sol";
+import {StubSafetyChecker} from "./ovm/test-helpers/StubSafetyChecker.sol";
+import {SafetyChecker} from "./SafetyChecker.sol";
 import {RLPEncode} from "./RLPEncode.sol";
 import {L2ToL1MessagePasser} from "./precompiles/L2ToL1MessagePasser.sol";
 import {L1MessageSender} from "./precompiles/L1MessageSender.sol";
@@ -34,6 +36,7 @@ contract ExecutionManager {
     FullStateManager stateManager;
     ContractAddressGenerator contractAddressGenerator;
     RLPEncode rlp;
+    SafetyChecker safetyChecker;
 
     /***************
     * Other Fields *
@@ -76,7 +79,13 @@ contract ExecutionManager {
         // Initialize new contract address generator
         contractAddressGenerator = new ContractAddressGenerator();
         // Deploy a default state manager
-        stateManager = new FullStateManager(_opcodeWhitelistMask, _overrideSafetyChecker);
+        stateManager = new FullStateManager();
+        // Deploy a safety checker. TODO: Pass this in as a constructor and remove `_overrideSafetyChecker`
+        if (!_overrideSafetyChecker) {
+            safetyChecker = new SafetyChecker(_opcodeWhitelistMask, address(this));
+        } else {
+            safetyChecker = new StubSafetyChecker();
+        }
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
@@ -581,17 +590,23 @@ contract ExecutionManager {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
+        if (!safetyChecker.isBytecodeSafe(_ovmInitcode)) {
+            // Contract init code is not safe.
+            return false;
+        }
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode);
-        // Return false if the contract failed to deploy
-        if (codeContractAddress == ZERO_ADDRESS) {
-            restoreContractContext(oldMsgSender, oldActiveContract);
+        address codeContractAddress = deployCodeContract(_ovmInitcode);
+        // Get the runtime bytecode
+        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
+        // Safety check the runtime bytecode
+        if (!safetyChecker.isBytecodeSafe(codeContractBytecode)) {
+            // Contract runtime bytecode is not safe.
             return false;
         }
-        // TODO: Replace `getCodeContractBytecode(...) with `getOvmContractBytecode(...)
-        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
+        // Associate the code contract with our ovm contract
+        stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
         // Revert to the previous the context
@@ -599,6 +614,24 @@ contract ExecutionManager {
         // Emit CreatedContract event! We've created a new contract!
         emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
         return true;
+    }
+
+    /**
+     * @notice Deploys a code contract, and then registers it to the state
+     * @param _ovmContractInitcode The bytecode of the contract to be deployed
+     * @return the codeContractAddress.
+     */
+    function deployCodeContract(bytes memory _ovmContractInitcode) internal returns(address codeContractAddress) {
+        // Deploy a new contract with this _ovmContractInitCode
+        assembly {
+            // Set our codeContractAddress to the address returned by our CREATE operation
+            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
+            // Make sure that the CREATE was successful (actually deployed something)
+            if iszero(extcodesize(codeContractAddress)) {
+                revert(0, 0)
+            }
+        }
+        return codeContractAddress;
     }
 
     /************************

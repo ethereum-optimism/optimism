@@ -283,35 +283,4 @@ contract PartialStateManager {
         _codeContractHash = keccak256(codeContractBytecode);
         return _codeContractHash;
     }
-
-    /**
-     * @notice Deploys a code contract, and then registers it to the state
-     * @param _ovmContractInitcode The bytecode of the contract to be deployed
-     * @return the codeContractAddress.
-     */
-    function deployContract(
-        address _newOvmContractAddress,
-        bytes memory _ovmContractInitcode
-    ) onlyExecutionManager public returns(address codeContractAddress) {
-        flagIfNotVerifiedContract(_newOvmContractAddress);
-
-        // Deploy a new contract with this _ovmContractInitCode
-        assembly {
-            // Set our codeContractAddress to the address returned by our CREATE operation
-            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
-            // Make sure that the CREATE was successful (actually deployed something)
-            if iszero(extcodesize(codeContractAddress)) {
-                revert(0, 0)
-            }
-        }
-
-        // Associate the code contract with the ovm contract
-        associateCodeContract(_newOvmContractAddress, codeContractAddress);
-
-        // Add this contract to the list of updated contracts
-        updatedContracts[updatedContractsCounter] = _newOvmContractAddress;
-        updatedContractsCounter += 1;
-
-        return codeContractAddress;
-    }
 }
