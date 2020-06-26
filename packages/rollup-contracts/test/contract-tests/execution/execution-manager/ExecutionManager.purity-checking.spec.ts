@@ -43,6 +43,7 @@ describe('Execution Manager -- Safety Checking', () => {
       { gasLimit: DEFAULT_ETHNODE_GAS_LIMIT }
     )
   })
+
   describe('Safety Checking within Execution Manager', async () => {
     it('should fail when given an unsafe contract', async () => {
       // For transactions,
@@ -63,6 +64,7 @@ describe('Execution Manager -- Safety Checking', () => {
         `DummyContract.sol should not have been considered safe because it uses storage in its constructor`
       )
     })
+
     it('should successfully deploy a safe contract', async () => {
       const receipt = await manuallyDeployOvmContractReturnReceipt(
         wallet,
