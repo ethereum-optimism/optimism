@@ -246,7 +246,7 @@ const encodeAccountState = (state: StateTrieNode): Buffer => {
     state.nonce,
     state.balance,
     state.storageRoot,
-    state.codeHash
+    state.codeHash,
   ])
 }
 
@@ -260,22 +260,20 @@ const decodeAccountState = (state: Buffer): StateTrieNode => {
   }
 }
 
-const makeStateTrie = async (
-  state: StateTrieMap
-): Promise<StateTrie> => {
-  const stateTrie = new BaseTrie();
-  const accountTries: { [address: string]: BaseTrie } = {};
+const makeStateTrie = async (state: StateTrieMap): Promise<StateTrie> => {
+  const stateTrie = new BaseTrie()
+  const accountTries: { [address: string]: BaseTrie } = {}
 
   for (const address of Object.keys(state)) {
     const account = state[address]
-    accountTries[address] = await makeTrie(account.storage);
-    account.state.storageRoot = toHexString(accountTries[address].root);
-    await stateTrie.put(toHexBuffer(address), encodeAccountState(account.state));
+    accountTries[address] = await makeTrie(account.storage)
+    account.state.storageRoot = toHexString(accountTries[address].root)
+    await stateTrie.put(toHexBuffer(address), encodeAccountState(account.state))
   }
 
   return {
     trie: stateTrie,
-    storage: accountTries
+    storage: accountTries,
   }
 }
 
@@ -286,12 +284,21 @@ export const makeAccountStorageProofTest = async (
   val?: string
 ): Promise<AccountStorageProofTest> => {
   const stateTrie = await makeStateTrie(state)
-  
+
   const storageTrie = stateTrie.storage[target]
   const storageTrieWitness = await BaseTrie.prove(storageTrie, toHexBuffer(key))
-  const ret = val || await BaseTrie.verifyProof(storageTrie.root, toHexBuffer(key), storageTrieWitness)
+  const ret =
+    val ||
+    (await BaseTrie.verifyProof(
+      storageTrie.root,
+      toHexBuffer(key),
+      storageTrieWitness
+    ))
 
-  const stateTrieWitness = await BaseTrie.prove(stateTrie.trie, toHexBuffer(target));
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    toHexBuffer(target)
+  )
 
   return {
     address: target,
@@ -299,7 +306,7 @@ export const makeAccountStorageProofTest = async (
     val: toHexString(ret),
     stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
     storageTrieWitness: toHexString(rlp.encode(storageTrieWitness)),
-    stateTrieRoot: toHexString(stateTrie.trie.root)
+    stateTrieRoot: toHexString(stateTrie.trie.root),
   }
 }
 
@@ -308,13 +315,16 @@ export const makeAccountStorageUpdateTest = async (
   target: string,
   key: string,
   val: string,
-  accountState?: StateTrieNode,
+  accountState?: StateTrieNode
 ): Promise<AccountStorageUpdateTest> => {
   const stateTrie = await makeStateTrie(state)
-  
+
   const storageTrie = stateTrie.storage[target]
   const storageTrieWitness = await BaseTrie.prove(storageTrie, toHexBuffer(key))
-  const stateTrieWitness = await BaseTrie.prove(stateTrie.trie, toHexBuffer(target))
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    toHexBuffer(target)
+  )
 
   if (!accountState) {
     await storageTrie.put(toHexBuffer(key), toHexBuffer(val))
@@ -324,7 +334,10 @@ export const makeAccountStorageUpdateTest = async (
   }
 
   const oldStateTrieRoot = toHexString(stateTrie.trie.root)
-  await stateTrie.trie.put(toHexBuffer(target), encodeAccountState(accountState))
+  await stateTrie.trie.put(
+    toHexBuffer(target),
+    encodeAccountState(accountState)
+  )
 
   return {
     address: target,
@@ -333,7 +346,7 @@ export const makeAccountStorageUpdateTest = async (
     stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
     storageTrieWitness: toHexString(rlp.encode(storageTrieWitness)),
     stateTrieRoot: oldStateTrieRoot,
-    newStateTrieRoot: toHexString(stateTrie.trie.root)
+    newStateTrieRoot: toHexString(stateTrie.trie.root),
   }
 }
 
