@@ -5,7 +5,7 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { TxQueueBatch } from '../../test-helpers/RLhelper'
+import { TxQueueBatch } from '../../test-helpers/rl-helpers'
 
 /* Contract Imports */
 import * as RollupQueue from '../../../build/contracts/RollupQueue.json'

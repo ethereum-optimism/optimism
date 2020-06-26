@@ -3,7 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
 import { StateManager } from "./StateManager.sol";
-import { SafetyChecker } from "../utils/SafetyChecker.sol";
+import { SafetyChecker } from "./SafetyChecker.sol";
 
 /**
  * @title FullStateManager

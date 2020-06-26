@@ -6,7 +6,7 @@ import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'
 import { Contract } from 'ethers'
 
 /* Internal Imports */
-import { StateChainBatch, TxChainBatch } from '../../test-helpers/RLhelper'
+import { StateChainBatch, TxChainBatch } from '../../test-helpers/rl-helpers'
 
 /* Contract Imports */
 import * as StateCommitmentChain from '../../../build/contracts/StateCommitmentChain.json'

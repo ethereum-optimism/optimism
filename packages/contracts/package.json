@@ -18,8 +18,7 @@
     "build:contracts": "mkdir -p ./build/contracts && waffle waffle-config.json",
     "build:typescript": "tsc -p .",
     "clean": "rimraf build/",
-    "deploy:rollup-chain": "yarn build && node ./build/deploy/rollup-chain.js",
-    "test:womp": "mocha --require ts-node/register \"test/**/MerkleTrie.spec.ts\" --timeout 20000 --bail"
+    "deploy:rollup-chain": "yarn build && node ./build/deploy/rollup-chain.js"
   },
   "keywords": [
     "optimistic",

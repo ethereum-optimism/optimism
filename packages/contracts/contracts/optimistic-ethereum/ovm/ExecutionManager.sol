@@ -5,8 +5,8 @@ pragma experimental ABIEncoderV2;
 import { DataTypes } from "../utils/DataTypes.sol";
 import { ContractAddressGenerator } from "../utils/ContractAddressGenerator.sol";
 import { RLPEncode } from "../utils/RLPEncode.sol";
-import { L2ToL1MessagePasser } from "../precompiles/L2ToL1MessagePasser.sol";
-import { L1MessageSender } from "../precompiles/L1MessageSender.sol";
+import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
+import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { FullStateManager } from "./FullStateManager.sol";
 
 /**

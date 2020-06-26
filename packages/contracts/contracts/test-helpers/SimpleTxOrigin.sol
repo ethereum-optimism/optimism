@@ -1,12 +1,12 @@
 pragma solidity ^0.5.0;
 
-import { ExecutionManager } from "../rollup/execution/ExecutionManager.sol";
+import { ExecutionManager } from "../optimistic-ethereum/ovm/ExecutionManager.sol";
 
 /**
- * @title SimpleStorageArgsFromCalldata
- * @notice A simple contract testing the execution manager's storage.
+ * @title SimpleTxOrigin
+ * @notice A simple contract testing the transaction origin opcode.
  */
-contract SimpleStorageArgsFromCalldata {
+contract SimpleTxOrigin {
     address executionManagerAddress;
 
     /**
@@ -18,10 +18,9 @@ contract SimpleStorageArgsFromCalldata {
         executionManagerAddress = _executionManagerAddress;
     }
 
-    // takes slot bytes32, returns value bytes32
-    function getStorage() public {
+    function getOrigin() public {
         // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
-        bytes32 methodId = keccak256("ovmSLOAD()") >> 224;
+        bytes32 methodId = keccak256("ovmORIGIN()") >> 224;
         address addr = executionManagerAddress;
 
         assembly {
@@ -43,30 +42,6 @@ contract SimpleStorageArgsFromCalldata {
             }
 
             return(result, returndatasize)
-        }
-    }
-
-    // takes slot bytes32, value bytes32. No return value.
-    function setStorage() public {
-        // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
-        bytes32 methodId = keccak256("ovmSSTORE()") >> 224;
-        address addr = executionManagerAddress;
-
-        assembly {
-            let callBytes := mload(0x40)
-            calldatacopy(callBytes, 0, calldatasize)
-
-            // replace the first 4 bytes with the right methodID
-            mstore8(callBytes, shr(24, methodId))
-            mstore8(add(callBytes, 1), shr(16, methodId))
-            mstore8(add(callBytes, 2), shr(8, methodId))
-            mstore8(add(callBytes, 3), methodId)
-
-            let success := call(gas, addr, 0, callBytes, calldatasize, 0, 0)
-
-            if eq(success, 0) {
-                revert(0, 0)
-            }
         }
     }
 }
