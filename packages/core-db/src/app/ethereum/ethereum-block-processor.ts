@@ -24,7 +24,7 @@ export class EthereumBlockProcessor {
   constructor(
     private readonly db: DB,
     private readonly earliestBlock: number = 0,
-    private readonly confirmsUntilFinal: number = 1
+    private readonly confirmsUntilFinal: number = 1,
   ) {
     this.subscriptions = new Set<EthereumListener<Block>>()
     this.currentBlockNumber = 0

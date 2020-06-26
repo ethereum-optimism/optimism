@@ -1,10 +1,11 @@
 /* External Imports */
-import { bufToHexString, remove0x } from '@eth-optimism/core-utils'
+import { bufToHexString, isObject, remove0x } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
 import { Address, EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
+import { BaseProvider, Provider, TransactionResponse } from 'ethers/providers'
 
 /**
  * Creates an unsigned transaction and returns its calldata.
@@ -183,4 +184,73 @@ export const addressesAreEqual = (one: Address, two: Address): boolean => {
   }
 
   return remove0x(one).toLowerCase() === remove0x(two).toLowerCase()
+}
+
+export const monkeyPatchL2Provider = (baseProvider) => {
+  const checkTransactionResponse = BaseProvider.checkTransactionResponse
+
+  const txPatch = (res, tx): TransactionResponse => {
+    if (isObject(tx) && !!tx['l1MessageSender']) {
+      res['l1MessageSender'] = tx['l1MessageSender']
+    }
+    return res
+  }
+
+  BaseProvider.checkTransactionResponse = (tx): TransactionResponse => {
+    return txPatch(checkTransactionResponse(tx), tx)
+  }
+
+  const perform = baseProvider.perform
+  baseProvider.perform = async function(method, args) {
+    if (
+      method === 'eth_getBlockByHash' ||
+      method === 'eth_getBlockByNumber' ||
+      method === 'getBlock'
+    ) {
+      const block = await perform.call(this, method, args)
+      if (!block) {
+        return block
+      }
+      if (!this.fetchedBlocks) {
+        this.fetchedBlocks = new Map()
+      }
+      this.fetchedBlocks.set(block.hash, block)
+      return block
+    }
+
+    return perform.call(this, method, args)
+  }
+
+  const getBlock = baseProvider.getBlock
+  baseProvider.getBlock = async function(identifier, includeTxs) {
+    const block = await getBlock.call(this, identifier, includeTxs)
+    if (
+      !block ||
+      !includeTxs ||
+      !block.transactions ||
+      block.transactions.length === 0
+    ) {
+      return block
+    }
+    if (!this.fetchedBlocks) {
+      return block
+    }
+
+    const rawBlock = this.fetchedBlocks.get(block.hash)
+    if (!rawBlock) {
+      return block
+    }
+
+    for (let i = 0; i < block.transactions.length; i++) {
+      if (!!rawBlock.transactions[i]['l1MessageSender']) {
+        block.transactions[i]['l1MessageSender'] =
+          rawBlock.transactions[i]['l1MessageSender']
+      }
+    }
+
+    this.fetchedBlocks.delete(block.hash)
+    return block
+  }
+
+  return baseProvider
 }
