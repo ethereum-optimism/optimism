@@ -28,6 +28,13 @@ export interface RollupTransaction {
   calldata: string
 }
 
+export type LogHandler = (l: Log, tx: TransactionResponse) => Promise<void>
+export interface LogHandlerContext {
+  topic: string
+  contractAddress: Address
+  handleLog: LogHandler
+}
+
 export type L1Batch = RollupTransaction[]
 export interface BlockBatches {
   timestamp: number

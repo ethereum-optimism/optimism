@@ -34,8 +34,7 @@
     "@eth-optimism/rollup-contracts": "^0.0.1-alpha.25",
     "ethereum-waffle": "2.1.0",
     "async-lock": "^1.2.2",
-    "ethers": "^4.0.39",
-    "rewire": "4.0.1"
+    "ethers": "^4.0.39"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",

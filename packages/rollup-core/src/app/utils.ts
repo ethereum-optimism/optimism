@@ -5,7 +5,7 @@ import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
 import { Address, EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
-import { BaseProvider, Provider, TransactionResponse } from 'ethers/providers'
+import { BaseProvider, TransactionResponse } from 'ethers/providers'
 
 /**
  * Creates an unsigned transaction and returns its calldata.
@@ -194,19 +194,19 @@ export const addressesAreEqual = (one: Address, two: Address): boolean => {
  * @returns The modified provider, capable of parsing L1MessageSender off of transactions.
  */
 export const monkeyPatchL2Provider = (baseProvider) => {
+  // Patch static tx parsing function of BaseProvider
+  // (unfortunately this won't apply to blocks with txs)
   const checkTransactionResponse = BaseProvider.checkTransactionResponse
-
-  const txPatch = (res, tx): TransactionResponse => {
+  BaseProvider.checkTransactionResponse = (tx): TransactionResponse => {
+    const res = checkTransactionResponse(tx)
     if (isObject(tx) && !!tx['l1MessageSender']) {
       res['l1MessageSender'] = tx['l1MessageSender']
     }
     return res
   }
 
-  BaseProvider.checkTransactionResponse = (tx): TransactionResponse => {
-    return txPatch(checkTransactionResponse(tx), tx)
-  }
-
+  // Need to overwrite perform in order to save the raw block to
+  // parse l1MessageSender from it after getBlock
   const perform = baseProvider.perform
   baseProvider.perform = async function(method, args) {
     if (
@@ -214,20 +214,22 @@ export const monkeyPatchL2Provider = (baseProvider) => {
       method === 'eth_getBlockByNumber' ||
       method === 'getBlock'
     ) {
-      const block = await perform.call(this, method, args)
-      if (!block) {
-        return block
+      const rawBlock = await perform.call(this, method, args)
+      if (!rawBlock) {
+        return rawBlock
       }
       if (!this.fetchedBlocks) {
         this.fetchedBlocks = new Map()
       }
-      this.fetchedBlocks.set(block.hash, block)
-      return block
+      this.fetchedBlocks.set(rawBlock.hash, rawBlock)
+      return rawBlock
     }
 
     return perform.call(this, method, args)
   }
 
+  // Overwrite getBlock to function as normally but put
+  // the appropriate l1MessageSender on all transactions in the resulting object
   const getBlock = baseProvider.getBlock
   baseProvider.getBlock = async function(identifier, includeTxs) {
     const block = await getBlock.call(this, identifier, includeTxs)
