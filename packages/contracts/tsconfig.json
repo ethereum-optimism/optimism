@@ -6,5 +6,11 @@
     "resolveJsonModule": true
   },
   "include": ["*.ts", "**/*.ts"],
-  "exclude": ["./build", "node_modules"]
+  "exclude": ["./build", "node_modules"],
+  "files": [
+    "./buidler.config.ts",
+    "./buidler-env.d.ts",
+    "./node_modules/@nomiclabs/buidler-ethers/src/type-extensions.d.ts",
+    "./node_modules/@nomiclabs/buidler-waffle/src/type-extensions.d.ts"
+  ]
 }
