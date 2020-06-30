@@ -1,53 +1,24 @@
 /* External Imports */
 import { ethers } from 'ethers'
+import { bufToHexString, getLogger } from '@eth-optimism/core-utils'
 import {
-  bufToHexString,
-  remove0x,
-  getLogger,
-  hexStrToBuf,
-  deploy,
-} from '@eth-optimism/core-utils'
-import {
-  Address,
-  bytecodeToBuffer,
-  EVMBytecode,
-  EVMOpcode,
   formatBytecode,
   Opcode,
-  EVMOpcodeAndBytes,
   bufferToBytecode,
 } from '@eth-optimism/rollup-core'
-import * as ethereumjsAbi from 'ethereumjs-abi'
 import * as AbiEncodedConstantInConstructor from '../contracts/build/AbiEncodedConstantInConstructor.json'
 
 /* Internal Imports */
 import {
   EvmIntrospectionUtil,
   ExecutionResult,
-  StepContext,
-  CallContext,
   EvmIntrospectionUtilImpl,
-  getPUSHBuffer,
-  getPUSHIntegerOp,
 } from '../../src'
-import {
-  ErroredTranspilation,
-  OpcodeReplacer,
-  OpcodeWhitelist,
-  TranspilationErrors,
-  TranspilationResult,
-  Transpiler,
-  SuccessfulTranspilation,
-} from '../../src/types/transpiler'
-import {
-  TranspilerImpl,
-  OpcodeReplacerImpl,
-  OpcodeWhitelistImpl,
-} from '../../src/tools/transpiler'
+
+import { TranspilerImpl, OpcodeWhitelistImpl } from '../../src/tools/transpiler'
 import { transpileAndDeployInitcode, mockSSTOREReplacer } from '../helpers'
 
 const log = getLogger(`test-constructor-params-new`)
-const abi = new ethers.utils.AbiCoder()
 
 const getGetterReturnedVal = async (
   deployedAddress: Buffer,
@@ -95,38 +66,26 @@ describe('Solitity contracts should have hardcoded values correctly accessible i
   })
 
   it(`The hash of an abi.encode(hardcoded) should be correct and retrievable if stored during constructor()`, async () => {
-    // set up expected values step-by-step
-    const expectedInnerBytesBeingHashed = Buffer.from(
-      ethers.utils.toUtf8Bytes(
-        'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'
+    const expectedStoredVal = ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(
+        ['bytes32', 'uint256'],
+        [
+          ethers.utils.keccak256(
+            Buffer.from(
+              ethers.utils.toUtf8Bytes(
+                'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'
+              )
+            )
+          ),
+          1,
+        ]
       )
     )
-    log.debug(
-      `expectedInnerBytesBeingHashed: ${bufToHexString(
-        expectedInnerBytesBeingHashed
-      )}`
-    )
-    const expectedInnerHashRaw = ethers.utils.keccak256(
-      expectedInnerBytesBeingHashed
-    )
-    log.debug(`expectedInnerHashRaw: ${expectedInnerHashRaw}`)
-    const expectedInnerHashAndValEncoded = ethers.utils.defaultAbiCoder.encode(
-      ['bytes32', 'uint256'],
-      [expectedInnerHashRaw, 1]
-    )
-    log.debug(
-      `expectedInnerHashAndValEncoded: ${expectedInnerHashAndValEncoded}`
-    )
-    const expectedOuterHash = ethers.utils.keccak256(
-      expectedInnerHashAndValEncoded
-    )
-    log.debug(`expected final outer hash: ${expectedOuterHash}`)
-    log.debug(`Calling get...`)
     const res = await getGetterReturnedVal(
       deployedGetterAddress,
       'getConstant',
       evmUtil
     )
-    bufToHexString(res).should.eq(expectedOuterHash)
+    bufToHexString(res).should.eq(expectedStoredVal)
   })
 })
