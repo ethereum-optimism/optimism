@@ -94,7 +94,7 @@ describe('Solitity contracts should have hardcoded values correctly accessible i
     )
   })
 
-  it(`The hash of an abi.encode(hardcoded) should be correct and retrievable if stoed during constructor()`, async () => {
+  it(`The hash of an abi.encode(hardcoded) should be correct and retrievable if stored during constructor()`, async () => {
     // set up expected values step-by-step
     const expectedInnerBytesBeingHashed = Buffer.from(
       ethers.utils.toUtf8Bytes(
