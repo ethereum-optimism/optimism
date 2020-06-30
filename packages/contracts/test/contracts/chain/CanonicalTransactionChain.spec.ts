@@ -103,7 +103,7 @@ describe('CanonicalTransactionChain', () => {
     CanonicalTransactionChain = await ethers.getContractFactory(
       'CanonicalTransactionChain'
     )
-    L1toL2Queue = await ethers.getContractFactory('L1toL2TransactionQueue')
+    L1toL2Queue = await ethers.getContractFactory('L1ToL2TransactionQueue')
     SafetyQueue = await ethers.getContractFactory('SafetyTransactionQueue')
 
     rollupMerkleUtils = await RollupMerkleUtils.deploy()

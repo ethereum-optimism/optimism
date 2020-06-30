@@ -25,7 +25,7 @@ describe('L1ToL2TransactionQueue', () => {
 
   let L1toL2TxQueue: ContractFactory
   before(async () => {
-    L1toL2TxQueue = await ethers.getContractFactory('L1toL2TransactionQueue')
+    L1toL2TxQueue = await ethers.getContractFactory('L1ToL2TransactionQueue')
   })
 
   let l1ToL2TxQueue: Contract
