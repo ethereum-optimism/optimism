@@ -225,24 +225,15 @@ contract PartialStateManager {
     }
 
     /**
-     * @notice Get the bytecode at some OVM contract address.
-     * @param _ovmContractAddress The address of the OVM contract.
-     * @return The bytecode at this address.
-     */
-    function getOvmContractBytecode(address _ovmContractAddress) public onlyExecutionManager returns(bytes memory) {
-        // First we've got to make sure the contract has been verified.
-        flagIfNotVerifiedContract(_ovmContractAddress);
-
-        return getCodeContractBytecode(ovmCodeContracts[_ovmContractAddress]);
-    }
-
-    /**
      * @notice Get the bytecode at some code  address. NOTE: This is code taken from Solidity docs here:
      *         https://solidity.readthedocs.io/en/v0.5.0/assembly.html#example
      * @param _codeContractAddress The address of the code contract.
      * @return The bytecode at this address.
      */
     function getCodeContractBytecode(address _codeContractAddress) public view returns (bytes memory codeContractBytecode) {
+        // NOTE: We don't need to verify that this is an authenticated contract because this will always be proceeded by a
+        //       call to getCodeContractAddress(address _ovmContractAddress) in the EM which does this check.
+
         assembly {
             // retrieve the size of the code
             let size := extcodesize(_codeContractAddress)
@@ -259,25 +250,14 @@ contract PartialStateManager {
     }
 
     /**
-     * @notice Get the hash of the deployed bytecode of some OVM contract.
-     * @param _ovmContractAddress The address of the OVM contract.
-     * @return The hash of the bytecode at this address.
-     */
-    function getOvmContractHash(address _ovmContractAddress) public onlyExecutionManager returns(bytes32 _ovmContractHash) {
-        flagIfNotVerifiedContract(_ovmContractAddress);
-
-        // TODO: Use EXTCODEHASH instead of this really inefficient stuff.
-        bytes memory codeContractBytecode = getCodeContractBytecode(ovmCodeContracts[_ovmContractAddress]);
-        _ovmContractHash = keccak256(codeContractBytecode);
-        return _ovmContractHash;
-    }
-
-    /**
      * @notice Get the hash of the deployed bytecode of some code contract.
      * @param _codeContractAddress The address of the code contract.
      * @return The hash of the bytecode at this address.
      */
     function getCodeContractHash(address _codeContractAddress) public view returns (bytes32 _codeContractHash) {
+        // NOTE: We don't need to verify that this is an authenticated contract because this will always be proceeded by a
+        //       call to getCodeContractAddress(address _ovmContractAddress) in the EM which does this check.
+
         // TODO: Use EXTCODEHASH instead of this really inefficient stuff.
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);

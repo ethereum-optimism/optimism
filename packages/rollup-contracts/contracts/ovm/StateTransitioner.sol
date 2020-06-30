@@ -84,7 +84,6 @@ contract StateTransitioner {
     * Transaction Execution *
     ************************/
     function applyTransaction() public returns(bool) {
-        // TODO:
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
         // TODO: Get the transaction from the _transitionIndex. For now this'll just be dummy data
