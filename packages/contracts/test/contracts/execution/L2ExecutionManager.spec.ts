@@ -23,7 +23,7 @@ const value: string = add0x('02'.repeat(32))
 describe('L2 Execution Manager', () => {
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let L2ExecutionManager: ContractFactory

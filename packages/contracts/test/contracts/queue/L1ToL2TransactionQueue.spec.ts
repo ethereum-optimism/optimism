@@ -16,7 +16,11 @@ describe('L1ToL2TransactionQueue', () => {
   let l1ToL2TransactionPasser: Signer
   let canonicalTransactionChain: Signer
   before(async () => {
-    [wallet, l1ToL2TransactionPasser, canonicalTransactionChain] = await ethers.getSigners()
+    ;[
+      wallet,
+      l1ToL2TransactionPasser,
+      canonicalTransactionChain,
+    ] = await ethers.getSigners()
   })
 
   let L1toL2TxQueue: ContractFactory
@@ -28,7 +32,7 @@ describe('L1ToL2TransactionQueue', () => {
   beforeEach(async () => {
     l1ToL2TxQueue = await L1toL2TxQueue.deploy(
       await l1ToL2TransactionPasser.getAddress(),
-      await canonicalTransactionChain.getAddress(),
+      await canonicalTransactionChain.getAddress()
     )
   })
 

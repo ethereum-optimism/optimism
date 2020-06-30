@@ -5,7 +5,7 @@
     "baseUrl": "./",
     "resolveJsonModule": true
   },
-  "include": ["*.ts", "**/*.ts"],
+  "include": ["*.ts", "**/*.ts", "artifacts/*.json"],
   "exclude": ["./build", "node_modules"],
   "files": [
     "./buidler.config.ts",

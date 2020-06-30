@@ -5,10 +5,7 @@ import {
   getLogger,
   logError,
 } from '@eth-optimism/core-utils'
-import {
-  L1ToL2TransactionPasserContractDefinition,
-  L2ToL1MessageReceiverContractDefinition,
-} from '@eth-optimism/rollup-contracts'
+import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Contract, providers, Wallet } from 'ethers'
 import { createMockProvider, deployContract } from 'ethereum-waffle'
@@ -18,6 +15,13 @@ import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
 import { Address, L1NodeContext } from '../../types'
 import { Environment } from './environment'
 import { GAS_LIMIT } from '../constants'
+
+const L1ToL2TransactionPasserContractDefinition = getContractDefinition(
+  'L1ToL2TransactionPasser'
+)
+const L2ToL1MessageReceiverContractDefinition = getContractDefinition(
+  'L2ToL1MessageReceiver'
+)
 
 const log = getLogger('local-l1-node')
 

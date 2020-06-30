@@ -34,7 +34,7 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
 describe('Safety Checker', () => {
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let SafetyChecker: ContractFactory

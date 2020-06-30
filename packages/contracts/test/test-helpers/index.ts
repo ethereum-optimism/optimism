@@ -6,7 +6,9 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 /* Internal Imports */
 import * as ExecutionManager from '../../artifacts/ExecutionManager.json'
 
-const executionManagerInterface = new ethers.utils.Interface(ExecutionManager.abi)
+const executionManagerInterface = new ethers.utils.Interface(
+  ExecutionManager.abi
+)
 
 /**********************************
  * Byte String Generation Helpers *
@@ -58,7 +60,7 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { DEFAULT_ACCOUNTS } from '../../src/constants'
+import { DEFAULT_ACCOUNTS } from './constants'
 import { Address, CHAIN_ID, GAS_LIMIT } from './core-helpers'
 
 type Signature = [string, string, string]
@@ -194,7 +196,10 @@ export const getWallets = (): Wallet[] => {
   })
 }
 
-export const signTransaction = async (wallet: Wallet, transaction: any): Promise<string> => {
+export const signTransaction = async (
+  wallet: Wallet,
+  transaction: any
+): Promise<string> => {
   return wallet.signTransaction(transaction)
 }
 
@@ -291,7 +296,9 @@ export const manuallyDeployOvmContractReturnReceipt = async (
   contractDefinition: ContractFactory,
   constructorArguments: any[]
 ): Promise<any> => {
-  const initCode = contractDefinition.getDeployTransaction(...constructorArguments).data as string
+  const initCode = contractDefinition.getDeployTransaction(
+    ...constructorArguments
+  ).data as string
 
   const receipt: TransactionReceipt = await executeTransaction(
     executionManager,

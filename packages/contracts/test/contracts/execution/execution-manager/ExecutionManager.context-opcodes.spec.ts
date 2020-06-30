@@ -50,10 +50,10 @@ const methodIds = fromPairs(
 /* Tests */
 describe('Execution Manager -- Context opcodes', () => {
   const provider = ethers.provider
-  
+
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let ExecutionManager: ContractFactory

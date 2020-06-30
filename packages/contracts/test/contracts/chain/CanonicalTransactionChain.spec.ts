@@ -18,13 +18,18 @@ describe('CanonicalTransactionChain', () => {
   const FORCE_INCLUSION_PERIOD = 600 //600 seconds = 10 minutes
   const DEFAULT_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX = '0x1234'
-  
+
   let wallet: Signer
   let sequencer: Signer
   let l1ToL2TransactionPasser: Signer
   let randomWallet: Signer
   before(async () => {
-    [wallet, sequencer, l1ToL2TransactionPasser, randomWallet] = await ethers.getSigners()
+    ;[
+      wallet,
+      sequencer,
+      l1ToL2TransactionPasser,
+      randomWallet,
+    ] = await ethers.getSigners()
   })
 
   let canonicalTxChain
@@ -95,7 +100,9 @@ describe('CanonicalTransactionChain', () => {
   let SafetyQueue: ContractFactory
   before(async () => {
     RollupMerkleUtils = await ethers.getContractFactory('RollupMerkleUtils')
-    CanonicalTransactionChain = await ethers.getContractFactory('CanonicalTransactionChain')
+    CanonicalTransactionChain = await ethers.getContractFactory(
+      'CanonicalTransactionChain'
+    )
     L1toL2Queue = await ethers.getContractFactory('L1toL2TransactionQueue')
     SafetyQueue = await ethers.getContractFactory('SafetyTransactionQueue')
 

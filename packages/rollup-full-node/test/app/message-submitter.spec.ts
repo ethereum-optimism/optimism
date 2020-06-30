@@ -1,7 +1,7 @@
 /* External Imports */
 import { add0x, sleep } from '@eth-optimism/core-utils'
 import { L2ToL1Message } from '@eth-optimism/rollup-core'
-import { L2ToL1MessageReceiverContractDefinition } from '@eth-optimism/rollup-contracts'
+import * as L2ToL1MessageReceiverContractDefinition from '@eth-optimism/rollup-contracts/artifacts/L2ToL1MessageReceiver.json'
 
 import { Contract, Wallet } from 'ethers'
 import { createMockProvider, deployContract, getWallets } from 'ethereum-waffle'

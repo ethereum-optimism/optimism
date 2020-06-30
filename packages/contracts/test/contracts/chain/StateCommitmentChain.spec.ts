@@ -35,7 +35,13 @@ describe('StateCommitmentChain', () => {
   let fraudVerifier: Signer
   let randomWallet: Signer
   before(async () => {
-    [wallet, sequencer, l1ToL2TransactionPasser, fraudVerifier, randomWallet] = await ethers.getSigners()
+    ;[
+      wallet,
+      sequencer,
+      l1ToL2TransactionPasser,
+      fraudVerifier,
+      randomWallet,
+    ] = await ethers.getSigners()
   })
 
   let stateChain: Contract
@@ -71,11 +77,15 @@ describe('StateCommitmentChain', () => {
   let StateCommitmentChain: ContractFactory
   before(async () => {
     RollupMerkleUtils = await ethers.getContractFactory('RollupMerkleUtils')
-    CanonicalTransactionChain = await ethers.getContractFactory('CanonicalTransactionChain')
-    StateCommitmentChain = await ethers.getContractFactory('StateCommitmentChain')
+    CanonicalTransactionChain = await ethers.getContractFactory(
+      'CanonicalTransactionChain'
+    )
+    StateCommitmentChain = await ethers.getContractFactory(
+      'StateCommitmentChain'
+    )
 
     rollupMerkleUtils = await RollupMerkleUtils.deploy()
-    
+
     canonicalTxChain = await CanonicalTransactionChain.deploy(
       rollupMerkleUtils.address,
       await sequencer.getAddress(),

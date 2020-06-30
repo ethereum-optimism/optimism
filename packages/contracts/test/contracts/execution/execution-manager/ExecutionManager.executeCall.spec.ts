@@ -21,7 +21,13 @@ import {
   DEFAULT_ETHNODE_GAS_LIMIT,
   getUnsignedTransactionCalldata,
 } from '../../../test-helpers/core-helpers'
-import { manuallyDeployOvmContract, ZERO_UINT, signTransaction, getSignedComponents, getWallets } from '../../../test-helpers'
+import {
+  manuallyDeployOvmContract,
+  ZERO_UINT,
+  signTransaction,
+  getSignedComponents,
+  getWallets,
+} from '../../../test-helpers'
 
 /* Logging */
 const log = getLogger('execution-manager-calls', true)
@@ -36,7 +42,7 @@ const unsignedCallMethodId: string = ethereumjsAbi
 describe('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider
 
-  let [wallet] = getWallets()
+  const [wallet] = getWallets()
 
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
@@ -58,7 +64,9 @@ describe('Execution Manager -- Call opcodes', () => {
       true
     )
 
-    stateManager = StateManager.attach(await executionManager.getStateManagerAddress())
+    stateManager = StateManager.attach(
+      await executionManager.getStateManagerAddress()
+    )
 
     dummyContractAddress = await manuallyDeployOvmContract(
       wallet,

@@ -16,14 +16,14 @@ import {
 describe('MerkleTrie', () => {
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let MerkleTrie: ContractFactory
   before(async () => {
     MerkleTrie = await ethers.getContractFactory('MerkleTrie')
   })
-  
+
   let merkleTrie: Contract
   beforeEach(async () => {
     MerkleTrie = await ethers.getContractFactory('MerkleTrie')

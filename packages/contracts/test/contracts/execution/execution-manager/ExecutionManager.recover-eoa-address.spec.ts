@@ -12,7 +12,11 @@ import {
   GAS_LIMIT,
   DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../../../test-helpers/core-helpers'
-import { signTransaction, getSignedComponents, getWallets } from '../../../test-helpers'
+import {
+  signTransaction,
+  getSignedComponents,
+  getWallets,
+} from '../../../test-helpers'
 
 /* Logging */
 const log = getLogger('execution-manager-recover-eoa-address', true)
@@ -21,7 +25,7 @@ export const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
 describe('Execution Manager -- Recover EOA Address', () => {
-  let [wallet] = getWallets()
+  const [wallet] = getWallets()
 
   let ExecutionManager: ContractFactory
   before(async () => {

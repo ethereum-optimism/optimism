@@ -16,7 +16,11 @@ describe('SafetyTransactionQueue', () => {
   let canonicalTransactionChain: Signer
   let randomWallet: Signer
   before(async () => {
-    [wallet, canonicalTransactionChain, randomWallet] = await ethers.getSigners()
+    ;[
+      wallet,
+      canonicalTransactionChain,
+      randomWallet,
+    ] = await ethers.getSigners()
   })
 
   let SafetyTxQueue: ContractFactory

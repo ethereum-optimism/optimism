@@ -18,7 +18,7 @@ import {
   Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS
+  L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '../../../test-helpers/core-helpers'
 import {
   manuallyDeployOvmContract,
@@ -53,7 +53,7 @@ const methodIds = fromPairs(
 function overrideAbiFunctionData(
   abiDefinition: any,
   functionName: string,
-  functionData: { constant: boolean; outputs: any[], stateMutability: string }
+  functionData: { constant: boolean; outputs: any[]; stateMutability: string }
 ): void {
   for (const functionDefinition of abiDefinition) {
     if (functionDefinition.name === functionName) {
@@ -81,7 +81,7 @@ function callExecutionManagerExecuteTransaction(
   overrideAbiFunctionData(modifiedAbi, 'executeTransaction', {
     constant: true,
     outputs: outputTypes,
-    stateMutability: "view",
+    stateMutability: 'view',
   })
   const callableExecutionManager = new Contract(
     executionManager.address,
@@ -97,7 +97,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
 
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let ExecutionManager: ContractFactory

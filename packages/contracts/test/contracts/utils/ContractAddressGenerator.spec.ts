@@ -14,12 +14,14 @@ describe('ContractAddressGenerator', () => {
   let wallet2: Signer
 
   before(async () => {
-    [wallet1, wallet2] = await ethers.getSigners()
+    ;[wallet1, wallet2] = await ethers.getSigners()
   })
 
   let ContractAddressGenerator: ContractFactory
   beforeEach(async () => {
-    ContractAddressGenerator = await ethers.getContractFactory('ContractAddressGenerator')
+    ContractAddressGenerator = await ethers.getContractFactory(
+      'ContractAddressGenerator'
+    )
   })
 
   let contractAddressGenerator: Contract

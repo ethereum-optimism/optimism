@@ -35,7 +35,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
 
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let ExecutionManager: ContractFactory
@@ -44,8 +44,10 @@ describe('Execution Manager -- Code-related opcodes', () => {
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
     DummyContract = await ethers.getContractFactory('DummyContract')
 
-    let dummyContract = await DummyContract.deploy()
-    dummyContractBytecode = hexStrToBuf(await provider.getCode(dummyContract.address))
+    const dummyContract = await DummyContract.deploy()
+    dummyContractBytecode = hexStrToBuf(
+      await provider.getCode(dummyContract.address)
+    )
   })
 
   let executionManager: Contract

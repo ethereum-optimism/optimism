@@ -19,10 +19,7 @@ export const getUnsignedTransactionCalldata = (
   functionName: string,
   args: any[] = []
 ) => {
-  return contract.interface.encodeFunctionData(
-    functionName,
-    args
-  )
+  return contract.interface.encodeFunctionData(functionName, args)
 }
 
 export interface EVMOpcode {

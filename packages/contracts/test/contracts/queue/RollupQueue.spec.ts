@@ -16,11 +16,11 @@ const DEFAULT_TX = '0x1234'
 
 /* Tests */
 describe('RollupQueue', () => {
-  let provider = ethers.provider
+  const provider = ethers.provider
 
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let RollupQueue: ContractFactory

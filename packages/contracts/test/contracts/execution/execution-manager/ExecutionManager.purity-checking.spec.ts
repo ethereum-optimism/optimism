@@ -26,7 +26,7 @@ describe('Execution Manager -- Safety Checking', () => {
 
   let wallet: Signer
   before(async () => {
-    [wallet] = await ethers.getSigners()
+    ;[wallet] = await ethers.getSigners()
   })
 
   let ExecutionManager: ContractFactory
