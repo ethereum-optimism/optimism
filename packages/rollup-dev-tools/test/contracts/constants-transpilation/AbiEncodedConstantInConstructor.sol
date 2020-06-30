@@ -1,6 +1,6 @@
 pragma solidity ^0.5.16;
 
-contract TestConstantsConstructor {
+contract AbiEncodedConstantInConstructor {
     bytes32 public hash;
 
     constructor() public {

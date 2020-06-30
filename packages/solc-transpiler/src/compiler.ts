@@ -7,7 +7,7 @@ import {
   TranspilationError,
   Transpiler,
   TranspilerImpl,
-  stripAuxData
+  stripAuxData,
 } from '@eth-optimism/rollup-dev-tools'
 import {
   bufToHexString,

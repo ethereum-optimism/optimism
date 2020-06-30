@@ -31,7 +31,7 @@ import {
   TranspilerImpl,
   OpcodeReplacer,
   OpcodeReplacerImpl,
-  stripAuxData
+  stripAuxData,
 } from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'

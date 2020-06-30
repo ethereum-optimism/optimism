@@ -5,12 +5,8 @@
   "compilerOptions": {
     "outputSelection": {
       "*": {
-        "*": ["*"],
-        "": ["ast"]
+        "*": ["*"]
       }
     }
-  },
-  "optimizer": {
-    "enabled": false
   }
 }

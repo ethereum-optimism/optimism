@@ -35,7 +35,7 @@ import {
   EvmIntrospectionUtilImpl,
   getPUSHBuffer,
   getPUSHIntegerOp,
-  stripAuxData
+  stripAuxData,
 } from '../../src'
 import {
   ErroredTranspilation,
@@ -51,10 +51,7 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import {
-  transpileAndDeployInitcode,
-  mockSSTOREReplacer,
-} from '../helpers'
+import { transpileAndDeployInitcode, mockSSTOREReplacer } from '../helpers'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger(`constructor-transpilation`)

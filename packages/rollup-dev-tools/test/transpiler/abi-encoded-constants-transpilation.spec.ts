@@ -18,7 +18,7 @@ import {
   bufferToBytecode,
 } from '@eth-optimism/rollup-core'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import * as TestConstants from '../contracts/build/TestConstants.json'
+import * as AbiEncodedConstantInConstructor from '../contracts/build/AbiEncodedConstantInConstructor.json'
 
 /* Internal Imports */
 import {
@@ -66,7 +66,7 @@ const getGetterReturnedVal = async (
   return callRes.result
 }
 
-describe('Solitity contracts should have constants correctly accessible when using transpiled initcode', () => {
+describe('Solitity contracts should have hardcoded values correctly accessible in transpiled initcode', () => {
   let evmUtil: EvmIntrospectionUtil
 
   const opcodeWhitelist = new OpcodeWhitelistImpl(Opcode.ALL_OP_CODES)
@@ -74,8 +74,11 @@ describe('Solitity contracts should have constants correctly accessible when usi
   let deployedGetterAddress: Buffer
   beforeEach(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()
+    log.debug(
+      `transpiling and deploying initcode which should store hash in constructor`
+    )
     deployedGetterAddress = await transpileAndDeployInitcode(
-      TestConstants,
+      AbiEncodedConstantInConstructor,
       [],
       [],
       transpiler,
@@ -84,33 +87,41 @@ describe('Solitity contracts should have constants correctly accessible when usi
     const code: Buffer = await evmUtil.getContractDeployedBytecode(
       deployedGetterAddress
     )
-    log.debug(`Initcode transpiled and deployed.  The code is:\n${formatBytecode(bufferToBytecode(code))}`)
+    log.debug(
+      `Initcode transpiled and deployed.  The code is:\n${formatBytecode(
+        bufferToBytecode(code)
+      )}`
+    )
   })
 
-  it(`The result of a transpiled set() and then get() should be correct`, async () => {
+  it(`The hash of an abi.encode(hardcoded) should be correct and retrievable if stoed during constructor()`, async () => {
     // set up expected values step-by-step
-    const expectedInnerBytesBeingHashed = Buffer.from(ethers.utils.toUtf8Bytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'))
-    log.debug(`expectedInnerBytesBeingHashed: ${bufToHexString(expectedInnerBytesBeingHashed)}`)
-    const expectedInnerHashRaw = ethers.utils.keccak256(expectedInnerBytesBeingHashed)
+    const expectedInnerBytesBeingHashed = Buffer.from(
+      ethers.utils.toUtf8Bytes(
+        'EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'
+      )
+    )
+    log.debug(
+      `expectedInnerBytesBeingHashed: ${bufToHexString(
+        expectedInnerBytesBeingHashed
+      )}`
+    )
+    const expectedInnerHashRaw = ethers.utils.keccak256(
+      expectedInnerBytesBeingHashed
+    )
     log.debug(`expectedInnerHashRaw: ${expectedInnerHashRaw}`)
     const expectedInnerHashAndValEncoded = ethers.utils.defaultAbiCoder.encode(
       ['bytes32', 'uint256'],
-      [
-        expectedInnerHashRaw,
-        1,
-      ]
-      )
-    log.debug(`expectedInnerHashAndValEncoded: ${expectedInnerHashAndValEncoded}`)
+      [expectedInnerHashRaw, 1]
+    )
+    log.debug(
+      `expectedInnerHashAndValEncoded: ${expectedInnerHashAndValEncoded}`
+    )
     const expectedOuterHash = ethers.utils.keccak256(
       expectedInnerHashAndValEncoded
     )
     log.debug(`expected final outer hash: ${expectedOuterHash}`)
-    log.debug(`calling set function!`)
-    await evmUtil.callContract(
-      bufToHexString(deployedGetterAddress),
-      'storeConstant'
-    )
-    log.debug(`set function called.  Calling get...`)
+    log.debug(`Calling get...`)
     const res = await getGetterReturnedVal(
       deployedGetterAddress,
       'getConstant',
