@@ -35,6 +35,7 @@ import {
   EvmIntrospectionUtilImpl,
   getPUSHBuffer,
   getPUSHIntegerOp,
+  stripAuxData,
 } from '../../src'
 import {
   ErroredTranspilation,
@@ -50,11 +51,7 @@ import {
   OpcodeReplacerImpl,
   OpcodeWhitelistImpl,
 } from '../../src/tools/transpiler'
-import {
-  transpileAndDeployInitcode,
-  stripAuxData,
-  mockSSTOREReplacer,
-} from '../helpers'
+import { transpileAndDeployInitcode, mockSSTOREReplacer } from '../helpers'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger(`constructor-transpilation`)
@@ -263,7 +260,7 @@ const getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode = async (
 
   // pad because this is currently done by the transpiler
   const deployedBytecodeTranspilationResult: TranspilationResult = transpiler.transpileRawBytecode(
-    stripAuxData(deployedBytecode, contractBuildJSON)
+    stripAuxData(deployedBytecode, contractBuildJSON, true)
   )
   if (!deployedBytecodeTranspilationResult.succeeded) {
     throw new Error(
