@@ -7,7 +7,7 @@ export interface RDB {
   execute(query: string, withTransaction?: boolean): Promise<any>
   select(query: string, withNolock?: boolean): Promise<Row[]>
 
-  begin(): Promise<void>
+  startTransaction(): Promise<void>
   commit(): Promise<void>
   rollback(): Promise<void>
 }

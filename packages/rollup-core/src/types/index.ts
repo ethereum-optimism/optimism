@@ -1,5 +1,6 @@
+export * from './data'
+
 export * from './errors'
-export * from './l1-data-service'
 export * from './listeners'
 export * from './node-context'
 export * from './opcodes'

@@ -1,7 +1,11 @@
 /* External Imports */
 import { BigNumber } from '@eth-optimism/core-utils'
 
-import { Log, TransactionResponse } from 'ethers/providers/abstract-provider'
+import {
+  Log,
+  TransactionResponse,
+  TransactionReceipt as EthersTransactionReceipt,
+} from 'ethers/providers/abstract-provider'
 
 // TODO: Probably not necessary?
 //  Maybe just a map from token -> contract slot index (e.g. {ETH: 1, BAT: 2, REP: 3})?
@@ -21,14 +25,46 @@ export interface L2ToL1Message {
 }
 
 export interface RollupTransaction {
-  nonce: number
-  gasLimit: number
-  sender: Address
+  batchIndex: number
   target: Address
   calldata: string
+  sender?: Address
+  l1MessageSender?: Address
+  gasLimit?: number
+  l1Timestamp: number
+  l1BlockNumber: number
+  l1TxHash: string
+  nonce?: number
+  queueOrigin: number
+  signature?: string
 }
 
-export type LogHandler = (l: Log, tx: TransactionResponse) => Promise<void>
+export interface TransactionAndRoot {
+  timestamp: number
+  blockNumber: number
+  transactionIndex: number
+  transactionHash: string
+  to: string
+  nonce: number
+  calldata: string
+  from: string
+  gasLimit?: BigNumber
+  gasPrice?: BigNumber
+  l1MessageSender?: string
+  signature?: string
+  stateRoot: string
+}
+
+export interface VerificationCandidate {
+  l1BatchNumber: number
+  l2BatchNumber: number
+  roots: Array<{
+    l1Root: string
+    l2Root: string
+  }>
+}
+
+export type LogHandler = (l: Log, tx: EthersTransactionReceipt) => Promise<void>
 export interface LogHandlerContext {
   topic: string
   contractAddress: Address

@@ -2,7 +2,7 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { RollupTransaction } from './types'
+import { RollupTransaction, TransactionAndRoot } from '../types'
 
 export interface L1DataService {
   /**
@@ -46,12 +46,28 @@ export interface L1DataService {
   updateBlockToProcessed(block_hash: string): Promise<void>
 
   /**
-   * Atomically inserts the provided RollupTransactions.
+   * Atomically inserts the provided RollupTransactions, creating a batch for them.
    *
+   * @param l1TxHash The L1 Transaction hash.
    * @param rollupTransactions The RollupTransactions to insert.
+   * @returns The inserted transaction batch number.
    * @throws An error if there is a DB error.
    */
   insertRollupTransactions(
+    l1TxHash: string,
     rollupTransactions: RollupTransaction[]
-  ): Promise<void>
+  ): Promise<number>
+
+  /**
+   * Atomically inserts the provided State Roots, creating a batch for them.
+   *
+   * @param l1TxHash The L1 Transaction hash.
+   * @param stateRoots The state roots to insert.
+   * @returns The inserted state root batch number.
+   * @throws An error if there is a DB error.
+   */
+  insertRollupStateRoots(
+    l1TxHash: string,
+    stateRoots: string[]
+  ): Promise<number>
 }
