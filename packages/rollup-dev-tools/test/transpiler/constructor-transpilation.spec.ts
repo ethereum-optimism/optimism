@@ -35,6 +35,7 @@ import {
   EvmIntrospectionUtilImpl,
   getPUSHBuffer,
   getPUSHIntegerOp,
+  stripAuxData
 } from '../../src'
 import {
   ErroredTranspilation,
@@ -52,7 +53,6 @@ import {
 } from '../../src/tools/transpiler'
 import {
   transpileAndDeployInitcode,
-  stripAuxData,
   mockSSTOREReplacer,
 } from '../helpers'
 
@@ -263,7 +263,7 @@ const getManuallyTranspiledAndInitcodeTranspiledDeployedBytecode = async (
 
   // pad because this is currently done by the transpiler
   const deployedBytecodeTranspilationResult: TranspilationResult = transpiler.transpileRawBytecode(
-    stripAuxData(deployedBytecode, contractBuildJSON)
+    stripAuxData(deployedBytecode, contractBuildJSON, true)
   )
   if (!deployedBytecodeTranspilationResult.succeeded) {
     throw new Error(

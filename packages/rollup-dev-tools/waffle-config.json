@@ -10,9 +10,7 @@
       }
     }
   },
-  "evmVersion": "istanbul",
   "optimizer": {
-    "enabled": true,
-    "runs": 999999
+    "enabled": false
   }
 }

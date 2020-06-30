@@ -18,7 +18,7 @@ import {
   bufferToBytecode,
 } from '@eth-optimism/rollup-core'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import * as TestConstants from '../contracts/build/TestConstants.json'
+import * as TestConstantsConstructor from '../contracts/build/TestConstantsConstructor.json'
 
 /* Internal Imports */
 import {
@@ -74,8 +74,9 @@ describe('Solitity contracts should have constants correctly accessible when usi
   let deployedGetterAddress: Buffer
   beforeEach(async () => {
     evmUtil = await EvmIntrospectionUtilImpl.create()
+    log.debug(`transpiling and deploying initcode which should store hash in constructor`)
     deployedGetterAddress = await transpileAndDeployInitcode(
-      TestConstants,
+      TestConstantsConstructor,
       [],
       [],
       transpiler,
@@ -105,12 +106,7 @@ describe('Solitity contracts should have constants correctly accessible when usi
       expectedInnerHashAndValEncoded
     )
     log.debug(`expected final outer hash: ${expectedOuterHash}`)
-    log.debug(`calling set function!`)
-    await evmUtil.callContract(
-      bufToHexString(deployedGetterAddress),
-      'storeConstant'
-    )
-    log.debug(`set function called.  Calling get...`)
+    log.debug(`Calling get...`)
     const res = await getGetterReturnedVal(
       deployedGetterAddress,
       'getConstant',
