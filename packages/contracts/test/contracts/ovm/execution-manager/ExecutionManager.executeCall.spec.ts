@@ -33,10 +33,6 @@ const log = getLogger('execution-manager-calls', true)
 
 export const abi = new ethers.utils.AbiCoder()
 
-const unsignedCallMethodId: string = ethereumjsAbi
-  .methodID('executeTransaction', [])
-  .toString('hex')
-
 /* Tests */
 describe('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider
