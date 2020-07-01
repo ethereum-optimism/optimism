@@ -126,7 +126,7 @@ export class TranspilerImpl implements Transpiler {
       )}`
     )
 
-    // **** DETECT AND TAG THE CONSTANTS IN DEPLOYED BYTECODE AND TRANSPILE ****
+    // **** DETECT AND SPLIT THE CONSTANTS IN DEPLOYED BYTECODE AND TRANSPILE ****
 
     let taggedDeployedEVMBytecode: EVMBytecode
     taggedDeployedEVMBytecode = this.findAndTagConstants(
@@ -134,8 +134,18 @@ export class TranspilerImpl implements Transpiler {
       deployedBytecode,
       errors
     )
+
+    let constantsUsedByDeployedBytecode: EVMBytecode
+    let deployedBytecodeWithoutConstants: EVMBytecode
+    [
+      deployedBytecodeWithoutConstants,
+      constantsUsedByDeployedBytecode
+    ] = this.splitCodeAndConstants(taggedDeployedEVMBytecode)
+
+    log.debug(`split resulted in code of: ${bufToHexString(bytecodeToBuffer(deployedBytecodeWithoutConstants))}\nand constands of: ${bufToHexString(bytecodeToBuffer(constantsUsedByDeployedBytecode))}`)
+
     const deployedBytecodeTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
-      taggedDeployedEVMBytecode
+      deployedBytecodeWithoutConstants
     )
 
     if (!deployedBytecodeTranspilationResult.succeeded) {
@@ -147,8 +157,11 @@ export class TranspilerImpl implements Transpiler {
         errors,
       }
     }
-    const transpiledDeployedBytecode: EVMBytecode =
-      deployedBytecodeTranspilationResult.bytecodeWithTags
+    const transpiledDeployedBytecode: EVMBytecode =[
+      ...deployedBytecodeTranspilationResult.bytecodeWithTags,
+      ...constantsUsedByDeployedBytecode
+    ]
+      
 
     log.debug(`Fixing the constant indices for transpiled deployed bytecode...`)
     log.debug(`errors are: ${JSON.stringify(errors)}`)
@@ -248,10 +261,40 @@ export class TranspilerImpl implements Transpiler {
       errors
     )
 
+    // TODO: handle here if errors.length > 0.
+
     return {
       succeeded: true,
       bytecode: bytecodeToBuffer(finalTranspiledBytecode),
     }
+  }
+
+  private splitCodeAndConstants(
+    bytecodeWithTaggedConstants: EVMBytecode
+  ): Array<EVMBytecode> {
+    const pushConstantOffsetOperations = bytecodeWithTaggedConstants.filter(
+      (val: EVMOpcodeAndBytes): boolean => {
+        return isTaggedWithReason(val, [OpcodeTagReason.IS_CONSTANT_OFFSET])
+      }
+    )
+    const allConstants: Buffer[] = pushConstantOffsetOperations.map(
+      (val: EVMOpcodeAndBytes): Buffer => {
+        return val.tag.metadata
+      }
+    )
+    const bytecodeBuf: Buffer = bytecodeToBuffer(bytecodeWithTaggedConstants)
+    const constantStarts: number[] = allConstants.map(
+      (theConst: Buffer): number => {
+        return bytecodeBuf.indexOf(theConst)
+      }
+    )
+    const lowestStartPC: number = Math.min(...constantStarts)
+    const lowestStartIndexInBytecode: number = bufferToBytecode(bytecodeBuf.slice(0, lowestStartPC)).length
+    
+    return [
+      bytecodeWithTaggedConstants.slice(0, lowestStartIndexInBytecode),
+      bytecodeWithTaggedConstants.slice(lowestStartIndexInBytecode)
+    ]
   }
 
   // Fixes the tagged constants-loading offset in some transpiled bytecode.
@@ -274,6 +317,7 @@ export class TranspilerImpl implements Transpiler {
         const newConstantCopy: Buffer = Buffer.from(inputAsBuf).slice(newConstantOffset)
         log.debug(`a copy of the constant in the transpiled location is cominig from offset ${newConstantOffset} looks like:\n${bufToHexString(newConstantCopy)}`)
         if (newConstantOffset === -1) {
+          log.debug(`pushed the unfindable constant error`)
           errors.push(
             TranspilerImpl.createError(
               index,
