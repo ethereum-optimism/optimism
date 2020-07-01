@@ -11,29 +11,11 @@ import {SafetyChecker} from "./SafetyChecker.sol";
  *         of all chain storage.
  */
 contract FullStateManager is StateManager {
-    // Add Safety Checker contract
-    SafetyChecker safetyChecker;
-    // for testing: if true, then do not perform safety checking on init code or deployed bytecode
-    bool overrideSafetyChecker;
-
     address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
     mapping(address=>address) ovmCodeContracts;
-
-    /**
-     * @notice Construct a new FullStateManager with a specified safety checker.
-     * @param _opcodeWhitelistMask A bit mask representing which opcodes are whitelisted or not for our safety checker
-     * @param _overrideSafetyChecker Set to true to disable safety checking (WARNING: Only do this in test environments)
-     */
-    constructor(uint256 _opcodeWhitelistMask, bool _overrideSafetyChecker) public {
-        // Set override safety checker flag
-        overrideSafetyChecker = _overrideSafetyChecker;
-        // Set the safety checker address -- NOTE: `msg.sender` is used as EM address because we assume
-        // the FullStateManager is deployed by the ExecutionManager
-        safetyChecker = new SafetyChecker(_opcodeWhitelistMask, msg.sender);
-    }
 
 
     /**********
@@ -104,7 +86,7 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
-    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) external {
+    function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) public {
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
     }
 
@@ -149,40 +131,5 @@ contract FullStateManager is StateManager {
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);
         return _codeContractHash;
-    }
-
-    /**
-     * @notice Deploys a code contract, and then registers it to the state
-     * @param _newOvmContractAddress The contract address to deploy the new contract to
-     * @param _ovmContractInitcode The bytecode of the contract to be deployed
-     * @return the codeContractAddress.
-     */
-    function deployContract(
-        address _newOvmContractAddress,
-        bytes memory _ovmContractInitcode
-    ) public returns(address codeContractAddress) {
-        // Safety check the initcode, unless the overrideSafetyChecker flag is set to true
-        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(_ovmContractInitcode)) {
-            // Contract initcode is not pure.
-            return ZERO_ADDRESS;
-        }
-
-        // Deploy a new contract with this _ovmContractInitCode
-        assembly {
-            // Set our codeContractAddress to the address returned by our CREATE operation
-            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
-            // Make sure that the CREATE was successful (actually deployed something)
-            if iszero(extcodesize(codeContractAddress)) {
-                revert(0, 0)
-            }
-        }
-
-        // Safety check the runtime bytecode, unless the overrideSafetyChecker flag is set to true
-        bytes memory codeContractBytecode = getCodeContractBytecode(codeContractAddress);
-        if (!overrideSafetyChecker && !safetyChecker.isBytecodeSafe(codeContractBytecode)) {
-            // Contract runtime bytecode is not pure.
-            return ZERO_ADDRESS;
-        }
-        return codeContractAddress;
     }
 }
