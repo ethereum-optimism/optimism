@@ -33,7 +33,6 @@ import {
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
 import { isTaggedWithReason } from './helpers'
-import { errors } from 'ethers'
 
 const log = getLogger('transpiler-impl')
 const statsLog = getLogger('transpiler-stats')
@@ -122,9 +121,9 @@ export class TranspilerImpl implements Transpiler {
     )
 
     log.debug(
-      `original deployed evm bytecode is:\n raw:${bufToHexString(deployedBytecode)}\n${formatBytecode(
-        originalDeployedEVMBytecode
-      )}`
+      `original deployed evm bytecode is:\n raw:${bufToHexString(
+        deployedBytecode
+      )}\n${formatBytecode(originalDeployedEVMBytecode)}`
     )
 
     // **** DETECT AND SPLIT THE CONSTANTS IN DEPLOYED BYTECODE AND TRANSPILE ****
@@ -138,9 +137,9 @@ export class TranspilerImpl implements Transpiler {
 
     let constantsUsedByDeployedBytecode: EVMBytecode
     let deployedBytecodeWithoutConstants: EVMBytecode
-    [
+    ;[
       deployedBytecodeWithoutConstants,
-      constantsUsedByDeployedBytecode
+      constantsUsedByDeployedBytecode,
     ] = this.splitCodeAndConstants(taggedDeployedEVMBytecode)
 
     const deployedBytecodeTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
@@ -156,11 +155,10 @@ export class TranspilerImpl implements Transpiler {
         errors,
       }
     }
-    const transpiledDeployedBytecode: EVMBytecode =[
+    const transpiledDeployedBytecode: EVMBytecode = [
       ...deployedBytecodeTranspilationResult.bytecodeWithTags,
-      ...constantsUsedByDeployedBytecode
+      ...constantsUsedByDeployedBytecode,
     ]
-      
 
     log.debug(`Fixing the constant indices for transpiled deployed bytecode...`)
     log.debug(`errors are: ${JSON.stringify(errors)}`)
@@ -261,7 +259,7 @@ export class TranspilerImpl implements Transpiler {
     if (errors.length > 0) {
       return {
         succeeded: false,
-        errors
+        errors,
       }
     } else {
       return {
@@ -273,7 +271,7 @@ export class TranspilerImpl implements Transpiler {
 
   private splitCodeAndConstants(
     bytecodeWithTaggedConstants: EVMBytecode
-  ): Array<EVMBytecode> {
+  ): EVMBytecode[] {
     const pushConstantOffsetOperations = bytecodeWithTaggedConstants.filter(
       (val: EVMOpcodeAndBytes): boolean => {
         return isTaggedWithReason(val, [OpcodeTagReason.IS_CONSTANT_OFFSET])
@@ -291,11 +289,13 @@ export class TranspilerImpl implements Transpiler {
       }
     )
     const lowestStartPC: number = Math.min(...constantStarts)
-    const lowestStartIndexInBytecode: number = bufferToBytecode(bytecodeBuf.slice(0, lowestStartPC)).length
-    
+    const lowestStartIndexInBytecode: number = bufferToBytecode(
+      bytecodeBuf.slice(0, lowestStartPC)
+    ).length
+
     return [
       bytecodeWithTaggedConstants.slice(0, lowestStartIndexInBytecode),
-      bytecodeWithTaggedConstants.slice(lowestStartIndexInBytecode)
+      bytecodeWithTaggedConstants.slice(lowestStartIndexInBytecode),
     ]
   }
 
@@ -705,7 +705,11 @@ export class TranspilerImpl implements Transpiler {
       ) {
         transpiledBytecodeSubstitute = [opcodeAndBytes]
       } else {
-        log.debug(`substituting opcode to be replaced with original pc of PC 0x${pc.toString(16)}`)
+        log.debug(
+          `substituting opcode to be replaced with original pc of PC 0x${pc.toString(
+            16
+          )}`
+        )
         // record that we will need to add this opcode to the replacement table
         substitutedOpcodes.add(opcodeAndBytes.opcode)
         // jump to the footer where the logic of the replacement will be executed
