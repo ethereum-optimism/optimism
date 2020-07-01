@@ -1,15 +1,8 @@
 /* External Imports */
 import { BigNumber } from '@eth-optimism/core-utils'
 
-import {
-  Log,
-  TransactionResponse,
-  TransactionReceipt as EthersTransactionReceipt,
-} from 'ethers/providers/abstract-provider'
-
-// TODO: Probably not necessary?
-//  Maybe just a map from token -> contract slot index (e.g. {ETH: 1, BAT: 2, REP: 3})?
-export type TokenType = number
+import { Log, TransactionResponse } from 'ethers/providers/abstract-provider'
+import { L1DataService } from './data'
 
 export interface State {}
 export interface RollupBlock {
@@ -64,7 +57,11 @@ export interface VerificationCandidate {
   }>
 }
 
-export type LogHandler = (l: Log, tx: EthersTransactionReceipt) => Promise<void>
+export type LogHandler = (
+  ds: L1DataService,
+  l: Log,
+  tx: TransactionResponse
+) => Promise<void>
 export interface LogHandlerContext {
   topic: string
   contractAddress: Address

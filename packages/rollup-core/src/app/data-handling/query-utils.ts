@@ -4,7 +4,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import { RollupTransaction, TransactionAndRoot } from '../../types'
 
-export const txInsertStatement = `INSERT INTO tx(block_number, block_hash, hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, v, r, s) `
+export const txInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, v, r, s) `
 export const getTransactionInsertValue = (tx: TransactionResponse): string => {
   return `${tx.blockNumber}, '${tx.blockHash}', '${tx.hash}', '${tx.from}', '${
     tx.to
@@ -13,7 +13,7 @@ export const getTransactionInsertValue = (tx: TransactionResponse): string => {
   )}, '${tx.data}', ${numOrNull(tx.v)}, ${numOrNull(tx.r)}, ${numOrNull(tx.s)}`
 }
 
-export const blockInsertStatement = `INSERT INTO block(block_hash, parent_hash, block_number, block_timestamp, gas_limit, gas_used, processed) `
+export const blockInsertStatement = `INSERT INTO l1_block(block_hash, parent_hash, block_number, block_timestamp, gas_limit, gas_used, processed) `
 export const getBlockInsertValue = (
   block: Block,
   processed: boolean

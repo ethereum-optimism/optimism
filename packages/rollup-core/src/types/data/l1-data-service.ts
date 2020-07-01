@@ -40,10 +40,10 @@ export interface L1DataService {
    * Updates the block with the provided block_hash to be marked as "processed," signifying that all data
    * associated with it is present and ready for consumption.
    *
-   * @param block_hash The block hash identifying the block to update.
+   * @param blockHash The block hash identifying the block to update.
    * @throws An error if there is a DB error.
    */
-  updateBlockToProcessed(block_hash: string): Promise<void>
+  updateBlockToProcessed(blockHash: string): Promise<void>
 
   /**
    * Atomically inserts the provided RollupTransactions, creating a batch for them.

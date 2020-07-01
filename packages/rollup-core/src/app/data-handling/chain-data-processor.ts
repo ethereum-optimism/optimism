@@ -26,7 +26,6 @@ export abstract class ChainDataProcessor
   public async handle(block: Block): Promise<void> {
     log.debug(`Received block ${block.number}.`)
 
-    // purposefully not awaited
     return this.add(block.number, block)
   }
 

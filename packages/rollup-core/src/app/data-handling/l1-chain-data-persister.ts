@@ -63,10 +63,11 @@ export class L1ChainDataPersister extends ChainDataProcessor {
   ) {
     super(db, persistenceKey)
     this.topicMap = new Map<string, LogHandlerContext>(
-      logHandlerContexts.map((x) => [x.topic, x])
+      this.logHandlerContexts.map((x) => [x.topic, x])
     )
+
     if (this.topicMap.size !== logHandlerContexts.length) {
-      throw Error('There may only be one log context for each log topic')
+      throw Error('There must be exactly one log context for each log topic')
     }
     this.topics = Array.from(this.topicMap.keys())
   }
@@ -79,41 +80,59 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       `handling block ${block.number}. Searching for any relevant logs.`
     )
 
-    let logs: Log[] = await this.l1Provider.getLogs({
+    const logs: Log[] = await this.l1Provider.getLogs({
       blockHash: block.hash,
       topics: this.topics,
     })
+
     log.debug(
       `Got ${logs.length} logs from block ${block.number}: ${JSON.stringify(
         logs
       )}`
     )
 
-    logs = logs
-      .filter((x) =>
-        x.topics.filter(
-          (y) =>
-            !!this.topicMap.get(y) &&
-            this.topicMap.get(y).contractAddress === x.address
-        )
+    log.debug(`topics: ${JSON.stringify(this.topicMap)}`)
+
+    const relevantLogs = logs
+      .filter(
+        (x) =>
+          x.topics.filter(
+            (y) =>
+              !!this.topicMap.get(y) &&
+              this.topicMap.get(y).contractAddress === x.address
+          ).length > 0
       )
       .sort((a, b) => a.logIndex - b.logIndex)
 
-    const txs: any[] = await Promise.all(
-      logs.map((l) => this.l1Provider.getTransaction(l.transactionHash))
+    if (!relevantLogs || !relevantLogs.length) {
+      log.debug(`No relevant logs found in block ${block.number}. Moving on.`)
+      await this.markProcessed(index)
+      return
+    }
+
+    log.debug(
+      `Handling ${relevantLogs.length} relevant logs from block ${
+        block.number
+      }: ${JSON.stringify(relevantLogs)}`
+    )
+
+    const txs: TransactionResponse[] = await Promise.all(
+      relevantLogs.map((l) => this.l1Provider.getTransaction(l.transactionHash))
     )
 
     await this.l1DataService.insertBlockAndTransactions(block, txs, false)
 
-    for (let i = 0; i < logs.length; i++) {
-      const current_log = logs[i]
+    for (let i = 0; i < relevantLogs.length; i++) {
+      const current_log = relevantLogs[i]
       const topics = current_log.topics.filter(
         (x) =>
           !!this.topicMap.get(x) &&
           this.topicMap.get(x).contractAddress === current_log.address
       )
       for (const topic of topics) {
-        await this.topicMap.get(topic).handleLog(current_log, txs[i])
+        await this.topicMap
+          .get(topic)
+          .handleLog(this.l1DataService, current_log, txs[i])
       }
     }
 

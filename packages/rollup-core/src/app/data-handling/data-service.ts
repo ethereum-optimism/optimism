@@ -6,6 +6,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
 import {
+  DataService,
   L1DataService,
   L2DataService,
   RollupTransaction,
@@ -28,8 +29,7 @@ import {
 
 const log = getLogger('data-service')
 
-export class DefaultDataService
-  implements L1DataService, L2DataService, VerifierDataService {
+export class DefaultDataService implements DataService {
   constructor(private readonly rdb: RDB) {}
 
   // TODO: All inserts below assume data is trusted and not malicious -- there is no SQL Injection protection.
@@ -161,11 +161,11 @@ export class DefaultDataService
   /**
    * @inheritDoc
    */
-  public async updateBlockToProcessed(block_hash: string): Promise<void> {
+  public async updateBlockToProcessed(blockHash: string): Promise<void> {
     return this.rdb.execute(`
-    UPDATE block 
+    UPDATE l1_block 
     SET processed = TRUE 
-    WHERE block_hash = ${block_hash}`)
+    WHERE block_hash = ${blockHash}`)
   }
 
   /*******************
