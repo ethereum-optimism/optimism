@@ -140,15 +140,6 @@ describe('L1MessageSender Tests', () => {
     provider = new JsonRpcProvider(`http://${hostname}:${port}`)
   })
 
-  it('should fail to add l1MessageSender to Transactions', async () => {
-    const tx = await provider.getTransaction(keccak256('0xdeadb33f'))
-
-    let truth = !!tx
-    truth.should.equal(true, 'Tx response should exist!')
-    truth = !tx['l1MessageSender']
-    truth.should.equal(true, 'L1 Message Sender exists when it should not!')
-  })
-
   it('should fail to add l1MessageSender to block Transactions', async () => {
     const block = await provider.getBlock(keccak256('0xdeadb33f'), true)
 

@@ -1,9 +1,8 @@
 /* External Imports */
 import { newInMemoryDB } from '@eth-optimism/core-db'
 import {
-  add0x,
   BigNumber,
-  keccak256,
+  keccak256FromUtf8,
   sleep,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
@@ -82,17 +81,13 @@ class MockDataService implements L1DataService {
   }
 }
 
-const getHashFromString = (s: string): string => {
-  return add0x(keccak256(Buffer.from(s).toString('hex')))
-}
-
 const getLog = (
   topics: string[],
   address: string,
-  transactionHash: string = getHashFromString('tx hash'),
+  transactionHash: string = keccak256FromUtf8('tx hash'),
   logIndex: number = 0,
   blockNumber: number = 0,
-  blockHash: string = getHashFromString('block hash')
+  blockHash: string = keccak256FromUtf8('block hash')
 ): Log => {
   return {
     topics,
@@ -109,14 +104,14 @@ const getLog = (
 }
 
 const getTransactionResponse = (
-  hash: string = getHashFromString('0xdeadb33f')
+  hash: string = keccak256FromUtf8('0xdeadb33f')
 ): TransactionResponse => {
   return {
     data: '0xdeadb33f',
     timestamp: 0,
     hash,
     blockNumber: 0,
-    blockHash: getHashFromString('block hash'),
+    blockHash: keccak256FromUtf8('block hash'),
     gasLimit: new BigNumber(1_000_000, 10) as any,
     confirmations: 1,
     from: ZERO_ADDRESS,
@@ -138,7 +133,7 @@ const getRollupTransaction = (): RollupTransaction => {
     l1MessageSender: ZERO_ADDRESS,
     l1Timestamp: 0,
     l1BlockNumber: 0,
-    l1TxHash: getHashFromString('0xdeadbeef'),
+    l1TxHash: keccak256FromUtf8('0xdeadbeef'),
     nonce: 0,
     queueOrigin: 0,
   }
@@ -148,7 +143,7 @@ const getBlock = (hash: string, number: number = 0, timestamp: number = 1) => {
   return {
     number,
     hash,
-    parentHash: getHashFromString('parent derp'),
+    parentHash: keccak256FromUtf8('parent derp'),
     timestamp,
     nonce: '0x01',
     difficulty: 99999,
@@ -180,7 +175,7 @@ class MockProvider extends JsonRpcProvider {
 
 const topic = 'derp'
 const contractAddress = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
-const defaultBlock = getBlock(getHashFromString('derp'))
+const defaultBlock = getBlock(keccak256FromUtf8('derp'))
 
 const errorLogHandlerContext: LogHandlerContext = {
   topic,
@@ -209,7 +204,7 @@ describe('L1 Chain Data Persister', () => {
       []
     )
 
-    const block = getBlock(getHashFromString('derp'))
+    const block = getBlock(keccak256FromUtf8('derp'))
     await chainDataPersister.handle(block)
 
     await sleep(1_000)
@@ -239,7 +234,7 @@ describe('L1 Chain Data Persister', () => {
 
       provider.logsToReturn.push(getLog(['derp'], ZERO_ADDRESS))
 
-      const block = getBlock(getHashFromString('derp'))
+      const block = getBlock(keccak256FromUtf8('derp'))
       await chainDataPersister.handle(block)
 
       await sleep(1_000)
@@ -275,7 +270,7 @@ describe('L1 Chain Data Persister', () => {
 
       provider.logsToReturn.push(getLog(['derp'], ZERO_ADDRESS))
 
-      const block = getBlock(getHashFromString('derp'))
+      const block = getBlock(keccak256FromUtf8('derp'))
       await chainDataPersister.handle(block)
 
       await sleep(1_000)
@@ -351,7 +346,7 @@ describe('L1 Chain Data Persister', () => {
       await sleep(1_000)
 
       dataService.blocks.length.should.equal(1, `Should have inserted block!`)
-      dataService.blocks[0].should.eq(defaultBlock, `block mismatch!`)
+      dataService.blocks[0].should.deep.equal(defaultBlock, `block mismatch!`)
 
       dataService.blockTransactions.size.should.equal(
         1,
@@ -369,7 +364,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 block transaction!`)
       dataService.blockTransactions
         .get(defaultBlock.hash)[0]
-        .should.eq(tx, `Should have inserted block transactions!`)
+        .should.deep.equal(tx, `Should have inserted block transactions!`)
 
       const rollupTxsExist: boolean = !!dataService.rollupTransactions.get(
         tx.hash
@@ -383,7 +378,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 rollup tx!`)
       dataService.rollupTransactions
         .get(tx.hash)[0]
-        .should.eq(rollupTxs[0], `Inserted rollup tx mismatch!`)
+        .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
 
       dataService.processedBlocks.size.should.equal(1, `block not processed!`)
       dataService.processedBlocks
@@ -392,7 +387,7 @@ describe('L1 Chain Data Persister', () => {
     })
 
     it('should persist block, transaction, and state roots with relevant logs', async () => {
-      const stateRoots = [getHashFromString('root')]
+      const stateRoots = [keccak256FromUtf8('root')]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
         await ds.insertRollupStateRoots(t.hash, stateRoots)
       }
@@ -406,7 +401,7 @@ describe('L1 Chain Data Persister', () => {
       await sleep(1_000)
 
       dataService.blocks.length.should.equal(1, `Should have inserted block!`)
-      dataService.blocks[0].should.eq(defaultBlock, `block mismatch!`)
+      dataService.blocks[0].should.deep.equal(defaultBlock, `block mismatch!`)
 
       dataService.blockTransactions.size.should.equal(
         1,
@@ -424,7 +419,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 block transaction!`)
       dataService.blockTransactions
         .get(defaultBlock.hash)[0]
-        .should.eq(tx, `Should have inserted block transactions!`)
+        .should.deep.equal(tx, `Should have inserted block transactions!`)
 
       const stateRootsExist: boolean = !!dataService.stateRoots.get(tx.hash)
       stateRootsExist.should.equal(
@@ -436,7 +431,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 state root!`)
       dataService.stateRoots
         .get(tx.hash)[0]
-        .should.eq(stateRoots[0], `Inserted state Root mismatch!`)
+        .should.deep.equal(stateRoots[0], `Inserted state Root mismatch!`)
 
       dataService.processedBlocks.size.should.equal(1, `block not processed!`)
       dataService.processedBlocks
@@ -446,7 +441,7 @@ describe('L1 Chain Data Persister', () => {
 
     it('should persist block, transaction, rollup transactions, and state roots with relevant logs -- single tx', async () => {
       const rollupTxs = [getRollupTransaction()]
-      const stateRoots = [getHashFromString('root')]
+      const stateRoots = [keccak256FromUtf8('root')]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
         await ds.insertRollupStateRoots(t.hash, stateRoots)
       }
@@ -478,7 +473,7 @@ describe('L1 Chain Data Persister', () => {
       await sleep(1_000)
 
       dataService.blocks.length.should.equal(1, `Should have inserted block!`)
-      dataService.blocks[0].should.eq(defaultBlock, `block mismatch!`)
+      dataService.blocks[0].should.deep.equal(defaultBlock, `block mismatch!`)
 
       dataService.blockTransactions.size.should.equal(
         1,
@@ -496,7 +491,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 block transaction!`)
       dataService.blockTransactions
         .get(defaultBlock.hash)[0]
-        .should.eq(tx, `Should have inserted block transactions!`)
+        .should.deep.equal(tx, `Should have inserted block transactions!`)
 
       const stateRootsExist: boolean = !!dataService.stateRoots.get(tx.hash)
       stateRootsExist.should.equal(
@@ -508,7 +503,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 state root!`)
       dataService.stateRoots
         .get(tx.hash)[0]
-        .should.eq(stateRoots[0], `Inserted state Root mismatch!`)
+        .should.deep.equal(stateRoots[0], `Inserted state Root mismatch!`)
 
       dataService.processedBlocks.size.should.equal(1, `block not processed!`)
       dataService.processedBlocks
@@ -527,12 +522,12 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 rollup tx!`)
       dataService.rollupTransactions
         .get(tx.hash)[0]
-        .should.eq(rollupTxs[0], `Inserted rollup tx mismatch!`)
+        .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
     })
 
     it('should persist block, transaction, rollup transactions, and state roots with relevant logs -- separate txs', async () => {
       const rollupTxs = [getRollupTransaction()]
-      const stateRoots = [getHashFromString('root')]
+      const stateRoots = [keccak256FromUtf8('root')]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
         await ds.insertRollupStateRoots(tx.hash, stateRoots)
       }
@@ -555,7 +550,7 @@ describe('L1 Chain Data Persister', () => {
 
       const tx: TransactionResponse = getTransactionResponse()
       const tx2: TransactionResponse = getTransactionResponse(
-        getHashFromString('tx2')
+        keccak256FromUtf8('tx2')
       )
       provider.txsToReturn.set(tx.hash, tx)
       provider.txsToReturn.set(tx2.hash, tx2)
@@ -569,7 +564,7 @@ describe('L1 Chain Data Persister', () => {
       await sleep(1_000)
 
       dataService.blocks.length.should.equal(1, `Should have inserted block!`)
-      dataService.blocks[0].should.eq(defaultBlock, `block mismatch!`)
+      dataService.blocks[0].should.deep.equal(defaultBlock, `block mismatch!`)
 
       dataService.blockTransactions.size.should.equal(
         1,
@@ -587,10 +582,10 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(2, `Should have inserted 2 block transactions!`)
       dataService.blockTransactions
         .get(defaultBlock.hash)[0]
-        .should.eq(tx, `Should have inserted block transaction 1!`)
+        .should.deep.equal(tx, `Should have inserted block transaction 1!`)
       dataService.blockTransactions
         .get(defaultBlock.hash)[1]
-        .should.eq(tx2, `Should have inserted block transaction 2!`)
+        .should.deep.equal(tx2, `Should have inserted block transaction 2!`)
 
       const stateRootsExist: boolean = !!dataService.stateRoots.get(tx.hash)
       stateRootsExist.should.equal(
@@ -602,7 +597,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 state root!`)
       dataService.stateRoots
         .get(tx.hash)[0]
-        .should.eq(stateRoots[0], `Inserted state Root mismatch!`)
+        .should.deep.equal(stateRoots[0], `Inserted state Root mismatch!`)
 
       dataService.processedBlocks.size.should.equal(1, `block not processed!`)
       dataService.processedBlocks
@@ -621,7 +616,7 @@ describe('L1 Chain Data Persister', () => {
         .length.should.equal(1, `Should have inserted 1 rollup tx!`)
       dataService.rollupTransactions
         .get(tx2.hash)[0]
-        .should.eq(rollupTxs[0], `Inserted rollup tx mismatch!`)
+        .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
     })
 
     describe('multiple blocks', () => {
@@ -634,7 +629,7 @@ describe('L1 Chain Data Persister', () => {
         const tx: TransactionResponse = getTransactionResponse()
         provider.txsToReturn.set(tx.hash, tx)
 
-        const blockOne = getBlock(getHashFromString('first'))
+        const blockOne = getBlock(keccak256FromUtf8('first'))
 
         await chainDataPersister.handle(blockOne)
 
@@ -649,7 +644,7 @@ describe('L1 Chain Data Persister', () => {
         await sleep(1_000)
 
         dataService.blocks.length.should.equal(1, `Should have inserted block!`)
-        dataService.blocks[0].should.eq(blockTwo, `block mismatch!`)
+        dataService.blocks[0].should.deep.equal(blockTwo, `block mismatch!`)
 
         dataService.blockTransactions.size.should.equal(
           1,
@@ -676,7 +671,7 @@ describe('L1 Chain Data Persister', () => {
           .length.should.equal(1, `Should have inserted 1 block transaction!`)
         dataService.blockTransactions
           .get(blockTwo.hash)[0]
-          .should.eq(tx, `Should have inserted block transactions!`)
+          .should.deep.equal(tx, `Should have inserted block transactions!`)
 
         const rollupTxsExist: boolean = !!dataService.rollupTransactions.get(
           tx.hash
@@ -690,7 +685,7 @@ describe('L1 Chain Data Persister', () => {
           .length.should.equal(1, `Should have inserted 1 rollup tx!`)
         dataService.rollupTransactions
           .get(tx.hash)[0]
-          .should.eq(rollupTxs[0], `Inserted rollup tx mismatch!`)
+          .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
 
         dataService.processedBlocks.size.should.equal(1, `block not processed!`)
         dataService.processedBlocks

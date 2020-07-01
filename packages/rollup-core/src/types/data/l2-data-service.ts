@@ -8,5 +8,5 @@ export interface L2DataService {
    * @param transaction The transaction to insert.
    * @throws An error if there is a DB error.
    */
-  insertL2Transaction(transaction: TransactionAndRoot)
+  insertL2Transaction(transaction: TransactionAndRoot): Promise<void>
 }

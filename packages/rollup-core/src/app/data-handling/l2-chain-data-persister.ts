@@ -79,13 +79,15 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       )
     }
 
+    const txHashes: string[] = block.transactions.map((x) =>
+      typeof x !== 'string' ? x['hash'] : x
+    )
+
     const txs: any[] = await Promise.all([
-      ...block.transactions.map(
+      ...txHashes.map(
         (hash) => this.l2Provider.getTransaction(hash) as Promise<any>
       ),
-      ...block.transactions.map((hash) =>
-        this.l2Provider.getTransactionReceipt(hash)
-      ),
+      ...txHashes.map((hash) => this.l2Provider.getTransactionReceipt(hash)),
     ])
 
     for (let i = 0; i < block.transactions.length; i++) {
@@ -109,7 +111,7 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    * @param receipt The TransactionReceipt object.
    * @returns The combined TransactionAndRoot object.
    */
-  private static getTransactionAndRoot(
+  public static getTransactionAndRoot(
     block: Block,
     response: TransactionResponse,
     receipt: TransactionReceipt
