@@ -15,11 +15,13 @@ import { cloneDeep, fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
-} from '../../../test-helpers/core-helpers'
+} from '../../../test-helpers/constants'
+import {
+  Address,
+} from '../../../test-helpers/types'
 import {
   manuallyDeployOvmContract,
   addressToBytes32Address,

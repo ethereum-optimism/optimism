@@ -14,12 +14,13 @@ import * as ethereumjsAbi from 'ethereumjs-abi'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  getUnsignedTransactionCalldata,
-} from '../../../test-helpers/core-helpers'
+} from '../../../test-helpers/constants'
+import {
+  Address,
+} from '../../../test-helpers/types'
 import {
   manuallyDeployOvmContract,
   ZERO_UINT,
@@ -80,8 +81,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -122,8 +122,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -158,8 +157,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -195,8 +193,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -233,8 +230,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 1
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -267,14 +263,12 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('reverts when it makes a call that reverts', async () => {
       // Generate our tx internalCalldata
-      const internalCalldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const internalCalldata = DummyContract.interface.encodeFunctionData(
         'dummyRevert',
         []
       )
 
-      const calldata = getUnsignedTransactionCalldata(
-        executionManager,
+      const calldata = ExecutionManager.interface.encodeFunctionData(
         'executeTransaction',
         [
           ZERO_UINT,
@@ -309,14 +303,12 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('reverts when it makes a call that fails a require', async () => {
       // Generate our tx internalCalldata
-      const internalCalldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const internalCalldata = DummyContract.interface.encodeFunctionData(
         'dummyFailingRequire',
         []
       )
 
-      const calldata = getUnsignedTransactionCalldata(
-        executionManager,
+      const calldata = ExecutionManager.interface.encodeFunctionData(
         'executeTransaction',
         [
           ZERO_UINT,

@@ -6,7 +6,7 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { TxChainBatch, TxQueueBatch } from '../../test-helpers/rl-helpers'
+import { TxChainBatch, TxQueueBatch } from '../../test-helpers/types'
 import { makeRandomBatchOfSize } from '../../test-helpers'
 
 /* Logging */

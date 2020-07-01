@@ -15,10 +15,12 @@ import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK
-} from '../../../test-helpers/core-helpers'
+} from '../../../test-helpers/constants'
+import {
+  Address,
+} from '../../../test-helpers/types'
 import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
