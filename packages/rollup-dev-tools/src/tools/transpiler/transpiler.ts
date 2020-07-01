@@ -33,6 +33,7 @@ import {
 } from '../../types/transpiler'
 import { accountForJumps } from './jump-replacement'
 import { isTaggedWithReason } from './helpers'
+import { errors } from 'ethers'
 
 const log = getLogger('transpiler-impl')
 const statsLog = getLogger('transpiler-stats')
@@ -186,9 +187,7 @@ export class TranspilerImpl implements Transpiler {
     )
     taggedOriginalConstructorInitLogic = this.findAndTagConstructorParamsLoader(
       originalConstructorInitLogic,
-      errors,
-      bytecode,
-      originalDeployedBytecodeSize
+      errors
     )
     taggedOriginalConstructorInitLogic = this.findAndTagDeployedBytecodeReturner(
       originalConstructorInitLogic
@@ -457,10 +456,9 @@ export class TranspilerImpl implements Transpiler {
    */
   private findAndTagConstructorParamsLoader(
     bytecode: EVMBytecode,
-    errors,
-    fullBytecodeBuf: Buffer,
-    originalDeployedBytecodeSize: number = fullBytecodeBuf.byteLength
+    errors
   ): EVMBytecode {
+    let numDetections: number = 0
     for (let index = 0; index < bytecode.length - 6; index++) {
       const op: EVMOpcodeAndBytes = bytecode[index]
       if (
@@ -470,23 +468,7 @@ export class TranspilerImpl implements Transpiler {
         Opcode.isPUSHOpcode(bytecode[index + 4].opcode) &&
         bytecode[index + 6].opcode === Opcode.CODECOPY
       ) {
-        const pushedOffset: number = new BigNum(op.consumedBytes).toNumber()
-        if (pushedOffset !== originalDeployedBytecodeSize) {
-          errors.push(
-            TranspilerImpl.createError(
-              index,
-              TranspilationErrors.DETECTED_CONSTANT_OOB,
-              `thought we were in a CODECOPY(constructor params), but wrong length...at PC: 0x${getPCOfEVMBytecodeIndex(
-                index,
-                bytecode
-              ).toString(
-                16
-              )}.  PUSH of offset which we thought was the total initcode length was 0x${pushedOffset.toString(
-                16
-              )}, but length of original bytecode was specified or detected to be 0x${originalDeployedBytecodeSize}`
-            )
-          )
-        }
+        numDetections += 1
         log.debug(
           `Successfully detected a CODECOPY(constructor params) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
             index,
@@ -512,6 +494,15 @@ export class TranspilerImpl implements Transpiler {
           },
         }
       }
+    }
+    if (numDetections > 1) {
+      errors.push(
+        TranspilerImpl.createError(
+          -1,
+          TranspilationErrors.CONSTRUCTOR_PARAMS_LOADER_DETECTION_FAILED,
+          `There should be at most 1 match for the logic which loads constructor params, but ${numDetections} were found.`
+        )
+      )
     }
     return bytecode
   }
