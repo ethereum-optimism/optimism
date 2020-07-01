@@ -121,7 +121,7 @@ export class TranspilerImpl implements Transpiler {
     )
 
     log.debug(
-      `original deployed evm bytecode is: ${formatBytecode(
+      `original deployed evm bytecode is:\n raw:${bufToHexString(deployedBytecode)}\n${formatBytecode(
         originalDeployedEVMBytecode
       )}`
     )
@@ -260,7 +260,7 @@ export class TranspilerImpl implements Transpiler {
     taggedBytecode: EVMBytecode,
     errors
   ): EVMBytecode {
-    log.debug(`tagged input: ${formatBytecode(taggedBytecode)}`)
+    log.debug(`fixTaggedConstantOffsets(...).  \nraw input: ${bufToHexString(bytecodeToBuffer(taggedBytecode))}\ntagged input: ${formatBytecode(taggedBytecode)}`)
     const inputAsBuf: Buffer = bytecodeToBuffer(taggedBytecode)
     const bytecodeToReturn: EVMBytecode = []
     for (const [index, op] of taggedBytecode.entries()) {
@@ -271,6 +271,8 @@ export class TranspilerImpl implements Transpiler {
       if (isTaggedWithReason(op, [OpcodeTagReason.IS_CONSTANT_OFFSET])) {
         const theConstant: Buffer = op.tag.metadata
         const newConstantOffset: number = inputAsBuf.indexOf(theConstant)
+        const newConstantCopy: Buffer = Buffer.from(inputAsBuf).slice(newConstantOffset)
+        log.debug(`a copy of the constant in the transpiled location is cominig from offset ${newConstantOffset} looks like:\n${bufToHexString(newConstantCopy)}`)
         if (newConstantOffset === -1) {
           errors.push(
             TranspilerImpl.createError(
@@ -669,6 +671,7 @@ export class TranspilerImpl implements Transpiler {
       ) {
         transpiledBytecodeSubstitute = [opcodeAndBytes]
       } else {
+        log.debug(`substituting opcode to be replaced with original pc of PC 0x${pc.toString(16)}`)
         // record that we will need to add this opcode to the replacement table
         substitutedOpcodes.add(opcodeAndBytes.opcode)
         // jump to the footer where the logic of the replacement will be executed
