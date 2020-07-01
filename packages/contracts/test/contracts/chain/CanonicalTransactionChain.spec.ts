@@ -32,10 +32,10 @@ describe('CanonicalTransactionChain', () => {
     ] = await ethers.getSigners()
   })
 
-  let canonicalTxChain
-  let rollupMerkleUtils
-  let l1ToL2Queue
-  let safetyQueue
+  let canonicalTxChain: Contract
+  let rollupMerkleUtils: Contract
+  let l1ToL2Queue: Contract
+  let safetyQueue: Contract
 
   const appendSequencerBatch = async (batch: string[]): Promise<number> => {
     const timestamp = Math.floor(Date.now() / 1000)

@@ -8,8 +8,7 @@ import { Contract, Signer, ContractFactory } from 'ethers'
 /* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
-  GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
+  GAS_LIMIT
 } from '../../test-helpers/core-helpers'
 
 /* Logging */

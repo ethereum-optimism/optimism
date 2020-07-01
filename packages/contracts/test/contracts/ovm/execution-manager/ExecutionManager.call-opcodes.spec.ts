@@ -17,8 +17,7 @@ import { fromPairs } from 'lodash'
 import {
   Address,
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
+  DEFAULT_OPCODE_WHITELIST_MASK
 } from '../../../test-helpers/core-helpers'
 import {
   manuallyDeployOvmContract,

@@ -18,7 +18,6 @@ import {
   GAS_LIMIT,
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
   getUnsignedTransactionCalldata,
 } from '../../../test-helpers/core-helpers'
 import {

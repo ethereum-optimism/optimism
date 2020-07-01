@@ -10,7 +10,6 @@ import {
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../../../test-helpers/core-helpers'
 import {
   signTransaction,

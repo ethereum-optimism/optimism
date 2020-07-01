@@ -10,7 +10,6 @@ import { fromPairs } from 'lodash'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
 } from '../../../test-helpers/core-helpers'
 import {
   gasLimit,
@@ -20,13 +19,6 @@ import {
 
 /* Logging */
 const log = getLogger('execution-manager-storage', true)
-
-const methodIds = fromPairs(
-  ['ovmSSTORE', 'ovmSLOAD'].map((methodId) => [
-    methodId,
-    encodeMethodId(methodId),
-  ])
-)
 
 /* Tests */
 describe('ExecutionManager -- Storage opcodes', () => {
