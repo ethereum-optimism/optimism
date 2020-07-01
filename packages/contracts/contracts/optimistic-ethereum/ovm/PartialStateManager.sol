@@ -1,9 +1,9 @@
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import {StateManager} from "../StateManager.sol";
+import {StateManager} from "./StateManager.sol";
 import {StateTransitioner} from "./StateTransitioner.sol";
-import {ExecutionManager} from "../ExecutionManager.sol";
+import {ExecutionManager} from "./ExecutionManager.sol";
 
 /**
  * @title PartialStateManager

@@ -9,7 +9,7 @@ import {
   bufToHexString,
 } from '@eth-optimism/core-utils'
 import { getLogger } from '@eth-optimism/core-utils/build/src'
-import { executionManagerInterface } from '@eth-optimism/rollup-contracts'
+import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 import { ethers, Contract, ContractFactory, providers, Wallet } from 'ethers'
 import { LogDescription } from 'ethers/utils'
 import { Web3Provider, TransactionReceipt, Log } from 'ethers/providers'
@@ -26,6 +26,9 @@ import { TestWeb3Handler } from './test-web3-rpc-handler'
 import { FullnodeRpcServer } from './fullnode-rpc-server'
 
 const logger = getLogger('utils')
+const executionManagerInterface = new ethers.utils.Interface(
+  getContractDefinition('ExecutionManager').abi
+)
 
 export interface OvmTransactionMetadata {
   ovmTxSucceeded: boolean

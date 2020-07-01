@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 
 import {FraudVerifier} from "./FraudVerifier.sol";
 import {PartialStateManager} from "./PartialStateManager.sol";
-import {ExecutionManager} from "../ExecutionManager.sol";
+import {ExecutionManager} from "./ExecutionManager.sol";
 
 /**
  * @title StateTransitioner

@@ -1,6 +1,14 @@
+/* External Imports */
+import { ethers } from '@nomiclabs/buidler'
 import { Transaction } from 'ethers/utils'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import { executionManagerInterface } from '../../src'
+
+/* Internal Imports */
+import * as ExecutionManager from '../../artifacts/ExecutionManager.json'
+
+const executionManagerInterface = new ethers.utils.Interface(
+  ExecutionManager.abi
+)
 
 /**********************************
  * Byte String Generation Helpers *
@@ -43,7 +51,7 @@ import {
   BloomFilter,
   numberToHexString,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory, Wallet, ethers } from 'ethers'
+import { Contract, ContractFactory, Wallet, Signer } from 'ethers'
 import {
   Provider,
   TransactionReceipt,
@@ -52,6 +60,7 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
+import { DEFAULT_ACCOUNTS } from './constants'
 import { Address, CHAIN_ID, GAS_LIMIT } from './core-helpers'
 
 type Signature = [string, string, string]
@@ -92,7 +101,7 @@ export const convertInternalLogsToOvmLogs = (
           `Execution manager emitted log with topics: ${log.topics}.  These were unrecognized by the interface parser-but definitely not an ActiveContract event, ignoring...`
         )
       } else if (executionManagerLog.name === 'ActiveContract') {
-        activeContractAddress = executionManagerLog.values['_activeContract']
+        activeContractAddress = executionManagerLog.args['_activeContract']
       }
     } else {
       const newIndex = log.logIndex - numberOfEMLogs
@@ -136,15 +145,15 @@ export const getSuccessfulOvmTransactionMetadata = (
   ovmTxSucceeded = !revertEvents.length
 
   if (callingWithEoaLog) {
-    ovmFrom = callingWithEoaLog.values._ovmFromAddress
-    ovmTo = callingWithEoaLog.values._ovmToAddress
+    ovmFrom = callingWithEoaLog.args._ovmFromAddress
+    ovmTo = callingWithEoaLog.args._ovmToAddress
   }
 
   const eoaContractCreatedLog = logs.find(
     (log) => log.name === 'EOACreatedContract'
   )
   if (eoaContractCreatedLog) {
-    ovmCreatedContractAddress = eoaContractCreatedLog.values._ovmContractAddress
+    ovmCreatedContractAddress = eoaContractCreatedLog.args._ovmContractAddress
     ovmTo = ovmCreatedContractAddress
   }
 
@@ -179,6 +188,23 @@ export const getSuccessfulOvmTransactionMetadata = (
   }
 
   return metadata
+}
+
+export const getWallets = (): Wallet[] => {
+  return DEFAULT_ACCOUNTS.map((account) => {
+    return new ethers.Wallet(account.secretKey)
+  })
+}
+
+export const signTransaction = async (
+  wallet: Wallet,
+  transaction: any
+): Promise<string> => {
+  return wallet.signTransaction(transaction)
+}
+
+export const getSignedComponents = (signed: string): any[] => {
+  return ethers.utils.RLP.decode(signed).slice(-3)
 }
 
 /**
@@ -264,16 +290,15 @@ export const ensureGovmIsConnected = async (provider: JsonRpcProvider) => {
  * Helper function for generating initcode based on a contract definition & constructor arguments
  */
 export const manuallyDeployOvmContractReturnReceipt = async (
-  wallet: Wallet,
-  provider: Provider,
+  wallet: Signer,
+  provider: any,
   executionManager: Contract,
-  contractDefinition,
+  contractDefinition: ContractFactory,
   constructorArguments: any[]
 ): Promise<any> => {
-  const initCode = new ContractFactory(
-    contractDefinition.abi,
-    contractDefinition.bytecode
-  ).getDeployTransaction(...constructorArguments).data as string
+  const initCode = contractDefinition.getDeployTransaction(
+    ...constructorArguments
+  ).data as string
 
   const receipt: TransactionReceipt = await executeTransaction(
     executionManager,
@@ -290,10 +315,10 @@ export const manuallyDeployOvmContractReturnReceipt = async (
  * Helper function for generating initcode based on a contract definition & constructor arguments
  */
 export const manuallyDeployOvmContract = async (
-  wallet: Wallet,
-  provider: Provider,
+  wallet: Signer,
+  provider: any,
   executionManager: Contract,
-  contractDefinition,
+  contractDefinition: any,
   constructorArguments: any[]
 ): Promise<Address> => {
   const receipt = await manuallyDeployOvmContractReturnReceipt(
@@ -308,11 +333,11 @@ export const manuallyDeployOvmContract = async (
 
 export const executeTransaction = async (
   executionManager: Contract,
-  wallet: Wallet,
+  wallet: Signer,
   to: Address,
   data: string,
   allowRevert: boolean
-): Promise<TransactionReceipt> => {
+): Promise<any> => {
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
     throw new Error('Sending to Zero Address disallowed')
@@ -327,7 +352,7 @@ export const executeTransaction = async (
     0,
     ovmTo,
     data,
-    wallet.address,
+    await wallet.getAddress(),
     ZERO_ADDRESS,
     allowRevert
   )
@@ -340,7 +365,7 @@ export const executeEOACall = async (
   wallet: Wallet,
   to: Address,
   data: string
-): Promise<TransactionReceipt> => {
+): Promise<any> => {
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
     throw new Error('Sending to Zero Address disallowed')
@@ -359,7 +384,7 @@ export const executeEOACall = async (
     chainId: CHAIN_ID,
   }
   // Sign the transaction
-  const signedTransaction = await wallet.sign(transaction)
+  const signedTransaction = await signTransaction(wallet, transaction)
 
   // Parse the tx that we just signed to get the signature
   const ovmTx = ethers.utils.parseTransaction(signedTransaction)
@@ -379,24 +404,6 @@ export const executeEOACall = async (
   )
   // Return the parsed transaction values
   return executionManager.provider.waitForTransaction(tx.hash)
-}
-
-/**
- * Signs a transaction a pads the resulting r and s to 32 bytes
- * @param {ethers.Wallet} wallet
- * @param {ethers.Trasaction} transaction
- */
-export const signTransation = async (
-  wallet: Wallet,
-  transaction: object
-): Promise<Signature> => {
-  const signedMessage = await wallet.sign(transaction)
-  const [v, r, s] = ethers.utils.RLP.decode(signedMessage).slice(-3)
-  return [
-    v,
-    bufToHexString(bufferUtils.padLeft(hexStrToBuf(r), 32)),
-    bufToHexString(bufferUtils.padLeft(hexStrToBuf(s), 32)),
-  ]
 }
 
 /**
@@ -468,7 +475,7 @@ export const numberToBuf = (n: number): Buffer => {
  * @returns The buffer
  */
 export const getTransactionResult = async (
-  provider: Provider,
+  provider: any,
   tx: Transaction,
   returnType: string
 ): Promise<any[]> => {

@@ -5,11 +5,7 @@ import {
   getLogger,
   logError,
 } from '@eth-optimism/core-utils'
-import {
-  L2ExecutionManagerContractDefinition,
-  FullStateManagerContractDefinition,
-  L2ToL1MessagePasserContractDefinition,
-} from '@eth-optimism/rollup-contracts'
+import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Contract, Wallet } from 'ethers'
 import { JsonRpcProvider } from 'ethers/providers'
@@ -22,6 +18,16 @@ import { CHAIN_ID, deployContract, GAS_LIMIT } from '../index'
 import * as fs from 'fs'
 
 const log = getLogger('l2-node')
+
+const L2ExecutionManagerContractDefinition = getContractDefinition(
+  'L2ExecutionManager'
+)
+const FullStateManagerContractDefinition = getContractDefinition(
+  'FullStateManager'
+)
+const L2ToL1MessagePasserContractDefinition = getContractDefinition(
+  'L2ToL1MessagePasser'
+)
 
 /* Configuration */
 
