@@ -142,8 +142,6 @@ export class TranspilerImpl implements Transpiler {
       constantsUsedByDeployedBytecode
     ] = this.splitCodeAndConstants(taggedDeployedEVMBytecode)
 
-    log.debug(`split resulted in code of: ${bufToHexString(bytecodeToBuffer(deployedBytecodeWithoutConstants))}\nand constands of: ${bufToHexString(bytecodeToBuffer(constantsUsedByDeployedBytecode))}`)
-
     const deployedBytecodeTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
       deployedBytecodeWithoutConstants
     )
@@ -261,11 +259,16 @@ export class TranspilerImpl implements Transpiler {
       errors
     )
 
-    // TODO: handle here if errors.length > 0.
-
-    return {
-      succeeded: true,
-      bytecode: bytecodeToBuffer(finalTranspiledBytecode),
+    if (errors.length > 0) {
+      return {
+        succeeded: false,
+        errors
+      }
+    } else {
+      return {
+        succeeded: true,
+        bytecode: bytecodeToBuffer(finalTranspiledBytecode),
+      }
     }
   }
 
@@ -303,7 +306,6 @@ export class TranspilerImpl implements Transpiler {
     taggedBytecode: EVMBytecode,
     errors
   ): EVMBytecode {
-    log.debug(`fixTaggedConstantOffsets(...).  \nraw input: ${bufToHexString(bytecodeToBuffer(taggedBytecode))}\ntagged input: ${formatBytecode(taggedBytecode)}`)
     const inputAsBuf: Buffer = bytecodeToBuffer(taggedBytecode)
     const bytecodeToReturn: EVMBytecode = []
     for (const [index, op] of taggedBytecode.entries()) {
@@ -314,10 +316,7 @@ export class TranspilerImpl implements Transpiler {
       if (isTaggedWithReason(op, [OpcodeTagReason.IS_CONSTANT_OFFSET])) {
         const theConstant: Buffer = op.tag.metadata
         const newConstantOffset: number = inputAsBuf.indexOf(theConstant)
-        const newConstantCopy: Buffer = Buffer.from(inputAsBuf).slice(newConstantOffset)
-        log.debug(`a copy of the constant in the transpiled location is cominig from offset ${newConstantOffset} looks like:\n${bufToHexString(newConstantCopy)}`)
         if (newConstantOffset === -1) {
-          log.debug(`pushed the unfindable constant error`)
           errors.push(
             TranspilerImpl.createError(
               index,
