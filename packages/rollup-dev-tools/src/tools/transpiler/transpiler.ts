@@ -293,9 +293,9 @@ export class TranspilerImpl implements Transpiler {
           `fixing CODECOPY(constant) at PC 0x${getPCOfEVMBytecodeIndex(
             index,
             taggedBytecode
-          ).toString(16)}.  Setting new index to 0x${bufToHexString(
-            newConstantOffsetBuf
-          )}`
+          ).toString(16)}.  The constant's value is: ${bufToHexString(
+            theConstant
+          )}  Setting new index to ${bufToHexString(newConstantOffsetBuf)}`
         )
         bytecodeToReturn[index].consumedBytes = newConstantOffsetBuf
       }
@@ -510,7 +510,7 @@ export class TranspilerImpl implements Transpiler {
             TranspilerImpl.createError(
               index,
               TranspilationErrors.DETECTED_CONSTANT_OOB,
-              `Thought we detected a CODECOP(a CODECOPY(constant) pattern at starting at PC: 0x${getPCOfEVMBytecodeIndex(
+              `Thought we detected a CODECOPY(constant) pattern at starting at PC: 0x${getPCOfEVMBytecodeIndex(
                 index,
                 bytecode
               ).toString(
@@ -527,7 +527,13 @@ export class TranspilerImpl implements Transpiler {
           `detected a CODECOPY(constant) pattern at starting at PC: 0x${getPCOfEVMBytecodeIndex(
             index,
             bytecode
-          ).toString(16)}.  Its val: ${bufToHexString(theConstant)}`
+          ).toString(
+            16
+          )}.  The original offset is: 0x${offsetForCODECOPY.toString(
+            16
+          )} and original length is: 0x${lengthforCODECOPY.toString(
+            16
+          )} which produced this value: ${bufToHexString(theConstant)}`
         )
         taggedBytecode[index] = {
           opcode: op.opcode,

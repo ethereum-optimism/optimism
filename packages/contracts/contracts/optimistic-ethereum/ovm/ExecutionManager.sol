@@ -8,6 +8,8 @@ import { RLPEncode } from "../utils/RLPEncode.sol";
 import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { FullStateManager } from "./FullStateManager.sol";
+import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
+import { SafetyChecker } from "./SafetyChecker.sol";
 
 /**
  * @title ExecutionManager
@@ -38,6 +40,7 @@ contract ExecutionManager {
     FullStateManager stateManager;
     ContractAddressGenerator contractAddressGenerator;
     RLPEncode rlp;
+    SafetyChecker safetyChecker;
     DataTypes.ExecutionContext executionContext;
 
 
@@ -92,7 +95,13 @@ contract ExecutionManager {
         contractAddressGenerator = new ContractAddressGenerator();
 
         // Deploy a default state manager
-        stateManager = new FullStateManager(_opcodeWhitelistMask, _overrideSafetyChecker);
+        stateManager = new FullStateManager();
+        // Deploy a safety checker. TODO: Pass this in as a constructor and remove `_overrideSafetyChecker`
+        if (!_overrideSafetyChecker) {
+            safetyChecker = new SafetyChecker(_opcodeWhitelistMask, address(this));
+        } else {
+            safetyChecker = new StubSafetyChecker();
+        }
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
@@ -116,6 +125,14 @@ contract ExecutionManager {
     /*
      * Public Functions
      */
+
+    /**
+     * @notice Sets a new state manager to be associated with the execution manager.
+     * This is used when we want to swap out a new backend to be used for a different execution.
+     */
+    function setStateManager(address _stateManagerAddress) external {
+        stateManager = FullStateManager(_stateManagerAddress);
+    }
 
     /**
      * @notice Increments the provided address's nonce.
@@ -631,22 +648,25 @@ contract ExecutionManager {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
+        if (!safetyChecker.isBytecodeSafe(_ovmInitcode)) {
+            // Contract init code is not safe.
+            return false;
+        }
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
 
         // Deploy the _ovmInitcode as a code contract -- Note the init script will run in the newly set context
-        address codeContractAddress = stateManager.deployContract(_newOvmContractAddress, _ovmInitcode);
-
-        // Return false if the contract failed to deploy
-        if (codeContractAddress == ZERO_ADDRESS) {
-            restoreContractContext(oldMsgSender, oldActiveContract);
+        address codeContractAddress = deployCodeContract(_ovmInitcode);
+        // Get the runtime bytecode
+        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
+        // Safety check the runtime bytecode
+        if (!safetyChecker.isBytecodeSafe(codeContractBytecode)) {
+            // Contract runtime bytecode is not safe.
             return false;
         }
 
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
-        bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
-
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
 
@@ -659,9 +679,27 @@ contract ExecutionManager {
         return true;
     }
 
-    /*************************
-     * Contract CALL Opcodes *
-     *************************/
+    /**
+     * @notice Deploys a code contract, and then registers it to the state
+     * @param _ovmContractInitcode The bytecode of the contract to be deployed
+     * @return the codeContractAddress.
+     */
+    function deployCodeContract(bytes memory _ovmContractInitcode) internal returns(address codeContractAddress) {
+        // Deploy a new contract with this _ovmContractInitCode
+        assembly {
+            // Set our codeContractAddress to the address returned by our CREATE operation
+            codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
+            // Make sure that the CREATE was successful (actually deployed something)
+            if iszero(extcodesize(codeContractAddress)) {
+                revert(0, 0)
+            }
+        }
+        return codeContractAddress;
+    }
+
+    /************************
+    * Contract CALL Opcodes *
+    ************************/
 
     /**
      * @notice CALL opcode -- simply calls a particular code contract with the desired OVM contract context.
@@ -961,6 +999,7 @@ contract ExecutionManager {
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
         address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
 
+        // TODO: Replace `getCodeContractHash(...) with `getOvmContractHash(...)
         bytes32 hash = stateManager.getCodeContractHash(codeContractAddress);
 
         assembly {
