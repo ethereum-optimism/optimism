@@ -7,6 +7,7 @@ import {
   TranspilationError,
   Transpiler,
   TranspilerImpl,
+  stripAuxData,
 } from '@eth-optimism/rollup-dev-tools'
 import {
   bufToHexString,
@@ -393,9 +394,12 @@ const getBytecode = (
     const code: string = isDeployedBytecode
       ? contractSolcOutput.evm.deployedBytecode.object
       : contractSolcOutput.evm.bytecode.object
-
-    const auxData = getAuxData(contractSolcOutput)
-    return !!auxData ? code.split(auxData)[0] : code
+    const strippedCode: Buffer = stripAuxData(
+      hexStrToBuf(code),
+      contractSolcOutput,
+      isDeployedBytecode
+    )
+    return bufToHexString(strippedCode)
   } catch (e) {
     return undefined
   }
