@@ -30,7 +30,7 @@ const getCreate2Address = (
   return getAddress(`0x${keccak256(sanitizedInputs).slice(-40)}`)
 }
 
-describe.only('Large Constant deployment', () => {
+describe('Large Constant deployment', () => {
   let wallet
   let simpleConstantCreate2: Contract
   let provider 
@@ -44,14 +44,13 @@ describe.only('Large Constant deployment', () => {
     const wallets = await getWallets(provider)
     const wallet = wallets[0]
     simpleConstantCreate2 = await deployContract(wallet, SimpleConstantCreate2, [])
-    console.log(`ovm contract deployed`)
   })
 
   it('should calculate address correctly for valid OVM bytecode in a constant', async () => {
     const salt = DEFAULT_SALT
     const bytecode = add0x(SimpleStorage.bytecode)
     const expectedAddress = getCreate2Address(simpleConstantCreate2.address, salt, bytecode)
-    console.log(`expecting address ${expectedAddress}`)
+
     await simpleConstantCreate2.create2(salt)
     const address = await simpleConstantCreate2.contractAddress()
     address.should.equal(expectedAddress)
