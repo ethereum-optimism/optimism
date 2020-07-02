@@ -22,7 +22,7 @@ import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
   encodeRawArguments,
-  encodeMethodId
+  encodeMethodId,
 } from '../../../test-helpers'
 
 /* Logging */

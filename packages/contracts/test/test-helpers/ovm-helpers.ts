@@ -1,7 +1,17 @@
 /* External Imports */
 import { ethers, Signer, Contract, ContractFactory } from 'ethers'
 import { Log, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
-import { abi, add0x, hexStrToBuf, getLogger, logError, BloomFilter, numberToHexString, bufToHexString, getCurrentTime } from '@eth-optimism/core-utils'
+import {
+  abi,
+  add0x,
+  hexStrToBuf,
+  getLogger,
+  logError,
+  BloomFilter,
+  numberToHexString,
+  bufToHexString,
+  getCurrentTime,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { ZERO_ADDRESS, GAS_LIMIT } from './constants'
@@ -65,7 +75,6 @@ export const convertInternalLogsToOvmLogs = (
   })
   return ovmLogs
 }
-
 
 /**
  * Gets ovm transaction metadata from an internal transaction receipt.

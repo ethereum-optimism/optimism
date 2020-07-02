@@ -1,6 +1,3 @@
-
-
-
 export const getWallets = (): Wallet[] => {
   return DEFAULT_ACCOUNTS.map((account) => {
     return new ethers.Wallet(account.secretKey)

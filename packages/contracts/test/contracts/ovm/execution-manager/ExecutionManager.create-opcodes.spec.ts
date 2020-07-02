@@ -27,11 +27,6 @@ const methodIds = fromPairs(
 
 /* Tests */
 describe('ExecutionManager -- Create opcodes', () => {
-  let wallet: Signer
-  before(async () => {
-    ;[wallet] = await ethers.getSigners()
-  })
-
   let ExecutionManager: ContractFactory
   let SimpleStorage: ContractFactory
   let InvalidOpcodes: ContractFactory

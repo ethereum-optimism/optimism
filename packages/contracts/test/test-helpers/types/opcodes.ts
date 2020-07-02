@@ -1,7 +1,4 @@
-import {
-  bufToHexString,
-  remove0x,
-} from '@eth-optimism/core-utils'
+import { bufToHexString, remove0x } from '@eth-optimism/core-utils'
 
 export interface EVMOpcode {
   name: string

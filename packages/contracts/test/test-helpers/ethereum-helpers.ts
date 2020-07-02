@@ -1,7 +1,16 @@
 import { Transaction } from 'ethers/utils'
 import { Log } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import { add0x, remove0x, keccak256, abi, strToHexStr, bufferUtils, bufToHexString, hexStrToBuf } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  remove0x,
+  keccak256,
+  abi,
+  strToHexStr,
+  bufferUtils,
+  bufToHexString,
+  hexStrToBuf,
+} from '@eth-optimism/core-utils'
 
 /**
  * Deterministically computes the smart contract address given
