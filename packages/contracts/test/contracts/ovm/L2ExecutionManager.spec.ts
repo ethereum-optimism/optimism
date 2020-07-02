@@ -9,7 +9,7 @@ import { Contract, Signer, ContractFactory } from 'ethers'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT
-} from '../../test-helpers/constants'
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('l2-execution-manager-calls', true)

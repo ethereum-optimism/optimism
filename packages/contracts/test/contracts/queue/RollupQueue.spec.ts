@@ -6,7 +6,7 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
-import { TxQueueBatch } from '../../test-helpers/types'
+import { TxQueueBatch } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('rollup-queue', true)

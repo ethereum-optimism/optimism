@@ -9,10 +9,7 @@ import { fromPairs } from 'lodash'
 /* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
-  GAS_LIMIT
-} from '../../../test-helpers/constants'
-import {
-  gasLimit,
+  GAS_LIMIT,
   executeOVMCall,
   encodeMethodId,
   encodeRawArguments,
@@ -90,7 +87,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: safetyCheckedExecutionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       log.debug(`Result: [${result}]`)
@@ -111,7 +108,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       log.debug(`Result: [${result}]`)
@@ -130,7 +127,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: safetyCheckedExecutionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       log.debug(`Result: [${result}]`)

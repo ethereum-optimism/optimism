@@ -10,8 +10,6 @@ import { TransactionReceipt } from 'ethers/providers'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-} from '../../../test-helpers/constants'
-import {
   manuallyDeployOvmContractReturnReceipt,
   didCreateSucceed,
 } from '../../../test-helpers'

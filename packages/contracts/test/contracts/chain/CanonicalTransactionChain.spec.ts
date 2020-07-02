@@ -6,8 +6,7 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { TxChainBatch, TxQueueBatch } from '../../test-helpers/types'
-import { makeRandomBatchOfSize } from '../../test-helpers'
+import { makeRandomBatchOfSize, TxQueueBatch, TxChainBatch } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('canonical-tx-chain', true)

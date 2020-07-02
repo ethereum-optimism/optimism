@@ -16,16 +16,11 @@ import { fromPairs } from 'lodash'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK
-} from '../../../test-helpers/constants'
-import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
-} from '../../../test-helpers/types'
-import {
   manuallyDeployOvmContract,
   addressToBytes32Address,
   didCreateSucceed,
-  gasLimit,
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
@@ -451,7 +446,7 @@ describe('Execution Manager -- Call opcodes', () => {
     const receipt = await wallet.sendTransaction({
       to: executionManager.address,
       data: add0x(data),
-      gasLimit,
+      gasLimit: GAS_LIMIT,
     })
 
     return receipt.hash
@@ -478,7 +473,7 @@ describe('Execution Manager -- Call opcodes', () => {
     return executionManager.provider.call({
       to: executionManager.address,
       data,
-      gasLimit,
+      gasLimit: GAS_LIMIT,
     })
   }
 })

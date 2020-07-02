@@ -8,12 +8,10 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 /* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_UNSAFE_OPCODES
-} from '../../test-helpers/constants'
-import {
+  DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
-} from '../../test-helpers/types'
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('safety-checker', true)

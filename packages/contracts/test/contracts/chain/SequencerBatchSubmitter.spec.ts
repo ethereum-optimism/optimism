@@ -6,7 +6,7 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { StateChainBatch, TxChainBatch } from '../../test-helpers/types'
+import { StateChainBatch, TxChainBatch } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('batch-submitter', true)

@@ -10,8 +10,6 @@ import {
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-} from '../../../test-helpers/constants'
-import {
   signTransaction,
   getSignedComponents,
   getWallets,

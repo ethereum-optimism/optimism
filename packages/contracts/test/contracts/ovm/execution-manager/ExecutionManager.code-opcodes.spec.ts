@@ -14,12 +14,8 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK
-} from '../../../test-helpers/constants'
-import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
-} from '../../../test-helpers/types'
-import {
   manuallyDeployOvmContract,
   executeOVMCall,
   addressToBytes32Address,

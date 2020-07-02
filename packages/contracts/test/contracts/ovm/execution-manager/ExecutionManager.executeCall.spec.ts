@@ -9,21 +9,16 @@ import {
   TestUtils,
   getCurrentTime,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory, Signer } from 'ethers'
-import * as ethereumjsAbi from 'ethereumjs-abi'
+import { Contract, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
   GAS_LIMIT,
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
-} from '../../../test-helpers/constants'
-import {
-  Address,
-} from '../../../test-helpers/types'
-import {
-  manuallyDeployOvmContract,
   ZERO_UINT,
+  Address,
+  manuallyDeployOvmContract,
   signTransaction,
   getSignedComponents,
   getWallets,
