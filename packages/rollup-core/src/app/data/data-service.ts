@@ -7,6 +7,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import {
   DataService,
+  L1BatchRecord,
   RollupTransaction,
   TransactionAndRoot,
   VerificationCandidate,
@@ -158,6 +159,27 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
+  public async getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord> {
+    const res: Row[] = await this.rdb.select(`
+      SELECT COUNT(*) as batch_size, batch_number, block_timestamp
+      FROM next_l1_batch 
+      GROUP BY batch_number, block_timestamp
+      ORDER BY batch_number ASC
+    `) // note batch_number should be the same, just ordering in case
+
+    if (!res || !res.length || !res[0].columns['batch_size']) {
+      return undefined
+    }
+    return {
+      batchSize: res[0].columns['batch_size'],
+      batchNumber: res[0].columns['batch_number'],
+      blockTimestamp: res[0].columns['block_timestamp'],
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
   public async updateBlockToProcessed(blockHash: string): Promise<void> {
     return this.rdb.execute(`
     UPDATE l1_block 
@@ -178,6 +200,116 @@ export class DefaultDataService implements DataService {
         tx
       )})`
     )
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async tryBuildL2OnlyBatch(): Promise<number> {
+    const timestampRes = await this.rdb.select(
+      `SELECT DISTINCT block_timestamp
+            FROM l2_tx
+            WHERE status = 'UNBATCHED'
+            ORDER BY block_timestamp ASC
+      `
+    )
+
+    if (!timestampRes || timestampRes.length < 2) {
+      return -1
+    }
+
+    const batchTimestamp = timestampRes[0].columns['block_timestamp']
+
+    await this.rdb.startTransaction()
+    try {
+      const batchNumber = await this.insertNewL2TransactionBatch()
+      await this.rdb.execute(`
+        UPDATE l2_tx
+        SET status = 'BATCHED', batch_number = ${batchNumber}
+        WHERE status = 'UNBATCHED' AND block_timestamp = ${batchTimestamp}
+      `)
+
+      await this.rdb.commit()
+      return batchNumber
+    } catch (e) {
+      logError(log, `Error building L2 Batch!`, e)
+      await this.rdb.rollback()
+      throw Error(e)
+    }
+  }
+
+  public async tryBuildL2BatchToMatchL1(
+    l1BatchSize: number,
+    l1BatchNumber: number
+  ): Promise<number> {
+    const maxL2BatchNumber = await this.getMaxL2TxBatchNumber()
+    if (maxL2BatchNumber >= l1BatchNumber) {
+      log.debug(
+        `Not attempting to build batch because max L2 batch number is ${maxL2BatchNumber} and provided L1 batchNumber is ${l1BatchNumber}`
+      )
+      return -1
+    }
+
+    const transactionsToBatchRes = await this.rdb.select(`
+      SELECT COUNT(*) as batchable_tx_count, block_timestamp
+      FROM l2_tx
+      WHERE status = 'UNBATCHED'
+      GROUP BY block_timestamp
+      ORDER BY block_timestamp ASC
+    `)
+
+    if (
+      !transactionsToBatchRes ||
+      !transactionsToBatchRes.length ||
+      !transactionsToBatchRes[0].columns['batchable_tx_count']
+    ) {
+      return -1
+    }
+
+    const batchableTxCount =
+      transactionsToBatchRes[0].columns['batchable_tx-count']
+    if (batchableTxCount < l1BatchSize && transactionsToBatchRes.length > 1) {
+      const msg = `L2 transactions do not match L1 transactions! Cannot and will not be able to build an L2 batch until this is fixed! Expected L1 batch size ${l1BatchSize}, got multiple L2 batches with the oldest unbatched being of size ${batchableTxCount}`
+      log.error(msg)
+      throw Error(msg)
+    }
+
+    if (batchableTxCount < l1BatchSize) {
+      return -1
+    }
+
+    await this.rdb.startTransaction()
+    try {
+      const batchNumber = await this.insertNewL2TransactionBatch()
+      if (batchNumber !== l1BatchNumber) {
+        log.error(
+          `Created L2 batch number ${batchNumber} does not match expected L1 batch number ${l1BatchNumber}. This probably shouldn't happen.`
+        )
+        await this.rdb.rollback()
+        return -1
+      }
+      await this.rdb.execute(`
+        UPDATE l2_tx l
+        SET l.status = 'BATCHED', l.batch_number = ${batchNumber}
+        FROM (
+            SELECT *
+            FROM l2_tx
+            WHERE status = 'UNBATCHED'
+            LIMIT ${l1BatchSize}
+        ) t
+        WHERE l.id = t.id
+      `)
+      await this.rdb.commit()
+      return batchNumber
+    } catch (e) {
+      logError(
+        log,
+        `Error creating L2 batch to match L1 batch of size ${l1BatchSize}.`,
+        e
+      )
+      await this.rdb.rollback()
+      throw Error(e)
+    }
   }
 
   /************
@@ -275,6 +407,51 @@ export class DefaultDataService implements DataService {
     }
 
     return batchNumber
+  }
+
+  /**
+   * @inheritDoc
+   */
+  protected async insertNewL2TransactionBatch(): Promise<number> {
+    let batchNumber: number
+
+    let retries = 3
+    // This should never fail, but adding in retries anyway
+    while (retries > 0) {
+      try {
+        batchNumber = (await this.getMaxL2TxBatchNumber()) + 1
+        await this.rdb.execute(`
+            INSERT INTO l2_tx_batch(batch_number) 
+            VALUES (${batchNumber})`)
+        break
+      } catch (e) {
+        retries--
+      }
+    }
+
+    return batchNumber
+  }
+
+  /**
+   * Fetches the max L2 tx batch number for use in inserting a new tx batch
+   * @returns The max batch number at the time of this query.
+   */
+  protected async getMaxL2TxBatchNumber(): Promise<number> {
+    const rows = await this.rdb.select(
+      `SELECT MAX(batch_number) as batch_number 
+        FROM l2_tx_batch`
+    )
+    if (
+      rows &&
+      !!rows.length &&
+      !!rows[0].columns &&
+      !!rows[0].columns['batch_number']
+    ) {
+      // TODO: make sure we don't need to cast
+      return rows[0].columns['batch_number']
+    }
+
+    return -1
   }
 
   /**

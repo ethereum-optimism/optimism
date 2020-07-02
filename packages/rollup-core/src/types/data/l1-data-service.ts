@@ -2,7 +2,8 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { RollupTransaction, TransactionAndRoot } from '../types'
+import { L1Batch, RollupTransaction, TransactionAndRoot } from '../types'
+import { L1BatchRecord } from './types'
 
 export interface L1DataService {
   /**
@@ -70,4 +71,11 @@ export interface L1DataService {
     l1TxHash: string,
     stateRoots: string[]
   ): Promise<number>
+
+  /**
+   * Gets the oldest unverified L1 transaction batch.
+   *
+   * @returns The L1BatchRecord representing the oldest unverified batch
+   */
+  getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord>
 }

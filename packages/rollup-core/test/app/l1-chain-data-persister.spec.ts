@@ -20,6 +20,7 @@ import {
   LogHandlerContext,
   RollupTransaction,
   L1DataService,
+  L1BatchRecord,
 } from '../../src/types'
 
 class MockDataService implements L1DataService {
@@ -80,6 +81,10 @@ class MockDataService implements L1DataService {
 
   public async updateBlockToProcessed(blockHash: string): Promise<void> {
     this.processedBlocks.add(blockHash)
+  }
+
+  public async getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord> {
+    return undefined
   }
 }
 
