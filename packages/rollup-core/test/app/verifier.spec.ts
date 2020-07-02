@@ -251,4 +251,126 @@ describe('Verifier', () => {
       `Incorrect fraud batch index!`
     )
   })
+
+  it('should only prove fraud once for the same fraud', async () => {
+    const roots = [
+      { l1Root: 'a', l2Root: 'a' },
+      { l1Root: 'b', l2Root: 'c' },
+      { l1Root: 'c', l2Root: 'c' },
+    ]
+
+    dataService.verificationCandidates.push({
+      l1BatchNumber: 1,
+      l2BatchNumber: 1,
+      roots,
+    })
+
+    await verifier.runTask()
+    await verifier.runTask()
+
+    dataService.batchesVerified.length.should.equal(
+      0,
+      `Batch should not be verified!`
+    )
+    fraudProver.provenFraud.length.should.equal(
+      1,
+      `Fraud should have been proven!`
+    )
+    fraudProver.provenFraud[0].batchNumber.should.equal(
+      1,
+      `Incorrect fraud batch number!`
+    )
+    fraudProver.provenFraud[0].batchIndex.should.equal(
+      1,
+      `Incorrect fraud batch index!`
+    )
+  })
+
+  it('should recover after proving fraud', async () => {
+    const fraudRoots = [
+      { l1Root: 'a', l2Root: 'a' },
+      { l1Root: 'b', l2Root: 'c' },
+      { l1Root: 'c', l2Root: 'c' },
+    ]
+
+    dataService.verificationCandidates.push({
+      l1BatchNumber: 1,
+      l2BatchNumber: 1,
+      roots: fraudRoots,
+    })
+
+    await verifier.runTask()
+
+    dataService.verificationCandidates.push({
+      l1BatchNumber: 1,
+      l2BatchNumber: 1,
+      roots: fraudRoots,
+    })
+    await verifier.runTask()
+
+    dataService.batchesVerified.length.should.equal(
+      0,
+      `Batch should not be verified!`
+    )
+    fraudProver.provenFraud.length.should.equal(
+      1,
+      `Fraud should have been proven!`
+    )
+    fraudProver.provenFraud[0].batchNumber.should.equal(
+      1,
+      `Incorrect fraud batch number!`
+    )
+    fraudProver.provenFraud[0].batchIndex.should.equal(
+      1,
+      `Incorrect fraud batch index!`
+    )
+
+    const nonFraudRroots = [
+      { l1Root: 'a', l2Root: 'a' },
+      { l1Root: 'b', l2Root: 'b' },
+      { l1Root: 'c', l2Root: 'c' },
+    ]
+
+    dataService.verificationCandidates.push({
+      l1BatchNumber: 1,
+      l2BatchNumber: 1,
+      roots: nonFraudRroots,
+    })
+
+    await verifier.runTask()
+
+    dataService.batchesVerified.length.should.equal(
+      1,
+      `Batch should not be verified!`
+    )
+    dataService.batchesVerified[0].should.equal(
+      1,
+      `Batch 1 should be verified!`
+    )
+
+    dataService.verificationCandidates.push({
+      l1BatchNumber: 2,
+      l2BatchNumber: 2,
+      roots: fraudRoots,
+    })
+
+    await verifier.runTask()
+
+    dataService.batchesVerified.length.should.equal(
+      1,
+      `Only batch 1 should not be verified!`
+    )
+    fraudProver.provenFraud.length.should.equal(
+      2,
+      `Second fraud should have been proven!`
+    )
+    fraudProver.provenFraud[1].batchNumber.should.equal(
+      2,
+      `Incorrect second fraud batch number!`
+    )
+    fraudProver.provenFraud[1].batchIndex.should.equal(
+      1,
+      `Incorrect second fraud batch index!`
+    )
+  })
 })
