@@ -610,57 +610,6 @@ describe('Web3Handler', () => {
         })
       })
     })
-
-    describe('L1 to L2 Transaction Passing', () => {
-      let executionManagerAddress
-      let simpleStorage: Contract
-      let wallet: Wallet
-      beforeEach(async () => {
-        executionManagerAddress = await httpProvider.send(
-          'ovm_getExecutionManagerAddress',
-          []
-        )
-
-        wallet = getWallet(httpProvider)
-        simpleStorage = await deploySimpleStorage(wallet)
-      })
-
-      it('should process L1 to L2 Transaction', async () => {
-        const callData = getUnsignedTransactionCalldata(
-          simpleStorage,
-          'setStorage',
-          [executionManagerAddress, storageKey, storageValue]
-        )
-        await web3Handler.handleL1ToL2Transaction({
-          nonce: 0,
-          gasLimit: 0,
-          calldata: callData,
-          sender: wallet.address,
-          target: simpleStorage.address,
-        })
-
-        await getAndVerifyStorage(
-          simpleStorage,
-          httpProvider,
-          executionManagerAddress
-        )
-      })
-
-      it('should not throw if L1 to L2 Transaction reverts', async () => {
-        const callData = getUnsignedTransactionCalldata(
-          simpleStorage,
-          'justRevert',
-          []
-        )
-        await web3Handler.handleL1ToL2Transaction({
-          nonce: 0,
-          gasLimit: 0,
-          calldata: callData,
-          sender: wallet.address,
-          target: simpleStorage.address,
-        })
-      })
-    })
   })
 
   describe('persisted node', () => {

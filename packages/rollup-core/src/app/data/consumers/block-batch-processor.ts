@@ -15,8 +15,8 @@ import {
   BlockBatchListener,
   BatchLogParserContext,
   L1Batch,
-} from '../../types'
-import { addressesAreEqual } from '../utils'
+} from '../../../types'
+import { addressesAreEqual } from '../../utils'
 
 const log: Logger = getLogger('block-batch-processor')
 
