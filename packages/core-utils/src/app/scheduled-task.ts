@@ -1,5 +1,5 @@
-import {sleep} from './misc'
-import {getLogger, logError} from './log'
+import { sleep } from './misc'
+import { getLogger, logError } from './log'
 
 const log = getLogger('scheduled-task')
 
@@ -9,11 +9,11 @@ const log = getLogger('scheduled-task')
 export abstract class ScheduledTask {
   private running: boolean
 
-  protected constructor(
-    private readonly periodMilliseconds: number
-  ) {
+  protected constructor(private readonly periodMilliseconds: number) {
     if (periodMilliseconds < 0) {
-      throw Error(`periodMilliseconds must be >= 0. Received ${periodMilliseconds}`)
+      throw Error(
+        `periodMilliseconds must be >= 0. Received ${periodMilliseconds}`
+      )
     }
     this.running = false
   }
@@ -39,14 +39,22 @@ export abstract class ScheduledTask {
       try {
         await this.run()
       } catch (e) {
-        logError(log, `ScheduledTask caught error on execution. Re-throwing so initial caller of run() may handle it appropriately.`, e)
+        logError(
+          log,
+          `ScheduledTask caught error on execution. Re-throwing so initial caller of run() may handle it appropriately.`,
+          e
+        )
         this.running = false
         throw e
       }
       try {
         await sleep(this.periodMilliseconds)
       } catch (e) {
-        logError(log, `Error sleeping in ScheduledTask! Continuing execution.`, e)
+        logError(
+          log,
+          `Error sleeping in ScheduledTask! Continuing execution.`,
+          e
+        )
       }
     }
   }
