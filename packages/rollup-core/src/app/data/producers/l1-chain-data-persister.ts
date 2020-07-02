@@ -11,7 +11,7 @@ import {
 import { Log } from 'ethers/providers/abstract-provider'
 
 /* Internal Imports */
-import { L1DataService, LogHandlerContext } from '../../types'
+import { L1DataService, LogHandlerContext } from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 
 const log: Logger = getLogger('l1-chain-data-persister')

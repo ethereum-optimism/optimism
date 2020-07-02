@@ -4,7 +4,6 @@ import {
   BigNumber,
   keccak256FromUtf8,
   sleep,
-  ZERO,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 
@@ -15,10 +14,8 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { L2DataService } from '../../src/types/data'
-import { TransactionAndRoot } from '../../src/types'
-import { CHAIN_ID } from '../../src/app'
-import { L2ChainDataPersister } from '../../src/app/data-handling/l2-chain-data-persister'
+import { L2DataService, TransactionAndRoot } from '../../src/types'
+import { CHAIN_ID, L2ChainDataPersister } from '../../src/app'
 
 class MockDataService implements L2DataService {
   public readonly transactionAndRoots: TransactionAndRoot[] = []

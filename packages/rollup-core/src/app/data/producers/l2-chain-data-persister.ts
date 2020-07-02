@@ -14,9 +14,9 @@ import {
   L2DataService,
   LogHandlerContext,
   TransactionAndRoot,
-} from '../../types'
+} from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
-import { monkeyPatchL2Provider } from '../utils'
+import { monkeyPatchL2Provider } from '../../utils'
 import { BigNumber, remove0x } from '@eth-optimism/core-utils/build'
 
 const log: Logger = getLogger('l2-chain-data-persister')

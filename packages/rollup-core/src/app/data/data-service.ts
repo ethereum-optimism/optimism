@@ -7,12 +7,9 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import {
   DataService,
-  L1DataService,
-  L2DataService,
   RollupTransaction,
   TransactionAndRoot,
   VerificationCandidate,
-  VerifierDataService,
 } from '../../types'
 import {
   blockInsertStatement,

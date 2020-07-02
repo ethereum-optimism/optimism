@@ -15,10 +15,12 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { L1ChainDataPersister } from '../../src/app/data-handling'
-import { L1DataService } from '../../src/types/data'
-import { LogHandlerContext, RollupTransaction } from '../../src/types'
-import { CHAIN_ID } from '../../src/app'
+import { L1ChainDataPersister, CHAIN_ID } from '../../src/app'
+import {
+  LogHandlerContext,
+  RollupTransaction,
+  L1DataService,
+} from '../../src/types'
 
 class MockDataService implements L1DataService {
   public readonly blocks: Block[] = []
