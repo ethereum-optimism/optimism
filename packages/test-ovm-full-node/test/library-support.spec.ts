@@ -3,7 +3,7 @@ import './setup'
 /* External Imports */
 import { getLogger } from '@eth-optimism/core-utils'
 import { createMockProvider } from '@eth-optimism/rollup-full-node'
-import {deployContract, getWallets} from '@eth-optimism/rollup-core'
+import { deployContract, getWallets } from '@eth-optimism/rollup-core'
 
 import solcTranspiler from '@eth-optimism/solc-transpiler'
 import { EXECUTION_MANAGER_ADDRESS } from '@eth-optimism-test/integration-test-utils'
@@ -55,14 +55,16 @@ describe('Library usage tests', () => {
   let provider
   let wallet
   let deployedLibUser
-  beforeEach(async function() {
+  beforeEach(async () => {
     // NOTE: if we run this test in isolation on default port, it works, but in multi-package tests it fails.
     // Hypothesis for why this is: multi-package tests are run in parallel, so we need to use a separate port per package.
     provider = await createMockProvider()
     const wallets = getWallets(provider)
     wallet = wallets[0]
 
-    const wrappedSolcResult = (solcTranspiler as any).compile(JSON.stringify(config))
+    const wrappedSolcResult = (solcTranspiler as any).compile(
+      JSON.stringify(config)
+    )
     const wrappedSolcJson = JSON.parse(wrappedSolcResult)
     const simpleSafeMathJSON =
       wrappedSolcJson['contracts']['SimpleSafeMath.sol']['SimpleSafeMath']

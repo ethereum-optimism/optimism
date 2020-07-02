@@ -2,13 +2,12 @@
   "sourcesPath": "./contracts",
   "targetPath": "./build",
   "npmPath": "../../node_modules",
-  "solcVersion": "../../node_modules/@eth-optimism/solc-transpiler",
+  "solcVersion": "../../node_modules/solc",
   "compilerOptions": {
     "outputSelection": {
       "*": {
         "*": ["*"]
       }
-    },
-    "executionManagerAddress": "0xA193E42526F1FEA8C99AF609dcEabf30C1c29fAA"
+    }
   }
 }
