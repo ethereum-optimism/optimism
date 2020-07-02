@@ -70,6 +70,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       throw Error('There must be exactly one log context for each log topic')
     }
     this.topics = Array.from(this.topicMap.keys())
+    log.debug(`topics: ${JSON.stringify(this.topicMap)}`)
   }
 
   /**
@@ -90,8 +91,6 @@ export class L1ChainDataPersister extends ChainDataProcessor {
         logs
       )}`
     )
-
-    log.debug(`topics: ${JSON.stringify(this.topicMap)}`)
 
     const relevantLogs = logs
       .filter(
