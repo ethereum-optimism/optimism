@@ -37,7 +37,7 @@ export abstract class ScheduledTask {
   public async run(): Promise<void> {
     while (this.running) {
       try {
-        await this.run()
+        await this.runTask()
       } catch (e) {
         logError(
           log,
