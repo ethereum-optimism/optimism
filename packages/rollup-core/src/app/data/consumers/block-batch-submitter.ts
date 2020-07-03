@@ -5,7 +5,7 @@ import { JsonRpcProvider } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { BlockBatches, BlockBatchListener } from '../../types'
+import { BlockBatches, BlockBatchListener } from '../../../types'
 
 const log: Logger = getLogger('block-batch-submitter')
 

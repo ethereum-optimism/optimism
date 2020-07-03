@@ -18,12 +18,24 @@ export const Md5Hash = (preimage: string): string => {
 
 /**
  * Computes the keccak256 hash of a value.
+ * Note: assumes the value is a valid hex string.
+ *
  * @param value Value to hash
  * @returns the hash of the value.
  */
 export const keccak256 = (value: string): string => {
   const preimage = add0x(value)
   return remove0x(ethers.utils.keccak256(preimage))
+}
+
+/**
+ * Computes the keccak256 hash of the value represented by the provided UTF-8 string.
+ *
+ * @param s The UTF-8 encoded string.
+ * @returns The keccak256 hash.
+ */
+export const keccak256FromUtf8 = (s: string): string => {
+  return add0x(keccak256(Buffer.from(s).toString('hex')))
 }
 
 /**
