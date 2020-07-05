@@ -3,7 +3,6 @@ import '../setup'
 /* External Imports */
 import {
   hexStrToNumber,
-  keccak256,
   keccak256FromUtf8,
   TestUtils,
 } from '@eth-optimism/core-utils'
@@ -80,13 +79,6 @@ const rollupTx2: RollupTransaction = {
   queueOrigin: 1,
 }
 
-const rollupTxsEqual = (
-  one: RollupTransaction,
-  two: RollupTransaction
-): boolean => {
-  return JSON.stringify(one) === JSON.stringify(two)
-}
-
 const deserializeBlockBatches = (serialized: string): BlockBatches => {
   return JSON.parse(serialized, (k, v) => {
     switch (k) {
@@ -94,6 +86,10 @@ const deserializeBlockBatches = (serialized: string): BlockBatches => {
       case 'timestamp':
       case 'gasLimit':
       case 'nonce':
+      case 'batchIndex':
+      case 'l1BlockNumber':
+      case 'l1Timestamp':
+      case 'queueOrigin':
         return hexStrToNumber(v)
       default:
         return v
@@ -172,8 +168,8 @@ describe('L2 Node Service', () => {
     blockBatches.timestamp.should.equal(timestamp, 'Incorrect timestamp!')
     blockBatches.batches.length.should.equal(1, 'Incorrect num batches!')
     blockBatches.batches[0].length.should.equal(1, 'Incorrect num txs!')
-    rollupTxsEqual(blockBatches.batches[0][0], rollupTx).should.equal(
-      true,
+    blockBatches.batches[0][0].should.deep.equal(
+      rollupTx,
       'Incorrect transaction received!'
     )
 
@@ -212,13 +208,13 @@ describe('L2 Node Service', () => {
       2,
       'Incorrect num transactions!'
     )
-    rollupTxsEqual(blockBatches.batches[0][0], rollupTx).should.equal(
-      true,
+    blockBatches.batches[0][0].should.deep.equal(
+      rollupTx,
       'Incorrect transaction received!'
     )
 
-    rollupTxsEqual(blockBatches.batches[0][1], rollupTx2).should.equal(
-      true,
+    blockBatches.batches[0][1].should.deep.equal(
+      rollupTx2,
       'Incorrect transaction 2 received!'
     )
 
