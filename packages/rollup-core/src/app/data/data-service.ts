@@ -6,6 +6,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
 import {
+  BlockBatches,
   DataService,
   L1BatchRecord,
   RollupTransaction,
@@ -13,16 +14,16 @@ import {
   VerificationCandidate,
 } from '../../types'
 import {
-  blockInsertStatement,
-  getBlockInsertValue,
+  l1BlockInsertStatement,
+  getL1BlockInsertValue,
   getL2TransactionInsertValue,
-  getRollupStateRootInsertValue,
-  getRollupTransactionInsertValue,
-  getTransactionInsertValue,
+  getL1RollupStateRootInsertValue,
+  getL1RollupTransactionInsertValue,
+  getL1TransactionInsertValue,
   l2TransactionInsertStatement,
-  rollupStateRootInsertStatement,
-  rollupTxInsertStatement,
-  txInsertStatement,
+  l1RollupStateRootInsertStatement,
+  l1RollupTxInsertStatement,
+  l1TxInsertStatement,
 } from './query-utils'
 
 const log = getLogger('data-service')
@@ -36,12 +37,12 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async insertBlock(
+  public async insertL1Block(
     block: Block,
     processed: boolean = false
   ): Promise<void> {
     return this.rdb.execute(
-      `${blockInsertStatement} VALUES (${getBlockInsertValue(
+      `${l1BlockInsertStatement} VALUES (${getL1BlockInsertValue(
         block,
         processed
       )})`
@@ -51,30 +52,30 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async insertTransactions(
+  public async insertL1Transactions(
     transactions: TransactionResponse[]
   ): Promise<void> {
     if (!transactions || !transactions.length) {
       return
     }
     const values: string[] = transactions.map(
-      (x) => `(${getTransactionInsertValue(x)})`
+      (x) => `(${getL1TransactionInsertValue(x)})`
     )
-    return this.rdb.execute(`${txInsertStatement} VALUES ${values.join(',')}`)
+    return this.rdb.execute(`${l1TxInsertStatement} VALUES ${values.join(',')}`)
   }
 
   /**
    * @inheritDoc
    */
-  public async insertBlockAndTransactions(
+  public async insertL1BlockAndTransactions(
     block: Block,
     txs: TransactionResponse[],
     processed: boolean = false
   ): Promise<void> {
     await this.rdb.startTransaction()
     try {
-      await this.insertBlock(block, processed)
-      await this.insertTransactions(txs)
+      await this.insertL1Block(block, processed)
+      await this.insertL1Transactions(txs)
     } catch (e) {
       await this.rdb.rollback()
       throw e
@@ -85,7 +86,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async insertRollupTransactions(
+  public async insertL1RollupTransactions(
     l1TxHash: string,
     rollupTransactions: RollupTransaction[]
   ): Promise<number> {
@@ -101,10 +102,10 @@ export class DefaultDataService implements DataService {
       )
 
       const values: string[] = rollupTransactions.map(
-        (x) => `(${getRollupTransactionInsertValue(x, batchNumber)})`
+        (x) => `(${getL1RollupTransactionInsertValue(x, batchNumber)})`
       )
       await this.rdb.execute(
-        `${rollupTxInsertStatement} VALUES ${values.join(',')}`
+        `${l1RollupTxInsertStatement} VALUES ${values.join(',')}`
       )
 
       await this.rdb.commit()
@@ -124,7 +125,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async insertRollupStateRoots(
+  public async insertL1RollupStateRoots(
     l1TxHash: string,
     stateRoots: string[]
   ): Promise<number> {
@@ -138,10 +139,11 @@ export class DefaultDataService implements DataService {
       batchNumber = await this.insertNewL1StateRootBatch(l1TxHash)
 
       const values: string[] = stateRoots.map(
-        (root, i) => `(${getRollupStateRootInsertValue(root, batchNumber, i)})`
+        (root, i) =>
+          `(${getL1RollupStateRootInsertValue(root, batchNumber, i)})`
       )
       await this.rdb.execute(
-        `${rollupStateRootInsertStatement} VALUES ${values.join(',')}`
+        `${l1RollupStateRootInsertStatement} VALUES ${values.join(',')}`
       )
 
       await this.rdb.commit()
@@ -162,7 +164,7 @@ export class DefaultDataService implements DataService {
   public async getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord> {
     const res: Row[] = await this.rdb.select(`
       SELECT COUNT(*) as batch_size, batch_number, block_timestamp
-      FROM next_l1_batch 
+      FROM next_l1_verification_batch 
       GROUP BY batch_number, block_timestamp
       ORDER BY batch_number ASC
     `) // note batch_number should be the same, just ordering in case
@@ -175,6 +177,71 @@ export class DefaultDataService implements DataService {
       batchNumber: res[0].columns['batch_number'],
       blockTimestamp: res[0].columns['block_timestamp'],
     }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getNextBatchForL2Submission(): Promise<BlockBatches> {
+    const res: Row[] = await this.rdb.select(`
+      SELECT batch_number, target, calldata, block_timestamp, block_number, l1_tx_hash, queue_origin, sender, l1_message_sender, gas_limit, nonce, signature
+      FROM next_l2_submission_batch
+    `)
+
+    if (!res || !res.length) {
+      return undefined
+    }
+
+    const batchNumber = res[0].columns['batch_number']
+    const timestamp = res[0].columns['block_timestamp']
+    const blockNumber = res[0].columns['block_number']
+
+    return {
+      batchNumber,
+      timestamp,
+      blockNumber,
+      batches: [
+        res.map((row: Row, batchIndex: number) => {
+          const tx: RollupTransaction = {
+            batchIndex,
+            target: row.columns['target'],
+            calldata: row.columns['calldata'], // TODO: may have to format Buffer => string
+            l1Timestamp: row.columns['block_timestamp'],
+            l1BlockNumber: row.columns['block_number'],
+            l1TxHash: row.columns['l1_tx_hash'],
+            queueOrigin: row.columns['queue_origin'],
+          }
+
+          if (!!row.columns['sender']) {
+            tx.sender = row.columns['sender']
+          }
+          if (!!row.columns['l1MessageSender']) {
+            tx.l1MessageSender = row.columns['l1_message_sender']
+          }
+          if (!!row.columns['gas_limit']) {
+            tx.gasLimit = row.columns['gas_limit']
+          }
+          if (!!row.columns['nonce']) {
+            tx.nonce = row.columns['nonce']
+          }
+          if (!!row.columns['signature']) {
+            tx.nonce = row.columns['signature']
+          }
+          return tx
+        }),
+      ],
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markL1BatchSubmittedToL2(batchNumber: number): Promise<void> {
+    return this.rdb.execute(
+      `UPDATE l1_tx_batch
+      SET status = 'SUBMITTED_TO_L2'
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /**
@@ -322,8 +389,8 @@ export class DefaultDataService implements DataService {
   public async getVerificationCandidate(): Promise<VerificationCandidate> {
     const rows: Row[] = await this.rdb.select(`
       SELECT l1.batch_number as l1_batch, l2.batch_number as l2_batch, l1.batch_index, l1.state_root as l1_root, l2.state_root as l2_root
-      FROM next_l1_batch l1
-        LEFT OUTER JOIN next_l2_batch l2 
+      FROM next_l1_verification_batch l1
+        LEFT OUTER JOIN next_l2_verification_batch l2 
         ON l1.batch_number = l2.batch_number AND l1.batch_index = l2.batch_index
       ORDER BY l1.batch_index ASC
     `)

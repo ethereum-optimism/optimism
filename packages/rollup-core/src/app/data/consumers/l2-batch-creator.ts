@@ -18,11 +18,12 @@ export class L2BatchCreator extends ScheduledTask {
   }
 
   /**
+   * @inheritDoc
+   *
    * Creates L2 batches from L2 Transactions in the DB, either when:
    *    1. Unsubmitted & unverified transactions in the L2 tx DB match the oldest unverified L1 batch in size
    *    2. Unsubmitted & unverified transactions in the L2 tx DB have multiple timestamps (multiple batches exist)
    *
-   * @inheritDoc
    */
   public async runTask(): Promise<void> {
     try {

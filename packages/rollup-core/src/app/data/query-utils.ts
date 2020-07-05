@@ -4,8 +4,10 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import { RollupTransaction, TransactionAndRoot } from '../../types'
 
-export const txInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, v, r, s) `
-export const getTransactionInsertValue = (tx: TransactionResponse): string => {
+export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, v, r, s) `
+export const getL1TransactionInsertValue = (
+  tx: TransactionResponse
+): string => {
   return `${tx.blockNumber}, '${tx.blockHash}', '${tx.hash}', '${tx.from}', '${
     tx.to
   }', ${tx.nonce}, ${bigNumOrNull(tx.gasLimit)}, ${bigNumOrNull(
@@ -13,8 +15,8 @@ export const getTransactionInsertValue = (tx: TransactionResponse): string => {
   )}, '${tx.data}', ${numOrNull(tx.v)}, ${numOrNull(tx.r)}, ${numOrNull(tx.s)}`
 }
 
-export const blockInsertStatement = `INSERT INTO l1_block(block_hash, parent_hash, block_number, block_timestamp, gas_limit, gas_used, processed) `
-export const getBlockInsertValue = (
+export const l1BlockInsertStatement = `INSERT INTO l1_block(block_hash, parent_hash, block_number, block_timestamp, gas_limit, gas_used, processed) `
+export const getL1BlockInsertValue = (
   block: Block,
   processed: boolean
 ): string => {
@@ -25,8 +27,8 @@ export const getBlockInsertValue = (
   )}`
 }
 
-export const rollupTxInsertStatement = `INSERT INTO rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index) `
-export const getRollupTransactionInsertValue = (
+export const l1RollupTxInsertStatement = `INSERT INTO rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index) `
+export const getL1RollupTransactionInsertValue = (
   tx: RollupTransaction,
   batchNumber: number
 ): string => {
@@ -37,8 +39,8 @@ export const getRollupTransactionInsertValue = (
   )}, ${stringOrNull(tx.signature)}, ${batchNumber}, ${tx.batchIndex}`
 }
 
-export const rollupStateRootInsertStatement = `INSERT into l1_state_root(state_root, batch_number, batch_index) `
-export const getRollupStateRootInsertValue = (
+export const l1RollupStateRootInsertStatement = `INSERT into l1_state_root(state_root, batch_number, batch_index) `
+export const getL1RollupStateRootInsertValue = (
   stateRoot: string,
   batchNumber: number,
   batchIndex: number

@@ -2,12 +2,7 @@
 import { DB } from '@eth-optimism/core-db'
 import { getLogger, Logger } from '@eth-optimism/core-utils'
 
-import {
-  Block,
-  Provider,
-  TransactionReceipt,
-  TransactionResponse,
-} from 'ethers/providers'
+import { Block, Provider, TransactionResponse } from 'ethers/providers'
 import { Log } from 'ethers/providers/abstract-provider'
 
 /* Internal Imports */
@@ -119,7 +114,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       relevantLogs.map((l) => this.l1Provider.getTransaction(l.transactionHash))
     )
 
-    await this.l1DataService.insertBlockAndTransactions(block, txs, false)
+    await this.l1DataService.insertL1BlockAndTransactions(block, txs, false)
 
     for (let i = 0; i < relevantLogs.length; i++) {
       const current_log = relevantLogs[i]

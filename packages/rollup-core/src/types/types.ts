@@ -70,6 +70,7 @@ export interface LogHandlerContext {
 
 export type L1Batch = RollupTransaction[]
 export interface BlockBatches {
+  batchNumber: number
   timestamp: number
   blockNumber: number
   batches: L1Batch[]
