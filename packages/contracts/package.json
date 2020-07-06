@@ -1,10 +1,11 @@
 {
   "name": "@eth-optimism/rollup-contracts",
   "private": true,
-  "version": "0.0.1-alpha.25",
+  "version": "0.0.1-alpha.27",
   "main": "build/index.js",
   "files": [
-    "build/**/*.js"
+    "build/**/*.js",
+    "build/artifacts/*json"
   ],
   "license": "MIT",
   "workspaces": {
@@ -29,8 +30,8 @@
     "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\""
   },
   "dependencies": {
-    "@eth-optimism/core-db": "^0.0.1-alpha.25",
-    "@eth-optimism/core-utils": "^0.0.1-alpha.25",
+    "@eth-optimism/core-db": "^0.0.1-alpha.26",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.26",
     "@nomiclabs/buidler": "^1.3.8",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",

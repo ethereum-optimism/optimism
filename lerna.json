@@ -1,12 +1,11 @@
 {
   "version": "independent",
   "packages": [
+    "packages/contracts/*",
     "packages/core-db/*",
     "packages/core-utils/*",
     "packages/optimistic-game-semantics/*",
-    "packages/ovm/*",
     "packages/ovm-truffle-provider-wrapper/*",
-    "packages/rollup-contracts/*",
     "packages/rollup-core/*",
     "packages/rollup-dev-tools/*",
     "packages/rollup-full-node/*",
