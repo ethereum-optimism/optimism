@@ -455,7 +455,7 @@ export const transpileAndDeployInitcode = async (
   const abiCoder = new ethers.utils.AbiCoder()
   const originalDeployedBytecodeLength: number = hexStrToBuf(
     contractBuildJSON.evm.deployedBytecode.object
-  ).length
+  ).byteLength
 
   const bytecodeStripped: Buffer = stripAuxData(
     hexStrToBuf(contractBuildJSON.bytecode),

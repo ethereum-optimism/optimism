@@ -47,4 +47,5 @@ export class TranspilationErrors {
   public static readonly DETECTED_CONSTANT_OOB: number = 6
   public static readonly SUB_TRANSPILATION_ERROR: number = 7
   public static readonly MISSING_DEPLOYED_BYTECODE_ERROR: number = 8
+  public static readonly CONSTRUCTOR_PARAMS_LOADER_DETECTION_FAILED: number = 9
 }

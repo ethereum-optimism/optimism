@@ -1,14 +1,18 @@
 import '../setup'
 
 /* External Imports */
-import { hexStrToNumber, keccak256, TestUtils } from '@eth-optimism/core-utils'
+import {
+  hexStrToNumber,
+  keccak256FromUtf8,
+  TestUtils,
+} from '@eth-optimism/core-utils'
 
 import { Wallet } from 'ethers'
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
 import { BlockBatches, RollupTransaction } from '../../src/types'
-import { BlockBatchSubmitter } from '../../src/app'
+import { DefaultL2NodeService } from '../../src/app'
 import { verifyMessage } from 'ethers/utils'
 
 interface Payload {
@@ -36,37 +40,43 @@ const timestamp2: number = 1234
 const blockNumber: number = 0
 const blockNumber2: number = 1
 
+const l1TxHash: string = keccak256FromUtf8('tx 1')
+const batchNumber: number = 1
+
 const nonce: number = 0
 const gasLimit: number = 10_000
 const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
-const calldata: string = keccak256(Buffer.from('calldata').toString('hex'))
+const calldata: string = keccak256FromUtf8('calldata')
 const rollupTx: RollupTransaction = {
+  batchIndex: 1,
   gasLimit,
   nonce,
   sender,
   target,
   calldata,
+  l1Timestamp: timestamp,
+  l1BlockNumber: blockNumber,
+  l1TxHash,
+  queueOrigin: 1,
 }
 
 const nonce2: number = 1
 const gasLimit2: number = 20_000
 const sender2: string = Wallet.createRandom().address
 const target2: string = Wallet.createRandom().address
-const calldata2: string = keccak256(Buffer.from('calldata 2').toString('hex'))
+const calldata2: string = keccak256FromUtf8('calldata 2')
 const rollupTx2: RollupTransaction = {
+  batchIndex: 2,
   gasLimit: gasLimit2,
   nonce: nonce2,
   sender: sender2,
   target: target2,
   calldata: calldata2,
-}
-
-const rollupTxsEqual = (
-  one: RollupTransaction,
-  two: RollupTransaction
-): boolean => {
-  return JSON.stringify(one) === JSON.stringify(two)
+  l1Timestamp: timestamp,
+  l1BlockNumber: blockNumber,
+  l1TxHash,
+  queueOrigin: 1,
 }
 
 const deserializeBlockBatches = (serialized: string): BlockBatches => {
@@ -76,6 +86,10 @@ const deserializeBlockBatches = (serialized: string): BlockBatches => {
       case 'timestamp':
       case 'gasLimit':
       case 'nonce':
+      case 'batchIndex':
+      case 'l1BlockNumber':
+      case 'l1Timestamp':
+      case 'queueOrigin':
         return hexStrToNumber(v)
       default:
         return v
@@ -83,25 +97,26 @@ const deserializeBlockBatches = (serialized: string): BlockBatches => {
   })
 }
 
-describe('L2 Transaction Batch Submitter', () => {
-  let blockBatchSubmitter: BlockBatchSubmitter
+describe('L2 Node Service', () => {
+  let l2NodeService: DefaultL2NodeService
   let mockedSendProvider: MockedProvider
   let wallet: Wallet
 
   beforeEach(async () => {
     mockedSendProvider = new MockedProvider()
     wallet = Wallet.createRandom().connect(mockedSendProvider)
-    blockBatchSubmitter = new BlockBatchSubmitter(wallet)
+    l2NodeService = new DefaultL2NodeService(wallet)
   })
 
   it('should handle undefined batch properly', async () => {
     await TestUtils.assertThrowsAsync(async () => {
-      await blockBatchSubmitter.handleBlockBatches(undefined)
+      await l2NodeService.sendBlockBatches(undefined)
     })
   })
 
   it('should handle batch with undefined transactions properly', async () => {
-    await blockBatchSubmitter.handleBlockBatches({
+    await l2NodeService.sendBlockBatches({
+      batchNumber,
       timestamp,
       blockNumber,
       batches: undefined,
@@ -114,7 +129,8 @@ describe('L2 Transaction Batch Submitter', () => {
   })
 
   it('should handle batch with empty transactions properly', async () => {
-    await blockBatchSubmitter.handleBlockBatches({
+    await l2NodeService.sendBlockBatches({
+      batchNumber,
       timestamp,
       blockNumber,
       batches: [],
@@ -127,7 +143,8 @@ describe('L2 Transaction Batch Submitter', () => {
   })
 
   it('should send single-tx batch properly', async () => {
-    await blockBatchSubmitter.handleBlockBatches({
+    await l2NodeService.sendBlockBatches({
+      batchNumber,
       timestamp,
       blockNumber,
       batches: [[rollupTx]],
@@ -135,7 +152,7 @@ describe('L2 Transaction Batch Submitter', () => {
 
     mockedSendProvider.sent.length.should.equal(1, 'Should have sent tx!')
     mockedSendProvider.sent[0].method.should.equal(
-      BlockBatchSubmitter.sendBlockBatchesMethod,
+      DefaultL2NodeService.sendBlockBatchesMethod,
       'Sent to incorrect Web3 method!'
     )
     Array.isArray(mockedSendProvider.sent[0].params).should.equal(
@@ -151,8 +168,8 @@ describe('L2 Transaction Batch Submitter', () => {
     blockBatches.timestamp.should.equal(timestamp, 'Incorrect timestamp!')
     blockBatches.batches.length.should.equal(1, 'Incorrect num batches!')
     blockBatches.batches[0].length.should.equal(1, 'Incorrect num txs!')
-    rollupTxsEqual(blockBatches.batches[0][0], rollupTx).should.equal(
-      true,
+    blockBatches.batches[0][0].should.deep.equal(
+      rollupTx,
       'Incorrect transaction received!'
     )
 
@@ -163,7 +180,8 @@ describe('L2 Transaction Batch Submitter', () => {
   })
 
   it('should send multi-tx batch properly', async () => {
-    await blockBatchSubmitter.handleBlockBatches({
+    await l2NodeService.sendBlockBatches({
+      batchNumber,
       timestamp,
       blockNumber,
       batches: [[rollupTx, rollupTx2]],
@@ -171,7 +189,7 @@ describe('L2 Transaction Batch Submitter', () => {
 
     mockedSendProvider.sent.length.should.equal(1, 'Should have sent tx!')
     mockedSendProvider.sent[0].method.should.equal(
-      BlockBatchSubmitter.sendBlockBatchesMethod,
+      DefaultL2NodeService.sendBlockBatchesMethod,
       'Sent to incorrect Web3 method!'
     )
     Array.isArray(mockedSendProvider.sent[0].params).should.equal(
@@ -190,13 +208,13 @@ describe('L2 Transaction Batch Submitter', () => {
       2,
       'Incorrect num transactions!'
     )
-    rollupTxsEqual(blockBatches.batches[0][0], rollupTx).should.equal(
-      true,
+    blockBatches.batches[0][0].should.deep.equal(
+      rollupTx,
       'Incorrect transaction received!'
     )
 
-    rollupTxsEqual(blockBatches.batches[0][1], rollupTx2).should.equal(
-      true,
+    blockBatches.batches[0][1].should.deep.equal(
+      rollupTx2,
       'Incorrect transaction 2 received!'
     )
 

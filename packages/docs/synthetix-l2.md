@@ -43,7 +43,7 @@ Yes. Data availability on mainnet Ethereum guarantees anyone can challenge inval
 
 ## What’s missing from this demo?
 
-Layer 2 deposits and withdrawls. Instead, we airdrop testnet tokens to your wallet.
+Layer 2 deposits and withdrawals. Instead, we airdrop testnet tokens to your wallet.
 
 ## How do I build a dApp on Optimistic rollup?
 
