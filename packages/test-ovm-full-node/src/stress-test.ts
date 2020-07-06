@@ -1,11 +1,11 @@
 /* External Imports */
-import {getLogger, Logger, sleep} from '@eth-optimism/core-utils'
-import {JsonRpcProvider} from 'ethers/providers'
+import { getLogger, Logger, sleep } from '@eth-optimism/core-utils'
+import { JsonRpcProvider } from 'ethers/providers'
 
 const log: Logger = getLogger('stress-test')
 
 export interface Metrics {
-  bestMillis: number,
+  bestMillis: number
   worstMillis: number
   meanDurationMillis: number
   medianDurationMillis: number
@@ -71,9 +71,13 @@ export abstract class FullNodeStressTest {
       requestCount: this.numberOfRequests,
       requestResults: [], // not included by default because it's way too verbose
       totalTimeMillis,
-      requestsPerSecond: this.numberOfRequests / totalTimeMillis * 1_000,
-      responseMetrics: this.getMetrics(requestResults.map(x => x.responseDurationMillis)),
-      confirmMetrics: this.getMetrics(requestResults.map(x => x.confirmationDurationMillis))
+      requestsPerSecond: (this.numberOfRequests / totalTimeMillis) * 1_000,
+      responseMetrics: this.getMetrics(
+        requestResults.map((x) => x.responseDurationMillis)
+      ),
+      confirmMetrics: this.getMetrics(
+        requestResults.map((x) => x.confirmationDurationMillis)
+      ),
     }
 
     log.info(`Test results: ${JSON.stringify(results)}`)
@@ -86,7 +90,7 @@ export abstract class FullNodeStressTest {
    * @param numBatches The number of batches to run
    * @returns The TestResult for each batch
    */
-  public async runBatches(numBatches: number): Promise<Array<TestResult>> {
+  public async runBatches(numBatches: number): Promise<TestResult[]> {
     const toReturn: TestResult[] = []
     for (let i = 0; i < numBatches; i++) {
       toReturn.push(await this.run())
@@ -112,7 +116,9 @@ export abstract class FullNodeStressTest {
    * @param signedTransaction The signed transaction to execute.
    * @returns The RequestResult with the metrics for this transaction.
    */
-  private async processSingleRequest(signedTransaction: string): Promise<RequestResult> {
+  private async processSingleRequest(
+    signedTransaction: string
+  ): Promise<RequestResult> {
     const provider: JsonRpcProvider = new JsonRpcProvider(this.nodeUrl)
     const index: number = this.requestNumber++
 
@@ -139,15 +145,25 @@ export abstract class FullNodeStressTest {
    * @returns The Metrics for the dataset.
    */
   private getMetrics(data: number[]): Metrics {
-    const sortedData = data.sort((a,b) => a - b)
+    const sortedData = data.sort((a, b) => a - b)
     return {
       bestMillis: sortedData[0],
-      worstMillis: sortedData[sortedData.length -1],
-      meanDurationMillis: sortedData.reduce((a, b) => a + b, 0) / this.numberOfRequests,
+      worstMillis: sortedData[sortedData.length - 1],
+      meanDurationMillis:
+        sortedData.reduce((a, b) => a + b, 0) / this.numberOfRequests,
       medianDurationMillis: sortedData[Math.floor(this.numberOfRequests / 2)],
-      worstTenPercentMillis: FullNodeStressTest.getWorstPercentileMean(sortedData, 10),
-      worstFivePercentMillis: FullNodeStressTest.getWorstPercentileMean(sortedData, 5),
-      worstOnePercentMillis: FullNodeStressTest.getWorstPercentileMean(sortedData, 1)
+      worstTenPercentMillis: FullNodeStressTest.getWorstPercentileMean(
+        sortedData,
+        10
+      ),
+      worstFivePercentMillis: FullNodeStressTest.getWorstPercentileMean(
+        sortedData,
+        5
+      ),
+      worstOnePercentMillis: FullNodeStressTest.getWorstPercentileMean(
+        sortedData,
+        1
+      ),
     }
   }
 
@@ -158,9 +174,13 @@ export abstract class FullNodeStressTest {
    * @param percentile The percentile defining the lowest N % of data to be included in the mean calc.
    * @returns The mean.
    */
-  private static getWorstPercentileMean(data: number[], percentile: number): number {
-    const percentileData: number[] = data.sort((a, b) => a - b)
-      .slice(Math.floor(data.length * (100 - percentile) / 100))
-    return percentileData.reduce((a,b) => a + b, 0) / percentileData.length
+  private static getWorstPercentileMean(
+    data: number[],
+    percentile: number
+  ): number {
+    const percentileData: number[] = data
+      .sort((a, b) => a - b)
+      .slice(Math.floor((data.length * (100 - percentile)) / 100))
+    return percentileData.reduce((a, b) => a + b, 0) / percentileData.length
   }
 }

@@ -38,7 +38,6 @@
   "dependencies": {
     "@eth-optimism/core-db": "^0.0.1-alpha.25",
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
-    "@eth-optimism/ovm": "^0.0.1-alpha.25",
     "@eth-optimism/rollup-contracts": "^0.0.1-alpha.25",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.25",
     "async-lock": "^1.2.2",

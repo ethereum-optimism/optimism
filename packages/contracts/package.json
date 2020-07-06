@@ -1,0 +1,53 @@
+{
+  "name": "@eth-optimism/rollup-contracts",
+  "private": true,
+  "version": "0.0.1-alpha.25",
+  "main": "build/index.js",
+  "files": [
+    "build/**/*.js"
+  ],
+  "license": "MIT",
+  "workspaces": {
+    "nohoist": [
+      "**/@nomiclabs",
+      "**/@nomiclabs/**",
+      "**/typescript",
+      "**/typescript/**",
+      "**/ts-node",
+      "**/ts-node/**"
+    ]
+  },
+  "scripts": {
+    "test": "yarn run test:contracts",
+    "test:contracts": "buidler test \"test/contracts/utils/EthMerkleTrie.spec.ts\" --show-stack-traces",
+    "build": "yarn run build:contracts && yarn run build:typescript",
+    "build:contracts": "buidler compile",
+    "build:typescript": "tsc -p .",
+    "lint": "yarn run lint:typescript",
+    "lint:typescript": "tslint --format stylish --project .",
+    "fix": "yarn run fix:typescript",
+    "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\""
+  },
+  "dependencies": {
+    "@eth-optimism/core-db": "^0.0.1-alpha.25",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.25",
+    "@nomiclabs/buidler": "^1.3.8",
+    "@nomiclabs/buidler-ethers": "^2.0.0",
+    "@nomiclabs/buidler-waffle": "^2.0.0",
+    "@nomiclabs/ethereumjs-vm": "^4.1.1",
+    "@types/lodash": "^4.14.157",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "chai-bignumber": "^3.0.0",
+    "ethereum-waffle": "^3.0.0",
+    "ethereumjs-abi": "^0.6.8",
+    "ethers": "5.0.0",
+    "lodash": "^4.17.15",
+    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
+    "random-bytes-seed": "^1.0.3",
+    "rlp": "^2.2.5",
+    "seedrandom": "^3.0.5",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.5"
+  }
+}
