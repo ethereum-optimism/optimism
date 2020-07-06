@@ -23,6 +23,17 @@ class MockDataService implements L2DataService {
   public async insertL2Transaction(transaction: TransactionAndRoot) {
     this.transactionAndRoots.push(transaction)
   }
+
+  public async tryBuildL2BatchToMatchL1(
+    batchNumber: number,
+    batchSize: number
+  ): Promise<number> {
+    return undefined
+  }
+
+  public async tryBuildL2OnlyBatch(): Promise<number> {
+    return undefined
+  }
 }
 
 class MockProvider extends JsonRpcProvider {

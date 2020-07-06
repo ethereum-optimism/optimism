@@ -11,7 +11,8 @@ import {
 const log = getLogger('verifier')
 
 /**
- * Polls the DB for VerificationCandidates to ensure that L1 rollup state roots match L2 state roots.
+ * Polls the DB for VerificationCandidates to ensure that L1 rollup Txs match L2 Txs.
+ *
  */
 export class Verifier extends ScheduledTask {
   private static readonly ALERT_EVERY: number = 6

@@ -2,7 +2,7 @@ export * from './data'
 
 export * from './errors'
 export * from './fraud-prover'
-export * from './listeners'
+export * from './l2-node-service'
 export * from './node-context'
 export * from './opcodes'
 export * from './state-machine'

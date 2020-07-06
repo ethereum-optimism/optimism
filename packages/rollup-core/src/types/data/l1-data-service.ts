@@ -2,7 +2,14 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { RollupTransaction, TransactionAndRoot } from '../types'
+import {
+  BlockBatches,
+  L1Batch,
+  RollupTransaction,
+  TransactionAndRoot,
+} from '../types'
+import { L1BatchRecord } from './types'
+import { Row } from '@eth-optimism/core-db/build/src'
 
 export interface L1DataService {
   /**
@@ -12,7 +19,7 @@ export interface L1DataService {
    * @param processed Whether or not the Block is completely processed and ready for use by other parts of the system.
    * @throws An error if there is a DB error.
    */
-  insertBlock(block: Block, processed: boolean): Promise<void>
+  insertL1Block(block: Block, processed: boolean): Promise<void>
 
   /**
    * Atomically inserts the provided transactions into the associated RDB.
@@ -20,7 +27,7 @@ export interface L1DataService {
    * @param transactions The transactions to insert.
    * @throws An error if there is a DB error.
    */
-  insertTransactions(transactions: TransactionResponse[]): Promise<void>
+  insertL1Transactions(transactions: TransactionResponse[]): Promise<void>
 
   /**
    * Atomically inserts the provided block & contained transactions of interest.
@@ -30,7 +37,7 @@ export interface L1DataService {
    * @param processed Whether or not the Block is completely processed and ready for use by other parts of the system.
    * @throws An error if there is a DB error.
    */
-  insertBlockAndTransactions(
+  insertL1BlockAndTransactions(
     block: Block,
     txs: TransactionResponse[],
     processed: boolean
@@ -53,7 +60,7 @@ export interface L1DataService {
    * @returns The inserted transaction batch number.
    * @throws An error if there is a DB error.
    */
-  insertRollupTransactions(
+  insertL1RollupTransactions(
     l1TxHash: string,
     rollupTransactions: RollupTransaction[]
   ): Promise<number>
@@ -66,8 +73,31 @@ export interface L1DataService {
    * @returns The inserted state root batch number.
    * @throws An error if there is a DB error.
    */
-  insertRollupStateRoots(
+  insertL1RollupStateRoots(
     l1TxHash: string,
     stateRoots: string[]
   ): Promise<number>
+
+  /**
+   * Fetches the next batch from L1 to submit to L2, if there is one.
+   *
+   * @returns The fetched batch or undefined if one is not present in the DB.
+   */
+  getNextBatchForL2Submission(): Promise<BlockBatches>
+
+  /**
+   * Marks the provided L1 batch as submitted to L2.
+   *
+   * @params batchNumber The L1 batch number to mark as submitted to L2.
+   * @throws An error if there is a DB error.
+   */
+  markL1BatchSubmittedToL2(batchNumber: number): Promise<void>
+
+  /**
+   * Gets the oldest unverified L1 transaction batch.
+   *
+   * @returns The L1BatchRecord representing the oldest unverified batch
+   * @throws An error if there is a DB error.
+   */
+  getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord>
 }

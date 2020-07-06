@@ -15,14 +15,19 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { L1ChainDataPersister, CHAIN_ID } from '../../src/app'
+import {
+  L1ChainDataPersister,
+  CHAIN_ID,
+  DefaultDataService,
+} from '../../src/app'
 import {
   LogHandlerContext,
   RollupTransaction,
   L1DataService,
+  L1BatchRecord,
 } from '../../src/types'
 
-class MockDataService implements L1DataService {
+class MockDataService extends DefaultDataService {
   public readonly blocks: Block[] = []
   public readonly processedBlocks: Set<string> = new Set<string>()
   public readonly blockTransactions: Map<string, TransactionResponse[]>
@@ -30,6 +35,7 @@ class MockDataService implements L1DataService {
   public readonly rollupTransactions: Map<string, RollupTransaction[]>
 
   constructor() {
+    super(undefined)
     this.blocks = []
     this.processedBlocks = new Set<string>()
     this.blockTransactions = new Map<string, TransactionResponse[]>()
@@ -37,14 +43,14 @@ class MockDataService implements L1DataService {
     this.rollupTransactions = new Map<string, RollupTransaction[]>()
   }
 
-  public async insertBlock(block: Block, processed: boolean): Promise<void> {
+  public async insertL1Block(block: Block, processed: boolean): Promise<void> {
     this.blocks.push(block)
     if (processed) {
       this.processedBlocks.add(block.hash)
     }
   }
 
-  public async insertBlockAndTransactions(
+  public async insertL1BlockAndTransactions(
     block: Block,
     txs: TransactionResponse[],
     processed: boolean
@@ -56,7 +62,7 @@ class MockDataService implements L1DataService {
     }
   }
 
-  public async insertRollupStateRoots(
+  public async insertL1RollupStateRoots(
     l1TxHash: string,
     stateRoots: string[]
   ): Promise<number> {
@@ -64,18 +70,12 @@ class MockDataService implements L1DataService {
     return this.stateRoots.size
   }
 
-  public async insertRollupTransactions(
+  public async insertL1RollupTransactions(
     l1TxHash: string,
     rollupTransactions: RollupTransaction[]
   ): Promise<number> {
     this.rollupTransactions.set(l1TxHash, rollupTransactions)
     return this.rollupTransactions.size
-  }
-
-  public async insertTransactions(
-    transactions: TransactionResponse[]
-  ): Promise<void> {
-    throw Error(`this shouldn't be called`)
   }
 
   public async updateBlockToProcessed(blockHash: string): Promise<void> {
@@ -336,7 +336,7 @@ describe('L1 Chain Data Persister', () => {
     it('should persist block, transaction, and rollup transactions with relevant logs', async () => {
       const rollupTxs = [getRollupTransaction()]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
-        await ds.insertRollupTransactions(t.hash, rollupTxs)
+        await ds.insertL1RollupTransactions(t.hash, rollupTxs)
       }
 
       const tx: TransactionResponse = getTransactionResponse()
@@ -391,7 +391,7 @@ describe('L1 Chain Data Persister', () => {
     it('should persist block, transaction, and state roots with relevant logs', async () => {
       const stateRoots = [keccak256FromUtf8('root')]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
-        await ds.insertRollupStateRoots(t.hash, stateRoots)
+        await ds.insertL1RollupStateRoots(t.hash, stateRoots)
       }
 
       const tx: TransactionResponse = getTransactionResponse()
@@ -445,7 +445,7 @@ describe('L1 Chain Data Persister', () => {
       const rollupTxs = [getRollupTransaction()]
       const stateRoots = [keccak256FromUtf8('root')]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
-        await ds.insertRollupStateRoots(t.hash, stateRoots)
+        await ds.insertL1RollupStateRoots(t.hash, stateRoots)
       }
       const topic2 = 'derp_derp'
       chainDataPersister = await L1ChainDataPersister.create(
@@ -458,7 +458,7 @@ describe('L1 Chain Data Persister', () => {
             topic: topic2,
             contractAddress,
             handleLog: async (ds, l, t) => {
-              await ds.insertRollupTransactions(t.hash, rollupTxs)
+              await ds.insertL1RollupTransactions(t.hash, rollupTxs)
             },
           },
         ]
@@ -531,7 +531,7 @@ describe('L1 Chain Data Persister', () => {
       const rollupTxs = [getRollupTransaction()]
       const stateRoots = [keccak256FromUtf8('root')]
       configuredHandlerContext.handleLog = async (ds, l, t) => {
-        await ds.insertRollupStateRoots(tx.hash, stateRoots)
+        await ds.insertL1RollupStateRoots(tx.hash, stateRoots)
       }
       const topic2 = 'derp_derp'
       chainDataPersister = await L1ChainDataPersister.create(
@@ -544,7 +544,7 @@ describe('L1 Chain Data Persister', () => {
             topic: topic2,
             contractAddress,
             handleLog: async (ds, l, t) => {
-              await ds.insertRollupTransactions(t.hash, rollupTxs)
+              await ds.insertL1RollupTransactions(t.hash, rollupTxs)
             },
           },
         ]
@@ -625,7 +625,7 @@ describe('L1 Chain Data Persister', () => {
       it('should only persist relevant block, transaction, and rollup transactions with relevant logs', async () => {
         const rollupTxs = [getRollupTransaction()]
         configuredHandlerContext.handleLog = async (ds, l, t) => {
-          await ds.insertRollupTransactions(tx.hash, rollupTxs)
+          await ds.insertL1RollupTransactions(tx.hash, rollupTxs)
         }
 
         const tx: TransactionResponse = getTransactionResponse()
