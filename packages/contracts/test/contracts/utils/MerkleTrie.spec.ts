@@ -31,7 +31,7 @@ describe('MerkleTrie', () => {
   })
 
   describe('update', async () => {
-    it(`should support basic leaf value updates`, async () => {
+    it('should support basic leaf value updates', async () => {
       const test = await makeUpdateTest(
         [
           {
@@ -55,7 +55,7 @@ describe('MerkleTrie', () => {
       ).to.equal(test.newRoot)
     })
 
-    it(`should support new leaf insertions`, async () => {
+    it('should support new leaf insertions', async () => {
       const test = await makeUpdateTest(
         [
           {
@@ -79,7 +79,7 @@ describe('MerkleTrie', () => {
       ).to.equal(test.newRoot)
     })
 
-    it(`should support modifications to an extension node`, async () => {
+    it('should support modifications to an extension node', async () => {
       const test = await makeUpdateTest(
         [
           {
@@ -103,7 +103,7 @@ describe('MerkleTrie', () => {
       ).to.equal(test.newRoot)
     })
 
-    it(`should support modifications shifting an existing value into a branch`, async () => {
+    it('should support modifications shifting an existing value into a branch', async () => {
       const test = await makeUpdateTest(
         [
           {
@@ -127,7 +127,7 @@ describe('MerkleTrie', () => {
       ).to.equal(test.newRoot)
     })
 
-    it(`should support modifications shifting the new value into a branch`, async () => {
+    it('should support modifications shifting the new value into a branch', async () => {
       const test = await makeUpdateTest(
         [
           {
@@ -151,35 +151,35 @@ describe('MerkleTrie', () => {
       ).to.equal(test.newRoot)
     })
 
-    it(`should support random updates (128 nodes)`, async () => {
+    it('should support random updates (128 nodes)', async () => {
       const test = await makeRandomUpdateTest('seed.update.128', 128)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
-    it(`should support random updates (256 nodes)`, async () => {
+    it('should support random updates (256 nodes)', async () => {
       const test = await makeRandomUpdateTest('seed.update.256', 256)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
-    it(`should support random updates (512 nodes)`, async () => {
+    it('should support random updates (512 nodes)', async () => {
       const test = await makeRandomUpdateTest('seed.update.512', 512)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
-    it(`should support random updates (1024 nodes)`, async () => {
+    it('should support random updates (1024 nodes)', async () => {
       const test = await makeRandomUpdateTest('seed.update.1024', 1024)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
-    it(`should support random updates (2048 nodes)`, async () => {
+    it('should support random updates (2048 nodes)', async () => {
       const test = await makeRandomUpdateTest('seed.update.2048', 2048)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
@@ -188,7 +188,7 @@ describe('MerkleTrie', () => {
   })
 
   describe('verifyInclusionProof', async () => {
-    it(`should verify basic proofs`, async () => {
+    it('should verify basic proofs', async () => {
       const tests = await makeAllProofTests([
         {
           key: 'key1aa',
@@ -215,7 +215,7 @@ describe('MerkleTrie', () => {
       }
     })
 
-    it(`should verify a single long key`, async () => {
+    it('should verify a single long key', async () => {
       const tests = await makeAllProofTests([
         {
           key: 'key1aa',
@@ -234,7 +234,7 @@ describe('MerkleTrie', () => {
       }
     })
 
-    it(`should verify a single short key`, async () => {
+    it('should verify a single short key', async () => {
       const tests = await makeAllProofTests([
         {
           key: 'key1aa',
@@ -253,7 +253,7 @@ describe('MerkleTrie', () => {
       }
     })
 
-    it(`should verify a key in the middle`, async () => {
+    it('should verify a key in the middle', async () => {
       const tests = await makeAllProofTests([
         {
           key: 'key1aa',
@@ -292,7 +292,7 @@ describe('MerkleTrie', () => {
       }
     })
 
-    it(`should verify with embedded extension nodes`, async () => {
+    it('should verify with embedded extension nodes', async () => {
       const tests = await makeAllProofTests([
         {
           key: 'a',

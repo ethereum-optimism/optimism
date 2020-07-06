@@ -18,9 +18,43 @@ interface ProofTest {
   root: string
 }
 
+interface AccountStorageProofTest {
+  address: string
+  key: string
+  val: string
+  stateTrieWitness: string
+  storageTrieWitness: string
+  stateTrieRoot: string
+}
+
+interface AccountStorageUpdateTest extends AccountStorageProofTest {
+  newStateTrieRoot: string
+}
+
 interface TrieNode {
   key: string
   val: string
+}
+
+interface StateTrieNode {
+  nonce: number
+  balance: number
+  storageRoot: string
+  codeHash: string
+}
+
+interface StateTrieMap {
+  [address: string]: {
+    state: StateTrieNode
+    storage: TrieNode[]
+  }
+}
+
+interface StateTrie {
+  trie: BaseTrie
+  storage: {
+    [address: string]: BaseTrie
+  }
 }
 
 /**
@@ -28,8 +62,16 @@ interface TrieNode {
  * @param buf Element to convert.
  * @returns Converted element.
  */
-const toHexString = (buf: Buffer | string): string => {
-  return '0x' + Buffer.from(buf).toString('hex')
+const toHexString = (buf: Buffer | string | null): string => {
+  return '0x' + toHexBuffer(buf).toString('hex')
+}
+
+const toHexBuffer = (buf: Buffer | string): Buffer => {
+  if (typeof buf === 'string' && buf.startsWith('0x')) {
+    return Buffer.from(buf.slice(2), 'hex')
+  }
+
+  return Buffer.from(buf)
 }
 
 /**
@@ -55,7 +97,7 @@ const makeTrie = async (nodes: TrieNode[]): Promise<BaseTrie> => {
   const trie = new BaseTrie()
 
   for (const node of nodes) {
-    await trie.put(Buffer.from(node.key), Buffer.from(node.val))
+    await trie.put(toHexBuffer(node.key), toHexBuffer(node.val))
   }
 
   return trie
@@ -101,10 +143,10 @@ export const makeProofTest = async (
 ): Promise<ProofTest> => {
   const trie = nodes instanceof BaseTrie ? nodes : await makeTrie(nodes)
 
-  const proof = await BaseTrie.prove(trie, Buffer.from(key))
+  const proof = await BaseTrie.prove(trie, toHexBuffer(key))
   const ret = val
-    ? Buffer.from(val)
-    : await BaseTrie.verifyProof(trie.root, Buffer.from(key), proof)
+    ? toHexBuffer(val)
+    : await BaseTrie.verifyProof(trie.root, toHexBuffer(key), proof)
 
   return {
     proof: toHexString(rlp.encode(proof)),
@@ -164,10 +206,10 @@ export const makeUpdateTest = async (
 ): Promise<UpdateTest> => {
   const trie = await makeTrie(nodes)
 
-  const proof = await BaseTrie.prove(trie, Buffer.from(key))
-  const oldRoot = Buffer.from(trie.root)
+  const proof = await BaseTrie.prove(trie, toHexBuffer(key))
+  const oldRoot = toHexBuffer(trie.root)
 
-  await trie.put(Buffer.from(key), Buffer.from(val))
+  await trie.put(toHexBuffer(key), toHexBuffer(val))
 
   return {
     proof: toHexString(rlp.encode(proof)),
@@ -197,4 +239,117 @@ export const makeRandomUpdateTest = async (
   const newKey = randomBytes(keySize).toString('hex')
   const newVal = randomBytes(valSize).toString('hex')
   return makeUpdateTest(nodes, newKey, newVal)
+}
+
+const encodeAccountState = (state: StateTrieNode): Buffer => {
+  return rlp.encode([
+    state.nonce,
+    state.balance,
+    state.storageRoot,
+    state.codeHash,
+  ])
+}
+
+const decodeAccountState = (state: Buffer): StateTrieNode => {
+  const decoded = rlp.decode(state) as any
+  return {
+    nonce: decoded[0].length ? parseInt(toHexString(decoded[0]), 16) : 0,
+    balance: decoded[1].length ? parseInt(toHexString(decoded[1]), 16) : 0,
+    storageRoot: decoded[2].length ? toHexString(decoded[2]) : null,
+    codeHash: decoded[3].length ? toHexString(decoded[3]) : null,
+  }
+}
+
+const makeStateTrie = async (state: StateTrieMap): Promise<StateTrie> => {
+  const stateTrie = new BaseTrie()
+  const accountTries: { [address: string]: BaseTrie } = {}
+
+  for (const address of Object.keys(state)) {
+    const account = state[address]
+    accountTries[address] = await makeTrie(account.storage)
+    account.state.storageRoot = toHexString(accountTries[address].root)
+    await stateTrie.put(toHexBuffer(address), encodeAccountState(account.state))
+  }
+
+  return {
+    trie: stateTrie,
+    storage: accountTries,
+  }
+}
+
+export const makeAccountStorageProofTest = async (
+  state: StateTrieMap,
+  target: string,
+  key: string,
+  val?: string
+): Promise<AccountStorageProofTest> => {
+  const stateTrie = await makeStateTrie(state)
+
+  const storageTrie = stateTrie.storage[target]
+  const storageTrieWitness = await BaseTrie.prove(storageTrie, toHexBuffer(key))
+  const ret =
+    val ||
+    (await BaseTrie.verifyProof(
+      storageTrie.root,
+      toHexBuffer(key),
+      storageTrieWitness
+    ))
+
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    toHexBuffer(target)
+  )
+
+  return {
+    address: target,
+    key: toHexString(key),
+    val: toHexString(ret),
+    stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
+    storageTrieWitness: toHexString(rlp.encode(storageTrieWitness)),
+    stateTrieRoot: toHexString(stateTrie.trie.root),
+  }
+}
+
+export const makeAccountStorageUpdateTest = async (
+  state: StateTrieMap,
+  target: string,
+  key: string,
+  val: string,
+  accountState?: StateTrieNode
+): Promise<AccountStorageUpdateTest> => {
+  const stateTrie = await makeStateTrie(state)
+
+  const storageTrie = stateTrie.storage[target]
+  const storageTrieWitness = await BaseTrie.prove(storageTrie, toHexBuffer(key))
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    toHexBuffer(target)
+  )
+
+  if (!accountState) {
+    await storageTrie.put(toHexBuffer(key), toHexBuffer(val))
+    const encodedAccountState = await stateTrie.trie.get(toHexBuffer(target))
+    accountState = decodeAccountState(encodedAccountState)
+    accountState.storageRoot = toHexString(storageTrie.root)
+  }
+
+  const oldStateTrieRoot = toHexString(stateTrie.trie.root)
+  await stateTrie.trie.put(
+    toHexBuffer(target),
+    encodeAccountState(accountState)
+  )
+
+  return {
+    address: target,
+    key: toHexString(key),
+    val: toHexString(val),
+    stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
+    storageTrieWitness: toHexString(rlp.encode(storageTrieWitness)),
+    stateTrieRoot: oldStateTrieRoot,
+    newStateTrieRoot: toHexString(stateTrie.trie.root),
+  }
+}
+
+export const printTestParameters = (test: any): void => {
+  console.log(Object.values(test).join(', '))
 }
