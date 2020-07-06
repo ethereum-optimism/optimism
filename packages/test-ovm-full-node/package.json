@@ -51,7 +51,8 @@
   "devDependencies": {
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.7",
-    "@types/node": "^11.0.0"
+    "@types/node": "^11.0.0",
+    "ethereumjs-util": "^7.0.2"
   },
   "publishConfig": {
     "access": "public"

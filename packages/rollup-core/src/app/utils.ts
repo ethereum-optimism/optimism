@@ -1,10 +1,11 @@
 /* External Imports */
-import { bufToHexString, remove0x } from '@eth-optimism/core-utils'
+import { bufToHexString, isObject, remove0x } from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
 import { Address, EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
+import { BaseProvider, TransactionResponse } from 'ethers/providers'
 
 /**
  * Creates an unsigned transaction and returns its calldata.
@@ -183,4 +184,82 @@ export const addressesAreEqual = (one: Address, two: Address): boolean => {
   }
 
   return remove0x(one).toLowerCase() === remove0x(two).toLowerCase()
+}
+
+/**
+ * Converts the provided Provider into a Provider capable of parsing L1MessageSender off of
+ * Ethers Transactions and blocks that contain Transactions (for use in consuming L2 blocks).
+ *
+ * @param baseProvider The provider to modify.
+ * @returns The modified provider, capable of parsing L1MessageSender off of transactions.
+ */
+export const monkeyPatchL2Provider = (baseProvider) => {
+  // Patch static tx parsing function of BaseProvider
+  // (unfortunately this won't apply to blocks with txs)
+  const checkTransactionResponse = BaseProvider.checkTransactionResponse
+  BaseProvider.checkTransactionResponse = (tx): TransactionResponse => {
+    const res = checkTransactionResponse(tx)
+    if (isObject(tx) && !!tx['l1MessageSender']) {
+      res['l1MessageSender'] = tx['l1MessageSender']
+    }
+    return res
+  }
+
+  // Need to overwrite perform in order to save the raw block to
+  // parse l1MessageSender from it after getBlock
+  const perform = baseProvider.perform
+  baseProvider.perform = async function(method, args) {
+    if (
+      method === 'eth_getBlockByHash' ||
+      method === 'eth_getBlockByNumber' ||
+      method === 'getBlock'
+    ) {
+      const rawBlock = await perform.call(this, method, args)
+      if (!rawBlock) {
+        return rawBlock
+      }
+      if (!this.fetchedBlocks) {
+        this.fetchedBlocks = new Map()
+      }
+      this.fetchedBlocks.set(rawBlock.hash, rawBlock)
+      return rawBlock
+    }
+
+    return perform.call(this, method, args)
+  }
+
+  // Overwrite getBlock to function as normally but put
+  // the appropriate l1MessageSender on all transactions in the resulting object
+  const getBlock = baseProvider.getBlock
+  baseProvider.getBlock = async function(identifier, includeTxs) {
+    const block = await getBlock.call(this, identifier, includeTxs)
+    if (
+      !block ||
+      !includeTxs ||
+      !block.transactions ||
+      block.transactions.length === 0
+    ) {
+      return block
+    }
+    if (!this.fetchedBlocks) {
+      return block
+    }
+
+    const rawBlock = this.fetchedBlocks.get(block.hash)
+    if (!rawBlock) {
+      return block
+    }
+
+    for (let i = 0; i < block.transactions.length; i++) {
+      if (!!rawBlock.transactions[i]['l1MessageSender']) {
+        block.transactions[i]['l1MessageSender'] =
+          rawBlock.transactions[i]['l1MessageSender']
+      }
+    }
+
+    this.fetchedBlocks.delete(block.hash)
+    return block
+  }
+
+  return baseProvider
 }

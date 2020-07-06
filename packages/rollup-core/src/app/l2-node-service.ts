@@ -5,11 +5,11 @@ import { JsonRpcProvider } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { BlockBatches, BlockBatchListener } from '../../types'
+import { BlockBatches, L2NodeService } from '../types'
 
 const log: Logger = getLogger('block-batch-submitter')
 
-export class BlockBatchSubmitter implements BlockBatchListener {
+export class DefaultL2NodeService implements L2NodeService {
   // params: [blockBatchesJSONString, signedBlockBatchesJSONString]
   // -- note all numbers are replaces with hex strings when serialized
   public static readonly sendBlockBatchesMethod: string = 'eth_sendBlockBatches'
@@ -23,7 +23,7 @@ export class BlockBatchSubmitter implements BlockBatchListener {
   /**
    * @inheritDoc
    */
-  public async handleBlockBatches(blockBatches: BlockBatches): Promise<void> {
+  public async sendBlockBatches(blockBatches: BlockBatches): Promise<void> {
     if (!blockBatches) {
       const msg = `Received undefined Block Batch!.`
       log.error(msg)
@@ -31,7 +31,7 @@ export class BlockBatchSubmitter implements BlockBatchListener {
     }
 
     if (!blockBatches.batches || !blockBatches.batches.length) {
-      log.debug(`Moving past empty block ${blockBatches.blockNumber}.`)
+      log.error(`Received empty block batch: ${JSON.stringify(blockBatches)}`)
       return
     }
 
@@ -43,7 +43,7 @@ export class BlockBatchSubmitter implements BlockBatchListener {
     })
 
     const signedPayload: string = await this.l2Wallet.signMessage(payload)
-    await this.l2Provider.send(BlockBatchSubmitter.sendBlockBatchesMethod, [
+    await this.l2Provider.send(DefaultL2NodeService.sendBlockBatchesMethod, [
       payload,
       signedPayload,
     ])

@@ -1,6 +1,9 @@
 import { usePlugin, BuidlerConfig } from '@nomiclabs/buidler/config'
 
-import { DEFAULT_ACCOUNTS_BUIDLER, GAS_LIMIT } from './test/test-helpers/constants'
+import {
+  DEFAULT_ACCOUNTS_BUIDLER,
+  GAS_LIMIT,
+} from './test/test-helpers/constants'
 
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
@@ -16,7 +19,7 @@ const config: BuidlerConfig = {
     },
     coverage: {
       url: 'http://localhost:8555',
-    }
+    },
   },
 }
 
