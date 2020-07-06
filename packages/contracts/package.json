@@ -19,7 +19,7 @@
   },
   "scripts": {
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/utils/EthMerkleTrie.spec.ts\" --show-stack-traces",
+    "test:contracts": "buidler test --show-stack-traces",
     "build": "yarn run build:contracts && yarn run build:typescript",
     "build:contracts": "buidler compile",
     "build:typescript": "tsc -p .",
