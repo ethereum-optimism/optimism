@@ -1,8 +1,9 @@
 pragma solidity ^0.5.0;
 
-import {FraudVerifier} from "./FraudVerifier.sol";
-import {PartialStateManager} from "./PartialStateManager.sol";
-import {ExecutionManager} from "./ExecutionManager.sol";
+import { FraudVerifier } from "./FraudVerifier.sol";
+import { PartialStateManager } from "./PartialStateManager.sol";
+import { ExecutionManager } from "./ExecutionManager.sol";
+import { EthMerkleTrie } from "../utils/EthMerkleTrie.sol";
 
 /**
  * @title StateTransitioner
@@ -14,6 +15,12 @@ contract StateTransitioner {
         PostExecution,
         Complete
     }
+
+
+    /*
+     * Contract Variables
+     */
+
     TransitionPhases public currentTransitionPhase;
 
     uint public transitionIndex;
@@ -24,23 +31,39 @@ contract StateTransitioner {
     PartialStateManager public stateManager;
     ExecutionManager executionManager;
 
-    /************
-    * Modifiers *
-    ************/
+
+    /*
+     * Modifiers
+     */
+
     modifier preExecutionPhase {
-        require(currentTransitionPhase == TransitionPhases.PreExecution, "Must be called during correct phase!");
+        require(
+            currentTransitionPhase == TransitionPhases.PreExecution,
+            "Must be called during correct phase!"
+        );
         _;
     }
 
     modifier postExecutionPhase {
-        require(currentTransitionPhase == TransitionPhases.PostExecution, "Must be called during correct phase!");
+        require(
+            currentTransitionPhase == TransitionPhases.PostExecution,
+            "Must be called during correct phase!"
+        );
         _;
     }
 
     modifier completePhase {
-        require(currentTransitionPhase == TransitionPhases.Complete, "Must be called during correct phase!");
+        require(
+            currentTransitionPhase == TransitionPhases.Complete,
+            "Must be called during correct phase!"
+        );
         _;
     }
+
+
+    /*
+     * Constructor
+     */
 
     constructor(
         uint _transitionIndex,
@@ -49,30 +72,52 @@ contract StateTransitioner {
     ) public {
         // The FraudVerifier always initializes a StateTransitioner in order to evaluate fraud.
         fraudVerifier = FraudVerifier(msg.sender);
+
         // Store the transitionIndex & state root which will be used during the proof.
         transitionIndex = _transitionIndex;
         stateRoot = _preStateRoot;
+
         // And of course set the ExecutionManager pointer.
         executionManager = ExecutionManager(_executionManagerAddress);
+
         // Finally we'll initialize a new state manager!
         stateManager = new PartialStateManager(address(this), address(executionManager));
+
         // And set our TransitionPhases to the PreExecution phase.
         currentTransitionPhase = TransitionPhases.PreExecution;
     }
 
-    /****************************
-    * Pre-Transaction Execution *
-    ****************************/
+
+    /*
+     * External Functions
+     */
+
+    /*****************************
+     * Pre-Transaction Execution *
+     *****************************/
+
     function proveContractInclusion(
         address _ovmContractAddress,
         address _codeContractAddress,
-        uint _nonce
-    ) external preExecutionPhase {
+        uint _nonce,
+        bytes memory _stateTrieWitness
+    ) public preExecutionPhase {
         bytes32 codeHash;
         assembly {
             codeHash := extcodehash(_codeContractAddress)
         }
-        // TODO: Verify an inclusion proof of the codeHash and nonce!
+
+        require(EthMerkleTrie.proveAccountState(
+            _ovmContractAddress,
+            _nonce,
+            uint256(0),
+            bytes32(''),
+            codeHash,
+            true,
+            false,
+            false,
+            true,
+        )
 
         stateManager.insertVerifiedContract(_ovmContractAddress, _codeContractAddress, _nonce);
     }
@@ -81,7 +126,7 @@ contract StateTransitioner {
         address _ovmContractAddress,
         bytes32 _slot,
         bytes32 _value
-    ) external preExecutionPhase {
+    ) public preExecutionPhase {
         require(
             stateManager.isVerifiedContract(_ovmContractAddress),
             "Contract must be verified before proving storage!"
@@ -91,9 +136,10 @@ contract StateTransitioner {
         stateManager.insertVerifiedStorage(_ovmContractAddress, _slot, _value);
     }
 
-    /************************
-    * Transaction Execution *
-    ************************/
+    /*************************
+     * Transaction Execution *
+     *************************/
+
     function applyTransaction() public returns(bool) {
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
@@ -114,9 +160,10 @@ contract StateTransitioner {
         return true;
     }
 
-    /****************************
-    * Post-Transaction Execution *
-    ****************************/
+    /******************************
+     * Post-Transaction Execution *
+     ******************************/
+
     function proveUpdatedStorageSlot() public postExecutionPhase {
         (
             address storageSlotContract,
@@ -125,6 +172,7 @@ contract StateTransitioner {
         ) = stateManager.popUpdatedStorageSlot();
         // TODO: Prove inclusion / make this update to the root
     }
+
     function proveUpdatedContract() public postExecutionPhase {
         (
             address ovmContractAddress,
@@ -132,9 +180,16 @@ contract StateTransitioner {
         ) = stateManager.popUpdatedContract();
         // TODO: Prove inclusion / make this update to the root
     }
+
     function completeTransition() public postExecutionPhase {
-        require(stateManager.updatedStorageSlotCounter() == 0, "There's still updated storage to account for!");
-        require(stateManager.updatedStorageSlotCounter() == 0, "There's still updated contracts to account for!");
+        require(
+            stateManager.updatedStorageSlotCounter() == 0,
+            "There's still updated storage to account for!"
+        );
+        require(
+            stateManager.updatedStorageSlotCounter() == 0,
+            "There's still updated contracts to account for!"
+        );
         // Tada! We did it reddit!
 
         currentTransitionPhase = TransitionPhases.Complete;
