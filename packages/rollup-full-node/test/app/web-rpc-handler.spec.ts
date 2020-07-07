@@ -142,7 +142,7 @@ const assertAsyncThrowsWithMessage = async (
  * TESTS *
  *********/
 
-describe.only('Web3Handler', () => {
+describe('Web3Handler', () => {
   let web3Handler: DefaultWeb3Handler
   let fullnodeRpcServer: FullnodeRpcServer
   let httpProvider
@@ -576,11 +576,11 @@ describe.only('Web3Handler', () => {
         )
         const wallet = getWallet(httpProvider)
         const simpleStorage = await deploySimpleStorage(wallet)
-  
+
         const calldata = simpleStorage.interface.functions[
           'setStorage'
         ].encode([executionManagerAddress, storageKey, storageValue])
-  
+
         const tx = {
           nonce: await wallet.getTransactionCount(),
           gasPrice: 0,
@@ -589,22 +589,19 @@ describe.only('Web3Handler', () => {
           data: calldata,
           chainId: CHAIN_ID,
         }
-  
+
         const signedTransaction = await wallet.sign(tx)
-  
+
         const hash = await httpProvider.send(
           Web3RpcMethods.sendRawTransaction,
           [signedTransaction]
         )
-  
+
         await httpProvider.waitForTransaction(hash)
-  
+
         const returnedTransactionTrace = await httpProvider.send(
           Web3RpcMethods.traceTransaction,
-          [
-            hash,
-            []
-          ]
+          [hash, []]
         )
         returnedTransactionTrace.should.not.be.undefined
       })

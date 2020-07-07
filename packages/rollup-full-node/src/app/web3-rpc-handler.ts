@@ -817,10 +817,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     })
   }
 
-  public async traceTransaction(
-    txHash: string,
-    options: any
-  ): Promise<string> {
+  public async traceTransaction(txHash: string, options: any): Promise<string> {
     const internalTxHash = await this.getInternalTxHash(txHash)
     const trace: string = await this.context.provider.send(
       Web3RpcMethods.traceTransaction,
