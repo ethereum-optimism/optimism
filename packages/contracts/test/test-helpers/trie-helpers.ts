@@ -18,7 +18,7 @@ interface ProofTest {
   root: string
 }
 
-interface AccountStorageProofTest {
+export interface AccountStorageProofTest {
   address: string
   key: string
   val: string
@@ -27,7 +27,7 @@ interface AccountStorageProofTest {
   stateTrieRoot: string
 }
 
-interface AccountStorageUpdateTest extends AccountStorageProofTest {
+export interface AccountStorageUpdateTest extends AccountStorageProofTest {
   newStateTrieRoot: string
 }
 

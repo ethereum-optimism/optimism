@@ -40,7 +40,7 @@ contract FullStateManager is StateManager {
     function getStorage(
         address _ovmContractAddress,
         bytes32 _slot
-    ) public view returns (bytes32) {
+    ) public returns (bytes32) {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
@@ -70,7 +70,7 @@ contract FullStateManager is StateManager {
      */
     function getOvmContractNonce(
         address _ovmContractAddress
-    ) public view returns (uint) {
+    ) public returns (uint) {
         return ovmContractNonces[_ovmContractAddress];
     }
 

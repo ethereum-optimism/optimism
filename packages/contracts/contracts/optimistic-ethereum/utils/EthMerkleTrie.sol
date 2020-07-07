@@ -1,10 +1,11 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import './MerkleTrie.sol';
-import './RLPWriter.sol';
-import './RLPReader.sol';
-import './BytesLib.sol';
+import { MerkleTrie } from "./MerkleTrie.sol";
+import { RLPWriter } from "./RLPWriter.sol";
+import { RLPReader } from "./RLPReader.sol";
+import { BytesLib } from "./BytesLib.sol";
+import { DataTypes } from "./DataTypes.sol";
 
 /**
  * @notice Convenience wrapper for ETH-related trie operations.
@@ -12,20 +13,6 @@ import './BytesLib.sol';
 contract EthMerkleTrie is MerkleTrie {
     bytes32 constant BYTES32_NULL = bytes32('');
     uint256 constant UINT256_NULL = uint256(0);
-
-    struct AccountState {
-        uint256 nonce;
-        uint256 balance;
-        bytes32 storageRoot;
-        bytes32 codeHash;
-    }
-
-    struct ProofMatrix {
-        bool checkNonce;
-        bool checkBalance;
-        bool checkStorageRoot;
-        bool checkCodeHash;
-    }
 
 
     /*
@@ -53,7 +40,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes32 _stateTrieRoot
     ) public pure returns (bool) {
         // Retrieve the current storage root.
-        AccountState memory accountState = getAccountState(
+        DataTypes.AccountState memory accountState = getAccountState(
             _address,
             _stateTrieWitness,
             _stateTrieRoot
@@ -89,7 +76,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes32 _stateTrieRoot
     ) public pure returns (bytes32) {
         // Retreive the old storage root.
-        AccountState memory accountState = getAccountState(
+        DataTypes.AccountState memory accountState = getAccountState(
             _address,
             _stateTrieWitness,
             _stateTrieRoot
@@ -124,13 +111,13 @@ contract EthMerkleTrie is MerkleTrie {
      */
     function proveAccountState(
         address _address,
-        AccountState memory _accountState,
-        ProofMatrix memory _proofMatrix,
+        DataTypes.AccountState memory _accountState,
+        DataTypes.ProofMatrix memory _proofMatrix,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     ) public pure returns (bool) {
         // Pull the current account state.
-        AccountState memory accountState = getAccountState(
+        DataTypes.AccountState memory accountState = getAccountState(
             _address,
             _stateTrieWitness,
             _stateTrieRoot
@@ -162,13 +149,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bool) {
         return proveAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: _nonce,
                 balance: UINT256_NULL,
                 storageRoot: BYTES32_NULL,
                 codeHash: BYTES32_NULL
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: true,
                 checkBalance: false,
                 checkStorageRoot: false,
@@ -196,13 +183,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bool) {
         return proveAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: UINT256_NULL,
                 balance: _balance,
                 storageRoot: BYTES32_NULL,
                 codeHash: BYTES32_NULL
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: false,
                 checkBalance: true,
                 checkStorageRoot: false,
@@ -230,13 +217,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bool) {
         return proveAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: UINT256_NULL,
                 balance: UINT256_NULL,
                 storageRoot: _storageRoot,
                 codeHash: BYTES32_NULL
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: false,
                 checkBalance: false,
                 checkStorageRoot: true,
@@ -264,13 +251,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bool) {
         return proveAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: UINT256_NULL,
                 balance: UINT256_NULL,
                 storageRoot: BYTES32_NULL,
                 codeHash: _codeHash
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: false,
                 checkBalance: false,
                 checkStorageRoot: false,
@@ -293,12 +280,12 @@ contract EthMerkleTrie is MerkleTrie {
      */
     function updateAccountState(
         address _address,
-        AccountState memory _accountState,
-        ProofMatrix memory _proofMatrix,
+        DataTypes.AccountState memory _accountState,
+        DataTypes.ProofMatrix memory _proofMatrix,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     ) public pure returns (bytes32) {
-        AccountState memory newAccountState = _accountState;
+        DataTypes.AccountState memory newAccountState = _accountState;
 
         // If the user has provided everything, don't bother pulling the
         // current account state.
@@ -309,7 +296,7 @@ contract EthMerkleTrie is MerkleTrie {
             !_proofMatrix.checkCodeHash
         ) {
             // Pull the old account state.
-            AccountState memory oldAccountState = getAccountState(
+            DataTypes.AccountState memory oldAccountState = getAccountState(
                 _address,
                 _stateTrieWitness,
                 _stateTrieRoot
@@ -361,13 +348,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bytes32) {
         return updateAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: _nonce,
                 balance: UINT256_NULL,
                 storageRoot: BYTES32_NULL,
                 codeHash: BYTES32_NULL
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: true,
                 checkBalance: false,
                 checkStorageRoot: false,
@@ -395,13 +382,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bytes32) {
         return updateAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: UINT256_NULL,
                 balance: _balance,
                 storageRoot: BYTES32_NULL,
                 codeHash: BYTES32_NULL
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: false,
                 checkBalance: true,
                 checkStorageRoot: false,
@@ -429,13 +416,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bytes32) {
         return updateAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: UINT256_NULL,
                 balance: UINT256_NULL,
                 storageRoot: _storageRoot,
                 codeHash: BYTES32_NULL
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: false,
                 checkBalance: false,
                 checkStorageRoot: true,
@@ -463,13 +450,13 @@ contract EthMerkleTrie is MerkleTrie {
     ) public pure returns (bytes32) {
         return updateAccountState(
             _address,
-            AccountState({
+            DataTypes.AccountState({
                 nonce: UINT256_NULL,
                 balance: UINT256_NULL,
                 storageRoot: BYTES32_NULL,
                 codeHash: _codeHash
             }),
-            ProofMatrix({
+            DataTypes.ProofMatrix({
                 checkNonce: false,
                 checkBalance: false,
                 checkStorageRoot: false,
@@ -492,10 +479,10 @@ contract EthMerkleTrie is MerkleTrie {
      */
     function decodeAccountState(
         bytes memory _encodedAccountState
-    ) internal pure returns (AccountState memory) {
+    ) internal pure returns (DataTypes.AccountState memory) {
         RLPReader.RLPItem[] memory accountState = RLPReader.toList(RLPReader.toRlpItem(_encodedAccountState));
 
-        return AccountState({
+        return DataTypes.AccountState({
             nonce: RLPReader.toUint(accountState[0]),
             balance: RLPReader.toUint(accountState[1]),
             storageRoot: BytesLib.toBytes32(RLPReader.toBytes(accountState[2])),
@@ -509,7 +496,7 @@ contract EthMerkleTrie is MerkleTrie {
      * @return RLP-encoded account state.
      */
     function encodeAccountState(
-        AccountState memory _accountState
+        DataTypes.AccountState memory _accountState
     ) internal pure returns (bytes memory) {
         bytes[] memory raw = new bytes[](4);
 
@@ -535,7 +522,7 @@ contract EthMerkleTrie is MerkleTrie {
         address _address,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) internal pure returns (AccountState memory) {
+    ) internal pure returns (DataTypes.AccountState memory) {
         bytes memory encodedAccountState = get(
             abi.encodePacked(_address),
             _stateTrieWitness,
@@ -555,7 +542,7 @@ contract EthMerkleTrie is MerkleTrie {
      * @return Root hash of the updated state trie.
      */
     function setAccountState(
-        AccountState memory _accountState,
+        DataTypes.AccountState memory _accountState,
         address _address,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot

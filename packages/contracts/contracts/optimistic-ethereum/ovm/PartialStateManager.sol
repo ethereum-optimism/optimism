@@ -162,8 +162,6 @@ contract PartialStateManager {
         bytes32 _slot,
         bytes32 _value
     ) onlyExecutionManager public {
-        flagIfNotVerifiedStorage(_ovmContractAddress, _slot);
-
         // Add this storage slot to the list of updated storage
         updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
         updatedStorageSlotKey[updatedStorageSlotCounter] = _slot;

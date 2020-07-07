@@ -907,7 +907,7 @@ contract ExecutionManager {
      *       [storageSlot (bytes32)]
      * returndata: [storageValue (bytes32)]
      */
-    function ovmSLOAD() public view {
+    function ovmSLOAD() public {
         bytes32 _storageSlot;
         assembly {
             // skip methodID (4 bytes)

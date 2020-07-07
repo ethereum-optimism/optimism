@@ -1,8 +1,10 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
 
 import { FraudVerifier } from "./FraudVerifier.sol";
 import { PartialStateManager } from "./PartialStateManager.sol";
 import { ExecutionManager } from "./ExecutionManager.sol";
+import { DataTypes } from "../utils/DataTypes.sol";
 import { EthMerkleTrie } from "../utils/EthMerkleTrie.sol";
 
 /**
@@ -10,10 +12,24 @@ import { EthMerkleTrie } from "../utils/EthMerkleTrie.sol";
  * @notice A contract which transitions a state from root one to another after a tx execution.
  */
 contract StateTransitioner {
+    /*
+     * Data Structures
+     */
+
     enum TransitionPhases {
         PreExecution,
         PostExecution,
         Complete
+    }
+
+    struct OVMTransactionData {
+        uint256 timestamp;
+        uint256 queueOrigin;
+        address ovmEntrypoint;
+        bytes callBytes;
+        address fromAddress;
+        address l1MsgSenderAddress;
+        bool allowRevert;
     }
 
 
@@ -30,32 +46,19 @@ contract StateTransitioner {
     FraudVerifier public fraudVerifier;
     PartialStateManager public stateManager;
     ExecutionManager executionManager;
+    EthMerkleTrie public ethMerkleTrie;
+
+    OVMTransactionData transactionData;
 
 
     /*
      * Modifiers
      */
 
-    modifier preExecutionPhase {
+    modifier onlyDuringPhase(TransitionPhases _phase) {
         require(
-            currentTransitionPhase == TransitionPhases.PreExecution,
-            "Must be called during correct phase!"
-        );
-        _;
-    }
-
-    modifier postExecutionPhase {
-        require(
-            currentTransitionPhase == TransitionPhases.PostExecution,
-            "Must be called during correct phase!"
-        );
-        _;
-    }
-
-    modifier completePhase {
-        require(
-            currentTransitionPhase == TransitionPhases.Complete,
-            "Must be called during correct phase!"
+            currentTransitionPhase == _phase,
+            "Must be called during the correct phase."
         );
         _;
     }
@@ -83,13 +86,16 @@ contract StateTransitioner {
         // Finally we'll initialize a new state manager!
         stateManager = new PartialStateManager(address(this), address(executionManager));
 
+        // Create a Merkle trie instance.
+        ethMerkleTrie = new EthMerkleTrie();
+
         // And set our TransitionPhases to the PreExecution phase.
         currentTransitionPhase = TransitionPhases.PreExecution;
     }
 
 
     /*
-     * External Functions
+     * Public Functions
      */
 
     /*****************************
@@ -101,23 +107,32 @@ contract StateTransitioner {
         address _codeContractAddress,
         uint _nonce,
         bytes memory _stateTrieWitness
-    ) public preExecutionPhase {
+    ) public onlyDuringPhase(TransitionPhases.PreExecution) {
         bytes32 codeHash;
         assembly {
             codeHash := extcodehash(_codeContractAddress)
         }
 
-        require(EthMerkleTrie.proveAccountState(
-            _ovmContractAddress,
-            _nonce,
-            uint256(0),
-            bytes32(''),
-            codeHash,
-            true,
-            false,
-            false,
-            true,
-        )
+        require (
+            ethMerkleTrie.proveAccountState(
+                _ovmContractAddress,
+                DataTypes.AccountState({
+                    nonce: _nonce,
+                    balance: uint256(0),
+                    storageRoot: bytes32(''),
+                    codeHash: codeHash
+                }),
+                DataTypes.ProofMatrix({
+                    checkNonce: true,
+                    checkBalance: false,
+                    checkStorageRoot: false,
+                    checkCodeHash: true
+                }),
+                _stateTrieWitness,
+                stateRoot
+            ),
+            "Invalid account state provided."
+        );
 
         stateManager.insertVerifiedContract(_ovmContractAddress, _codeContractAddress, _nonce);
     }
@@ -125,13 +140,26 @@ contract StateTransitioner {
     function proveStorageSlotInclusion(
         address _ovmContractAddress,
         bytes32 _slot,
-        bytes32 _value
-    ) public preExecutionPhase {
+        bytes32 _value,
+        bytes memory _stateTrieWitness,
+        bytes memory _storageTrieWitness
+    ) public onlyDuringPhase(TransitionPhases.PreExecution) {
         require(
             stateManager.isVerifiedContract(_ovmContractAddress),
             "Contract must be verified before proving storage!"
         );
-        // TODO: Verify an inclusion proof of the storage slot!
+
+        require (
+            ethMerkleTrie.proveAccountStorageSlotValue(
+                _ovmContractAddress,
+                _slot,
+                _value,
+                _stateTrieWitness,
+                _storageTrieWitness,
+                stateRoot
+            ),
+            "Invalid account state provided."
+        );
 
         stateManager.insertVerifiedStorage(_ovmContractAddress, _slot, _value);
     }
@@ -140,23 +168,30 @@ contract StateTransitioner {
      * Transaction Execution *
      *************************/
 
-    function applyTransaction() public returns(bool) {
+    function applyTransaction() public returns (bool) {
+        // Initialize our execution context.
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
-        // TODO: Get the transaction from the _transitionIndex. For now this'll just be dummy data
+
+        // Execute the transaction via the execution manager.
+        OVMTransactionData memory txData = getTransactionData();
         executionManager.executeTransaction(
-            0,
-            0,
-            0x1212121212121212121212121212121212121212,
-            "0x12",
-            0x1212121212121212121212121212121212121212,
-            0x1212121212121212121212121212121212121212,
-            false
+            txData.timestamp,
+            txData.queueOrigin,
+            txData.ovmEntrypoint,
+            txData.callBytes,
+            txData.fromAddress,
+            txData.l1MsgSenderAddress,
+            txData.allowRevert
         );
-        require(stateManager.existsInvalidStateAccessFlag() == false, "Detected invalid state access!");
+
+        require(
+            stateManager.existsInvalidStateAccessFlag() == false,
+            "Detected an invalid state access."
+        );
+
         currentTransitionPhase = TransitionPhases.PostExecution;
 
-        // This will allow people to start updating the state root!
         return true;
     }
 
@@ -164,24 +199,43 @@ contract StateTransitioner {
      * Post-Transaction Execution *
      ******************************/
 
-    function proveUpdatedStorageSlot() public postExecutionPhase {
+    function proveUpdatedStorageSlot(
+        bytes memory _stateTrieWitness,
+        bytes memory _storageTrieWitness
+    ) public onlyDuringPhase(TransitionPhases.PostExecution) {
         (
             address storageSlotContract,
             bytes32 storageSlotKey,
             bytes32 storageSlotValue
         ) = stateManager.popUpdatedStorageSlot();
-        // TODO: Prove inclusion / make this update to the root
+
+        stateRoot = ethMerkleTrie.updateAccountStorageSlotValue(
+            storageSlotContract,
+            storageSlotKey,
+            storageSlotValue,
+            _stateTrieWitness,
+            _storageTrieWitness,
+            stateRoot
+        );
     }
 
-    function proveUpdatedContract() public postExecutionPhase {
+    function proveUpdatedContract(
+        bytes memory _stateTrieWitness
+    ) public onlyDuringPhase(TransitionPhases.PostExecution) {
         (
             address ovmContractAddress,
             uint contractNonce
         ) = stateManager.popUpdatedContract();
-        // TODO: Prove inclusion / make this update to the root
+
+        stateRoot = ethMerkleTrie.updateAccountNonce(
+            ovmContractAddress,
+            contractNonce,
+            _stateTrieWitness,
+            stateRoot
+        );
     }
 
-    function completeTransition() public postExecutionPhase {
+    function completeTransition() public onlyDuringPhase(TransitionPhases.PostExecution) {
         require(
             stateManager.updatedStorageSlotCounter() == 0,
             "There's still updated storage to account for!"
@@ -190,8 +244,26 @@ contract StateTransitioner {
             stateManager.updatedStorageSlotCounter() == 0,
             "There's still updated contracts to account for!"
         );
-        // Tada! We did it reddit!
 
         currentTransitionPhase = TransitionPhases.Complete;
+    }
+
+    /***********************
+     * Temporary Utilities *
+     ***********************/
+
+    function setTransactionData(
+        OVMTransactionData memory _transactionData
+    ) public {
+        transactionData = _transactionData;
+    }
+
+
+    /*
+     * Internal Functions
+     */
+
+    function getTransactionData() internal view returns (OVMTransactionData memory) {
+        return transactionData;
     }
 }
