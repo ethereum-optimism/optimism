@@ -581,7 +581,7 @@ describe('Web3Handler', () => {
           'setStorage'
         ].encode([executionManagerAddress, storageKey, storageValue])
 
-        const tx = {
+        const txToTrace = {
           nonce: await wallet.getTransactionCount(),
           gasPrice: 0,
           gasLimit: 9999999999,
@@ -590,7 +590,7 @@ describe('Web3Handler', () => {
           chainId: CHAIN_ID,
         }
 
-        const signedTransaction = await wallet.sign(tx)
+        const signedTransaction = await wallet.sign(txToTrace)
 
         const hash = await httpProvider.send(
           Web3RpcMethods.sendRawTransaction,
