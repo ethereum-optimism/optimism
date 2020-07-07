@@ -28,6 +28,7 @@ export interface Web3Handler {
   networkVersion(): Promise<string>
   sendRawTransaction(signedTx: string): Promise<string>
   chainId(): Promise<string>
+  traceTransaction(txHash: string, options: any): Promise<string>
 }
 
 export enum Web3RpcTypes {
@@ -65,6 +66,9 @@ export enum Web3RpcMethods {
   mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
   sendTransaction = 'eth_sendTransaction',
+
+  // Debug methods:
+  traceTransaction = 'debug_traceTransaction',
 }
 
 export const allWeb3RpcMethodsIncludingTest = Object.values(Web3RpcMethods)

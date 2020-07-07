@@ -142,7 +142,7 @@ const assertAsyncThrowsWithMessage = async (
  * TESTS *
  *********/
 
-describe('Web3Handler', () => {
+describe.only('Web3Handler', () => {
   let web3Handler: DefaultWeb3Handler
   let fullnodeRpcServer: FullnodeRpcServer
   let httpProvider
@@ -565,6 +565,48 @@ describe('Web3Handler', () => {
           )
           gotLogs.should.deep.equal(receipt.logs)
         })
+      })
+    })
+
+    describe('the debug_traceTransaction endpoint', () => {
+      it('should give us a trace', async () => {
+        const executionManagerAddress = await httpProvider.send(
+          'ovm_getExecutionManagerAddress',
+          []
+        )
+        const wallet = getWallet(httpProvider)
+        const simpleStorage = await deploySimpleStorage(wallet)
+  
+        const calldata = simpleStorage.interface.functions[
+          'setStorage'
+        ].encode([executionManagerAddress, storageKey, storageValue])
+  
+        const tx = {
+          nonce: await wallet.getTransactionCount(),
+          gasPrice: 0,
+          gasLimit: 9999999999,
+          to: executionManagerAddress,
+          data: calldata,
+          chainId: CHAIN_ID,
+        }
+  
+        const signedTransaction = await wallet.sign(tx)
+  
+        const hash = await httpProvider.send(
+          Web3RpcMethods.sendRawTransaction,
+          [signedTransaction]
+        )
+  
+        await httpProvider.waitForTransaction(hash)
+  
+        const returnedTransactionTrace = await httpProvider.send(
+          Web3RpcMethods.traceTransaction,
+          [
+            hash,
+            []
+          ]
+        )
+        returnedTransactionTrace.should.not.be.undefined
       })
     })
 
