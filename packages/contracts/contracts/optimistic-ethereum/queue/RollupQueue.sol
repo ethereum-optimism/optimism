@@ -15,8 +15,10 @@ contract RollupQueue {
   /*
    * Events
    */
-  event TxEnqueued(bytes32 _txHash);
+  event CalldataTxEnqueued();
+  event L1ToL2TxEnqueued(bytes _tx);
 
+  /*
   /*
    * Public Functions
    */
@@ -51,6 +53,10 @@ contract RollupQueue {
     return true;
   }
 
+  function isCalldataTxQueue() public returns (bool) {
+    return true;
+  }
+
   function enqueueTx(bytes memory _tx) public {
     // Authentication.
     require(
@@ -65,7 +71,11 @@ contract RollupQueue {
       txHash: txHash
     }));
 
-    emit TxEnqueued(txHash);
+    if (isCalldataTxQueue()) {
+      emit CalldataTxEnqueued();
+    } else {
+      emit L1ToL2TxEnqueued(_tx);
+    }
   }
 
   function dequeue() public {

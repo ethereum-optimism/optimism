@@ -24,7 +24,8 @@ contract CanonicalTransactionChain {
      * Events
      */
 
-    event QueueBatchAppended( bytes32 _batchHeaderHash, bytes32 _txHash);
+    event L1ToL2BatchAppended( bytes32 _batchHeaderHash);
+    event SafetyQueueBatchAppended( bytes32 _batchHeaderHash);
     event SequencerBatchAppended(bytes32 _batchHeaderHash);
 
     /*
@@ -83,8 +84,8 @@ contract CanonicalTransactionChain {
             "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
         );
 
-        l1ToL2Queue.dequeue();
         _appendQueueBatch(l1ToL2Header, true);
+        l1ToL2Queue.dequeue();
     }
 
     function appendSafetyBatch() public {
@@ -95,8 +96,8 @@ contract CanonicalTransactionChain {
             "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
         );
 
-        safetyQueue.dequeue();
         _appendQueueBatch(safetyHeader, false);
+        safetyQueue.dequeue();
     }
 
     function _appendQueueBatch(
@@ -125,7 +126,11 @@ contract CanonicalTransactionChain {
         batches.push(batchHeaderHash);
         cumulativeNumElements += numElementsInBatch;
 
-        emit QueueBatchAppended(batchHeaderHash, timestampedHash.txHash);
+        if (isL1ToL2Tx) {
+            emit L1ToL2BatchAppended(batchHeaderHash);
+        } else {
+            emit SafetyQueueBatchAppended(batchHeaderHash);
+        }
     }
 
     function appendSequencerBatch(

@@ -74,20 +74,16 @@ describe('RollupQueue', () => {
     })
 
     it('should emit event on enqueue', async () => {
-      let receivedTxhash: string
-      rollupQueue.on(rollupQueue.filters['TxEnqueued'](), (...data) => {
-        receivedTxhash = data[0]
+      let receivedEvent: boolean = false
+      rollupQueue.on(rollupQueue.filters['CalldataTxEnqueued'](), () => {
+        receivedEvent = true
       })
 
-      const localBatch: TxQueueBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+      await enqueueAndGenerateBatch(DEFAULT_TX)
 
       await sleep(5_000)
 
-      const received = !!receivedTxhash
-      received.should.equal(true, `Did not receive expected event!`)
-
-      const root = await localBatch.getMerkleRoot()
-      receivedTxhash.should.equal(root, `Incorrect batch root!`)
+      receivedEvent.should.equal(true, `Did not receive expected event!`)
     })
   })
 
