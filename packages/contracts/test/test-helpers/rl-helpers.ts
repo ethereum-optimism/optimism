@@ -175,7 +175,7 @@ export class TxChainBatch extends ChainBatch {
 
 export class StateChainBatch extends ChainBatch {
   constructor(
-    batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
+    batchIndex: number, // index in batches array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
     elements: string[]
   ) {
@@ -229,5 +229,16 @@ export class TxQueueBatch {
   public async getMerkleRoot(): Promise<string> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
     return bufToHexString(bufferRoot)
+  }
+
+  public async hashBatchHeader(
+    isL1ToL2Tx: boolean,
+    cumulativePrevElements: number = 0
+  ): Promise<string> {
+    const txHash = await this.getMerkleRoot()
+    return utils.solidityKeccak256(
+      ['uint', 'bool', 'bytes32', 'uint', 'uint'],
+      [this.timestamp, isL1ToL2Tx, txHash, 1, cumulativePrevElements]
+    )
   }
 }
