@@ -12,6 +12,10 @@ contract RollupQueue {
   DataTypes.TimestampedHash[] public batchHeaders;
   uint256 public front;
 
+  /*
+   * Events
+   */
+  event TxEnqueued(bytes32 _txHash);
 
   /*
    * Public Functions
@@ -54,10 +58,14 @@ contract RollupQueue {
       "Message sender does not have permission to enqueue"
     );
 
+    bytes32 txHash = keccak256(_tx);
+
     batchHeaders.push(DataTypes.TimestampedHash({
       timestamp: now,
-      txHash: keccak256(_tx)
+      txHash: txHash
     }));
+
+    emit TxEnqueued(txHash);
   }
 
   function dequeue() public {

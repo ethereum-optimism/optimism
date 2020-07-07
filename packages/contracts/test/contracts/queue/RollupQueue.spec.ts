@@ -2,7 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -71,6 +71,23 @@ describe('RollupQueue', () => {
       //check batches length
       const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(numBatches)
+    })
+
+    it('should emit event on enqueue', async () => {
+      let receivedTxhash: string
+      rollupQueue.on(rollupQueue.filters['TxEnqueued'](), (...data) => {
+        receivedTxhash = data[0]
+      })
+
+      const localBatch: TxQueueBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
+
+      await sleep(5_000)
+
+      const received = !!receivedTxhash
+      received.should.equal(true, `Did not receive expected event!`)
+
+      const root = await localBatch.getMerkleRoot()
+      receivedTxhash.should.equal(root, `Incorrect batch root!`)
     })
   })
 

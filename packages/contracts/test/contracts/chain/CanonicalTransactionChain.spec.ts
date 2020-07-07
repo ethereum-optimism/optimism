@@ -2,8 +2,14 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
-import { Contract, Signer, ContractFactory } from 'ethers'
+import {
+  getLogger,
+  isHexString,
+  remove0x,
+  sleep,
+  TestUtils,
+} from '@eth-optimism/core-utils'
+import { Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import { TxChainBatch, TxQueueBatch } from '../../test-helpers/rl-helpers'
@@ -52,10 +58,25 @@ describe('CanonicalTransactionChain', () => {
     cumulativePrevElements: number = 0
   ): Promise<TxChainBatch> => {
     const timestamp = await appendSequencerBatch(batch)
-    // Generate a local version of the rollup batch
-    const localBatch = new TxChainBatch(
+    return createTxChainBatch(
+      batch,
       timestamp,
       false,
+      batchIndex,
+      cumulativePrevElements
+    )
+  }
+
+  const createTxChainBatch = async (
+    batch: string[],
+    timestamp: number,
+    isL1ToL2Tx: boolean,
+    batchIndex: number = 0,
+    cumulativePrevElements: number = 0
+  ): Promise<TxChainBatch> => {
+    const localBatch = new TxChainBatch(
+      timestamp,
+      isL1ToL2Tx,
       batchIndex,
       cumulativePrevElements,
       batch
@@ -706,6 +727,144 @@ describe('CanonicalTransactionChain', () => {
         elementInclusionProof
       )
       isIncluded.should.equal(false)
+    })
+  })
+
+  describe('Event Emitting', () => {
+    it('should emit SequencerBatchAppended event when appending sequencer batch', async () => {
+      let receivedBatchHeaderHash: string
+      canonicalTxChain.on(
+        canonicalTxChain.filters['SequencerBatchAppended'](),
+        (...data) => {
+          receivedBatchHeaderHash = data[0]
+        }
+      )
+      const localBatch: TxChainBatch = await appendAndGenerateSequencerBatch(
+        DEFAULT_BATCH
+      )
+
+      await sleep(5_000)
+
+      const received = !!receivedBatchHeaderHash
+      received.should.equal(true, `Did not receive expected event!`)
+
+      receivedBatchHeaderHash.should.equal(
+        await localBatch.hashBatchHeader(),
+        'Header hash mismatch!'
+      )
+    })
+
+    it('should emit TxEnqueued event when enqueuing safety batch', async () => {
+      let receivedTxhash: string
+      safetyQueue.on(safetyQueue.filters['TxEnqueued'](), (...data) => {
+        receivedTxhash = data[0]
+      })
+
+      const localBatch: TxQueueBatch = await enqueueAndGenerateSafetyBatch(
+        DEFAULT_TX
+      )
+
+      await sleep(5_000)
+
+      const received = !!receivedTxhash
+      received.should.equal(true, `Did not receive expected event!`)
+
+      const root = await localBatch.getMerkleRoot()
+      receivedTxhash.should.equal(root, `Incorrect batch root!`)
+    })
+
+    it('should emit TxEnqueued event when enqueuing L1 To L2 batch', async () => {
+      let receivedTxhash: string
+      l1ToL2Queue.on(l1ToL2Queue.filters['TxEnqueued'](), (...data) => {
+        receivedTxhash = data[0]
+      })
+
+      const localBatch: TxQueueBatch = await enqueueAndGenerateL1ToL2Batch(
+        DEFAULT_TX
+      )
+
+      await sleep(5_000)
+
+      const received = !!receivedTxhash
+      received.should.equal(true, `Did not receive expected event!`)
+
+      const root = await localBatch.getMerkleRoot()
+      receivedTxhash.should.equal(root, `Incorrect batch root!`)
+    })
+
+    it('should emit QueueBatchAppended event when appending L1 to L2 batch', async () => {
+      let receivedBatchHeaderHash: string
+      let receivedTxhash: string
+      canonicalTxChain.on(
+        canonicalTxChain.filters['QueueBatchAppended'](),
+        (...data) => {
+          receivedBatchHeaderHash = data[0]
+          receivedTxhash = data[1]
+        }
+      )
+
+      const localBatch: TxQueueBatch = await enqueueAndGenerateL1ToL2Batch(
+        DEFAULT_TX
+      )
+      await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
+      const front = await l1ToL2Queue.front()
+      front.should.equal(1)
+      const { timestamp, txHash } = await l1ToL2Queue.batchHeaders(0)
+      timestamp.should.equal(0)
+      txHash.should.equal(
+        '0x0000000000000000000000000000000000000000000000000000000000000000'
+      )
+
+      await sleep(5_000)
+
+      const received = !!receivedBatchHeaderHash
+      received.should.equal(true, `Did not receive expected event!`)
+
+      receivedBatchHeaderHash.should.equal(
+        await localBatch.hashBatchHeader(true),
+        `Incorrect batch header hash!`
+      )
+      receivedTxhash.should.equal(
+        await localBatch.getMerkleRoot(),
+        `Incorrect tx hash!`
+      )
+    })
+
+    it('should emit QueueBatchAppended event when appending Safety Queue batch', async () => {
+      let receivedBatchHeaderHash: string
+      let receivedTxhash: string
+      canonicalTxChain.on(
+        canonicalTxChain.filters['QueueBatchAppended'](),
+        (...data) => {
+          receivedBatchHeaderHash = data[0]
+          receivedTxhash = data[1]
+        }
+      )
+
+      const localBatch = await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
+
+      await canonicalTxChain.connect(sequencer).appendSafetyBatch()
+      const front = await safetyQueue.front()
+      front.should.equal(1)
+      const { timestamp, txHash } = await safetyQueue.batchHeaders(0)
+      timestamp.should.equal(0)
+      txHash.should.equal(
+        '0x0000000000000000000000000000000000000000000000000000000000000000'
+      )
+
+      await sleep(5_000)
+
+      const received = !!receivedBatchHeaderHash
+      received.should.equal(true, `Did not receive expected event!`)
+
+      receivedBatchHeaderHash.should.equal(
+        await localBatch.hashBatchHeader(false),
+        `Incorrect batch header hash!`
+      )
+      receivedTxhash.should.equal(
+        await localBatch.getMerkleRoot(),
+        `Incorrect tx hash!`
+      )
     })
   })
 })

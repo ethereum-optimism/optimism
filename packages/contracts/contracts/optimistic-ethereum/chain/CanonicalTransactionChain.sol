@@ -11,7 +11,6 @@ contract CanonicalTransactionChain {
     /*
      * Contract Variables
      */
-
     address public sequencer;
     uint public forceInclusionPeriod;
     RollupMerkleUtils public merkleUtils;
@@ -21,6 +20,12 @@ contract CanonicalTransactionChain {
     bytes32[] public batches;
     uint public lastOVMTimestamp;
 
+    /*
+     * Events
+     */
+
+    event QueueBatchAppended( bytes32 _batchHeaderHash, bytes32 _txHash);
+    event SequencerBatchAppended(bytes32 _batchHeaderHash);
 
     /*
      * Constructor
@@ -43,7 +48,6 @@ contract CanonicalTransactionChain {
             address(this)
         );
     }
-
 
     /*
      * Public Functions
@@ -79,8 +83,8 @@ contract CanonicalTransactionChain {
             "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
         );
 
-        _appendQueueBatch(l1ToL2Header, true);
         l1ToL2Queue.dequeue();
+        _appendQueueBatch(l1ToL2Header, true);
     }
 
     function appendSafetyBatch() public {
@@ -91,8 +95,8 @@ contract CanonicalTransactionChain {
             "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
         );
 
-        _appendQueueBatch(safetyHeader, false);
         safetyQueue.dequeue();
+        _appendQueueBatch(safetyHeader, false);
     }
 
     function _appendQueueBatch(
@@ -120,6 +124,8 @@ contract CanonicalTransactionChain {
 
         batches.push(batchHeaderHash);
         cumulativeNumElements += numElementsInBatch;
+
+        emit QueueBatchAppended(batchHeaderHash, timestampedHash.txHash);
     }
 
     function appendSequencerBatch(
@@ -173,6 +179,8 @@ contract CanonicalTransactionChain {
 
         batches.push(batchHeaderHash);
         cumulativeNumElements += _txBatch.length;
+
+        emit SequencerBatchAppended(batchHeaderHash);
     }
 
     // verifies an element is in the current list at the given position
