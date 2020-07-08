@@ -28,7 +28,6 @@ const baseUrl = `http://${host}:${port}`
 
 describe('TestHandler', () => {
   let testHandler: TestWeb3Handler
-  let httpProvider
 
   beforeEach(async () => {
     testHandler = await TestWeb3Handler.create()
@@ -105,7 +104,6 @@ describe('TestHandler', () => {
 
       testRpcServer.close()
     })
-    
   })
 
   describe('Snapshot and revert', () => {
