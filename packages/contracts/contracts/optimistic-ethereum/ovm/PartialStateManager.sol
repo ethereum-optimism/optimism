@@ -19,7 +19,7 @@ contract PartialStateManager {
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
-    mapping(address=>address) ovmCodeContracts;
+    mapping(address=>address) codeContractOf;
 
     bool public existsInvalidStateAccessFlag;
 
@@ -90,7 +90,7 @@ contract PartialStateManager {
     ) external onlyStateTransitioner {
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;
-        ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
+        codeContractOf[_ovmContractAddress] = _codeContractAddress;
     }
 
     /*****************
@@ -243,7 +243,7 @@ contract PartialStateManager {
         address _ovmContractAddress,
         address _codeContractAddress
     ) onlyExecutionManager public {
-        ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
+        codeContractOf[_ovmContractAddress] = _codeContractAddress;
     }
 
     /**
@@ -256,7 +256,7 @@ contract PartialStateManager {
     ) onlyExecutionManager public returns(address) {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
-        return ovmCodeContracts[_ovmContractAddress];
+        return codeContractOf[_ovmContractAddress];
     }
 
     /**
