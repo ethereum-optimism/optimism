@@ -568,45 +568,6 @@ describe('Web3Handler', () => {
       })
     })
 
-    describe('the debug_traceTransaction endpoint', () => {
-      it('should give us a trace', async () => {
-        const executionManagerAddress = await httpProvider.send(
-          'ovm_getExecutionManagerAddress',
-          []
-        )
-        const wallet = getWallet(httpProvider)
-        const simpleStorage = await deploySimpleStorage(wallet)
-
-        const calldata = simpleStorage.interface.functions[
-          'setStorage'
-        ].encode([executionManagerAddress, storageKey, storageValue])
-
-        const txToTrace = {
-          nonce: await wallet.getTransactionCount(),
-          gasPrice: 0,
-          gasLimit: 9999999999,
-          to: executionManagerAddress,
-          data: calldata,
-          chainId: CHAIN_ID,
-        }
-
-        const signedTransaction = await wallet.sign(txToTrace)
-
-        const hash = await httpProvider.send(
-          Web3RpcMethods.sendRawTransaction,
-          [signedTransaction]
-        )
-
-        await httpProvider.waitForTransaction(hash)
-
-        const returnedTransactionTrace = await httpProvider.send(
-          Web3RpcMethods.traceTransaction,
-          [hash, []]
-        )
-        returnedTransactionTrace.should.not.be.undefined
-      })
-    })
-
     describe('SimpleStorage integration test', () => {
       it('should set storage & retrieve the value', async () => {
         const executionManagerAddress = await httpProvider.send(

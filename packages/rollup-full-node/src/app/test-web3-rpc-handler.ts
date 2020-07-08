@@ -89,6 +89,8 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
       case Web3RpcMethods.accounts:
         this.assertParameters(params, [])
         return this.accounts()
+      case Web3RpcMethods.traceTransaction:
+        return this.traceTransaction(params[0], params[1])
       default:
         return super.handleRequest(method, params)
     }
@@ -182,5 +184,14 @@ export class TestWeb3Handler extends DefaultWeb3Handler {
     )
     log.debug(`Received accounts [${response}].`)
     return response
+  }
+
+  public async traceTransaction(txHash: string, options: any): Promise<string> {
+    const internalTxHash = await super.getInternalTxHash(txHash)
+    const trace: string = await this.context.provider.send(
+      Web3RpcMethods.traceTransaction,
+      [internalTxHash, options]
+    )
+    return trace
   }
 }

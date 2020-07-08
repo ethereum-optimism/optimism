@@ -28,7 +28,6 @@ export interface Web3Handler {
   networkVersion(): Promise<string>
   sendRawTransaction(signedTx: string): Promise<string>
   chainId(): Promise<string>
-  traceTransaction(txHash: string, options: any): Promise<string>
 }
 
 export enum Web3RpcTypes {
@@ -79,6 +78,7 @@ export const testWeb3RpcMethods = Object.values([
   Web3RpcMethods.mine,
   Web3RpcMethods.increaseTimestamp,
   Web3RpcMethods.sendTransaction,
+  Web3RpcMethods.traceTransaction,
 ])
 export const web3RpcMethodsExcludingTest = allWeb3RpcMethodsIncludingTest.filter(
   (x) => testWeb3RpcMethods.indexOf(x) < 0

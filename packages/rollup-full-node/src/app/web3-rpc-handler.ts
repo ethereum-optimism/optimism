@@ -219,9 +219,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         this.assertParameters(params, [])
         response = await this.chainId()
         break
-      case Web3RpcMethods.traceTransaction:
-        response = await this.traceTransaction(params[0], params[1])
-        break
       default:
         const msg: string = `Method / params [${method} / ${JSON.stringify(
           params
@@ -817,15 +814,6 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     })
   }
 
-  public async traceTransaction(txHash: string, options: any): Promise<string> {
-    const internalTxHash = await this.getInternalTxHash(txHash)
-    const trace: string = await this.context.provider.send(
-      Web3RpcMethods.traceTransaction,
-      [internalTxHash, options]
-    )
-    return trace
-  }
-
   /**
    * @inheritDoc
    */
@@ -993,7 +981,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @param ovmTxHash The OVM transaction hash
    * @returns The EVM tx hash if one exists, else undefined.
    */
-  private async getInternalTxHash(ovmTxHash: string): Promise<string> {
+  public async getInternalTxHash(ovmTxHash: string): Promise<string> {
     return this.context.executionManager.getInternalTransactionHash(
       add0x(ovmTxHash)
     )
