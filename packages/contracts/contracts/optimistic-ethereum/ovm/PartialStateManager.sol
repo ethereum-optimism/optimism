@@ -19,7 +19,7 @@ contract PartialStateManager {
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
-    mapping(address=>address) codeContractOf;
+    mapping(address=>address) ovmAddressToCodeContractAddress;
 
     bool public existsInvalidStateAccessFlag;
 
@@ -90,7 +90,7 @@ contract PartialStateManager {
     ) external onlyStateTransitioner {
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;
-        codeContractOf[_ovmContractAddress] = _codeContractAddress;
+        ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
     }
 
     /*****************
@@ -243,7 +243,7 @@ contract PartialStateManager {
         address _ovmContractAddress,
         address _codeContractAddress
     ) onlyExecutionManager public {
-        codeContractOf[_ovmContractAddress] = _codeContractAddress;
+        ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
     }
 
     /**
@@ -251,12 +251,12 @@ contract PartialStateManager {
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
-    function getCodeContractAddress(
+    function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
     ) onlyExecutionManager public returns(address) {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
-        return codeContractOf[_ovmContractAddress];
+        return ovmAddressToCodeContractAddress[_ovmContractAddress];
     }
 
     /**
@@ -270,7 +270,7 @@ contract PartialStateManager {
     ) public view returns (bytes memory codeContractBytecode) {
         // NOTE: We don't need to verify that this is an authenticated contract
         // because this will always be proceeded by a call to
-        // getCodeContractAddress(address _ovmContractAddress) in the EM which does this check.
+        // getCodeContractAddressFromOvmAddress(address _ovmContractAddress) in the EM which does this check.
 
         assembly {
             // retrieve the size of the code
@@ -297,7 +297,7 @@ contract PartialStateManager {
     ) public view returns (bytes32 _codeContractHash) {
         // NOTE: We don't need to verify that this is an authenticated contract
         // because this will always be proceeded by a call to
-        // getCodeContractAddress(address _ovmContractAddress) in the EM which does this check.
+        // getCodeContractAddressFromOvmAddress(address _ovmContractAddress) in the EM which does this check.
 
         // TODO: Use EXTCODEHASH instead of this really inefficient stuff.
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);

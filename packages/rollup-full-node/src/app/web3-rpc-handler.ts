@@ -490,7 +490,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
     )
     // First get the code contract address at the requested OVM address
-    const codeContractAddress = await this.context.stateManager.getCodeContractAddress(
+    const codeContractAddress = await this.context.stateManager.getCodeContractAddressFromOvmAddress(
       address
     )
     const response = await this.context.provider.send(Web3RpcMethods.getCode, [
@@ -517,7 +517,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       const codeContractAddresses = []
       for (const address of filter['address']) {
         codeContractAddresses.push(
-          await this.context.stateManager.getCodeContractAddress(address)
+          await this.context.stateManager.getCodeContractAddressFromOvmAddress(
+            address
+          )
         )
       }
       filter['address'] = [

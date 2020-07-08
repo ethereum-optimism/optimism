@@ -19,8 +19,8 @@ contract FullStateManager is StateManager {
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
-    mapping(address=>address) codeContractOf;
-    mapping(address=>address) ovmContractOf;
+    mapping(address=>address) ovmAddressToCodeContractAddress;
+    mapping(address=>address) codeContractAddressToOvmAddress;
 
 
     /*
@@ -112,8 +112,8 @@ contract FullStateManager is StateManager {
         address _ovmContractAddress,
         address _codeContractAddress
     ) public {
-        codeContractOf[_ovmContractAddress] = _codeContractAddress;
-        ovmContractOf[_codeContractAddress] = _ovmContractAddress;
+        ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
+        codeContractAddressToOvmAddress[_codeContractAddress] = _ovmContractAddress;
     }
 
     /**
@@ -121,10 +121,10 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
-    function getCodeContractAddress(
+    function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
     ) public view returns (address) {
-        return codeContractOf[_ovmContractAddress];
+        return ovmAddressToCodeContractAddress[_ovmContractAddress];
     }
 
     /**
@@ -132,10 +132,10 @@ contract FullStateManager is StateManager {
      * @param _codeContractAddress The address of the code contract.
      * @return The associated OVM contract address.
      */
-    function getOvmContractAddress(
+    function getOvmAddressFromCodeContractAddress(
         address _codeContractAddress
     ) public view returns (address) {
-        return ovmContractOf[_codeContractAddress];
+        return codeContractAddressToOvmAddress[_codeContractAddress];
     }
 
     /**

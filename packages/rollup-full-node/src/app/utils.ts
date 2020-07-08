@@ -176,7 +176,7 @@ export const convertInternalLogsToOvmLogs = async (
         )
       }
     } else {
-      const ovmContractAddress = await context.stateManager.getOvmContractAddress(
+      const ovmContractAddress = await context.stateManager.getOvmAddressFromCodeContractAddress(
         log.address
       )
       const newIndex = log.logIndex - numberOfEMLogs
