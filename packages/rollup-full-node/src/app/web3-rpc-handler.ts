@@ -550,9 +550,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     ])
 
     let logs = JSON.parse(
-      JSON.stringify(
-        convertInternalLogsToOvmLogs(res, this.context.executionManager.address)
-      )
+      JSON.stringify(await convertInternalLogsToOvmLogs(res, this.context))
     )
     log.debug(
       `Log result: [${JSON.stringify(logs)}], filter: [${JSON.stringify(

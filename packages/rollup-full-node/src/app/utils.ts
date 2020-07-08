@@ -161,8 +161,7 @@ export const convertInternalLogsToOvmLogs = async (
   const ovmLogs = []
   let numberOfEMLogs = 0
   let prevEMLogIndex = 0
-  for (let i = 0; i < logs.length; i++){
-    const log: Log = logs[i]
+  for (const log of logs) {
     if (log.address.toUpperCase() === uppercaseExecutionMangerAddress) {
       if (log.logIndex <= prevEMLogIndex) {
         // This indicates a new TX, so reset number of EM logs to 0
@@ -177,7 +176,9 @@ export const convertInternalLogsToOvmLogs = async (
         )
       }
     } else {
-      const ovmContractAddress = await context.stateManager.getOvmContractAddress(log.address)
+      const ovmContractAddress = await context.stateManager.getOvmContractAddress(
+        log.address
+      )
       const newIndex = log.logIndex - numberOfEMLogs
       ovmLogs.push({
         ...log,
