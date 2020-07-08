@@ -164,10 +164,15 @@ export const bnToHexString = (bn: BigNumber): string => {
 /**
  * Converts a JavaScript number to a hex string.
  * @param number the JavaScript number to be converted.
+ * @param padToBytes the number of numeric bytes the resulting string should be, -1 if no padding should be done.
  * @returns the JavaScript number as a string.
  */
-export const numberToHexString = (number: number): string => {
-  return add0x(number.toString(16))
+export const numberToHexString = (number: number, padToBytes: number = -1): string => {
+  let str = number.toString(16)
+  if (padToBytes > 0 || str.length < padToBytes * 2) {
+    str = `${'0'.repeat(padToBytes*2 - str.length)}${str}`
+  }
+  return add0x(str)
 }
 
 /**

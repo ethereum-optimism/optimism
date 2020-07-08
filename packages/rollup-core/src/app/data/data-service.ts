@@ -8,7 +8,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 import {
   BlockBatches,
   DataService,
-  L1BatchRecord,
+  L1BatchRecord, L1BatchSubmission, L2BatchStatus,
   RollupTransaction,
   TransactionAndRoot,
   VerificationCandidate,
@@ -276,7 +276,7 @@ export class DefaultDataService implements DataService {
     const timestampRes = await this.rdb.select(
       `SELECT DISTINCT block_timestamp
             FROM l2_tx
-            WHERE status = 'UNBATCHED'
+            WHERE status = '${L2BatchStatus.UNBATCHED}'
             ORDER BY block_timestamp ASC
       `
     )
@@ -292,8 +292,8 @@ export class DefaultDataService implements DataService {
       const batchNumber = await this.insertNewL2TransactionBatch()
       await this.rdb.execute(`
         UPDATE l2_tx
-        SET status = 'BATCHED', batch_number = ${batchNumber}
-        WHERE status = 'UNBATCHED' AND block_timestamp = ${batchTimestamp}
+        SET status = '${L2BatchStatus.BATCHED}', batch_number = ${batchNumber}
+        WHERE status = '${L2BatchStatus.UNBATCHED}' AND block_timestamp = ${batchTimestamp}
       `)
 
       await this.rdb.commit()
@@ -320,7 +320,7 @@ export class DefaultDataService implements DataService {
     const transactionsToBatchRes = await this.rdb.select(`
       SELECT COUNT(*) as batchable_tx_count, block_timestamp
       FROM l2_tx
-      WHERE status = 'UNBATCHED'
+      WHERE status = '${L2BatchStatus.UNBATCHED}'
       GROUP BY block_timestamp
       ORDER BY block_timestamp ASC
     `)
@@ -357,11 +357,11 @@ export class DefaultDataService implements DataService {
       }
       await this.rdb.execute(`
         UPDATE l2_tx l
-        SET l.status = 'BATCHED', l.batch_number = ${batchNumber}
+        SET l.status = '${L2BatchStatus.BATCHED}', l.batch_number = ${batchNumber}
         FROM (
             SELECT *
             FROM l2_tx
-            WHERE status = 'UNBATCHED'
+            WHERE status = '${L2BatchStatus.UNBATCHED}'
             LIMIT ${l1BatchSize}
         ) t
         WHERE l.id = t.id
@@ -377,6 +377,94 @@ export class DefaultDataService implements DataService {
       await this.rdb.rollback()
       throw Error(e)
     }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getNextBatchForL1Submission(): Promise<L1BatchSubmission> {
+    const res = await this.rdb.select(`
+      SELECT b.batch_number, b.status, b.tx_batch_tx_hash, b.state_batch_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
+      FROM l2_tx tx
+        INNER JOIN l2_tx_batch b 
+      WHERE b.status = '${L2BatchStatus.BATCHED}'
+      ORDER BY block_number ASC, tx_index ASC
+    `)
+
+    if (!res || !res.length || !res[0].data.length) {
+      return undefined
+    }
+
+    const batch: L1BatchSubmission = {
+      l1TxBatchTxHash: res[0].columns['tx_batch_tx_hash'],
+      l1StateRootBatchTxHash: res[0].columns['state_batch_tx_hash'],
+      status: res[0].columns['status'],
+      l2BatchNumber: res[0].columns['batch_number'],
+      transactions: []
+    }
+    for (const row of res) {
+      batch.transactions.push({
+        timestamp: row.columns['block_timestamp'],
+        blockNumber: row.columns['block_number'],
+        transactionIndex: row.columns['tx_index'],
+        transactionHash: row.columns['tx_hash'],
+        to: row.columns['target'],
+        from: row.columns['sender'],
+        nonce: row.columns['nonce'],
+        calldata: row.columns['calldata'],
+        stateRoot: row.columns['state_root'],
+        gasPrice: row.columns['gas_price'],
+        gasLimit: row.columns['gas_limit'],
+        l1MessageSender: row.columns['l1_message_sender'], // should never be present in this case
+        signature: row.columns['signature']
+      })
+    }
+
+    return batch
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markTransactionBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void> {
+    return this.rdb.execute(`
+      UPDATE l2_tx_batch
+      SET status = '${L2BatchStatus.TXS_SUBMITTED}', tx_batch_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}
+    `)
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markTransactionBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void> {
+    return this.rdb.execute(`
+      UPDATE l2_tx_batch
+      SET status = '${L2BatchStatus.TXS_CONFIRMED}', tx_batch_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}
+    `)
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markStateRootBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void> {
+    return this.rdb.execute(`
+      UPDATE l2_tx_batch
+      SET status = '${L2BatchStatus.ROOTS_SUBMITTED}', state_batch_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}
+    `)
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markStateRootBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void> {
+    return this.rdb.execute(`
+      UPDATE l2_tx_batch 
+      SET status = '${L2BatchStatus.ROOTS_CONFIRMED}', state_batch_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}
+    `)
   }
 
   /************

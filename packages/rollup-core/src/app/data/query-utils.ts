@@ -48,13 +48,13 @@ export const getL1RollupStateRootInsertValue = (
   return `'${stateRoot}', ${batchNumber}, ${batchIndex}`
 }
 
-export const l2TransactionInsertStatement = `INSERT INTO l2_tx(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature) `
+export const l2TransactionInsertStatement = `INSERT INTO l2_tx(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature, state_root) `
 export const getL2TransactionInsertValue = (tx: TransactionAndRoot): string => {
   return `'${tx.blockNumber}', ${tx.timestamp}, ${tx.transactionIndex}, '${
     tx.transactionHash
   }' ${stringOrNull(tx.from)}, ${stringOrNull(tx.l1MessageSender)}, '${
     tx.to
-  }', '${tx.calldata}', ${tx.nonce}, ${stringOrNull(tx.signature)}`
+  }', '${tx.calldata}', ${tx.nonce}, ${stringOrNull(tx.signature)}, '${tx.stateRoot}'`
 }
 
 export const bigNumOrNull = (bn: any): string => {

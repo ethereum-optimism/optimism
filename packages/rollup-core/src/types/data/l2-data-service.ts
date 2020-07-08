@@ -1,5 +1,6 @@
 /* Internal Imports */
 import { TransactionAndRoot } from '../types'
+import {L1BatchSubmission, L2BatchStatus} from './types'
 
 export interface L2DataService {
   /**
@@ -29,4 +30,48 @@ export interface L2DataService {
     batchNumber: number,
     batchSize: number
   ): Promise<number>
+
+  /**
+   * Gets the next L2 Batch for submission to L1, if one exists.
+   *
+   * @returns The L1BatchSubmission object, or undefined
+   * @throws An error if there is a DB error.
+   */
+  getNextBatchForL1Submission(): Promise<L1BatchSubmission>
+
+  /**
+   * Marks the tx batch with the provided batch number as submitted to the L1 chain.
+   *
+   * @param batchNumber The batch number to mark as submitted.
+   * @param l1TxHash The L1 transaction hash for the batch submission.
+   * @throws An error if there is a DB error.
+   */
+  markTransactionBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void>
+
+  /**
+   * Marks the tx batch with the provided batch number as confirmed on the L1 chain.
+   *
+   * @param batchNumber The batch number to mark as confirmed.
+   * @param l1TxHash The L1 transaction hash for the batch submission.
+   * @throws An error if there is a DB error.
+   */
+  markTransactionBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void>
+
+  /**
+   * Marks the state root batch with the provided batch number as submitted to the L1 chain.
+   *
+   * @param batchNumber The batch number to mark as submitted.
+   * @param l1TxHash The L1 transaction hash for the batch submission.
+   * @throws An error if there is a DB error.
+   */
+  markStateRootBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void>
+
+  /**
+   * Marks the state root batch with the provided batch number as confirmed on the L1 chain.
+   *
+   * @param batchNumber The batch number to mark as confirmed.
+   * @param l1TxHash The L1 transaction hash for the batch submission.
+   * @throws An error if there is a DB error.
+   */
+  markStateRootBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void>
 }
