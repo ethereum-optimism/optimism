@@ -659,7 +659,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )
       ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
         internalTxReceipt,
-        this.context.executionManager.address,
+        this.context,
         ovmTxHash
       )
     } else {

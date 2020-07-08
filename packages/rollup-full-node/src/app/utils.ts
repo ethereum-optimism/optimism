@@ -152,17 +152,17 @@ export async function deployOvmContract(
  * @param executionManagerAddress The address of the Execution Manager contract for log parsing.
  * @return the converted logs
  */
-export const convertInternalLogsToOvmLogs = (
+export const convertInternalLogsToOvmLogs = async (
   logs: Log[],
-  executionManagerAddress: string
-): Log[] => {
-  const uppercaseExecutionMangerAddress: string = executionManagerAddress.toUpperCase()
-  let activeContractAddress: string = logs[0] ? logs[0].address : ZERO_ADDRESS
+  context: any
+): Promise<Log[]> => {
+  const uppercaseExecutionMangerAddress: string = context.executionManager.address.toUpperCase()
   const stringsToDebugLog = [`Parsing internal logs ${JSON.stringify(logs)}: `]
   const ovmLogs = []
   let numberOfEMLogs = 0
   let prevEMLogIndex = 0
-  logs.forEach((log) => {
+  for (let i = 0; i < logs.length; i++){
+    const log: Log = logs[i]
     if (log.address.toUpperCase() === uppercaseExecutionMangerAddress) {
       if (log.logIndex <= prevEMLogIndex) {
         // This indicates a new TX, so reset number of EM logs to 0
@@ -175,18 +175,18 @@ export const convertInternalLogsToOvmLogs = (
         stringsToDebugLog.push(
           `Execution manager emitted log with topics: ${log.topics}.  These were unrecognized by the interface parser-but definitely not an ActiveContract event, ignoring...`
         )
-      } else if (executionManagerLog.name === 'ActiveContract') {
-        activeContractAddress = executionManagerLog.values['_activeContract']
       }
     } else {
+      const ovmContractAddress = await context.stateManager.getOvmContractAddress(log.address)
       const newIndex = log.logIndex - numberOfEMLogs
       ovmLogs.push({
         ...log,
-        address: activeContractAddress,
+        address: ovmContractAddress,
         logIndex: newIndex,
       })
     }
-  })
+  }
+  logger.debug(stringsToDebugLog)
   return ovmLogs
 }
 
@@ -273,9 +273,10 @@ export const getSuccessfulOvmTransactionMetadata = (
  */
 export const internalTxReceiptToOvmTxReceipt = async (
   internalTxReceipt: TransactionReceipt,
-  executionManagerAddress: string,
+  context: any,
   ovmTxHash?: string
 ): Promise<OvmTransactionReceipt> => {
+  const executionManagerAddress = context.executionManager.address
   const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(
     internalTxReceipt
   )
@@ -284,9 +285,9 @@ export const internalTxReceiptToOvmTxReceipt = async (
   // Start off with the internalTxReceipt
   const ovmTxReceipt: OvmTransactionReceipt = internalTxReceipt
   // Add the converted logs
-  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(
+  ovmTxReceipt.logs = await convertInternalLogsToOvmLogs(
     internalTxReceipt.logs,
-    executionManagerAddress
+    context
   )
   // Update the to and from fields if necessary
   if (ovmTransactionMetadata.ovmTo) {
