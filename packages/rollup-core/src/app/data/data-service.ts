@@ -8,7 +8,9 @@ import { Block, TransactionResponse } from 'ethers/providers'
 import {
   BlockBatches,
   DataService,
-  L1BatchRecord, L1BatchSubmission, L2BatchStatus,
+  L1BatchRecord,
+  L1BatchSubmission,
+  L2BatchStatus,
   RollupTransaction,
   TransactionAndRoot,
   VerificationCandidate,
@@ -120,6 +122,22 @@ export class DefaultDataService implements DataService {
       )
       await this.rdb.rollback()
     }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async createNextL1ToL2Batch(): Promise<number> {
+    // ***************************** TODO: THIS ************************************
+    return undefined
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async createNextSafetyQueueBatch(): Promise<number> {
+    // ***************************** TODO: THIS ************************************
+    return undefined
   }
 
   /**
@@ -400,7 +418,7 @@ export class DefaultDataService implements DataService {
       l1StateRootBatchTxHash: res[0].columns['state_batch_tx_hash'],
       status: res[0].columns['status'],
       l2BatchNumber: res[0].columns['batch_number'],
-      transactions: []
+      transactions: [],
     }
     for (const row of res) {
       batch.transactions.push({
@@ -416,7 +434,7 @@ export class DefaultDataService implements DataService {
         gasPrice: row.columns['gas_price'],
         gasLimit: row.columns['gas_limit'],
         l1MessageSender: row.columns['l1_message_sender'], // should never be present in this case
-        signature: row.columns['signature']
+        signature: row.columns['signature'],
       })
     }
 
@@ -426,7 +444,10 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async markTransactionBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void> {
+  public async markTransactionBatchSubmittedToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
     return this.rdb.execute(`
       UPDATE l2_tx_batch
       SET status = '${L2BatchStatus.TXS_SUBMITTED}', tx_batch_tx_hash = '${l1TxHash}'
@@ -437,7 +458,10 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async markTransactionBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void> {
+  public async markTransactionBatchConfirmedOnL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
     return this.rdb.execute(`
       UPDATE l2_tx_batch
       SET status = '${L2BatchStatus.TXS_CONFIRMED}', tx_batch_tx_hash = '${l1TxHash}'
@@ -448,7 +472,10 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async markStateRootBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void> {
+  public async markStateRootBatchSubmittedToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
     return this.rdb.execute(`
       UPDATE l2_tx_batch
       SET status = '${L2BatchStatus.ROOTS_SUBMITTED}', state_batch_tx_hash = '${l1TxHash}'
@@ -459,7 +486,10 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async markStateRootBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void> {
+  public async markStateRootBatchConfirmedOnL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
     return this.rdb.execute(`
       UPDATE l2_tx_batch 
       SET status = '${L2BatchStatus.ROOTS_CONFIRMED}', state_batch_tx_hash = '${l1TxHash}'

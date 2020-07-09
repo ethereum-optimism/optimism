@@ -1,6 +1,6 @@
 /* Internal Imports */
 import { TransactionAndRoot } from '../types'
-import {L1BatchSubmission, L2BatchStatus} from './types'
+import { L1BatchSubmission, L2BatchStatus } from './types'
 
 export interface L2DataService {
   /**
@@ -46,7 +46,10 @@ export interface L2DataService {
    * @param l1TxHash The L1 transaction hash for the batch submission.
    * @throws An error if there is a DB error.
    */
-  markTransactionBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void>
+  markTransactionBatchSubmittedToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void>
 
   /**
    * Marks the tx batch with the provided batch number as confirmed on the L1 chain.
@@ -55,7 +58,10 @@ export interface L2DataService {
    * @param l1TxHash The L1 transaction hash for the batch submission.
    * @throws An error if there is a DB error.
    */
-  markTransactionBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void>
+  markTransactionBatchConfirmedOnL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void>
 
   /**
    * Marks the state root batch with the provided batch number as submitted to the L1 chain.
@@ -64,7 +70,10 @@ export interface L2DataService {
    * @param l1TxHash The L1 transaction hash for the batch submission.
    * @throws An error if there is a DB error.
    */
-  markStateRootBatchSubmittedToL1(batchNumber: number, l1TxHash: string): Promise<void>
+  markStateRootBatchSubmittedToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void>
 
   /**
    * Marks the state root batch with the provided batch number as confirmed on the L1 chain.
@@ -73,5 +82,8 @@ export interface L2DataService {
    * @param l1TxHash The L1 transaction hash for the batch submission.
    * @throws An error if there is a DB error.
    */
-  markStateRootBatchConfirmedOnL1(batchNumber: number, l1TxHash: string): Promise<void>
+  markStateRootBatchConfirmedOnL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void>
 }

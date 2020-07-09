@@ -1,4 +1,10 @@
-import {TransactionAndRoot} from '../types'
+import { TransactionAndRoot } from '../types'
+
+export enum QueueOrigin {
+  L1_TO_L2_QUEUE = 0,
+  SAFETY_QUEUE = 1,
+  SEQUENCER = 2,
+}
 
 export enum L2BatchStatus {
   UNBATCHED = 'UNBATCHED',
@@ -6,7 +12,7 @@ export enum L2BatchStatus {
   TXS_SUBMITTED = 'TXS_SUBMITTED',
   TXS_CONFIRMED = 'TXS_CONFIRMED',
   ROOTS_SUBMITTED = 'ROOTS_SUBMITTED',
-  ROOTS_CONFIRMED = 'ROOTS_CONFIRMED'
+  ROOTS_CONFIRMED = 'ROOTS_CONFIRMED',
 }
 
 export interface L1BatchRecord {

@@ -66,6 +66,22 @@ export interface L1DataService {
   ): Promise<number>
 
   /**
+   * Creates a batch from the oldest un-batched transaction that is from the L1 To L2 queue.
+   *
+   * @returns The created batch number
+   * @throws Error if there is a DB error or no such transaction exists.
+   */
+  createNextL1ToL2Batch(): Promise<number>
+
+  /**
+   * Creates a batch from the oldest un-batched transaction that is from the Safety queue.
+   *
+   * @returns The created batch number
+   * @throws Error if there is a DB error or no such transaction exists.
+   */
+  createNextSafetyQueueBatch(): Promise<number>
+
+  /**
    * Atomically inserts the provided State Roots, creating a batch for them.
    *
    * @param l1TxHash The L1 Transaction hash.

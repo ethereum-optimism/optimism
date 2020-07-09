@@ -1,10 +1,20 @@
 /* External Imports */
-import {getLogger, logError, numberToHexString, remove0x, ScheduledTask} from '@eth-optimism/core-utils'
-import {Contract, Wallet} from 'ethers'
+import {
+  getLogger,
+  logError,
+  numberToHexString,
+  remove0x,
+  ScheduledTask,
+} from '@eth-optimism/core-utils'
+import { Contract, Wallet } from 'ethers'
 
 /* Internal Imports */
-import {L1BatchSubmission, L2BatchStatus, L2DataService} from '../../../types/data'
-import {TransactionReceipt, TransactionResponse} from 'ethers/providers'
+import {
+  L1BatchSubmission,
+  L2BatchStatus,
+  L2DataService,
+} from '../../../types/data'
+import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 
 const log = getLogger('l2-batch-creator')
 
@@ -56,16 +66,23 @@ export class L1BatchSubmitter extends ScheduledTask {
         await this.waitForTxBatchConfirms(txBatchTxHash, l2Batch.l2BatchNumber)
       // Fallthrough on purpose -- this is a workflow
       case L2BatchStatus.TXS_CONFIRMED:
-        rootBatchTxHash = await this.buildAndSendStateRootBatchTransaction(l2Batch)
+        rootBatchTxHash = await this.buildAndSendStateRootBatchTransaction(
+          l2Batch
+        )
         if (!rootBatchTxHash) {
           return
         }
       // Fallthrough on purpose -- this is a workflow
       case L2BatchStatus.ROOTS_SUBMITTED:
-        await this.waitForStateRootBatchConfirms(rootBatchTxHash, l2Batch.l2BatchNumber)
+        await this.waitForStateRootBatchConfirms(
+          rootBatchTxHash,
+          l2Batch.l2BatchNumber
+        )
         break
       default:
-        log.error(`Received L1 Batch submission in unexpected state: ${l2Batch.status}!`)
+        log.error(
+          `Received L1 Batch submission in unexpected state: ${l2Batch.status}!`
+        )
         break
     }
   }
@@ -76,26 +93,50 @@ export class L1BatchSubmitter extends ScheduledTask {
    * @param l2Batch The L2 batch to send to L1.
    * @returns The L1 tx hash.
    */
-  private async buildAndSendRollupBatchTransaction(l2Batch: L1BatchSubmission): Promise<string> {
+  private async buildAndSendRollupBatchTransaction(
+    l2Batch: L1BatchSubmission
+  ): Promise<string> {
     let txHash: string
     try {
       const txsCalldata: string[] = this.getTransactionBatchCalldata(l2Batch)
 
       const timestamp = l2Batch.transactions[0].timestamp
-      log.debug(`Submitting tx batch ${l2Batch.l2BatchNumber} to canonical chain. Batch: ${JSON.stringify(l2Batch)}, txs bytes: ${JSON.stringify(txsCalldata)}, timestamp: ${timestamp}`)
-      const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(txsCalldata, timestamp)
-      log.debug(`Tx batch ${l2Batch.l2BatchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`)
+      log.debug(
+        `Submitting tx batch ${
+          l2Batch.l2BatchNumber
+        } to canonical chain. Batch: ${JSON.stringify(
+          l2Batch
+        )}, txs bytes: ${JSON.stringify(txsCalldata)}, timestamp: ${timestamp}`
+      )
+      const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
+        txsCalldata,
+        timestamp
+      )
+      log.debug(
+        `Tx batch ${l2Batch.l2BatchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
+      )
       txHash = txRes.hash
     } catch (e) {
-      logError(log, `Error submitting tx batch ${l2Batch.l2BatchNumber} to canonical chain!`, e)
+      logError(
+        log,
+        `Error submitting tx batch ${l2Batch.l2BatchNumber} to canonical chain!`,
+        e
+      )
       return undefined
     }
 
     try {
       log.debug(`Marking tx batch ${l2Batch.l2BatchNumber} submitted`)
-      await this.dataService.markTransactionBatchSubmittedToL1(l2Batch.l2BatchNumber, txHash)
+      await this.dataService.markTransactionBatchSubmittedToL1(
+        l2Batch.l2BatchNumber,
+        txHash
+      )
     } catch (e) {
-      logError(log, `Error marking tx batch ${l2Batch.l2BatchNumber} as submitted!`, e)
+      logError(
+        log,
+        `Error marking tx batch ${l2Batch.l2BatchNumber} as submitted!`,
+        e
+      )
       // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
     }
     return txHash
@@ -108,21 +149,36 @@ export class L1BatchSubmitter extends ScheduledTask {
    * @param txHash The tx hash to wait for.
    * @param batchNumber The rollup batch number in question.
    */
-  private async waitForTxBatchConfirms(txHash: string, batchNumber: number): Promise<void> {
+  private async waitForTxBatchConfirms(
+    txHash: string,
+    batchNumber: number
+  ): Promise<void> {
     if (this.confirmationsUntilFinal > 1) {
       try {
-        log.debug(`Waiting for ${this.confirmationsUntilFinal} confirmations before treating tx batch ${batchNumber} submission as final.`)
-        const receipt: TransactionReceipt = await this.canonicalTransactionChain.provider.waitForTransaction(txHash, this.confirmationsUntilFinal)
+        log.debug(
+          `Waiting for ${this.confirmationsUntilFinal} confirmations before treating tx batch ${batchNumber} submission as final.`
+        )
+        const receipt: TransactionReceipt = await this.canonicalTransactionChain.provider.waitForTransaction(
+          txHash,
+          this.confirmationsUntilFinal
+        )
         log.debug(`Batch submission finalized for tx batch ${batchNumber}!`)
       } catch (e) {
-        logError(log, `Error waiting for necessary block confirmations until final!`, e)
+        logError(
+          log,
+          `Error waiting for necessary block confirmations until final!`,
+          e
+        )
         // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
       }
     }
 
     try {
       log.debug(`Marking tx batch ${batchNumber} confirmed!`)
-      await this.dataService.markTransactionBatchConfirmedOnL1(batchNumber, txHash)
+      await this.dataService.markTransactionBatchConfirmedOnL1(
+        batchNumber,
+        txHash
+      )
       log.debug(`Tx batch ${batchNumber} marked confirmed!`)
     } catch (e) {
       logError(log, `Error marking tx batch ${batchNumber} as confirmed!`, e)
@@ -135,25 +191,46 @@ export class L1BatchSubmitter extends ScheduledTask {
    * @param l2Batch The l2 batch from which state roots may be retrieved.
    * @returns The L1 tx hash.
    */
-  private async buildAndSendStateRootBatchTransaction(l2Batch: L1BatchSubmission): Promise<string> {
+  private async buildAndSendStateRootBatchTransaction(
+    l2Batch: L1BatchSubmission
+  ): Promise<string> {
     let txHash: string
     try {
-      const stateRoots: string[] = l2Batch.transactions.map(x => x.stateRoot)
+      const stateRoots: string[] = l2Batch.transactions.map((x) => x.stateRoot)
 
-      log.debug(`Submitting state root batch ${l2Batch.l2BatchNumber} to state commitment chain. State roots: ${JSON.stringify(stateRoots)}`)
-      const stateRootRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(stateRoots)
-      log.debug(`State batch ${l2Batch.l2BatchNumber} appended with at least one confirmation! Tx Hash: ${stateRootRes.hash}`)
+      log.debug(
+        `Submitting state root batch ${
+          l2Batch.l2BatchNumber
+        } to state commitment chain. State roots: ${JSON.stringify(stateRoots)}`
+      )
+      const stateRootRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(
+        stateRoots
+      )
+      log.debug(
+        `State batch ${l2Batch.l2BatchNumber} appended with at least one confirmation! Tx Hash: ${stateRootRes.hash}`
+      )
       txHash = stateRootRes.hash
     } catch (e) {
-      logError(log, `Error submitting state root batch ${l2Batch.l2BatchNumber} to state commitment chain!`, e)
+      logError(
+        log,
+        `Error submitting state root batch ${l2Batch.l2BatchNumber} to state commitment chain!`,
+        e
+      )
       return undefined
     }
 
     try {
       log.debug(`Marking state root batch ${l2Batch.l2BatchNumber} submitted`)
-      await this.dataService.markStateRootBatchSubmittedToL1(l2Batch.l2BatchNumber, txHash)
+      await this.dataService.markStateRootBatchSubmittedToL1(
+        l2Batch.l2BatchNumber,
+        txHash
+      )
     } catch (e) {
-      logError(log, `Error marking state root batch ${l2Batch.l2BatchNumber} as submitted!`, e)
+      logError(
+        log,
+        `Error marking state root batch ${l2Batch.l2BatchNumber} as submitted!`,
+        e
+      )
       // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
     }
     return txHash
@@ -166,21 +243,38 @@ export class L1BatchSubmitter extends ScheduledTask {
    * @param txHash The tx hash to wait for.
    * @param batchNumber The rollup batch number in question.
    */
-  private async waitForStateRootBatchConfirms(txHash: string, batchNumber: number): Promise<void> {
+  private async waitForStateRootBatchConfirms(
+    txHash: string,
+    batchNumber: number
+  ): Promise<void> {
     if (this.confirmationsUntilFinal > 1) {
       try {
-        log.debug(`Waiting for ${this.confirmationsUntilFinal} confirmations before treating state root batch ${batchNumber} submission as final.`)
-        const receipt: TransactionReceipt = await this.stateCommitmentChain.provider.waitForTransaction(txHash, this.confirmationsUntilFinal)
-        log.debug(`State root batch submission finalized for batch ${batchNumber}!`)
+        log.debug(
+          `Waiting for ${this.confirmationsUntilFinal} confirmations before treating state root batch ${batchNumber} submission as final.`
+        )
+        const receipt: TransactionReceipt = await this.stateCommitmentChain.provider.waitForTransaction(
+          txHash,
+          this.confirmationsUntilFinal
+        )
+        log.debug(
+          `State root batch submission finalized for batch ${batchNumber}!`
+        )
       } catch (e) {
-        logError(log, `Error waiting for necessary block confirmations until final!`, e)
+        logError(
+          log,
+          `Error waiting for necessary block confirmations until final!`,
+          e
+        )
         // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
       }
     }
 
     try {
       log.debug(`Marking state root batch ${batchNumber} confirmed!`)
-      await this.dataService.markStateRootBatchConfirmedOnL1(batchNumber, txHash)
+      await this.dataService.markStateRootBatchConfirmedOnL1(
+        batchNumber,
+        txHash
+      )
       log.debug(`State root batch ${batchNumber} marked confirmed!`)
     } catch (e) {
       logError(log, `Error marking batch ${batchNumber} as confirmed!`, e)
@@ -191,11 +285,11 @@ export class L1BatchSubmitter extends ScheduledTask {
    * Gets the calldata bytes for a transaction batch to be submitted by the sequencer.
    * Rollup Transaction Format:
    *    sender: 20-byte address    0-20
-   *    target: 20-byte address    21-40
-   *    nonce: 32-byte uint        41-72
-   *    gasLimit: 32-byte uint     73-104
-   *    signature: 65-byte bytes   105-169
-   *    calldata: bytes            170-end
+   *    target: 20-byte address    20-40
+   *    nonce: 32-byte uint        40-72
+   *    gasLimit: 32-byte uint     72-104
+   *    signature: 65-byte bytes   104-169
+   *    calldata: bytes            169-end
    *
    * @param batch The batch to turn into ABI-encoded calldata bytes.
    * @returns The ABI-encoded bytes[] of the Rollup Transactions in the format listed above.
@@ -205,7 +299,9 @@ export class L1BatchSubmitter extends ScheduledTask {
     for (const tx of batch.transactions) {
       const to: string = remove0x(tx.to)
       const nonce: string = remove0x(numberToHexString(tx.nonce, 32))
-      const gasLimit: string = tx.gasLimit ? tx.gasLimit.toString('hex', 64) : '00'.repeat(32)
+      const gasLimit: string = tx.gasLimit
+        ? tx.gasLimit.toString('hex', 64)
+        : '00'.repeat(32)
       const signature: string = remove0x(tx.signature)
       const calldata: string = remove0x(tx.calldata)
       txs.push(`${tx.from}${to}${nonce}${gasLimit}${signature}${calldata}`)

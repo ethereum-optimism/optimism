@@ -54,7 +54,9 @@ export const getL2TransactionInsertValue = (tx: TransactionAndRoot): string => {
     tx.transactionHash
   }' ${stringOrNull(tx.from)}, ${stringOrNull(tx.l1MessageSender)}, '${
     tx.to
-  }', '${tx.calldata}', ${tx.nonce}, ${stringOrNull(tx.signature)}, '${tx.stateRoot}'`
+  }', '${tx.calldata}', ${tx.nonce}, ${stringOrNull(tx.signature)}, '${
+    tx.stateRoot
+  }'`
 }
 
 export const bigNumOrNull = (bn: any): string => {

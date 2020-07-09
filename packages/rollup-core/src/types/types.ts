@@ -62,6 +62,7 @@ export type LogHandler = (
   l: Log,
   tx: TransactionResponse
 ) => Promise<void>
+
 export interface LogHandlerContext {
   topic: string
   contractAddress: Address
