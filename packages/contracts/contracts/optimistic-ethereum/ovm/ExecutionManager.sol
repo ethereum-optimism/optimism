@@ -555,14 +555,7 @@ contract ExecutionManager {
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
 
         // Next we need to actually create the contract in our state at that address
-        if (!createNewContract(_newOvmContractAddress, _ovmInitcode)) {
-            // Failure: Return 0 address
-            assembly {
-                let returnData := mload(0x40)
-                mstore(returnData, 0)
-                return(returnData, 0x20)
-            }
-        }
+        createNewContract(_newOvmContractAddress, _ovmInitcode);
 
         // We also need to increment the contract nonce
         stateManager.incrementOvmContractNonce(creator);
@@ -619,14 +612,7 @@ contract ExecutionManager {
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
         
         // Next we need to actually create the contract in our state at that address
-        if (!createNewContract(_newOvmContractAddress, _ovmInitcode)) {
-            // Failure: Return 0 address
-            assembly {
-                let returnData := mload(0x40)
-                mstore(returnData, 0)
-                return(returnData, 0x20)
-            }
-        }
+        createNewContract(_newOvmContractAddress, _ovmInitcode);
 
         // Shifting so that it is left-padded, big-endian ('00'x12 + 20 bytes of address)
         bytes32 newOvmContractAddressBytes32 = bytes32(bytes20(_newOvmContractAddress)) >> 96;
@@ -647,11 +633,8 @@ contract ExecutionManager {
      * @param _ovmInitcode The initcode for our new contract
      * @return True if this succeeded, false otherwise.
      */
-    function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal returns (bool){
-        if (!safetyChecker.isBytecodeSafe(_ovmInitcode)) {
-            // Contract init code is not safe.
-            return false;
-        }
+    function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal {
+        require(safetyChecker.isBytecodeSafe(_ovmInitcode), "Contract init (creation) code is not safe");
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
 
@@ -660,10 +643,7 @@ contract ExecutionManager {
         // Get the runtime bytecode
         bytes memory codeContractBytecode = stateManager.getCodeContractBytecode(codeContractAddress);
         // Safety check the runtime bytecode
-        if (!safetyChecker.isBytecodeSafe(codeContractBytecode)) {
-            // Contract runtime bytecode is not safe.
-            return false;
-        }
+        require(safetyChecker.isBytecodeSafe(codeContractBytecode), "Contract runtime (deployed) bytecode is not safe");
 
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
@@ -675,8 +655,6 @@ contract ExecutionManager {
 
         // Emit CreatedContract event! We've created a new contract!
         emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
-
-        return true;
     }
 
     /**
@@ -689,10 +667,6 @@ contract ExecutionManager {
         assembly {
             // Set our codeContractAddress to the address returned by our CREATE operation
             codeContractAddress := create(0, add(_ovmContractInitcode, 0x20), mload(_ovmContractInitcode))
-            // Make sure that the CREATE was successful (actually deployed something)
-            if iszero(extcodesize(codeContractAddress)) {
-                revert(0, 0)
-            }
         }
         return codeContractAddress;
     }
