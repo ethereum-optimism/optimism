@@ -111,7 +111,7 @@ class MockStatCommitmentChain {
   }
 }
 
-describe.only('L1 Batch Submitter', () => {
+describe('L1 Batch Submitter', () => {
   let batchSubmitter: L1BatchSubmitter
   let dataService: MockDataService
   let canonicalProvider: MockProvider

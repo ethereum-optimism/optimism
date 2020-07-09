@@ -39,6 +39,8 @@ export const L1ToL2TxEnqueuedLogHandler = async (
     `L1ToL2TxEnqueued event received at block ${tx.blockNumber}, tx ${l.transactionIndex}, log: ${l.transactionLogIndex}. TxHash: ${tx.hash}. Log Data: ${l.data}`
   )
 
+  const data: string = remove0x(l.data)
+
   let rollupTransaction: RollupTransaction
   try {
     rollupTransaction = {
@@ -50,11 +52,11 @@ export const L1ToL2TxEnqueuedLogHandler = async (
       queueOrigin: QueueOrigin.L1_TO_L2_QUEUE,
       batchIndex: 0,
       sender: l.address,
-      l1MessageSender: add0x(l.data.substr(0, 40)),
-      target: add0x(l.data.substr(40, 40)),
+      l1MessageSender: add0x(data.substr(0, 40)),
+      target: add0x(data.substr(40, 40)),
       // TODO: Change gasLimit to a BigNumber so it can support 256 bits
-      gasLimit: new BigNumber(l.data.substr(80, 64), 'hex').toNumber(),
-      calldata: add0x(l.data.substr(144)),
+      gasLimit: new BigNumber(data.substr(80, 64), 'hex').toNumber(),
+      calldata: add0x(data.substr(144)),
     }
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
@@ -96,7 +98,7 @@ export const CalldataTxEnqueuedLogHandler = async (
   let rollupTransaction: RollupTransaction
   try {
     // Skip the 4 bytes of MethodID
-    const calldata = remove0x(tx.data).substr(8)
+    const calldata = remove0x(ethers.utils.hexDataSlice(tx.data, 4))
     rollupTransaction = {
       l1BlockNumber: tx.blockNumber,
       l1Timestamp: tx.timestamp,
@@ -111,8 +113,8 @@ export const CalldataTxEnqueuedLogHandler = async (
       nonce: new BigNumber(calldata.substr(80, 64), 'hex').toNumber(),
       // TODO: Change gasLimit to a BigNumber so it can support 256 bits
       gasLimit: new BigNumber(calldata.substr(144, 64), 'hex').toNumber(),
-      signature: add0x(calldata.substr(210, 65)),
-      calldata: add0x(calldata.substr(275)),
+      signature: add0x(calldata.substr(208, 130)),
+      calldata: add0x(calldata.substr(338)),
     }
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
@@ -235,7 +237,7 @@ export const SequencerBatchAppendedLogHandler = async (
   )
 
   const rollupTransactions: RollupTransaction[] = []
-  let timestamp: number
+  let timestamp: any
   try {
     let transactionsBytes: string[]
     ;[transactionsBytes, timestamp] = abi.decode(
@@ -244,10 +246,10 @@ export const SequencerBatchAppendedLogHandler = async (
     )
 
     for (let i = 0; i < transactionsBytes.length; i++) {
-      const txBytes = transactionsBytes[i]
+      const txBytes = remove0x(transactionsBytes[i])
       rollupTransactions.push({
         l1BlockNumber: tx.blockNumber,
-        l1Timestamp: timestamp,
+        l1Timestamp: timestamp.toNumber(),
         l1TxHash: l.transactionHash,
         l1TxIndex: l.transactionIndex,
         l1TxLogIndex: l.transactionLogIndex,
@@ -259,8 +261,8 @@ export const SequencerBatchAppendedLogHandler = async (
         nonce: new BigNumber(txBytes.substr(80, 64), 'hex').toNumber(),
         // TODO: Change gasLimit to a BigNumber so it can support 256 bits
         gasLimit: new BigNumber(txBytes.substr(144, 64), 'hex').toNumber(),
-        signature: add0x(txBytes.substr(210, 65)),
-        calldata: add0x(txBytes.substr(275)),
+        signature: add0x(txBytes.substr(208, 130)),
+        calldata: add0x(txBytes.substr(338)),
       })
     }
   } catch (e) {
