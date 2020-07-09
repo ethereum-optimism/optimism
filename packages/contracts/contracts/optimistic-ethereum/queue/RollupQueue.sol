@@ -12,7 +12,13 @@ contract RollupQueue {
   DataTypes.TimestampedHash[] public batchHeaders;
   uint256 public front;
 
+  /*
+   * Events
+   */
+  event CalldataTxEnqueued();
+  event L1ToL2TxEnqueued(bytes _tx);
 
+  /*
   /*
    * Public Functions
    */
@@ -47,6 +53,10 @@ contract RollupQueue {
     return true;
   }
 
+  function isCalldataTxQueue() public returns (bool) {
+    return true;
+  }
+
   function enqueueTx(bytes memory _tx) public {
     // Authentication.
     require(
@@ -54,10 +64,18 @@ contract RollupQueue {
       "Message sender does not have permission to enqueue"
     );
 
+    bytes32 txHash = keccak256(_tx);
+
     batchHeaders.push(DataTypes.TimestampedHash({
       timestamp: now,
-      txHash: keccak256(_tx)
+      txHash: txHash
     }));
+
+    if (isCalldataTxQueue()) {
+      emit CalldataTxEnqueued();
+    } else {
+      emit L1ToL2TxEnqueued(_tx);
+    }
   }
 
   function dequeue() public {

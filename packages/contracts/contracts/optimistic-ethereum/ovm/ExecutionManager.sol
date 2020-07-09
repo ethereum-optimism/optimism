@@ -734,7 +734,7 @@ contract ExecutionManager {
 
         // switch the context to the _targetOvmContractAddress
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
-        address codeAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
+        address codeAddress = stateManager.getCodeContractAddressFromOvmAddress(_targetOvmContractAddress);
 
         bytes memory returnData;
         uint returnSize;
@@ -804,7 +804,7 @@ contract ExecutionManager {
 
         // switch the context to the _targetOvmContractAddress
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_targetOvmContractAddress);
-        address codeAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
+        address codeAddress = stateManager.getCodeContractAddressFromOvmAddress(_targetOvmContractAddress);
 
         bytes memory returnData;
         uint returnSize;
@@ -869,7 +869,7 @@ contract ExecutionManager {
 
         address _targetOvmContractAddress = address(bytes20(_targetOvmContractAddressBytes));
         // NOTE: WE DO NOT SWITCH CONTEXTS HERE.
-        address codeAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
+        address codeAddress = stateManager.getCodeContractAddressFromOvmAddress(_targetOvmContractAddress);
 
         // make the call
         assembly {
@@ -971,7 +971,7 @@ contract ExecutionManager {
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
-        address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
+        address codeContractAddress = stateManager.getCodeContractAddressFromOvmAddress(_targetOvmContractAddress);
 
         assembly {
             let sizeBytes := mload(0x40)
@@ -997,7 +997,7 @@ contract ExecutionManager {
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
-        address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
+        address codeContractAddress = stateManager.getCodeContractAddressFromOvmAddress(_targetOvmContractAddress);
 
         // TODO: Replace `getCodeContractHash(...) with `getOvmContractHash(...)
         bytes32 hash = stateManager.getCodeContractHash(codeContractAddress);
@@ -1034,7 +1034,7 @@ contract ExecutionManager {
         }
 
         address _targetOvmContractAddress = address(bytes20(_targetAddressBytes));
-        address codeContractAddress = stateManager.getCodeContractAddress(_targetOvmContractAddress);
+        address codeContractAddress = stateManager.getCodeContractAddressFromOvmAddress(_targetOvmContractAddress);
 
         assembly {
             let codeContractBytecode := mload(0x40)

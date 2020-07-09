@@ -11,7 +11,6 @@ contract CanonicalTransactionChain {
     /*
      * Contract Variables
      */
-
     address public sequencer;
     uint public forceInclusionPeriod;
     RollupMerkleUtils public merkleUtils;
@@ -21,6 +20,13 @@ contract CanonicalTransactionChain {
     bytes32[] public batches;
     uint public lastOVMTimestamp;
 
+    /*
+     * Events
+     */
+
+    event L1ToL2BatchAppended( bytes32 _batchHeaderHash);
+    event SafetyQueueBatchAppended( bytes32 _batchHeaderHash);
+    event SequencerBatchAppended(bytes32 _batchHeaderHash);
 
     /*
      * Constructor
@@ -43,7 +49,6 @@ contract CanonicalTransactionChain {
             address(this)
         );
     }
-
 
     /*
      * Public Functions
@@ -120,6 +125,12 @@ contract CanonicalTransactionChain {
 
         batches.push(batchHeaderHash);
         cumulativeNumElements += numElementsInBatch;
+
+        if (isL1ToL2Tx) {
+            emit L1ToL2BatchAppended(batchHeaderHash);
+        } else {
+            emit SafetyQueueBatchAppended(batchHeaderHash);
+        }
     }
 
     function appendSequencerBatch(
@@ -173,6 +184,8 @@ contract CanonicalTransactionChain {
 
         batches.push(batchHeaderHash);
         cumulativeNumElements += _txBatch.length;
+
+        emit SequencerBatchAppended(batchHeaderHash);
     }
 
     // verifies an element is in the current list at the given position

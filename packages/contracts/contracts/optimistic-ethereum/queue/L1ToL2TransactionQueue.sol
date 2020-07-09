@@ -23,4 +23,8 @@ contract L1ToL2TransactionQueue is RollupQueue {
   function authenticateDequeue(address _sender) public view returns (bool) {
     return _sender == canonicalTransactionChain;
   }
+
+  function isCalldataTxQueue() public returns (bool) {
+    return false;
+  }
 }

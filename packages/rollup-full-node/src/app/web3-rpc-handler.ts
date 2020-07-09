@@ -490,7 +490,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       `Getting code for address: [${address}], defaultBlock: [${defaultBlock}]`
     )
     // First get the code contract address at the requested OVM address
-    const codeContractAddress = await this.context.stateManager.getCodeContractAddress(
+    const codeContractAddress = await this.context.stateManager.getCodeContractAddressFromOvmAddress(
       address
     )
     const response = await this.context.provider.send(Web3RpcMethods.getCode, [
@@ -517,7 +517,9 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       const codeContractAddresses = []
       for (const address of filter['address']) {
         codeContractAddresses.push(
-          await this.context.stateManager.getCodeContractAddress(address)
+          await this.context.stateManager.getCodeContractAddressFromOvmAddress(
+            address
+          )
         )
       }
       filter['address'] = [
@@ -550,9 +552,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     ])
 
     let logs = JSON.parse(
-      JSON.stringify(
-        convertInternalLogsToOvmLogs(res, this.context.executionManager.address)
-      )
+      JSON.stringify(await convertInternalLogsToOvmLogs(res, this.context))
     )
     log.debug(
       `Log result: [${JSON.stringify(logs)}], filter: [${JSON.stringify(
@@ -659,7 +659,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       )
       ovmTxReceipt = await internalTxReceiptToOvmTxReceipt(
         internalTxReceipt,
-        this.context.executionManager.address,
+        this.context,
         ovmTxHash
       )
     } else {
@@ -981,7 +981,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @param ovmTxHash The OVM transaction hash
    * @returns The EVM tx hash if one exists, else undefined.
    */
-  private async getInternalTxHash(ovmTxHash: string): Promise<string> {
+  public async getInternalTxHash(ovmTxHash: string): Promise<string> {
     return this.context.executionManager.getInternalTransactionHash(
       add0x(ovmTxHash)
     )
