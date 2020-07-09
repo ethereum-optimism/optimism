@@ -77,6 +77,8 @@ describe('L2 Batch Submitter', () => {
             l1Timestamp: 1,
             l1BlockNumber: 1,
             l1TxHash: keccak256FromUtf8('tx hash'),
+            l1TxIndex: 0,
+            l1TxLogIndex: 0,
             queueOrigin: 1,
           },
         ],

@@ -42,9 +42,11 @@ export const L1ToL2TxEnqueuedLogHandler = async (
   let rollupTransaction: RollupTransaction
   try {
     rollupTransaction = {
-      l1TxHash: l.transactionHash,
-      l1Timestamp: tx.timestamp,
       l1BlockNumber: tx.blockNumber,
+      l1Timestamp: tx.timestamp,
+      l1TxHash: l.transactionHash,
+      l1TxIndex: l.transactionIndex,
+      l1TxLogIndex: l.transactionLogIndex,
       queueOrigin: QueueOrigin.L1_TO_L2_QUEUE,
       batchIndex: 0,
       sender: l.address,
@@ -96,9 +98,11 @@ export const CalldataTxEnqueuedLogHandler = async (
     // Skip the 4 bytes of MethodID
     const calldata = remove0x(tx.data).substr(8)
     rollupTransaction = {
-      l1TxHash: l.transactionHash,
-      l1Timestamp: tx.timestamp,
       l1BlockNumber: tx.blockNumber,
+      l1Timestamp: tx.timestamp,
+      l1TxHash: l.transactionHash,
+      l1TxIndex: l.transactionIndex,
+      l1TxLogIndex: l.transactionLogIndex,
       queueOrigin: QueueOrigin.SAFETY_QUEUE,
       batchIndex: 0,
       sender: add0x(calldata.substr(0, 40)),
@@ -138,8 +142,9 @@ export const L1ToL2BatchAppendedLogHandler = async (
   log.debug(
     `L1ToL2BatchAppended event received at block ${tx.blockNumber}, tx ${l.transactionIndex}, log: ${l.transactionLogIndex}. TxHash: ${tx.hash}`
   )
+  let batchNumber: number
   try {
-    await ds.createNextL1ToL2Batch()
+    batchNumber = await ds.createNextL1ToL2Batch()
   } catch (e) {
     logError(
       log,
@@ -147,6 +152,16 @@ export const L1ToL2BatchAppendedLogHandler = async (
       e
     )
     throw e
+  }
+
+  if (!batchNumber) {
+    const msg = `Attempted to create L1 to L2 Batch upon receiving L1ToL2BatchAppended log, but no tx was available for batching!`
+    log.error(msg)
+    throw Error(msg)
+  } else {
+    log.debug(
+      `Successfully created L1 to L2 Batch! Batch number: ${batchNumber}`
+    )
   }
 }
 
@@ -167,8 +182,10 @@ export const SafetyQueueBatchAppendedLogHandler = async (
   log.debug(
     `SafetyQueueBatchAppended event received at block ${tx.blockNumber}, tx ${l.transactionIndex}, log: ${l.transactionLogIndex}. TxHash: ${tx.hash}`
   )
+  let batchNumber: number
+
   try {
-    await ds.createNextSafetyQueueBatch()
+    batchNumber = await ds.createNextSafetyQueueBatch()
   } catch (e) {
     logError(
       log,
@@ -176,6 +193,16 @@ export const SafetyQueueBatchAppendedLogHandler = async (
       e
     )
     throw e
+  }
+
+  if (!batchNumber) {
+    const msg = `Attempted to create Safety Queue Batch upon receiving L1ToL2BatchAppended log, but no tx was available for batching!`
+    log.error(msg)
+    throw Error(msg)
+  } else {
+    log.debug(
+      `Successfully created Safety Queue Batch! Batch number: ${batchNumber}`
+    )
   }
 }
 
@@ -219,9 +246,11 @@ export const SequencerBatchAppendedLogHandler = async (
     for (let i = 0; i < transactionsBytes.length; i++) {
       const txBytes = transactionsBytes[i]
       rollupTransactions.push({
-        l1TxHash: l.transactionHash,
-        l1Timestamp: timestamp,
         l1BlockNumber: tx.blockNumber,
+        l1Timestamp: timestamp,
+        l1TxHash: l.transactionHash,
+        l1TxIndex: l.transactionIndex,
+        l1TxLogIndex: l.transactionLogIndex,
         queueOrigin: QueueOrigin.SEQUENCER,
         batchIndex: i,
         sender: add0x(txBytes.substr(0, 40)),
@@ -242,7 +271,12 @@ export const SequencerBatchAppendedLogHandler = async (
     return
   }
 
-  await ds.insertL1RollupTransactions(l.transactionHash, rollupTransactions)
+  const batchNumber = await ds.insertL1RollupTransactions(
+    l.transactionHash,
+    rollupTransactions,
+    true
+  )
+  log.debug(`Sequencer batch number ${batchNumber} successfully created!`)
 }
 
 /**

@@ -1,6 +1,6 @@
 /* External Imports */
 import { RDB, Row } from '@eth-optimism/core-db'
-import { getLogger, logError } from '@eth-optimism/core-utils'
+import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
 
 import { Block, TransactionResponse } from 'ethers/providers'
 
@@ -11,6 +11,7 @@ import {
   L1BatchRecord,
   L1BatchSubmission,
   L2BatchStatus,
+  QueueOrigin,
   RollupTransaction,
   TransactionAndRoot,
   VerificationCandidate,
@@ -90,22 +91,26 @@ export class DefaultDataService implements DataService {
    */
   public async insertL1RollupTransactions(
     l1TxHash: string,
-    rollupTransactions: RollupTransaction[]
+    rollupTransactions: RollupTransaction[],
+    createBatch: boolean = false
   ): Promise<number> {
     if (!rollupTransactions || !rollupTransactions.length) {
       return
     }
 
-    let batchNumber
+    let batchNumber: number
     await this.rdb.startTransaction()
     try {
-      batchNumber = await this.insertNewL1TransactionBatch(
-        rollupTransactions[0].l1TxHash
-      )
+      if (createBatch) {
+        batchNumber = await this.insertNewL1TransactionBatch(
+          rollupTransactions[0].l1TxHash
+        )
+      }
 
       const values: string[] = rollupTransactions.map(
         (x) => `(${getL1RollupTransactionInsertValue(x, batchNumber)})`
       )
+
       await this.rdb.execute(
         `${l1RollupTxInsertStatement} VALUES ${values.join(',')}`
       )
@@ -128,16 +133,80 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async createNextL1ToL2Batch(): Promise<number> {
-    // ***************************** TODO: THIS ************************************
-    return undefined
+    const txHashRes = await this.rdb.select(`
+      SELECT l1_tx_hash, l1_tx_log_index
+      FROM rollup_tx
+      WHERE batch_number IS NULL AND queue_origin = ${QueueOrigin.L1_TO_L2_QUEUE} 
+      ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
+      LIMIT 1
+    `)
+    if (!txHashRes || !txHashRes.length || !txHashRes[0].columns['tx_hash']) {
+      return undefined
+    }
+
+    const txHash = txHashRes[0].columns['l1_tx_hash']
+    const txLogIndex = txHashRes[0].columns['l1_tx_log_index']
+
+    await this.rdb.startTransaction()
+    try {
+      const batchNumber: number = await this.insertNewL1TransactionBatch(txHash)
+
+      await this.rdb.execute(`
+        UPDATE rollup_tx
+        SET batch_number = ${batchNumber}, batch_index = 0
+        WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
+      `)
+
+      return batchNumber
+    } catch (e) {
+      logError(
+        log,
+        `Error executing createNextL1ToL2Batch for tx hash ${txHash}... rolling back`,
+        e
+      )
+      await this.rdb.rollback()
+      throw e
+    }
   }
 
   /**
    * @inheritDoc
    */
   public async createNextSafetyQueueBatch(): Promise<number> {
-    // ***************************** TODO: THIS ************************************
-    return undefined
+    const txHashRes = await this.rdb.select(`
+      SELECT l1_tx_hash, l1_tx_log_index
+      FROM rollup_tx
+      WHERE batch_number IS NULL AND queue_origin = ${QueueOrigin.SAFETY_QUEUE} 
+      ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
+      LIMIT 1
+    `)
+    if (!txHashRes || !txHashRes.length || !txHashRes[0].columns['tx_hash']) {
+      return undefined
+    }
+
+    const txHash = txHashRes[0].columns['l1_tx_hash']
+    const txLogIndex = txHashRes[0].columns['l1_tx_log_index']
+
+    await this.rdb.startTransaction()
+    try {
+      const batchNumber: number = await this.insertNewL1TransactionBatch(txHash)
+
+      await this.rdb.execute(`
+        UPDATE rollup_tx
+        SET batch_number = ${batchNumber}, batch_index = 0
+        WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
+      `)
+
+      return batchNumber
+    } catch (e) {
+      logError(
+        log,
+        `Error executing createNextSafetyQueueBatch for tx hash ${txHash}... rolling back`,
+        e
+      )
+      await this.rdb.rollback()
+      throw e
+    }
   }
 
   /**
@@ -202,7 +271,7 @@ export class DefaultDataService implements DataService {
    */
   public async getNextBatchForL2Submission(): Promise<BlockBatches> {
     const res: Row[] = await this.rdb.select(`
-      SELECT batch_number, target, calldata, block_timestamp, block_number, l1_tx_hash, queue_origin, sender, l1_message_sender, gas_limit, nonce, signature
+      SELECT batch_number, target, calldata, block_timestamp, block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index, queue_origin, sender, l1_message_sender, gas_limit, nonce, signature
       FROM next_l2_submission_batch
     `)
 
@@ -222,11 +291,13 @@ export class DefaultDataService implements DataService {
         res.map((row: Row, batchIndex: number) => {
           const tx: RollupTransaction = {
             batchIndex,
+            l1TxHash: row.columns['l1_tx_hash'],
+            l1TxIndex: row.columns['l1_tx_index'],
+            l1TxLogIndex: row.columns['l1_tx_log_index'],
             target: row.columns['target'],
             calldata: row.columns['calldata'], // TODO: may have to format Buffer => string
             l1Timestamp: row.columns['block_timestamp'],
             l1BlockNumber: row.columns['block_number'],
-            l1TxHash: row.columns['l1_tx_hash'],
             queueOrigin: row.columns['queue_origin'],
           }
 

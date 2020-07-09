@@ -26,7 +26,9 @@ export interface RollupTransaction {
   gasLimit?: number
   l1Timestamp: number
   l1BlockNumber: number
+  l1TxIndex: number
   l1TxHash: string
+  l1TxLogIndex?: number
   nonce?: number
   queueOrigin: number
   signature?: string

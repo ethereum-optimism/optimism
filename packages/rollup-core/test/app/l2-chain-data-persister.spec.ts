@@ -15,13 +15,17 @@ import {
 
 /* Internal Imports */
 import { L2DataService, TransactionAndRoot } from '../../src/types'
-import {CHAIN_ID, DefaultDataService, L2ChainDataPersister} from '../../src/app'
+import {
+  CHAIN_ID,
+  DefaultDataService,
+  L2ChainDataPersister,
+} from '../../src/app'
 
 class MockDataService extends DefaultDataService {
   public readonly transactionAndRoots: TransactionAndRoot[] = []
 
   constructor() {
-    super(undefined);
+    super(undefined)
   }
 
   public async insertL2Transaction(transaction: TransactionAndRoot) {
