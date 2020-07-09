@@ -3,7 +3,7 @@ import '../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
-import { Signer, ContractFactory } from 'ethers'
+import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
