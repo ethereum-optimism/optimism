@@ -31,19 +31,30 @@ export interface AccountStorageUpdateTest extends AccountStorageProofTest {
   newStateTrieRoot: string
 }
 
-interface TrieNode {
+export interface StateTrieProofTest {
+  address: string
+  encodedAccountState: string
+  stateTrieWitness: string
+  stateTrieRoot: string
+}
+
+export interface StateTrieUpdateTest extends StateTrieProofTest {
+  newStateTrieRoot: string
+}
+
+export interface TrieNode {
   key: string
   val: string
 }
 
-interface StateTrieNode {
+export interface StateTrieNode {
   nonce: number
   balance: number
   storageRoot: string
   codeHash: string
 }
 
-interface StateTrieMap {
+export interface StateTrieMap {
   [address: string]: {
     state: StateTrieNode
     storage: TrieNode[]
@@ -347,6 +358,58 @@ export const makeAccountStorageUpdateTest = async (
     storageTrieWitness: toHexString(rlp.encode(storageTrieWitness)),
     stateTrieRoot: oldStateTrieRoot,
     newStateTrieRoot: toHexString(stateTrie.trie.root),
+  }
+}
+
+export const makeStateTrieProofTest = async (
+  state: StateTrieMap,
+  address: string
+): Promise<StateTrieProofTest> => {
+  const stateTrie = await makeStateTrie(state)
+
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    toHexBuffer(address)
+  )
+
+  const ret = await BaseTrie.verifyProof(
+    stateTrie.trie.root,
+    toHexBuffer(address),
+    stateTrieWitness
+  )
+
+  return {
+    address: address,
+    encodedAccountState: toHexString(ret),
+    stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
+    stateTrieRoot: toHexString(stateTrie.trie.root)
+  }
+}
+
+export const makeStateTrieUpdateTest = async (
+  state: StateTrieMap,
+  address: string,
+  accountState: StateTrieNode
+): Promise<StateTrieUpdateTest> => {
+  const stateTrie = await makeStateTrie(state)
+
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    toHexBuffer(address)
+  )
+
+  const oldStateTrieRoot = toHexString(stateTrie.trie.root)
+  await stateTrie.trie.put(
+    toHexBuffer(address),
+    encodeAccountState(accountState)
+  )
+
+  return {
+    address: address,
+    encodedAccountState: toHexString(encodeAccountState(accountState)),
+    stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
+    stateTrieRoot: oldStateTrieRoot,
+    newStateTrieRoot: toHexString(stateTrie.trie.root)
   }
 }
 

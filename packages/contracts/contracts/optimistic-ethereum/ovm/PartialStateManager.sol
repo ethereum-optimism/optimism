@@ -97,17 +97,30 @@ contract PartialStateManager {
     * Post-Execution *
     *****************/
 
-    function popUpdatedStorageSlot() external onlyStateTransitioner returns (
+    function peekUpdatedStorageSlot() public view returns (
         address storageSlotContract,
         bytes32 storageSlotKey,
         bytes32 storageSlotValue
     ) {
-        require(updatedStorageSlotCounter > 0, "No more elements to pop!");
+        require(updatedStorageSlotCounter > 0, "No more elements to update.");
 
-        // Get the next storage we need to update using the updatedStorageSlotCounter
-        storageSlotContract = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter]));
-        storageSlotKey = updatedStorageSlotKey[updatedStorageSlotCounter];
+        storageSlotContract = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter - 1]));
+        storageSlotKey = updatedStorageSlotKey[updatedStorageSlotCounter - 1];
         storageSlotValue = ovmContractStorage[storageSlotContract][storageSlotKey];
+
+        return (storageSlotContract, storageSlotKey, storageSlotValue);
+    }
+
+    function popUpdatedStorageSlot() public onlyStateTransitioner returns (
+        address storageSlotContract,
+        bytes32 storageSlotKey,
+        bytes32 storageSlotValue
+    ) {
+        (
+            storageSlotContract,
+            storageSlotKey,
+            storageSlotValue
+        ) = peekUpdatedStorageSlot();
 
         // Decrement the updatedStorageSlotCounter (we go reverse through the updated storage).
         // Note that when this hits zero we'll have updated all storage slots that were changed during
@@ -117,15 +130,26 @@ contract PartialStateManager {
         return (storageSlotContract, storageSlotKey, storageSlotValue);
     }
 
-    function popUpdatedContract() external onlyStateTransitioner returns (
+    function peekUpdatedContract() public view returns (
         address ovmContractAddress,
         uint contractNonce
     ) {
-        require(updatedContractsCounter > 0, "No more elements to pop!");
+        require(updatedContractsCounter > 0, "No more elements to update.");
 
-        // Get the next storage we need to update using the updatedStorageSlotCounter
-        ovmContractAddress = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter]));
+        ovmContractAddress = address(bytes20(updatedContracts[updatedContractsCounter - 1]));
         contractNonce = ovmContractNonces[ovmContractAddress];
+
+        return (ovmContractAddress, contractNonce);
+    }
+
+    function popUpdatedContract() public onlyStateTransitioner returns (
+        address ovmContractAddress,
+        uint contractNonce
+    ) {
+        (
+            ovmContractAddress,
+            contractNonce
+        ) = peekUpdatedContract();
 
         updatedContractsCounter -= 1;
 
@@ -198,7 +222,8 @@ contract PartialStateManager {
         address _ovmContractAddress,
         uint _value
     ) onlyExecutionManager public {
-        flagIfNotVerifiedContract(_ovmContractAddress);
+        // TODO: Figure out if we actually need to verify contracts here.
+        //flagIfNotVerifiedContract(_ovmContractAddress);
 
         // Add this contract to the list of updated contracts
         updatedContracts[updatedContractsCounter] = _ovmContractAddress;

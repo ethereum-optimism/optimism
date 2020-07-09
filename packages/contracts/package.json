@@ -21,7 +21,7 @@
   },
   "scripts": {
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test --show-stack-traces",
+    "test:contracts": "buidler test \"test/contracts/ovm/StateTransitioner.spec.ts\" --show-stack-traces",
     "coverage": "yarn run coverage:contracts",
     "coverage:contracts": "buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
     "build": "yarn run build:contracts && yarn run build:typescript",

@@ -9,7 +9,7 @@ import {StateTransitioner} from "./StateTransitioner.sol";
 contract FraudVerifier {
     mapping(uint=>StateTransitioner) stateTransitioners;
 
-    function initNewStateTransitioner(uint _preStateTransitionIndex) public returns(bool) {
+    function initFraudVerification(uint256 _preStateTransitionIndex) public returns(bool) {
         // TODO:
         // Create a new state transitioner for some specific pre-state
         // transition index (assuming one hasn't already been made).
@@ -20,7 +20,7 @@ contract FraudVerifier {
     }
 
 
-    function verifyFraud(uint _transitionIndex) public returns(bool) {
+    function verifyFraud(uint256 _transitionIndex) public returns(bool) {
         // TODO:
         // Simply verify that the state transitioner has completed, and that the state root
         // at _preStateTransitionIndex+1 is not equal to the state root which was committed for that index.
