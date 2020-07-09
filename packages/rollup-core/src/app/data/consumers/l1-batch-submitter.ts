@@ -24,7 +24,6 @@ const log = getLogger('l2-batch-creator')
 export class L1BatchSubmitter extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
-    private readonly sequencerWallet: Wallet,
     private readonly canonicalTransactionChain: Contract,
     private readonly stateCommitmentChain: Contract,
     private readonly confirmationsUntilFinal: number = 1,
