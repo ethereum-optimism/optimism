@@ -38,7 +38,7 @@ export const DEFAULT_UNSAFE_OPCODES: EVMOpcode[] = [
 
 // use whitelist-mask-generator.spec.ts to re-generate this
 export const DEFAULT_OPCODE_WHITELIST_MASK =
-  '0x600a0000000000000000001fffffffffffffffff0fcf004063f000013fff0fff'
+  '0x600a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
 
 export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
   '0x4200000000000000000000000000000000000000'

@@ -19,6 +19,7 @@ describe('OpcodeWhitelist', () => {
     Opcode.CREATE,
     Opcode.PUSH1,
     Opcode.TIMESTAMP,
+    Opcode.CHAINID,
     Opcode.DUP1,
     Opcode.POP,
     Opcode.SSTORE,
