@@ -14,7 +14,6 @@ contract EthMerkleTrie is MerkleTrie {
     bytes32 constant BYTES32_NULL = bytes32('');
     uint256 constant UINT256_NULL = uint256(0);
 
-
     /*
      * Public Functions
      */
@@ -523,13 +522,23 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     ) internal pure returns (DataTypes.AccountState memory) {
-        bytes memory encodedAccountState = get(
+        DataTypes.AccountState memory DEFAULT_ACCOUNT_STATE = DataTypes.AccountState({
+            nonce: UINT256_NULL,
+            balance: UINT256_NULL,
+            storageRoot: BYTES32_NULL,
+            codeHash: BYTES32_NULL
+        });
+
+        (
+            bool exists,
+            bytes memory encodedAccountState
+        ) = get(
             abi.encodePacked(_address),
             _stateTrieWitness,
             _stateTrieRoot
         );
 
-        return decodeAccountState(encodedAccountState);
+        return exists ? decodeAccountState(encodedAccountState) : DEFAULT_ACCOUNT_STATE;
     }
 
     /**
