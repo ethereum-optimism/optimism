@@ -981,7 +981,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
    * @param ovmTxHash The OVM transaction hash
    * @returns The EVM tx hash if one exists, else undefined.
    */
-  private async getInternalTxHash(ovmTxHash: string): Promise<string> {
+  public async getInternalTxHash(ovmTxHash: string): Promise<string> {
     return this.context.executionManager.getInternalTransactionHash(
       add0x(ovmTxHash)
     )
