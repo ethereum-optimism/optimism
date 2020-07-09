@@ -16,17 +16,13 @@ import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../../test-helpers/core-helpers'
-import {
+  Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
   encodeRawArguments,
   encodeMethodId,
-  gasLimit,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -229,7 +225,7 @@ describe('Execution Manager -- Context opcodes', () => {
     return executionManager.provider.call({
       to: executionManager.address,
       data,
-      gasLimit,
+      gasLimit: GAS_LIMIT,
     })
   }
 })

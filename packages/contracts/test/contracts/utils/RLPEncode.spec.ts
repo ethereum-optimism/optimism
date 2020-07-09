@@ -5,7 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { Contract, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { rlpTests } from '../../test-helpers/data/rlp.test.json'
+import { RLP_TEST_JSON } from '../../test-helpers'
 
 /* Tests */
 describe('RLP Encoder', () => {
@@ -49,11 +49,11 @@ describe('RLP Encoder', () => {
   }
 
   describe('Official Ethereum RLP Tests', async () => {
-    for (const test of Object.keys(rlpTests)) {
+    for (const test of Object.keys(RLP_TEST_JSON)) {
       it(`should properly encode ${test}`, async () => {
-        const input = rlpTests[test].in
+        const input = RLP_TEST_JSON[test].in
         const encodedOutput = await encode(input)
-        encodedOutput.should.equal(rlpTests[test].out)
+        encodedOutput.should.equal(RLP_TEST_JSON[test].out)
       })
     }
   })

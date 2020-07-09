@@ -4,29 +4,17 @@ import '../../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { abi, getLogger, add0x } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
-import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../../test-helpers/core-helpers'
-import {
-  gasLimit,
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
 
 /* Logging */
 const log = getLogger('execution-manager-storage', true)
-
-const methodIds = fromPairs(
-  ['ovmSSTORE', 'ovmSLOAD'].map((methodId) => [
-    methodId,
-    encodeMethodId(methodId),
-  ])
-)
 
 /* Tests */
 describe('ExecutionManager -- Storage opcodes', () => {
@@ -63,7 +51,7 @@ describe('ExecutionManager -- Storage opcodes', () => {
     const tx = await wallet.sendTransaction({
       to: executionManager.address,
       data,
-      gasLimit,
+      gasLimit: GAS_LIMIT,
     })
 
     const reciept = await provider.getTransactionReceipt(tx.hash)
@@ -104,7 +92,7 @@ describe('ExecutionManager -- Storage opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       // It should load the value which we just set

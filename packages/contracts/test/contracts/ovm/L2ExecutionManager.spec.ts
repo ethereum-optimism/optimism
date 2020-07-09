@@ -6,11 +6,7 @@ import { add0x, getLogger } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../test-helpers/core-helpers'
+import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('l2-execution-manager-calls', true)

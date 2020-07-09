@@ -10,10 +10,6 @@ import { fromPairs } from 'lodash'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../../test-helpers/core-helpers'
-import {
-  gasLimit,
   executeOVMCall,
   encodeMethodId,
   encodeRawArguments,
@@ -31,11 +27,6 @@ const methodIds = fromPairs(
 
 /* Tests */
 describe('ExecutionManager -- Create opcodes', () => {
-  let wallet: Signer
-  before(async () => {
-    ;[wallet] = await ethers.getSigners()
-  })
-
   let ExecutionManager: ContractFactory
   let SimpleStorage: ContractFactory
   let InvalidOpcodes: ContractFactory
@@ -91,7 +82,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: safetyCheckedExecutionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       log.debug(`Result: [${result}]`)
@@ -112,7 +103,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: executionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       log.debug(`Result: [${result}]`)
@@ -131,7 +122,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       const result = await executionManager.provider.call({
         to: safetyCheckedExecutionManager.address,
         data,
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       log.debug(`Result: [${result}]`)

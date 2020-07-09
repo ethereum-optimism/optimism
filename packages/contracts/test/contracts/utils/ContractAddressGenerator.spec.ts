@@ -5,8 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { utils, Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
-import { create2Tests } from '../../test-helpers/data/create2.test.json'
-import { buildCreate2Address } from '../../test-helpers'
+import { buildCreate2Address, CREATE2_TEST_JSON } from '../../test-helpers'
 
 /* Tests */
 describe('ContractAddressGenerator', () => {
@@ -86,9 +85,9 @@ describe('ContractAddressGenerator', () => {
   })
 
   describe('buildCreate2Address helper', async () => {
-    for (const test of Object.keys(create2Tests)) {
+    for (const test of Object.keys(CREATE2_TEST_JSON)) {
       it(`should properly generate CREATE2 address from ${test}`, async () => {
-        const { address, salt, init_code, result } = create2Tests[test]
+        const { address, salt, init_code, result } = CREATE2_TEST_JSON[test]
         const computedAddress = buildCreate2Address(address, salt, init_code)
         computedAddress.should.equal(result.toLowerCase())
       })
@@ -96,9 +95,9 @@ describe('ContractAddressGenerator', () => {
   })
 
   describe('getAddressFromCREATE2', async () => {
-    for (const test of Object.keys(create2Tests)) {
+    for (const test of Object.keys(CREATE2_TEST_JSON)) {
       it(`should properly generate CREATE2 address from ${test}`, async () => {
-        const { address, salt, init_code, result } = create2Tests[test]
+        const { address, salt, init_code, result } = CREATE2_TEST_JSON[test]
         const computedAddress = await contractAddressGenerator.getAddressFromCREATE2(
           address,
           salt,

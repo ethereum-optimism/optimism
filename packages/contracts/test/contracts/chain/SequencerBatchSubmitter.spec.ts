@@ -6,14 +6,13 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { StateChainBatch, TxChainBatch } from '../../test-helpers/rl-helpers'
+import { StateChainBatch, TxChainBatch } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('batch-submitter', true)
 
 /* Tests */
 describe('SequencerBatchSubmitter', () => {
-  const provider = ethers.provider
   const DEFAULT_STATE_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX_BATCH = ['0xabcd', '0xef12']
   const FORCE_INCLUSION_PERIOD = 600
