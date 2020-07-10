@@ -2,7 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import { getLogger } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Logging */
@@ -20,7 +20,7 @@ describe('PartialStateManager', () => {
     PartialStateManager = await ethers.getContractFactory('PartialStateManager')
   })
 
-  let partialStateManager
+  let partialStateManager: Contract
   beforeEach(async () => {
     partialStateManager = await PartialStateManager.deploy(
       await wallet.getAddress(),

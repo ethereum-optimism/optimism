@@ -11,7 +11,7 @@ import {
   DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
-} from '../../test-helpers/core-helpers'
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('safety-checker', true)

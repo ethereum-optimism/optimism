@@ -9,21 +9,16 @@ import {
   TestUtils,
   getCurrentTime,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory, Signer } from 'ethers'
-import * as ethereumjsAbi from 'ethereumjs-abi'
+import { Contract, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-  getUnsignedTransactionCalldata,
-} from '../../../test-helpers/core-helpers'
-import {
-  manuallyDeployOvmContract,
   ZERO_UINT,
+  Address,
+  manuallyDeployOvmContract,
   signTransaction,
   getSignedComponents,
   getWallets,
@@ -33,10 +28,6 @@ import {
 const log = getLogger('execution-manager-calls', true)
 
 export const abi = new ethers.utils.AbiCoder()
-
-const unsignedCallMethodId: string = ethereumjsAbi
-  .methodID('executeTransaction', [])
-  .toString('hex')
 
 /* Tests */
 describe('Execution Manager -- Call opcodes', () => {
@@ -85,8 +76,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -127,8 +117,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -163,8 +152,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -200,8 +188,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 0
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -238,8 +225,7 @@ describe('Execution Manager -- Call opcodes', () => {
       const intParam = 1
       const bytesParam = '0xdeadbeef'
       // Generate our tx calldata
-      const calldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const calldata = DummyContract.interface.encodeFunctionData(
         'dummyFunction',
         [intParam, bytesParam]
       )
@@ -272,14 +258,12 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('reverts when it makes a call that reverts', async () => {
       // Generate our tx internalCalldata
-      const internalCalldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const internalCalldata = DummyContract.interface.encodeFunctionData(
         'dummyRevert',
         []
       )
 
-      const calldata = getUnsignedTransactionCalldata(
-        executionManager,
+      const calldata = ExecutionManager.interface.encodeFunctionData(
         'executeTransaction',
         [
           ZERO_UINT,
@@ -314,14 +298,12 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('reverts when it makes a call that fails a require', async () => {
       // Generate our tx internalCalldata
-      const internalCalldata = getUnsignedTransactionCalldata(
-        DummyContract,
+      const internalCalldata = DummyContract.interface.encodeFunctionData(
         'dummyFailingRequire',
         []
       )
 
-      const calldata = getUnsignedTransactionCalldata(
-        executionManager,
+      const calldata = ExecutionManager.interface.encodeFunctionData(
         'executeTransaction',
         [
           ZERO_UINT,
