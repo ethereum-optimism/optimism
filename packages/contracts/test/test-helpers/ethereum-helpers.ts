@@ -117,22 +117,26 @@ export const addressToBytes32Address = (addr: string): string => {
   ).toLowerCase()
 }
 
-export const compile = (compiler: any, file: string, settings: any = {}): any => {
+export const compile = (
+  compiler: any,
+  file: string,
+  settings: any = {}
+): any => {
   const input = {
     language: 'Solidity',
     sources: {
       [path.basename(file)]: {
-        content: fs.readFileSync(file, 'utf8')
-      }
+        content: fs.readFileSync(file, 'utf8'),
+      },
     },
     settings: {
       outputSelection: {
         '*': {
-          '*': ['*']
-        }
+          '*': ['*'],
+        },
       },
-      ...settings
-    }
+      ...settings,
+    },
   }
   return JSON.parse(compiler.compile(JSON.stringify(input)))
 }

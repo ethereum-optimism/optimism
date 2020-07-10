@@ -35,6 +35,7 @@
   "dependencies": {
     "@eth-optimism/core-db": "^0.0.1-alpha.25",
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
+    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.27",
     "@nomiclabs/buidler": "^1.3.8",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",

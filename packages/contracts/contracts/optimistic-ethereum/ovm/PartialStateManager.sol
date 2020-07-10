@@ -132,28 +132,36 @@ contract PartialStateManager {
 
     function peekUpdatedContract() public view returns (
         address ovmContractAddress,
-        uint contractNonce
+        uint contractNonce,
+        bytes32 codeHash
     ) {
         require(updatedContractsCounter > 0, "No more elements to update.");
 
         ovmContractAddress = address(bytes20(updatedContracts[updatedContractsCounter - 1]));
         contractNonce = ovmContractNonces[ovmContractAddress];
 
-        return (ovmContractAddress, contractNonce);
+        address codeContractAddress = getCodeContractAddressView(ovmContractAddress);
+        assembly {
+            codeHash := extcodehash(codeContractAddress)
+        }
+
+        return (ovmContractAddress, contractNonce, codeHash);
     }
 
     function popUpdatedContract() public onlyStateTransitioner returns (
         address ovmContractAddress,
-        uint contractNonce
+        uint contractNonce,
+        bytes32 codeHash
     ) {
         (
             ovmContractAddress,
-            contractNonce
+            contractNonce,
+            codeHash
         ) = peekUpdatedContract();
 
         updatedContractsCounter -= 1;
 
-        return (ovmContractAddress, contractNonce);
+        return (ovmContractAddress, contractNonce, codeHash);
     }
 
     /**********
@@ -266,7 +274,21 @@ contract PartialStateManager {
         address _ovmContractAddress,
         address _codeContractAddress
     ) onlyExecutionManager public {
+        isVerifiedContract[_ovmContractAddress] = true;
         ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
+
+        setOvmContractNonce(_ovmContractAddress, 0);
+    }
+
+    /**
+     * @notice Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
+     * @param _ovmContractAddress The address of the OVM contract.
+     * @return The associated code contract address.
+     */
+    function getCodeContractAddressView(
+        address _ovmContractAddress
+    ) public view returns (address) {
+        return ovmCodeContracts[_ovmContractAddress];
     }
 
     /**

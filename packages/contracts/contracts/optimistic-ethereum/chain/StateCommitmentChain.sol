@@ -24,18 +24,20 @@ contract StateCommitmentChain {
 
     constructor(
         address _rollupMerkleUtilsAddress,
-        address _canonicalTransactionChain,
-        address _fraudVerifier
+        address _canonicalTransactionChain
     ) public {
         merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
         canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
-        fraudVerifier = _fraudVerifier;
     }
 
 
     /*
     * Public Functions
     */
+
+    function setFraudVerifier(address _fraudVerifier) public {
+        fraudVerifier = _fraudVerifier;
+    }
 
     function getBatchesLength() public view returns (uint) {
         return batches.length;

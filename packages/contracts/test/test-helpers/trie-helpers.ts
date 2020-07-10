@@ -73,7 +73,7 @@ interface StateTrie {
  * @param buf Element to convert.
  * @returns Converted element.
  */
-const toHexString = (buf: Buffer | string | null): string => {
+export const toHexString = (buf: Buffer | string | null): string => {
   return '0x' + toHexBuffer(buf).toString('hex')
 }
 
@@ -379,10 +379,10 @@ export const makeStateTrieProofTest = async (
   )
 
   return {
-    address: address,
+    address,
     encodedAccountState: toHexString(ret),
     stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
-    stateTrieRoot: toHexString(stateTrie.trie.root)
+    stateTrieRoot: toHexString(stateTrie.trie.root),
   }
 }
 
@@ -405,11 +405,11 @@ export const makeStateTrieUpdateTest = async (
   )
 
   return {
-    address: address,
+    address,
     encodedAccountState: toHexString(encodeAccountState(accountState)),
     stateTrieWitness: toHexString(rlp.encode(stateTrieWitness)),
     stateTrieRoot: oldStateTrieRoot,
-    newStateTrieRoot: toHexString(stateTrie.trie.root)
+    newStateTrieRoot: toHexString(stateTrie.trie.root),
   }
 }
 

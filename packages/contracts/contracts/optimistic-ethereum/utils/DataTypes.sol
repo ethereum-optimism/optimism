@@ -80,4 +80,14 @@ contract DataTypes {
         bool checkStorageRoot;
         bool checkCodeHash;
     }
+
+    struct OVMTransactionData {
+        uint256 timestamp;
+        uint256 queueOrigin;
+        address ovmEntrypoint;
+        bytes callBytes;
+        address fromAddress;
+        address l1MsgSenderAddress;
+        bool allowRevert;
+    }
 }

@@ -670,9 +670,6 @@ contract ExecutionManager {
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
 
-        // Add the new contract to our state manager
-        stateManager.setOvmContractNonce(_newOvmContractAddress, 0);
-
         // Revert to the previous the context
         restoreContractContext(oldMsgSender, oldActiveContract);
 

@@ -22,18 +22,41 @@ import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   makeStateTrieUpdateTest,
-  StateTrieUpdateTest
+  StateTrieUpdateTest,
 } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
 
+const NULL_ADDRESS = '0x' + '00'.repeat(20)
 const DUMMY_ACCOUNT_ADDRESSES = [
   '0x548855F6073c3430285c61Ed0ABf62F12084aA41',
   '0xD80e66Cbc34F06d24a0a4fDdD6f2aDB41ac1517D',
   '0x069889F3DC507DdA244d19b5f24caDCDd2a735c2',
   '0x808E5eCe9a8EA2cdce515764139Ee24bEF7098b4',
 ]
+
+interface OVMTransactionData {
+  timestamp: number
+  queueOrigin: number
+  ovmEntrypoint: string
+  callBytes: string
+  fromAddress: string
+  l1MsgSenderAddress: string
+  allowRevert: boolean
+}
+
+const makeDummyTransaction = (calldata: string): OVMTransactionData => {
+  return {
+    timestamp: Math.floor(Date.now() / 1000),
+    queueOrigin: 0,
+    ovmEntrypoint: NULL_ADDRESS,
+    callBytes: calldata,
+    fromAddress: NULL_ADDRESS,
+    l1MsgSenderAddress: NULL_ADDRESS,
+    allowRevert: false,
+  }
+}
 
 const EMPTY_ACCOUNT_STATE = (): StateTrieNode => {
   return cloneDeep({
@@ -58,7 +81,7 @@ const DUMMY_ACCOUNT_STORAGE = (): TrieNode[] => {
       key: keccak256('0x123123123'),
       val: keccak256('0x456456456'),
     },
-  ]);
+  ])
 }
 
 const DUMMY_STATE_TRIE = {
@@ -73,7 +96,7 @@ const DUMMY_STATE_TRIE = {
   [DUMMY_ACCOUNT_ADDRESSES[2]]: {
     state: EMPTY_ACCOUNT_STATE(),
     storage: DUMMY_ACCOUNT_STORAGE(),
-  }
+  },
 }
 
 const makeStateTrie = (account: string, state: any, storage: any[]): any => {
@@ -82,7 +105,7 @@ const makeStateTrie = (account: string, state: any, storage: any[]): any => {
       state,
       storage,
     },
-    ...DUMMY_STATE_TRIE
+    ...DUMMY_STATE_TRIE,
   }
 }
 
@@ -90,43 +113,42 @@ const getCodeHash = async (provider: any, address: string): Promise<string> => {
   return keccak256(await provider.getCode(address))
 }
 
-const setTransactionData = async (
-  stateTransitioner: Contract,
+const makeTransactionData = async (
   TargetFactory: ContractFactory,
   target: Contract,
   wallet: Signer,
   functionName: string,
   functionArgs: any[]
-): Promise<void> => {
+): Promise<OVMTransactionData> => {
   const calldata = TargetFactory.interface.encodeFunctionData(
     functionName,
     functionArgs
   )
 
-  await stateTransitioner.setTransactionData({
+  return {
     timestamp: 1,
     queueOrigin: 1,
     ovmEntrypoint: target.address,
     callBytes: calldata,
     fromAddress: target.address,
     l1MsgSenderAddress: await wallet.getAddress(),
-    allowRevert: false
-  })
+    allowRevert: false,
+  }
 }
 
 const proveAllStorageUpdates = async (
   stateTransitioner: Contract,
   stateManager: Contract,
-  stateTrie: StateTrieMap,
+  stateTrie: StateTrieMap
 ): Promise<string> => {
   let updateTest: AccountStorageUpdateTest
   let trie = cloneDeep(stateTrie)
 
-  while (await stateManager.updatedStorageSlotCounter() > 0) {
+  while ((await stateManager.updatedStorageSlotCounter()) > 0) {
     const [
       storageSlotContract,
       storageSlotKey,
-      storageSlotValue
+      storageSlotValue,
     ] = await stateManager.peekUpdatedStorageSlot()
 
     updateTest = await makeAccountStorageUpdateTest(
@@ -147,10 +169,10 @@ const proveAllStorageUpdates = async (
         storage: [
           {
             key: storageSlotKey,
-            val: storageSlotValue
-          }
-        ]
-      }
+            val: storageSlotValue,
+          },
+        ],
+      },
     ])
   }
 
@@ -160,40 +182,44 @@ const proveAllStorageUpdates = async (
 const proveAllContractUpdates = async (
   stateTransitioner: Contract,
   stateManager: Contract,
-  stateTrie: StateTrieMap,
+  stateTrie: StateTrieMap
 ): Promise<string> => {
   let updateTest: StateTrieUpdateTest
   let trie = cloneDeep(stateTrie)
 
-  while (await stateManager.updatedContractsCounter() > 0) {
+  while ((await stateManager.updatedContractsCounter()) > 0) {
     const [
       updatedContract,
       updatedContractNonce,
+      updatedCodeHash,
     ] = await stateManager.peekUpdatedContract()
 
-    console.log(updatedContract, updatedContractNonce)
+    const updatedAccountState = {
+      ...(updatedContract in trie
+        ? trie[updatedContract].state
+        : EMPTY_ACCOUNT_STATE()),
+      ...{
+        nonce: updatedContractNonce.toNumber(),
+      },
+    }
+
+    if (updatedCodeHash !== '0x' + '00'.repeat(32)) {
+      updatedAccountState.codeHash = updatedCodeHash
+    }
+
     updateTest = await makeStateTrieUpdateTest(
       trie,
       updatedContract,
-      {
-        ...(updatedContract in trie ? trie[updatedContract].state : EMPTY_ACCOUNT_STATE()),
-        ...{
-          nonce: updatedContractNonce.toNumber()
-        }
-      }
+      updatedAccountState
     )
 
-    await stateTransitioner.proveUpdatedContract(
-      updateTest.stateTrieWitness
-    )
+    await stateTransitioner.proveUpdatedContract(updateTest.stateTrieWitness)
 
     trie = makeModifiedTrie(trie, [
       {
         address: updatedContract,
-        state: {
-          nonce: updatedContractNonce.toNumber()
-        }
-      }
+        state: updatedAccountState,
+      },
     ])
   }
 
@@ -201,7 +227,10 @@ const proveAllContractUpdates = async (
 }
 
 const getMappingStorageSlot = (key: string, index: number): string => {
-  const hexIndex = remove0x(BigNumber.from(index).toHexString()).padStart(64, '0')
+  const hexIndex = remove0x(BigNumber.from(index).toHexString()).padStart(
+    64,
+    '0'
+  )
   return keccak256(key + hexIndex)
 }
 
@@ -209,19 +238,20 @@ const initStateTransitioner = async (
   StateTransitioner: ContractFactory,
   StateManager: ContractFactory,
   executionManager: Contract,
-  stateTrieRoot: string
+  stateTrieRoot: string,
+  transactionData: OVMTransactionData
 ): Promise<Contract[]> => {
   const stateTransitioner = await StateTransitioner.deploy(
     10,
     stateTrieRoot,
+    transactionData,
     executionManager.address
   )
-  const stateManager = StateManager.attach(await stateTransitioner.stateManager())
+  const stateManager = StateManager.attach(
+    await stateTransitioner.stateManager()
+  )
 
-  return [
-    stateTransitioner,
-    stateManager
-  ]
+  return [stateTransitioner, stateManager]
 }
 
 interface StateTrieModification {
@@ -236,20 +266,22 @@ const makeModifiedTrie = (
 ): StateTrieMap => {
   const trie = cloneDeep(stateTrie)
 
-  for (const modification of modifications) {
+  for (let modification of modifications) {
+    modification = cloneDeep(modification)
+
     if (!(modification.address in trie)) {
       trie[modification.address] = {
         state: {
           ...EMPTY_ACCOUNT_STATE(),
-          ...modification.state
+          ...modification.state,
         },
-        storage: modification.storage || []
+        storage: modification.storage || [],
       }
     } else {
       if (modification.state) {
         trie[modification.address].state = {
           ...trie[modification.address].state,
-          ...modification.state
+          ...modification.state,
         }
       }
 
@@ -258,14 +290,16 @@ const makeModifiedTrie = (
           const hasKey = trie[modification.address].storage.some((kv: any) => {
             return kv.key === element.key
           })
-    
+
           if (!hasKey) {
             trie[modification.address].storage.push({
               key: element.key,
-              val: element.val
+              val: element.val,
             })
           } else {
-            trie[modification.address].storage = trie[modification.address].storage.map((kv: any) => {
+            trie[modification.address].storage = trie[
+              modification.address
+            ].storage.map((kv: any) => {
               if (kv.key === element.key) {
                 kv.val = element.val
               }
@@ -293,6 +327,7 @@ describe('StateTransitioner', () => {
   let StateManager: ContractFactory
   let executionManager: Contract
   let FraudTesterJson: any
+  let MicroFraudTesterJson: any
   let FraudTester: ContractFactory
   let fraudTester: Contract
   before(async () => {
@@ -307,10 +342,24 @@ describe('StateTransitioner', () => {
       true
     )
 
-    FraudTesterJson = compile(solc, path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol'), {
-      executionManagerAddress: executionManager.address
-    }).contracts['FraudTester.sol'].FraudTester
-    FraudTester = new ethers.ContractFactory(FraudTesterJson.abi, FraudTesterJson.evm.bytecode.object, wallet)
+    const AllFraudTestJson = compile(
+      solc,
+      path.resolve(
+        __dirname,
+        '../../../contracts/test-helpers/FraudTester.sol'
+      ),
+      {
+        executionManagerAddress: executionManager.address,
+      }
+    ).contracts['FraudTester.sol']
+    FraudTesterJson = AllFraudTestJson.FraudTester
+    MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester
+
+    FraudTester = new ethers.ContractFactory(
+      FraudTesterJson.abi,
+      FraudTesterJson.evm.bytecode.object,
+      wallet
+    )
     fraudTester = await FraudTester.deploy()
   })
 
@@ -323,7 +372,7 @@ describe('StateTransitioner', () => {
         nonce: 0,
         balance: 0,
         storageRoot: null,
-        codeHash: await getCodeHash(ethers.provider, fraudTester.address)
+        codeHash: await getCodeHash(ethers.provider, fraudTester.address),
       },
       DUMMY_ACCOUNT_STORAGE()
     )
@@ -338,14 +387,12 @@ describe('StateTransitioner', () => {
   let stateTransitioner: Contract
   let stateManager: Contract
   beforeEach(async () => {
-    ;[
-      stateTransitioner,
-      stateManager
-    ] = await initStateTransitioner(
+    ;[stateTransitioner, stateManager] = await initStateTransitioner(
       StateTransitioner,
       StateManager,
       executionManager,
-      test.stateTrieRoot
+      test.stateTrieRoot,
+      makeDummyTransaction('0x00')
     )
   })
 
@@ -366,9 +413,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        expect(await stateManager.isVerifiedContract(
-          fraudTester.address
-        )).to.equal(true)
+        expect(
+          await stateManager.isVerifiedContract(fraudTester.address)
+        ).to.equal(true)
       })
 
       it('should correctly reject inclusion of a contract with an invalid nonce', async () => {
@@ -383,9 +430,9 @@ describe('StateTransitioner', () => {
           expect(e.toString()).to.contain('Invalid account state provided.')
         }
 
-        expect(await stateManager.isVerifiedContract(
-          fraudTester.address
-        )).to.equal(false)
+        expect(
+          await stateManager.isVerifiedContract(fraudTester.address)
+        ).to.equal(false)
       })
     })
 
@@ -406,10 +453,12 @@ describe('StateTransitioner', () => {
           test.storageTrieWitness
         )
 
-        expect(await stateManager.isVerifiedStorage(
-          fraudTester.address,
-          DUMMY_ACCOUNT_STORAGE()[0].key
-        )).to.equal(true)
+        expect(
+          await stateManager.isVerifiedStorage(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key
+          )
+        ).to.equal(true)
       })
 
       it('should correctly reject inclusion of an invalid storage slot', async () => {
@@ -432,33 +481,37 @@ describe('StateTransitioner', () => {
           expect(e.toString()).to.contain('Invalid account state provided.')
         }
 
-        expect(await stateManager.isVerifiedStorage(
-          fraudTester.address,
-          DUMMY_ACCOUNT_STORAGE()[0].key
-        )).to.equal(false)
+        expect(
+          await stateManager.isVerifiedStorage(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key
+          )
+        ).to.equal(false)
       })
     })
   })
 
   describe('applyTransaction(...)', async () => {
     it('should succeed if no state is accessed', async () => {
+      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        StateTransitioner,
+        StateManager,
+        executionManager,
+        test.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'setStorage',
+          [keccak256('0xabc'), keccak256('0xdef')]
+        )
+      )
+
       await stateTransitioner.proveContractInclusion(
         fraudTester.address,
         fraudTester.address,
         0,
         test.stateTrieWitness
-      )
-
-      await setTransactionData(
-        stateTransitioner,
-        FraudTester,
-        fraudTester,
-        wallet,
-        'setStorage',
-        [
-          keccak256('0xabc'),
-          keccak256('0xdef')
-        ]  
       )
 
       await stateTransitioner.applyTransaction()
@@ -476,10 +529,10 @@ describe('StateTransitioner', () => {
           storage: [
             {
               key: testKeySlot,
-              val: testVal
-            }
-          ]
-        }
+              val: testVal,
+            },
+          ],
+        },
       ])
 
       const accessTest = await makeAccountStorageProofTest(
@@ -487,15 +540,18 @@ describe('StateTransitioner', () => {
         fraudTester.address,
         testKeySlot
       )
-
-      ;[
-        stateTransitioner,
-        stateManager
-      ] = await initStateTransitioner(
+      ;[stateTransitioner, stateManager] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
-        accessTest.stateTrieRoot
+        accessTest.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'getStorage',
+          [testKey]
+        )
       )
 
       await stateTransitioner.proveContractInclusion(
@@ -513,38 +569,31 @@ describe('StateTransitioner', () => {
         accessTest.storageTrieWitness
       )
 
-      await setTransactionData(
-        stateTransitioner,
-        FraudTester,
-        fraudTester,
-        wallet,
-        'getStorage',
-        [
-          testKey
-        ]  
-      )
-
       await stateTransitioner.applyTransaction()
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(1)
     })
 
     it('should succeed when a new contract is created', async () => {
+      // Attempting a `getStorage` call to a key that hasn't been proven.
+      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        StateTransitioner,
+        StateManager,
+        executionManager,
+        test.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'createContract',
+          ['0x' + MicroFraudTesterJson.evm.bytecode.object]
+        )
+      )
+
       await stateTransitioner.proveContractInclusion(
         fraudTester.address,
         fraudTester.address,
         0,
         test.stateTrieWitness
-      )
-
-      await setTransactionData(
-        stateTransitioner,
-        FraudTester,
-        fraudTester,
-        wallet,
-        'createContract',
-        [
-          '0x' + FraudTesterJson.evm.bytecode.object
-        ]
       )
 
       await stateTransitioner.applyTransaction()
@@ -552,23 +601,26 @@ describe('StateTransitioner', () => {
     })
 
     it('should fail if attempting to access uninitialized state', async () => {
+      // Attempting a `getStorage` call to a key that hasn't been proven.
+      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        StateTransitioner,
+        StateManager,
+        executionManager,
+        test.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'getStorage',
+          [keccak256('0xabc')]
+        )
+      )
+
       await stateTransitioner.proveContractInclusion(
         fraudTester.address,
         fraudTester.address,
         0,
         test.stateTrieWitness
-      )
-      
-      // Attempting a `getStorage` call to a key that hasn't been proven.
-      await setTransactionData(
-        stateTransitioner,
-        FraudTester,
-        fraudTester,
-        wallet,
-        'getStorage',
-        [
-          keccak256('0xabc')
-        ]  
       )
 
       await TestUtils.assertRevertsAsync(
@@ -582,17 +634,18 @@ describe('StateTransitioner', () => {
     })
 
     it('should fail if attempting to access an uninitialized contract', async () => {
-      // Haven't proven contract inclusion here.
-      await setTransactionData(
-        stateTransitioner,
-        FraudTester,
-        fraudTester,
-        wallet,
-        'setStorage',
-        [
-          keccak256('0xabc'),
-          keccak256('0xdef')
-        ]
+      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        StateTransitioner,
+        StateManager,
+        executionManager,
+        test.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'setStorage',
+          [keccak256('0xabc'), keccak256('0xdef')]
+        )
       )
 
       await TestUtils.assertRevertsAsync(
@@ -607,27 +660,27 @@ describe('StateTransitioner', () => {
   })
 
   describe('Post-Execution', async () => {
-    beforeEach(async () => {
-      await stateTransitioner.proveContractInclusion(
-        fraudTester.address,
-        fraudTester.address,
-        0,
-        test.stateTrieWitness
-      )
-    })
-
     describe('proveUpdatedStorageSlot(...)', async () => {
       it('should correctly update when a slot has been changed', async () => {
-        await setTransactionData(
-          stateTransitioner,
-          FraudTester,
-          fraudTester,
-          wallet,
-          'setStorage',
-          [
-            keccak256('0xabc'),
-            keccak256('0xdef')
-          ]
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          executionManager,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
         )
 
         await stateTransitioner.applyTransaction()
@@ -645,17 +698,29 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when multiple slots have changed', async () => {
-        await setTransactionData(
-          stateTransitioner,
-          FraudTester,
-          fraudTester,
-          wallet,
-          'setStorageMultiple',
-          [
-            keccak256('0xabc'),
-            keccak256('0xdef'),
-            3 // Set three storage slots.
-          ]
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          executionManager,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorageMultiple',
+            [
+              keccak256('0xabc'),
+              keccak256('0xdef'),
+              3, // Set three storage slots.
+            ]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
         )
 
         await stateTransitioner.applyTransaction()
@@ -673,17 +738,29 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when the same slot has changed multiple times', async () => {
-        await setTransactionData(
-          stateTransitioner,
-          FraudTester,
-          fraudTester,
-          wallet,
-          'setStorageMultipleSameKey',
-          [
-            keccak256('0xabc'),
-            keccak256('0xdef'),
-            3 // Set slot three times.
-          ]
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          executionManager,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorageMultipleSameKey',
+            [
+              keccak256('0xabc'),
+              keccak256('0xdef'),
+              3, // Set slot three times.
+            ]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
         )
 
         await stateTransitioner.applyTransaction()
@@ -703,24 +780,75 @@ describe('StateTransitioner', () => {
 
     describe('proveUpdatedContract(...)', async () => {
       it('should correctly update when a contract has been created', async () => {
-        await setTransactionData(
-          stateTransitioner,
-          FraudTester,
-          fraudTester,
-          wallet,
-          'createContract',
-          [
-            '0x' + FraudTesterJson.evm.bytecode.object
-          ]
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          executionManager,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'createContract',
+            ['0x' + MicroFraudTesterJson.evm.bytecode.object]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
         )
 
         await stateTransitioner.applyTransaction()
 
-        // We expect a total of three contract state updates:
+        // We generally expect `2n + 1` updates for `n` contract creations:
         // 1. Nonce increment from the initial call.
-        // 2. Nonce increment from the contract creation.
-        // 3. Nonce initialization for the new contract.
+        // For each creation:
+        //    1. Nonce increment from the contract creation.
+        //    2. Nonce initialization for the new contract.
         expect(await stateManager.updatedContractsCounter()).to.equal(3)
+
+        const newStateTrieRoot = await proveAllContractUpdates(
+          stateTransitioner,
+          stateManager,
+          stateTrie
+        )
+
+        expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
+        expect(await stateManager.updatedContractsCounter()).to.equal(0)
+      })
+
+      it('should correctly update when multiple contracts have been created', async () => {
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          executionManager,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'createContractMultiple',
+            [
+              '0x' + MicroFraudTesterJson.evm.bytecode.object,
+              3, // Create three contracts.
+            ]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        await stateTransitioner.applyTransaction()
+
+        // `2n + 1 = 7` here for `n = 3` contract creations.
+        expect(await stateManager.updatedContractsCounter()).to.equal(7)
 
         const newStateTrieRoot = await proveAllContractUpdates(
           stateTransitioner,
@@ -738,33 +866,36 @@ describe('StateTransitioner', () => {
         const testKey = keccak256('0xabc')
         const testKeySlot = getMappingStorageSlot(testKey, 0)
         const testVal = keccak256('0xdef')
-  
+
         const trie = makeModifiedTrie(stateTrie, [
           {
             address: fraudTester.address,
             storage: [
               {
                 key: testKeySlot,
-                val: testVal
-              }
-            ]
-          }
+                val: testVal,
+              },
+            ],
+          },
         ])
-  
+
         const accessTest = await makeAccountStorageProofTest(
           trie,
           fraudTester.address,
           testKeySlot
         )
-  
-        ;[
-          stateTransitioner,
-          stateManager
-        ] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
-          accessTest.stateTrieRoot
+          accessTest.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'getStorage',
+            [testKey]
+          )
         )
 
         await stateTransitioner.proveContractInclusion(
@@ -782,17 +913,6 @@ describe('StateTransitioner', () => {
           accessTest.storageTrieWitness
         )
 
-        await setTransactionData(
-          stateTransitioner,
-          FraudTester,
-          fraudTester,
-          wallet,
-          'getStorage',
-          [
-            keccak256('0xabc')
-          ]
-        )
-
         await stateTransitioner.applyTransaction()
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
@@ -801,26 +921,31 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly finalize slots are changed', async () => {
-        await setTransactionData(
-          stateTransitioner,
-          FraudTester,
-          fraudTester,
-          wallet,
-          'setStorage',
-          [
-            keccak256('0xabc'),
-            keccak256('0xdef')
-          ]
+        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          executionManager,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
         )
 
         await stateTransitioner.applyTransaction()
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
 
-        await proveAllStorageUpdates(
-          stateTransitioner,
-          stateManager,
-          stateTrie
-        )
+        await proveAllStorageUpdates(stateTransitioner, stateManager, stateTrie)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()

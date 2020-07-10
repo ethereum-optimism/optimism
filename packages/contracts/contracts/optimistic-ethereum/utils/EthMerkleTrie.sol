@@ -525,8 +525,8 @@ contract EthMerkleTrie is MerkleTrie {
         DataTypes.AccountState memory DEFAULT_ACCOUNT_STATE = DataTypes.AccountState({
             nonce: UINT256_NULL,
             balance: UINT256_NULL,
-            storageRoot: BYTES32_NULL,
-            codeHash: BYTES32_NULL
+            storageRoot: keccak256(hex'80'),
+            codeHash: keccak256(hex'')
         });
 
         (

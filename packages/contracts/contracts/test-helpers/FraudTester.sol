@@ -37,4 +37,18 @@ contract FraudTester is BaseFraudTester {
             }
         }
     }
+
+    function createContractMultiple(bytes memory _initcode, uint256 _count) public {
+        for (uint256 i = 0; i < _count; i++) {
+            createContract(_initcode);
+        }
+    }
+}
+
+contract MicroFraudTester {
+    uint256 _testValue = 123;
+
+    function test() public view returns (uint256) {
+        return _testValue;
+    }
 }

@@ -39,6 +39,106 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
+"@eth-optimism/core-db@^0.0.1-alpha.26":
+  version "0.0.1-alpha.26"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-db/-/core-db-0.0.1-alpha.26.tgz#989cc810d8e98787ba5cd453729dfb94e6fb3efe"
+  integrity sha512-brcW0YCihY1QKb7e7O7rlgT7ePqxa0p8i+1EKUj/aKlxnvQ9MrRZka622/Kw6dq1zd7A/OCcaLEINkFZ3iZYlg==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.0.1-alpha.26"
+    abstract-leveldown "^6.2.2"
+    async-lock "^1.2.2"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    debug "^4.1.1"
+    ethers "^4.0.39"
+    level "^6.0.0"
+    memdown "^4.0.0"
+
+"@eth-optimism/core-utils@^0.0.1-alpha.26":
+  version "0.0.1-alpha.26"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.0.1-alpha.26.tgz#5ebc1bccd1625052d163f8abef04365d34fc897f"
+  integrity sha512-HYggXok7uFWehPmv40b74T9eQXT7BsVVmzdr16PJEKBWn/cRnNXRVu36QKw3CwZljjaJMxM9EhVQIIYpqk1cfQ==
+  dependencies:
+    abstract-leveldown "^6.2.2"
+    async-lock "^1.2.2"
+    axios "^0.19.0"
+    bn.js "^4.11.8"
+    body-parser "^1.19.0"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    debug "^4.1.1"
+    dotenv "^8.2.0"
+    ethereumjs-util "^6.2.0"
+    ethers "^4.0.37"
+    express "^4.17.1"
+    memdown "^4.0.0"
+    ts-md5 "^1.2.4"
+    uuid "^3.3.3"
+
+"@eth-optimism/rollup-contracts@^0.0.1-alpha.27":
+  version "0.0.1-alpha.27"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-contracts/-/rollup-contracts-0.0.1-alpha.27.tgz#d1f23a422d3d0dfb9959a99fe64b0013aa0d7613"
+  integrity sha512-dBo2ZTk7Vdd+RQibs2GpspwQQ3rWhPOAW1Y4+Hk0Xfn9haY7qvwgxmPidh1rWwxPnXQtUpDBXlVkV03d0oG6xw==
+  dependencies:
+    "@eth-optimism/core-db" "^0.0.1-alpha.26"
+    "@eth-optimism/core-utils" "^0.0.1-alpha.26"
+    "@nomiclabs/buidler" "^1.3.8"
+    "@nomiclabs/buidler-ethers" "^2.0.0"
+    "@nomiclabs/buidler-waffle" "^2.0.0"
+    "@nomiclabs/ethereumjs-vm" "^4.1.1"
+    "@types/lodash" "^4.14.157"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    chai-bignumber "^3.0.0"
+    ethereum-waffle "^3.0.0"
+    ethereumjs-abi "^0.6.8"
+    ethers "5.0.0"
+    lodash "^4.17.15"
+    merkle-patricia-tree "git+https://github.com/kfichter/merkle-patricia-tree"
+    random-bytes-seed "^1.0.3"
+    rlp "^2.2.5"
+    seedrandom "^3.0.5"
+    ts-node "^8.10.2"
+    typescript "^3.9.5"
+
+"@eth-optimism/rollup-core@^0.0.1-alpha.27":
+  version "0.0.1-alpha.27"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-core/-/rollup-core-0.0.1-alpha.27.tgz#f9b7aab59517fe57e60625c94863d461371b0e27"
+  integrity sha512-KRMZGB/0xNL1nuJRb/7NbUS2WOYCL9AENkl/OVFBE0iAjuFEpc6AKQUpjotDK1OkVxqWQU0bGsiVg/TJGwUGAQ==
+  dependencies:
+    "@eth-optimism/core-db" "^0.0.1-alpha.26"
+    "@eth-optimism/core-utils" "^0.0.1-alpha.26"
+    "@eth-optimism/rollup-contracts" "^0.0.1-alpha.27"
+    async-lock "^1.2.2"
+    ethereum-waffle "2.1.0"
+    ethers "^4.0.39"
+
+"@eth-optimism/rollup-dev-tools@^0.0.1-alpha.27":
+  version "0.0.1-alpha.27"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-dev-tools/-/rollup-dev-tools-0.0.1-alpha.27.tgz#b33ce8a4e1afd0f88602718d406d8acf3e388c58"
+  integrity sha512-DzENqnjpG0l8qaP0jwZv5JSMkqAo5sipuXE+nXfyU4IFCQaFbYn0B0mjZOD8DzV3T91fFXt87ddYVrVYDxG1TA==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.0.1-alpha.26"
+    "@eth-optimism/rollup-core" "^0.0.1-alpha.27"
+    async-lock "^1.2.2"
+    bn.js "^5.1.1"
+    dotenv "^8.2.0"
+    ethereumjs-abi "^0.6.8"
+    ethereumjs-tx "^2.1.2"
+    ethereumjs-vm "^4.1.3"
+    ethers "^4.0.42"
+
+"@eth-optimism/solc-transpiler@^0.0.1-alpha.27":
+  version "0.0.1-alpha.27"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/solc-transpiler/-/solc-transpiler-0.0.1-alpha.27.tgz#30d80a434e85b053eb682673c1c57bbc60002d10"
+  integrity sha512-RMte5SydLNWl1wbWttn5bPtV1YIclJbCrL4MUb2Fy3GSOGI63wAMpqGCWSg7a+66PZ8zoBpATLbHd31UX48aEQ==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.0.1-alpha.26"
+    "@eth-optimism/rollup-dev-tools" "^0.0.1-alpha.27"
+    ethers "^4.0.45"
+    require-from-string "^2.0.2"
+    solc "^0.5.12"
+
 "@ethereum-waffle/chai@^3.0.1":
   version "3.0.1"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/chai/-/chai-3.0.1.tgz#0ca13f517a9689d485ad9f83ca7188ea12c154cc"
@@ -5052,7 +5152,7 @@ ethereumjs-util@^4.3.0:
     rlp "^2.0.0"
     secp256k1 "^3.0.1"
 
-ethereumjs-util@^5.0.0, ethereumjs-util@^5.0.1, ethereumjs-util@^5.1.1, ethereumjs-util@^5.1.2, ethereumjs-util@^5.1.3, ethereumjs-util@^5.1.5, ethereumjs-util@^5.2.0:
+ethereumjs-util@^5.0.0, ethereumjs-util@^5.0.1, ethereumjs-util@^5.1.1, ethereumjs-util@^5.1.2, ethereumjs-util@^5.1.3, ethereumjs-util@^5.1.5:
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/ethereumjs-util/-/ethereumjs-util-5.2.0.tgz#3e0c0d1741471acf1036052d048623dee54ad642"
   integrity sha512-CJAKdI0wgMbQFLlLRtZKGcy/L6pzVRgelIZqRqNbuVFM3K9VEnyfbcvz0ncWMRNCe4kaHWjwRYQcYMucmwsnWA==
@@ -7782,15 +7882,6 @@ level-ws@0.0.0:
     readable-stream "~1.0.15"
     xtend "~2.1.1"
 
-level-ws@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/level-ws/-/level-ws-1.0.0.tgz#19a22d2d4ac57b18cc7c6ecc4bd23d899d8f603b"
-  integrity sha512-RXEfCmkd6WWFlArh3X8ONvQPm8jNpfA0s/36M4QzLqrLEIt1iJE9WBHLZ5vZJK6haMjJPJGJCQWfjMNnRcq/9Q==
-  dependencies:
-    inherits "^2.0.3"
-    readable-stream "^2.2.8"
-    xtend "^4.0.1"
-
 level-ws@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/level-ws/-/level-ws-2.0.0.tgz#207a07bcd0164a0ec5d62c304b4615c54436d339"
@@ -8340,22 +8431,21 @@ merkle-patricia-tree@2.3.2, merkle-patricia-tree@^2.1.2, merkle-patricia-tree@^2
     rlp "^2.0.0"
     semaphore ">=1.0.1"
 
-merkle-patricia-tree@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/merkle-patricia-tree/-/merkle-patricia-tree-3.0.0.tgz#448d85415565df72febc33ca362b8b614f5a58f8"
-  integrity sha512-soRaMuNf/ILmw3KWbybaCjhx86EYeBbD8ph0edQCTed0JN/rxDt1EBN52Ajre3VyGo+91f8+/rfPIRQnnGMqmQ==
-  dependencies:
-    async "^2.6.1"
-    ethereumjs-util "^5.2.0"
-    level-mem "^3.0.1"
-    level-ws "^1.0.0"
-    readable-stream "^3.0.6"
-    rlp "^2.0.0"
-    semaphore ">=1.0.1"
-
-"merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree":
+merkle-patricia-tree@^3.0.0, "merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree":
   version "3.0.0"
   resolved "git+https://github.com/kfichter/merkle-patricia-tree#ebd10c405be8ae909f1f82dea275a0e9ec1c8e46"
+  dependencies:
+    ethereumjs-util "^7.0.0"
+    level-mem "^5.0.1"
+    level-ws "^2.0.0"
+    readable-stream "^3.6.0"
+    rlp "^2.2.4"
+    semaphore-async-await "^1.5.1"
+
+"merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree.git":
+  version "3.0.0"
+  uid ebd10c405be8ae909f1f82dea275a0e9ec1c8e46
+  resolved "git+https://github.com/kfichter/merkle-patricia-tree.git#ebd10c405be8ae909f1f82dea275a0e9ec1c8e46"
   dependencies:
     ethereumjs-util "^7.0.0"
     level-mem "^5.0.1"
@@ -10060,7 +10150,7 @@ read@1, read@~1.0.1:
   dependencies:
     mute-stream "~0.0.4"
 
-"readable-stream@1 || 2", readable-stream@^2.0.0, readable-stream@^2.0.1, readable-stream@^2.0.2, readable-stream@^2.0.5, readable-stream@^2.0.6, readable-stream@^2.1.5, readable-stream@^2.2.2, readable-stream@^2.2.8, readable-stream@^2.2.9, readable-stream@^2.3.0, readable-stream@^2.3.3, readable-stream@^2.3.5, readable-stream@^2.3.6, readable-stream@~2.3.6:
+"readable-stream@1 || 2", readable-stream@^2.0.0, readable-stream@^2.0.1, readable-stream@^2.0.2, readable-stream@^2.0.5, readable-stream@^2.0.6, readable-stream@^2.1.5, readable-stream@^2.2.2, readable-stream@^2.2.9, readable-stream@^2.3.0, readable-stream@^2.3.3, readable-stream@^2.3.5, readable-stream@^2.3.6, readable-stream@~2.3.6:
   version "2.3.7"
   resolved "https://registry.yarnpkg.com/readable-stream/-/readable-stream-2.3.7.tgz#1eca1cf711aef814c04f62252a36a62f6cb23b57"
   integrity sha512-Ebho8K4jIbHAxnuxi7o42OrZgF/ZTNcsZj6nRKyUmkhLFq8CHItp/fy6hQZuZmP/n3yZ9VBUbp4zz/mX8hmYPw==
@@ -10073,7 +10163,7 @@ read@1, read@~1.0.1:
     string_decoder "~1.1.1"
     util-deprecate "~1.0.1"
 
-"readable-stream@2 || 3", readable-stream@^3.0.2, readable-stream@^3.0.6, readable-stream@^3.1.0, readable-stream@^3.4.0, readable-stream@^3.6.0:
+"readable-stream@2 || 3", readable-stream@^3.0.2, readable-stream@^3.1.0, readable-stream@^3.4.0, readable-stream@^3.6.0:
   version "3.6.0"
   resolved "https://registry.yarnpkg.com/readable-stream/-/readable-stream-3.6.0.tgz#337bbda3adc0706bd3e024426a286d4b4b2c9198"
   integrity sha512-BViHy7LKeTz4oNnkcLJ+lVSL6vpiFeX6/d3oSH8zCW7UxP2onchk+vTGB143xuFjHS3deTgkKoXXymXqymiIdA==

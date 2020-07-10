@@ -4,14 +4,15 @@ pragma experimental ABIEncoderV2;
 import { FraudVerifier } from "./FraudVerifier.sol";
 import { PartialStateManager } from "./PartialStateManager.sol";
 import { ExecutionManager } from "./ExecutionManager.sol";
+import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
 import { DataTypes } from "../utils/DataTypes.sol";
 import { EthMerkleTrie } from "../utils/EthMerkleTrie.sol";
 
 /**
  * @title StateTransitioner
- * @notice A contract which transitions a state from root one to another after a tx execution.
+ * @notice Manages the execution of a transaction suspected to be fraudulent.
  */
-contract StateTransitioner {
+contract StateTransitioner is IStateTransitioner {
     /*
      * Data Structures
      */
@@ -22,15 +23,13 @@ contract StateTransitioner {
         Complete
     }
 
-    struct OVMTransactionData {
-        uint256 timestamp;
-        uint256 queueOrigin;
-        address ovmEntrypoint;
-        bytes callBytes;
-        address fromAddress;
-        address l1MsgSenderAddress;
-        bool allowRevert;
-    }
+
+    /*
+     * Contract Constants
+     */
+
+    bytes32 constant BYTES32_NULL = bytes32('');
+    uint256 constant UINT256_NULL = uint256(0);
 
 
     /*
@@ -38,17 +37,16 @@ contract StateTransitioner {
      */
 
     TransitionPhases public currentTransitionPhase;
-
-    uint public transitionIndex;
+    uint256 public transitionIndex;
+    bytes32 public preStateRoot;
     bytes32 public stateRoot;
-    bool public isTransactionSuccessfullyExecuted;
 
     FraudVerifier public fraudVerifier;
     PartialStateManager public stateManager;
     ExecutionManager executionManager;
     EthMerkleTrie public ethMerkleTrie;
 
-    OVMTransactionData transactionData;
+    DataTypes.OVMTransactionData transactionData;
 
 
     /*
@@ -68,29 +66,30 @@ contract StateTransitioner {
      * Constructor
      */
 
+    /**
+     * @param _transitionIndex Position of the transaction suspected to be
+     * fraudulent within the canonical transaction chain.
+     * @param _preStateRoot Root of the state trie before the transaction was
+     * executed.
+     * @param _executionManagerAddress Address of the ExecutionManager to be
+     * used during transaction execution.
+     */
     constructor(
-        uint _transitionIndex,
+        uint256 _transitionIndex,
         bytes32 _preStateRoot,
+        DataTypes.OVMTransactionData memory _transactionData,
         address _executionManagerAddress
     ) public {
-        // The FraudVerifier always initializes a StateTransitioner in order to evaluate fraud.
-        fraudVerifier = FraudVerifier(msg.sender);
-
-        // Store the transitionIndex & state root which will be used during the proof.
         transitionIndex = _transitionIndex;
+        preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
-
-        // And of course set the ExecutionManager pointer.
-        executionManager = ExecutionManager(_executionManagerAddress);
-
-        // Finally we'll initialize a new state manager!
-        stateManager = new PartialStateManager(address(this), address(executionManager));
-
-        // Create a Merkle trie instance.
-        ethMerkleTrie = new EthMerkleTrie();
-
-        // And set our TransitionPhases to the PreExecution phase.
+        transactionData = _transactionData;
         currentTransitionPhase = TransitionPhases.PreExecution;
+
+        fraudVerifier = FraudVerifier(msg.sender);
+        executionManager = ExecutionManager(_executionManagerAddress);
+        stateManager = new PartialStateManager(address(this), address(executionManager));
+        ethMerkleTrie = new EthMerkleTrie();
     }
 
 
@@ -102,10 +101,20 @@ contract StateTransitioner {
      * Pre-Transaction Execution *
      *****************************/
 
+    /**
+     * @notice Allows a user to prove the state for a given contract. Currently
+     * only requires that the user prove the nonce. Only callable before the
+     * transaction suspected to be fraudulent has been executed.
+     * @param _ovmContractAddress Address of the contract on the OVM.
+     * @param _codeContractAddress Address of the above contract on the EVM.
+     * @param _nonce Claimed current nonce of the contract.
+     * @param _stateTrieWitness Merkle trie inclusion proof for the contract
+     * within the state trie.
+     */
     function proveContractInclusion(
         address _ovmContractAddress,
         address _codeContractAddress,
-        uint _nonce,
+        uint256 _nonce,
         bytes memory _stateTrieWitness
     ) public onlyDuringPhase(TransitionPhases.PreExecution) {
         bytes32 codeHash;
@@ -134,9 +143,25 @@ contract StateTransitioner {
             "Invalid account state provided."
         );
 
-        stateManager.insertVerifiedContract(_ovmContractAddress, _codeContractAddress, _nonce);
+        stateManager.insertVerifiedContract(
+            _ovmContractAddress,
+            _codeContractAddress,
+            _nonce
+        );
     }
 
+    /**
+     * @notice Allows a user to prove the value of a given storage slot for
+     * some contract. Only callable before the transaction suspected to be
+     * fraudulent has been executed.
+     * @param _ovmContractAddress Address of the contract on the OVM.
+     * @param _slot Key for the storage slot to prove.
+     * @param _value Value for the storage slot to prove.
+     * @param _stateTrieWitness Merkle trie inclusion proof for the contract
+     * within the state trie.
+     * @param _storageTrieWitness Merkle trie inclusion proof for the specific
+     * storage slot being proven within the account's storage trie.
+     */
     function proveStorageSlotInclusion(
         address _ovmContractAddress,
         bytes32 _slot,
@@ -161,28 +186,36 @@ contract StateTransitioner {
             "Invalid account state provided."
         );
 
-        stateManager.insertVerifiedStorage(_ovmContractAddress, _slot, _value);
+        stateManager.insertVerifiedStorage(
+            _ovmContractAddress,
+            _slot,
+            _value
+        );
     }
 
     /*************************
      * Transaction Execution *
      *************************/
 
-    function applyTransaction() public returns (bool) {
+    /**
+    * @notice Executes the transaction suspected to be fraudulent via the
+    * ExecutionManager. Will revert if the transaction attempts to access
+    * state that has not been proven during the pre-execution phase.
+     */
+    function applyTransaction() public {
         // Initialize our execution context.
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
 
         // Execute the transaction via the execution manager.
-        OVMTransactionData memory txData = getTransactionData();
         executionManager.executeTransaction(
-            txData.timestamp,
-            txData.queueOrigin,
-            txData.ovmEntrypoint,
-            txData.callBytes,
-            txData.fromAddress,
-            txData.l1MsgSenderAddress,
-            txData.allowRevert
+            transactionData.timestamp,
+            transactionData.queueOrigin,
+            transactionData.ovmEntrypoint,
+            transactionData.callBytes,
+            transactionData.fromAddress,
+            transactionData.l1MsgSenderAddress,
+            transactionData.allowRevert
         );
 
         require(
@@ -191,14 +224,21 @@ contract StateTransitioner {
         );
 
         currentTransitionPhase = TransitionPhases.PostExecution;
-
-        return true;
     }
 
     /******************************
      * Post-Transaction Execution *
      ******************************/
 
+    /**
+     * @notice Updates the root of the state trie by making a modification to
+     * a contract's storage slot. Contract storage to be modified depends on a
+     * stack of slots modified during execution.
+     * @param _stateTrieWitness Merkle trie inclusion proof for the contract
+     * within the current state trie.
+     * @param _storageTrieWitness Merkle trie inclusion proof for the slot
+     * being modified within the contract's storage trie.
+     */
     function proveUpdatedStorageSlot(
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
@@ -219,23 +259,49 @@ contract StateTransitioner {
         );
     }
 
+    /**
+     * @notice Updates the root of the state trie by making a modification to
+     * a contract's state. Contract to be modified depends on a stack of
+     * contract states modified during execution.
+     * @param _stateTrieWitness Merkle trie inclusion proof for the contract
+     * within the current state trie.
+     */
     function proveUpdatedContract(
         bytes memory _stateTrieWitness
     ) public onlyDuringPhase(TransitionPhases.PostExecution) {
         (
             address ovmContractAddress,
-            uint contractNonce
+            uint contractNonce,
+            bytes32 codeHash
         ) = stateManager.popUpdatedContract();
 
-        stateRoot = ethMerkleTrie.updateAccountNonce(
+        stateRoot = ethMerkleTrie.updateAccountState(
             ovmContractAddress,
-            contractNonce,
+            DataTypes.AccountState({
+                nonce: contractNonce,
+                balance: UINT256_NULL,
+                storageRoot: BYTES32_NULL,
+                codeHash: codeHash
+            }),
+            DataTypes.ProofMatrix({
+                checkNonce: true,
+                checkBalance: false,
+                checkStorageRoot: false,
+                checkCodeHash: codeHash != 0x0
+            }),
             _stateTrieWitness,
             stateRoot
         );
     }
 
-    function completeTransition() public onlyDuringPhase(TransitionPhases.PostExecution) {
+    /**
+     * @notice Finalizes the state transition process once all state trie or
+     * storage trie modifications have been reflected in the state root.
+     */
+    function completeTransition()
+        public
+        onlyDuringPhase(TransitionPhases.PostExecution)
+    {
         require(
             stateManager.updatedStorageSlotCounter() == 0,
             "There's still updated storage to account for!"
@@ -248,22 +314,11 @@ contract StateTransitioner {
         currentTransitionPhase = TransitionPhases.Complete;
     }
 
-    /***********************
-     * Temporary Utilities *
-     ***********************/
-
-    function setTransactionData(
-        OVMTransactionData memory _transactionData
-    ) public {
-        transactionData = _transactionData;
-    }
-
-
-    /*
-     * Internal Functions
+    /**
+     * @notice Utility; checks whether the process is complete.
+     * @return `true` if the process is complete, `false` otherwise.
      */
-
-    function getTransactionData() internal view returns (OVMTransactionData memory) {
-        return transactionData;
+    function isComplete() public view returns (bool) {
+        return (currentTransitionPhase == TransitionPhases.Complete);
     }
 }
