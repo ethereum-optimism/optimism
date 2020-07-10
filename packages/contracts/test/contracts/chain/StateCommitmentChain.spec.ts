@@ -2,7 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -367,6 +367,28 @@ describe('StateCommitmentChain', () => {
             .connect(fraudVerifier)
             .deleteAfterInclusive(batchIndex, batchHeader)
         }
+      )
+    })
+  })
+
+  describe('Event Emitting', () => {
+    it('should emit StateBatchAppended when state batch is appended', async () => {
+      let receivedBatchHeaderHash: string
+      stateChain.on(stateChain.filters['StateBatchAppended'](), (...data) => {
+        receivedBatchHeaderHash = data[0]
+      })
+      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
+
+      await sleep(5_000)
+
+      const batchReceived: boolean = !!receivedBatchHeaderHash
+      batchReceived.should.equal(
+        true,
+        `State Batch Appended event not received!`
+      )
+      receivedBatchHeaderHash.should.equal(
+        await localBatch.hashBatchHeader(),
+        `State Batch Appended event has incorrect batch header hash!`
       )
     })
   })

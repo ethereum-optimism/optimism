@@ -1,5 +1,5 @@
-import * as fs from 'fs'
 import * as path from 'path'
+import * as fs from 'fs'
 import { Transaction } from 'ethers/utils'
 import { Log } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'

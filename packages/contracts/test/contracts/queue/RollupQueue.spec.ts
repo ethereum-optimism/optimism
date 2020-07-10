@@ -2,7 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -71,6 +71,19 @@ describe('RollupQueue', () => {
       //check batches length
       const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(numBatches)
+    })
+
+    it('should emit event on enqueue', async () => {
+      let receivedEvent: boolean = false
+      rollupQueue.on(rollupQueue.filters['CalldataTxEnqueued'](), () => {
+        receivedEvent = true
+      })
+
+      await enqueueAndGenerateBatch(DEFAULT_TX)
+
+      await sleep(5_000)
+
+      receivedEvent.should.equal(true, `Did not receive expected event!`)
     })
   })
 

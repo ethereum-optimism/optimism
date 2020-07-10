@@ -3,8 +3,8 @@ import { BigNumber } from 'ethers/utils'
 import getPort from 'get-port'
 
 interface GanacheServer {
-  listen: (port: number) => Promise<void>
-  close: () => Promise<void>
+  listen: (port: number, callback?: any) => void
+  close: (callback?: any) => void
 }
 
 interface GanacheServerOptions {
@@ -34,7 +34,17 @@ export class Ganache {
    */
   public async start(): Promise<void> {
     this._options.port = this.port || (await getPort())
-    await this._server.listen(this._options.port)
+
+    await new Promise<void>((resolve, reject) => {
+      this._server.listen(this._options.port, (err: any) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+
     this._running = true
   }
 
@@ -42,7 +52,16 @@ export class Ganache {
    * Stops the ganache server.
    */
   public async stop(): Promise<void> {
-    await this._server.close()
+    await new Promise<void>((resolve, reject) => {
+      this._server.close((err: any) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+
     this._running = false
   }
 

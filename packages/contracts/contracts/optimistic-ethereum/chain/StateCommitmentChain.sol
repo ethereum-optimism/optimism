@@ -17,6 +17,11 @@ contract StateCommitmentChain {
     uint public cumulativeNumElements;
     bytes32[] public batches;
 
+    /*
+     * Events
+     */
+
+    event StateBatchAppended(bytes32 _batchHeaderHash);
 
     /*
     * Constructor
@@ -29,7 +34,6 @@ contract StateCommitmentChain {
         merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
         canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
     }
-
 
     /*
     * Public Functions
@@ -74,6 +78,7 @@ contract StateCommitmentChain {
 
         batches.push(batchHeaderHash);
         cumulativeNumElements += _stateBatch.length;
+        emit StateBatchAppended(batchHeaderHash);
     }
 
     // verifies an element is in the current list at the given position

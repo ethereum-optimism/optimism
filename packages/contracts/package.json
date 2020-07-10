@@ -1,10 +1,11 @@
 {
   "name": "@eth-optimism/rollup-contracts",
   "private": true,
-  "version": "0.0.1-alpha.25",
+  "version": "0.0.1-alpha.27",
   "main": "build/index.js",
   "files": [
-    "build/**/*.js"
+    "build/**/*.js",
+    "build/artifacts/*json"
   ],
   "license": "MIT",
   "workspaces": {
@@ -20,6 +21,7 @@
     ]
   },
   "scripts": {
+    "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "test": "yarn run test:contracts",
     "test:contracts": "buidler test --show-stack-traces",
     "coverage": "yarn run coverage:contracts",
@@ -27,6 +29,7 @@
     "build": "yarn run build:contracts && yarn run build:typescript",
     "build:contracts": "buidler compile",
     "build:typescript": "tsc -p .",
+    "clean": "rm -rf ./artifacts ./build ./cache",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
     "fix": "yarn run fix:typescript",
