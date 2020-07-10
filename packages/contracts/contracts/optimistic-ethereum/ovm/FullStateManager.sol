@@ -19,7 +19,8 @@ contract FullStateManager is StateManager {
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
-    mapping(address=>address) ovmCodeContracts;
+    mapping(address=>address) ovmAddressToCodeContractAddress;
+    mapping(address=>address) codeContractAddressToOvmAddress;
 
 
     /*
@@ -111,7 +112,8 @@ contract FullStateManager is StateManager {
         address _ovmContractAddress,
         address _codeContractAddress
     ) public {
-        ovmCodeContracts[_ovmContractAddress] = _codeContractAddress;
+        ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
+        codeContractAddressToOvmAddress[_codeContractAddress] = _ovmContractAddress;
     }
 
     /**
@@ -119,10 +121,21 @@ contract FullStateManager is StateManager {
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
-    function getCodeContractAddress(
+    function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
     ) public view returns (address) {
-        return ovmCodeContracts[_ovmContractAddress];
+        return ovmAddressToCodeContractAddress[_ovmContractAddress];
+    }
+
+    /**
+     * @notice Lookup the OVM contract for some code contract
+     * @param _codeContractAddress The address of the code contract.
+     * @return The associated OVM contract address.
+     */
+    function getOvmAddressFromCodeContractAddress(
+        address _codeContractAddress
+    ) public view returns (address) {
+        return codeContractAddressToOvmAddress[_codeContractAddress];
     }
 
     /**

@@ -76,6 +76,36 @@ describe('TestHandler', () => {
     })
   })
 
+  describe('the debug_traceTransaction endpoint', () => {
+    it('should give us a trace', async () => {
+      const testRpcServer = new FullnodeRpcServer(testHandler, host, port)
+
+      testRpcServer.listen()
+      const httpProvider = new ethers.providers.JsonRpcProvider(baseUrl)
+      const privateKey = '0x' + '60'.repeat(32)
+      const wallet = new ethers.Wallet(privateKey, httpProvider)
+      log.debug('Wallet address:', wallet.address)
+
+      const factory = new ContractFactory(
+        SimpleStorage.abi,
+        SimpleStorage.bytecode,
+        wallet
+      )
+
+      const simpleStorage = await factory.deploy()
+
+      const deploymentTxHash = simpleStorage.deployTransaction.hash
+
+      const returnedTransactionTrace = await httpProvider.send(
+        Web3RpcMethods.traceTransaction,
+        [deploymentTxHash, []]
+      )
+      returnedTransactionTrace.should.not.be.undefined
+
+      testRpcServer.close()
+    })
+  })
+
   describe('Snapshot and revert', () => {
     it('should revert state', async () => {
       const testRpcServer = new FullnodeRpcServer(testHandler, host, port)

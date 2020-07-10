@@ -6,8 +6,11 @@ import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { TxChainBatch, TxQueueBatch } from '../../test-helpers/rl-helpers'
-import { makeRandomBatchOfSize } from '../../test-helpers'
+import {
+  makeRandomBatchOfSize,
+  TxQueueBatch,
+  TxChainBatch,
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('canonical-tx-chain', true)
@@ -32,10 +35,10 @@ describe('CanonicalTransactionChain', () => {
     ] = await ethers.getSigners()
   })
 
-  let canonicalTxChain
-  let rollupMerkleUtils
-  let l1ToL2Queue
-  let safetyQueue
+  let canonicalTxChain: Contract
+  let rollupMerkleUtils: Contract
+  let l1ToL2Queue: Contract
+  let safetyQueue: Contract
 
   const appendSequencerBatch = async (batch: string[]): Promise<number> => {
     const timestamp = Math.floor(Date.now() / 1000)
