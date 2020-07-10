@@ -162,7 +162,7 @@ export const bnToHexString = (bn: BigNumber): string => {
 }
 
 /**
- * Converts a JavaScript number to a hex string.
+ * Converts a JavaScript number to a big-endian hex string.
  * @param number the JavaScript number to be converted.
  * @param padToBytes the number of numeric bytes the resulting string should be, -1 if no padding should be done.
  * @returns the JavaScript number as a string.
