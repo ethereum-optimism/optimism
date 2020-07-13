@@ -22,11 +22,6 @@ import {
   RollupTransaction,
 } from '../../../types'
 import { CHAIN_ID } from '../../constants'
-import {
-  joinSignature,
-  resolveProperties,
-  serializeTransaction,
-} from 'ethers/utils'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger('log-handler')

@@ -76,7 +76,7 @@ export const getTxSigner = async (
   s: string,
   v: number
 ): Promise<string> => {
-  const txHash: string = keccak256(
+  const txHash: string = ethers.utils.keccak256(
     serializeTransaction(await resolveProperties(tx))
   )
 
