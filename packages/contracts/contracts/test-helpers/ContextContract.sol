@@ -30,7 +30,7 @@ contract ContextContract {
 
             // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 0)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -57,7 +57,7 @@ contract ContextContract {
 
             // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -84,7 +84,7 @@ contract ContextContract {
 
             // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -111,7 +111,7 @@ contract ContextContract {
 
             // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -138,7 +138,7 @@ contract ContextContract {
 
             // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -165,7 +165,7 @@ contract ContextContract {
 
         // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -192,7 +192,7 @@ contract ContextContract {
 
         // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
@@ -219,7 +219,7 @@ contract ContextContract {
 
             // overwrite call params
             let result := mload(0x40)
-            let success := call(gas, addr, 0, callBytes, calldatasize, result, 500000)
+            let success := call(gas, addr, 0, callBytes, calldatasize, result, 32)
 
             if eq(success, 0) {
                 revert(0, 0)
