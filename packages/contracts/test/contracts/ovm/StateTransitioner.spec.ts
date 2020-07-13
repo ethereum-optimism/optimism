@@ -67,6 +67,12 @@ const EMPTY_ACCOUNT_STATE = (): StateTrieNode => {
   })
 }
 
+const STATE_TRANSITIONER_PHASES = {
+  PRE_EXECUTION: 0,
+  POST_EXECUTION: 1,
+  COMPLETE: 2,
+}
+
 const DUMMY_ACCOUNT_STORAGE = (): TrieNode[] => {
   return cloneDeep([
     {
@@ -515,7 +521,7 @@ describe('StateTransitioner', () => {
       )
 
       await stateTransitioner.applyTransaction()
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(1)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
     })
 
     it('should succeed initialized state is accessed', async () => {
@@ -570,7 +576,7 @@ describe('StateTransitioner', () => {
       )
 
       await stateTransitioner.applyTransaction()
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(1)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
     })
 
     it('should succeed when a new contract is created', async () => {
@@ -597,7 +603,7 @@ describe('StateTransitioner', () => {
       )
 
       await stateTransitioner.applyTransaction()
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(1)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
     })
 
     it('should fail if attempting to access uninitialized state', async () => {
@@ -630,7 +636,7 @@ describe('StateTransitioner', () => {
         }
       )
 
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(0)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.PRE_EXECUTION)
     })
 
     it('should fail if attempting to access an uninitialized contract', async () => {
@@ -655,7 +661,7 @@ describe('StateTransitioner', () => {
         }
       )
 
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(0)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.PRE_EXECUTION)
     })
   })
 
@@ -917,10 +923,10 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
-        expect(await stateTransitioner.currentTransitionPhase()).to.equal(2)
+        expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.COMPLETE)
       })
 
-      it('should correctly finalize slots are changed', async () => {
+      it('should correctly finalize when storage slots are changed', async () => {
         ;[stateTransitioner, stateManager] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
@@ -949,7 +955,7 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
-        expect(await stateTransitioner.currentTransitionPhase()).to.equal(2)
+        expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.COMPLETE)
       })
     })
   })

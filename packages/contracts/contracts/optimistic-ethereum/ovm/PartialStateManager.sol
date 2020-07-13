@@ -292,7 +292,7 @@ contract PartialStateManager {
     }
 
     /**
-     * @notice Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
+     * @notice Lookup the code contract for some OVM contract, allowing ovmCALL operations to be performed.
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */

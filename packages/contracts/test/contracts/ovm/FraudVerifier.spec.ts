@@ -285,7 +285,7 @@ describe('FraudVerifier', () => {
       )
 
       await TestUtils.assertRevertsAsync(
-        'Provided pre-state root is invalid.',
+        'Provided pre-state root inclusion proof is invalid.',
         async () => {
           await fraudVerifier.initializeFraudVerification(
             transactionIndex,
@@ -333,7 +333,7 @@ describe('FraudVerifier', () => {
   })
 
   describe('finalizeFraudVerification', async () => {
-    let stateTransitioner: Contract
+    let stubStateTransitioner: Contract
     beforeEach(async () => {
       const preStateRoot = DUMMY_STATE_BATCH[0]
       const preStateRootProof = await stateBatch.getElementInclusionProof(0)
@@ -355,7 +355,7 @@ describe('FraudVerifier', () => {
       const stateTransitionerAddress = await fraudVerifier.stateTransitioners(
         transactionIndex
       )
-      stateTransitioner = StubStateTransitioner.attach(stateTransitionerAddress)
+      stubStateTransitioner = StubStateTransitioner.attach(stateTransitionerAddress)
     })
 
     it('should correctly finalize when the computed state root differs', async () => {
@@ -367,8 +367,8 @@ describe('FraudVerifier', () => {
 
       const transactionIndex = transactionBatch.getPosition(0)
 
-      await stateTransitioner.setStateRoot('0x' + '00'.repeat(32))
-      await stateTransitioner.completeTransition()
+      await stubStateTransitioner.setStateRoot('0x' + '00'.repeat(32))
+      await stubStateTransitioner.completeTransition()
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
@@ -393,7 +393,7 @@ describe('FraudVerifier', () => {
       const transactionIndex = transactionBatch.getPosition(0)
 
       // Not finalizing the state transitioner.
-      await stateTransitioner.setStateRoot('0x' + '00'.repeat(32))
+      await stubStateTransitioner.setStateRoot('0x' + '00'.repeat(32))
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
@@ -423,8 +423,8 @@ describe('FraudVerifier', () => {
 
       const transactionIndex = transactionBatch.getPosition(0)
 
-      await stateTransitioner.setStateRoot('0x' + '00'.repeat(32))
-      await stateTransitioner.completeTransition()
+      await stubStateTransitioner.setStateRoot('0x' + '00'.repeat(32))
+      await stubStateTransitioner.completeTransition()
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
@@ -454,13 +454,13 @@ describe('FraudVerifier', () => {
 
       const transactionIndex = transactionBatch.getPosition(0)
 
-      await stateTransitioner.setStateRoot('0x' + '00'.repeat(32))
-      await stateTransitioner.completeTransition()
+      await stubStateTransitioner.setStateRoot('0x' + '00'.repeat(32))
+      await stubStateTransitioner.completeTransition()
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
       await TestUtils.assertRevertsAsync(
-        'Provided pre-state root is invalid.',
+        'Provided pre-state root inclusion proof is invalid.',
         async () => {
           await fraudVerifier.finalizeFraudVerification(
             transactionIndex,
@@ -485,13 +485,13 @@ describe('FraudVerifier', () => {
 
       const transactionIndex = transactionBatch.getPosition(0)
 
-      await stateTransitioner.setStateRoot('0x' + '00'.repeat(32))
-      await stateTransitioner.completeTransition()
+      await stubStateTransitioner.setStateRoot('0x' + '00'.repeat(32))
+      await stubStateTransitioner.completeTransition()
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
       await TestUtils.assertRevertsAsync(
-        'Provided post-state root is invalid.',
+        'Provided post-state root inclusion proof is invalid.',
         async () => {
           await fraudVerifier.finalizeFraudVerification(
             transactionIndex,
@@ -516,13 +516,13 @@ describe('FraudVerifier', () => {
       const transactionIndex = transactionBatch.getPosition(0)
 
       // Setting the root to match the given post-state root.
-      await stateTransitioner.setStateRoot(postStateRoot)
-      await stateTransitioner.completeTransition()
+      await stubStateTransitioner.setStateRoot(postStateRoot)
+      await stubStateTransitioner.completeTransition()
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
       await TestUtils.assertRevertsAsync(
-        'State transition was not fraudulent.',
+        'State transition has not been proven fraudulent.',
         async () => {
           await fraudVerifier.finalizeFraudVerification(
             transactionIndex,

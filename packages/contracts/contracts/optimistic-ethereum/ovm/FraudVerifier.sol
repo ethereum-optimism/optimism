@@ -26,8 +26,6 @@ contract FraudVerifier {
     CanonicalTransactionChain canonicalTransactionChain;
     mapping (uint256 => IStateTransitioner) public stateTransitioners;
 
-    mapping (uint256 => DataTypes.OVMTransactionData) transactions;
-
     bool isTest;
 
     /*
@@ -96,7 +94,7 @@ contract FraudVerifier {
                 _preStateTransitionIndex,
                 _preStateRootProof
             ),
-            "Provided pre-state root is invalid."
+            "Provided pre-state root inclusion proof is invalid."
         );
 
         require(
@@ -181,7 +179,7 @@ contract FraudVerifier {
                 _preStateTransitionIndex,
                 _preStateRootProof
             ),
-            "Provided pre-state root is invalid."
+            "Provided pre-state root inclusion proof is invalid."
         );
 
         require(
@@ -190,7 +188,7 @@ contract FraudVerifier {
                 _preStateTransitionIndex + 1,
                 _postStateRootProof
             ),
-            "Provided post-state root is invalid."
+            "Provided post-state root inclusion proof is invalid."
         );
 
         // State transitions are fraudlent when the state root published to the
@@ -198,7 +196,7 @@ contract FraudVerifier {
         // StateTransitioner.
         require(
             _postStateRoot != stateTransitioner.stateRoot(),
-            "State transition was not fraudulent."
+            "State transition has not been proven fraudulent."
         );
 
         // If we're here, then the state transition was found to be fraudulent.
