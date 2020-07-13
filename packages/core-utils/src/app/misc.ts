@@ -80,6 +80,9 @@ export const sleep = (ms: number): Promise<void> => {
  * @returns the string without "0x".
  */
 export const remove0x = (str: string): string => {
+  if (!str) {
+    return str
+  }
   return str.startsWith('0x') ? str.slice(2) : str
 }
 
@@ -89,6 +92,9 @@ export const remove0x = (str: string): string => {
  * @returns the string with "0x".
  */
 export const add0x = (str: string): string => {
+  if (!str) {
+    return str
+  }
   return str.startsWith('0x') ? str : '0x' + str
 }
 
