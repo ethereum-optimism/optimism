@@ -121,12 +121,12 @@ export class TranspilerImpl implements Transpiler {
     )
 
     log.debug(
-      `original deployed evm bytecode is:\n raw:${bufToHexString(
-        deployedBytecode
-      )}\n${formatBytecode(originalDeployedEVMBytecode)}`
+      `original deployed evm bytecode is: ${formatBytecode(
+        originalDeployedEVMBytecode
+      )}`
     )
 
-    // **** DETECT AND SPLIT THE CONSTANTS IN DEPLOYED BYTECODE AND TRANSPILE ****
+    // **** DETECT AND TAG THE CONSTANTS IN DEPLOYED BYTECODE AND TRANSPILE ****
 
     let taggedDeployedEVMBytecode: EVMBytecode
     taggedDeployedEVMBytecode = this.findAndTagConstants(
@@ -134,16 +134,8 @@ export class TranspilerImpl implements Transpiler {
       deployedBytecode,
       errors
     )
-
-    let constantsUsedByDeployedBytecode: EVMBytecode
-    let deployedBytecodeWithoutConstants: EVMBytecode
-    ;[
-      deployedBytecodeWithoutConstants,
-      constantsUsedByDeployedBytecode,
-    ] = this.splitCodeAndConstants(taggedDeployedEVMBytecode)
-
     const deployedBytecodeTranspilationResult: TaggedTranspilationResult = this.transpileBytecodePreservingTags(
-      deployedBytecodeWithoutConstants
+      taggedDeployedEVMBytecode
     )
 
     if (!deployedBytecodeTranspilationResult.succeeded) {
@@ -155,10 +147,8 @@ export class TranspilerImpl implements Transpiler {
         errors,
       }
     }
-    const transpiledDeployedBytecode: EVMBytecode = [
-      ...deployedBytecodeTranspilationResult.bytecodeWithTags,
-      ...constantsUsedByDeployedBytecode,
-    ]
+    const transpiledDeployedBytecode: EVMBytecode =
+      deployedBytecodeTranspilationResult.bytecodeWithTags
 
     log.debug(`Fixing the constant indices for transpiled deployed bytecode...`)
     log.debug(`errors are: ${JSON.stringify(errors)}`)
@@ -185,7 +175,9 @@ export class TranspilerImpl implements Transpiler {
     )
     taggedOriginalConstructorInitLogic = this.findAndTagConstructorParamsLoader(
       originalConstructorInitLogic,
-      errors
+      errors,
+      bytecode,
+      originalDeployedBytecodeSize
     )
     taggedOriginalConstructorInitLogic = this.findAndTagDeployedBytecodeReturner(
       originalConstructorInitLogic
@@ -256,47 +248,10 @@ export class TranspilerImpl implements Transpiler {
       errors
     )
 
-    if (errors.length > 0) {
-      return {
-        succeeded: false,
-        errors,
-      }
-    } else {
-      return {
-        succeeded: true,
-        bytecode: bytecodeToBuffer(finalTranspiledBytecode),
-      }
+    return {
+      succeeded: true,
+      bytecode: bytecodeToBuffer(finalTranspiledBytecode),
     }
-  }
-
-  private splitCodeAndConstants(
-    bytecodeWithTaggedConstants: EVMBytecode
-  ): EVMBytecode[] {
-    const pushConstantOffsetOperations = bytecodeWithTaggedConstants.filter(
-      (val: EVMOpcodeAndBytes): boolean => {
-        return isTaggedWithReason(val, [OpcodeTagReason.IS_CONSTANT_OFFSET])
-      }
-    )
-    const allConstants: Buffer[] = pushConstantOffsetOperations.map(
-      (val: EVMOpcodeAndBytes): Buffer => {
-        return val.tag.metadata
-      }
-    )
-    const bytecodeBuf: Buffer = bytecodeToBuffer(bytecodeWithTaggedConstants)
-    const constantStarts: number[] = allConstants.map(
-      (theConst: Buffer): number => {
-        return bytecodeBuf.indexOf(theConst)
-      }
-    )
-    const lowestStartPC: number = Math.min(...constantStarts)
-    const lowestStartIndexInBytecode: number = bufferToBytecode(
-      bytecodeBuf.slice(0, lowestStartPC)
-    ).length
-
-    return [
-      bytecodeWithTaggedConstants.slice(0, lowestStartIndexInBytecode),
-      bytecodeWithTaggedConstants.slice(lowestStartIndexInBytecode),
-    ]
   }
 
   // Fixes the tagged constants-loading offset in some transpiled bytecode.
@@ -305,6 +260,7 @@ export class TranspilerImpl implements Transpiler {
     taggedBytecode: EVMBytecode,
     errors
   ): EVMBytecode {
+    log.debug(`tagged input: ${formatBytecode(taggedBytecode)}`)
     const inputAsBuf: Buffer = bytecodeToBuffer(taggedBytecode)
     const bytecodeToReturn: EVMBytecode = []
     for (const [index, op] of taggedBytecode.entries()) {
@@ -456,9 +412,10 @@ export class TranspilerImpl implements Transpiler {
    */
   private findAndTagConstructorParamsLoader(
     bytecode: EVMBytecode,
-    errors
+    errors,
+    fullBytecodeBuf: Buffer,
+    originalDeployedBytecodeSize: number = fullBytecodeBuf.byteLength
   ): EVMBytecode {
-    let numDetections: number = 0
     for (let index = 0; index < bytecode.length - 6; index++) {
       const op: EVMOpcodeAndBytes = bytecode[index]
       if (
@@ -468,7 +425,23 @@ export class TranspilerImpl implements Transpiler {
         Opcode.isPUSHOpcode(bytecode[index + 4].opcode) &&
         bytecode[index + 6].opcode === Opcode.CODECOPY
       ) {
-        numDetections += 1
+        const pushedOffset: number = new BigNum(op.consumedBytes).toNumber()
+        if (pushedOffset !== originalDeployedBytecodeSize) {
+          errors.push(
+            TranspilerImpl.createError(
+              index,
+              TranspilationErrors.DETECTED_CONSTANT_OOB,
+              `thought we were in a CODECOPY(constructor params), but wrong length...at PC: 0x${getPCOfEVMBytecodeIndex(
+                index,
+                bytecode
+              ).toString(
+                16
+              )}.  PUSH of offset which we thought was the total initcode length was 0x${pushedOffset.toString(
+                16
+              )}, but length of original bytecode was specified or detected to be 0x${originalDeployedBytecodeSize}`
+            )
+          )
+        }
         log.debug(
           `Successfully detected a CODECOPY(constructor params) pattern starting at PC: 0x${getPCOfEVMBytecodeIndex(
             index,
@@ -494,15 +467,6 @@ export class TranspilerImpl implements Transpiler {
           },
         }
       }
-    }
-    if (numDetections > 1) {
-      errors.push(
-        TranspilerImpl.createError(
-          -1,
-          TranspilationErrors.CONSTRUCTOR_PARAMS_LOADER_DETECTION_FAILED,
-          `There should be at most 1 match for the logic which loads constructor params, but ${numDetections} were found.`
-        )
-      )
     }
     return bytecode
   }
@@ -705,11 +669,6 @@ export class TranspilerImpl implements Transpiler {
       ) {
         transpiledBytecodeSubstitute = [opcodeAndBytes]
       } else {
-        log.debug(
-          `substituting opcode to be replaced with original pc of PC 0x${pc.toString(
-            16
-          )}`
-        )
         // record that we will need to add this opcode to the replacement table
         substitutedOpcodes.add(opcodeAndBytes.opcode)
         // jump to the footer where the logic of the replacement will be executed
