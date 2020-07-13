@@ -1,26 +1,28 @@
 export interface MerkleTrieWitness {
   root: string
-  proof: string
+  proof: Buffer[]
   key: string
-  value: any
-}
-
-export interface EncodedTrieWitness extends MerkleTrieWitness {
   value: string
 }
 
-export interface StateTrieWitness extends MerkleTrieWitness {
-  value: {
-    nonce: number
-    balance: number
-    storageRoot: string
-    codeHash: string
-  }
+export interface AccountState {
+  nonce: number
+  balance: number
+  storageRoot: string
+  codeHash: string
+}
+
+export interface StateTrieWitness {
+  root: string
+  proof: Buffer[]
+  ovmContractAddress: string
+  codeContractAddress: string
+  value: AccountState
 }
 
 export interface AccountTrieWitness {
   stateTrieWitness: StateTrieWitness
-  accountTrieWitness: EncodedTrieWitness
+  accountTrieWitness: MerkleTrieWitness
 }
 
 export type FraudProofWitness = StateTrieWitness | AccountTrieWitness

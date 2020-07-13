@@ -37,8 +37,10 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
+    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.27",
     "ethereum-waffle": "2.1.0",
-    "ethers": "^4.0.37"
+    "ethers": "^4.0.37",
+    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree"
   },
   "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }

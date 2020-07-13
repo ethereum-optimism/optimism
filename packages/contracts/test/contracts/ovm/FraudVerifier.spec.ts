@@ -142,7 +142,7 @@ describe('FraudVerifier', () => {
   let ExecutionManager: ContractFactory
   let RollupMerkleUtils: ContractFactory
   let StateCommitmentChain: ContractFactory
-  let CanonicalTransactonChain: ContractFactory
+  let CanonicalTransactionChain: ContractFactory
   let FraudVerifier: ContractFactory
   let StubStateTransitioner: ContractFactory
   let executionManager: Contract
@@ -153,7 +153,7 @@ describe('FraudVerifier', () => {
     StateCommitmentChain = await ethers.getContractFactory(
       'StateCommitmentChain'
     )
-    CanonicalTransactonChain = await ethers.getContractFactory(
+    CanonicalTransactionChain = await ethers.getContractFactory(
       'CanonicalTransactionChain'
     )
     FraudVerifier = await ethers.getContractFactory('FraudVerifier')
@@ -175,7 +175,7 @@ describe('FraudVerifier', () => {
   let stateCommitmentChain: Contract
   let fraudVerifier: Contract
   beforeEach(async () => {
-    canonicalTransactonChain = await CanonicalTransactonChain.deploy(
+    canonicalTransactonChain = await CanonicalTransactionChain.deploy(
       rollupMerkleUtils.address,
       await sequencer.getAddress(),
       await l1ToL2TransactionPasser.getAddress(),

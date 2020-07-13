@@ -1,21 +1,47 @@
+/* External Imports */
 import { Contract, ethers, Wallet } from 'ethers'
 import { NULL_ADDRESS } from '@eth-optimism/core-utils'
+import { BaseTrie } from 'merkle-patricia-tree'
+
+/* Internal Imports */
 import {
   FraudProofWitness,
   StateTrieWitness,
   AccountTrieWitness,
+  OVMStateElementInclusionProof,
+  OVMTransactionElementInclusionProof,
   isAccountTrieWitness,
-} from './interfaces/witness.interface'
-import { ABI } from './utils/abi'
+  OVMTransactionData
+} from './interfaces'
+import {
+  ABI,
+  toHexBuffer,
+  encodeAccountState,
+  decodeAccountState,
+  updateAndProve,
+  toHexString
+} from './utils'
 
 /**
  * Fraud proving utility class. Handles everything necessary to prove that a
  * given transaction was fraudulently executed, given relevant witness data.
  */
-export class FraudProver {
+export class AutoFraudProver {
   private _preStateTransitionIndex: number
+  private _preStateRoot: string
+  private _preStateInclusionProof: OVMStateElementInclusionProof
+  private _postStateRoot: string
+  private _postStateInclusionProof: OVMStateElementInclusionProof
+  private _transaction: OVMTransactionData
+  private _transactionInclusionProof: OVMTransactionElementInclusionProof
   private _witnesses: FraudProofWitness[]
   private _wallet: Wallet
+
+  private _stateTrie: BaseTrie
+  private _accountTries: {
+    [account: string]: BaseTrie
+  }
+
   private _fraudVerifierContract: Contract
   private _stateTransitionerContract: Contract
   private _stateManagerContract: Contract
@@ -32,11 +58,23 @@ export class FraudProver {
    */
   constructor(
     preStateTransitionIndex: number,
+    preStateRoot: string,
+    preStateInclusionProof: OVMStateElementInclusionProof,
+    postStateRoot: string,
+    postStateInclusionProof: OVMStateElementInclusionProof,
+    transaction: OVMTransactionData,
+    transactionInclusionProof: OVMTransactionElementInclusionProof,
     witnesses: FraudProofWitness[],
     wallet: Wallet,
     fraudVerifierContract: Contract
   ) {
     this._preStateTransitionIndex = preStateTransitionIndex
+    this._preStateRoot = preStateRoot
+    this._preStateInclusionProof = preStateInclusionProof
+    this._postStateRoot = postStateRoot
+    this._postStateInclusionProof = postStateInclusionProof
+    this._transaction = transaction
+    this._transactionInclusionProof = transactionInclusionProof
     this._witnesses = witnesses
     this._wallet = wallet
     this._fraudVerifierContract = fraudVerifierContract
@@ -46,6 +84,10 @@ export class FraudProver {
    * Executes the full fraud proof process.
    */
   public async prove(): Promise<void> {
+    // Set up our tries.
+    await this._makeStateTrie()
+    await this._makeAccountTries()
+
     // Prepare to run our proof.
     await this._initializeContracts()
 
@@ -98,9 +140,14 @@ export class FraudProver {
    * @returns Address of the newly created state transitioner.
    */
   private async _createStateTransitioner(): Promise<string> {
-    await this._fraudVerifierContract.initNewStateTransitioner(
-      this._preStateTransitionIndex
+    await this._fraudVerifierContract.initializeFraudVerification(
+      this._preStateTransitionIndex,
+      this._preStateRoot,
+      this._preStateInclusionProof,
+      this._transaction,
+      this._transactionInclusionProof
     )
+
     return this._fraudVerifierContract.stateTransitioners(
       this._preStateTransitionIndex
     )
@@ -146,13 +193,10 @@ export class FraudProver {
     witness: StateTrieWitness
   ): Promise<void> {
     await this._fraudVerifierContract.proveContractInclusion(
-      witness.key,
-      witness.root,
-      witness.proof,
+      witness.ovmContractAddress,
+      witness.codeContractAddress,
       witness.value.nonce,
-      witness.value.balance,
-      witness.value.storageRoot,
-      witness.value.codeHash
+      witness.proof,
     )
   }
 
@@ -164,12 +208,11 @@ export class FraudProver {
     witness: AccountTrieWitness
   ): Promise<void> {
     await this._fraudVerifierContract.proveStorageSlotInclusion(
-      witness.stateTrieWitness.key,
-      witness.stateTrieWitness.root,
-      witness.stateTrieWitness.proof,
+      witness.stateTrieWitness.ovmContractAddress,
       witness.accountTrieWitness.key,
+      witness.accountTrieWitness.value,
+      witness.stateTrieWitness.proof,
       witness.accountTrieWitness.proof,
-      witness.accountTrieWitness.value
     )
   }
 
@@ -208,7 +251,22 @@ export class FraudProver {
    * Processes a single state trie update and modifies root accordingly.
    */
   private async _popStateTrieUpdate(): Promise<void> {
-    await this._stateTransitionerContract.proveUpdatedContract()
+    const {
+      ovmContractAddress,
+      updatedNonce,
+      updatedCodeHash
+    } = await this._stateManagerContract.peekUpdatedContract()
+
+    const proof = await updateAndProve(
+      this._stateTrie,
+      toHexBuffer(ovmContractAddress),
+      encodeAccountState({
+        nonce: updatedNonce,
+        codeHash: updatedCodeHash
+      })
+    )
+
+    await this._stateTransitionerContract.proveUpdatedContract(proof)
   }
 
   /**
@@ -227,7 +285,41 @@ export class FraudProver {
    * Processes a single account trie update and modifies root accordingly.
    */
   private async _popAccountTrieUpdate(): Promise<void> {
-    await this._stateTransitionerContract.proveUpdatedStorageSlot()
+    const {
+      ovmContractAddress,
+      updatedSlotKey,
+      updatedSlotValue
+    } = await this._stateManagerContract.peekUpdatedStorageSlot()
+
+    const trie = this._accountTries[ovmContractAddress]
+
+    const storageTrieProof = await updateAndProve(
+      trie,
+      toHexBuffer(updatedSlotKey),
+      toHexBuffer(updatedSlotValue),
+    )
+
+    const oldAccountState = decodeAccountState(
+      await this._stateTrie.get(
+        toHexBuffer(ovmContractAddress)
+      )
+    )
+
+    const newAccountState = {
+      ...oldAccountState,
+      codeHash: toHexString(trie.root)
+    }
+
+    const stateTrieProof = await updateAndProve(
+      this._stateTrie,
+      toHexBuffer(ovmContractAddress),
+      encodeAccountState(newAccountState)
+    )
+  
+    await this._stateTransitionerContract.proveUpdatedStorageSlot(
+      stateTrieProof,
+      storageTrieProof,
+    )
   }
 
   /**
@@ -258,7 +350,7 @@ export class FraudProver {
    * pre-execution phase to the post-execution phase.
    */
   private async _applyTransaction(): Promise<void> {
-    await this._stateTransitionerContract.applyTransaction()
+    await this._stateTransitionerContract.applyTransaction(this._transaction)
   }
 
   /**
@@ -275,6 +367,84 @@ export class FraudProver {
    * transition process has been completed.
    */
   private async _verifyFraud(): Promise<void> {
-    await this._fraudVerifierContract.verifyFraud()
+    await this._fraudVerifierContract.finalizeFraudVerification(
+      this._preStateTransitionIndex,
+      this._preStateRoot,
+      this._preStateInclusionProof,
+      this._postStateRoot,
+      this._postStateInclusionProof,
+    )
+  }
+
+  /**
+   * Generates the state trie from the provided witnesses.
+   */
+  private async _makeStateTrie(): Promise<void> {
+    const witnesses = this.getStateTrieWitnesses();
+    
+    const firstRootNode = witnesses[0].proof[0];
+    const allNonRootNodes: Buffer[] = witnesses.reduce((nodes, witness) => {
+      return nodes.concat(witness.proof.slice(1));
+    }, [])
+    const allNodes = [firstRootNode].concat(allNonRootNodes)
+
+    this._stateTrie = await BaseTrie.fromProof(allNodes);
+  }
+
+  /**
+   * Generates all account tries from the provided witnesses.
+   */
+  private async _makeAccountTries(): Promise<void> {
+    const witnesses = this.getAccountTrieWitnesses();
+    const witnessMap = witnesses.reduce((map: {
+      [address: string]: Buffer[]
+    }, witness) => {
+      const ovmContractAddress = witness.stateTrieWitness.ovmContractAddress
+      if (!(ovmContractAddress in map)) {
+        map[ovmContractAddress] = [
+          toHexBuffer(witness.stateTrieWitness.value.storageRoot)
+        ]
+      }
+
+      map[ovmContractAddress] = map[ovmContractAddress].concat(witness.accountTrieWitness.proof.slice(1))
+      return map;
+    }, {})
+
+    for (const ovmContractAddress in witnessMap) {
+      const proof = witnessMap[ovmContractAddress]
+      this._accountTries[ovmContractAddress] = await BaseTrie.fromProof(proof)
+    }
+  }
+
+  /**
+   * Picks out the state trie witnesses from the list of witnesses.
+   * @returns List of state trie witnesses.
+   */
+  private getStateTrieWitnesses(): StateTrieWitness[] {
+    const witnesses: StateTrieWitness[] = []
+
+    for (const witness of this._witnesses) {
+      if (!isAccountTrieWitness(witness)) {
+        witnesses.push(witness)
+      }
+    }
+
+    return witnesses;
+  }
+
+  /**
+   * Picks out the account trie witnesses from the list of witnesses.
+   * @returns List of account trie witnesses.
+   */
+  private getAccountTrieWitnesses(): AccountTrieWitness[] {
+    const witnesses: AccountTrieWitness[] = []
+
+    for (const witness of this._witnesses) {
+      if (isAccountTrieWitness(witness)) {
+        witnesses.push(witness)
+      }
+    }
+
+    return witnesses;
   }
 }
