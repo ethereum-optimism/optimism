@@ -413,7 +413,7 @@ describe('FraudVerifier', () => {
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
     })
 
-    it('should revert when the provided pre-state root does not match the state transitioner', async () => {
+    it('should revert when the provided pre-state root is for the wrong transition index', async () => {
       // Using the wrong pre-state root.
       const preStateRoot = DUMMY_STATE_BATCH[1]
       const preStateRootProof = await stateBatch.getElementInclusionProof(1)
