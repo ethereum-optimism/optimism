@@ -57,13 +57,31 @@ export interface L1DataService {
    *
    * @param l1TxHash The L1 Transaction hash.
    * @param rollupTransactions The RollupTransactions to insert.
-   * @returns The inserted transaction batch number.
+   * @param createBatch Whether or not to create a batch from the provided RollupTransactions (whether or not they're part of the canonical chain).
+   * @returns The inserted transaction batch number if a batch was created.
    * @throws An error if there is a DB error.
    */
   insertL1RollupTransactions(
     l1TxHash: string,
-    rollupTransactions: RollupTransaction[]
+    rollupTransactions: RollupTransaction[],
+    createBatch?: boolean
   ): Promise<number>
+
+  /**
+   * Creates a batch from the oldest un-batched transaction that is from the L1 To L2 queue.
+   *
+   * @returns The created batch number or undefined if no fitting L1ToL2 transaction exists.
+   * @throws Error if there is a DB error
+   */
+  createNextL1ToL2Batch(): Promise<number>
+
+  /**
+   * Creates a batch from the oldest un-batched transaction that is from the Safety queue.
+   *
+   * @returns The created batch number or undefined if no fitting Safety Queue transaction exists.
+   * @throws Error if there is a DB error or no such transaction exists.
+   */
+  createNextSafetyQueueBatch(): Promise<number>
 
   /**
    * Atomically inserts the provided State Roots, creating a batch for them.

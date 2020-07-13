@@ -72,7 +72,8 @@ class MockDataService extends DefaultDataService {
 
   public async insertL1RollupTransactions(
     l1TxHash: string,
-    rollupTransactions: RollupTransaction[]
+    rollupTransactions: RollupTransaction[],
+    createBatch: boolean = false
   ): Promise<number> {
     this.rollupTransactions.set(l1TxHash, rollupTransactions)
     return this.rollupTransactions.size
@@ -136,6 +137,8 @@ const getRollupTransaction = (): RollupTransaction => {
     l1Timestamp: 0,
     l1BlockNumber: 0,
     l1TxHash: keccak256FromUtf8('0xdeadbeef'),
+    l1TxIndex: 0,
+    l1TxLogIndex: 0,
     nonce: 0,
     queueOrigin: 0,
   }
