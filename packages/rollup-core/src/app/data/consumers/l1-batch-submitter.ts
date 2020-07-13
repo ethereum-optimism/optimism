@@ -283,12 +283,11 @@ export class L1BatchSubmitter extends ScheduledTask {
   /**
    * Gets the calldata bytes for a transaction batch to be submitted by the sequencer.
    * Rollup Transaction Format:
-   *    sender: 20-byte address    0-20
-   *    target: 20-byte address    20-40
-   *    nonce: 32-byte uint        40-72
-   *    gasLimit: 32-byte uint     72-104
-   *    signature: 65-byte bytes   104-169
-   *    calldata: bytes            169-end
+   *    target: 20-byte address    0-20
+   *    nonce: 32-byte uint        20-52
+   *    gasLimit: 32-byte uint     52-84
+   *    signature: 65-byte bytes   84-149
+   *    calldata: bytes            149-end
    *
    * @param batch The batch to turn into ABI-encoded calldata bytes.
    * @returns The ABI-encoded bytes[] of the Rollup Transactions in the format listed above.
@@ -296,14 +295,13 @@ export class L1BatchSubmitter extends ScheduledTask {
   private getTransactionBatchCalldata(batch: L1BatchSubmission): string[] {
     const txs: string[] = []
     for (const tx of batch.transactions) {
-      const to: string = remove0x(tx.to)
       const nonce: string = remove0x(numberToHexString(tx.nonce, 32))
       const gasLimit: string = tx.gasLimit
         ? tx.gasLimit.toString('hex', 64)
         : '00'.repeat(32)
       const signature: string = remove0x(tx.signature)
       const calldata: string = remove0x(tx.calldata)
-      txs.push(`${tx.from}${to}${nonce}${gasLimit}${signature}${calldata}`)
+      txs.push(`${tx.to}${nonce}${gasLimit}${signature}${calldata}`)
     }
 
     return txs

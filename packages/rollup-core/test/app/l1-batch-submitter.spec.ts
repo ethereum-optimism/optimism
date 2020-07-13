@@ -95,7 +95,7 @@ class MockCanonicalTransactionChain {
   }
 }
 
-class MockStatCommitmentChain {
+class MockStateCommitmentChain {
   public responses: TransactionResponse[] = []
 
   constructor(public readonly provider: MockProvider) {}
@@ -117,7 +117,7 @@ describe('L1 Batch Submitter', () => {
   let canonicalProvider: MockProvider
   let canonicalTransactionChain: MockCanonicalTransactionChain
   let stateCommitmentProvider: MockProvider
-  let stateCommitmentChain: MockStatCommitmentChain
+  let stateCommitmentChain: MockStateCommitmentChain
 
   beforeEach(async () => {
     dataService = new MockDataService()
@@ -126,7 +126,7 @@ describe('L1 Batch Submitter', () => {
       canonicalProvider
     )
     stateCommitmentProvider = new MockProvider()
-    stateCommitmentChain = new MockStatCommitmentChain(stateCommitmentProvider)
+    stateCommitmentChain = new MockStateCommitmentChain(stateCommitmentProvider)
     batchSubmitter = new L1BatchSubmitter(
       dataService,
       canonicalTransactionChain as any,

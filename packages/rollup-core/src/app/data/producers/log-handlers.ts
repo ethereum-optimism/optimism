@@ -6,11 +6,26 @@ import {
   logError,
   remove0x,
 } from '@eth-optimism/core-utils'
-import { Log, TransactionResponse } from 'ethers/providers/abstract-provider'
+import {
+  Log,
+  TransactionRequest,
+  TransactionResponse,
+} from 'ethers/providers/abstract-provider'
 import { ethers } from 'ethers'
 
 /* Internal Imports */
-import { L1DataService, QueueOrigin, RollupTransaction } from '../../../types'
+import {
+  Address,
+  L1DataService,
+  QueueOrigin,
+  RollupTransaction,
+} from '../../../types'
+import { CHAIN_ID } from '../../constants'
+import {
+  joinSignature,
+  resolveProperties,
+  serializeTransaction,
+} from 'ethers/utils'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger('log-handler')
@@ -74,12 +89,11 @@ export const L1ToL2TxEnqueuedLogHandler = async (
  * from the transaction calldata and storing it in the DB.
  *
  * Assumed calldata format:
- *   - sender: 20-byte address    0-20
- *   - target: 20-byte address	  20-40
- *   - nonce: 32-byte uint 	      40-72
- *   - gasLimit: 32-byte uint	    72-104
- *   - signature: 65-byte bytes   104-169
- *   - calldata: bytes    		    169-end
+ *   - target: 20-byte address	  0-20
+ *   - nonce: 32-byte uint 	      20-52
+ *   - gasLimit: 32-byte uint	    52-84
+ *   - signature: 65-byte bytes   84-149
+ *   - calldata: bytes    		    149-end
  *
  * @param ds The L1DataService to use for persistence.
  * @param l The log event that was emitted.
@@ -98,7 +112,29 @@ export const CalldataTxEnqueuedLogHandler = async (
   let rollupTransaction: RollupTransaction
   try {
     // Skip the 4 bytes of MethodID
-    const calldata = remove0x(ethers.utils.hexDataSlice(tx.data, 4))
+    const l1TxCalldata = remove0x(ethers.utils.hexDataSlice(tx.data, 4))
+
+    const target = add0x(l1TxCalldata.substr(0, 40))
+    const nonce = new BigNumber(l1TxCalldata.substr(40, 64), 'hex')
+    const gasLimit = new BigNumber(l1TxCalldata.substr(104, 64), 'hex')
+    const signature = add0x(l1TxCalldata.substr(168, 130))
+    const calldata = add0x(l1TxCalldata.substr(298))
+
+    const unsigned: TransactionRequest = {
+      to: target,
+      nonce: add0x(nonce.toString('hex')),
+      gasPrice: 0,
+      gasLimit: add0x(gasLimit.toString('hex')),
+      value: 0,
+      data: calldata,
+      chainId: CHAIN_ID,
+    }
+
+    const r = add0x(signature.substr(2, 64))
+    const s = add0x(signature.substr(66, 64))
+    const v = parseInt(signature.substr(130, 2), 16)
+    const sender: string = await getTxSigner(unsigned, r, s, v)
+
     rollupTransaction = {
       l1BlockNumber: tx.blockNumber,
       l1Timestamp: tx.timestamp,
@@ -107,14 +143,14 @@ export const CalldataTxEnqueuedLogHandler = async (
       l1TxLogIndex: l.transactionLogIndex,
       queueOrigin: QueueOrigin.SAFETY_QUEUE,
       batchIndex: 0,
-      sender: add0x(calldata.substr(0, 40)),
-      target: add0x(calldata.substr(40, 40)),
+      sender,
+      target,
       // TODO Change nonce to a BigNumber so it can support 256 bits
-      nonce: new BigNumber(calldata.substr(80, 64), 'hex').toNumber(),
+      nonce: nonce.toNumber(),
       // TODO: Change gasLimit to a BigNumber so it can support 256 bits
-      gasLimit: new BigNumber(calldata.substr(144, 64), 'hex').toNumber(),
-      signature: add0x(calldata.substr(208, 130)),
-      calldata: add0x(calldata.substr(338)),
+      gasLimit: gasLimit.toNumber(),
+      signature,
+      calldata,
     }
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
@@ -191,14 +227,14 @@ export const SafetyQueueBatchAppendedLogHandler = async (
   } catch (e) {
     logError(
       log,
-      `Error creating next L1ToL2Batch after receiving an event to do so!`,
+      `Error creating next SafetyQueueBatch after receiving an event to do so!`,
       e
     )
     throw e
   }
 
   if (!batchNumber) {
-    const msg = `Attempted to create Safety Queue Batch upon receiving L1ToL2BatchAppended log, but no tx was available for batching!`
+    const msg = `Attempted to create Safety Queue Batch upon receiving SafetyQueueBatchAppended log, but no tx was available for batching!`
     log.error(msg)
     throw Error(msg)
   } else {
@@ -211,16 +247,15 @@ export const SafetyQueueBatchAppendedLogHandler = async (
 /**
  * Handles the SequencerBatchAppended event by parsing:
  *    - a list of RollupTransactions
- *    - L1 Block Timestamp at the time of L2 Execution
+ *    - L1 Block Timestamp as monotonically assigned by the sequencer
  * from the transaction calldata and storing it in the DB.
  *
  * Assumed calldata format:
- *   - sender: 20-byte address    0-20
- *   - target: 20-byte address	  20-40
- *   - nonce: 32-byte uint 	      40-72
- *   - gasLimit: 32-byte uint	    72-104
- *   - signature: 65-byte bytes   104-169
- *   - calldata: bytes    		    169-end
+ *   - target: 20-byte address	  0-20
+ *   - nonce: 32-byte uint 	      20-52
+ *   - gasLimit: 32-byte uint	    52-84
+ *   - signature: 65-byte bytes   84-149
+ *   - calldata: bytes    		    149-end
  *
  * @param ds The L1DataService to use for persistence.
  * @param l The log event that was emitted.
@@ -247,6 +282,28 @@ export const SequencerBatchAppendedLogHandler = async (
 
     for (let i = 0; i < transactionsBytes.length; i++) {
       const txBytes = remove0x(transactionsBytes[i])
+
+      const target = add0x(txBytes.substr(0, 40))
+      const nonce = new BigNumber(txBytes.substr(40, 64), 'hex')
+      const gasLimit = new BigNumber(txBytes.substr(104, 64), 'hex')
+      const signature = add0x(txBytes.substr(168, 130))
+      const calldata = add0x(txBytes.substr(298))
+
+      const unsigned: TransactionRequest = {
+        to: target,
+        nonce: nonce.toNumber(),
+        gasPrice: 0,
+        gasLimit: add0x(gasLimit.toString('hex')),
+        value: 0,
+        data: calldata,
+        chainId: CHAIN_ID,
+      }
+
+      const r = add0x(signature.substr(2, 64))
+      const s = add0x(signature.substr(66, 64))
+      const v = parseInt(signature.substr(130, 2), 16)
+      const sender: string = await getTxSigner(unsigned, r, s, v)
+
       rollupTransactions.push({
         l1BlockNumber: tx.blockNumber,
         l1Timestamp: timestamp.toNumber(),
@@ -255,14 +312,14 @@ export const SequencerBatchAppendedLogHandler = async (
         l1TxLogIndex: l.transactionLogIndex,
         queueOrigin: QueueOrigin.SEQUENCER,
         batchIndex: i,
-        sender: add0x(txBytes.substr(0, 40)),
-        target: add0x(txBytes.substr(40, 40)),
+        sender,
+        target,
         // TODO Change nonce to a BigNumber so it can support 256 bits
-        nonce: new BigNumber(txBytes.substr(80, 64), 'hex').toNumber(),
+        nonce: nonce.toNumber(),
         // TODO: Change gasLimit to a BigNumber so it can support 256 bits
-        gasLimit: new BigNumber(txBytes.substr(144, 64), 'hex').toNumber(),
-        signature: add0x(txBytes.substr(208, 130)),
-        calldata: add0x(txBytes.substr(338)),
+        gasLimit: gasLimit.toNumber(),
+        signature,
+        calldata,
       })
     }
   } catch (e) {
@@ -314,4 +371,37 @@ export const StateBatchAppendedLogHandler = async (
   }
 
   await ds.insertL1RollupStateRoots(l.transactionHash, stateRoots)
+}
+
+/**
+ * Gets the tx signer address from the Tx Request and r, s, v.
+ *
+ * @param tx The Transaction Request.
+ * @param r The r parameter of the signature.
+ * @param s The s parameter of the signature.
+ * @param v The v parameter of the signature.
+ * @returns The signer's address.
+ */
+const getTxSigner = async (
+  tx: TransactionRequest,
+  r: string,
+  s: string,
+  v: number
+): Promise<Address> => {
+  const txHash: string = ethers.utils.keccak256(
+    serializeTransaction(await resolveProperties(tx))
+  )
+
+  try {
+    return ethers.utils.recoverAddress(
+      ethers.utils.arrayify(txHash),
+      joinSignature({
+        s: add0x(s),
+        r: add0x(r),
+        v,
+      })
+    )
+  } catch (e) {
+    return undefined
+  }
 }

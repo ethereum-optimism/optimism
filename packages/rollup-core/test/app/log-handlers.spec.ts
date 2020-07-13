@@ -1,5 +1,6 @@
 /* External Imports */
 import {
+  add0x,
   keccak256FromUtf8,
   remove0x,
   ZERO_ADDRESS,
@@ -20,7 +21,20 @@ import {
   SafetyQueueBatchAppendedLogHandler,
   SequencerBatchAppendedLogHandler,
   StateBatchAppendedLogHandler,
+  CHAIN_ID,
 } from '../../src'
+import {
+  arrayify,
+  joinSignature,
+  keccak256,
+  parseTransaction,
+  recoverAddress,
+  resolveProperties,
+  serializeTransaction,
+  Transaction,
+  UnsignedTransaction,
+  verifyMessage,
+} from 'ethers/utils'
 
 const abi = new ethers.utils.AbiCoder()
 
@@ -112,6 +126,30 @@ class MockDataService extends DefaultDataService {
   }
 }
 
+const wallet = Wallet.createRandom()
+
+const getTxSignature = async (
+  to: string,
+  nonce: string,
+  gasLimit: string,
+  data: string,
+  w: Wallet = wallet
+): Promise<string> => {
+  const trans = {
+    to: add0x(to),
+    nonce: add0x(nonce),
+    gasLimit: add0x(gasLimit),
+    data: add0x(data),
+    value: 0,
+    chainId: CHAIN_ID,
+  }
+
+  const sig = await w.sign(trans)
+  const t: Transaction = parseTransaction(sig)
+
+  return add0x(`${t.r}${remove0x(t.s)}${t.v.toString(16)}`)
+}
+
 describe('Log Handlers', () => {
   let dataService: MockDataService
   beforeEach(() => {
@@ -168,14 +206,16 @@ describe('Log Handlers', () => {
   })
 
   it('should parse and insert Slow Queue Tx', async () => {
-    const sender: string = 'aa'.repeat(20)
     const target: string = 'bb'.repeat(20)
     const nonce: string = '00'.repeat(32)
     const gasLimit: string = '00'.repeat(31) + '01'
-    const signature: string = '99'.repeat(65)
     const calldata: string = 'abcd'.repeat(40)
 
-    const data = `0x22222222${sender}${target}${nonce}${gasLimit}${signature}${calldata}`
+    const signature = await getTxSignature(target, nonce, gasLimit, calldata)
+
+    const data = `0x22222222${target}${nonce}${gasLimit}${remove0x(
+      signature
+    )}${calldata}`
 
     const l = createLog('00'.repeat(64))
     const tx = createTx(data)
@@ -203,11 +243,17 @@ describe('Log Handlers', () => {
       'Queue Origin mismatch'
     )
     received.batchIndex.should.equal(0, 'Batch index mismatch')
-    remove0x(received.sender).should.equal(sender, 'Sender mismatch')
+    remove0x(received.sender).should.equal(
+      remove0x(wallet.address),
+      'Sender mismatch'
+    )
     remove0x(received.target).should.equal(target, 'Target mismatch')
     received.nonce.should.equal(0, 'Nonce mismatch')
     received.gasLimit.should.equal(1, 'Gas Limit mismatch')
-    remove0x(received.signature).should.equal(signature, 'Signature mismatch')
+    remove0x(received.signature).should.equal(
+      remove0x(signature),
+      'Signature mismatch'
+    )
     remove0x(received.calldata).should.equal(calldata, 'Calldata mismatch')
 
     dataService.txHashBatchesCreated.size.should.equal(
@@ -245,14 +291,14 @@ describe('Log Handlers', () => {
   it('should parse and insert Sequencer Batch', async () => {
     const timestamp = 1
 
-    const sender: string = 'aa'.repeat(20)
     const target: string = 'bb'.repeat(20)
     const nonce: string = '00'.repeat(32)
     const gasLimit: string = '00'.repeat(31) + '01'
-    const signature: string = '99'.repeat(65)
     const calldata: string = 'abcd'.repeat(40)
 
-    let data = `0x${sender}${target}${nonce}${gasLimit}${signature}${calldata}`
+    const signature = await getTxSignature(target, nonce, gasLimit, calldata)
+
+    let data = `0x${target}${nonce}${gasLimit}${remove0x(signature)}${calldata}`
     data = abi.encode(['bytes[]', 'uint256'], [[data, data, data], timestamp])
 
     const l = createLog('00'.repeat(64))
@@ -284,11 +330,17 @@ describe('Log Handlers', () => {
         'Queue Origin mismatch'
       )
       received.batchIndex.should.equal(i, 'Batch index mismatch')
-      remove0x(received.sender).should.equal(sender, 'Sender mismatch')
+      remove0x(received.sender).should.equal(
+        remove0x(wallet.address),
+        'Sender mismatch'
+      )
       remove0x(received.target).should.equal(target, 'Target mismatch')
       received.nonce.should.equal(0, 'Nonce mismatch')
       received.gasLimit.should.equal(1, 'Gas Limit mismatch')
-      remove0x(received.signature).should.equal(signature, 'Signature mismatch')
+      remove0x(received.signature).should.equal(
+        remove0x(signature),
+        'Signature mismatch'
+      )
       remove0x(received.calldata).should.equal(calldata, 'Calldata mismatch')
     }
 
