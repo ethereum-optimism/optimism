@@ -1,0 +1,10 @@
+version: "3"
+services:
+  db:
+    build:
+      context: .
+      dockerfile: db.dockerfile
+    environment:
+      - POSTGRES_PASSWORD=pass
+      - POSGRES_USER=user
+

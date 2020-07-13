@@ -475,7 +475,7 @@ export class DefaultDataService implements DataService {
     const res = await this.rdb.select(`
       SELECT b.batch_number, b.status, b.tx_batch_tx_hash, b.state_batch_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
       FROM l2_tx tx
-        INNER JOIN l2_tx_batch b 
+        INNER JOIN l2_tx_batch b ON tx.batch_number = b.batch_number 
       WHERE b.status = '${L2BatchStatus.BATCHED}'
       ORDER BY block_number ASC, tx_index ASC
     `)

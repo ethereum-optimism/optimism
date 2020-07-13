@@ -8,9 +8,8 @@ import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { DefaultDataService } from '../../src/app/data'
+import { DefaultDataService, L1BatchSubmitter } from '../../src/app/data'
 import { L1BatchSubmission, L2BatchStatus } from '../../src/types/data'
-import { L1BatchSubmitter } from '../../src/app/data/consumers/l1-batch-submitter'
 
 interface BatchNumberHash {
   batchNumber: number
