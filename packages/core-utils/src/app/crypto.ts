@@ -1,6 +1,12 @@
 /* External Imports */
 import { Md5 } from 'ts-md5'
 import { ethers } from 'ethers'
+import { TransactionRequest } from 'ethers/providers/abstract-provider'
+import {
+  joinSignature,
+  resolveProperties,
+  serializeTransaction,
+} from 'ethers/utils'
 
 /* Internal Imports */
 import { HashAlgorithm, HashFunction } from '../types'
@@ -52,5 +58,38 @@ export const hashFunctionFor = (algo: HashAlgorithm): HashFunction => {
       return keccak256
     default:
       throw Error(`HashAlgorithm ${algo} not supported.`)
+  }
+}
+
+/**
+ * Gets the tx signer address from the Tx Request and r, s, v.
+ *
+ * @param tx The Transaction Request.
+ * @param r The r parameter of the signature.
+ * @param s The s parameter of the signature.
+ * @param v The v parameter of the signature.
+ * @returns The signer's address.
+ */
+export const getTxSigner = async (
+  tx: TransactionRequest,
+  r: string,
+  s: string,
+  v: number
+): Promise<string> => {
+  const txHash: string = keccak256(
+    serializeTransaction(await resolveProperties(tx))
+  )
+
+  try {
+    return ethers.utils.recoverAddress(
+      ethers.utils.arrayify(txHash),
+      joinSignature({
+        s: add0x(s),
+        r: add0x(r),
+        v,
+      })
+    )
+  } catch (e) {
+    return undefined
   }
 }
