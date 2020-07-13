@@ -65,6 +65,9 @@ export enum Web3RpcMethods {
   mine = 'evm_mine',
   increaseTimestamp = 'evm_increaseTime',
   sendTransaction = 'eth_sendTransaction',
+
+  // Debug methods:
+  traceTransaction = 'debug_traceTransaction',
 }
 
 export const allWeb3RpcMethodsIncludingTest = Object.values(Web3RpcMethods)
@@ -75,6 +78,7 @@ export const testWeb3RpcMethods = Object.values([
   Web3RpcMethods.mine,
   Web3RpcMethods.increaseTimestamp,
   Web3RpcMethods.sendTransaction,
+  Web3RpcMethods.traceTransaction,
 ])
 export const web3RpcMethodsExcludingTest = allWeb3RpcMethodsIncludingTest.filter(
   (x) => testWeb3RpcMethods.indexOf(x) < 0

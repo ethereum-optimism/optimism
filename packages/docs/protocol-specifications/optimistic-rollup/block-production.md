@@ -8,7 +8,7 @@ This is a monotonically increasing list of transactions which is maintained in a
 
 ### OVM Transaction Queue
 
-This is where the sequencer is allowed to post transactions which they recieved off chain to be applied to the rollup chain. Transactions can only be moved from the OVM Transaction Queue to the Canonical Transaction Chain if the transactions in the L1-&gt;L2 transaction queue are not older than some number of L1 blocks.
+This is where the sequencer is allowed to post transactions which they received off chain to be applied to the rollup chain. Transactions can only be moved from the OVM Transaction Queue to the Canonical Transaction Chain if the transactions in the L1-&gt;L2 transaction queue are not older than some number of L1 blocks.
 
 ### L1-&gt;L2 Transaction queue
 

@@ -31,6 +31,7 @@ import {
   TranspilerImpl,
   OpcodeReplacer,
   OpcodeReplacerImpl,
+  stripAuxData,
 } from '../src/'
 
 import { getPUSHBuffer, getPUSHIntegerOp } from '../src'
@@ -444,14 +445,6 @@ export const setMemory = (toSet: Buffer): EVMBytecode => {
   return op
 }
 
-export const stripAuxData = (bytecode: Buffer, buildJSON: any): Buffer => {
-  const auxData = buildJSON.evm.legacyAssembly['.data']['0']['.auxdata']
-  const bytecodeWithoutAuxdata: Buffer = hexStrToBuf(
-    bufToHexString(bytecode).split(auxData)[0]
-  )
-  return bytecodeWithoutAuxdata
-}
-
 export const transpileAndDeployInitcode = async (
   contractBuildJSON: any,
   constructorParams: any[],
@@ -462,15 +455,17 @@ export const transpileAndDeployInitcode = async (
   const abiCoder = new ethers.utils.AbiCoder()
   const originalDeployedBytecodeLength: number = hexStrToBuf(
     contractBuildJSON.evm.deployedBytecode.object
-  ).length
+  ).byteLength
 
   const bytecodeStripped: Buffer = stripAuxData(
     hexStrToBuf(contractBuildJSON.bytecode),
-    contractBuildJSON
+    contractBuildJSON,
+    false
   )
   const deployedBytecodeStripped: Buffer = stripAuxData(
     hexStrToBuf(contractBuildJSON.evm.deployedBytecode.object),
-    contractBuildJSON
+    contractBuildJSON,
+    true
   )
 
   const initcodeTranspilationResult: TranspilationResult = transpiler.transpile(

@@ -1,5 +1,8 @@
+export * from './data'
+
 export * from './errors'
-export * from './listeners'
+export * from './fraud-prover'
+export * from './l2-node-service'
 export * from './node-context'
 export * from './opcodes'
 export * from './state-machine'

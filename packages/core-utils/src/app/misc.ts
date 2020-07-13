@@ -6,6 +6,7 @@ import { BigNumber } from './number'
 import { RLP, hexlify } from 'ethers/utils'
 
 export const NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
+const hexRegex = /^(0x)?[0-9a-fA-F]*$/
 
 /**
  * JSON-stringifies a value if it's not already a string.
@@ -142,6 +143,16 @@ export const reverse = (str: string): string => {
 }
 
 /**
+ * Returns whether or not the provided string is a hex string.
+ *
+ * @param str The string to test.
+ * @returns True if the provided string is a hex string, false otherwise.
+ */
+export const isHexString = (str: string): boolean => {
+  return hexRegex.test(str)
+}
+
+/**
  * Converts a big number to a hex string.
  * @param bn the big number to be converted.
  * @returns the big number as a string.
@@ -180,7 +191,7 @@ export const hexStringify = (value: BigNumber | Buffer): string => {
  * @returns the hexString as a buffer.
  */
 export const hexStrToBuf = (hexString: string): Buffer => {
-  if (!/^(0x)?[0-9a-fA-F]*$/.test(hexString)) {
+  if (!isHexString(hexString)) {
     throw new RangeError(`Invalid hex string [${hexString}]`)
   }
   if (hexString.length % 2 !== 0) {
