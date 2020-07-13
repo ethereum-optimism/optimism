@@ -10,6 +10,7 @@ import { ExecutionManager } from "./ExecutionManager.sol";
 import { StateTransitioner } from "./StateTransitioner.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
 import { StubStateTransitioner } from "./test-helpers/StubStateTransitioner.sol";
+import { TransactionParser } from "./TransactionParser.sol";
 
 /**
  * @title FraudVerifier
@@ -117,14 +118,14 @@ contract FraudVerifier {
             stateTransitioners[_preStateTransitionIndex] = new StubStateTransitioner(
                 _preStateTransitionIndex,
                 _preStateRoot,
-                _transactionData,
+                TransactionParser.getTransactionHash(_transactionData),
                 address(executionManager)
             );
         } else {
             stateTransitioners[_preStateTransitionIndex] = new StateTransitioner(
                 _preStateTransitionIndex,
                 _preStateRoot,
-                _transactionData,
+                TransactionParser.getTransactionHash(_transactionData),
                 address(executionManager)
             );
         }
@@ -280,34 +281,9 @@ contract FraudVerifier {
         DataTypes.TxElementInclusionProof memory _transactionProof
     ) internal view returns (bool) {
         return canonicalTransactionChain.verifyElement(
-            encodeTransactionData(_transaction),
+            TransactionParser.encodeTransactionData(_transaction),
             _transactionIndex,
             _transactionProof
         );
-    }
-
-    /**
-     * @notice Utility; RLP encodes an OVMTransactionData struct.
-     * @dev Likely to be changed (if not moved to another contract). Currently
-     * remaining here as to avoid modifying CanonicalTransactionChain. Unclear
-     * whether or not this is the correct transaction structure, but it should
-     * work for the meantime.
-     * @param _transactionData Transaction data to encode.
-     * @return RLP encoded transaction data.
-     */
-    function encodeTransactionData(
-        DataTypes.OVMTransactionData memory _transactionData
-    ) internal pure returns (bytes memory) {
-        bytes[] memory raw = new bytes[](7);
-
-        raw[0] = RLPWriter.encodeUint(_transactionData.timestamp);
-        raw[1] = RLPWriter.encodeUint(_transactionData.queueOrigin);
-        raw[2] = RLPWriter.encodeAddress(_transactionData.ovmEntrypoint);
-        raw[3] = RLPWriter.encodeBytes(_transactionData.callBytes);
-        raw[4] = RLPWriter.encodeAddress(_transactionData.fromAddress);
-        raw[5] = RLPWriter.encodeAddress(_transactionData.l1MsgSenderAddress);
-        raw[6] = RLPWriter.encodeBool(_transactionData.allowRevert);
-
-        return RLPWriter.encodeList(raw);
     }
 }

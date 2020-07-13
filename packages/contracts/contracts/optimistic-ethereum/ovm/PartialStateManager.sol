@@ -27,8 +27,10 @@ contract PartialStateManager {
     mapping(address=>bool) public isVerifiedContract;
     mapping(uint=>bytes32) updatedStorageSlotContract;
     mapping(uint=>bytes32) updatedStorageSlotKey;
+    mapping(address=>mapping(bytes32=>bool)) storageSlotTouched;
     uint public updatedStorageSlotCounter;
     mapping(uint=>address) updatedContracts;
+    mapping(address=>bool) contractTouched;
     uint public updatedContractsCounter;
 
     modifier onlyStateTransitioner {
@@ -194,10 +196,12 @@ contract PartialStateManager {
         bytes32 _slot,
         bytes32 _value
     ) onlyExecutionManager public {
-        // Add this storage slot to the list of updated storage
-        updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
-        updatedStorageSlotKey[updatedStorageSlotCounter] = _slot;
-        updatedStorageSlotCounter += 1;
+        if (!storageSlotTouched[_ovmContractAddress][_slot]) {
+            updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
+            updatedStorageSlotKey[updatedStorageSlotCounter] = _slot;
+            updatedStorageSlotCounter += 1;
+            storageSlotTouched[_ovmContractAddress][_slot] = true;
+        }
 
         // Set the new storage value
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
@@ -233,9 +237,11 @@ contract PartialStateManager {
         // TODO: Figure out if we actually need to verify contracts here.
         //flagIfNotVerifiedContract(_ovmContractAddress);
 
-        // Add this contract to the list of updated contracts
-        updatedContracts[updatedContractsCounter] = _ovmContractAddress;
-        updatedContractsCounter += 1;
+        if (!contractTouched[_ovmContractAddress]) {
+            updatedContracts[updatedContractsCounter] = _ovmContractAddress;
+            updatedContractsCounter += 1;
+            contractTouched[_ovmContractAddress] = true;
+        }
 
         // Return the nonce
         ovmContractNonces[_ovmContractAddress] = _value;
@@ -250,9 +256,11 @@ contract PartialStateManager {
     ) onlyExecutionManager public {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
-        // Add this contract to the list of updated contracts
-        updatedContracts[updatedContractsCounter] = _ovmContractAddress;
-        updatedContractsCounter += 1;
+        if (!contractTouched[_ovmContractAddress]) {
+            updatedContracts[updatedContractsCounter] = _ovmContractAddress;
+            updatedContractsCounter += 1;
+            contractTouched[_ovmContractAddress] = true;
+        }
 
         // Increment the nonce
         ovmContractNonces[_ovmContractAddress] += 1;
@@ -274,9 +282,18 @@ contract PartialStateManager {
         address _ovmContractAddress,
         address _codeContractAddress
     ) onlyExecutionManager public {
-        isVerifiedContract[_ovmContractAddress] = true;
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
+    }
 
+    /**
+     * @notice Marks an address as newly created via ovmCREATE. Sets its nonce to zero and automatically
+     * marks the contract as verified.
+     * @param _ovmContractAddress Address of the contract to mark as verified.
+     */
+    function associateCreatedContract(
+        address _ovmContractAddress
+    ) onlyExecutionManager public {
+        isVerifiedContract[_ovmContractAddress] = true;
         setOvmContractNonce(_ovmContractAddress, 0);
     }
 

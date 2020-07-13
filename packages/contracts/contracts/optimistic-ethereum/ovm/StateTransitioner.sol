@@ -7,6 +7,7 @@ import { ExecutionManager } from "./ExecutionManager.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
 import { DataTypes } from "../utils/DataTypes.sol";
 import { EthMerkleTrie } from "../utils/EthMerkleTrie.sol";
+import { TransactionParser } from "./TransactionParser.sol";
 
 /**
  * @title StateTransitioner
@@ -40,13 +41,12 @@ contract StateTransitioner is IStateTransitioner {
     uint256 public transitionIndex;
     bytes32 public preStateRoot;
     bytes32 public stateRoot;
+    bytes32 public ovmTransactionHash;
 
     FraudVerifier public fraudVerifier;
     PartialStateManager public stateManager;
     ExecutionManager executionManager;
     EthMerkleTrie public ethMerkleTrie;
-
-    DataTypes.OVMTransactionData transactionData;
 
 
     /*
@@ -77,13 +77,13 @@ contract StateTransitioner is IStateTransitioner {
     constructor(
         uint256 _transitionIndex,
         bytes32 _preStateRoot,
-        DataTypes.OVMTransactionData memory _transactionData,
+        bytes32 _ovmTransactionHash,
         address _executionManagerAddress
     ) public {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
-        transactionData = _transactionData;
+        ovmTransactionHash = _ovmTransactionHash;
         currentTransitionPhase = TransitionPhases.PreExecution;
 
         fraudVerifier = FraudVerifier(msg.sender);
@@ -202,20 +202,27 @@ contract StateTransitioner is IStateTransitioner {
     * ExecutionManager. Will revert if the transaction attempts to access
     * state that has not been proven during the pre-execution phase.
      */
-    function applyTransaction() public {
+    function applyTransaction(
+        DataTypes.OVMTransactionData memory _transactionData
+    ) public {
+        require(
+            TransactionParser.getTransactionHash(_transactionData) == ovmTransactionHash,
+            "Provided transaction does not match the original transaction."
+        );
+
         // Initialize our execution context.
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
 
         // Execute the transaction via the execution manager.
         executionManager.executeTransaction(
-            transactionData.timestamp,
-            transactionData.queueOrigin,
-            transactionData.ovmEntrypoint,
-            transactionData.callBytes,
-            transactionData.fromAddress,
-            transactionData.l1MsgSenderAddress,
-            transactionData.allowRevert
+            _transactionData.timestamp,
+            _transactionData.queueOrigin,
+            _transactionData.ovmEntrypoint,
+            _transactionData.callBytes,
+            _transactionData.fromAddress,
+            _transactionData.l1MsgSenderAddress,
+            _transactionData.allowRevert
         );
 
         require(

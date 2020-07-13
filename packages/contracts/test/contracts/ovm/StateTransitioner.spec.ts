@@ -2,6 +2,7 @@ import { expect } from '../../setup'
 
 /* External Imports */
 import * as path from 'path'
+import * as rlp from 'rlp'
 import { ethers } from '@nomiclabs/buidler'
 import { getLogger, TestUtils, remove0x } from '@eth-optimism/core-utils'
 import * as solc from '@eth-optimism/solc-transpiler'
@@ -23,6 +24,7 @@ import {
   GAS_LIMIT,
   makeStateTrieUpdateTest,
   StateTrieUpdateTest,
+  toHexString,
 } from '../../test-helpers'
 
 /* Logging */
@@ -103,6 +105,20 @@ const DUMMY_STATE_TRIE = {
     state: EMPTY_ACCOUNT_STATE(),
     storage: DUMMY_ACCOUNT_STORAGE(),
   },
+}
+
+const encodeTransaction = (transaction: OVMTransactionData): string => {
+  return toHexString(
+    rlp.encode([
+      transaction.timestamp,
+      transaction.queueOrigin,
+      transaction.ovmEntrypoint,
+      transaction.callBytes,
+      transaction.fromAddress,
+      transaction.l1MsgSenderAddress,
+      transaction.allowRevert ? 1 : 0,
+    ])
+  )
 }
 
 const makeStateTrie = (account: string, state: any, storage: any[]): any => {
@@ -246,18 +262,18 @@ const initStateTransitioner = async (
   executionManager: Contract,
   stateTrieRoot: string,
   transactionData: OVMTransactionData
-): Promise<Contract[]> => {
+): Promise<[Contract, Contract, OVMTransactionData]> => {
   const stateTransitioner = await StateTransitioner.deploy(
     10,
     stateTrieRoot,
-    transactionData,
+    keccak256(encodeTransaction(transactionData)),
     executionManager.address
   )
   const stateManager = StateManager.attach(
     await stateTransitioner.stateManager()
   )
 
-  return [stateTransitioner, stateManager]
+  return [stateTransitioner, stateManager, transactionData]
 }
 
 interface StateTrieModification {
@@ -392,6 +408,7 @@ describe('StateTransitioner', () => {
 
   let stateTransitioner: Contract
   let stateManager: Contract
+  let transactionData: OVMTransactionData
   beforeEach(async () => {
     ;[stateTransitioner, stateManager] = await initStateTransitioner(
       StateTransitioner,
@@ -499,7 +516,7 @@ describe('StateTransitioner', () => {
 
   describe('applyTransaction(...)', async () => {
     it('should succeed if no state is accessed', async () => {
-      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -520,7 +537,7 @@ describe('StateTransitioner', () => {
         test.stateTrieWitness
       )
 
-      await stateTransitioner.applyTransaction()
+      await stateTransitioner.applyTransaction(transactionData)
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
     })
 
@@ -546,7 +563,7 @@ describe('StateTransitioner', () => {
         fraudTester.address,
         testKeySlot
       )
-      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -575,13 +592,13 @@ describe('StateTransitioner', () => {
         accessTest.storageTrieWitness
       )
 
-      await stateTransitioner.applyTransaction()
+      await stateTransitioner.applyTransaction(transactionData)
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
     })
 
     it('should succeed when a new contract is created', async () => {
       // Attempting a `getStorage` call to a key that hasn't been proven.
-      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -602,13 +619,13 @@ describe('StateTransitioner', () => {
         test.stateTrieWitness
       )
 
-      await stateTransitioner.applyTransaction()
+      await stateTransitioner.applyTransaction(transactionData)
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
     })
 
     it('should fail if attempting to access uninitialized state', async () => {
       // Attempting a `getStorage` call to a key that hasn't been proven.
-      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -632,7 +649,7 @@ describe('StateTransitioner', () => {
       await TestUtils.assertRevertsAsync(
         'Detected an invalid state access.',
         async () => {
-          await stateTransitioner.applyTransaction()
+          await stateTransitioner.applyTransaction(transactionData)
         }
       )
 
@@ -640,7 +657,7 @@ describe('StateTransitioner', () => {
     })
 
     it('should fail if attempting to access an uninitialized contract', async () => {
-      ;[stateTransitioner, stateManager] = await initStateTransitioner(
+      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -657,7 +674,7 @@ describe('StateTransitioner', () => {
       await TestUtils.assertRevertsAsync(
         'Detected an invalid state access.',
         async () => {
-          await stateTransitioner.applyTransaction()
+          await stateTransitioner.applyTransaction(transactionData)
         }
       )
 
@@ -668,7 +685,7 @@ describe('StateTransitioner', () => {
   describe('Post-Execution', async () => {
     describe('proveUpdatedStorageSlot(...)', async () => {
       it('should correctly update when a slot has been changed', async () => {
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -689,7 +706,7 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
 
@@ -704,7 +721,7 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when multiple slots have changed', async () => {
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -729,7 +746,7 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(3)
 
@@ -744,7 +761,7 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when the same slot has changed multiple times', async () => {
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -769,9 +786,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
 
-        expect(await stateManager.updatedStorageSlotCounter()).to.equal(3)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
 
         const newStateTrieRoot = await proveAllStorageUpdates(
           stateTransitioner,
@@ -786,7 +803,7 @@ describe('StateTransitioner', () => {
 
     describe('proveUpdatedContract(...)', async () => {
       it('should correctly update when a contract has been created', async () => {
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -807,14 +824,10 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
 
-        // We generally expect `2n + 1` updates for `n` contract creations:
-        // 1. Nonce increment from the initial call.
-        // For each creation:
-        //    1. Nonce increment from the contract creation.
-        //    2. Nonce initialization for the new contract.
-        expect(await stateManager.updatedContractsCounter()).to.equal(3)
+        // One update for each new contract, plus one nonce update for the creating contract.
+        expect(await stateManager.updatedContractsCounter()).to.equal(2)
 
         const newStateTrieRoot = await proveAllContractUpdates(
           stateTransitioner,
@@ -827,7 +840,7 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when multiple contracts have been created', async () => {
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -851,10 +864,10 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
 
-        // `2n + 1 = 7` here for `n = 3` contract creations.
-        expect(await stateManager.updatedContractsCounter()).to.equal(7)
+        // One update for each new contract, plus one nonce update for the creating contract.
+        expect(await stateManager.updatedContractsCounter()).to.equal(4)
 
         const newStateTrieRoot = await proveAllContractUpdates(
           stateTransitioner,
@@ -890,7 +903,7 @@ describe('StateTransitioner', () => {
           fraudTester.address,
           testKeySlot
         )
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -919,7 +932,7 @@ describe('StateTransitioner', () => {
           accessTest.storageTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
@@ -927,7 +940,7 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly finalize when storage slots are changed', async () => {
-        ;[stateTransitioner, stateManager] = await initStateTransitioner(
+        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -948,7 +961,7 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction()
+        await stateTransitioner.applyTransaction(transactionData)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
 
         await proveAllStorageUpdates(stateTransitioner, stateManager, stateTrie)

@@ -37,11 +37,10 @@ contract StubStateTransitioner is IStateTransitioner {
     uint256 public transitionIndex;
     bytes32 public preStateRoot;
     bytes32 public stateRoot;
+    bytes32 public ovmTransactionHash;
 
     FraudVerifier public fraudVerifier;
     ExecutionManager executionManager;
-
-    DataTypes.OVMTransactionData transactionData;
 
 
     /*
@@ -59,13 +58,13 @@ contract StubStateTransitioner is IStateTransitioner {
     constructor(
         uint256 _transitionIndex,
         bytes32 _preStateRoot,
-        DataTypes.OVMTransactionData memory _transactionData,
+        bytes32 _ovmTransactionHash,
         address _executionManagerAddress
     ) public {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
-        transactionData = _transactionData;
+        ovmTransactionHash = _ovmTransactionHash;
         currentTransitionPhase = TransitionPhases.PreExecution;
 
         fraudVerifier = FraudVerifier(msg.sender);
@@ -91,7 +90,9 @@ contract StubStateTransitioner is IStateTransitioner {
         return;
     }
 
-    function applyTransaction() public {
+    function applyTransaction(
+        DataTypes.OVMTransactionData memory _transactionData
+    ) public {
         return;
     }
 

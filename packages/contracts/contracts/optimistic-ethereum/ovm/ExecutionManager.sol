@@ -564,6 +564,9 @@ contract ExecutionManager {
             }
         }
 
+        // Insert the newly created contract into our state manager.
+        stateManager.associateCreatedContract(_newOvmContractAddress);
+
         // We also need to increment the contract nonce
         stateManager.incrementOvmContractNonce(creator);
 
@@ -667,6 +670,7 @@ contract ExecutionManager {
 
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
+
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
 

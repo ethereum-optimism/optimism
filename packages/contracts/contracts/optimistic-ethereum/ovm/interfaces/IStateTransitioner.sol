@@ -1,4 +1,7 @@
 pragma solidity ^0.5.0;
+pragma experimental ABIEncoderV2;
+
+import { DataTypes } from "../../utils/DataTypes.sol";
 
 /**
  * @title IStateTransitioner
@@ -22,7 +25,9 @@ contract IStateTransitioner {
         bytes memory _storageTrieWitness
     ) public;
 
-    function applyTransaction() public;
+    function applyTransaction(
+        DataTypes.OVMTransactionData memory _transactionData
+    ) public;
 
     function proveUpdatedStorageSlot(
         bytes memory _stateTrieWitness,

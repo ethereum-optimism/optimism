@@ -117,6 +117,16 @@ contract FullStateManager is StateManager {
     }
 
     /**
+     * @notice Marks a contract as newly created. Unused within this implementation.
+     * @param _ovmContractAddress Address to mark as newly created.
+     */
+    function associateCreatedContract(
+        address _ovmContractAddress
+    ) public {
+        return;
+    }
+
+    /**
      * @notice Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
