@@ -2,7 +2,7 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, remove0x, add0x } from '@eth-optimism/core-utils'
+import { getLogger, remove0x, add0x, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
 
@@ -73,23 +73,20 @@ describe('ExecutionManager -- Create opcodes', () => {
       address.should.not.equal('00'.repeat(32), 'Should not be 0 address')
     })
 
-    it('returns 0 address when passed invalid bytecode', async () => {
+    it('reverts when passed unsafe bytecode', async () => {
       const data = add0x(
         methodIds.ovmCREATE + encodeRawArguments([deployInvalidTx.data])
       )
-
-      // Now actually apply it to our execution manager
-      const result = await executionManager.provider.call({
-        to: safetyCheckedExecutionManager.address,
-        data,
-        gasLimit: GAS_LIMIT,
-      })
-
-      log.debug(`Result: [${result}]`)
-
-      const address: string = remove0x(result)
-      address.length.should.equal(64, 'Should be a full word for the address')
-      address.should.equal('00'.repeat(32), 'Should be 0 address')
+      await TestUtils.assertRevertsAsync(
+        'Contract init (creation) code is not safe',
+        async () => {
+          await executionManager.provider.call({
+            to: safetyCheckedExecutionManager.address,
+            data,
+            gasLimit: GAS_LIMIT,
+          })
+        }
+      )
     })
   })
 
@@ -113,23 +110,21 @@ describe('ExecutionManager -- Create opcodes', () => {
       address.should.not.equal('00'.repeat(32), 'Should not be 0 address')
     })
 
-    it('returns 0 address when passed salt and invalid bytecode', async () => {
+    it('reverts when passed unsafe bytecode', async () => {
       const data = add0x(
         methodIds.ovmCREATE2 + encodeRawArguments([0, deployInvalidTx.data])
       )
 
-      // Now actually apply it to our execution manager
-      const result = await executionManager.provider.call({
-        to: safetyCheckedExecutionManager.address,
-        data,
-        gasLimit: GAS_LIMIT,
-      })
-
-      log.debug(`Result: [${result}]`)
-
-      const address: string = remove0x(result)
-      address.length.should.equal(64, 'Should be a full word for the address')
-      address.should.equal('00'.repeat(32), 'Should be 0 address')
+      await TestUtils.assertRevertsAsync(
+        'Contract init (creation) code is not safe',
+        async () => {
+          await executionManager.provider.call({
+            to: safetyCheckedExecutionManager.address,
+            data,
+            gasLimit: GAS_LIMIT,
+          })
+        }
+      )
     })
   })
 })

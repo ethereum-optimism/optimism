@@ -38,8 +38,7 @@ describe('Create2', () => {
     simpleCreate2 = await deployContract(wallet, SimpleCreate2, [])
   })
 
-  // TODO unskip this once ovmCREATE2 is fixed with YAS-473!
-  it.skip('should calculate address correctly for invalid bytecode', async () => {
+  it('should calculate address correctly for invalid bytecode', async () => {
     const bytecode = '0x00'
     const salt = DEFAULT_SALT
     await simpleCreate2.create2(bytecode, salt)
