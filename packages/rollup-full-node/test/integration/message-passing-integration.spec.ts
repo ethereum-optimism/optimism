@@ -94,7 +94,7 @@ describe('Message Passing Integration Tests', () => {
       await messagePasserFraud.callMessagePasser(messagePasserAddress, message)
       await messagePasserFraud.callMessagePasser(messagePasserAddress, message)
       // wait for events to process
-      await sleep(100)
+      await sleep(1000)
 
       const receivedMessages = messageSubmitter.getReceivedMessages()
       receivedMessages.length.should.equal(

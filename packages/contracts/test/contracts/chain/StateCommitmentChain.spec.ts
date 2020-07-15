@@ -6,8 +6,7 @@ import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { StateChainBatch } from '../../test-helpers/rl-helpers'
-import { makeRandomBatchOfSize } from '../../test-helpers'
+import { makeRandomBatchOfSize, StateChainBatch } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('state-commitment-chain', true)

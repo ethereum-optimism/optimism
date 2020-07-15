@@ -419,6 +419,24 @@ contract ExecutionManager {
     }
 
     /**
+     * @notice CHAINID opcode -- this gets the chain id. Since the L2 value for this
+     * will necessarily be different than L1, this needs to be overridden for the OVM.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the current timestamp.
+     */
+    function ovmCHAINID() public view {
+        uint chainId = 108;
+
+        assembly {
+            let chainIdMemory := mload(0x40)
+            mstore(chainIdMemory, chainId)
+            return(chainIdMemory, 32)
+        }
+    }
+
+    /**
      * @notice GASLIMIT opcode -- this gets the gas limit for the current transaction. Since the L2 value for this
      * may be different than L1, this needs to be overridden for the OVM.
      * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.

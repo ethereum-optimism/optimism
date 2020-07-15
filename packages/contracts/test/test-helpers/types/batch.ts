@@ -3,7 +3,6 @@ import {
   hexStrToBuf,
   bufToHexString,
   BigNumber,
-  keccak256,
 } from '@eth-optimism/core-utils'
 
 import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'

@@ -3,16 +3,13 @@ import '../../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { getLogger } from '@eth-optimism/core-utils'
-import { Contract, Wallet, ContractFactory } from 'ethers'
+import { Contract, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
   CHAIN_ID,
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../../test-helpers/core-helpers'
-import {
   signTransaction,
   getSignedComponents,
   getWallets,

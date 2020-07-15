@@ -8,7 +8,7 @@ import { keccak256 } from 'ethers/utils'
 import {
   makeAccountStorageProofTest,
   makeAccountStorageUpdateTest,
-} from '../../test-helpers/trie-helpers'
+} from '../../test-helpers'
 
 const DUMMY_ACCOUNT_ADDRESSES = [
   '0x548855F6073c3430285c61Ed0ABf62F12084aA41',

@@ -13,12 +13,9 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../../test-helpers/core-helpers'
-import {
+  Address,
   manuallyDeployOvmContract,
   executeOVMCall,
   addressToBytes32Address,

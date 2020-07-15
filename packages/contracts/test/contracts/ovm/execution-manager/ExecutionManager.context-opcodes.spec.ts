@@ -16,17 +16,13 @@ import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
-  DEFAULT_ETHNODE_GAS_LIMIT,
-} from '../../../test-helpers/core-helpers'
-import {
+  Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
   encodeRawArguments,
   encodeMethodId,
-  gasLimit,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -42,6 +38,7 @@ const methodIds = fromPairs(
     'getGASLIMIT',
     'getQueueOrigin',
     'getTIMESTAMP',
+    'getCHAINID',
     'ovmADDRESS',
     'ovmCALLER',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
@@ -161,6 +158,22 @@ describe('Execution Manager -- Context opcodes', () => {
     })
   })
 
+  describe('ovmCHAINID', async () => {
+    it('properly retrieves CHAINID', async () => {
+      const chainId: number = 108
+      const result = await executeTransaction(
+        contractAddress,
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getCHAINID]
+      )
+
+      log.debug(`CHAINID result: ${result}`)
+
+      should.exist(result, 'Result should exist!')
+      hexStrToNumber(result).should.be.equal(chainId, 'ChainIds do not match.')
+    })
+  })
+
   describe('ovmGASLIMIT', async () => {
     it('properly retrieves GASLIMIT', async () => {
       const result = await executeTransaction(
@@ -229,7 +242,7 @@ describe('Execution Manager -- Context opcodes', () => {
     return executionManager.provider.call({
       to: executionManager.address,
       data,
-      gasLimit,
+      gasLimit: GAS_LIMIT,
     })
   }
 })

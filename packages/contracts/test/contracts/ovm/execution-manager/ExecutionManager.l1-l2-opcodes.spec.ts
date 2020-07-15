@@ -15,15 +15,12 @@ import { cloneDeep, fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  Address,
   GAS_LIMIT,
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
-} from '../../../test-helpers/core-helpers'
-import {
+  Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
-  gasLimit,
   encodeMethodId,
   encodeRawArguments,
 } from '../../../test-helpers'
@@ -156,7 +153,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       const txResult = await wallet.sendTransaction({
         to: executionManager.address,
         data: add0x(data),
-        gasLimit,
+        gasLimit: GAS_LIMIT,
       })
 
       const receipt = await provider.getTransactionReceipt(txResult.hash)

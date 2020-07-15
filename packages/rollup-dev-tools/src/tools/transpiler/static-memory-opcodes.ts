@@ -20,6 +20,7 @@ const log = getLogger(`static-memory-opcodes`)
 
 export const ovmADDRESSName: string = 'ovmADDRESS'
 export const ovmCALLERName: string = 'ovmCALLER'
+export const ovmCHAINIDName: string = 'ovmCHAINID'
 export const ovmEXTCODEHASHName: string = 'ovmEXTCODEHASH'
 export const ovmEXTCODESIZEName: string = 'ovmEXTCODESIZE'
 export const ovmORIGINName: string = 'ovmORIGIN'
@@ -46,6 +47,18 @@ export const getCALLERSubstitute = (
   return callContractWithStackElementsAndReturnWordToStack(
     executionManagerAddress,
     ovmCALLERFunctionName,
+    0,
+    1
+  )
+}
+
+export const getCHAINIDSubstitute = (
+  executionManagerAddress: Address,
+  ovmCHAINIDFunctionName: string = ovmCHAINIDName
+): EVMBytecode => {
+  return callContractWithStackElementsAndReturnWordToStack(
+    executionManagerAddress,
+    ovmCHAINIDFunctionName,
     0,
     1
   )
