@@ -34,24 +34,24 @@ CREATE TABLE l1_tx (
   FOREIGN KEY (block_number) REFERENCES l1_block(block_number)
 );
 
-CREATE TABLE l1_tx_batch (
+CREATE TABLE geth_submission_queue (
   id BIGSERIAL NOT NULL,
   l1_tx_hash CHARACTER(66) NOT NULL,
-  batch_number BIGINT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'BATCHED',
+  queue_index BIGINT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'QUEUED',
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
-  UNIQUE (batch_number),
+  UNIQUE (queue_index),
   FOREIGN KEY (l1_tx_hash) REFERENCES l1_tx (tx_hash)
 );
-CREATE INDEX l1_tx_batch_status_idx ON l1_tx_batch USING btree (status);
+CREATE INDEX geth_submission_queue_status_idx ON geth_submission_queue USING btree (status);
 
 
 CREATE TABLE l1_state_root_batch (
   id BIGSERIAL NOT NULL,
   l1_tx_hash CHARACTER(66) NOT NULL,
   batch_number BIGINT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'BATCHED',
+  status TEXT NOT NULL DEFAULT 'UNVERIFIED',
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
   UNIQUE (batch_number),
@@ -66,6 +66,7 @@ CREATE TABLE l1_state_root (
   state_root character(66) NOT NULL,
   batch_number BIGINT NOT NULL,
   batch_index INT NOT NULL,
+  removed BOOLEAN NOT NULL DEFAULT FALSE,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
   UNIQUE (state_root),
@@ -74,7 +75,7 @@ CREATE TABLE l1_state_root (
 
 
 
-CREATE TABLE rollup_tx (
+CREATE TABLE l1_rollup_tx (
   id BIGSERIAL NOT NULL,
   sender CHARACTER(42) DEFAULT NULL,
   l1_message_sender CHARACTER(42) DEFAULT NULL,
@@ -84,21 +85,22 @@ CREATE TABLE rollup_tx (
   nonce NUMERIC(78) DEFAULT NULL,
   gas_limit NUMERIC(78) DEFAULT NULL,
   signature NUMERIC(78) DEFAULT NULL,
-  batch_number BIGINT DEFAULT NULL,
-  batch_index INT DEFAULT NULL,
+  geth_submission_queue_index BIGINT DEFAULT NULL,
+  index_within_submission INT DEFAULT NULL,
   l1_tx_hash CHARACTER(66) NOT NULL,
   l1_tx_index INT NOT NULL,
   l1_tx_log_index INT NOT NULL,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
-  FOREIGN KEY (l1_tx_hash) REFERENCES l1_tx (tx_hash)
+  FOREIGN KEY (l1_tx_hash) REFERENCES l1_tx (tx_hash),
+  FOREIGN KEY (geth_submission_queue_index) REFERENCES geth_submission_queue(queue_index)
 )
 
 /* ROLLBACK SCRIPT
-   DROP TABLE rollup_tx;
+   DROP TABLE l1_rollup_tx;
    DROP TABLE l1_state_root;
    DROP TABLE l1_state_root_batch;
-   DROP TABLE l1_tx_batch;
+   DROP TABLE geth_submission_queue;
    DROP TABLE l1_tx;
    DROP TABLE l1_block;
 

@@ -8,3 +8,5 @@ services:
       - POSTGRES_PASSWORD=pass
       - POSGRES_USER=user
 
+    ports:
+    - 5432:5432

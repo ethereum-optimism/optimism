@@ -8,7 +8,7 @@ import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { DefaultDataService, L1BatchSubmitter } from '../../src/app/data'
+import { DefaultDataService, QueuedGethSubmitter } from '../../src/app/data'
 import { L1BatchSubmission, L2BatchStatus } from '../../src/types/data'
 
 interface BatchNumberHash {
@@ -110,8 +110,8 @@ class MockStateCommitmentChain {
   }
 }
 
-describe('L1 Batch Submitter', () => {
-  let batchSubmitter: L1BatchSubmitter
+describe('Queued Geth Submitter', () => {
+  let batchSubmitter: QueuedGethSubmitter
   let dataService: MockDataService
   let canonicalProvider: MockProvider
   let canonicalTransactionChain: MockCanonicalTransactionChain
@@ -126,7 +126,7 @@ describe('L1 Batch Submitter', () => {
     )
     stateCommitmentProvider = new MockProvider()
     stateCommitmentChain = new MockStateCommitmentChain(stateCommitmentProvider)
-    batchSubmitter = new L1BatchSubmitter(
+    batchSubmitter = new QueuedGethSubmitter(
       dataService,
       canonicalTransactionChain as any,
       stateCommitmentChain as any
@@ -480,7 +480,7 @@ describe('L1 Batch Submitter', () => {
 
   describe('waiting for confirmations', () => {
     beforeEach(() => {
-      batchSubmitter = new L1BatchSubmitter(
+      batchSubmitter = new QueuedGethSubmitter(
         dataService,
         canonicalTransactionChain as any,
         stateCommitmentChain as any,

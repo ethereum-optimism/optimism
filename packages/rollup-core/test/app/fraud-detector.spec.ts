@@ -4,7 +4,7 @@ import { TestUtils } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import { VerifierDataService } from '../../src/types/data'
 import { FraudProver, VerificationCandidate } from '../../src/types'
-import { Verifier } from '../../src/app'
+import { FraudDetector } from '../../src/app'
 
 class MockVerifierDataService implements VerifierDataService {
   public readonly verificationCandidates: VerificationCandidate[] = []
@@ -37,15 +37,15 @@ class MockFraudProver implements FraudProver {
   }
 }
 
-describe('Verifier', () => {
+describe('Fraud Detector', () => {
   let dataService: MockVerifierDataService
   let fraudProver: MockFraudProver
-  let verifier: Verifier
+  let verifier: FraudDetector
 
   beforeEach(() => {
     dataService = new MockVerifierDataService()
     fraudProver = new MockFraudProver()
-    verifier = new Verifier(dataService, fraudProver, 10_000, 3)
+    verifier = new FraudDetector(dataService, fraudProver, 10_000, 3)
   })
 
   it('should verify valid candidates', async () => {

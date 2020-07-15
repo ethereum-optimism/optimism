@@ -2,7 +2,7 @@
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { DefaultDataService, L2BatchSubmitter } from '../../src/app/data'
+import { DefaultDataService, OptimisticCanonicalChainBatchSubmitter } from '../../src/app/data'
 import { DefaultL2NodeService } from '../../src/app'
 import { BlockBatches } from '../../src/types'
 import { keccak256FromUtf8 } from '@eth-optimism/core-utils/build'
@@ -35,15 +35,15 @@ class MockL1DataService extends DefaultDataService {
   }
 }
 
-describe('L2 Batch Submitter', () => {
-  let batchSubmitter: L2BatchSubmitter
+describe('Optimistic Canonical Chain Batch Submitter', () => {
+  let batchSubmitter: OptimisticCanonicalChainBatchSubmitter
   let l1DatService: MockL1DataService
   let l2NodeService: MockL2NodeService
 
   beforeEach(async () => {
     l1DatService = new MockL1DataService()
     l2NodeService = new MockL2NodeService()
-    batchSubmitter = new L2BatchSubmitter(l1DatService, l2NodeService)
+    batchSubmitter = new OptimisticCanonicalChainBatchSubmitter(l1DatService, l2NodeService)
   })
 
   it('should not submit batch if no fitting L1 batch exists', async () => {

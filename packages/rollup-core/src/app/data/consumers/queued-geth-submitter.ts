@@ -21,7 +21,7 @@ const log = getLogger('l2-batch-creator')
 /**
  * Polls the DB for L2 batches ready to send to L1 and submits them.
  */
-export class L1BatchSubmitter extends ScheduledTask {
+export class QueuedGethSubmitter extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
     private readonly canonicalTransactionChain: Contract,

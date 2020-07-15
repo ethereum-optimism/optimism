@@ -1,18 +1,21 @@
 \connect rollup;
 
 
-CREATE TABLE l2_tx_batch (
+CREATE TABLE optimistic_canonical_chain_batch (
   id BIGSERIAL NOT NULL,
   batch_number BIGINT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'BATCHED',
+  tx_status TEXT NOT NULL DEFAULT 'QUEUED',
+  root_status TEXT NOT NULL DEFAULT 'QUEUED',
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
   UNIQUE (batch_number)
 );
-CREATE INDEX l2_tx_batch_status_idx ON l2_tx_batch USING btree (status);
+CREATE INDEX optimistic_canonical_chain_batch_tx_status_idx ON optimistic_canonical_chain_batch USING btree (tx_status);
+CREATE INDEX optimistic_canonical_chain_batch_root_status_idx ON optimistic_canonical_chain_batch USING btree (root_status);
 
-CREATE TABLE l2_tx (
+CREATE TABLE l2_tx_output (
   id BIGSERIAL NOT NULL,
+  l1_rollup_tx_id BIGINT DEFAULT NULL,
   block_number BIGINT NOT NULL,
   block_timestamp BIGINT NOT NULL,
   tx_index INT NOT NULL,
@@ -30,15 +33,16 @@ CREATE TABLE l2_tx (
   batch_number BIGINT DEFAULT NULL,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
-  FOREIGN KEY (batch_number) REFERENCES l2_tx_batch(batch_number),
+  FOREIGN KEY (batch_number) REFERENCES optimistic_canonical_chain_batch(batch_number),
+  FOREIGN KEY (l1_rollup_tx_id) REFERENCES l1_rollup_tx(id),
   UNIQUE (tx_hash)
 );
 
-CREATE INDEX l2_tx_block_idx ON l2_tx USING btree (block_number);
-CREATE INDEX l2_tx_block_timestamp_idx ON l2_tx USING btree (block_timestamp);
-CREATE INDEX l2_tx_state_root_idx ON l2_tx USING btree (state_root);
+CREATE INDEX l2_tx_output_block_idx ON l2_tx_output USING btree (block_number);
+CREATE INDEX l2_tx_output_block_timestamp_idx ON l2_tx_output USING btree (block_timestamp);
+CREATE INDEX l2_tx_output_state_root_idx ON l2_tx_output USING btree (state_root);
 
 /** ROLLBACK SCRIPT
-  DROP TABLE l2_tx;
-  DROP TABLE l2_tx_batch;
+  DROP TABLE l2_tx_output;
+  DROP TABLE optimistic_canonical_chain_batch;
  */

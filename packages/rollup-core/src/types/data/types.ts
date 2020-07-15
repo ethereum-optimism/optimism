@@ -15,10 +15,18 @@ export enum L2BatchStatus {
   ROOTS_CONFIRMED = 'ROOTS_CONFIRMED',
 }
 
-export interface L1BatchRecord {
+export enum L1BatchStatus {
+  UNBATCHED = 'UNBATCHED',
+  BATCHED = 'BATCHED',
+  SUBMITTED_TO_L2 = 'SUBMITTED_TO_L2',
+  VERIFIED = 'VERIFIED',
+  FRAUDULENT = 'FRAUDULENT'
+}
+
+export interface GethSubmissionRecord {
   blockTimestamp: number
-  batchNumber: number
-  batchSize: number
+  submissionNumber: number
+  size: number
 }
 
 export interface L1BatchSubmission {

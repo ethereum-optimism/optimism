@@ -8,7 +8,7 @@ import {
   RollupTransaction,
   TransactionAndRoot,
 } from '../types'
-import { L1BatchRecord } from './types'
+import { GethSubmissionRecord } from './types'
 import { Row } from '@eth-optimism/core-db/build/src'
 
 export interface L1DataService {
@@ -117,5 +117,5 @@ export interface L1DataService {
    * @returns The L1BatchRecord representing the oldest unverified batch
    * @throws An error if there is a DB error.
    */
-  getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord>
+  getOldestQueuedGethSubmission(): Promise<GethSubmissionRecord>
 }

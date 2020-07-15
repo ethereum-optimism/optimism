@@ -2,14 +2,14 @@
 import { getLogger, logError, ScheduledTask } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { DataService, L1BatchRecord } from '../../../types/data'
+import { DataService, GethSubmissionRecord } from '../../../types/data'
 
 const log = getLogger('l2-batch-creator')
 
 /**
  * Polls the DB to create a batch of L2 Transactions, when one is ready.
  */
-export class L2BatchCreator extends ScheduledTask {
+export class OptimisticCanonicalChainBatchCreator extends ScheduledTask {
   constructor(
     private readonly dataService: DataService,
     periodMilliseconds = 10_000
@@ -27,7 +27,7 @@ export class L2BatchCreator extends ScheduledTask {
    */
   public async runTask(): Promise<void> {
     try {
-      const l1BatchRecord: L1BatchRecord = await this.dataService.getOldestUnverifiedL1TransactionBatch()
+      const l1BatchRecord: GethSubmissionRecord = await this.dataService.getOldestQueuedGethSubmission()
       if (!l1BatchRecord) {
         const l2OnlyBatchBuilt: number = await this.dataService.tryBuildL2OnlyBatch()
         if (l2OnlyBatchBuilt !== undefined && l2OnlyBatchBuilt >= 0) {
@@ -37,8 +37,8 @@ export class L2BatchCreator extends ScheduledTask {
       }
 
       const batchBuilt: number = await this.dataService.tryBuildL2BatchToMatchL1(
-        l1BatchRecord.batchNumber,
-        l1BatchRecord.batchSize
+        l1BatchRecord.submissionNumber,
+        l1BatchRecord.size
       )
       if (batchBuilt !== undefined && batchBuilt >= 0) {
         log.debug(

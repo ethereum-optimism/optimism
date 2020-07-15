@@ -1,16 +1,16 @@
-import { DefaultDataService, L2BatchCreator } from '../../src/app/data'
-import { L1BatchRecord } from '../../src/types/data'
+import { DefaultDataService, OptimisticCanonicalChainBatchCreator } from '../../src/app/data'
+import { GethSubmissionRecord } from '../../src/types/data'
 
 class MockDataService extends DefaultDataService {
   public l2OnlyBatchesBuilt: number = 0
   public l1MatchingBatchesBuilt: number = 0
-  public unverifiedL1Batches: L1BatchRecord[] = []
+  public unverifiedL1Batches: GethSubmissionRecord[] = []
 
   constructor() {
     super(undefined)
   }
 
-  public async getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord> {
+  public async getOldestQueuedGethSubmission(): Promise<GethSubmissionRecord> {
     if (this.unverifiedL1Batches.length > 0) {
       return this.unverifiedL1Batches[0]
     }
@@ -31,13 +31,13 @@ class MockDataService extends DefaultDataService {
   }
 }
 
-describe('L2 Batch Creator', () => {
-  let batchCreator: L2BatchCreator
+describe('Optimistic Canonical Chain Batch Creator', () => {
+  let batchCreator: OptimisticCanonicalChainBatchCreator
   let dataService: MockDataService
 
   beforeEach(async () => {
     dataService = new MockDataService()
-    batchCreator = new L2BatchCreator(dataService)
+    batchCreator = new OptimisticCanonicalChainBatchCreator(dataService)
   })
 
   it('should try to build L2 only batch when no unverified L1 batches exist', async () => {
@@ -55,8 +55,8 @@ describe('L2 Batch Creator', () => {
 
   it('should try to build a matching batch when there is an unverified L1 batch', async () => {
     dataService.unverifiedL1Batches.push({
-      batchNumber: 1,
-      batchSize: 2,
+      submissionNumber: 1,
+      size: 2,
       blockTimestamp: 3,
     })
     await batchCreator.runTask()

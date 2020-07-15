@@ -11,10 +11,9 @@ import {
 const log = getLogger('verifier')
 
 /**
- * Polls the DB for VerificationCandidates to ensure that L1 rollup Txs match L2 Txs.
- *
+ * Polls the DB for VerificationCandidates to ensure that L1 rollup Txs match L2 Tx Outputs.
  */
-export class Verifier extends ScheduledTask {
+export class FraudDetector extends ScheduledTask {
   private static readonly ALERT_EVERY: number = 6
 
   private fraudCount: number
@@ -23,7 +22,7 @@ export class Verifier extends ScheduledTask {
     private readonly dataService: VerifierDataService,
     private readonly fraudProver: FraudProver,
     periodMilliseconds = 10_000,
-    private readonly reAlertEveryNFailures = Verifier.ALERT_EVERY
+    private readonly reAlertEveryNFailures = FraudDetector.ALERT_EVERY
   ) {
     super(periodMilliseconds)
     this.fraudCount = 0
@@ -48,7 +47,7 @@ export class Verifier extends ScheduledTask {
     for (let i = 0; i < verifierCandidate.roots.length; i++) {
       const root = verifierCandidate.roots[i]
       if (root.l1Root !== root.l2Root) {
-        if (this.fraudCount % Verifier.ALERT_EVERY === 0) {
+        if (this.fraudCount % FraudDetector.ALERT_EVERY === 0) {
           log.error(
             `Batch #${verifierCandidate.l1BatchNumber} state roots differ at index ${i}! L1 root: ${root.l1Root}, L2 root: ${root.l2Root}`
           )

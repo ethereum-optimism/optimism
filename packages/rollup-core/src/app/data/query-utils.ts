@@ -28,7 +28,7 @@ export const getL1BlockInsertValue = (
   )}`
 }
 
-export const l1RollupTxInsertStatement = `INSERT INTO rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index, l1_block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index) `
+export const l1RollupTxInsertStatement = `INSERT INTO l1_rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index, l1_block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index) `
 export const getL1RollupTransactionInsertValue = (
   tx: RollupTransaction,
   batchNumber?: number

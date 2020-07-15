@@ -8,7 +8,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 import {
   BlockBatches,
   DataService,
-  L1BatchRecord,
+  GethSubmissionRecord, L1BatchStatus,
   L1BatchSubmission,
   L2BatchStatus,
   QueueOrigin,
@@ -135,7 +135,7 @@ export class DefaultDataService implements DataService {
   public async createNextL1ToL2Batch(): Promise<number> {
     const txHashRes = await this.rdb.select(`
       SELECT l1_tx_hash, l1_tx_log_index
-      FROM rollup_tx
+      FROM l1_rollup_tx
       WHERE batch_number IS NULL AND queue_origin = ${QueueOrigin.L1_TO_L2_QUEUE} 
       ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
@@ -152,7 +152,7 @@ export class DefaultDataService implements DataService {
       const batchNumber: number = await this.insertNewL1TransactionBatch(txHash)
 
       await this.rdb.execute(`
-        UPDATE rollup_tx
+        UPDATE l1_rollup_tx
         SET batch_number = ${batchNumber}, batch_index = 0
         WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
       `)
@@ -175,7 +175,7 @@ export class DefaultDataService implements DataService {
   public async createNextSafetyQueueBatch(): Promise<number> {
     const txHashRes = await this.rdb.select(`
       SELECT l1_tx_hash, l1_tx_log_index
-      FROM rollup_tx
+      FROM l1_rollup_tx
       WHERE batch_number IS NULL AND queue_origin = ${QueueOrigin.SAFETY_QUEUE} 
       ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
@@ -192,7 +192,7 @@ export class DefaultDataService implements DataService {
       const batchNumber: number = await this.insertNewL1TransactionBatch(txHash)
 
       await this.rdb.execute(`
-        UPDATE rollup_tx
+        UPDATE l1_rollup_tx
         SET batch_number = ${batchNumber}, batch_index = 0
         WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
       `)
@@ -248,7 +248,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async getOldestUnverifiedL1TransactionBatch(): Promise<L1BatchRecord> {
+  public async getOldestQueuedGethSubmission(): Promise<GethSubmissionRecord> {
     const res: Row[] = await this.rdb.select(`
       SELECT COUNT(*) as batch_size, batch_number, block_timestamp
       FROM next_l1_verification_batch 
@@ -260,8 +260,8 @@ export class DefaultDataService implements DataService {
       return undefined
     }
     return {
-      batchSize: res[0].columns['batch_size'],
-      batchNumber: res[0].columns['batch_number'],
+      size: res[0].columns['batch_size'],
+      submissionNumber: res[0].columns['batch_number'],
       blockTimestamp: res[0].columns['block_timestamp'],
     }
   }
@@ -328,7 +328,7 @@ export class DefaultDataService implements DataService {
   public async markL1BatchSubmittedToL2(batchNumber: number): Promise<void> {
     return this.rdb.execute(
       `UPDATE l1_tx_batch
-      SET status = 'SUBMITTED_TO_L2'
+      SET status = '${L1BatchStatus.SUBMITTED_TO_L2}'
       WHERE batch_number = ${batchNumber}`
     )
   }
@@ -423,7 +423,7 @@ export class DefaultDataService implements DataService {
     }
 
     const batchableTxCount =
-      transactionsToBatchRes[0].columns['batchable_tx-count']
+      transactionsToBatchRes[0].columns['batchable_tx_count']
     if (batchableTxCount < l1BatchSize && transactionsToBatchRes.length > 1) {
       const msg = `L2 transactions do not match L1 transactions! Cannot and will not be able to build an L2 batch until this is fixed! Expected L1 batch size ${l1BatchSize}, got multiple L2 batches with the oldest unbatched being of size ${batchableTxCount}`
       log.error(msg)

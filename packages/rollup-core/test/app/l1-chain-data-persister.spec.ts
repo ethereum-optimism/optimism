@@ -24,7 +24,7 @@ import {
   LogHandlerContext,
   RollupTransaction,
   L1DataService,
-  L1BatchRecord,
+  GethSubmissionRecord,
 } from '../../src/types'
 
 class MockDataService extends DefaultDataService {

@@ -15,7 +15,7 @@ const log = getLogger('l2-batch-submitter')
  * Polls the database for new Rollup Transactions that were submitted to L1 that
  * have not yet been processed by L2 and submits them one-by-one to L2.
  */
-export class L2BatchSubmitter extends ScheduledTask {
+export class OptimisticCanonicalChainBatchSubmitter extends ScheduledTask {
   constructor(
     private readonly l1DataService: L1DataService,
     private readonly l2NodeService: L2NodeService,
