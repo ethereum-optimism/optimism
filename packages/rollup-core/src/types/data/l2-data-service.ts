@@ -1,6 +1,6 @@
 /* Internal Imports */
 import { TransactionOutput } from '../types'
-import { L1BatchSubmission, L2BatchStatus } from './types'
+import { OccBatchSubmission, OptimisticCanonicalChainStatus } from './types'
 
 export interface L2DataService {
   /**
@@ -37,7 +37,7 @@ export interface L2DataService {
    * @returns The L1BatchSubmission object, or undefined
    * @throws An error if there is a DB error.
    */
-  getNextBatchForL1Submission(): Promise<L1BatchSubmission>
+  getNextOccTransactionBatchToSubmit(): Promise<OccBatchSubmission>
 
   /**
    * Marks the tx batch with the provided batch number as submitted to the L1 chain.
@@ -82,7 +82,7 @@ export interface L2DataService {
    * @param l1TxHash The L1 transaction hash for the batch submission.
    * @throws An error if there is a DB error.
    */
-  markStateRootBatchConfirmedOnL1(
+  markStateRootBatchFinalOnL1(
     batchNumber: number,
     l1TxHash: string
   ): Promise<void>

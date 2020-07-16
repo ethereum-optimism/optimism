@@ -73,7 +73,7 @@ export interface L1DataService {
    * @returns The created batch number or undefined if no fitting L1ToL2 transaction exists.
    * @throws Error if there is a DB error
    */
-  createNextL1ToL2Batch(): Promise<number>
+  queueNextL1ToL2GethSubmission(): Promise<number>
 
   /**
    * Creates a batch from the oldest un-batched transaction that is from the Safety queue.
@@ -81,7 +81,7 @@ export interface L1DataService {
    * @returns The created batch number or undefined if no fitting Safety Queue transaction exists.
    * @throws Error if there is a DB error or no such transaction exists.
    */
-  createNextSafetyQueueBatch(): Promise<number>
+  createNextSafetyQueueGethSubmission(): Promise<number>
 
   /**
    * Atomically inserts the provided State Roots, creating a batch for them.
@@ -101,7 +101,7 @@ export interface L1DataService {
    *
    * @returns The fetched batch or undefined if one is not present in the DB.
    */
-  getNextBatchForL2Submission(): Promise<BlockBatches>
+  getNextQueuedGethSubmission(): Promise<BlockBatches>
 
   /**
    * Marks the provided L1 batch as submitted to L2.
@@ -109,7 +109,7 @@ export interface L1DataService {
    * @params batchNumber The L1 batch number to mark as submitted to L2.
    * @throws An error if there is a DB error.
    */
-  markL1BatchSubmittedToL2(batchNumber: number): Promise<void>
+  markQueuedGethSubmissionSubmittedToGeth(batchNumber: number): Promise<void>
 
   /**
    * Gets the oldest unverified L1 transaction batch.

@@ -30,28 +30,30 @@ export class FraudDetector extends ScheduledTask {
 
   public async runTask(): Promise<void> {
     const verifierCandidate: VerificationCandidate = await this.dataService.getVerificationCandidate()
-    if (
-      !verifierCandidate ||
-      verifierCandidate.l1BatchNumber === undefined ||
-      verifierCandidate.l2BatchNumber === undefined
-    ) {
+    if (!verifierCandidate) {
       return
     }
 
-    if (verifierCandidate.l1BatchNumber !== verifierCandidate.l2BatchNumber) {
-      const msg: string = `Batch number mismatch! L1 Batch Number: ${verifierCandidate.l1BatchNumber}, L2 Batch Number: ${verifierCandidate.l2BatchNumber}`
+    if (verifierCandidate.batchNumber === undefined) {
+      const msg = `Fraud Detector received verification candidate with null batch number! This should never happen!`
+      log.error(msg)
+      throw Error(msg)
+    }
+
+    if (!verifierCandidate.roots || verifierCandidate.roots.length === 0) {
+      const msg = `Verification candidate with batch number ${verifierCandidate.batchNumber} has no roots! This should never happen!`
       log.error(msg)
       throw Error(msg)
     }
 
     for (let i = 0; i < verifierCandidate.roots.length; i++) {
       const root = verifierCandidate.roots[i]
-      if (root.l1Root !== root.l2Root) {
+      if (root.l1Root !== root.gethRoot) {
         if (this.fraudCount % FraudDetector.ALERT_EVERY === 0) {
           log.error(
-            `Batch #${verifierCandidate.l1BatchNumber} state roots differ at index ${i}! L1 root: ${root.l1Root}, L2 root: ${root.l2Root}`
+            `Batch #${verifierCandidate.batchNumber} state roots differ at index ${i}! L1 root: ${root.l1Root}, Geth root: ${root.gethRoot}`
           )
-          await this.fraudProver.proveFraud(verifierCandidate.l1BatchNumber, i)
+          await this.fraudProver.proveFraud(verifierCandidate.batchNumber, i)
         }
         this.fraudCount++
         return
@@ -61,11 +63,11 @@ export class FraudDetector extends ScheduledTask {
     if (this.fraudCount > 0) {
       this.fraudCount = 0
       log.info(
-        `Fraud has been corrected for batch ${verifierCandidate.l1BatchNumber}`
+        `Fraud has been corrected for batch ${verifierCandidate.batchNumber}`
       )
     }
 
-    log.debug(`Batch #${verifierCandidate.l1BatchNumber} has been verified!`)
-    await this.dataService.verifyBatch(verifierCandidate.l1BatchNumber)
+    log.debug(`Batch #${verifierCandidate.batchNumber} has been verified!`)
+    await this.dataService.verifyStateRootBatch(verifierCandidate.batchNumber)
   }
 }

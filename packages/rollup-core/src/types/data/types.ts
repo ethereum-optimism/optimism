@@ -6,21 +6,22 @@ export enum QueueOrigin {
   SEQUENCER = 2,
 }
 
-export enum L2BatchStatus {
-  UNBATCHED = 'UNBATCHED',
-  BATCHED = 'BATCHED',
-  TXS_SUBMITTED = 'TXS_SUBMITTED',
-  TXS_CONFIRMED = 'TXS_CONFIRMED',
-  ROOTS_SUBMITTED = 'ROOTS_SUBMITTED',
-  ROOTS_CONFIRMED = 'ROOTS_CONFIRMED',
+export enum OptimisticCanonicalChainStatus {
+  QUEUED = 'QUEUED',
+  SENT = 'SENT',
+  FINALIZED = 'FINALIZED',
 }
 
-export enum L1BatchStatus {
-  UNBATCHED = 'UNBATCHED',
-  BATCHED = 'BATCHED',
-  SUBMITTED_TO_L2 = 'SUBMITTED_TO_L2',
+export enum GethSubmissionQueueStatus {
+  QUEUED = 'QUEUED',
+  SENT = 'SENT',
+}
+
+export enum VerificationStatus {
+  UNVERIFIED = 'UNVERIFIED',
   VERIFIED = 'VERIFIED',
   FRAUDULENT = 'FRAUDULENT',
+  REMOVED = 'REMOVED',
 }
 
 export interface GethSubmissionRecord {
@@ -29,10 +30,11 @@ export interface GethSubmissionRecord {
   size: number
 }
 
-export interface L1BatchSubmission {
+export interface OccBatchSubmission {
   l1TxBatchTxHash: string
   l1StateRootBatchTxHash: string
-  status: string
-  l2BatchNumber: number
+  txBatchStatus: OptimisticCanonicalChainStatus
+  rootBatchStatus: OptimisticCanonicalChainStatus
+  occBatchNumber: number
   transactions: TransactionOutput[]
 }

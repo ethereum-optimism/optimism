@@ -9,22 +9,23 @@ import {
   BlockBatches,
   DataService,
   GethSubmissionRecord,
-  L1BatchStatus,
-  L1BatchSubmission,
-  L2BatchStatus,
+  GethSubmissionQueueStatus,
+  OccBatchSubmission,
+  OptimisticCanonicalChainStatus,
   QueueOrigin,
   RollupTransaction,
   TransactionOutput,
   VerificationCandidate,
+  VerificationStatus,
 } from '../../types'
 import {
   l1BlockInsertStatement,
   getL1BlockInsertValue,
-  getL2TransactionInsertValue,
+  getL2TransactionOutputInsertValue,
   getL1RollupStateRootInsertValue,
   getL1RollupTransactionInsertValue,
   getL1TransactionInsertValue,
-  l2TransactionInsertStatement,
+  l2TransactionOutputInsertStatement,
   l1RollupStateRootInsertStatement,
   l1RollupTxInsertStatement,
   l1TxInsertStatement,
@@ -133,15 +134,19 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async createNextL1ToL2Batch(): Promise<number> {
+  public async queueNextL1ToL2GethSubmission(): Promise<number> {
     const txHashRes = await this.rdb.select(`
       SELECT l1_tx_hash, l1_tx_log_index
       FROM l1_rollup_tx
-      WHERE batch_number IS NULL AND queue_origin = ${QueueOrigin.L1_TO_L2_QUEUE} 
+      WHERE geth_submission_queue_index IS NULL AND queue_origin = ${QueueOrigin.L1_TO_L2_QUEUE} 
       ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
     `)
-    if (!txHashRes || !txHashRes.length || !txHashRes[0].columns['tx_hash']) {
+    if (
+      !txHashRes ||
+      !txHashRes.length ||
+      !txHashRes[0].columns['l1_tx_hash']
+    ) {
       return undefined
     }
 
@@ -150,17 +155,17 @@ export class DefaultDataService implements DataService {
 
     await this.rdb.startTransaction()
     try {
-      const batchNumber: number = await this.insertGethSubmissionQueueEntry(
+      const submissionQueueIndex: number = await this.insertGethSubmissionQueueEntry(
         txHash
       )
 
       await this.rdb.execute(`
         UPDATE l1_rollup_tx
-        SET batch_number = ${batchNumber}, batch_index = 0
+        SET geth_submission_queue_index = ${submissionQueueIndex}, index_within_submission = 0
         WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
       `)
 
-      return batchNumber
+      return submissionQueueIndex
     } catch (e) {
       logError(
         log,
@@ -175,15 +180,19 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async createNextSafetyQueueBatch(): Promise<number> {
+  public async createNextSafetyQueueGethSubmission(): Promise<number> {
     const txHashRes = await this.rdb.select(`
       SELECT l1_tx_hash, l1_tx_log_index
       FROM l1_rollup_tx
-      WHERE batch_number IS NULL AND queue_origin = ${QueueOrigin.SAFETY_QUEUE} 
+      WHERE geth_submission_queue_index IS NULL AND queue_origin = ${QueueOrigin.SAFETY_QUEUE} 
       ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
     `)
-    if (!txHashRes || !txHashRes.length || !txHashRes[0].columns['tx_hash']) {
+    if (
+      !txHashRes ||
+      !txHashRes.length ||
+      !txHashRes[0].columns['l1_tx_hash']
+    ) {
       return undefined
     }
 
@@ -192,17 +201,17 @@ export class DefaultDataService implements DataService {
 
     await this.rdb.startTransaction()
     try {
-      const batchNumber: number = await this.insertGethSubmissionQueueEntry(
+      const submissionQueueIndex: number = await this.insertGethSubmissionQueueEntry(
         txHash
       )
 
       await this.rdb.execute(`
         UPDATE l1_rollup_tx
-        SET batch_number = ${batchNumber}, batch_index = 0
+        SET geth_submission_queue_index = ${submissionQueueIndex}, index_within_submission = 0
         WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
       `)
 
-      return batchNumber
+      return submissionQueueIndex
     } catch (e) {
       logError(
         log,
@@ -255,18 +264,19 @@ export class DefaultDataService implements DataService {
    */
   public async getOldestQueuedGethSubmission(): Promise<GethSubmissionRecord> {
     const res: Row[] = await this.rdb.select(`
-      SELECT COUNT(*) as batch_size, batch_number, block_timestamp
-      FROM next_l1_verification_batch 
-      GROUP BY batch_number, block_timestamp
-      ORDER BY batch_number ASC
-    `) // note batch_number should be the same, just ordering in case
+      SELECT COUNT(*) as submission_size, geth_submission_queue_index, block_timestamp, 
+      FROM next_queued_geth_submission
+      GROUP BY geth_submission_queue_index, block_timestamp
+      ORDER BY geth_submission_queue_index ASC
+      LIMIT 1
+    `)
 
     if (!res || !res.length || !res[0].columns['batch_size']) {
       return undefined
     }
     return {
-      size: res[0].columns['batch_size'],
-      submissionNumber: res[0].columns['batch_number'],
+      size: res[0].columns['submission_size'],
+      submissionNumber: res[0].columns['geth_submission_queue_index'],
       blockTimestamp: res[0].columns['block_timestamp'],
     }
   }
@@ -274,28 +284,28 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async getNextBatchForL2Submission(): Promise<BlockBatches> {
+  public async getNextQueuedGethSubmission(): Promise<BlockBatches> {
     const res: Row[] = await this.rdb.select(`
-      SELECT batch_number, target, calldata, block_timestamp, block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index, queue_origin, sender, l1_message_sender, gas_limit, nonce, signature
-      FROM next_l2_submission_batch
+      SELECT geth_submission_queue_index, target, calldata, block_timestamp, block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index, queue_origin, sender, l1_message_sender, gas_limit, nonce, signature
+      FROM next_queued_geth_submission
     `)
 
     if (!res || !res.length) {
       return undefined
     }
 
-    const batchNumber = res[0].columns['batch_number']
+    const gethSubmissionNumber = res[0].columns['geth_submission_queue_index']
     const timestamp = res[0].columns['block_timestamp']
     const blockNumber = res[0].columns['block_number']
 
     return {
-      batchNumber,
+      batchNumber: gethSubmissionNumber,
       timestamp,
       blockNumber,
       batches: [
-        res.map((row: Row, batchIndex: number) => {
+        res.map((row: Row, indexWithinSubmission: number) => {
           const tx: RollupTransaction = {
-            batchIndex,
+            indexWithinSubmission,
             l1TxHash: row.columns['l1_tx_hash'],
             l1TxIndex: row.columns['l1_tx_index'],
             l1TxLogIndex: row.columns['l1_tx_log_index'],
@@ -330,11 +340,13 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async markL1BatchSubmittedToL2(batchNumber: number): Promise<void> {
+  public async markQueuedGethSubmissionSubmittedToGeth(
+    queueIndex: number
+  ): Promise<void> {
     return this.rdb.execute(
       `UPDATE geth_submission_queue
-      SET status = '${L1BatchStatus.SUBMITTED_TO_L2}'
-      WHERE batch_number = ${batchNumber}`
+      SET status = '${GethSubmissionQueueStatus.SENT}'
+      WHERE queue_index = ${queueIndex}`
     )
   }
 
@@ -357,7 +369,7 @@ export class DefaultDataService implements DataService {
    */
   public async insertL2TransactionOutput(tx: TransactionOutput): Promise<void> {
     return this.rdb.execute(
-      `${l2TransactionInsertStatement} VALUES (${getL2TransactionInsertValue(
+      `${l2TransactionOutputInsertStatement} VALUES (${getL2TransactionOutputInsertValue(
         tx
       )})`
     )
@@ -367,11 +379,13 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async tryBuildOccBatchNotPresentOnL1(): Promise<number> {
+    // TODO: ADD SOME SIZE LIMIT
     const timestampRes = await this.rdb.select(
       `SELECT DISTINCT block_timestamp
-            FROM l2_tx
-            WHERE status = '${L2BatchStatus.UNBATCHED}'
+            FROM l2_tx_output
+            WHERE occ_batch_number IS NULL
             ORDER BY block_timestamp ASC
+            LIMIT 2
       `
     )
 
@@ -383,11 +397,11 @@ export class DefaultDataService implements DataService {
 
     await this.rdb.startTransaction()
     try {
-      const batchNumber = await this.insertNewL2TransactionBatch()
+      const batchNumber = await this.insertNewOccBatch()
       await this.rdb.execute(`
-        UPDATE l2_tx
-        SET status = '${L2BatchStatus.BATCHED}', batch_number = ${batchNumber}
-        WHERE status = '${L2BatchStatus.UNBATCHED}' AND block_timestamp = ${batchTimestamp}
+        UPDATE l2_tx_output
+        SET status = '${OptimisticCanonicalChainStatus.QUEUED}', occ_batch_number = ${batchNumber}
+        WHERE occ_batch_number IS NULL AND block_timestamp = ${batchTimestamp}
       `)
 
       await this.rdb.commit()
@@ -403,7 +417,7 @@ export class DefaultDataService implements DataService {
     l1BatchSize: number,
     l1BatchNumber: number
   ): Promise<number> {
-    const maxL2BatchNumber = await this.getMaxL2TxBatchNumber()
+    const maxL2BatchNumber = await this.getMaxOccBatchNumber()
     if (maxL2BatchNumber >= l1BatchNumber) {
       log.debug(
         `Not attempting to build batch because max L2 batch number is ${maxL2BatchNumber} and provided L1 batchNumber is ${l1BatchNumber}`
@@ -413,8 +427,8 @@ export class DefaultDataService implements DataService {
 
     const transactionsToBatchRes = await this.rdb.select(`
       SELECT COUNT(*) as batchable_tx_count, block_timestamp
-      FROM l2_tx
-      WHERE status = '${L2BatchStatus.UNBATCHED}'
+      FROM l2_tx_output
+      WHERE occ_batch_number IS NULL
       GROUP BY block_timestamp
       ORDER BY block_timestamp ASC
     `)
@@ -430,7 +444,7 @@ export class DefaultDataService implements DataService {
     const batchableTxCount =
       transactionsToBatchRes[0].columns['batchable_tx_count']
     if (batchableTxCount < l1BatchSize && transactionsToBatchRes.length > 1) {
-      const msg = `L2 transactions do not match L1 transactions! Cannot and will not be able to build an L2 batch until this is fixed! Expected L1 batch size ${l1BatchSize}, got multiple L2 batches with the oldest unbatched being of size ${batchableTxCount}`
+      const msg = `L2 transactions do not match L1 transactions! Cannot and will not be able to build an OCC Batch until this is fixed! Expected L1 batch size ${l1BatchSize}, got multiple tx block timestamps with the oldest unbatched tx set being of size ${batchableTxCount}`
       log.error(msg)
       throw Error(msg)
     }
@@ -441,7 +455,7 @@ export class DefaultDataService implements DataService {
 
     await this.rdb.startTransaction()
     try {
-      const batchNumber = await this.insertNewL2TransactionBatch()
+      const batchNumber = await this.insertNewOccBatch()
       if (batchNumber !== l1BatchNumber) {
         log.error(
           `Created L2 batch number ${batchNumber} does not match expected L1 batch number ${l1BatchNumber}. This probably shouldn't happen.`
@@ -449,23 +463,23 @@ export class DefaultDataService implements DataService {
         await this.rdb.rollback()
         return -1
       }
-      await this.rdb.execute(`
-        UPDATE l2_tx l
-        SET l.status = '${L2BatchStatus.BATCHED}', l.batch_number = ${batchNumber}
+      await this.rdb.execute(
+        `UPDATE l2_tx_output l
+        SET l.status = '${OptimisticCanonicalChainStatus.QUEUED}', l.occ_batch_number = ${batchNumber}
         FROM (
-            SELECT *
-            FROM l2_tx
-            WHERE status = '${L2BatchStatus.UNBATCHED}'
-            LIMIT ${l1BatchSize}
+          SELECT *
+          FROM l2_tx_output
+          WHERE occ_batch_number IS NULL
+          LIMIT ${l1BatchSize}
         ) t
-        WHERE l.id = t.id
-      `)
+        WHERE l.id = t.id`
+      )
       await this.rdb.commit()
       return batchNumber
     } catch (e) {
       logError(
         log,
-        `Error creating L2 batch to match L1 batch of size ${l1BatchSize}.`,
+        `Error creating OCC batch to match L1 batch of size ${l1BatchSize}.`,
         e
       )
       await this.rdb.rollback()
@@ -476,24 +490,27 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async getNextBatchForL1Submission(): Promise<L1BatchSubmission> {
-    const res = await this.rdb.select(`
-      SELECT occ.batch_number, occ.status, occ.submitted_l1_tx_hash, occ.state_batch_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
+  public async getNextOccTransactionBatchToSubmit(): Promise<
+    OccBatchSubmission
+  > {
+    const res = await this.rdb.select(
+      `SELECT occ.batch_number, occ.tx_batch_status, occ.root_batch_status, occ.submitted_tx_batch_l1_tx_hash, occ.submitted_root_batch_l1_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
       FROM l2_tx tx
         INNER JOIN optimistic_canonical_chain_batch occ ON tx.batch_number = occ.batch_number 
-      WHERE occ.status = '${L2BatchStatus.BATCHED}'
-      ORDER BY block_number ASC, tx_index ASC
-    `)
+      WHERE occ.tx_status = '${OptimisticCanonicalChainStatus.QUEUED}'
+      ORDER BY block_number ASC, tx_index ASC`
+    )
 
     if (!res || !res.length || !res[0].data.length) {
       return undefined
     }
 
-    const batch: L1BatchSubmission = {
-      l1TxBatchTxHash: res[0].columns['submitted_l1_tx_hash'],
-      l1StateRootBatchTxHash: res[0].columns['state_batch_tx_hash'],
-      status: res[0].columns['status'],
-      l2BatchNumber: res[0].columns['batch_number'],
+    const batch: OccBatchSubmission = {
+      l1TxBatchTxHash: res[0].columns['submitted_tx_batch_l1_tx_hash'],
+      l1StateRootBatchTxHash: res[0].columns['submitted_root_batch_l1_tx_hash'],
+      txBatchStatus: res[0].columns['tx_batch_status'],
+      rootBatchStatus: res[0].columns['root_batch_status'],
+      occBatchNumber: res[0].columns['batch_number'],
       transactions: [],
     }
     for (const row of res) {
@@ -524,11 +541,11 @@ export class DefaultDataService implements DataService {
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
-    return this.rdb.execute(`
-      UPDATE optimistic_canonical_chain_batch
-      SET status = '${L2BatchStatus.TXS_SUBMITTED}', submitted_l1_tx_hash = '${l1TxHash}'
-      WHERE batch_number = ${batchNumber}
-    `)
+    return this.rdb.execute(
+      `UPDATE optimistic_canonical_chain_batch
+      SET tx_batch_status = '${OptimisticCanonicalChainStatus.SENT}', submitted_tx_batch_l1_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /**
@@ -538,11 +555,11 @@ export class DefaultDataService implements DataService {
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
-    return this.rdb.execute(`
-      UPDATE optimistic_canonical_chain_batch
-      SET status = '${L2BatchStatus.TXS_CONFIRMED}', submitted_l1_tx_hash = '${l1TxHash}'
-      WHERE batch_number = ${batchNumber}
-    `)
+    return this.rdb.execute(
+      `UPDATE optimistic_canonical_chain_batch
+      SET tx_batch_status = '${OptimisticCanonicalChainStatus.FINALIZED}', submitted_tx_batch_l1_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /**
@@ -552,25 +569,25 @@ export class DefaultDataService implements DataService {
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
-    return this.rdb.execute(`
-      UPDATE optimistic_canonical_chain_batch
-      SET status = '${L2BatchStatus.ROOTS_SUBMITTED}', state_batch_tx_hash = '${l1TxHash}'
-      WHERE batch_number = ${batchNumber}
-    `)
+    return this.rdb.execute(
+      `UPDATE optimistic_canonical_chain_batch
+      SET root_batch_status = '${OptimisticCanonicalChainStatus.SENT}', submitted_root_batch_l1_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /**
    * @inheritDoc
    */
-  public async markStateRootBatchConfirmedOnL1(
+  public async markStateRootBatchFinalOnL1(
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
-    return this.rdb.execute(`
-      UPDATE optimistic_canonical_chain_batch 
-      SET status = '${L2BatchStatus.ROOTS_CONFIRMED}', state_batch_tx_hash = '${l1TxHash}'
-      WHERE batch_number = ${batchNumber}
-    `)
+    return this.rdb.execute(
+      `UPDATE optimistic_canonical_chain_batch 
+      SET root_batch_status = '${OptimisticCanonicalChainStatus.FINALIZED}', submitted_root_batch_l1_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /************
@@ -581,25 +598,26 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async getVerificationCandidate(): Promise<VerificationCandidate> {
-    const rows: Row[] = await this.rdb.select(`
-      SELECT l1.batch_number as l1_batch, l2.batch_number as l2_batch, l1.batch_index, l1.state_root as l1_root, l2.state_root as l2_root
-      FROM next_l1_verification_batch l1
-        LEFT OUTER JOIN next_l2_verification_batch l2 
-        ON l1.batch_number = l2.batch_number AND l1.batch_index = l2.batch_index
-      ORDER BY l1.batch_index ASC
-    `)
+    const rows: Row[] = await this.rdb.select(
+      `SELECT batch_number, l1_batch_index, l1_root, geth_root
+      FROM next_verification_batch`
+    )
 
     if (!rows || !rows.length) {
       return undefined
     }
 
+    if (!rows[rows.length - 1].columns['geth_root']) {
+      // No L2 root has been calculated for the last item in the batch -- cannot yet verify.
+      return undefined
+    }
+
     return {
-      l1BatchNumber: rows[0].columns['l1_batch'],
-      l2BatchNumber: rows[0].columns['l2_batch'],
+      batchNumber: rows[0].columns['batch_number'],
       roots: rows.map((x) => {
         return {
           l1Root: x.columns['l1_root'],
-          l2Root: x.columns['l2_root'],
+          gethRoot: x.columns['geth_root'],
         }
       }),
     }
@@ -608,14 +626,12 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async verifyBatch(batchNumber): Promise<void> {
-    await this.rdb.startTransaction()
-
-    try {
-      await this.rdb.commit()
-    } catch (e) {
-      await this.rdb.rollback()
-    }
+  public async verifyStateRootBatch(batchNumber): Promise<void> {
+    await this.rdb.execute(
+      `UPDATE l1_state_root_batch
+      SET status = ${VerificationStatus.VERIFIED}
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /***********
@@ -628,23 +644,24 @@ export class DefaultDataService implements DataService {
   protected async insertGethSubmissionQueueEntry(
     l1TxHash: string
   ): Promise<number> {
-    let batchNumber: number
+    let queueIndex: number
 
     let retries = 3
     // This should never fail, but adding in retries anyway
     while (retries > 0) {
       try {
-        batchNumber = (await this.getMaxL1TxBatchNumber()) + 1
-        await this.rdb.execute(`
-            INSERT INTO geth_submission_queue(l1_tx_hash, queue_index) 
-            VALUES ('${l1TxHash}', ${batchNumber})`)
+        queueIndex = (await this.getMaxGethSubmissionQueueIndex()) + 1
+        await this.rdb.execute(
+          `INSERT INTO geth_submission_queue(l1_tx_hash, queue_index) 
+            VALUES ('${l1TxHash}', ${queueIndex})`
+        )
         break
       } catch (e) {
         retries--
       }
     }
 
-    return batchNumber
+    return queueIndex
   }
 
   /**
@@ -658,9 +675,10 @@ export class DefaultDataService implements DataService {
     while (retries > 0) {
       try {
         batchNumber = (await this.getMaxL1StateRootBatchNumber()) + 1
-        await this.rdb.execute(`
-            INSERT INTO l1_state_root_batch(l1_tx_hash, batch_number) 
-            VALUES ('${l1TxHash}', ${batchNumber})`)
+        await this.rdb.execute(
+          `INSERT INTO l1_state_root_batch(l1_tx_hash, batch_number) 
+            VALUES ('${l1TxHash}', ${batchNumber})`
+        )
         break
       } catch (e) {
         retries--
@@ -673,14 +691,14 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  protected async insertNewL2TransactionBatch(): Promise<number> {
+  protected async insertNewOccBatch(): Promise<number> {
     let batchNumber: number
 
     let retries = 3
     // This should never fail, but adding in retries anyway
     while (retries > 0) {
       try {
-        batchNumber = (await this.getMaxL2TxBatchNumber()) + 1
+        batchNumber = (await this.getMaxOccBatchNumber()) + 1
         await this.rdb.execute(`
             INSERT INTO optimistic_canonical_chain_batch(batch_number) 
             VALUES (${batchNumber})`)
@@ -697,7 +715,7 @@ export class DefaultDataService implements DataService {
    * Fetches the max L2 tx batch number for use in inserting a new tx batch
    * @returns The max batch number at the time of this query.
    */
-  protected async getMaxL2TxBatchNumber(): Promise<number> {
+  protected async getMaxOccBatchNumber(): Promise<number> {
     const rows = await this.rdb.select(
       `SELECT MAX(batch_number) as batch_number 
         FROM optimistic_canonical_chain_batch`
@@ -719,7 +737,7 @@ export class DefaultDataService implements DataService {
    * Fetches the max L1 tx batch number for use in inserting a new tx batch
    * @returns The max batch number at the time of this query.
    */
-  protected async getMaxL1TxBatchNumber(): Promise<number> {
+  protected async getMaxGethSubmissionQueueIndex(): Promise<number> {
     const rows = await this.rdb.select(
       `SELECT MAX(queue_index) as queue_index 
         FROM geth_submission_queue`

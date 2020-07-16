@@ -130,7 +130,7 @@ const getTransactionResponse = (
 
 const getRollupTransaction = (): RollupTransaction => {
   return {
-    batchIndex: -1,
+    indexWithinSubmission: -1,
     target: ZERO_ADDRESS,
     calldata: '0xdeadbeef',
     l1MessageSender: ZERO_ADDRESS,

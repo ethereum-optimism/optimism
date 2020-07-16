@@ -4,18 +4,6 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import { RollupTransaction, TransactionOutput } from '../../types'
 import { remove0x } from '@eth-optimism/core-utils/build'
-
-export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, signature) `
-export const getL1TransactionInsertValue = (
-  tx: TransactionResponse
-): string => {
-  return `${tx.blockNumber}, '${tx.blockHash}', '${tx.hash}', '${tx.from}', '${
-    tx.to
-  }', ${tx.nonce}, ${bigNumOrNull(tx.gasLimit)}, ${bigNumOrNull(
-    tx.gasPrice
-  )}, '${tx.data}', '${tx.r}${remove0x(tx.s)}${tx.v.toString(16)}'`
-}
-
 export const l1BlockInsertStatement = `INSERT INTO l1_block(block_hash, parent_hash, block_number, block_timestamp, gas_limit, gas_used, processed) `
 export const getL1BlockInsertValue = (
   block: Block,
@@ -28,7 +16,18 @@ export const getL1BlockInsertValue = (
   )}`
 }
 
-export const l1RollupTxInsertStatement = `INSERT INTO l1_rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index, l1_block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index) `
+export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, tx_hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, signature) `
+export const getL1TransactionInsertValue = (
+  tx: TransactionResponse
+): string => {
+  return `${tx.blockNumber}, '${tx.blockHash}', '${tx.hash}', '${tx.from}', '${
+    tx.to
+  }', ${tx.nonce}, ${bigNumOrNull(tx.gasLimit)}, ${bigNumOrNull(
+    tx.gasPrice
+  )}, '${tx.data}', '${tx.r}${remove0x(tx.s)}${tx.v.toString(16)}'`
+}
+
+export const l1RollupTxInsertStatement = `INSERT INTO l1_rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, geth_submission_queue_index, index_within_submission, l1_tx_hash, l1_tx_index, l1_tx_log_index) `
 export const getL1RollupTransactionInsertValue = (
   tx: RollupTransaction,
   batchNumber?: number
@@ -38,8 +37,8 @@ export const getL1RollupTransactionInsertValue = (
     tx.target
   }', '${tx.calldata}', ${tx.queueOrigin}, ${numOrNull(tx.nonce)}, ${numOrNull(
     tx.gasLimit
-  )}, ${stringOrNull(tx.signature)}, ${batchNum}, ${tx.batchIndex}, ${
-    tx.l1BlockNumber
+  )}, ${stringOrNull(tx.signature)}, ${batchNum}, ${
+    tx.indexWithinSubmission
   }, '${tx.l1TxHash}', ${tx.l1TxIndex}, ${numOrNull(tx.l1TxLogIndex)}`
 }
 
@@ -52,8 +51,10 @@ export const getL1RollupStateRootInsertValue = (
   return `'${stateRoot}', ${batchNumber}, ${batchIndex}`
 }
 
-export const l2TransactionInsertStatement = `INSERT INTO l2_tx(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature, state_root) `
-export const getL2TransactionInsertValue = (tx: TransactionOutput): string => {
+export const l2TransactionOutputInsertStatement = `INSERT INTO l2_tx_output(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature, state_root) `
+export const getL2TransactionOutputInsertValue = (
+  tx: TransactionOutput
+): string => {
   return `'${tx.blockNumber}', ${tx.timestamp}, ${tx.transactionIndex}, '${
     tx.transactionHash
   }' ${stringOrNull(tx.from)}, ${stringOrNull(tx.l1MessageSender)}, '${

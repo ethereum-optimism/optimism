@@ -1,4 +1,6 @@
 /* External Imports */
+import { keccak256FromUtf8, sleep } from '@eth-optimism/core-utils'
+import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
@@ -6,111 +8,604 @@ import {
   DefaultDataService,
   OptimisticCanonicalChainBatchSubmitter,
 } from '../../src/app/data'
-import { DefaultL2NodeService } from '../../src/app'
-import { BlockBatches } from '../../src/types'
-import { keccak256FromUtf8 } from '@eth-optimism/core-utils/build'
+import {
+  OccBatchSubmission,
+  OptimisticCanonicalChainStatus,
+} from '../../src/types/data'
 
-class MockL2NodeService extends DefaultL2NodeService {
-  public readonly sentBlockBatches: BlockBatches[] = []
-
-  constructor() {
-    super(Wallet.createRandom())
-  }
-
-  public async sendBlockBatches(blockBatches: BlockBatches): Promise<void> {
-    this.sentBlockBatches.push(blockBatches)
-  }
+interface BatchNumberHash {
+  batchNumber: number
+  txHash: string
 }
 
-class MockL1DataService extends DefaultDataService {
-  public readonly blockBatchesToReturn: BlockBatches[] = []
-  public readonly batchesMarkedSubmitted: number[] = []
+class MockDataService extends DefaultDataService {
+  public readonly nextBatch: OccBatchSubmission[] = []
+  public readonly txBatchesSubmitted: BatchNumberHash[] = []
+  public readonly txBatchesConfirmed: BatchNumberHash[] = []
+  public readonly stateBatchesSubmitted: BatchNumberHash[] = []
+  public readonly stateBatchesConfirmed: BatchNumberHash[] = []
+
   constructor() {
     super(undefined)
   }
 
-  public async getNextBatchForL2Submission(): Promise<BlockBatches> {
-    return this.blockBatchesToReturn.shift()
+  public async getNextOccTransactionBatchToSubmit(): Promise<
+    OccBatchSubmission
+  > {
+    return this.nextBatch.shift()
   }
 
-  public async markL1BatchSubmittedToL2(batchNumber: number): Promise<void> {
-    this.batchesMarkedSubmitted.push(batchNumber)
+  public async markTransactionBatchSubmittedToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    this.txBatchesSubmitted.push({ batchNumber, txHash: l1TxHash })
+  }
+
+  public async markTransactionBatchConfirmedOnL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    this.txBatchesConfirmed.push({ batchNumber, txHash: l1TxHash })
+  }
+
+  public async markStateRootBatchSubmittedToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    this.stateBatchesSubmitted.push({ batchNumber, txHash: l1TxHash })
+  }
+
+  public async markStateRootBatchFinalOnL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    this.stateBatchesConfirmed.push({ batchNumber, txHash: l1TxHash })
   }
 }
 
-describe('Optimistic Canonical Chain Batch Submitter', () => {
+class MockProvider {
+  public confirmedTxs: Map<string, TransactionReceipt> = new Map<
+    string,
+    TransactionReceipt
+  >()
+
+  public async waitForTransaction(
+    hash: string,
+    numConfirms: number
+  ): Promise<TransactionReceipt> {
+    while (!this.confirmedTxs.get(hash)) {
+      await sleep(100)
+    }
+    return this.confirmedTxs.get(hash)
+  }
+}
+
+class MockCanonicalTransactionChain {
+  public responses: TransactionResponse[] = []
+
+  constructor(public readonly provider: MockProvider) {}
+
+  public async appendSequencerBatch(
+    calldata: string,
+    timestamp: number
+  ): Promise<TransactionResponse> {
+    const response: TransactionResponse = this.responses.shift()
+    if (!response) {
+      throw Error('no response')
+    }
+    return response
+  }
+}
+
+class MockStateCommitmentChain {
+  public responses: TransactionResponse[] = []
+
+  constructor(public readonly provider: MockProvider) {}
+
+  public async appendStateBatch(
+    batches: string[]
+  ): Promise<TransactionResponse> {
+    const response: TransactionResponse = this.responses.shift()
+    if (!response) {
+      throw Error('no response')
+    }
+    return response
+  }
+}
+
+describe('Queued Geth Submitter', () => {
   let batchSubmitter: OptimisticCanonicalChainBatchSubmitter
-  let l1DatService: MockL1DataService
-  let l2NodeService: MockL2NodeService
+  let dataService: MockDataService
+  let canonicalProvider: MockProvider
+  let canonicalTransactionChain: MockCanonicalTransactionChain
+  let stateCommitmentProvider: MockProvider
+  let stateCommitmentChain: MockStateCommitmentChain
 
   beforeEach(async () => {
-    l1DatService = new MockL1DataService()
-    l2NodeService = new MockL2NodeService()
+    dataService = new MockDataService()
+    canonicalProvider = new MockProvider()
+    canonicalTransactionChain = new MockCanonicalTransactionChain(
+      canonicalProvider
+    )
+    stateCommitmentProvider = new MockProvider()
+    stateCommitmentChain = new MockStateCommitmentChain(stateCommitmentProvider)
     batchSubmitter = new OptimisticCanonicalChainBatchSubmitter(
-      l1DatService,
-      l2NodeService
+      dataService,
+      canonicalTransactionChain as any,
+      stateCommitmentChain as any
     )
   })
 
-  it('should not submit batch if no fitting L1 batch exists', async () => {
+  it('should not do anything if there are no batches', async () => {
     await batchSubmitter.runTask()
 
-    l1DatService.batchesMarkedSubmitted.length.should.equal(
+    dataService.txBatchesSubmitted.length.should.equal(
       0,
-      `No Batches should have been marked as sent!`
+      'No tx batches should have been submitted!'
+    )
+    dataService.txBatchesConfirmed.length.should.equal(
+      0,
+      'No tx batches should have been confirmed!'
     )
 
-    l2NodeService.sentBlockBatches.length.should.equal(
+    dataService.stateBatchesSubmitted.length.should.equal(
       0,
-      `No Batches should have been sent!`
+      'No state batches should have been submitted!'
+    )
+    dataService.stateBatchesConfirmed.length.should.equal(
+      0,
+      'No state batches should have been confirmed!'
     )
   })
 
-  it('should send a batch if a fitting one exists', async () => {
-    const blockBatches: BlockBatches = {
-      batchNumber: 1,
-      timestamp: 1,
-      blockNumber: 1,
-      batches: [
-        [
+  it('should not do anything if the next batch has an invalid status', async () => {
+    dataService.nextBatch.push({
+      l1TxBatchTxHash: undefined,
+      l1StateRootBatchTxHash: undefined,
+      txBatchStatus: 'derp' as any,
+      rootBatchStatus: 'derp' as any,
+      occBatchNumber: 1,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    await batchSubmitter.runTask()
+
+    dataService.txBatchesSubmitted.length.should.equal(
+      0,
+      'No tx batches should have been submitted!'
+    )
+    dataService.txBatchesConfirmed.length.should.equal(
+      0,
+      'No tx batches should have been confirmed!'
+    )
+
+    dataService.stateBatchesSubmitted.length.should.equal(
+      0,
+      'No state batches should have been submitted!'
+    )
+    dataService.stateBatchesConfirmed.length.should.equal(
+      0,
+      'No state batches should have been confirmed!'
+    )
+  })
+
+  it('should send txs and roots if there is a batch', async () => {
+    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      l1TxBatchTxHash: undefined,
+      l1StateRootBatchTxHash: undefined,
+      txBatchStatus: OptimisticCanonicalChainStatus.QUEUED,
+      rootBatchStatus: OptimisticCanonicalChainStatus.QUEUED,
+      occBatchNumber: batchNumber,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    stateCommitmentChain.responses.push({ hash } as any)
+
+    await batchSubmitter.runTask()
+
+    dataService.txBatchesSubmitted.length.should.equal(
+      1,
+      'No tx batches submitted!'
+    )
+    dataService.txBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash submitted!'
+    )
+    dataService.txBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number submitted!'
+    )
+
+    dataService.txBatchesConfirmed.length.should.equal(
+      1,
+      'No tx batches confirmed!'
+    )
+    dataService.txBatchesConfirmed[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash confirmed!'
+    )
+    dataService.txBatchesConfirmed[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number confirmed!'
+    )
+
+    dataService.stateBatchesSubmitted.length.should.equal(
+      1,
+      'No state batches submitted!'
+    )
+    dataService.stateBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+
+    dataService.stateBatchesConfirmed.length.should.equal(
+      1,
+      'No state batches confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+  })
+
+  it('should wait for tx confirmation and send roots if there is a batch in TXS_SUBMITTED status', async () => {
+    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      l1TxBatchTxHash: hash,
+      l1StateRootBatchTxHash: undefined,
+      txBatchStatus: OptimisticCanonicalChainStatus.SENT,
+      rootBatchStatus: OptimisticCanonicalChainStatus.QUEUED,
+      occBatchNumber: batchNumber,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    stateCommitmentChain.responses.push({ hash } as any)
+
+    await batchSubmitter.runTask()
+
+    dataService.txBatchesSubmitted.length.should.equal(
+      0,
+      'No tx batches should have been submitted!'
+    )
+
+    dataService.txBatchesConfirmed.length.should.equal(
+      1,
+      'No tx batches confirmed!'
+    )
+    dataService.txBatchesConfirmed[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash confirmed!'
+    )
+    dataService.txBatchesConfirmed[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number confirmed!'
+    )
+
+    dataService.stateBatchesSubmitted.length.should.equal(
+      1,
+      'No state batches submitted!'
+    )
+    dataService.stateBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+
+    dataService.stateBatchesConfirmed.length.should.equal(
+      1,
+      'No state batches confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+  })
+
+  it('should send roots if there is a batch in TXS_CONFIRMED status', async () => {
+    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      l1TxBatchTxHash: hash,
+      l1StateRootBatchTxHash: undefined,
+      txBatchStatus: OptimisticCanonicalChainStatus.FINALIZED,
+      rootBatchStatus: OptimisticCanonicalChainStatus.QUEUED,
+      occBatchNumber: batchNumber,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    stateCommitmentChain.responses.push({ hash } as any)
+
+    await batchSubmitter.runTask()
+
+    dataService.txBatchesSubmitted.length.should.equal(
+      0,
+      'No tx batches should have been submitted!'
+    )
+
+    dataService.txBatchesConfirmed.length.should.equal(
+      0,
+      'No tx batches should have been confirmed!'
+    )
+
+    dataService.stateBatchesSubmitted.length.should.equal(
+      1,
+      'No state batches submitted!'
+    )
+    dataService.stateBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+
+    dataService.stateBatchesConfirmed.length.should.equal(
+      1,
+      'No state batches confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+  })
+
+  it('should wait for roots tx if there is a batch in ROOTS_SUBMITTED status', async () => {
+    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      l1TxBatchTxHash: hash,
+      l1StateRootBatchTxHash: hash,
+      txBatchStatus: OptimisticCanonicalChainStatus.FINALIZED,
+      rootBatchStatus: OptimisticCanonicalChainStatus.SENT,
+      occBatchNumber: batchNumber,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    stateCommitmentChain.responses.push({ hash } as any)
+
+    await batchSubmitter.runTask()
+
+    dataService.txBatchesSubmitted.length.should.equal(
+      0,
+      'No tx batches should have been submitted!'
+    )
+
+    dataService.txBatchesConfirmed.length.should.equal(
+      0,
+      'No tx batches should have been confirmed!'
+    )
+
+    dataService.stateBatchesSubmitted.length.should.equal(
+      0,
+      'No state batches should have been submitted!'
+    )
+
+    dataService.stateBatchesConfirmed.length.should.equal(
+      1,
+      'No state batches confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash state root confirmed!'
+    )
+    dataService.stateBatchesConfirmed[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number state root confirmed!'
+    )
+  })
+
+  describe('waiting for confirmations', () => {
+    beforeEach(() => {
+      batchSubmitter = new OptimisticCanonicalChainBatchSubmitter(
+        dataService,
+        canonicalTransactionChain as any,
+        stateCommitmentChain as any,
+        2
+      )
+    })
+
+    it('should wait for tx confirmations', async () => {
+      const hash: string = keccak256FromUtf8('l1 tx hash')
+      const batchNumber: number = 1
+      dataService.nextBatch.push({
+        l1TxBatchTxHash: hash,
+        l1StateRootBatchTxHash: undefined,
+        txBatchStatus: OptimisticCanonicalChainStatus.SENT,
+        rootBatchStatus: OptimisticCanonicalChainStatus.QUEUED,
+        occBatchNumber: batchNumber,
+        transactions: [
           {
-            batchIndex: 1,
-            gasLimit: 0,
-            nonce: 0,
-            sender: Wallet.createRandom().address,
-            target: Wallet.createRandom().address,
-            calldata: keccak256FromUtf8('calldata'),
-            l1Timestamp: 1,
-            l1BlockNumber: 1,
-            l1TxHash: keccak256FromUtf8('tx hash'),
-            l1TxIndex: 0,
-            l1TxLogIndex: 0,
-            queueOrigin: 1,
+            timestamp: 1,
+            blockNumber: 2,
+            transactionHash: keccak256FromUtf8('l2 tx hash'),
+            transactionIndex: 0,
+            to: Wallet.createRandom().address,
+            from: Wallet.createRandom().address,
+            nonce: 1,
+            calldata: keccak256FromUtf8('some calldata'),
+            stateRoot: keccak256FromUtf8('l2 state root'),
+            signature: 'ab'.repeat(65),
           },
         ],
-      ],
-    }
+      })
 
-    l1DatService.blockBatchesToReturn.push(blockBatches)
-    await batchSubmitter.runTask()
+      canonicalTransactionChain.responses.push({ hash } as any)
+      stateCommitmentChain.responses.push({ hash } as any)
 
-    l2NodeService.sentBlockBatches.length.should.equal(
-      1,
-      `1 BlockBatches object should have been submitted!`
-    )
-    l2NodeService.sentBlockBatches[0].should.deep.equal(
-      blockBatches,
-      `Sent BlockBatches object doesn't match!`
-    )
+      batchSubmitter.runTask()
 
-    l1DatService.batchesMarkedSubmitted.length.should.equal(
-      1,
-      `1 batch should have been marked submitted!`
-    )
+      await sleep(1000)
 
-    l1DatService.batchesMarkedSubmitted[0].should.equal(
-      1,
-      `1 batch should have been marked submitted!`
-    )
+      dataService.txBatchesConfirmed.length.should.equal(
+        0,
+        'batch should not yet be confirmed'
+      )
+
+      canonicalProvider.confirmedTxs.set(hash, {} as any)
+
+      await sleep(2_000)
+
+      dataService.txBatchesConfirmed.length.should.equal(
+        1,
+        'No tx batches confirmed!'
+      )
+      dataService.txBatchesConfirmed[0].txHash.should.equal(
+        hash,
+        'Incorrect tx hash confirmed!'
+      )
+      dataService.txBatchesConfirmed[0].batchNumber.should.equal(
+        batchNumber,
+        'Incorrect tx batch number confirmed!'
+      )
+
+      // the rest omitted because they're confirmed in tests above
+    })
+
+    it('should wait for state root confirmations', async () => {
+      const hash: string = keccak256FromUtf8('l1 tx hash')
+      const batchNumber: number = 1
+      dataService.nextBatch.push({
+        l1TxBatchTxHash: hash,
+        l1StateRootBatchTxHash: hash,
+        txBatchStatus: OptimisticCanonicalChainStatus.FINALIZED,
+        rootBatchStatus: OptimisticCanonicalChainStatus.SENT,
+        occBatchNumber: batchNumber,
+        transactions: [
+          {
+            timestamp: 1,
+            blockNumber: 2,
+            transactionHash: keccak256FromUtf8('l2 tx hash'),
+            transactionIndex: 0,
+            to: Wallet.createRandom().address,
+            from: Wallet.createRandom().address,
+            nonce: 1,
+            calldata: keccak256FromUtf8('some calldata'),
+            stateRoot: keccak256FromUtf8('l2 state root'),
+            signature: 'ab'.repeat(65),
+          },
+        ],
+      })
+
+      stateCommitmentChain.responses.push({ hash } as any)
+
+      batchSubmitter.runTask()
+
+      await sleep(1000)
+
+      dataService.stateBatchesConfirmed.length.should.equal(
+        0,
+        'batch should not yet be confirmed'
+      )
+
+      stateCommitmentProvider.confirmedTxs.set(hash, {} as any)
+
+      await sleep(2_000)
+
+      dataService.stateBatchesConfirmed.length.should.equal(
+        1,
+        'No state root batches confirmed!'
+      )
+      dataService.stateBatchesConfirmed[0].txHash.should.equal(
+        hash,
+        'Incorrect state root hash confirmed!'
+      )
+      dataService.stateBatchesConfirmed[0].batchNumber.should.equal(
+        batchNumber,
+        'Incorrect state root batch number confirmed!'
+      )
+    })
   })
 })

@@ -61,7 +61,7 @@ export const L1ToL2TxEnqueuedLogHandler = async (
       l1TxIndex: l.transactionIndex,
       l1TxLogIndex: l.transactionLogIndex,
       queueOrigin: QueueOrigin.L1_TO_L2_QUEUE,
-      batchIndex: 0,
+      indexWithinSubmission: 0,
       sender: l.address,
       l1MessageSender: add0x(data.substr(0, 40)),
       target: add0x(data.substr(40, 40)),
@@ -138,7 +138,7 @@ export const CalldataTxEnqueuedLogHandler = async (
       l1TxIndex: l.transactionIndex,
       l1TxLogIndex: l.transactionLogIndex,
       queueOrigin: QueueOrigin.SAFETY_QUEUE,
-      batchIndex: 0,
+      indexWithinSubmission: 0,
       sender,
       target,
       // TODO Change nonce to a BigNumber so it can support 256 bits
@@ -178,7 +178,7 @@ export const L1ToL2BatchAppendedLogHandler = async (
   )
   let batchNumber: number
   try {
-    batchNumber = await ds.createNextL1ToL2Batch()
+    batchNumber = await ds.queueNextL1ToL2GethSubmission()
   } catch (e) {
     logError(
       log,
@@ -219,7 +219,7 @@ export const SafetyQueueBatchAppendedLogHandler = async (
   let batchNumber: number
 
   try {
-    batchNumber = await ds.createNextSafetyQueueBatch()
+    batchNumber = await ds.createNextSafetyQueueGethSubmission()
   } catch (e) {
     logError(
       log,
@@ -307,7 +307,7 @@ export const SequencerBatchAppendedLogHandler = async (
         l1TxIndex: l.transactionIndex,
         l1TxLogIndex: l.transactionLogIndex,
         queueOrigin: QueueOrigin.SEQUENCER,
-        batchIndex: i,
+        indexWithinSubmission: i,
         sender,
         target,
         // TODO Change nonce to a BigNumber so it can support 256 bits

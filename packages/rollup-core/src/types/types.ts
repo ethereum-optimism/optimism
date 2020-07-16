@@ -18,7 +18,7 @@ export interface L2ToL1Message {
 }
 
 export interface RollupTransaction {
-  batchIndex: number
+  indexWithinSubmission: number
   target: Address
   calldata: string
   sender?: Address
@@ -51,11 +51,10 @@ export interface TransactionOutput {
 }
 
 export interface VerificationCandidate {
-  l1BatchNumber: number
-  l2BatchNumber: number
+  batchNumber: number
   roots: Array<{
     l1Root: string
-    l2Root: string
+    gethRoot: string
   }>
 }
 

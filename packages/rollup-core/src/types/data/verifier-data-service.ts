@@ -13,5 +13,5 @@ export interface VerifierDataService {
    *
    * @param batchNumber The batch number in question
    */
-  verifyBatch(batchNumber): Promise<void>
+  verifyStateRootBatch(batchNumber): Promise<void>
 }

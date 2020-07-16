@@ -84,7 +84,7 @@ CREATE TABLE l1_rollup_tx (
   queue_origin SMALLINT NOT NULL,
   nonce NUMERIC(78) DEFAULT NULL,
   gas_limit NUMERIC(78) DEFAULT NULL,
-  signature NUMERIC(78) DEFAULT NULL,
+  signature CHARACTER(132) DEFAULT NULL,
   geth_submission_queue_index BIGINT DEFAULT NULL,
   index_within_submission INT DEFAULT NULL,
   l1_tx_hash CHARACTER(66) NOT NULL,
