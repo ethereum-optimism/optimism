@@ -103,5 +103,4 @@ CREATE TABLE l1_rollup_tx (
    DROP TABLE geth_submission_queue;
    DROP TABLE l1_tx;
    DROP TABLE l1_block;
-
  */

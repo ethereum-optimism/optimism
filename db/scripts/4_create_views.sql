@@ -50,3 +50,10 @@ WHERE
       ) = 0   -- there is no next_verification_batch if we're in a fraud workflow.
 ORDER BY l1.batch_index ASC
 ;
+
+/** Rollback script:
+  DROP VIEW next_verification_batch;
+  DROP VIEW next_queued_geth_submission;
+  DROP VIEW unbatched_rollup_tx;
+ */
+
