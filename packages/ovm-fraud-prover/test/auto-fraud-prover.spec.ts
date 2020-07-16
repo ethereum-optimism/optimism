@@ -22,6 +22,7 @@ import {
   encodeTransaction,
   signAndSendOvmTransaction,
   makeOvmTransaction,
+  getStateTrieProof
 } from './test-helpers'
 import {
   OVMTransactionData
@@ -228,6 +229,8 @@ describe('AutoFraudProver', () => {
   describe('prove', () => {
     let autoFraudProver: AutoFraudProver
     beforeEach(async () => {
+      const stateTrieProof = await getStateTrieProof(fraudTester.address)
+
       autoFraudProver = new AutoFraudProver(
         0,
         preStateBatches[0].elements[0],
@@ -236,7 +239,9 @@ describe('AutoFraudProver', () => {
         await preStateBatches[1].getElementInclusionProof(0),
         transactions[0],
         await transactionBatches[0].getElementInclusionProof(0),
-        [],
+        [{
+          
+        }],
         wallet,
         fraudVerifier
       )
