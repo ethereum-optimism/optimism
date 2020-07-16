@@ -13,7 +13,7 @@ import {
 import {
   L2DataService,
   LogHandlerContext,
-  TransactionAndRoot,
+  TransactionOutput,
 } from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 import { monkeyPatchL2Provider } from '../../utils'
@@ -91,12 +91,12 @@ export class L2ChainDataPersister extends ChainDataProcessor {
     ])
 
     for (let i = 0; i < block.transactions.length; i++) {
-      const txAndRoot: TransactionAndRoot = L2ChainDataPersister.getTransactionAndRoot(
+      const txAndRoot: TransactionOutput = L2ChainDataPersister.getTransactionAndRoot(
         block,
         txs[i],
         txs[i + block.transactions.length]
       )
-      await this.l2DataService.insertL2Transaction(txAndRoot)
+      await this.l2DataService.insertL2TransactionOutput(txAndRoot)
     }
 
     return this.markProcessed(index)
@@ -115,8 +115,8 @@ export class L2ChainDataPersister extends ChainDataProcessor {
     block: Block,
     response: TransactionResponse,
     receipt: TransactionReceipt
-  ): TransactionAndRoot {
-    const res: TransactionAndRoot = {
+  ): TransactionOutput {
+    const res: TransactionOutput = {
       timestamp: block.timestamp,
       blockNumber: receipt.blockNumber,
       transactionIndex: receipt.transactionIndex,

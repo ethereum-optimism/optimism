@@ -2,7 +2,10 @@
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { DefaultDataService, OptimisticCanonicalChainBatchSubmitter } from '../../src/app/data'
+import {
+  DefaultDataService,
+  OptimisticCanonicalChainBatchSubmitter,
+} from '../../src/app/data'
 import { DefaultL2NodeService } from '../../src/app'
 import { BlockBatches } from '../../src/types'
 import { keccak256FromUtf8 } from '@eth-optimism/core-utils/build'
@@ -43,7 +46,10 @@ describe('Optimistic Canonical Chain Batch Submitter', () => {
   beforeEach(async () => {
     l1DatService = new MockL1DataService()
     l2NodeService = new MockL2NodeService()
-    batchSubmitter = new OptimisticCanonicalChainBatchSubmitter(l1DatService, l2NodeService)
+    batchSubmitter = new OptimisticCanonicalChainBatchSubmitter(
+      l1DatService,
+      l2NodeService
+    )
   })
 
   it('should not submit batch if no fitting L1 batch exists', async () => {

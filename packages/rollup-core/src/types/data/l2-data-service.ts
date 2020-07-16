@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { TransactionAndRoot } from '../types'
+import { TransactionOutput } from '../types'
 import { L1BatchSubmission, L2BatchStatus } from './types'
 
 export interface L2DataService {
@@ -9,14 +9,14 @@ export interface L2DataService {
    * @param transaction The transaction to insert.
    * @throws An error if there is a DB error.
    */
-  insertL2Transaction(transaction: TransactionAndRoot): Promise<void>
+  insertL2TransactionOutput(transaction: TransactionOutput): Promise<void>
 
   /**
    * Builds an L2-only batch if there are unbatched L2 Transactions with different timestamps.
    *
    * @returns The number of the L2 Batch that was built, or -1 if one wasn't built.
    */
-  tryBuildL2OnlyBatch(): Promise<number>
+  tryBuildOccBatchNotPresentOnL1(): Promise<number>
 
   /**
    * Builds an L2 batch of the provided size matching the provided batch number
@@ -26,7 +26,7 @@ export interface L2DataService {
    * @throws If there are multiple unbatched batches (based on timestamp) and the oldest is not
    * at least `batchNumber` in size (our L1 & L2 batches don't match).
    */
-  tryBuildL2BatchToMatchL1(
+  tryBuildOccBatchToMatchL1Batch(
     batchNumber: number,
     batchSize: number
   ): Promise<number>

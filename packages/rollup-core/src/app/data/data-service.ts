@@ -8,12 +8,13 @@ import { Block, TransactionResponse } from 'ethers/providers'
 import {
   BlockBatches,
   DataService,
-  GethSubmissionRecord, L1BatchStatus,
+  GethSubmissionRecord,
+  L1BatchStatus,
   L1BatchSubmission,
   L2BatchStatus,
   QueueOrigin,
   RollupTransaction,
-  TransactionAndRoot,
+  TransactionOutput,
   VerificationCandidate,
 } from '../../types'
 import {
@@ -102,7 +103,7 @@ export class DefaultDataService implements DataService {
     await this.rdb.startTransaction()
     try {
       if (createBatch) {
-        batchNumber = await this.insertNewL1TransactionBatch(
+        batchNumber = await this.insertGethSubmissionQueueEntry(
           rollupTransactions[0].l1TxHash
         )
       }
@@ -149,7 +150,9 @@ export class DefaultDataService implements DataService {
 
     await this.rdb.startTransaction()
     try {
-      const batchNumber: number = await this.insertNewL1TransactionBatch(txHash)
+      const batchNumber: number = await this.insertGethSubmissionQueueEntry(
+        txHash
+      )
 
       await this.rdb.execute(`
         UPDATE l1_rollup_tx
@@ -189,7 +192,9 @@ export class DefaultDataService implements DataService {
 
     await this.rdb.startTransaction()
     try {
-      const batchNumber: number = await this.insertNewL1TransactionBatch(txHash)
+      const batchNumber: number = await this.insertGethSubmissionQueueEntry(
+        txHash
+      )
 
       await this.rdb.execute(`
         UPDATE l1_rollup_tx
@@ -327,7 +332,7 @@ export class DefaultDataService implements DataService {
    */
   public async markL1BatchSubmittedToL2(batchNumber: number): Promise<void> {
     return this.rdb.execute(
-      `UPDATE l1_tx_batch
+      `UPDATE geth_submission_queue
       SET status = '${L1BatchStatus.SUBMITTED_TO_L2}'
       WHERE batch_number = ${batchNumber}`
     )
@@ -350,7 +355,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async insertL2Transaction(tx: TransactionAndRoot): Promise<void> {
+  public async insertL2TransactionOutput(tx: TransactionOutput): Promise<void> {
     return this.rdb.execute(
       `${l2TransactionInsertStatement} VALUES (${getL2TransactionInsertValue(
         tx
@@ -361,7 +366,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async tryBuildL2OnlyBatch(): Promise<number> {
+  public async tryBuildOccBatchNotPresentOnL1(): Promise<number> {
     const timestampRes = await this.rdb.select(
       `SELECT DISTINCT block_timestamp
             FROM l2_tx
@@ -394,7 +399,7 @@ export class DefaultDataService implements DataService {
     }
   }
 
-  public async tryBuildL2BatchToMatchL1(
+  public async tryBuildOccBatchToMatchL1Batch(
     l1BatchSize: number,
     l1BatchNumber: number
   ): Promise<number> {
@@ -473,10 +478,10 @@ export class DefaultDataService implements DataService {
    */
   public async getNextBatchForL1Submission(): Promise<L1BatchSubmission> {
     const res = await this.rdb.select(`
-      SELECT b.batch_number, b.status, b.tx_batch_tx_hash, b.state_batch_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
+      SELECT occ.batch_number, occ.status, occ.submitted_l1_tx_hash, occ.state_batch_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
       FROM l2_tx tx
-        INNER JOIN l2_tx_batch b ON tx.batch_number = b.batch_number 
-      WHERE b.status = '${L2BatchStatus.BATCHED}'
+        INNER JOIN optimistic_canonical_chain_batch occ ON tx.batch_number = occ.batch_number 
+      WHERE occ.status = '${L2BatchStatus.BATCHED}'
       ORDER BY block_number ASC, tx_index ASC
     `)
 
@@ -485,7 +490,7 @@ export class DefaultDataService implements DataService {
     }
 
     const batch: L1BatchSubmission = {
-      l1TxBatchTxHash: res[0].columns['tx_batch_tx_hash'],
+      l1TxBatchTxHash: res[0].columns['submitted_l1_tx_hash'],
       l1StateRootBatchTxHash: res[0].columns['state_batch_tx_hash'],
       status: res[0].columns['status'],
       l2BatchNumber: res[0].columns['batch_number'],
@@ -520,8 +525,8 @@ export class DefaultDataService implements DataService {
     l1TxHash: string
   ): Promise<void> {
     return this.rdb.execute(`
-      UPDATE l2_tx_batch
-      SET status = '${L2BatchStatus.TXS_SUBMITTED}', tx_batch_tx_hash = '${l1TxHash}'
+      UPDATE optimistic_canonical_chain_batch
+      SET status = '${L2BatchStatus.TXS_SUBMITTED}', submitted_l1_tx_hash = '${l1TxHash}'
       WHERE batch_number = ${batchNumber}
     `)
   }
@@ -534,8 +539,8 @@ export class DefaultDataService implements DataService {
     l1TxHash: string
   ): Promise<void> {
     return this.rdb.execute(`
-      UPDATE l2_tx_batch
-      SET status = '${L2BatchStatus.TXS_CONFIRMED}', tx_batch_tx_hash = '${l1TxHash}'
+      UPDATE optimistic_canonical_chain_batch
+      SET status = '${L2BatchStatus.TXS_CONFIRMED}', submitted_l1_tx_hash = '${l1TxHash}'
       WHERE batch_number = ${batchNumber}
     `)
   }
@@ -548,7 +553,7 @@ export class DefaultDataService implements DataService {
     l1TxHash: string
   ): Promise<void> {
     return this.rdb.execute(`
-      UPDATE l2_tx_batch
+      UPDATE optimistic_canonical_chain_batch
       SET status = '${L2BatchStatus.ROOTS_SUBMITTED}', state_batch_tx_hash = '${l1TxHash}'
       WHERE batch_number = ${batchNumber}
     `)
@@ -562,7 +567,7 @@ export class DefaultDataService implements DataService {
     l1TxHash: string
   ): Promise<void> {
     return this.rdb.execute(`
-      UPDATE l2_tx_batch 
+      UPDATE optimistic_canonical_chain_batch 
       SET status = '${L2BatchStatus.ROOTS_CONFIRMED}', state_batch_tx_hash = '${l1TxHash}'
       WHERE batch_number = ${batchNumber}
     `)
@@ -620,7 +625,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  protected async insertNewL1TransactionBatch(
+  protected async insertGethSubmissionQueueEntry(
     l1TxHash: string
   ): Promise<number> {
     let batchNumber: number
@@ -631,7 +636,7 @@ export class DefaultDataService implements DataService {
       try {
         batchNumber = (await this.getMaxL1TxBatchNumber()) + 1
         await this.rdb.execute(`
-            INSERT INTO l1_tx_batch(l1_tx_hash, batch_number) 
+            INSERT INTO geth_submission_queue(l1_tx_hash, queue_index) 
             VALUES ('${l1TxHash}', ${batchNumber})`)
         break
       } catch (e) {
@@ -677,7 +682,7 @@ export class DefaultDataService implements DataService {
       try {
         batchNumber = (await this.getMaxL2TxBatchNumber()) + 1
         await this.rdb.execute(`
-            INSERT INTO l2_tx_batch(batch_number) 
+            INSERT INTO optimistic_canonical_chain_batch(batch_number) 
             VALUES (${batchNumber})`)
         break
       } catch (e) {
@@ -695,7 +700,7 @@ export class DefaultDataService implements DataService {
   protected async getMaxL2TxBatchNumber(): Promise<number> {
     const rows = await this.rdb.select(
       `SELECT MAX(batch_number) as batch_number 
-        FROM l2_tx_batch`
+        FROM optimistic_canonical_chain_batch`
     )
     if (
       rows &&
@@ -716,17 +721,17 @@ export class DefaultDataService implements DataService {
    */
   protected async getMaxL1TxBatchNumber(): Promise<number> {
     const rows = await this.rdb.select(
-      `SELECT MAX(batch_number) as batch_number 
-        FROM l1_tx_batch`
+      `SELECT MAX(queue_index) as queue_index 
+        FROM geth_submission_queue`
     )
     if (
       rows &&
       !!rows.length &&
       !!rows[0].columns &&
-      !!rows[0].columns['batch_number']
+      !!rows[0].columns['queue_index']
     ) {
       // TODO: make sure we don't need to cast
-      return rows[0].columns['batch_number']
+      return rows[0].columns['queue_index']
     }
 
     return -1

@@ -29,14 +29,14 @@ export class OptimisticCanonicalChainBatchCreator extends ScheduledTask {
     try {
       const l1BatchRecord: GethSubmissionRecord = await this.dataService.getOldestQueuedGethSubmission()
       if (!l1BatchRecord) {
-        const l2OnlyBatchBuilt: number = await this.dataService.tryBuildL2OnlyBatch()
+        const l2OnlyBatchBuilt: number = await this.dataService.tryBuildOccBatchNotPresentOnL1()
         if (l2OnlyBatchBuilt !== undefined && l2OnlyBatchBuilt >= 0) {
           log.debug(`L2-only batch with number ${l2OnlyBatchBuilt} was built!`)
         }
         return
       }
 
-      const batchBuilt: number = await this.dataService.tryBuildL2BatchToMatchL1(
+      const batchBuilt: number = await this.dataService.tryBuildOccBatchToMatchL1Batch(
         l1BatchRecord.submissionNumber,
         l1BatchRecord.size
       )

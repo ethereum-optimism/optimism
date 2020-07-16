@@ -4,6 +4,7 @@
 CREATE TABLE optimistic_canonical_chain_batch (
   id BIGSERIAL NOT NULL,
   batch_number BIGINT NOT NULL,
+  submitted_l1_tx_hash character(66) DEFAULT NULL,
   tx_status TEXT NOT NULL DEFAULT 'QUEUED',
   root_status TEXT NOT NULL DEFAULT 'QUEUED',
   created TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -16,6 +17,7 @@ CREATE INDEX optimistic_canonical_chain_batch_root_status_idx ON optimistic_cano
 CREATE TABLE l2_tx_output (
   id BIGSERIAL NOT NULL,
   l1_rollup_tx_id BIGINT DEFAULT NULL,
+  occ_batch_number BIGINT DEFAULT NULL,
   block_number BIGINT NOT NULL,
   block_timestamp BIGINT NOT NULL,
   tx_index INT NOT NULL,
@@ -30,10 +32,9 @@ CREATE TABLE l2_tx_output (
   signature CHARACTER(130) NOT NULL,
   state_root CHARACTER(66) NOT NULL,
   status TEXT NOT NULL DEFAULT 'UNBATCHED',
-  batch_number BIGINT DEFAULT NULL,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
-  FOREIGN KEY (batch_number) REFERENCES optimistic_canonical_chain_batch(batch_number),
+  FOREIGN KEY (occ_batch_number) REFERENCES optimistic_canonical_chain_batch(batch_number),
   FOREIGN KEY (l1_rollup_tx_id) REFERENCES l1_rollup_tx(id),
   UNIQUE (tx_hash)
 );

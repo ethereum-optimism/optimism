@@ -2,8 +2,8 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { RollupTransaction, TransactionAndRoot } from '../../types'
-import {remove0x} from '@eth-optimism/core-utils/build'
+import { RollupTransaction, TransactionOutput } from '../../types'
+import { remove0x } from '@eth-optimism/core-utils/build'
 
 export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, signature) `
 export const getL1TransactionInsertValue = (
@@ -53,7 +53,7 @@ export const getL1RollupStateRootInsertValue = (
 }
 
 export const l2TransactionInsertStatement = `INSERT INTO l2_tx(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature, state_root) `
-export const getL2TransactionInsertValue = (tx: TransactionAndRoot): string => {
+export const getL2TransactionInsertValue = (tx: TransactionOutput): string => {
   return `'${tx.blockNumber}', ${tx.timestamp}, ${tx.transactionIndex}, '${
     tx.transactionHash
   }' ${stringOrNull(tx.from)}, ${stringOrNull(tx.l1MessageSender)}, '${

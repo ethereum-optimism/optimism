@@ -214,10 +214,7 @@ describe('L1 Chain Data Persister', () => {
 
     await sleep(1_000)
 
-    dataService.blocks.length.should.equal(
-      0,
-      `Inserted blocks when shouldn't have!`
-    )
+    dataService.blocks.length.should.equal(1, `Should always insert blocks!`)
     dataService.blockTransactions.size.should.equal(
       0,
       `Inserted transactions when shouldn't have!`
@@ -244,10 +241,7 @@ describe('L1 Chain Data Persister', () => {
 
       await sleep(1_000)
 
-      dataService.blocks.length.should.equal(
-        0,
-        `Inserted blocks when shouldn't have!`
-      )
+      dataService.blocks.length.should.equal(1, `Should always insert blocks!`)
       dataService.blockTransactions.size.should.equal(
         0,
         `Inserted transactions when shouldn't have!`
@@ -280,10 +274,7 @@ describe('L1 Chain Data Persister', () => {
 
       await sleep(1_000)
 
-      dataService.blocks.length.should.equal(
-        0,
-        `Inserted blocks when shouldn't have!`
-      )
+      dataService.blocks.length.should.equal(1, `Should always insert blocks!`)
       dataService.blockTransactions.size.should.equal(
         0,
         `Inserted transactions when shouldn't have!`
@@ -308,10 +299,7 @@ describe('L1 Chain Data Persister', () => {
 
       await sleep(1_000)
 
-      dataService.blocks.length.should.equal(
-        0,
-        `Inserted blocks when shouldn't have!`
-      )
+      dataService.blocks.length.should.equal(1, `Should always insert blocks!`)
       dataService.blockTransactions.size.should.equal(
         0,
         `Inserted transactions when shouldn't have!`
@@ -625,7 +613,7 @@ describe('L1 Chain Data Persister', () => {
     })
 
     describe('multiple blocks', () => {
-      it('should only persist relevant block, transaction, and rollup transactions with relevant logs', async () => {
+      it('should only persist relevant transaction, and rollup transactions with relevant logs', async () => {
         const rollupTxs = [getRollupTransaction()]
         configuredHandlerContext.handleLog = async (ds, l, t) => {
           await ds.insertL1RollupTransactions(tx.hash, rollupTxs)
@@ -648,8 +636,8 @@ describe('L1 Chain Data Persister', () => {
 
         await sleep(1_000)
 
-        dataService.blocks.length.should.equal(1, `Should have inserted block!`)
-        dataService.blocks[0].should.deep.equal(blockTwo, `block mismatch!`)
+        dataService.blocks.length.should.equal(2, `Should have inserted block!`)
+        dataService.blocks[1].should.deep.equal(blockTwo, `block mismatch!`)
 
         dataService.blockTransactions.size.should.equal(
           1,
@@ -692,10 +680,7 @@ describe('L1 Chain Data Persister', () => {
           .get(tx.hash)[0]
           .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
 
-        dataService.processedBlocks.size.should.equal(1, `block not processed!`)
-        dataService.processedBlocks
-          .has(blockTwo.hash)
-          .should.equal(true, `correct block not processed!`)
+        dataService.processedBlocks.size.should.equal(2, `block not processed!`)
       })
     })
   })

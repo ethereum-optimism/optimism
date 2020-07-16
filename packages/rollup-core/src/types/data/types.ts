@@ -1,4 +1,4 @@
-import { TransactionAndRoot } from '../types'
+import { TransactionOutput } from '../types'
 
 export enum QueueOrigin {
   L1_TO_L2_QUEUE = 0,
@@ -20,7 +20,7 @@ export enum L1BatchStatus {
   BATCHED = 'BATCHED',
   SUBMITTED_TO_L2 = 'SUBMITTED_TO_L2',
   VERIFIED = 'VERIFIED',
-  FRAUDULENT = 'FRAUDULENT'
+  FRAUDULENT = 'FRAUDULENT',
 }
 
 export interface GethSubmissionRecord {
@@ -34,5 +34,5 @@ export interface L1BatchSubmission {
   l1StateRootBatchTxHash: string
   status: string
   l2BatchNumber: number
-  transactions: TransactionAndRoot[]
+  transactions: TransactionOutput[]
 }

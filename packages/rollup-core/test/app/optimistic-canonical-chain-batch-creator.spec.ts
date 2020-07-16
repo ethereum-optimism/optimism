@@ -1,4 +1,7 @@
-import { DefaultDataService, OptimisticCanonicalChainBatchCreator } from '../../src/app/data'
+import {
+  DefaultDataService,
+  OptimisticCanonicalChainBatchCreator,
+} from '../../src/app/data'
 import { GethSubmissionRecord } from '../../src/types/data'
 
 class MockDataService extends DefaultDataService {
@@ -17,12 +20,12 @@ class MockDataService extends DefaultDataService {
     return undefined
   }
 
-  public async tryBuildL2OnlyBatch(): Promise<number> {
+  public async tryBuildOccBatchNotPresentOnL1(): Promise<number> {
     this.l2OnlyBatchesBuilt++
     return
   }
 
-  public async tryBuildL2BatchToMatchL1(
+  public async tryBuildOccBatchToMatchL1Batch(
     l1BatchSize: number,
     l1BatchNumber: number
   ): Promise<number> {

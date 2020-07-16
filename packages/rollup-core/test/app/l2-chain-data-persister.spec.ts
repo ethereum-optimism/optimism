@@ -14,7 +14,7 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { L2DataService, TransactionAndRoot } from '../../src/types'
+import { L2DataService, TransactionOutput } from '../../src/types'
 import {
   CHAIN_ID,
   DefaultDataService,
@@ -22,24 +22,24 @@ import {
 } from '../../src/app'
 
 class MockDataService extends DefaultDataService {
-  public readonly transactionAndRoots: TransactionAndRoot[] = []
+  public readonly transactionAndRoots: TransactionOutput[] = []
 
   constructor() {
     super(undefined)
   }
 
-  public async insertL2Transaction(transaction: TransactionAndRoot) {
+  public async insertL2TransactionOutput(transaction: TransactionOutput) {
     this.transactionAndRoots.push(transaction)
   }
 
-  public async tryBuildL2BatchToMatchL1(
+  public async tryBuildOccBatchToMatchL1Batch(
     batchNumber: number,
     batchSize: number
   ): Promise<number> {
     return undefined
   }
 
-  public async tryBuildL2OnlyBatch(): Promise<number> {
+  public async tryBuildOccBatchNotPresentOnL1(): Promise<number> {
     return undefined
   }
 }

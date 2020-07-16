@@ -6,7 +6,7 @@ import {
   BlockBatches,
   L1Batch,
   RollupTransaction,
-  TransactionAndRoot,
+  TransactionOutput,
 } from '../types'
 import { GethSubmissionRecord } from './types'
 import { Row } from '@eth-optimism/core-db/build/src'

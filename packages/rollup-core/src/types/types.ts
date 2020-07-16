@@ -34,7 +34,7 @@ export interface RollupTransaction {
   signature?: string
 }
 
-export interface TransactionAndRoot {
+export interface TransactionOutput {
   timestamp: number
   blockNumber: number
   transactionIndex: number
