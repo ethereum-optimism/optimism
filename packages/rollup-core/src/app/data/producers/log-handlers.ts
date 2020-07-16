@@ -178,7 +178,7 @@ export const L1ToL2BatchAppendedLogHandler = async (
   )
   let batchNumber: number
   try {
-    batchNumber = await ds.queueNextL1ToL2GethSubmission()
+    batchNumber = await ds.queueNextGethSubmission([QueueOrigin.L1_TO_L2_QUEUE])
   } catch (e) {
     logError(
       log,
@@ -219,7 +219,7 @@ export const SafetyQueueBatchAppendedLogHandler = async (
   let batchNumber: number
 
   try {
-    batchNumber = await ds.createNextSafetyQueueGethSubmission()
+    batchNumber = await ds.queueNextGethSubmission([QueueOrigin.SAFETY_QUEUE])
   } catch (e) {
     logError(
       log,

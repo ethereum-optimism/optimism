@@ -96,12 +96,21 @@ class MockDataService extends DefaultDataService {
     super(undefined)
   }
 
-  public async queueNextL1ToL2GethSubmission(): Promise<number> {
-    return ++this.createdL1ToL2Batches
-  }
-
-  public async createNextSafetyQueueGethSubmission(): Promise<number> {
-    return ++this.createdSafetyQueueBatches
+  public async queueNextGethSubmission(
+    queueOrigins: number[]
+  ): Promise<number> {
+    if (queueOrigins.length !== 1) {
+      throw Error(
+        `There should only be 1 queue origin in filter but received ${
+          queueOrigins.length
+        }: ${queueOrigins.join(',')}`
+      )
+    }
+    if (queueOrigins[0] === QueueOrigin.L1_TO_L2_QUEUE) {
+      return ++this.createdL1ToL2Batches
+    } else {
+      return ++this.createdSafetyQueueBatches
+    }
   }
 
   public async insertL1RollupTransactions(

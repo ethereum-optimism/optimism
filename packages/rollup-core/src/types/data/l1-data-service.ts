@@ -70,18 +70,11 @@ export interface L1DataService {
   /**
    * Creates a batch from the oldest un-batched transaction that is from the L1 To L2 queue.
    *
+   * @param queueOrigins The next entry may only be from queue origins provided here (it's a filter).
    * @returns The created batch number or undefined if no fitting L1ToL2 transaction exists.
    * @throws Error if there is a DB error
    */
-  queueNextL1ToL2GethSubmission(): Promise<number>
-
-  /**
-   * Creates a batch from the oldest un-batched transaction that is from the Safety queue.
-   *
-   * @returns The created batch number or undefined if no fitting Safety Queue transaction exists.
-   * @throws Error if there is a DB error or no such transaction exists.
-   */
-  createNextSafetyQueueGethSubmission(): Promise<number>
+  queueNextGethSubmission(queueOrigins: number[]): Promise<number>
 
   /**
    * Atomically inserts the provided State Roots, creating a batch for them.

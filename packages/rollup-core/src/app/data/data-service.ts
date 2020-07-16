@@ -1,15 +1,14 @@
 /* External Imports */
 import { RDB, Row } from '@eth-optimism/core-db'
-import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
+import { getLogger, logError } from '@eth-optimism/core-utils'
 
 import { Block, TransactionResponse } from 'ethers/providers'
-
 /* Internal Imports */
 import {
   BlockBatches,
   DataService,
-  GethSubmissionRecord,
   GethSubmissionQueueStatus,
+  GethSubmissionRecord,
   OccBatchSubmission,
   OptimisticCanonicalChainStatus,
   QueueOrigin,
@@ -19,16 +18,16 @@ import {
   VerificationStatus,
 } from '../../types'
 import {
-  l1BlockInsertStatement,
   getL1BlockInsertValue,
-  getL2TransactionOutputInsertValue,
   getL1RollupStateRootInsertValue,
   getL1RollupTransactionInsertValue,
   getL1TransactionInsertValue,
-  l2TransactionOutputInsertStatement,
+  getL2TransactionOutputInsertValue,
+  l1BlockInsertStatement,
   l1RollupStateRootInsertStatement,
   l1RollupTxInsertStatement,
   l1TxInsertStatement,
+  l2TransactionOutputInsertStatement,
 } from './query-utils'
 
 const log = getLogger('data-service')
@@ -134,11 +133,13 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async queueNextL1ToL2GethSubmission(): Promise<number> {
+  public async queueNextGethSubmission(
+    queueOrigins: number[]
+  ): Promise<number> {
     const txHashRes = await this.rdb.select(`
-      SELECT l1_tx_hash, l1_tx_log_index
-      FROM l1_rollup_tx
-      WHERE geth_submission_queue_index IS NULL AND queue_origin = ${QueueOrigin.L1_TO_L2_QUEUE} 
+      SELECT l1_tx_hash, l1_tx_log_index, queue_origin
+      FROM unbatched_rollup_tx
+      WHERE queue_origin IN (${queueOrigins.join(',')}) 
       ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
     `)
@@ -152,6 +153,7 @@ export class DefaultDataService implements DataService {
 
     const txHash = txHashRes[0].columns['l1_tx_hash']
     const txLogIndex = txHashRes[0].columns['l1_tx_log_index']
+    const queueOrigin = txHashRes[0].columns['queue_origin']
 
     await this.rdb.startTransaction()
     try {
@@ -165,57 +167,14 @@ export class DefaultDataService implements DataService {
         WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
       `)
 
+      log.debug(
+        `Created Geth submission queue index ${submissionQueueIndex} and queue origin ${queueOrigin}`
+      )
       return submissionQueueIndex
     } catch (e) {
       logError(
         log,
-        `Error executing createNextL1ToL2Batch for tx hash ${txHash}... rolling back`,
-        e
-      )
-      await this.rdb.rollback()
-      throw e
-    }
-  }
-
-  /**
-   * @inheritDoc
-   */
-  public async createNextSafetyQueueGethSubmission(): Promise<number> {
-    const txHashRes = await this.rdb.select(`
-      SELECT l1_tx_hash, l1_tx_log_index
-      FROM l1_rollup_tx
-      WHERE geth_submission_queue_index IS NULL AND queue_origin = ${QueueOrigin.SAFETY_QUEUE} 
-      ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
-      LIMIT 1
-    `)
-    if (
-      !txHashRes ||
-      !txHashRes.length ||
-      !txHashRes[0].columns['l1_tx_hash']
-    ) {
-      return undefined
-    }
-
-    const txHash = txHashRes[0].columns['l1_tx_hash']
-    const txLogIndex = txHashRes[0].columns['l1_tx_log_index']
-
-    await this.rdb.startTransaction()
-    try {
-      const submissionQueueIndex: number = await this.insertGethSubmissionQueueEntry(
-        txHash
-      )
-
-      await this.rdb.execute(`
-        UPDATE l1_rollup_tx
-        SET geth_submission_queue_index = ${submissionQueueIndex}, index_within_submission = 0
-        WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex} 
-      `)
-
-      return submissionQueueIndex
-    } catch (e) {
-      logError(
-        log,
-        `Error executing createNextSafetyQueueBatch for tx hash ${txHash}... rolling back`,
+        `Error executing queueNextGethSubmission for tx hash ${txHash} and queue origin ${queueOrigin}... rolling back`,
         e
       )
       await this.rdb.rollback()
