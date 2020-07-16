@@ -1,15 +1,15 @@
-import { BigNumber } from 'ethers/utils'
+import { BigNumber } from '@ethersproject/bignumber'
 
 interface OVMElementInclusionProof {
-  batchIndex: BigNumber
-  indexInBatch: BigNumber
+  batchIndex: number | BigNumber
+  indexInBatch: number | BigNumber
   siblings: string[]
 }
 
 interface StateChainBatchHeader {
   elementsMerkleRoot: string
-  numElementsInBatch: BigNumber
-  cumulativePrevElements: BigNumber
+  numElementsInBatch: number | BigNumber
+  cumulativePrevElements: number | BigNumber
 }
 
 export interface OVMStateElementInclusionProof extends OVMElementInclusionProof {
@@ -17,11 +17,11 @@ export interface OVMStateElementInclusionProof extends OVMElementInclusionProof 
 }
 
 interface TransactionChainBatchHeader {
-  timestamp: BigNumber
+  timestamp: number | BigNumber
   isL1ToL2Tx: boolean
   elementsMerkleRoot: string
-  numElementsInBatch: BigNumber
-  cumulativePrevElements: BigNumber
+  numElementsInBatch: number | BigNumber
+  cumulativePrevElements: number | BigNumber
 }
 
 export interface OVMTransactionElementInclusionProof extends OVMElementInclusionProof {
