@@ -6,12 +6,12 @@ import {
 } from '@eth-optimism/core-utils'
 
 /* Internal imports */
+import { Environment } from './util'
 import {
   AccountRateLimiter,
   RateLimitError,
   TransactionLimitError,
 } from '../types'
-import { Environment } from '@eth-optimism/rollup-core'
 
 const log = getLogger('routing-handler')
 

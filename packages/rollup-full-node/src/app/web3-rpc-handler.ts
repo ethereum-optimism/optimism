@@ -4,10 +4,7 @@ import {
   CHAIN_ID,
   GAS_LIMIT,
   getCurrentTime,
-  initializeL2Node,
-  isErrorEVMRevert,
   RollupTransaction,
-  L2NodeContext,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
 import {
@@ -30,6 +27,7 @@ import Web3 from 'web3'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
+import { initializeL2Node, isErrorEVMRevert } from './util'
 import {
   FullnodeHandler,
   InvalidParametersError,
@@ -41,6 +39,7 @@ import {
   RevertError,
   UnsupportedFilterError,
   OvmTransactionReceipt,
+  L2NodeContext,
 } from '../types'
 import {
   convertInternalLogsToOvmLogs,

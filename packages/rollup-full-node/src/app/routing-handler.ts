@@ -1,5 +1,5 @@
 /* External Imports */
-import { Address, Environment } from '@eth-optimism/rollup-core'
+import { Address } from '@eth-optimism/rollup-core'
 import {
   areEqual,
   getLogger,
@@ -13,6 +13,7 @@ import {
 import { parseTransaction, Transaction } from 'ethers/utils'
 
 /* Internal Imports */
+import { Environment } from './util'
 import {
   AccountRateLimiter,
   FormattedJsonRpcError,

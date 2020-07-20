@@ -31,7 +31,6 @@
   "dependencies": {
     "@eth-optimism/core-db": "^0.0.1-alpha.26",
     "@eth-optimism/core-utils": "^0.0.1-alpha.26",
-    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.27",
     "ethereum-waffle": "2.1.0",
     "async-lock": "^1.2.2",
     "ethers": "^4.0.39"
