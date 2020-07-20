@@ -1,11 +1,20 @@
-import { Contract, Wallet, BigNumber } from "ethers";
-import { TransactionRequest } from "@ethersproject/providers"
+/* External Imports */
+import { Contract, Wallet } from "ethers";
 import * as rlp from 'rlp'
 
+/* Internal Imports */
 import { OVMTransactionData } from "../../src/interfaces";
+import { toHexString } from "../../src/utils"
 import { NULL_ADDRESS, GAS_LIMIT } from "./constants";
-import { toHexString } from "./buffer-utils"
 
+/**
+ * Generates an OVM transaction.
+ * @param contract Contract to send the transaction to.
+ * @param wallet Ethers wallet to send the transaction from.
+ * @param functionName Name of the function to call.
+ * @param functionParams Parameters to the function call.
+ * @returns An OVM transaction data object.
+ */
 export const makeOvmTransaction = (
   contract: Contract,
   wallet: Wallet,
@@ -23,26 +32,28 @@ export const makeOvmTransaction = (
   }
 }
 
+/**
+ * Sends an OVM transaction.
+ * @param wallet Ethers wallet to send the transaction from.
+ * @param transaction Transaction data to send.
+ */
 export const signAndSendOvmTransaction = async (
   wallet: Wallet,
   transaction: OVMTransactionData
 ): Promise<void> => {
-  const transactionRequest: TransactionRequest = {
+  await wallet.sendTransaction({
     to: transaction.ovmEntrypoint,
     from: transaction.fromAddress,
-    nonce: await wallet.getTransactionCount(),
     gasLimit: GAS_LIMIT,
-    gasPrice: 0,
-    data: transaction.callBytes,
-    value: BigNumber.from(0),
-    chainId: 0
-  }
-
-  const signedTransaction = await wallet.signTransaction(transactionRequest)
-
-  await wallet.provider.sendTransaction(signedTransaction)
+    data: transaction.callBytes
+  })
 }
 
+/**
+ * Encodes an OVM transaction.
+ * @param transaction OVM transaction to encode.
+ * @returns Encoded transaction.
+ */
 export const encodeTransaction = (transaction: OVMTransactionData): string => {
   return toHexString(
     rlp.encode([

@@ -22,11 +22,14 @@ import {
   encodeTransaction,
   signAndSendOvmTransaction,
   makeOvmTransaction,
-  getStateTrieProof
+  getStateTrieProof,
+  getStorageTrieProof
 } from './test-helpers'
 import {
-  OVMTransactionData
+  OVMTransactionData, StateTrieWitness
 } from '../src/interfaces'
+import { BaseTrie, SecureTrie } from 'merkle-patricia-tree'
+import { toHexBuffer } from '../src/utils'
 
 const appendTransactionBatch = async (
   canonicalTransactionChain: Contract,
@@ -55,14 +58,14 @@ const appendAndGenerateTransactionBatch = async (
     return encodeTransaction(transaction)
   })
 
+  const batchIndex = await canonicalTransactionChain.getBatchesLength()
+  const cumulativePrevElements = await canonicalTransactionChain.cumulativeNumElements()
+
   const timestamp = await appendTransactionBatch(
     canonicalTransactionChain,
     sequencer,
     batch
   )
-
-  const batchIndex = await canonicalTransactionChain.getBatchesLength()
-  const cumulativePrevElements = await canonicalTransactionChain.cumulativeNumElements()
 
   const localBatch = new TxChainBatch(
     timestamp,
@@ -162,7 +165,7 @@ describe('AutoFraudProver', () => {
       executionManager.address,
       stateCommitmentChain.address,
       canonicalTransactionChain.address,
-      true, // Throw the verifier into testing mode.
+      false,
       {
         gasLimit: Math.floor(GAS_LIMIT * 2)
       }
@@ -202,11 +205,16 @@ describe('AutoFraudProver', () => {
     ]
   })
 
+  let stateTrieProofs: any[] = []
   let transactionBatches: TxChainBatch[] = []
   let preStateBatches: StateChainBatch[] = []
   before(async () => {
     let preState = [await getCurrentStateRoot(provider)]
+
     for (const transaction of transactions) {
+      stateTrieProofs.push(await getStateTrieProof(transaction.ovmEntrypoint))
+      stateTrieProofs.push(await getStateTrieProof(wallet.address))
+
       await signAndSendOvmTransaction(wallet, transaction)
 
       const postState = [await getCurrentStateRoot(provider)]
@@ -229,8 +237,6 @@ describe('AutoFraudProver', () => {
   describe('prove', () => {
     let autoFraudProver: AutoFraudProver
     beforeEach(async () => {
-      const stateTrieProof = await getStateTrieProof(fraudTester.address)
-
       autoFraudProver = new AutoFraudProver(
         0,
         preStateBatches[0].elements[0],
@@ -239,16 +245,27 @@ describe('AutoFraudProver', () => {
         await preStateBatches[1].getElementInclusionProof(0),
         transactions[0],
         await transactionBatches[0].getElementInclusionProof(0),
-        [{
-          
-        }],
+        stateTrieProofs.slice(0, 2).map((stateTrieProof) => {
+          return {
+            root: stateTrieProof.root,
+            proof: stateTrieProof.proof,
+            ovmContractAddress: stateTrieProof.address,
+            codeContractAddress: stateTrieProof.address,
+            value: {
+              nonce: stateTrieProof.account.nonce,
+              balance: stateTrieProof.account.balance,
+              codeHash: stateTrieProof.account.codeHash,
+              storageRoot: stateTrieProof.account.stateRoot
+            }
+          }
+        }),
         wallet,
         fraudVerifier
       )
     })
 
     it('should handle the complete fraud proof process', async () => {
-
+      await autoFraudProver.prove()
     })
   })
 })

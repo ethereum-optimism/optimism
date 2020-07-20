@@ -1,3 +1,6 @@
+/* External Imports */
+import { BigNumber } from '@ethersproject/bignumber'
+
 export interface MerkleTrieWitness {
   root: string
   proof: Buffer[]
@@ -7,7 +10,7 @@ export interface MerkleTrieWitness {
 
 export interface AccountState {
   nonce: number
-  balance: number
+  balance: BigNumber
   storageRoot: string
   codeHash: string
 }

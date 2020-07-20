@@ -18,11 +18,17 @@ export const updateAndProve = async (
   key: Buffer,
   value: Buffer
 ): Promise<string> => {
-  await trie.put(key, value)
   const proof = await BaseTrie.prove(trie, key)
-  return toHexString(rlp.encode(proof))
+  const encodedProof = toHexString(rlp.encode(proof))
+  await trie.put(key, value)
+  return encodedProof
 }
 
+/**
+ * Generates a Merkle trie object from a given set of witnesses.
+ * @param witnesses Witnesses to generate the trie from.
+ * @return Trie based on the provided witnesses.
+ */
 const makeTrieFromWitnesses = async (
   witnesses: Array<StateTrieWitness | MerkleTrieWitness>
 ): Promise<BaseTrie> => {
@@ -48,6 +54,11 @@ const makeTrieFromWitnesses = async (
   return BaseTrie.fromProof(allNodes)
 }
 
+/**
+ * Generates the "world state" from a list of fraud proof witnesses.
+ * @param witnesses Witnesses to generate the world state from.
+ * @return Generated world state.
+ */
 export const makeWorldStateFromWitnesses = async (
   witnesses: FraudProofWitness[]
 ): Promise<WorldState> => {

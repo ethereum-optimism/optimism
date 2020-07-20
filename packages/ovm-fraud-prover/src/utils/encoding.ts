@@ -1,8 +1,10 @@
+/* External Imports */
 import * as rlp from 'rlp'
+import { BigNumber } from '@ethersproject/bignumber'
 
+/* Internal Imports */
 import { AccountState } from '../interfaces'
-
-const NULL_BYTES32 = '0x' + '00'.repeat(32)
+import { NULL_BYTES32 } from './constants'
 
 /**
  * Utility; converts a buffer or string into a '0x'-prefixed string.
@@ -34,7 +36,7 @@ export const toHexBuffer = (buf: Buffer | string): Buffer => {
 export const encodeAccountState = (state: Partial<AccountState>): Buffer => {
   return rlp.encode([
     state.nonce || 0,
-    state.balance || 0,
+    state.balance.toHexString() || 0,
     state.storageRoot || NULL_BYTES32,
     state.codeHash || NULL_BYTES32,
   ])
@@ -49,7 +51,7 @@ export const decodeAccountState = (state: Buffer): AccountState => {
   const decoded = rlp.decode(state) as any
   return {
     nonce: decoded[0].length ? parseInt(toHexString(decoded[0]), 16) : 0,
-    balance: decoded[1].length ? parseInt(toHexString(decoded[1]), 16) : 0,
+    balance: decoded[1].length ? BigNumber.from(decoded[1]) : BigNumber.from(0),
     storageRoot: decoded[2].length ? toHexString(decoded[2]) : null,
     codeHash: decoded[3].length ? toHexString(decoded[3]) : null,
   }

@@ -1,7 +1,8 @@
 /* External Imports */
+import * as rlp from 'rlp'
 import { Contract, ethers, Wallet } from 'ethers'
 import { NULL_ADDRESS } from '@eth-optimism/core-utils'
-import { BaseTrie } from 'merkle-patricia-tree'
+import { BaseTrie, SecureTrie } from 'merkle-patricia-tree'
 
 /* Internal Imports */
 import {
@@ -15,6 +16,7 @@ import {
 } from './interfaces'
 import {
   ABI,
+  GAS_LIMIT,
   toHexBuffer,
   encodeAccountState,
   decodeAccountState,
@@ -78,6 +80,7 @@ export class AutoFraudProver {
     this._witnesses = witnesses
     this._wallet = wallet
     this._fraudVerifierContract = fraudVerifierContract
+    this._accountTries = {}
   }
 
   /**
@@ -145,7 +148,10 @@ export class AutoFraudProver {
       this._preStateRoot,
       this._preStateInclusionProof,
       this._transaction,
-      this._transactionInclusionProof
+      this._transactionInclusionProof,
+      {
+        gasLimit: GAS_LIMIT
+      }
     )
 
     return this._fraudVerifierContract.stateTransitioners(
@@ -192,11 +198,14 @@ export class AutoFraudProver {
   private async _proveStateTrieInclusion(
     witness: StateTrieWitness
   ): Promise<void> {
-    await this._fraudVerifierContract.proveContractInclusion(
+    await this._stateTransitionerContract.proveContractInclusion(
       witness.ovmContractAddress,
       witness.codeContractAddress,
       witness.value.nonce,
-      witness.proof,
+      rlp.encode(witness.proof),
+      {
+        gasLimit: GAS_LIMIT
+      }
     )
   }
 
@@ -207,12 +216,15 @@ export class AutoFraudProver {
   private async _proveAccountTrieInclusion(
     witness: AccountTrieWitness
   ): Promise<void> {
-    await this._fraudVerifierContract.proveStorageSlotInclusion(
+    await this._stateTransitionerContract.proveStorageSlotInclusion(
       witness.stateTrieWitness.ovmContractAddress,
       witness.accountTrieWitness.key,
       witness.accountTrieWitness.value,
-      witness.stateTrieWitness.proof,
-      witness.accountTrieWitness.proof,
+      rlp.encode(witness.stateTrieWitness.proof),
+      rlp.encode(witness.accountTrieWitness.proof),
+      {
+        gasLimit: GAS_LIMIT
+      }
     )
   }
 
@@ -251,22 +263,35 @@ export class AutoFraudProver {
    * Processes a single state trie update and modifies root accordingly.
    */
   private async _popStateTrieUpdate(): Promise<void> {
-    const {
+    const [
       ovmContractAddress,
       updatedNonce,
       updatedCodeHash
-    } = await this._stateManagerContract.peekUpdatedContract()
+    ] = await this._stateManagerContract.peekUpdatedContract()
+
+    const oldAccountState = decodeAccountState(
+      await this._stateTrie.get(
+        toHexBuffer(ethers.utils.keccak256(ovmContractAddress))
+      )
+    )
 
     const proof = await updateAndProve(
       this._stateTrie,
-      toHexBuffer(ovmContractAddress),
+      toHexBuffer(ethers.utils.keccak256(ovmContractAddress)),
       encodeAccountState({
-        nonce: updatedNonce,
-        codeHash: updatedCodeHash
+        ...oldAccountState,
+        ...{
+          nonce: updatedNonce.toNumber(),
+          codeHash: updatedCodeHash
+        }
       })
     )
 
-    await this._stateTransitionerContract.proveUpdatedContract(proof)
+    await this._stateTransitionerContract.proveUpdatedContract(proof,
+      {
+        gasLimit: GAS_LIMIT
+      }
+    )
   }
 
   /**
@@ -285,23 +310,26 @@ export class AutoFraudProver {
    * Processes a single account trie update and modifies root accordingly.
    */
   private async _popAccountTrieUpdate(): Promise<void> {
-    const {
+    const [
       ovmContractAddress,
       updatedSlotKey,
       updatedSlotValue
-    } = await this._stateManagerContract.peekUpdatedStorageSlot()
+    ] = await this._stateManagerContract.peekUpdatedStorageSlot()
+
+    if (!this._accountTries[ovmContractAddress]) {
+      this._accountTries[ovmContractAddress] = new BaseTrie()
+    }
 
     const trie = this._accountTries[ovmContractAddress]
 
     const storageTrieProof = await updateAndProve(
       trie,
-      toHexBuffer(updatedSlotKey),
+      toHexBuffer(ethers.utils.keccak256(updatedSlotKey)),
       toHexBuffer(updatedSlotValue),
     )
-
     const oldAccountState = decodeAccountState(
       await this._stateTrie.get(
-        toHexBuffer(ovmContractAddress)
+        toHexBuffer(ethers.utils.keccak256(ovmContractAddress))
       )
     )
 
@@ -312,13 +340,16 @@ export class AutoFraudProver {
 
     const stateTrieProof = await updateAndProve(
       this._stateTrie,
-      toHexBuffer(ovmContractAddress),
+      toHexBuffer(ethers.utils.keccak256(ovmContractAddress)),
       encodeAccountState(newAccountState)
     )
   
     await this._stateTransitionerContract.proveUpdatedStorageSlot(
       stateTrieProof,
       storageTrieProof,
+      {
+        gasLimit: GAS_LIMIT
+      }
     )
   }
 
@@ -338,8 +369,8 @@ export class AutoFraudProver {
    * Processes all state/account trie updates and modifies root accordingly.
    */
   private async _popAllTrieUpdates(): Promise<void> {
-    await this._popAllAccountTrieUpdates()
     await this._popAllStateTrieUpdates()
+    await this._popAllAccountTrieUpdates()
   }
 
   /* Process Advancement */
@@ -350,7 +381,11 @@ export class AutoFraudProver {
    * pre-execution phase to the post-execution phase.
    */
   private async _applyTransaction(): Promise<void> {
-    await this._stateTransitionerContract.applyTransaction(this._transaction)
+    await this._stateTransitionerContract.applyTransaction(this._transaction,
+      {
+        gasLimit: GAS_LIMIT
+      }
+    )
   }
 
   /**
@@ -359,7 +394,11 @@ export class AutoFraudProver {
    * was fraudulent.
    */
   private async _completeTransition(): Promise<void> {
-    await this._stateTransitionerContract.completeTransition()
+    await this._stateTransitionerContract.completeTransition(
+      {
+        gasLimit: GAS_LIMIT
+      }
+    )
   }
 
   /**
@@ -373,6 +412,9 @@ export class AutoFraudProver {
       this._preStateInclusionProof,
       this._postStateRoot,
       this._postStateInclusionProof,
+      {
+        gasLimit: GAS_LIMIT
+      }
     )
   }
 
@@ -381,14 +423,14 @@ export class AutoFraudProver {
    */
   private async _makeStateTrie(): Promise<void> {
     const witnesses = this.getStateTrieWitnesses();
-    
+
     const firstRootNode = witnesses[0].proof[0];
     const allNonRootNodes: Buffer[] = witnesses.reduce((nodes, witness) => {
       return nodes.concat(witness.proof.slice(1));
     }, [])
     const allNodes = [firstRootNode].concat(allNonRootNodes)
 
-    this._stateTrie = await BaseTrie.fromProof(allNodes);
+    this._stateTrie = await BaseTrie.fromProof(allNodes)
   }
 
   /**
@@ -412,7 +454,7 @@ export class AutoFraudProver {
 
     for (const ovmContractAddress in witnessMap) {
       const proof = witnessMap[ovmContractAddress]
-      this._accountTries[ovmContractAddress] = await BaseTrie.fromProof(proof)
+      this._accountTries[ovmContractAddress] = new SecureTrie((await BaseTrie.fromProof(proof)).db)
     }
   }
 

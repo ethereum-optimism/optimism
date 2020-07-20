@@ -1,3 +1,4 @@
+/* External Imports */
 import * as path from 'path'
 import * as fs from 'fs'
 import * as transpiler from '@eth-optimism/solc-transpiler'
@@ -8,6 +9,13 @@ interface ContractSource {
   }
 }
 
+/**
+ * Simple function for compiling Solidity contracts without frills.
+ * @param compiler Solc compiler to use in compilation.
+ * @param file Contract source or path to compile.
+ * @param settings Extra compiler settings.
+ * @returns Compiled contract JSON.
+ */
 export const compile = (
   compiler: any,
   file: string,
@@ -53,6 +61,13 @@ export const compile = (
   return JSON.parse(compiler.compile(JSON.stringify(input))).contracts[contractName]
 }
 
+/**
+ * Compiles a contract using the OVM transpiler.
+ * @param file Contract source or path to compile.
+ * @param executionManagerAddress Address of the execution manager.
+ * @param settings Extra settings to the compiler.
+ * @returns Transpiled contact JSON.
+ */
 export const transpile = (
   file: string,
   executionManagerAddress: string,

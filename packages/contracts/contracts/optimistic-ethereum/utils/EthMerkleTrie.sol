@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { MerkleTrie } from "./MerkleTrie.sol";
+import { SecureMerkleTrie } from "./SecureMerkleTrie.sol";
 import { RLPWriter } from "./RLPWriter.sol";
 import { RLPReader } from "./RLPReader.sol";
 import { BytesLib } from "./BytesLib.sol";
@@ -10,7 +10,8 @@ import { DataTypes } from "./DataTypes.sol";
 /**
  * @notice Convenience wrapper for ETH-related trie operations.
  */
-contract EthMerkleTrie is MerkleTrie {
+contract EthMerkleTrie is SecureMerkleTrie {
+    bytes32 constant RLP_NULL_HASH = 0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421;
     bytes32 constant BYTES32_NULL = bytes32('');
     uint256 constant UINT256_NULL = uint256(0);
 
@@ -81,13 +82,21 @@ contract EthMerkleTrie is MerkleTrie {
             _stateTrieRoot
         );
 
-        // Generate a new storage root.
-        accountState.storageRoot = update(
-            abi.encodePacked(_key),
-            abi.encodePacked(_value),
-            _storageTrieWitness,
-            accountState.storageRoot
-        );
+        if (accountState.storageRoot == RLP_NULL_HASH) {
+            // Trie is empty, simply insert this leaf as the root node.
+            accountState.storageRoot = keccak256(makeLeafNode(
+                abi.encodePacked(_key),
+                abi.encodePacked(_value)
+            ).encoded);
+        } else {
+            // Go into the trie and update the slot.
+            accountState.storageRoot = update(
+                abi.encodePacked(_key),
+                abi.encodePacked(_value),
+                _storageTrieWitness,
+                accountState.storageRoot
+            );
+        }
 
         // Update the state trie with the new storage root.
         return setAccountState(
