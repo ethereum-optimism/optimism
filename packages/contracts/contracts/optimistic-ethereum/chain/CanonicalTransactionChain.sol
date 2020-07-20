@@ -2,13 +2,13 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { AddressResolver } from "../utils/resolvers/AddressResolver.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
 import { L1ToL2TransactionQueue } from "../queue/L1ToL2TransactionQueue.sol";
 import { SafetyTransactionQueue } from "../queue/SafetyTransactionQueue.sol";
 
-contract CanonicalTransactionChain {
+contract CanonicalTransactionChain is ContractResolver {
     /*
      * Contract Variables
      */
@@ -17,8 +17,6 @@ contract CanonicalTransactionChain {
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
-
-    AddressResolver public addressResolver;
 
 
     /*
@@ -39,9 +37,10 @@ contract CanonicalTransactionChain {
         address _sequencer,
         address _l1ToL2TransactionPasserAddress,
         uint _forceInclusionPeriod
-    ) public {
-        addressResolver = AddressResolver(_addressResolver);
-
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         sequencer = _sequencer;
         forceInclusionPeriod = _forceInclusionPeriod;
         lastOVMTimestamp = 0;
@@ -74,27 +73,33 @@ contract CanonicalTransactionChain {
     }
 
     function appendL1ToL2Batch() public {
-        DataTypes.TimestampedHash memory l1ToL2Header = l1ToL2Queue().peek();
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
+        DataTypes.TimestampedHash memory l1ToL2Header = l1ToL2Queue.peek();
 
         require(
-            safetyQueue().isEmpty() || l1ToL2Header.timestamp <= safetyQueue().peekTimestamp(),
+            safetyQueue.isEmpty() || l1ToL2Header.timestamp <= safetyQueue.peekTimestamp(),
             "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
         );
 
         _appendQueueBatch(l1ToL2Header, true);
-        l1ToL2Queue().dequeue();
+        l1ToL2Queue.dequeue();
     }
 
     function appendSafetyBatch() public {
-        DataTypes.TimestampedHash memory safetyHeader = safetyQueue().peek();
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
+        DataTypes.TimestampedHash memory safetyHeader = safetyQueue.peek();
 
         require(
-            l1ToL2Queue().isEmpty() || safetyHeader.timestamp <= l1ToL2Queue().peekTimestamp(),
+            l1ToL2Queue.isEmpty() || safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(),
             "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
         );
 
         _appendQueueBatch(safetyHeader, false);
-        safetyQueue().dequeue();
+        safetyQueue.dequeue();
     }
 
     function _appendQueueBatch(
@@ -134,6 +139,9 @@ contract CanonicalTransactionChain {
         bytes[] memory _txBatch,
         uint _timestamp
     ) public {
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
         require(
             authenticateAppend(msg.sender),
             "Message sender does not have permission to append a batch"
@@ -155,12 +163,12 @@ contract CanonicalTransactionChain {
         );
 
         require(
-            l1ToL2Queue().isEmpty() || _timestamp <= l1ToL2Queue().peekTimestamp(),
+            l1ToL2Queue.isEmpty() || _timestamp <= l1ToL2Queue.peekTimestamp(),
             "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
         );
 
         require(
-            safetyQueue().isEmpty() || _timestamp <= safetyQueue().peekTimestamp(),
+            safetyQueue.isEmpty() || _timestamp <= safetyQueue.peekTimestamp(),
             "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
         );
 
@@ -171,10 +179,11 @@ contract CanonicalTransactionChain {
 
         lastOVMTimestamp = _timestamp;
 
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
             false, // isL1ToL2Tx
-            merkleUtils().getMerkleRoot(_txBatch), // elementsMerkleRoot
+            merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
             _txBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));
@@ -201,7 +210,8 @@ contract CanonicalTransactionChain {
         }
 
         // verify elementsMerkleRoot
-        if (!merkleUtils().verify(
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
+        if (!merkleUtils.verify(
             batchHeader.elementsMerkleRoot,
             _element,
             _inclusionProof.indexInBatch,
@@ -216,18 +226,18 @@ contract CanonicalTransactionChain {
 
 
     /*
-     * Address Resolution
+     * Contract Resolution
      */
 
-    function merkleUtils() internal view returns (RollupMerkleUtils) {
-        return RollupMerkleUtils(addressResolver.getAddress("RollupMerkleUtils"));
+    function resolveL1ToL2TransactionQueue() internal view returns (L1ToL2TransactionQueue) {
+        return L1ToL2TransactionQueue(resolveContract("L1ToL2TransactionQueue"));
     }
 
-    function l1ToL2Queue() internal view returns (L1ToL2TransactionQueue) {
-        return L1ToL2TransactionQueue(addressResolver.getAddress("L1ToL2TransactionQueue"));
+    function resolveSafetyTransactionQueue() internal view returns (SafetyTransactionQueue) {
+        return SafetyTransactionQueue(resolveContract("SafetyTransactionQueue"));
     }
 
-    function safetyQueue() internal view returns (SafetyTransactionQueue) {
-        return SafetyTransactionQueue(addressResolver.getAddress("SafetyTransactionQueue"));
+    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+        return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

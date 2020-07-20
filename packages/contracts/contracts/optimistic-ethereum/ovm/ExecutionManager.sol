@@ -2,9 +2,10 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { ContractAddressGenerator } from "../utils/ContractAddressGenerator.sol";
-import { RLPEncode } from "../utils/RLPEncode.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { ContractAddressGenerator } from "../utils/libraries/ContractAddressGenerator.sol";
+import { RLPEncode } from "../utils/libraries/RLPEncode.sol";
 import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { FullStateManager } from "./FullStateManager.sol";
@@ -17,7 +18,7 @@ import { SafetyChecker } from "./SafetyChecker.sol";
  *         is sandboxed in a distinct environment as defined by the supplied
  *         backend. Only state / contracts from that backend will be accessed.
  */
-contract ExecutionManager {
+contract ExecutionManager is ContractResolver {
     /*
      * Contract Constants
      */
@@ -38,9 +39,6 @@ contract ExecutionManager {
      */
 
     FullStateManager stateManager;
-    ContractAddressGenerator contractAddressGenerator;
-    RLPEncode rlp;
-    SafetyChecker safetyChecker;
     DataTypes.ExecutionContext executionContext;
 
 
@@ -75,33 +73,16 @@ contract ExecutionManager {
      * Constructor
      */
 
-    /**
-     * @notice Construct a new ExecutionManager with a specified safety
-     *         checker & owner.
-     * @param _opcodeWhitelistMask A bit mask representing which opcodes are
-     *                             whitelisted or not for our safety checker
-     * @param _owner The owner of this contract.
-     * @param _blockGasLimit The block gas limit for OVM blocks
-     */
     constructor(
-        uint256 _opcodeWhitelistMask,
+        address _addressResolver,
         address _owner,
-        uint _blockGasLimit,
-        bool _overrideSafetyChecker
-    ) public {
-        rlp = new RLPEncode();
-
-        // Initialize new contract address generator
-        contractAddressGenerator = new ContractAddressGenerator();
-
+        uint _blockGasLimit
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         // Deploy a default state manager
         stateManager = new FullStateManager();
-        // Deploy a safety checker. TODO: Pass this in as a constructor and remove `_overrideSafetyChecker`
-        if (!_overrideSafetyChecker) {
-            safetyChecker = new SafetyChecker(_opcodeWhitelistMask, address(this));
-        } else {
-            safetyChecker = new StubSafetyChecker();
-        }
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
@@ -236,6 +217,7 @@ contract ExecutionManager {
             callSize = _callBytes.length + 4;
 
             // Emit event that we are creating a contract with an EOA
+            ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
             address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
             emit EOACreatedContract(_newOvmContractAddress);
         } else {
@@ -312,6 +294,8 @@ contract ExecutionManager {
         bytes32 _r,
         bytes32 _s
     ) public view returns (address) {
+        RLPEncode rlp = resolveRLPEncode();
+
         bytes[] memory message = new bytes[](9);
         message[0] = rlp.encodeUint(_nonce); // Nonce
         message[1] = rlp.encodeUint(0); // Gas price
@@ -570,6 +554,7 @@ contract ExecutionManager {
         // First we need to generate the CREATE address
         address creator = executionContext.ovmActiveContract;
         uint creatorNonce = stateManager.getOvmContractNonce(creator);
+        ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
 
         // Next we need to actually create the contract in our state at that address
@@ -627,6 +612,7 @@ contract ExecutionManager {
 
         // First we need to generate the CREATE2 address
         address creator = executionContext.ovmActiveContract;
+        ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
         
         // Next we need to actually create the contract in our state at that address
@@ -652,6 +638,8 @@ contract ExecutionManager {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal {
+        SafetyChecker safetyChecker = resolveSafetyChecker();
+
         require(safetyChecker.isBytecodeSafe(_ovmInitcode), "Contract init (creation) code is not safe");
         // Switch the context to be the new contract
         (address oldMsgSender, address oldActiveContract) = switchActiveContract(_newOvmContractAddress);
@@ -1137,5 +1125,22 @@ contract ExecutionManager {
 
     function getStateManagerAddress() public view returns (address){
         return address(stateManager);
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveSafetyChecker() internal view returns (SafetyChecker) {
+        return SafetyChecker(resolveContract("SafetyChecker"));
+    }
+
+    function resolveContractAddressGenerator() internal view returns (ContractAddressGenerator) {
+        return ContractAddressGenerator(resolveContract("ContractAddressGenerator"));
+    }
+
+    function resolveRLPEncode() internal view returns (RLPEncode) {
+        return RLPEncode(resolveContract("RLPEncode"));
     }
 }

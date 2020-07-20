@@ -7,7 +7,7 @@ import {SafetyChecker} from "../SafetyChecker.sol";
  * @notice This stubbed safety checker always returns TRUE when `isBytecodeSafe(...) is called.
  */
 contract StubSafetyChecker is SafetyChecker {
-    constructor() public SafetyChecker(0, 0x0000000000000000000000000000000000000000) {}
+    constructor() public SafetyChecker(address(0x0), 0) {}
 
     /**
      * @notice Returns true.

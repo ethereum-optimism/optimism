@@ -2,6 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { CanonicalTransactionChain } from "./CanonicalTransactionChain.sol";
 import { StateCommitmentChain } from "./StateCommitmentChain.sol";
 
@@ -12,13 +13,11 @@ import { StateCommitmentChain } from "./StateCommitmentChain.sol";
  *         that # state roots == # of txs, preventing other users from
  *         submitting state batches to the state chain.
  */
-contract SequencerBatchSubmitter {
+contract SequencerBatchSubmitter is ContractResolver {
     /*
      * Contract Variables
      */
 
-    CanonicalTransactionChain canonicalTransactionChain;
-    StateCommitmentChain stateCommitmentChain;
     address public sequencer;
 
     /*
@@ -38,7 +37,13 @@ contract SequencerBatchSubmitter {
     * Constructor
     */
 
-    constructor(address _sequencer) public {
+    constructor(
+        address _addressResolver,
+        address _sequencer
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         sequencer = _sequencer;
     }
 
@@ -46,14 +51,6 @@ contract SequencerBatchSubmitter {
     /*
     * Public Functions
     */
-
-    function initialize(
-        address _canonicalTransactionChain,
-        address _stateCommitmentChain
-    ) public onlySequencer {
-        canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
-        stateCommitmentChain = StateCommitmentChain(_stateCommitmentChain);
-    }
 
     /**
      * @notice Append equal sized batches of transactions and state roots to
@@ -74,7 +71,23 @@ contract SequencerBatchSubmitter {
             "Must append the same number of state roots and transactions"
         );
 
+        CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
+        StateCommitmentChain stateCommitmentChain = resolveStateCommitmentChain();
+
         canonicalTransactionChain.appendSequencerBatch(_txBatch, _txBatchTimestamp);
         stateCommitmentChain.appendStateBatch(_stateBatch);
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+        return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveStateCommitmentChain() internal view returns (StateCommitmentChain) {
+        return StateCommitmentChain(resolveContract("StateCommitmentChain"));
     }
 }

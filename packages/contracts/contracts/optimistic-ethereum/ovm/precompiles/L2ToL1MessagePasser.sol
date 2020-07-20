@@ -1,9 +1,10 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { AddressResolver } from "../../utils/resolvers/AddressResolver.sol";
+import { ContractResolver } from "../../utils/resolvers/ContractResolver.sol";
+import { ExecutionManager } from "../ExecutionManager.sol";
 
-contract L2ToL1MessagePasser {
+contract L2ToL1MessagePasser is ContractResolver {
     /*
      * Events
      */
@@ -20,16 +21,13 @@ contract L2ToL1MessagePasser {
      */
 
     uint nonce;
-    address executionManagerAddress;
 
 
     /*
      * Constructor
      */
 
-    constructor(address _executionManagerAddress) public {
-        executionManagerAddress = _executionManagerAddress;
-    }
+    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
 
 
     /*
@@ -54,7 +52,8 @@ contract L2ToL1MessagePasser {
 
     function getCALLER() internal returns (address) {
         bytes32 methodId = keccak256("ovmCALLER()");
-        address addr = executionManagerAddress;
+        ExecutionManager executionManager = resolveExecutionManager();
+        address addr = address(executionManager);
 
         address theCaller;
         assembly {
@@ -74,5 +73,14 @@ contract L2ToL1MessagePasser {
         }
 
         return theCaller;
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveExecutionManager() internal view returns (ExecutionManager) {
+        return ExecutionManager(resolveContract("ExecutionManager"));
     }
 }

@@ -2,19 +2,19 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { AddressResolver } from "../utils/resolvers/AddressResolver.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
 import { CanonicalTransactionChain } from "./CanonicalTransactionChain.sol";
+import { FraudVerifier } from "../ovm/FraudVerifier.sol";
 
-contract StateCommitmentChain {
+contract StateCommitmentChain is ContractResolver {
     /*
     * Contract Variables
     */
 
     uint public cumulativeNumElements;
     bytes32[] public batches;
-    AddressResolver public addressResolver;
 
     /*
      * Events
@@ -26,11 +26,7 @@ contract StateCommitmentChain {
     * Constructor
     */
 
-    constructor(
-        address _addressResolver
-    ) public {
-        addressResolver = AddressResolver(_addressResolver);
-    }
+    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
 
     /*
     * Public Functions
@@ -53,8 +49,11 @@ contract StateCommitmentChain {
     function appendStateBatch(
         bytes[] memory _stateBatch
     ) public {
+        CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
+
         require(
-            cumulativeNumElements + _stateBatch.length <= canonicalTransactionChain().cumulativeNumElements(),
+            cumulativeNumElements + _stateBatch.length <= canonicalTransactionChain.cumulativeNumElements(),
             "Cannot append more state commitments than total number of transactions in CanonicalTransactionChain"
         );
 
@@ -64,7 +63,7 @@ contract StateCommitmentChain {
         );
 
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
-            merkleUtils().getMerkleRoot(_stateBatch), // elementsMerkleRoot
+            merkleUtils.getMerkleRoot(_stateBatch), // elementsMerkleRoot
             _stateBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));
@@ -86,7 +85,8 @@ contract StateCommitmentChain {
             return false;
         }
 
-        if (!merkleUtils().verify(
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
+        if (!merkleUtils.verify(
             batchHeader.elementsMerkleRoot,
             _element,
             _inclusionProof.indexInBatch,
@@ -103,8 +103,10 @@ contract StateCommitmentChain {
         uint _batchIndex,
         DataTypes.StateChainBatchHeader memory _batchHeader
     ) public {
+        FraudVerifier fraudVerifier = resolveFraudVerifier();
+
         require(
-            msg.sender == fraudVerifier(),
+            msg.sender == address(fraudVerifier),
             "Only FraudVerifier has permission to delete state batches"
         );
 
@@ -125,18 +127,18 @@ contract StateCommitmentChain {
 
 
     /*
-     * Address Resolution
+     * Contract Resolution
      */
 
-    function merkleUtils() internal view returns (RollupMerkleUtils) {
-        return RollupMerkleUtils(addressResolver.getAddress("RollupMerkleUtils"));
+    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+        return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
     }
 
-    function canonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
-        return CanonicalTransactionChain(addressResolver.getAddress("CanonicalTransactionChain"));
+    function resolveFraudVerifier() internal view returns (FraudVerifier) {
+        return FraudVerifier(resolveContract("FraudVerifier"));
     }
 
-    function fraudVerifier() internal view returns (address) {
-        return addressResolver.getAddress("FraudVerifier");
+    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+        return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

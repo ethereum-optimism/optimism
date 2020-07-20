@@ -1,6 +1,9 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { ExecutionManager } from "./ExecutionManager.sol";
+
 /**
  * @title SafetyChecker
  * @notice Safety Checker contract used to check whether or not bytecode is
@@ -8,20 +11,17 @@ pragma experimental ABIEncoderV2;
  *              1. It uses only whitelisted opcodes.
  *              2. All CALLs are to the Execution Manager and have no value.
  */
-contract SafetyChecker {
+contract SafetyChecker is ContractResolver {
     uint256 public opcodeWhitelistMask;
-    address public executionManagerAddress;
 
-    /**
-     * @notice Create a new Safety Checker with the specified whitelist mask.
-     * @param _opcodeWhitelistMask A hex number of 256 bits where each bit
-     *                             represents an opcode, 0 - 255, which is set
-     *                             if whitelisted and unset otherwise.
-     * @param _executionManagerAddress Execution manager contract address.
-     */
-    constructor(uint256 _opcodeWhitelistMask, address _executionManagerAddress) public {
+    constructor(
+        address _addressResolver,
+        uint256 _opcodeWhitelistMask
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         opcodeWhitelistMask = _opcodeWhitelistMask;
-        executionManagerAddress = _executionManagerAddress;
     }
 
     /**
@@ -138,7 +138,7 @@ contract SafetyChecker {
                         address callAddress = toAddress(_bytecode, (pc - (21 + pushedBytes)));
 
                         // CALL is made to the execution manager with msg.value of 0 ETH
-                        if (callAddress != executionManagerAddress || callValue != 0 ) {
+                        if (callAddress != address(resolveExecutionManager()) || callValue != 0 ) {
                             return false;
                         }
                     }
@@ -147,5 +147,14 @@ contract SafetyChecker {
             }
         }
         return true;
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveExecutionManager() internal view returns (ExecutionManager) {
+        return ExecutionManager(resolveContract("ExecutionManager"));
     }
 }
