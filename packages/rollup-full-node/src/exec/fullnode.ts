@@ -12,6 +12,7 @@ import {
   Logger,
   SimpleClient,
 } from '@eth-optimism/core-utils'
+import { Environment } from '@eth-optimism/rollup-core'
 import cors = require('cors')
 
 import { JsonRpcProvider } from 'ethers/providers'
@@ -28,7 +29,6 @@ import {
   NoOpL2ToL1MessageSubmitter,
   NoOpAccountRateLimiter,
   DefaultAccountRateLimiter,
-  Environment,
   initializeL1Node,
   initializeL2Node,
 } from '../app'

@@ -4,9 +4,9 @@ import {
   logError,
   TimeBucketedCounter,
 } from '@eth-optimism/core-utils'
+import { Environment } from '@eth-optimism/rollup-core'
 
 /* Internal imports */
-import { Environment } from './util'
 import {
   AccountRateLimiter,
   RateLimitError,

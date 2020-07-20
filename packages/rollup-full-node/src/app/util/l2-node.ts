@@ -5,7 +5,7 @@ import {
   getLogger,
   logError,
 } from '@eth-optimism/core-utils'
-import { deployContract } from '@eth-optimism/rollup-core'
+import { deployContract, Environment } from '@eth-optimism/rollup-core'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Contract, Wallet } from 'ethers'
@@ -14,7 +14,6 @@ import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { Address, L2NodeContext } from '../../types'
-import { Environment } from './environment'
 import { CHAIN_ID, GAS_LIMIT } from '../constants'
 import * as fs from 'fs'
 
