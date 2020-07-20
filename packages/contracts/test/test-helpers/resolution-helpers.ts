@@ -14,7 +14,16 @@ interface ContractDeployConfig {
   params: any[]
 }
 
-interface AddressResolverConfig {
+type ContractFactoryName =
+  "L1ToL2TransactionQueue" |
+  "SafetyTransactionQueue" |
+  "CanonicalTransactionChain" |
+  "StateCommitmentChain" |
+  "ExecutionManager" |
+  "SafetyChecker" |
+  "FraudVerifier"
+
+interface AddressResolverDeployConfig {
   L1ToL2TransactionQueue: ContractDeployConfig
   SafetyTransactionQueue: ContractDeployConfig
   CanonicalTransactionChain: ContractDeployConfig
@@ -24,7 +33,37 @@ interface AddressResolverConfig {
   FraudVerifier: ContractDeployConfig
 }
 
-const getDefaultConfig = async (addressResolver: Contract): Promise<AddressResolverConfig> => {
+interface AddressResolverConfig {
+  deployConfig: AddressResolverDeployConfig
+  dependencies: ContractFactoryName[]
+}
+
+interface ContractMapping {
+  l1ToL2TransactionQueue: Contract
+  safetyTransactionQueue: Contract
+  canonicalTransactionChain: Contract
+  stateCommitmentChain: Contract
+  executionManager: Contract
+  safetyChecker: Contract
+  fraudVerifier: Contract
+}
+
+export interface AddressResolverMapping {
+  addressResolver: Contract
+  contracts: ContractMapping
+}
+
+const factoryToContractName = {
+  L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
+  SafetyTransactionQueue: 'safetyTransactionQueue',
+  CanonicalTransactionChain: 'canonicalTransactionChain',
+  StateCommitmentChain: 'stateCommitmentChain',
+  ExecutionManager: 'executionManager',
+  SafetyChecker: 'safetyChecker',
+  FraudVerifier: 'fraudVerifier',
+}
+
+const getDefaultDeployConfig = async (addressResolver: Contract): Promise<AddressResolverDeployConfig> => {
   const [
     owner,
     sequencer,
@@ -62,11 +101,8 @@ const getDefaultConfig = async (addressResolver: Contract): Promise<AddressResol
       ]
     },
     SafetyChecker: {
-      factory: await ethers.getContractFactory('SafetyChecker'),
-      params: [
-        addressResolver.address,
-        DEFAULT_OPCODE_WHITELIST_MASK
-      ]
+      factory: await ethers.getContractFactory('StubSafetyChecker'),
+      params: []
     },
     FraudVerifier: {
       factory: await ethers.getContractFactory('FraudVerifier'),
@@ -75,31 +111,59 @@ const getDefaultConfig = async (addressResolver: Contract): Promise<AddressResol
   }
 }
 
-const makeConfig = async (
+const makeDeployConfig = async (
   addressResolver: Contract,
   config: Partial<AddressResolverConfig>
-): Promise<AddressResolverConfig> => {
-  const defaultConfig = await getDefaultConfig(addressResolver)
+): Promise<AddressResolverDeployConfig> => {
+  const defaultDeployConfig = await getDefaultDeployConfig(addressResolver)
 
   return {
-    ...defaultConfig,
-    ...config,
+    ...defaultDeployConfig,
+    ...config.deployConfig,
   }
 }
 
-const makeLibraries = async (addressResolver: Contract): Promise<void> => {
-  const LibraryGenerator = await ethers.getContractFactory('LibraryGenerator')
-  const libraryGenerator = await LibraryGenerator.deploy(addressResolver)
-  await libraryGenerator.makeAll({
-    gasLimit: GAS_LIMIT
-  })
+const getLibraryDeployConfig = async (): Promise<any> => {
+  return {
+    ContractAddressGenerator: {
+      factory: await ethers.getContractFactory('ContractAddressGenerator'),
+      params: []
+    },
+    EthMerkleTrie: {
+      factory: await ethers.getContractFactory('EthMerkleTrie'),
+      params: []
+    },
+    RLPEncode: {
+      factory: await ethers.getContractFactory('RLPEncode'),
+      params: []
+    },
+    RollupMerkleUtils: {
+      factory: await ethers.getContractFactory('RollupMerkleUtils'),
+      params: []
+    },
+  }
 }
 
-const deployAndRegister = async (
+const makeLibraries = async (addressResolver: Contract, signer: Signer): Promise<void> => {
+  const libraryDeployConfig = await getLibraryDeployConfig()
+
+  for (const name of Object.keys(libraryDeployConfig)) {
+    await deployAndRegister(
+      addressResolver,
+      signer,
+      name,
+      libraryDeployConfig[name]
+    )
+  }
+}
+
+export const deployAndRegister = async (
   addressResolver: Contract,
+  signer: Signer,
   name: string,
   deployConfig: ContractDeployConfig
 ): Promise<Contract> => {
+  deployConfig.factory.connect(signer)
   const deployedContract = await deployConfig.factory.deploy(...deployConfig.params)
   await addressResolver.setAddress(name, deployedContract.address)
   return deployedContract
@@ -107,24 +171,30 @@ const deployAndRegister = async (
 
 export const makeAddressResolver = async (
   signer: Signer,
-  config: Partial<AddressResolverConfig>
-): Promise<{
-  [name: string]: Contract
-}> => {
+  config: Partial<AddressResolverConfig> = {}
+): Promise<AddressResolverMapping> => {
   const AddressResolver = await ethers.getContractFactory('AddressResolver')
   const addressResolver = await AddressResolver.deploy()
-  await makeLibraries(addressResolver)
 
-  config = await makeConfig(addressResolver, config)
+  await makeLibraries(addressResolver, signer)
 
-  const contracts: { [name: string]: Contract } = {}
-  for (const name of Object.keys(config)) {
-    contracts[name] = await deployAndRegister(
-      addressResolver,
-      name,
-      config[name],
-    )
+  const deployConfig = await makeDeployConfig(addressResolver, config)
+
+  const contracts: any = {}
+  for (const name of Object.keys(deployConfig)) {
+    if (config.dependencies === undefined || config.dependencies.includes(name as any)) {
+      const contractName = factoryToContractName[name]
+      contracts[contractName] = await deployAndRegister(
+        addressResolver,
+        signer,
+        name,
+        deployConfig[name],
+      )
+    }
   }
 
-  return contracts
+  return {
+    addressResolver,
+    contracts
+  }
 }

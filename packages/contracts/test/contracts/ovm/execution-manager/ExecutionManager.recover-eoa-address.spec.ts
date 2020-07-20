@@ -2,7 +2,7 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -13,6 +13,9 @@ import {
   signTransaction,
   getSignedComponents,
   getWallets,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
 } from '../../../test-helpers'
 
 /* Logging */
@@ -24,6 +27,11 @@ export const abi = new ethers.utils.AbiCoder()
 describe('Execution Manager -- Recover EOA Address', () => {
   const [wallet] = getWallets()
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
   before(async () => {
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
@@ -31,11 +39,18 @@ describe('Execution Manager -- Recover EOA Address', () => {
 
   let executionManager: Contract
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          GAS_LIMIT
+        ]
+      }
     )
   })
 

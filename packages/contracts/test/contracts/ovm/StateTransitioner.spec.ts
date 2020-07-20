@@ -5,6 +5,13 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
+/* Internal Imports */
+import {
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
+} from '../../test-helpers'
+
 /* Logging */
 const log = getLogger('state-transitioner', true)
 
@@ -18,21 +25,36 @@ describe('StateTransitioner', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
-  let ExecutionManager: ContractFactory
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
+  let StubExecutionManager: ContractFactory
   let StateTransitioner: ContractFactory
   before(async () => {
-    ExecutionManager = await ethers.getContractFactory('StubExecutionManager')
+    StubExecutionManager = await ethers.getContractFactory('StubExecutionManager')
     StateTransitioner = await ethers.getContractFactory('StateTransitioner')
   })
 
-  let executionManager: Contract
+  let stubExecutionManager: Contract
   let stateTransitioner: Contract
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy()
+    stubExecutionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: StubExecutionManager,
+        params: []
+      }
+    )
+  
     stateTransitioner = await StateTransitioner.deploy(
+      resolver.addressResolver.address,
       10,
       '0x' + '00'.repeat(32),
-      executionManager.address
+      stubExecutionManager.address
     )
   })
 

@@ -11,6 +11,9 @@ import {
   DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
 } from '../../test-helpers'
 
 /* Logging */
@@ -37,14 +40,32 @@ describe('Safety Checker', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let SafetyChecker: ContractFactory
+  before(async () => {
+    SafetyChecker = await ethers.getContractFactory('SafetyChecker')
+  })
+
   let safetyChecker: Contract
   beforeEach(async () => {
-    SafetyChecker = await ethers.getContractFactory('SafetyChecker')
-    safetyChecker = await SafetyChecker.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      executionManagerAddress
+    safetyChecker = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'SafetyChecker',
+      {
+        factory: SafetyChecker,
+        params: [
+          resolver.addressResolver.address,
+          DEFAULT_OPCODE_WHITELIST_MASK
+        ]
+      }
     )
+
+    await resolver.addressResolver.setAddress('ExecutionManager', executionManagerAddress)
   })
 
   describe('isBytecodeSafe()', async () => {

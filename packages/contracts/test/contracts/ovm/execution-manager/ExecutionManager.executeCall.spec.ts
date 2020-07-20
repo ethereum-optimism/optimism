@@ -8,6 +8,7 @@ import {
   ZERO_ADDRESS,
   TestUtils,
   getCurrentTime,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory } from 'ethers'
 
@@ -22,6 +23,9 @@ import {
   signTransaction,
   getSignedComponents,
   getWallets,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
 } from '../../../test-helpers'
 
 /* Logging */
@@ -34,6 +38,11 @@ describe('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider
 
   const [wallet] = getWallets()
+  
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
 
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
@@ -45,16 +54,25 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   let executionManager: Contract
+  beforeEach(async () => {
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          GAS_LIMIT
+        ]
+      }
+    )
+  })
+
   let stateManager: Contract
   let dummyContractAddress: Address
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
-    )
-
     stateManager = StateManager.attach(
       await executionManager.getStateManagerAddress()
     )

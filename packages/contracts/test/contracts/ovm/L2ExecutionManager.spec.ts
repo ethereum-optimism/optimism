@@ -6,7 +6,13 @@ import { add0x, getLogger } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { DEFAULT_OPCODE_WHITELIST_MASK, GAS_LIMIT } from '../../test-helpers'
+import {
+  DEFAULT_OPCODE_WHITELIST_MASK,
+  GAS_LIMIT,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('l2-execution-manager-calls', true)
@@ -22,15 +28,22 @@ describe('L2 Execution Manager', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let L2ExecutionManager: ContractFactory
+  before(async () => {
+    L2ExecutionManager = await ethers.getContractFactory('L2ExecutionManager')
+  })
+
   let l2ExecutionManager: Contract
   beforeEach(async () => {
-    L2ExecutionManager = await ethers.getContractFactory('L2ExecutionManager')
     l2ExecutionManager = await L2ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
+      resolver.addressResolver.address,
       '0x' + '00'.repeat(20),
       GAS_LIMIT,
-      true
     )
   })
 

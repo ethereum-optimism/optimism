@@ -8,6 +8,7 @@ import {
   add0x,
   bufToHexString,
   ZERO_ADDRESS,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
@@ -23,6 +24,9 @@ import {
   addressToBytes32Address,
   encodeMethodId,
   encodeRawArguments,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
 } from '../../../test-helpers'
 
 /* Contract Imports */
@@ -97,6 +101,11 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
   let SimpleCall: ContractFactory
   before(async () => {
@@ -105,15 +114,24 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
   })
 
   let executionManager: Contract
-  let callContractAddress: Address
-  beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
+  before(async () => {
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          GAS_LIMIT
+        ]
+      }
     )
+  })
 
+  let callContractAddress: Address
+  before(async () => {
     callContractAddress = await manuallyDeployOvmContract(
       wallet,
       provider,

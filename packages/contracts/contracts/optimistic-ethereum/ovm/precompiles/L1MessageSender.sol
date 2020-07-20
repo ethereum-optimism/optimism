@@ -1,23 +1,18 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { ContractResolver } from "../../utils/resolvers/ContractResolver.sol";
 import { ExecutionManager } from "../ExecutionManager.sol";
 
-contract L1MessageSender is ContractResolver {
-    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
+contract L1MessageSender {
+    ExecutionManager executionManager;
 
-    function getL1MessageSender() public returns (address) {
-        ExecutionManager executionManager = resolveExecutionManager();
-        return executionManager.getL1MessageSender();
+    constructor(
+        address _executionManagerAddress
+    ) public {
+        executionManager = ExecutionManager(_executionManagerAddress);
     }
 
-
-    /*
-     * Contract Resolution
-     */
-
-    function resolveExecutionManager() internal view returns (ExecutionManager) {
-        return ExecutionManager(resolveContract("ExecutionManager"));
+    function getL1MessageSender() public returns (address) {
+        return executionManager.getL1MessageSender();
     }
 }

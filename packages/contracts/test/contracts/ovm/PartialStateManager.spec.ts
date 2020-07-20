@@ -5,6 +5,13 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
+/* Internal Imports */
+import {
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
+} from '../../test-helpers'
+
 /* Logging */
 const log = getLogger('partial-state-manager', true)
 
@@ -15,6 +22,13 @@ describe('PartialStateManager', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+
+    await resolver.addressResolver.setAddress('ExecutionManager', await wallet.getAddress())
+  })
+
   let PartialStateManager: ContractFactory
   before(async () => {
     PartialStateManager = await ethers.getContractFactory('PartialStateManager')
@@ -23,7 +37,7 @@ describe('PartialStateManager', () => {
   let partialStateManager: Contract
   beforeEach(async () => {
     partialStateManager = await PartialStateManager.deploy(
-      await wallet.getAddress(),
+      resolver.addressResolver.address,
       await wallet.getAddress()
     )
   })

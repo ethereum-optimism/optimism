@@ -43,6 +43,7 @@ contract StateTransitioner {
     }
 
     constructor(
+        address _addressResolver,
         uint _transitionIndex,
         bytes32 _preStateRoot,
         address _executionManagerAddress
@@ -55,7 +56,7 @@ contract StateTransitioner {
         // And of course set the ExecutionManager pointer.
         executionManager = ExecutionManager(_executionManagerAddress);
         // Finally we'll initialize a new state manager!
-        stateManager = new PartialStateManager(address(this), address(executionManager));
+        stateManager = new PartialStateManager(_addressResolver, address(this));
         // And set our TransitionPhases to the PreExecution phase.
         currentTransitionPhase = TransitionPhases.PreExecution;
     }

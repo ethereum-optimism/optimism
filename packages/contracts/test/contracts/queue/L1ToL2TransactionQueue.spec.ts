@@ -5,6 +5,13 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
+/* Internal Imports */
+import {
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping
+} from '../../test-helpers'
+
 /* Logging */
 const log = getLogger('l1-to-l2-tx-queue', true)
 
@@ -23,6 +30,11 @@ describe('L1ToL2TransactionQueue', () => {
     ] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let L1toL2TxQueue: ContractFactory
   before(async () => {
     L1toL2TxQueue = await ethers.getContractFactory('L1ToL2TransactionQueue')
@@ -30,8 +42,21 @@ describe('L1ToL2TransactionQueue', () => {
 
   let l1ToL2TxQueue: Contract
   beforeEach(async () => {
-    l1ToL2TxQueue = await L1toL2TxQueue.deploy(
-      await l1ToL2TransactionPasser.getAddress(),
+    l1ToL2TxQueue = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'L1toL2TxQueue',
+      {
+        factory: L1toL2TxQueue,
+        params: [
+          resolver.addressResolver.address,
+          await l1ToL2TransactionPasser.getAddress()
+        ]
+      }
+    )
+
+    await resolver.addressResolver.setAddress(
+      'CanonicalTransactionChain',
       await canonicalTransactionChain.getAddress()
     )
   })
