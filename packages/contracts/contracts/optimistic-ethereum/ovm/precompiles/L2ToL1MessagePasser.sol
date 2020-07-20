@@ -1,6 +1,8 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+import { AddressResolver } from "../../utils/resolvers/AddressResolver.sol";
+
 contract L2ToL1MessagePasser {
     /*
      * Events

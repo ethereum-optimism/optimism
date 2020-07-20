@@ -2,8 +2,9 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RollupMerkleUtils } from "../utils/RollupMerkleUtils.sol";
+import { AddressResolver } from "../utils/resolvers/AddressResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
 import { L1ToL2TransactionQueue } from "../queue/L1ToL2TransactionQueue.sol";
 import { SafetyTransactionQueue } from "../queue/SafetyTransactionQueue.sol";
 
@@ -13,12 +14,12 @@ contract CanonicalTransactionChain {
      */
     address public sequencer;
     uint public forceInclusionPeriod;
-    RollupMerkleUtils public merkleUtils;
-    L1ToL2TransactionQueue public l1ToL2Queue;
-    SafetyTransactionQueue public safetyQueue;
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
+
+    AddressResolver public addressResolver;
+
 
     /*
      * Events
@@ -28,26 +29,22 @@ contract CanonicalTransactionChain {
     event SafetyQueueBatchAppended( bytes32 _batchHeaderHash);
     event SequencerBatchAppended(bytes32 _batchHeaderHash);
 
+
     /*
      * Constructor
      */
 
     constructor(
-        address _rollupMerkleUtilsAddress,
+        address _addressResolver,
         address _sequencer,
         address _l1ToL2TransactionPasserAddress,
         uint _forceInclusionPeriod
     ) public {
-        merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
+        addressResolver = AddressResolver(_addressResolver);
+
         sequencer = _sequencer;
         forceInclusionPeriod = _forceInclusionPeriod;
         lastOVMTimestamp = 0;
-
-        safetyQueue = new SafetyTransactionQueue(address(this));
-        l1ToL2Queue = new L1ToL2TransactionQueue(
-            _l1ToL2TransactionPasserAddress,
-            address(this)
-        );
     }
 
     /*
@@ -77,27 +74,27 @@ contract CanonicalTransactionChain {
     }
 
     function appendL1ToL2Batch() public {
-        DataTypes.TimestampedHash memory l1ToL2Header = l1ToL2Queue.peek();
+        DataTypes.TimestampedHash memory l1ToL2Header = l1ToL2Queue().peek();
 
         require(
-            safetyQueue.isEmpty() || l1ToL2Header.timestamp <= safetyQueue.peekTimestamp(),
+            safetyQueue().isEmpty() || l1ToL2Header.timestamp <= safetyQueue().peekTimestamp(),
             "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
         );
 
         _appendQueueBatch(l1ToL2Header, true);
-        l1ToL2Queue.dequeue();
+        l1ToL2Queue().dequeue();
     }
 
     function appendSafetyBatch() public {
-        DataTypes.TimestampedHash memory safetyHeader = safetyQueue.peek();
+        DataTypes.TimestampedHash memory safetyHeader = safetyQueue().peek();
 
         require(
-            l1ToL2Queue.isEmpty() || safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(),
+            l1ToL2Queue().isEmpty() || safetyHeader.timestamp <= l1ToL2Queue().peekTimestamp(),
             "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
         );
 
         _appendQueueBatch(safetyHeader, false);
-        safetyQueue.dequeue();
+        safetyQueue().dequeue();
     }
 
     function _appendQueueBatch(
@@ -158,12 +155,12 @@ contract CanonicalTransactionChain {
         );
 
         require(
-            l1ToL2Queue.isEmpty() || _timestamp <= l1ToL2Queue.peekTimestamp(),
+            l1ToL2Queue().isEmpty() || _timestamp <= l1ToL2Queue().peekTimestamp(),
             "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
         );
 
         require(
-            safetyQueue.isEmpty() || _timestamp <= safetyQueue.peekTimestamp(),
+            safetyQueue().isEmpty() || _timestamp <= safetyQueue().peekTimestamp(),
             "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
         );
 
@@ -177,7 +174,7 @@ contract CanonicalTransactionChain {
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
             false, // isL1ToL2Tx
-            merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
+            merkleUtils().getMerkleRoot(_txBatch), // elementsMerkleRoot
             _txBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));
@@ -204,7 +201,7 @@ contract CanonicalTransactionChain {
         }
 
         // verify elementsMerkleRoot
-        if (!merkleUtils.verify(
+        if (!merkleUtils().verify(
             batchHeader.elementsMerkleRoot,
             _element,
             _inclusionProof.indexInBatch,
@@ -215,5 +212,22 @@ contract CanonicalTransactionChain {
 
         //compare computed batch header with the batch header in the list.
         return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
+    }
+
+
+    /*
+     * Address Resolution
+     */
+
+    function merkleUtils() internal view returns (RollupMerkleUtils) {
+        return RollupMerkleUtils(addressResolver.getAddress("RollupMerkleUtils"));
+    }
+
+    function l1ToL2Queue() internal view returns (L1ToL2TransactionQueue) {
+        return L1ToL2TransactionQueue(addressResolver.getAddress("L1ToL2TransactionQueue"));
+    }
+
+    function safetyQueue() internal view returns (SafetyTransactionQueue) {
+        return SafetyTransactionQueue(addressResolver.getAddress("SafetyTransactionQueue"));
     }
 }

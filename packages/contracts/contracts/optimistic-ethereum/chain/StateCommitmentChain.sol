@@ -2,8 +2,9 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RollupMerkleUtils } from "../utils/RollupMerkleUtils.sol";
+import { AddressResolver } from "../utils/resolvers/AddressResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
 import { CanonicalTransactionChain } from "./CanonicalTransactionChain.sol";
 
 contract StateCommitmentChain {
@@ -11,11 +12,9 @@ contract StateCommitmentChain {
     * Contract Variables
     */
 
-    CanonicalTransactionChain canonicalTransactionChain;
-    RollupMerkleUtils public merkleUtils;
-    address public fraudVerifier;
     uint public cumulativeNumElements;
     bytes32[] public batches;
+    AddressResolver public addressResolver;
 
     /*
      * Events
@@ -28,13 +27,9 @@ contract StateCommitmentChain {
     */
 
     constructor(
-        address _rollupMerkleUtilsAddress,
-        address _canonicalTransactionChain,
-        address _fraudVerifier
+        address _addressResolver
     ) public {
-        merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
-        canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
-        fraudVerifier = _fraudVerifier;
+        addressResolver = AddressResolver(_addressResolver);
     }
 
     /*
@@ -59,7 +54,7 @@ contract StateCommitmentChain {
         bytes[] memory _stateBatch
     ) public {
         require(
-            cumulativeNumElements + _stateBatch.length <= canonicalTransactionChain.cumulativeNumElements(),
+            cumulativeNumElements + _stateBatch.length <= canonicalTransactionChain().cumulativeNumElements(),
             "Cannot append more state commitments than total number of transactions in CanonicalTransactionChain"
         );
 
@@ -69,7 +64,7 @@ contract StateCommitmentChain {
         );
 
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
-            merkleUtils.getMerkleRoot(_stateBatch), // elementsMerkleRoot
+            merkleUtils().getMerkleRoot(_stateBatch), // elementsMerkleRoot
             _stateBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));
@@ -91,7 +86,7 @@ contract StateCommitmentChain {
             return false;
         }
 
-        if (!merkleUtils.verify(
+        if (!merkleUtils().verify(
             batchHeader.elementsMerkleRoot,
             _element,
             _inclusionProof.indexInBatch,
@@ -109,7 +104,7 @@ contract StateCommitmentChain {
         DataTypes.StateChainBatchHeader memory _batchHeader
     ) public {
         require(
-            msg.sender == fraudVerifier,
+            msg.sender == fraudVerifier(),
             "Only FraudVerifier has permission to delete state batches"
         );
 
@@ -126,5 +121,22 @@ contract StateCommitmentChain {
 
         batches.length = _batchIndex;
         cumulativeNumElements = _batchHeader.cumulativePrevElements;
+    }
+
+
+    /*
+     * Address Resolution
+     */
+
+    function merkleUtils() internal view returns (RollupMerkleUtils) {
+        return RollupMerkleUtils(addressResolver.getAddress("RollupMerkleUtils"));
+    }
+
+    function canonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+        return CanonicalTransactionChain(addressResolver.getAddress("CanonicalTransactionChain"));
+    }
+
+    function fraudVerifier() internal view returns (address) {
+        return addressResolver.getAddress("FraudVerifier");
     }
 }
