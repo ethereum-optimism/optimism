@@ -27,16 +27,19 @@ export const getL1BlockInsertValue = (
   )}`
 }
 
-export const l1RollupTxInsertStatement = `INSERT INTO rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index) `
+export const l1RollupTxInsertStatement = `INSERT INTO rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, batch_number, batch_index, l1_block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index) `
 export const getL1RollupTransactionInsertValue = (
   tx: RollupTransaction,
-  batchNumber: number
+  batchNumber?: number
 ): string => {
+  const batchNum = batchNumber || 'NULL'
   return `${stringOrNull(tx.sender)}, ${stringOrNull(tx.l1MessageSender)}, '${
     tx.target
   }', '${tx.calldata}', ${tx.queueOrigin}, ${numOrNull(tx.nonce)}, ${numOrNull(
     tx.gasLimit
-  )}, ${stringOrNull(tx.signature)}, ${batchNumber}, ${tx.batchIndex}`
+  )}, ${stringOrNull(tx.signature)}, ${batchNum}, ${tx.batchIndex}, ${
+    tx.l1BlockNumber
+  }, '${tx.l1TxHash}', ${tx.l1TxIndex}, ${numOrNull(tx.l1TxLogIndex)}`
 }
 
 export const l1RollupStateRootInsertStatement = `INSERT into l1_state_root(state_root, batch_number, batch_index) `
@@ -48,13 +51,15 @@ export const getL1RollupStateRootInsertValue = (
   return `'${stateRoot}', ${batchNumber}, ${batchIndex}`
 }
 
-export const l2TransactionInsertStatement = `INSERT INTO l2_tx(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature) `
+export const l2TransactionInsertStatement = `INSERT INTO l2_tx(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, signature, state_root) `
 export const getL2TransactionInsertValue = (tx: TransactionAndRoot): string => {
   return `'${tx.blockNumber}', ${tx.timestamp}, ${tx.transactionIndex}, '${
     tx.transactionHash
   }' ${stringOrNull(tx.from)}, ${stringOrNull(tx.l1MessageSender)}, '${
     tx.to
-  }', '${tx.calldata}', ${tx.nonce}, ${stringOrNull(tx.signature)}`
+  }', '${tx.calldata}', ${tx.nonce}, ${stringOrNull(tx.signature)}, '${
+    tx.stateRoot
+  }'`
 }
 
 export const bigNumOrNull = (bn: any): string => {

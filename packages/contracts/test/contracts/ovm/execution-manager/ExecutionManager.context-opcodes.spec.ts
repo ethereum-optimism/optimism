@@ -38,6 +38,7 @@ const methodIds = fromPairs(
     'getGASLIMIT',
     'getQueueOrigin',
     'getTIMESTAMP',
+    'getCHAINID',
     'ovmADDRESS',
     'ovmCALLER',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
@@ -154,6 +155,22 @@ describe('Execution Manager -- Context opcodes', () => {
         timestamp,
         'Timestamps do not match.'
       )
+    })
+  })
+
+  describe('ovmCHAINID', async () => {
+    it('properly retrieves CHAINID', async () => {
+      const chainId: number = 108
+      const result = await executeTransaction(
+        contractAddress,
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getCHAINID]
+      )
+
+      log.debug(`CHAINID result: ${result}`)
+
+      should.exist(result, 'Result should exist!')
+      hexStrToNumber(result).should.be.equal(chainId, 'ChainIds do not match.')
     })
   })
 

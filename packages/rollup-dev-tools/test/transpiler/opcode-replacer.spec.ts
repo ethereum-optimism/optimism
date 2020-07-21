@@ -76,6 +76,10 @@ describe('OpcodeReplacer', () => {
       assertSubstituted(replacer, Opcode.CALLER)
     })
 
+    it('substitutes CHAINID', async () => {
+      assertSubstituted(replacer, Opcode.CHAINID)
+    })
+
     it('substitutes CREATE', async () => {
       assertSubstituted(replacer, Opcode.CREATE)
     })

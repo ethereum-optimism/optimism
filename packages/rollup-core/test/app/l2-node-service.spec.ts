@@ -11,7 +11,7 @@ import { Wallet } from 'ethers'
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
-import { BlockBatches, RollupTransaction } from '../../src/types'
+import { BlockBatches, QueueOrigin, RollupTransaction } from '../../src/types'
 import { DefaultL2NodeService } from '../../src/app'
 import { verifyMessage } from 'ethers/utils'
 
@@ -58,7 +58,9 @@ const rollupTx: RollupTransaction = {
   l1Timestamp: timestamp,
   l1BlockNumber: blockNumber,
   l1TxHash,
-  queueOrigin: 1,
+  l1TxIndex: 0,
+  l1TxLogIndex: 0,
+  queueOrigin: QueueOrigin.SAFETY_QUEUE,
 }
 
 const nonce2: number = 1
@@ -76,7 +78,9 @@ const rollupTx2: RollupTransaction = {
   l1Timestamp: timestamp,
   l1BlockNumber: blockNumber,
   l1TxHash,
-  queueOrigin: 1,
+  l1TxIndex: 0,
+  l1TxLogIndex: 1,
+  queueOrigin: QueueOrigin.SAFETY_QUEUE,
 }
 
 const deserializeBlockBatches = (serialized: string): BlockBatches => {
@@ -90,6 +94,8 @@ const deserializeBlockBatches = (serialized: string): BlockBatches => {
       case 'l1BlockNumber':
       case 'l1Timestamp':
       case 'queueOrigin':
+      case 'l1TxIndex':
+      case 'l1TxLogIndex':
         return hexStrToNumber(v)
       default:
         return v

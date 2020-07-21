@@ -1,7 +1,7 @@
 import debug from 'debug'
 import { Logger } from '../types'
 
-export const LOG_NEWLINE_STRING = ' <\\n> '
+export const LOG_NEWLINE_STRING = process.env.LOG_NEW_LINES ? '\n' : ' <\\n> '
 
 /**
  * Gets a logger specific to the provided identifier.

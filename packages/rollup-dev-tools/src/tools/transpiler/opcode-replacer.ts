@@ -39,6 +39,7 @@ import {
 import {
   getADDRESSSubstitute,
   getCALLERSubstitute,
+  getCHAINIDSubstitute,
   getEXTCODEHASHSubstitute,
   getEXTCODESIZESubstitute,
   getORIGINSubstitute,
@@ -324,6 +325,10 @@ export class OpcodeReplacerImpl implements OpcodeReplacer {
         )
       case Opcode.CALLER:
         return getCALLERSubstitute(
+          bufToHexString(this.excutionManagerAddressBuffer)
+        )
+      case Opcode.CHAINID:
+        return getCHAINIDSubstitute(
           bufToHexString(this.excutionManagerAddressBuffer)
         )
       case Opcode.CREATE:
