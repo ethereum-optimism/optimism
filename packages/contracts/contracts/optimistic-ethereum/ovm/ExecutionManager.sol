@@ -110,7 +110,7 @@ contract ExecutionManager is ContractResolver {
      * @notice Sets a new state manager to be associated with the execution manager.
      * This is used when we want to swap out a new backend to be used for a different execution.
      */
-    function setStateManager(address _stateManagerAddress) external {
+    function setStateManager(address _stateManagerAddress) public {
         addressResolver.setAddress("StateManager", _stateManagerAddress);
     }
 
@@ -566,6 +566,9 @@ contract ExecutionManager is ContractResolver {
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
+        // Insert the newly created contract into our state manager.
+        stateManager.associateCreatedContract(_newOvmContractAddress);
+
         // We also need to increment the contract nonce
         stateManager.incrementOvmContractNonce(creator);
 
@@ -660,6 +663,7 @@ contract ExecutionManager is ContractResolver {
 
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
+
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
 
@@ -897,7 +901,7 @@ contract ExecutionManager is ContractResolver {
      *       [storageSlot (bytes32)]
      * returndata: [storageValue (bytes32)]
      */
-    function ovmSLOAD() public view {
+    function ovmSLOAD() public {
         StateManager stateManager = resolveStateManager();
         bytes32 _storageSlot;
         assembly {

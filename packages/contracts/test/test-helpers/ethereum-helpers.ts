@@ -1,3 +1,5 @@
+import * as path from 'path'
+import * as fs from 'fs'
 import { Transaction } from 'ethers/utils'
 import { Log } from 'ethers/providers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
@@ -113,4 +115,28 @@ export const addressToBytes32Address = (addr: string): string => {
   return bufToHexString(
     bufferUtils.padLeft(hexStrToBuf(addr), 32)
   ).toLowerCase()
+}
+
+export const compile = (
+  compiler: any,
+  file: string,
+  settings: any = {}
+): any => {
+  const input = {
+    language: 'Solidity',
+    sources: {
+      [path.basename(file)]: {
+        content: fs.readFileSync(file, 'utf8'),
+      },
+    },
+    settings: {
+      outputSelection: {
+        '*': {
+          '*': ['*'],
+        },
+      },
+      ...settings,
+    },
+  }
+  return JSON.parse(compiler.compile(JSON.stringify(input)))
 }

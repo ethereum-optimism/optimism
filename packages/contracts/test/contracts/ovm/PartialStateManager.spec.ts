@@ -71,18 +71,6 @@ describe('PartialStateManager', () => {
         const existsInvalidStateAccessFlag = await partialStateManager.existsInvalidStateAccessFlag()
         existsInvalidStateAccessFlag.should.equal(true)
       })
-
-      it('sets existsInvalidStateAccessFlag=true if setStorage(contract, key, value) is called without being verified', async () => {
-        const address = '0x' + '01'.repeat(20)
-        const key = '0x' + '01'.repeat(32)
-        const value = '0x' + '01'.repeat(32)
-
-        // Attempt to set unverified storage!
-        await partialStateManager.setStorage(address, key, value)
-
-        const existsInvalidStateAccessFlag = await partialStateManager.existsInvalidStateAccessFlag()
-        existsInvalidStateAccessFlag.should.equal(true)
-      })
     })
 
     describe('Contract Verification', async () => {

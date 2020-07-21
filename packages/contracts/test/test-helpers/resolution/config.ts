@@ -56,7 +56,7 @@ export const getDefaultDeployConfig = async (
     },
     FraudVerifier: {
       factory: await ethers.getContractFactory('FraudVerifier'),
-      params: [],
+      params: [addressResolver.address, true],
     },
   }
 }

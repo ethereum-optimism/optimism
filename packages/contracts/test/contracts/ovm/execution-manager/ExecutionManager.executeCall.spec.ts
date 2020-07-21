@@ -16,7 +16,6 @@ import { Contract, ContractFactory } from 'ethers'
 import {
   GAS_LIMIT,
   CHAIN_ID,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   ZERO_UINT,
   Address,
   manuallyDeployOvmContract,
@@ -94,7 +93,7 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await stateManager.getOvmContractNonce(wallet.address)
+      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -135,7 +134,7 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await stateManager.getOvmContractNonce(wallet.address)
+      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -170,7 +169,7 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await stateManager.getOvmContractNonce(wallet.address)
+      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -206,7 +205,7 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await stateManager.getOvmContractNonce(wallet.address)
+      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
@@ -231,7 +230,9 @@ describe('Execution Manager -- Call opcodes', () => {
         s
       )
       await provider.waitForTransaction(tx.hash)
-      const nonceAfter = await stateManager.getOvmContractNonce(wallet.address)
+      const nonceAfter = await stateManager.getOvmContractNonceView(
+        wallet.address
+      )
       nonceAfter.should.equal(parseInt(nonce, 10) + 1)
     })
 
@@ -243,7 +244,7 @@ describe('Execution Manager -- Call opcodes', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
-      const nonce = await stateManager.getOvmContractNonce(wallet.address)
+      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
         gasLimit: GAS_LIMIT,
