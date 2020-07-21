@@ -16,6 +16,7 @@ const config: BuidlerConfig = {
     buidlerevm: {
       accounts: DEFAULT_ACCOUNTS_BUIDLER,
       blockGasLimit: GAS_LIMIT * 2,
+      allowUnlimitedContractSize: true, // TEMPORARY: Will be fixed by AddressResolver PR.
     },
     coverage: {
       url: 'http://localhost:8555',

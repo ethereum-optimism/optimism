@@ -575,6 +575,9 @@ contract ExecutionManager {
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
+        // Insert the newly created contract into our state manager.
+        stateManager.associateCreatedContract(_newOvmContractAddress);
+
         // We also need to increment the contract nonce
         stateManager.incrementOvmContractNonce(creator);
 
@@ -665,6 +668,7 @@ contract ExecutionManager {
 
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
+
         // Get the code contract address to be emitted by a CreatedContract event
         bytes32 codeContractHash = keccak256(codeContractBytecode);
 
@@ -899,7 +903,7 @@ contract ExecutionManager {
      *       [storageSlot (bytes32)]
      * returndata: [storageValue (bytes32)]
      */
-    function ovmSLOAD() public view {
+    function ovmSLOAD() public {
         bytes32 _storageSlot;
         assembly {
             // skip methodID (4 bytes)
