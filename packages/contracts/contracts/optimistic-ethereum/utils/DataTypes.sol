@@ -66,4 +66,28 @@ contract DataTypes {
        uint timestamp;
        bytes32 txHash;
     }
+
+    struct AccountState {
+        uint256 nonce;
+        uint256 balance;
+        bytes32 storageRoot;
+        bytes32 codeHash;
+    }
+
+    struct ProofMatrix {
+        bool checkNonce;
+        bool checkBalance;
+        bool checkStorageRoot;
+        bool checkCodeHash;
+    }
+
+    struct OVMTransactionData {
+        uint256 timestamp;
+        uint256 queueOrigin;
+        address ovmEntrypoint;
+        bytes callBytes;
+        address fromAddress;
+        address l1MsgSenderAddress;
+        bool allowRevert;
+    }
 }

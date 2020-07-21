@@ -101,9 +101,10 @@ describe('SequencerBatchSubmitter', () => {
 
     stateChain = await StateCommitmentChain.deploy(
       rollupMerkleUtils.address,
-      canonicalTxChain.address,
-      await fraudVerifier.getAddress()
+      canonicalTxChain.address
     )
+
+    await stateChain.setFraudVerifier(await fraudVerifier.getAddress())
 
     await sequencerBatchSubmitter
       .connect(sequencer)

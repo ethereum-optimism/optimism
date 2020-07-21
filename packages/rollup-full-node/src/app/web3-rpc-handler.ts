@@ -4,10 +4,7 @@ import {
   CHAIN_ID,
   GAS_LIMIT,
   getCurrentTime,
-  initializeL2Node,
-  isErrorEVMRevert,
   RollupTransaction,
-  L2NodeContext,
   L2ToL1Message,
 } from '@eth-optimism/rollup-core'
 import {
@@ -30,6 +27,7 @@ import Web3 from 'web3'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
+import { initializeL2Node, isErrorEVMRevert } from './util'
 import {
   FullnodeHandler,
   InvalidParametersError,
@@ -41,6 +39,7 @@ import {
   RevertError,
   UnsupportedFilterError,
   OvmTransactionReceipt,
+  L2NodeContext,
 } from '../types'
 import {
   convertInternalLogsToOvmLogs,
@@ -613,7 +612,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     log.debug(
       `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
     )
-    const ovmContractNonce = await this.context.stateManager.getOvmContractNonce(
+    const ovmContractNonce = await this.context.stateManager.getOvmContractNonceView(
       address
     )
     const response = add0x(ovmContractNonce.toNumber().toString(16))
@@ -1038,7 +1037,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     const ovmFrom = ovmTx.from === undefined ? ZERO_ADDRESS : ovmTx.from
     // Check the nonce
     const expectedNonce = (
-      await this.context.stateManager.getOvmContractNonce(ovmFrom)
+      await this.context.stateManager.getOvmContractNonceView(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
       throw new InvalidParametersError(

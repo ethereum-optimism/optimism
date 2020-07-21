@@ -41,6 +41,13 @@ contract FullStateManager is StateManager {
     function getStorage(
         address _ovmContractAddress,
         bytes32 _slot
+    ) public returns (bytes32) {
+        return ovmContractStorage[_ovmContractAddress][_slot];
+    }
+
+    function getStorageView(
+        address _ovmContractAddress,
+        bytes32 _slot
     ) public view returns (bytes32) {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
@@ -70,6 +77,12 @@ contract FullStateManager is StateManager {
      * @return The contract nonce used for contract creation.
      */
     function getOvmContractNonce(
+        address _ovmContractAddress
+    ) public returns (uint) {
+        return ovmContractNonces[_ovmContractAddress];
+    }
+
+    function getOvmContractNonceView(
         address _ovmContractAddress
     ) public view returns (uint) {
         return ovmContractNonces[_ovmContractAddress];
@@ -114,6 +127,16 @@ contract FullStateManager is StateManager {
     ) public {
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
         codeContractAddressToOvmAddress[_codeContractAddress] = _ovmContractAddress;
+    }
+
+    /**
+     * @notice Marks a contract as newly created. Unused within this implementation.
+     * @param _ovmContractAddress Address to mark as newly created.
+     */
+    function associateCreatedContract(
+        address _ovmContractAddress
+    ) public {
+        return;
     }
 
     /**

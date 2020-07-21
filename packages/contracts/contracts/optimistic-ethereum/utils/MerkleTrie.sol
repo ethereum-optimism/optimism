@@ -115,19 +115,23 @@ contract MerkleTrie {
      * @param _key Key to search for, as hex bytes.
      * @param _proof Merkle trie inclusion proof for the key.
      * @param _root Known root of the Merkle trie.
-     * @return Value associated with the key.
+     * @return Whether the node exists, value associated with the key if so.
      */
     function get(
         bytes memory _key,
         bytes memory _proof,
         bytes32 _root
-    ) public pure returns (bytes memory) {
+    ) public pure returns (bool, bytes memory) {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, ) = walkNodePath(proof, _key, _root);
 
-        require(keyRemainder.length == 0, "Could not find node in provided path.");
+        bool exists = keyRemainder.length == 0;
+        bytes memory value = exists ? getNodeValue(proof[pathLength - 1]) : bytes('');
 
-        return getNodeValue(proof[pathLength - 1]);
+        return (
+            exists,
+            value
+        );
     }
 
     /*
