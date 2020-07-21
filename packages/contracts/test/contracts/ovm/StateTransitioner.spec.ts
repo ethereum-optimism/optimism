@@ -516,7 +516,11 @@ describe('StateTransitioner', () => {
 
   describe('applyTransaction(...)', async () => {
     it('should succeed if no state is accessed', async () => {
-      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -538,7 +542,9 @@ describe('StateTransitioner', () => {
       )
 
       await stateTransitioner.applyTransaction(transactionData)
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.POST_EXECUTION
+      )
     })
 
     it('should succeed initialized state is accessed', async () => {
@@ -563,7 +569,11 @@ describe('StateTransitioner', () => {
         fraudTester.address,
         testKeySlot
       )
-      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -593,12 +603,18 @@ describe('StateTransitioner', () => {
       )
 
       await stateTransitioner.applyTransaction(transactionData)
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.POST_EXECUTION
+      )
     })
 
     it('should succeed when a new contract is created', async () => {
       // Attempting a `getStorage` call to a key that hasn't been proven.
-      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -620,12 +636,18 @@ describe('StateTransitioner', () => {
       )
 
       await stateTransitioner.applyTransaction(transactionData)
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.POST_EXECUTION)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.POST_EXECUTION
+      )
     })
 
     it('should fail if attempting to access uninitialized state', async () => {
       // Attempting a `getStorage` call to a key that hasn't been proven.
-      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -653,11 +675,17 @@ describe('StateTransitioner', () => {
         }
       )
 
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.PRE_EXECUTION)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.PRE_EXECUTION
+      )
     })
 
     it('should fail if attempting to access an uninitialized contract', async () => {
-      ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
         executionManager,
@@ -678,14 +706,20 @@ describe('StateTransitioner', () => {
         }
       )
 
-      expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.PRE_EXECUTION)
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.PRE_EXECUTION
+      )
     })
   })
 
   describe('Post-Execution', async () => {
     describe('proveUpdatedStorageSlot(...)', async () => {
       it('should correctly update when a slot has been changed', async () => {
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -721,7 +755,11 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when multiple slots have changed', async () => {
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -761,7 +799,11 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when the same slot has changed multiple times', async () => {
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -803,7 +845,11 @@ describe('StateTransitioner', () => {
 
     describe('proveUpdatedContract(...)', async () => {
       it('should correctly update when a contract has been created', async () => {
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -840,7 +886,11 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly update when multiple contracts have been created', async () => {
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -903,7 +953,11 @@ describe('StateTransitioner', () => {
           fraudTester.address,
           testKeySlot
         )
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -936,11 +990,17 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
-        expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.COMPLETE)
+        expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+          STATE_TRANSITIONER_PHASES.COMPLETE
+        )
       })
 
       it('should correctly finalize when storage slots are changed', async () => {
-        ;[stateTransitioner, stateManager, transactionData] = await initStateTransitioner(
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
           executionManager,
@@ -968,7 +1028,9 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
-        expect(await stateTransitioner.currentTransitionPhase()).to.equal(STATE_TRANSITIONER_PHASES.COMPLETE)
+        expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+          STATE_TRANSITIONER_PHASES.COMPLETE
+        )
       })
     })
   })

@@ -355,7 +355,9 @@ describe('FraudVerifier', () => {
       const stateTransitionerAddress = await fraudVerifier.stateTransitioners(
         transactionIndex
       )
-      stubStateTransitioner = StubStateTransitioner.attach(stateTransitionerAddress)
+      stubStateTransitioner = StubStateTransitioner.attach(
+        stateTransitionerAddress
+      )
     })
 
     it('should correctly finalize when the computed state root differs', async () => {

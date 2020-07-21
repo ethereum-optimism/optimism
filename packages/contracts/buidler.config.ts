@@ -15,7 +15,7 @@ const config: BuidlerConfig = {
   networks: {
     buidlerevm: {
       accounts: DEFAULT_ACCOUNTS_BUIDLER,
-      blockGasLimit: GAS_LIMIT * 2
+      blockGasLimit: GAS_LIMIT * 2,
     },
     coverage: {
       url: 'http://localhost:8555',
