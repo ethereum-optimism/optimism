@@ -702,7 +702,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async getVerificationCandidate(): Promise<VerificationCandidate> {
+  public async getNextVerificationCandidate(): Promise<VerificationCandidate> {
     const rows: Row[] = await this.rdb.select(
       `SELECT batch_number, l1_batch_index, l1_root, geth_root
       FROM next_verification_batch`

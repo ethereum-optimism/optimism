@@ -6,7 +6,7 @@ export interface VerifierDataService {
    *
    * @returns The Verification Candidate or undefined if verification is caught up.
    */
-  getVerificationCandidate(): Promise<VerificationCandidate>
+  getNextVerificationCandidate(): Promise<VerificationCandidate>
 
   /**
    * Marks the batch with the provided number verified.

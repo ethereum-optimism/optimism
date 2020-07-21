@@ -67,24 +67,24 @@ export interface L2DataService {
   /**
    * Marks the Canonical Chain Tx batch with the provided batch number as submitted to the L1 chain.
    *
-   * @param ccBatchNumber The batch number to mark as submitted.
+   * @param batchNumber The batch number to mark as submitted.
    * @param l1SubmissionTxHash The tx hash of this rollup batch submission tx on L1.
    * @throws An error if there is a DB error.
    */
   markTransactionBatchSubmittedToL1(
-    ccBatchNumber: number,
+    batchNumber: number,
     l1SubmissionTxHash: string
   ): Promise<void>
 
   /**
    * Marks the Canonical Chain Tx batch with the provided batch number as confirmed on the L1 chain.
    *
-   * @param ccBatchNumber The batch number to mark as confirmed.
+   * @param batchNumber The batch number to mark as confirmed.
    * @param l1SubmissionTxHash The tx hash of this rollup batch submission tx on L1.
    * @throws An error if there is a DB error.
    */
   markTransactionBatchConfirmedOnL1(
-    ccBatchNumber: number,
+    batchNumber: number,
     l1SubmissionTxHash: string
   ): Promise<void>
 
@@ -97,26 +97,26 @@ export interface L2DataService {
   getNextStateCommitmentBatchToSubmit(): Promise<StateCommitmentBatchSubmission>
 
   /**
-   * Marks the Canonical Chain Tx batch with the provided batch number as submitted to the L1 chain.
+   * Marks the StateCommitment batch with the provided batch number as submitted to the L1 chain.
    *
-   * @param ccBatchNumber The batch number to mark as submitted.
+   * @param batchNumber The batch number to mark as submitted.
    * @param l1SubmissionTxHash The tx hash of this batch submission tx on L1.
    * @throws An error if there is a DB error.
    */
   markStateRootBatchSubmittedToL1(
-    ccBatchNumber: number,
+    batchNumber: number,
     l1SubmissionTxHash: string
   ): Promise<void>
 
   /**
-   * Marks the Canonical Chain Tx batch with the provided batch number as confirmed on the L1 chain.
+   * Marks the StateCommitment batch with the provided batch number as confirmed on the L1 chain.
    *
-   * @param ccBatchNumber The batch number to mark as confirmed.
+   * @param batchNumber The batch number to mark as confirmed.
    * @param l1SubmissionTxHash The tx hash of this batch submission tx on L1.
    * @throws An error if there is a DB error.
    */
   markStateRootBatchFinalOnL1(
-    ccBatchNumber: number,
+    batchNumber: number,
     l1SubmissionTxHash: string
   ): Promise<void>
 }

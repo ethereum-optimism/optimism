@@ -10,7 +10,7 @@ class MockVerifierDataService implements VerifierDataService {
   public readonly verificationCandidates: VerificationCandidate[] = []
   public readonly batchesVerified: number[] = []
 
-  public async getVerificationCandidate(): Promise<VerificationCandidate> {
+  public async getNextVerificationCandidate(): Promise<VerificationCandidate> {
     return this.verificationCandidates.shift()
   }
 
