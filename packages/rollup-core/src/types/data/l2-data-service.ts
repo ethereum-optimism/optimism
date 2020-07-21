@@ -1,6 +1,10 @@
 /* Internal Imports */
 import { TransactionOutput } from '../types'
-import {TransactionBatchSubmission, BatchSubmissionStatus, StateCommitmentBatchSubmission} from './types'
+import {
+  TransactionBatchSubmission,
+  BatchSubmissionStatus,
+  StateCommitmentBatchSubmission,
+} from './types'
 
 export interface L2DataService {
   /**
@@ -28,7 +32,7 @@ export interface L2DataService {
    * @throws An error if there is a DB error.
    */
   wasNextStateCommitmentChainBatchToBuildAppendedOnL1(): Promise<boolean>
-  
+
   /**
    * Attempts to build a State Commitment Chain batch to match the batch present on L1.
    *
@@ -45,7 +49,10 @@ export interface L2DataService {
    * @returns The batch number of the created batch if one was created or -1 if one was not created.
    * @throws An error if there is a DB error.
    */
-  tryBuildL2OnlyStateCommitmentChainBatch(minBatchSize: number, maxBatchSize: number): Promise<number>
+  tryBuildL2OnlyStateCommitmentChainBatch(
+    minBatchSize: number,
+    maxBatchSize: number
+  ): Promise<number>
 
   /**
    * Gets the next Canonical Chain Tx batch for submission to L1, if one exists.
@@ -53,7 +60,9 @@ export interface L2DataService {
    * @returns The TransactionBatchSubmission object, or undefined
    * @throws An error if there is a DB error.
    */
-  getNextCanonicalChainTransactionBatchToSubmit(): Promise<TransactionBatchSubmission>
+  getNextCanonicalChainTransactionBatchToSubmit(): Promise<
+    TransactionBatchSubmission
+  >
 
   /**
    * Marks the Canonical Chain Tx batch with the provided batch number as submitted to the L1 chain.

@@ -1,17 +1,14 @@
 /* External Imports */
-import {
-  getLogger,
-  logError,
-  ScheduledTask,
-} from '@eth-optimism/core-utils'
+import { getLogger, logError, ScheduledTask } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 
 /* Internal Imports */
 import {
   BatchSubmissionStatus,
-  L2DataService, StateCommitmentBatchSubmission,
+  L2DataService,
+  StateCommitmentBatchSubmission,
 } from '../../../types/data'
-import {TransactionReceipt, TransactionResponse} from 'ethers/providers'
+import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 
 const log = getLogger('state-commitment-chain-batch-submitter')
 
@@ -39,11 +36,19 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     try {
       stateBatch = await this.dataService.getNextStateCommitmentBatchToSubmit()
     } catch (e) {
-      logError(log, `Error fetching state root batch for L1 submission! Continuing...`, e)
+      logError(
+        log,
+        `Error fetching state root batch for L1 submission! Continuing...`,
+        e
+      )
       return
     }
 
-    if (!stateBatch || !stateBatch.stateRoots || !stateBatch.stateRoots.length) {
+    if (
+      !stateBatch ||
+      !stateBatch.stateRoots ||
+      !stateBatch.stateRoots.length
+    ) {
       log.debug(`No state root batches found for L1 submission.`)
       return
     }
@@ -51,13 +56,18 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     let rootBatchTxHash: string = stateBatch.submissionTxHash
     switch (stateBatch.status) {
       case BatchSubmissionStatus.QUEUED:
-        rootBatchTxHash = await this.buildAndSendRollupBatchTransaction(stateBatch)
+        rootBatchTxHash = await this.buildAndSendRollupBatchTransaction(
+          stateBatch
+        )
         if (!rootBatchTxHash) {
           return
         }
       // Fallthrough on purpose -- this is a workflow
       case BatchSubmissionStatus.SENT:
-        await this.waitForStateRootBatchConfirms(rootBatchTxHash, stateBatch.batchNumber)
+        await this.waitForStateRootBatchConfirms(
+          rootBatchTxHash,
+          stateBatch.batchNumber
+        )
       // Fallthrough on purpose -- this is a workflow
       case BatchSubmissionStatus.FINALIZED:
         break
@@ -82,7 +92,9 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     try {
       const stateRoots: string[] = stateRootBatch.stateRoots
 
-      const txRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(stateRoots)
+      const txRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(
+        stateRoots
+      )
       log.debug(
         `State Root batch ${stateRootBatch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
       )
@@ -97,7 +109,9 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     }
 
     try {
-      log.debug(`Marking State Root batch ${stateRootBatch.batchNumber} submitted`)
+      log.debug(
+        `Marking State Root batch ${stateRootBatch.batchNumber} submitted`
+      )
       await this.dataService.markStateRootBatchSubmittedToL1(
         stateRootBatch.batchNumber,
         txHash

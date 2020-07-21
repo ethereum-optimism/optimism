@@ -29,13 +29,19 @@ export class CanonicalChainBatchCreator extends ScheduledTask {
     try {
       const l2OnlyBatchBuilt: number = await this.dataService.tryBuildCanonicalChainBatchNotPresentOnL1()
       if (l2OnlyBatchBuilt !== undefined && l2OnlyBatchBuilt >= 0) {
-        log.debug(`L2-only Canonical Chain Tx batch with number ${l2OnlyBatchBuilt} was built!`)
+        log.debug(
+          `L2-only Canonical Chain Tx batch with number ${l2OnlyBatchBuilt} was built!`
+        )
         return
       }
 
       log.debug(`No Canonical Chain Tx batches built... sad.`)
     } catch (e) {
-      logError(log, `Error running CanonicalChainBatchCreator! Continuing...`, e)
+      logError(
+        log,
+        `Error running CanonicalChainBatchCreator! Continuing...`,
+        e
+      )
     }
   }
 }

@@ -36,7 +36,7 @@ export interface BatchSubmission {
   batchNumber: number
 }
 
-export interface TransactionBatchSubmission extends BatchSubmission{
+export interface TransactionBatchSubmission extends BatchSubmission {
   transactions: TransactionOutput[]
 }
 

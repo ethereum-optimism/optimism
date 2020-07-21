@@ -1,8 +1,8 @@
 /* External Imports */
-import {getLogger, logError} from '@eth-optimism/core-utils'
+import { getLogger, logError } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import {RDB, Row} from '../types/db'
+import { RDB, Row } from '../types/db'
 
 const log = getLogger('postgres-db')
 const Pool = require('pg-pool')
@@ -33,7 +33,7 @@ export class PostgresDB implements RDB {
   }
 
   public async select(query: string, client?: any): Promise<Row[]> {
-    const c = client || await this.pool.connect()
+    const c = client || (await this.pool.connect())
     try {
       const res = await c.query(query)
       return res.rows
@@ -48,7 +48,7 @@ export class PostgresDB implements RDB {
   }
 
   public async execute(query: string, client?: any): Promise<void> {
-    const c = client || await this.pool.connect()
+    const c = client || (await this.pool.connect())
     try {
       // TODO: we can return IDs from here on inserts if we want this. Right now it doesn't matter.
       await c.query(query)

@@ -2,10 +2,7 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import {
-  BlockBatches,
-  RollupTransaction,
-} from '../types'
+import { BlockBatches, RollupTransaction } from '../types'
 import { GethSubmissionRecord } from './types'
 
 export interface L1DataService {

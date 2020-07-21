@@ -46,7 +46,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       return
     }
 
-    if (!batchSubmission || !batchSubmission.transactions || !batchSubmission.transactions.length) {
+    if (
+      !batchSubmission ||
+      !batchSubmission.transactions ||
+      !batchSubmission.transactions.length
+    ) {
       log.debug(`No batches found for L1 submission.`)
       return
     }
@@ -54,13 +58,18 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     let txBatchTxHash: string = batchSubmission.submissionTxHash
     switch (batchSubmission.status) {
       case BatchSubmissionStatus.QUEUED:
-        txBatchTxHash = await this.buildAndSendRollupBatchTransaction(batchSubmission)
+        txBatchTxHash = await this.buildAndSendRollupBatchTransaction(
+          batchSubmission
+        )
         if (!txBatchTxHash) {
           return
         }
       // Fallthrough on purpose -- this is a workflow
       case BatchSubmissionStatus.SENT:
-        await this.waitForTxBatchConfirms(txBatchTxHash, batchSubmission.batchNumber)
+        await this.waitForTxBatchConfirms(
+          txBatchTxHash,
+          batchSubmission.batchNumber
+        )
       // Fallthrough on purpose -- this is a workflow
       case BatchSubmissionStatus.FINALIZED:
         break
@@ -182,7 +191,9 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
    * @param batch The batch to turn into ABI-encoded calldata bytes.
    * @returns The ABI-encoded bytes[] of the Rollup Transactions in the format listed above.
    */
-  private getTransactionBatchCalldata(batch: TransactionBatchSubmission): string[] {
+  private getTransactionBatchCalldata(
+    batch: TransactionBatchSubmission
+  ): string[] {
     const txs: string[] = []
     for (const tx of batch.transactions) {
       const nonce: string = remove0x(numberToHexString(tx.nonce, 32))

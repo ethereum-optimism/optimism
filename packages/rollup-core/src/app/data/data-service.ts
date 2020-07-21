@@ -15,7 +15,8 @@ import {
   RollupTransaction,
   TransactionOutput,
   VerificationCandidate,
-  VerificationStatus, StateCommitmentBatchSubmission,
+  VerificationStatus,
+  StateCommitmentBatchSubmission,
 } from '../../types'
 import {
   getL1BlockInsertValue,
@@ -151,11 +152,7 @@ export class DefaultDataService implements DataService {
       ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
     `)
-    if (
-      !txHashRes ||
-      !txHashRes.length ||
-      !txHashRes[0]['l1_tx_hash']
-    ) {
+    if (!txHashRes || !txHashRes.length || !txHashRes[0]['l1_tx_hash']) {
       return undefined
     }
 
@@ -232,7 +229,9 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async getOldestUnverifiedL1TransactionBatch(): Promise<GethSubmissionRecord> {
+  public async getOldestUnverifiedL1TransactionBatch(): Promise<
+    GethSubmissionRecord
+  > {
     const res: Row[] = await this.rdb.select(`
       SELECT COUNT(*) as submission_size, geth_submission_queue_index, block_timestamp, 
       FROM next_queued_geth_submission
@@ -397,7 +396,9 @@ export class DefaultDataService implements DataService {
    *
    * @returns true if the next batch to build was already appended, false otherwise.
    */
-  public async wasNextStateCommitmentChainBatchToBuildAppendedOnL1(): Promise<boolean> {
+  public async wasNextStateCommitmentChainBatchToBuildAppendedOnL1(): Promise<
+    boolean
+  > {
     const res = await this.rdb.select(
       `SELECT (l1.batch_number - l2.batch_number) as l1_lead
       FROM 
@@ -426,8 +427,11 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch(): Promise<number> {
-    const nextBatchNumber = await this.getMaxStateCommitmentChainBatchNumber() + 1
+  public async tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch(): Promise<
+    number
+  > {
+    const nextBatchNumber =
+      (await this.getMaxStateCommitmentChainBatchNumber()) + 1
     const batchSizeRes = await this.rdb.select(
       `SELECT l1.batch_size as l1_batch_size, l2.batch_size as l2_batch_size
         FROM 
@@ -445,7 +449,11 @@ export class DefaultDataService implements DataService {
       `
     )
 
-    if (!batchSizeRes || !batchSizeRes.length || batchSizeRes[0]['l1_batch_size'] === undefined) {
+    if (
+      !batchSizeRes ||
+      !batchSizeRes.length ||
+      batchSizeRes[0]['l1_batch_size'] === undefined
+    ) {
       const msg = `Unable to query L1 and L2 batch sizes for L1 Batch Number ${nextBatchNumber}`
       log.error(msg)
       throw Error(msg)
@@ -454,14 +462,18 @@ export class DefaultDataService implements DataService {
     const l1BatchSize: number = batchSizeRes[0]['l1_batch_size']
 
     if (l1BatchSize > batchSizeRes[0]['l2_batch_size']) {
-      log.debug(`Cannot build L2 state commitment batch to match L1 batch number ${nextBatchNumber} yet because there are ${l1BatchSize} roots in the L1 batch and only ${batchSizeRes['l2_batch_size']} processed L2 roots.`)
+      log.debug(
+        `Cannot build L2 state commitment batch to match L1 batch number ${nextBatchNumber} yet because there are ${l1BatchSize} roots in the L1 batch and only ${batchSizeRes['l2_batch_size']} processed L2 roots.`
+      )
       return -1
     }
 
-
     const txContext = await this.rdb.startTransaction()
     try {
-      const batchNumber = await this.insertNewStateCommitmentChainBatch(true, txContext)
+      const batchNumber = await this.insertNewStateCommitmentChainBatch(
+        true,
+        txContext
+      )
       if (batchNumber !== nextBatchNumber) {
         log.error(
           `Created L2 batch number ${batchNumber} does not match expected batch number ${nextBatchNumber}. This probably shouldn't happen.`
@@ -498,26 +510,38 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async tryBuildL2OnlyStateCommitmentChainBatch(minBatchSize: number, maxBatchSize: number): Promise<number> {
+  public async tryBuildL2OnlyStateCommitmentChainBatch(
+    minBatchSize: number,
+    maxBatchSize: number
+  ): Promise<number> {
     const availableRootsRes = await this.rdb.select(
       `SELECT COUNT(*) as available
       FROM l2_tx_output
       WHERE state_commitment_chain_batch_number IS NULL`
     )
 
-    if (!availableRootsRes || !availableRootsRes.length || availableRootsRes[0]['available'] === undefined) {
+    if (
+      !availableRootsRes ||
+      !availableRootsRes.length ||
+      availableRootsRes[0]['available'] === undefined
+    ) {
       const msg = `Error: unable to fetch available L2 Tx Output State Roots`
       log.error(msg)
       throw Error(msg)
     }
 
     if (availableRootsRes[0]['available'] < minBatchSize) {
-      log.debug(`Cannot build L2-only state commitment batch. Only ${availableRootsRes[0]['available']} unbatched L2 roots exist`)
+      log.debug(
+        `Cannot build L2-only state commitment batch. Only ${availableRootsRes[0]['available']} unbatched L2 roots exist`
+      )
     }
 
     const txContext = await this.rdb.startTransaction()
     try {
-      const batchNumber = await this.insertNewStateCommitmentChainBatch(false, txContext)
+      const batchNumber = await this.insertNewStateCommitmentChainBatch(
+        false,
+        txContext
+      )
       await this.rdb.execute(
         `UPDATE l2_tx_output l
         SET l.state_commitment_chain_batch_number = ${batchNumber}
@@ -533,11 +557,7 @@ export class DefaultDataService implements DataService {
       await this.rdb.commit(txContext)
       return batchNumber
     } catch (e) {
-      logError(
-        log,
-        `Error creating L2-only State Commitment Chain.`,
-        e
-      )
+      logError(log, `Error creating L2-only State Commitment Chain.`, e)
       await this.rdb.rollback(txContext)
       throw Error(e)
     }
@@ -620,7 +640,9 @@ export class DefaultDataService implements DataService {
     )
   }
 
-  public async getNextStateCommitmentBatchToSubmit(): Promise<StateCommitmentBatchSubmission> {
+  public async getNextStateCommitmentBatchToSubmit(): Promise<
+    StateCommitmentBatchSubmission
+  > {
     const res = await this.rdb.select(
       `SELECT scc.batch_number, scc.status, scc.submission_tx_hash, tx.state_root
       FROM l2_tx_output tx
@@ -760,7 +782,10 @@ export class DefaultDataService implements DataService {
    * @param txContext The tx context to use for this insert, if any.
    * @returns The new entry's batch number.
    */
-  protected async insertNewL1StateRootBatch(l1TxHash: string, txContext?: any): Promise<number> {
+  protected async insertNewL1StateRootBatch(
+    l1TxHash: string,
+    txContext?: any
+  ): Promise<number> {
     let batchNumber: number
 
     let retries = 3
@@ -788,16 +813,19 @@ export class DefaultDataService implements DataService {
    * @param txContext The tx context to use for this insert, if there is one.
    * @returns The new entry's batch number.
    */
-  protected async insertNewCanonicalChainBatch(txContext?: any): Promise<number> {
+  protected async insertNewCanonicalChainBatch(
+    txContext?: any
+  ): Promise<number> {
     let batchNumber: number
 
     let retries = 3
     // This should never fail, but adding in retries anyway
     while (retries > 0) {
       try {
-        batchNumber = (await this.getMaxCanonicalChainBatchNumber(txContext)) + 1
+        batchNumber =
+          (await this.getMaxCanonicalChainBatchNumber(txContext)) + 1
         await this.rdb.execute(
-            `INSERT INTO canonical_chain_batch(batch_number) 
+          `INSERT INTO canonical_chain_batch(batch_number) 
             VALUES (${batchNumber})`,
           txContext
         )
@@ -816,18 +844,15 @@ export class DefaultDataService implements DataService {
    * @param txContext The tx context to use for this fetch if any.
    * @returns The max batch number at the time of this query.
    */
-  protected async getMaxCanonicalChainBatchNumber(txContext?: any): Promise<number> {
+  protected async getMaxCanonicalChainBatchNumber(
+    txContext?: any
+  ): Promise<number> {
     const rows = await this.rdb.select(
-        `SELECT MAX(batch_number) as batch_number
+      `SELECT MAX(batch_number) as batch_number
          FROM canonical_chain_batch`,
       txContext
     )
-    if (
-      rows &&
-      !!rows.length &&
-      !!rows[0] &&
-      !!rows[0]['batch_number']
-    ) {
+    if (rows && !!rows.length && !!rows[0] && !!rows[0]['batch_number']) {
       // TODO: make sure we don't need to cast
       return rows[0]['batch_number']
     }
@@ -842,7 +867,10 @@ export class DefaultDataService implements DataService {
    * @param txContext The tx context for this insert, if any
    * @returns The created batch number.
    */
-  protected async insertNewStateCommitmentChainBatch(final: boolean = false, txContext?: any): Promise<number> {
+  protected async insertNewStateCommitmentChainBatch(
+    final: boolean = false,
+    txContext?: any
+  ): Promise<number> {
     let batchNumber: number
 
     let retries = 3
@@ -851,8 +879,12 @@ export class DefaultDataService implements DataService {
       try {
         batchNumber = (await this.getMaxStateCommitmentChainBatchNumber()) + 1
         await this.rdb.execute(
-            `INSERT INTO state_commitment_chain_batch(batch_number, status) 
-            VALUES (${batchNumber}, '${final ? BatchSubmissionStatus.FINALIZED : BatchSubmissionStatus.QUEUED}')`,
+          `INSERT INTO state_commitment_chain_batch(batch_number, status) 
+            VALUES (${batchNumber}, '${
+            final
+              ? BatchSubmissionStatus.FINALIZED
+              : BatchSubmissionStatus.QUEUED
+          }')`,
           txContext
         )
         break
@@ -873,12 +905,7 @@ export class DefaultDataService implements DataService {
       `SELECT MAX(batch_number) as batch_number 
         FROM state_commitment_chain_batch`
     )
-    if (
-      rows &&
-      !!rows.length &&
-      !!rows[0] &&
-      !!rows[0]['batch_number']
-    ) {
+    if (rows && !!rows.length && !!rows[0] && !!rows[0]['batch_number']) {
       // TODO: make sure we don't need to cast
       return rows[0]['batch_number']
     }
@@ -895,12 +922,7 @@ export class DefaultDataService implements DataService {
       `SELECT MAX(queue_index) as queue_index 
         FROM geth_submission_queue`
     )
-    if (
-      rows &&
-      !!rows.length &&
-      !!rows[0] &&
-      !!rows[0]['queue_index']
-    ) {
+    if (rows && !!rows.length && !!rows[0] && !!rows[0]['queue_index']) {
       // TODO: make sure we don't need to cast
       return rows[0]['queue_index']
     }
@@ -917,12 +939,7 @@ export class DefaultDataService implements DataService {
       `SELECT MAX(batch_number) as batch_number 
         FROM l1_rollup_state_root_batch`
     )
-    if (
-      rows &&
-      !!rows.length &&
-      !!rows[0] &&
-      !!rows[0]['batch_number']
-    ) {
+    if (rows && !!rows.length && !!rows[0] && !!rows[0]['batch_number']) {
       // TODO: make sure we don't need to cast
       return rows[0]['batch_number']
     }

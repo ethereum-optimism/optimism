@@ -32,20 +32,29 @@ describe('Optimistic Canonical Chain Batch Creator', () => {
 
   it('should run successfully when no batch is built', async () => {
     await batchCreator.runTask()
-    dataService.invoked.should.equal(true, "tryBuildCanonicalChainBatchNotPresentOnL1 not invoked!")
+    dataService.invoked.should.equal(
+      true,
+      'tryBuildCanonicalChainBatchNotPresentOnL1 not invoked!'
+    )
   })
 
   it('should run successfully when Data Service says it built a batch', async () => {
     dataService.builtBatch = 0
     await batchCreator.runTask()
 
-    dataService.invoked.should.equal(true, "tryBuildCanonicalChainBatchNotPresentOnL1 not invoked!")
+    dataService.invoked.should.equal(
+      true,
+      'tryBuildCanonicalChainBatchNotPresentOnL1 not invoked!'
+    )
   })
 
   it('should run successfully when Data Service throws', async () => {
     dataService.builtBatch = -2
     await batchCreator.runTask()
 
-    dataService.invoked.should.equal(true, "tryBuildCanonicalChainBatchNotPresentOnL1 not invoked!")
+    dataService.invoked.should.equal(
+      true,
+      'tryBuildCanonicalChainBatchNotPresentOnL1 not invoked!'
+    )
   })
 })

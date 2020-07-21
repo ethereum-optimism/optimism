@@ -112,7 +112,7 @@ describe('Canonical Chain Batch Submitter', () => {
     )
     batchSubmitter = new CanonicalChainBatchSubmitter(
       dataService,
-      canonicalTransactionChain as any,
+      canonicalTransactionChain as any
     )
   })
 
@@ -168,7 +168,7 @@ describe('Canonical Chain Batch Submitter', () => {
     dataService.nextBatch.push({
       submissionTxHash: undefined,
       status: BatchSubmissionStatus.QUEUED,
-      batchNumber: batchNumber,
+      batchNumber,
       transactions: [
         {
           timestamp: 1,

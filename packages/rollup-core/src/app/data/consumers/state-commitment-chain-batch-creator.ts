@@ -24,12 +24,18 @@ export class StateCommitmentChainBatchCreator extends ScheduledTask {
     try {
       const l2OnlyBatchBuilt: number = await this.dataService.tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch()
       if (l2OnlyBatchBuilt !== undefined && l2OnlyBatchBuilt >= 0) {
-        log.debug(`L2-only OCC tx batch with number ${l2OnlyBatchBuilt} was built!`)
+        log.debug(
+          `L2-only OCC tx batch with number ${l2OnlyBatchBuilt} was built!`
+        )
         return
       }
       log.debug(`No L2 OCC tx batches built... sad.`)
     } catch (e) {
-      logError(log, `Error running OptimisticCanonicalChainBatchCreator! Continuing...`, e)
+      logError(
+        log,
+        `Error running OptimisticCanonicalChainBatchCreator! Continuing...`,
+        e
+      )
     }
   }
 }
