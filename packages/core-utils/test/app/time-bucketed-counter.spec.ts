@@ -4,7 +4,7 @@ describe('Time Bucketed Counter', () => {
   let counter: TimeBucketedCounter
 
   beforeEach(() => {
-    counter = new TimeBucketedCounter(1000, 5)
+    counter = new TimeBucketedCounter(2000, 5)
   })
 
   it('accurately increments within time period, no sleeping', () => {
@@ -26,12 +26,12 @@ describe('Time Bucketed Counter', () => {
     res.should.equal(1, 'Incorrect counter after increment 1')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(200)
+    await sleep(400)
     res = counter.increment()
     res.should.equal(2, 'Incorrect counter after increment 2')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(400)
+    await sleep(800)
     res = counter.increment()
     res.should.equal(3, 'Incorrect counter after increment 3')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
@@ -42,12 +42,12 @@ describe('Time Bucketed Counter', () => {
     res.should.equal(1, 'Incorrect counter after increment 1')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(200)
+    await sleep(400)
     res = counter.increment()
     res.should.equal(2, 'Incorrect counter after increment 2')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(600)
+    await sleep(1200)
     res = counter.increment()
     res.should.equal(3, 'Incorrect counter after increment 3')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
@@ -58,7 +58,7 @@ describe('Time Bucketed Counter', () => {
     res.should.equal(1, 'Incorrect counter after increment 1')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(1000)
+    await sleep(2000)
     res = counter.getTotal()
     res.should.equal(0, 'Incorrect count!')
   })
@@ -70,17 +70,17 @@ describe('Time Bucketed Counter', () => {
     res.should.equal(3, 'Incorrect counter after increment 1')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(200)
+    await sleep(400)
     res = counter.increment()
     res.should.equal(4, 'Incorrect counter after increment 2')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(600)
+    await sleep(1200)
     res = counter.increment()
     res.should.equal(5, 'Incorrect counter after increment 3')
     res.should.equal(counter.getTotal(), 'Incorrect total!')
 
-    await sleep(250)
+    await sleep(401)
     counter
       .getTotal()
       .should.equal(2, 'First 3 increments did not cycle out properly!')
@@ -97,7 +97,7 @@ describe('Time Bucketed Counter', () => {
         expected,
         `Incorrect increment result! Total increments: ${totalIncrements}`
       )
-      await sleep(250)
+      await sleep(500)
     }
-  })
+  }).timeout(10_000)
 })
