@@ -4,12 +4,9 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import {
   BlockBatches,
-  L1Batch,
   RollupTransaction,
-  TransactionOutput,
 } from '../types'
 import { GethSubmissionRecord } from './types'
-import { Row } from '@eth-optimism/core-db/build/src'
 
 export interface L1DataService {
   /**
@@ -68,18 +65,18 @@ export interface L1DataService {
   ): Promise<number>
 
   /**
-   * Creates a batch from the oldest un-batched transaction that is from the L1 To L2 queue.
+   * Creates a Queued Geth Submission from the oldest un-queued transaction that is from the L1 To L2 queue.
    *
    * @param queueOrigins The next entry may only be from queue origins provided here (it's a filter).
-   * @returns The created batch number or undefined if no fitting L1ToL2 transaction exists.
+   * @returns The created entry's queue index or undefined if no fitting L1ToL2 transaction exists.
    * @throws Error if there is a DB error
    */
   queueNextGethSubmission(queueOrigins: number[]): Promise<number>
 
   /**
-   * Atomically inserts the provided State Roots, creating a batch for them.
+   * Atomically inserts the provided State Roots, creating a rollup state root batch for them.
    *
-   * @param l1TxHash The L1 Transaction hash.
+   * @param l1TxHash The hash of the L1 Transaction that posted these state roots.
    * @param stateRoots The state roots to insert.
    * @returns The inserted state root batch number.
    * @throws An error if there is a DB error.
@@ -90,25 +87,17 @@ export interface L1DataService {
   ): Promise<number>
 
   /**
-   * Fetches the next batch from L1 to submit to L2, if there is one.
+   * Fetches the next Queued Geth Submission from L1 to submit to L2, if there is one.
    *
-   * @returns The fetched batch or undefined if one is not present in the DB.
+   * @returns The fetched Queued Geth Submission or undefined if one is not present in the DB.
    */
   getNextQueuedGethSubmission(): Promise<BlockBatches>
 
   /**
-   * Marks the provided L1 batch as submitted to L2.
+   * Marks the provided Queued Geth Submission as submitted to L2.
    *
-   * @params batchNumber The L1 batch number to mark as submitted to L2.
+   * @params queueIndex The geth submission queue index to mark as submitted to L2.
    * @throws An error if there is a DB error.
    */
-  markQueuedGethSubmissionSubmittedToGeth(batchNumber: number): Promise<void>
-
-  /**
-   * Gets the oldest unverified L1 transaction batch.
-   *
-   * @returns The L1BatchRecord representing the oldest unverified batch
-   * @throws An error if there is a DB error.
-   */
-  getOldestQueuedGethSubmission(): Promise<GethSubmissionRecord>
+  markQueuedGethSubmissionSubmittedToGeth(queueIndex: number): Promise<void>
 }

@@ -47,7 +47,7 @@ CREATE TABLE geth_submission_queue (
 CREATE INDEX geth_submission_queue_status_idx ON geth_submission_queue USING btree (status);
 
 
-CREATE TABLE l1_state_root_batch (
+CREATE TABLE l1_rollup_state_root_batch (
   id BIGSERIAL NOT NULL,
   l1_tx_hash CHARACTER(66) NOT NULL,
   batch_number BIGINT NOT NULL,
@@ -57,11 +57,11 @@ CREATE TABLE l1_state_root_batch (
   UNIQUE (batch_number),
   FOREIGN KEY (l1_tx_hash) REFERENCES l1_tx (tx_hash)
 );
-CREATE INDEX l1_state_root_batch_status_idx ON l1_state_root_batch USING btree (status);
+CREATE INDEX l1_rollup_state_root_batch_status_idx ON l1_rollup_state_root_batch USING btree (status);
 
 
 
-CREATE TABLE l1_state_root (
+CREATE TABLE l1_rollup_state_root (
   id BIGSERIAL NOT NULL,
   state_root character(66) NOT NULL,
   batch_number BIGINT NOT NULL,
@@ -70,7 +70,7 @@ CREATE TABLE l1_state_root (
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
   UNIQUE (state_root),
-  FOREIGN KEY (batch_number) REFERENCES l1_state_root_batch (batch_number)
+  FOREIGN KEY (batch_number) REFERENCES l1_rollup_state_root_batch (batch_number)
 );
 
 
@@ -98,8 +98,8 @@ CREATE TABLE l1_rollup_tx (
 
 /* ROLLBACK SCRIPT
    DROP TABLE l1_rollup_tx;
-   DROP TABLE l1_state_root;
-   DROP TABLE l1_state_root_batch;
+   DROP TABLE l1_rollup_state_root;
+   DROP TABLE l1_rollup_state_root_batch;
    DROP TABLE geth_submission_queue;
    DROP TABLE l1_tx;
    DROP TABLE l1_block;

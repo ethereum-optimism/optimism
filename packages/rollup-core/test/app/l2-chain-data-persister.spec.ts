@@ -39,7 +39,7 @@ class MockDataService extends DefaultDataService {
     return undefined
   }
 
-  public async tryBuildOccBatchNotPresentOnL1(): Promise<number> {
+  public async tryBuildCanonicalChainBatchNotPresentOnL1(): Promise<number> {
     return undefined
   }
 }

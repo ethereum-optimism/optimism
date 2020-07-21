@@ -42,7 +42,7 @@ export const getL1RollupTransactionInsertValue = (
   }, '${tx.l1TxHash}', ${tx.l1TxIndex}, ${numOrNull(tx.l1TxLogIndex)}`
 }
 
-export const l1RollupStateRootInsertStatement = `INSERT into l1_state_root(state_root, batch_number, batch_index) `
+export const l1RollupStateRootInsertStatement = `INSERT into l1_rollup_state_root(state_root, batch_number, batch_index) `
 export const getL1RollupStateRootInsertValue = (
   stateRoot: string,
   batchNumber: number,

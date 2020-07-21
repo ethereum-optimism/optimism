@@ -6,7 +6,7 @@ export enum QueueOrigin {
   SEQUENCER = 2,
 }
 
-export enum OptimisticCanonicalChainStatus {
+export enum BatchSubmissionStatus {
   QUEUED = 'QUEUED',
   SENT = 'SENT',
   FINALIZED = 'FINALIZED',
@@ -30,11 +30,16 @@ export interface GethSubmissionRecord {
   size: number
 }
 
-export interface OccBatchSubmission {
-  l1TxBatchTxHash: string
-  l1StateRootBatchTxHash: string
-  txBatchStatus: OptimisticCanonicalChainStatus
-  rootBatchStatus: OptimisticCanonicalChainStatus
-  occBatchNumber: number
+export interface BatchSubmission {
+  submissionTxHash: string
+  status: BatchSubmissionStatus
+  batchNumber: number
+}
+
+export interface TransactionBatchSubmission extends BatchSubmission{
   transactions: TransactionOutput[]
+}
+
+export interface StateCommitmentBatchSubmission extends BatchSubmission {
+  stateRoots: string[]
 }

@@ -1,6 +1,6 @@
 \connect rollup;
 
-CREATE OR REPLACE VIEW unbatched_rollup_tx
+CREATE OR REPLACE VIEW unqueued_rollup_tx
 AS
 
 SELECT block.block_number, r.*
@@ -36,16 +36,16 @@ CREATE OR REPLACE VIEW next_verification_batch
 AS
 
 SELECT l1.batch_number, l1.batch_index, l1.state_root as l1_root, l2.state_root as geth_root
-FROM l1_state_root l1
+FROM l1_rollup_state_root l1
   LEFT OUTER JOIN l2_tx_output l2
-      ON l1.batch_number = l2.occ_batch_number
-         AND l1.batch_index = l2.occ_batch_index
+      ON l1.batch_number = l2.state_commitment_chain_batch_number
+         AND l1.batch_index = l2.state_commitment_chain_batch_index
 WHERE
   l1.batch_number = (SELECT MIN(batch_number)
-                     FROM l1_state_root_batch
+                     FROM l1_rollup_state_root_batch
                      WHERE status = 'UNVERIFIED')
   AND (SELECT COUNT(*)
-       FROM l1_state_root_batch
+       FROM l1_rollup_state_root_batch
        WHERE status = 'FRAUDULENT' OR status = 'REMOVED'
       ) = 0   -- there is no next_verification_batch if we're in a fraud workflow.
 ORDER BY l1.batch_index ASC
@@ -54,6 +54,6 @@ ORDER BY l1.batch_index ASC
 /** Rollback script:
   DROP VIEW next_verification_batch;
   DROP VIEW next_queued_geth_submission;
-  DROP VIEW unbatched_rollup_tx;
+  DROP VIEW unqueued_rollup_tx;
  */
 
