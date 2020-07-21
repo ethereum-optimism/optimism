@@ -215,6 +215,10 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
         this.assertParameters(params, [])
         response = await this.networkVersion()
         break
+      case Web3RpcMethods.clientVersion:
+        this.assertParameters(params, [])
+        response = await this.clientVersion()
+        break
       case Web3RpcMethods.chainId:
         this.assertParameters(params, [])
         response = await this.chainId()
@@ -697,6 +701,16 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     const response = CHAIN_ID
     log.debug(`Got network version: [${response}]`)
     return response.toString()
+  }
+
+  public async clientVersion(): Promise<string> {
+    log.debug('Getting web3 client version')
+      const response = await this.context.provider.send(
+      Web3RpcMethods.clientVersion,
+      []
+    )
+    log.debug(`Got client version: [${response}]`)
+    return response
   }
 
   public async chainId(): Promise<string> {
