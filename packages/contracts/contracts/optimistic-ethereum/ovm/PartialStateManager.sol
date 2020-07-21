@@ -185,6 +185,13 @@ contract PartialStateManager {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
+    function getStorageView(
+        address _ovmContractAddress,
+        bytes32 _slot
+    ) public view returns (bytes32) {
+        return ovmContractStorage[_ovmContractAddress][_slot];
+    }
+
     /**
      * @notice Set storage for OVM contract at some slot.
      * @param _ovmContractAddress The contract we're setting storage of.
@@ -222,6 +229,12 @@ contract PartialStateManager {
     ) onlyExecutionManager public returns (uint) {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
+        return ovmContractNonces[_ovmContractAddress];
+    }
+
+    function getOvmContractNonceView(
+        address _ovmContractAddress
+    ) public view returns (uint) {
         return ovmContractNonces[_ovmContractAddress];
     }
 

@@ -612,7 +612,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     log.debug(
       `Requesting transaction count. Address [${address}], block: [${defaultBlock}].`
     )
-    const ovmContractNonce = await this.context.stateManager.getOvmContractNonce(
+    const ovmContractNonce = await this.context.stateManager.getOvmContractNonceView(
       address
     )
     const response = add0x(ovmContractNonce.toNumber().toString(16))
@@ -1037,7 +1037,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     const ovmFrom = ovmTx.from === undefined ? ZERO_ADDRESS : ovmTx.from
     // Check the nonce
     const expectedNonce = (
-      await this.context.stateManager.getOvmContractNonce(ovmFrom)
+      await this.context.stateManager.getOvmContractNonceView(ovmFrom)
     ).toNumber()
     if (expectedNonce !== ovmTx.nonce) {
       throw new InvalidParametersError(
