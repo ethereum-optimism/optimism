@@ -12,13 +12,7 @@ import {
   Logger,
   SimpleClient,
 } from '@eth-optimism/core-utils'
-import {
-  Environment,
-  initializeL1Node,
-  initializeL2Node,
-  L1NodeContext,
-  L2NodeContext,
-} from '@eth-optimism/rollup-core'
+import { Environment } from '@eth-optimism/rollup-core'
 import cors = require('cors')
 
 import { JsonRpcProvider } from 'ethers/providers'
@@ -35,12 +29,16 @@ import {
   NoOpL2ToL1MessageSubmitter,
   NoOpAccountRateLimiter,
   DefaultAccountRateLimiter,
+  initializeL1Node,
+  initializeL2Node,
 } from '../app'
 import {
   AccountRateLimiter,
   FullnodeHandler,
   L2ToL1MessageSubmitter,
   Web3Handler,
+  L1NodeContext,
+  L2NodeContext,
 } from '../types'
 
 const log: Logger = getLogger('rollup-fullnode')

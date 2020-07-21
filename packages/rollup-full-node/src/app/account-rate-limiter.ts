@@ -4,6 +4,7 @@ import {
   logError,
   TimeBucketedCounter,
 } from '@eth-optimism/core-utils'
+import { Environment } from '@eth-optimism/rollup-core'
 
 /* Internal imports */
 import {
@@ -11,7 +12,6 @@ import {
   RateLimitError,
   TransactionLimitError,
 } from '../types'
-import { Environment } from '@eth-optimism/rollup-core'
 
 const log = getLogger('routing-handler')
 

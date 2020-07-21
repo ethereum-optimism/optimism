@@ -4,22 +4,20 @@ import {
   numberToHexString,
   castToNumber,
 } from '@eth-optimism/core-utils'
-import {
-  GAS_LIMIT,
-  getCurrentTime,
-  initializeL2Node,
-  L2NodeContext,
-} from '@eth-optimism/rollup-core'
+import { getCurrentTime } from '@eth-optimism/rollup-core'
 
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
 import { DefaultWeb3Handler, latestBlock } from './web3-rpc-handler'
+import { GAS_LIMIT } from './constants'
+import { initializeL2Node } from './util'
 import {
   L2ToL1MessageSubmitter,
   UnsupportedMethodError,
   Web3RpcMethods,
   Web3RpcTypes,
+  L2NodeContext,
 } from '../types'
 import { NoOpL2ToL1MessageSubmitter } from './message-submitter'
 
