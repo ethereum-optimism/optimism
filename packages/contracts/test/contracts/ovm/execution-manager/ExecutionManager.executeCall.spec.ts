@@ -217,7 +217,9 @@ describe('Execution Manager -- Call opcodes', () => {
         s
       )
       await provider.waitForTransaction(tx.hash)
-      const nonceAfter = await stateManager.getOvmContractNonceView(wallet.address)
+      const nonceAfter = await stateManager.getOvmContractNonceView(
+        wallet.address
+      )
       nonceAfter.should.equal(parseInt(nonce, 10) + 1)
     })
 
