@@ -28,6 +28,18 @@ const FullStateManagerContractDefinition = getContractDefinition(
 const L2ToL1MessagePasserContractDefinition = getContractDefinition(
   'L2ToL1MessagePasser'
 )
+const StubSafetyCheckerContractDefinition = getContractDefinition(
+  'StubSafetyChecker'
+)
+const AddressResolverContractDefinition = getContractDefinition(
+  'AddressResolver'
+)
+const RLPEncodeContractDefinition = getContractDefinition(
+  'RLPEncode'
+)
+const ContractAddressGeneratorDefinition = getContractDefinition(
+  'ContractAddressGenerator'
+)
 
 /* Configuration */
 
@@ -207,13 +219,54 @@ async function getExecutionManagerContract(
  */
 async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   log.debug('Deploying execution manager...')
+  const addressResolver: Contract = await deployContract(
+    wallet,
+    AddressResolverContractDefinition,
+    [],
+    { gasLimit: GAS_LIMIT }
+  )
+
+  const stateManager: Contract = await deployContract(
+    wallet,
+    FullStateManagerContractDefinition,
+    [],
+    { gasLimit: GAS_LIMIT }
+  )
+
+  const stubSafetyChecker: Contract = await deployContract(
+    wallet,
+    StubSafetyCheckerContractDefinition,
+    [],
+    { gasLimit: GAS_LIMIT }
+  )
+
+  const rlpEncode: Contract = await deployContract(
+    wallet,
+    RLPEncodeContractDefinition,
+    [],
+    { gasLimit: GAS_LIMIT }
+  )
+
+  const contractAddressGenerator: Contract = await deployContract(
+    wallet,
+    ContractAddressGeneratorDefinition,
+    [],
+    { gasLimit: GAS_LIMIT }
+  )
+
+  await addressResolver.setAddress('StateManager', stateManager.address)
+  await addressResolver.setAddress('SafetyChecker', stubSafetyChecker.address)
+  await addressResolver.setAddress('RLPEncode', rlpEncode.address)
+  await addressResolver.setAddress('ContractAddressGenerator', contractAddressGenerator.address)
 
   const executionManager: Contract = await deployContract(
     wallet,
     L2ExecutionManagerContractDefinition,
-    [Environment.opcodeWhitelistMask(), wallet.address, GAS_LIMIT, true],
+    [addressResolver.address, wallet.address, GAS_LIMIT],
     { gasLimit: GAS_LIMIT }
   )
+
+  await addressResolver.setAddress('ExecutionManager', executionManager.address)
 
   log.info('Deployed execution manager to address:', executionManager.address)
 
