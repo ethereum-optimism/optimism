@@ -12,9 +12,8 @@ import {
   TxChainBatch,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
-import { exit } from 'process'
 
 /* Logging */
 const log = getLogger('canonical-tx-chain', true)
@@ -40,7 +39,6 @@ describe('CanonicalTransactionChain', () => {
   })
 
   let canonicalTxChain: Contract
-  let rollupMerkleUtils: Contract
   let l1ToL2Queue: Contract
   let safetyQueue: Contract
 
@@ -118,16 +116,22 @@ describe('CanonicalTransactionChain', () => {
 
   let resolver: AddressResolverMapping
   before(async () => {
-    resolver = await makeAddressResolver(wallet);
+    resolver = await makeAddressResolver(wallet)
   })
 
   let CanonicalTransactionChain: ContractFactory
   let L1ToL2TransactionQueue: ContractFactory
   let SafetyTransactionQueue: ContractFactory
   before(async () => {
-    CanonicalTransactionChain = await ethers.getContractFactory('CanonicalTransactionChain')
-    L1ToL2TransactionQueue = await ethers.getContractFactory('L1ToL2TransactionQueue')
-    SafetyTransactionQueue = await ethers.getContractFactory('SafetyTransactionQueue')
+    CanonicalTransactionChain = await ethers.getContractFactory(
+      'CanonicalTransactionChain'
+    )
+    L1ToL2TransactionQueue = await ethers.getContractFactory(
+      'L1ToL2TransactionQueue'
+    )
+    SafetyTransactionQueue = await ethers.getContractFactory(
+      'SafetyTransactionQueue'
+    )
   })
 
   beforeEach(async () => {
@@ -141,8 +145,8 @@ describe('CanonicalTransactionChain', () => {
           resolver.addressResolver.address,
           await sequencer.getAddress(),
           await l1ToL2TransactionPasser.getAddress(),
-          FORCE_INCLUSION_PERIOD
-        ] 
+          FORCE_INCLUSION_PERIOD,
+        ],
       }
     )
 
@@ -155,7 +159,7 @@ describe('CanonicalTransactionChain', () => {
         params: [
           resolver.addressResolver.address,
           await l1ToL2TransactionPasser.getAddress(),
-        ]
+        ],
       }
     )
 
@@ -165,7 +169,7 @@ describe('CanonicalTransactionChain', () => {
       'SafetyTransactionQueue',
       {
         factory: SafetyTransactionQueue,
-        params: [resolver.addressResolver.address]
+        params: [resolver.addressResolver.address],
       }
     )
   })

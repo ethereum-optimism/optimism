@@ -14,7 +14,7 @@ import {
   didCreateSucceed,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -55,8 +55,8 @@ describe('Execution Manager -- Safety Checking', () => {
         factory: SafetyChecker,
         params: [
           resolver.addressResolver.address,
-          DEFAULT_OPCODE_WHITELIST_MASK
-        ]
+          DEFAULT_OPCODE_WHITELIST_MASK,
+        ],
       }
     )
   })
@@ -69,11 +69,7 @@ describe('Execution Manager -- Safety Checking', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          GAS_LIMIT
-        ]
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
       }
     )
   })

@@ -8,7 +8,7 @@ import { ContractAddressGenerator } from "../utils/libraries/ContractAddressGene
 import { RLPEncode } from "../utils/libraries/RLPEncode.sol";
 import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
-import { FullStateManager } from "./FullStateManager.sol";
+import { StateManager } from "./StateManager.sol";
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
 
@@ -38,7 +38,6 @@ contract ExecutionManager is ContractResolver {
      * Contract Variables
      */
 
-    FullStateManager stateManager;
     DataTypes.ExecutionContext executionContext;
 
 
@@ -82,7 +81,7 @@ contract ExecutionManager is ContractResolver {
         ContractResolver(_addressResolver)
     {
         // Deploy a default state manager
-        stateManager = new FullStateManager();
+        StateManager stateManager = resolveStateManager();
 
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
@@ -112,7 +111,7 @@ contract ExecutionManager is ContractResolver {
      * This is used when we want to swap out a new backend to be used for a different execution.
      */
     function setStateManager(address _stateManagerAddress) external {
-        stateManager = FullStateManager(_stateManagerAddress);
+        addressResolver.setAddress("StateManager", _stateManagerAddress);
     }
 
     /**
@@ -121,6 +120,7 @@ contract ExecutionManager is ContractResolver {
      * @param addr The address of the nonce to increment.
      */
     function incrementNonce(address addr) public {
+        StateManager stateManager = resolveStateManager();
         stateManager.incrementOvmContractNonce(addr);
     }
 
@@ -152,6 +152,8 @@ contract ExecutionManager is ContractResolver {
         bytes32 _r,
         bytes32 _s
     ) public {
+        StateManager stateManager = resolveStateManager();
+
         // Get EOA address
         address eoaAddress = recoverEOAAddress(_nonce, _ovmEntrypoint, _callBytes, _v, _r, _s);
 
@@ -197,6 +199,8 @@ contract ExecutionManager is ContractResolver {
         address _l1MsgSenderAddress,
         bool _allowRevert
     ) public {
+        StateManager stateManager = resolveStateManager();
+
         require(_timestamp > 0, "Timestamp must be greater than 0");
         uint _nonce = stateManager.getOvmContractNonce(_fromAddress);
 
@@ -529,6 +533,8 @@ contract ExecutionManager is ContractResolver {
      * returndata: [newOvmContractAddress (as bytes32)] -- will be all 0s if this create failed.
      */
     function ovmCREATE() public {
+        StateManager stateManager = resolveStateManager();
+
         if (executionContext.inStaticContext) {
             // Cannot create new contracts from a STATICCALL -- return 0 address
             assembly {
@@ -614,7 +620,7 @@ contract ExecutionManager is ContractResolver {
         address creator = executionContext.ovmActiveContract;
         ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
         address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
-        
+
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
@@ -638,6 +644,7 @@ contract ExecutionManager is ContractResolver {
      * @return True if this succeeded, false otherwise.
      */
     function createNewContract(address _newOvmContractAddress, bytes memory _ovmInitcode) internal {
+        StateManager stateManager = resolveStateManager();
         SafetyChecker safetyChecker = resolveSafetyChecker();
 
         require(safetyChecker.isBytecodeSafe(_ovmInitcode), "Contract init (creation) code is not safe");
@@ -692,6 +699,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: [variable-length bytes returned from call]
      */
     function ovmCALL() public {
+        StateManager stateManager = resolveStateManager();
         uint callSize;
         bytes memory _callBytes;
         bytes32 _targetOvmContractAddressBytes;
@@ -760,6 +768,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: [variable-length bytes returned from call]
      */
     function ovmSTATICCALL() public {
+        StateManager stateManager = resolveStateManager();
         uint callSize;
         bytes memory _callBytes;
         bytes32 _targetOvmContractAddressBytes;
@@ -830,6 +839,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: [variable-length bytes returned from call]
      */
     function ovmDELEGATECALL() public {
+        StateManager stateManager = resolveStateManager();
         uint callSize;
         bytes memory _callBytes;
         bytes32 _targetOvmContractAddressBytes;
@@ -888,6 +898,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: [storageValue (bytes32)]
      */
     function ovmSLOAD() public view {
+        StateManager stateManager = resolveStateManager();
         bytes32 _storageSlot;
         assembly {
             // skip methodID (4 bytes)
@@ -914,6 +925,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: empty.
      */
     function ovmSSTORE() public {
+        StateManager stateManager = resolveStateManager();
         require(!executionContext.inStaticContext, "Cannot call SSTORE from within a STATICCALL.");
 
         bytes32 _storageSlot;
@@ -944,6 +956,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: 32 bytes: the big-endian codesize int.
      */
     function ovmEXTCODESIZE() public view {
+        StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
         assembly {
             // read calldata, ignoring methodID and first 12 bytes of address
@@ -970,6 +983,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: 32 bytes: the hash.
      */
     function ovmEXTCODEHASH() public view {
+        StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
         assembly {
             // read calldata, ignoring methodID and first 12 bytes of address
@@ -1001,6 +1015,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: length (input param) bytes of contract at address, starting at index.
      */
     function ovmEXTCODECOPY() public view {
+        StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
         uint _index;
         uint _length;
@@ -1123,7 +1138,8 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
-    function getStateManagerAddress() public view returns (address){
+    function getStateManagerAddress() public view returns (address) {
+        StateManager stateManager = resolveStateManager();
         return address(stateManager);
     }
 
@@ -1142,5 +1158,9 @@ contract ExecutionManager is ContractResolver {
 
     function resolveRLPEncode() internal view returns (RLPEncode) {
         return RLPEncode(resolveContract("RLPEncode"));
+    }
+
+    function resolveStateManager() internal view returns (StateManager) {
+        return StateManager(resolveContract("StateManager"));
     }
 }

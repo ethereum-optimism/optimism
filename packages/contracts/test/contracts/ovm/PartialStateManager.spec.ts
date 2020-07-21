@@ -9,7 +9,7 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 import {
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -26,7 +26,10 @@ describe('PartialStateManager', () => {
   before(async () => {
     resolver = await makeAddressResolver(wallet)
 
-    await resolver.addressResolver.setAddress('ExecutionManager', await wallet.getAddress())
+    await resolver.addressResolver.setAddress(
+      'ExecutionManager',
+      await wallet.getAddress()
+    )
   })
 
   let PartialStateManager: ContractFactory

@@ -11,7 +11,7 @@ import {
   StateChainBatch,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -103,13 +103,16 @@ describe('StateCommitmentChain', () => {
           resolver.addressResolver.address,
           await sequencer.getAddress(),
           await l1ToL2TransactionPasser.getAddress(),
-          FORCE_INCLUSION_PERIOD
-        ]
+          FORCE_INCLUSION_PERIOD,
+        ],
       }
     )
 
     await appendTxBatch(DEFAULT_TX_BATCH)
-    await resolver.addressResolver.setAddress('FraudVerifier', await fraudVerifier.getAddress())
+    await resolver.addressResolver.setAddress(
+      'FraudVerifier',
+      await fraudVerifier.getAddress()
+    )
   })
 
   beforeEach(async () => {
@@ -119,7 +122,7 @@ describe('StateCommitmentChain', () => {
       'StateCommitmentChain',
       {
         factory: StateCommitmentChain,
-        params: [resolver.addressResolver.address]
+        params: [resolver.addressResolver.address],
       }
     )
   })

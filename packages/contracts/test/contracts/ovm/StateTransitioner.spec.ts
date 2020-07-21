@@ -9,7 +9,7 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 import {
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -33,7 +33,9 @@ describe('StateTransitioner', () => {
   let StubExecutionManager: ContractFactory
   let StateTransitioner: ContractFactory
   before(async () => {
-    StubExecutionManager = await ethers.getContractFactory('StubExecutionManager')
+    StubExecutionManager = await ethers.getContractFactory(
+      'StubExecutionManager'
+    )
     StateTransitioner = await ethers.getContractFactory('StateTransitioner')
   })
 
@@ -46,10 +48,10 @@ describe('StateTransitioner', () => {
       'ExecutionManager',
       {
         factory: StubExecutionManager,
-        params: []
+        params: [],
       }
     )
-  
+
     stateTransitioner = await StateTransitioner.deploy(
       resolver.addressResolver.address,
       10,

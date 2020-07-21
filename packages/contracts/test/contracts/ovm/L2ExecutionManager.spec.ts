@@ -11,7 +11,7 @@ import {
   GAS_LIMIT,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -43,7 +43,7 @@ describe('L2 Execution Manager', () => {
     l2ExecutionManager = await L2ExecutionManager.deploy(
       resolver.addressResolver.address,
       '0x' + '00'.repeat(20),
-      GAS_LIMIT,
+      GAS_LIMIT
     )
   })
 

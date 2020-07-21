@@ -26,7 +26,7 @@ import {
   encodeRawArguments,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Contract Imports */
@@ -121,11 +121,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          GAS_LIMIT
-        ]
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
       }
     )
   })

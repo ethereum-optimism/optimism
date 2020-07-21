@@ -9,7 +9,7 @@ import { Signer, ContractFactory, Contract } from 'ethers'
 import {
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -50,8 +50,8 @@ describe('L1ToL2TransactionQueue', () => {
         factory: L1toL2TxQueue,
         params: [
           resolver.addressResolver.address,
-          await l1ToL2TransactionPasser.getAddress()
-        ]
+          await l1ToL2TransactionPasser.getAddress(),
+        ],
       }
     )
 

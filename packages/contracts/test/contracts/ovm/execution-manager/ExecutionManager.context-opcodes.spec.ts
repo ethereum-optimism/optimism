@@ -26,7 +26,7 @@ import {
   encodeMethodId,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -77,11 +77,7 @@ describe('Execution Manager -- Context opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          GAS_LIMIT
-        ]
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
       }
     )
   })

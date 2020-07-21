@@ -22,7 +22,7 @@ import {
   addressToBytes32Address,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -64,11 +64,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          GAS_LIMIT
-        ]
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
       }
     )
   })

@@ -13,7 +13,7 @@ import {
   Opcode,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -60,12 +60,15 @@ describe('Safety Checker', () => {
         factory: SafetyChecker,
         params: [
           resolver.addressResolver.address,
-          DEFAULT_OPCODE_WHITELIST_MASK
-        ]
+          DEFAULT_OPCODE_WHITELIST_MASK,
+        ],
       }
     )
 
-    await resolver.addressResolver.setAddress('ExecutionManager', executionManagerAddress)
+    await resolver.addressResolver.setAddress(
+      'ExecutionManager',
+      executionManagerAddress
+    )
   })
 
   describe('isBytecodeSafe()', async () => {

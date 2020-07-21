@@ -9,7 +9,7 @@ import { Signer, ContractFactory, Contract } from 'ethers'
 import {
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -48,9 +48,7 @@ describe('SafetyTransactionQueue', () => {
       'SafetyTxQueue',
       {
         factory: SafetyTxQueue,
-        params: [
-          resolver.addressResolver.address
-        ]
+        params: [resolver.addressResolver.address],
       }
     )
 

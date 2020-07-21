@@ -25,7 +25,7 @@ import {
   getWallets,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -38,7 +38,7 @@ describe('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider
 
   const [wallet] = getWallets()
-  
+
   let resolver: AddressResolverMapping
   before(async () => {
     resolver = await makeAddressResolver(wallet)
@@ -61,11 +61,7 @@ describe('Execution Manager -- Call opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          GAS_LIMIT
-        ]
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
       }
     )
   })

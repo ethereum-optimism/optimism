@@ -11,7 +11,7 @@ import {
   TxChainBatch,
   makeAddressResolver,
   AddressResolverMapping,
-  deployAndRegister
+  deployAndRegister,
 } from '../../test-helpers'
 
 /* Logging */
@@ -77,7 +77,10 @@ describe('SequencerBatchSubmitter', () => {
   before(async () => {
     resolver = await makeAddressResolver(wallet)
 
-    await resolver.addressResolver.setAddress('FraudVerifier', await fraudVerifier.getAddress())
+    await resolver.addressResolver.setAddress(
+      'FraudVerifier',
+      await fraudVerifier.getAddress()
+    )
   })
 
   let SequencerBatchSubmitter: ContractFactory
@@ -104,8 +107,8 @@ describe('SequencerBatchSubmitter', () => {
         factory: SequencerBatchSubmitter,
         params: [
           resolver.addressResolver.address,
-          await sequencer.getAddress()
-        ]
+          await sequencer.getAddress(),
+        ],
       }
     )
 
@@ -119,8 +122,8 @@ describe('SequencerBatchSubmitter', () => {
           resolver.addressResolver.address,
           sequencerBatchSubmitter.address,
           await l1ToL2TransactionPasser.getAddress(),
-          FORCE_INCLUSION_PERIOD
-        ]
+          FORCE_INCLUSION_PERIOD,
+        ],
       }
     )
 
@@ -130,7 +133,7 @@ describe('SequencerBatchSubmitter', () => {
       'StateCommitmentChain',
       {
         factory: StateCommitmentChain,
-        params: [resolver.addressResolver.address]
+        params: [resolver.addressResolver.address],
       }
     )
   })

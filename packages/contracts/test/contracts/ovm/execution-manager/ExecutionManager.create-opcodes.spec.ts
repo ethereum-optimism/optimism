@@ -2,7 +2,13 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, remove0x, add0x, TestUtils, NULL_ADDRESS } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  remove0x,
+  add0x,
+  TestUtils,
+  NULL_ADDRESS,
+} from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
 
@@ -15,7 +21,7 @@ import {
   encodeRawArguments,
   makeAddressResolver,
   deployAndRegister,
-  AddressResolverMapping
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -71,11 +77,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          GAS_LIMIT
-        ]
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
       }
     )
   })
