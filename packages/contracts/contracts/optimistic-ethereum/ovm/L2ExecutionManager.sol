@@ -20,6 +20,24 @@ contract L2ExecutionManager is ExecutionManager {
 
 
     /*
+     * Constructor
+     */
+
+    constructor(
+        address _addressResolver,
+        address _owner,
+        uint _blockGasLimit
+    )
+        public
+        ExecutionManager(
+            _addressResolver,
+            _owner,
+            _blockGasLimit
+        )
+    {}
+
+
+    /*
      * Public Functions
      */
 
