@@ -34,9 +34,7 @@ const StubSafetyCheckerContractDefinition = getContractDefinition(
 const AddressResolverContractDefinition = getContractDefinition(
   'AddressResolver'
 )
-const RLPEncodeContractDefinition = getContractDefinition(
-  'RLPEncode'
-)
+const RLPEncodeContractDefinition = getContractDefinition('RLPEncode')
 const ContractAddressGeneratorDefinition = getContractDefinition(
   'ContractAddressGenerator'
 )
@@ -257,7 +255,10 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   await addressResolver.setAddress('StateManager', stateManager.address)
   await addressResolver.setAddress('SafetyChecker', stubSafetyChecker.address)
   await addressResolver.setAddress('RLPEncode', rlpEncode.address)
-  await addressResolver.setAddress('ContractAddressGenerator', contractAddressGenerator.address)
+  await addressResolver.setAddress(
+    'ContractAddressGenerator',
+    contractAddressGenerator.address
+  )
 
   const executionManager: Contract = await deployContract(
     wallet,
