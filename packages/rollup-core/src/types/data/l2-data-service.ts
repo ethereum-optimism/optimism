@@ -31,7 +31,7 @@ export interface L2DataService {
    * @returns true if the next batch to build was already appended, false otherwise.
    * @throws An error if there is a DB error.
    */
-  wasNextStateCommitmentChainBatchToBuildAppendedOnL1(): Promise<boolean>
+  isNextStateCommitmentChainBatchToBuildAlreadyAppendedOnL1(): Promise<boolean>
 
   /**
    * Attempts to build a State Commitment Chain batch to match the batch present on L1.

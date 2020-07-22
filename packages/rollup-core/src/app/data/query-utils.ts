@@ -9,18 +9,19 @@ export const getL1BlockInsertValue = (
   block: Block,
   processed: boolean
 ): string => {
-  return `'${block.hash}', '${block.parentHash}', ${
-    block.number
+  return `'${block.hash}', '${block.parentHash}', ${block.number}, ${
+    block.timestamp
   }, ${bigNumOrNull(block.gasLimit)}, ${bigNumOrNull(block.gasUsed)}, ${bool(
     processed
   )}`
 }
 
-export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, block_hash, tx_hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, signature) `
+export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, tx_index, tx_hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, signature) `
 export const getL1TransactionInsertValue = (
-  tx: TransactionResponse
+  tx: TransactionResponse,
+  index: number
 ): string => {
-  return `${tx.blockNumber}, '${tx.blockHash}', '${tx.hash}', '${tx.from}', '${
+  return `${tx.blockNumber}, ${index}, '${tx.hash}', '${tx.from}', '${
     tx.to
   }', ${tx.nonce}, ${bigNumOrNull(tx.gasLimit)}, ${bigNumOrNull(
     tx.gasPrice

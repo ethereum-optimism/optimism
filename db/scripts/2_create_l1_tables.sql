@@ -20,6 +20,7 @@ CREATE TABLE l1_block (
 CREATE TABLE l1_tx (
   id BIGSERIAL NOT NULL,
   block_number BIGINT NOT NULL,
+  tx_index INT NOT NULL,
   tx_hash CHARACTER(66) NOT NULL,
   from_address CHARACTER(42) NOT NULL,
   to_address CHARACTER(42) NOT NULL,
@@ -27,10 +28,11 @@ CREATE TABLE l1_tx (
   gas_limit NUMERIC(78) NOT NULL,
   gas_price NUMERIC(78) NOT NULL,
   calldata TEXT NOT NULL,
-  signature CHARACTER(130) NOT NULL,
+  signature CHARACTER(132) NOT NULL,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
   UNIQUE (tx_hash),
+  UNIQUE (block_number, tx_index),
   FOREIGN KEY (block_number) REFERENCES l1_block(block_number)
 );
 

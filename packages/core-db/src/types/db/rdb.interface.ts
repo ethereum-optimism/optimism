@@ -2,6 +2,9 @@ export interface Row {
   [field: string]: any
 }
 
+/**
+ * Base class for a relational database.
+ */
 export interface RDB {
   /**
    * Executes the provided query and returns its results.

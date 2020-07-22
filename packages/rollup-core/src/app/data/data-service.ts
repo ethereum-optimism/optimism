@@ -67,7 +67,7 @@ export class DefaultDataService implements DataService {
       return
     }
     const values: string[] = transactions.map(
-      (x) => `(${getL1TransactionInsertValue(x)})`
+      (tx, index) => `(${getL1TransactionInsertValue(tx, index)})`
     )
     return this.rdb.execute(
       `${l1TxInsertStatement} VALUES ${values.join(',')}`,
@@ -396,7 +396,7 @@ export class DefaultDataService implements DataService {
    *
    * @returns true if the next batch to build was already appended, false otherwise.
    */
-  public async wasNextStateCommitmentChainBatchToBuildAppendedOnL1(): Promise<
+  public async isNextStateCommitmentChainBatchToBuildAlreadyAppendedOnL1(): Promise<
     boolean
   > {
     const res = await this.rdb.select(

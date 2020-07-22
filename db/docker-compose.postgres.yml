@@ -5,8 +5,7 @@ services:
       context: .
       dockerfile: db.dockerfile
     environment:
-      - POSTGRES_PASSWORD=pass
-      - POSGRES_USER=user
-
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
     ports:
-    - 5432:5432
+      - 5432:5432

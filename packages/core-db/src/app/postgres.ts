@@ -10,7 +10,7 @@ const Pool = require('pg-pool')
 export class PostgresDB implements RDB {
   private readonly pool
 
-  private constructor(
+  constructor(
     host: string,
     port: number,
     user: string,
@@ -27,7 +27,7 @@ export class PostgresDB implements RDB {
       port,
       ssl,
       max: poolSize,
-      idleTimeoutMillis: 1000,
+      idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 1000,
     })
   }
@@ -70,8 +70,6 @@ export class PostgresDB implements RDB {
     } catch (e) {
       logError(log, `Error creating a transaction`, e)
       throw e
-    } finally {
-      client.release()
     }
   }
 

@@ -59,4 +59,5 @@ CREATE INDEX l2_tx_output_state_root_idx ON l2_tx_output USING btree (state_root
 /** ROLLBACK SCRIPT
   DROP TABLE l2_tx_output;
   DROP TABLE canonical_chain_batch;
+  DROP TABLE state_commitment_chain_batch;
  */

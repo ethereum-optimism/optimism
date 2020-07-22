@@ -2,7 +2,6 @@ import {
   DefaultDataService,
   CanonicalChainBatchCreator,
 } from '../../src/app/data'
-import { GethSubmissionRecord } from '../../src/types/data'
 
 class MockDataService extends DefaultDataService {
   public invoked: boolean = false

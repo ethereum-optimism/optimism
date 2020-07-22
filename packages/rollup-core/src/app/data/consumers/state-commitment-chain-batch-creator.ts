@@ -24,8 +24,8 @@ export class StateCommitmentChainBatchCreator extends ScheduledTask {
    */
   public async runTask(): Promise<void> {
     try {
-      const isL1Batch: boolean = await this.dataService.wasNextStateCommitmentChainBatchToBuildAppendedOnL1()
-      if (isL1Batch) {
+      const isAppendedOnL1: boolean = await this.dataService.isNextStateCommitmentChainBatchToBuildAlreadyAppendedOnL1()
+      if (isAppendedOnL1) {
         log.debug(
           `Attempting to build state root batch to match appended L1 state roots...`
         )
