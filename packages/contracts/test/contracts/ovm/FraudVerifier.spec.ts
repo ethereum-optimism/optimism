@@ -121,18 +121,19 @@ const DUMMY_STATE_BATCH = [
   '0x' + '04'.repeat(32),
 ]
 
-const DUMMY_TRANSACTION_BATCH = DUMMY_STATE_BATCH.map((element) => {
-  return makeDummyTransaction(element)
-})
-
-const ENCODED_DUMMY_TRANSACTION_BATCH = DUMMY_TRANSACTION_BATCH.map(
-  (transaction) => {
-    return encodeTransaction(transaction)
-  }
-)
-
 /* Tests */
 describe('FraudVerifier', () => {
+  // Must create these when the tests are executed or the timestamp will be
+  // invalid when we have a lot of tests to run.
+  const DUMMY_TRANSACTION_BATCH = DUMMY_STATE_BATCH.map((element) => {
+    return makeDummyTransaction(element)
+  })
+  const ENCODED_DUMMY_TRANSACTION_BATCH = DUMMY_TRANSACTION_BATCH.map(
+    (transaction) => {
+      return encodeTransaction(transaction)
+    }
+  )
+
   let wallet: Signer
   let sequencer: Signer
   let l1ToL2TransactionPasser: Signer
