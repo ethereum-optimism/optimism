@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import {PartialStateManager} from "../PartialStateManager.sol";
+import { PartialStateManager } from "../PartialStateManager.sol";
 
 /**
  * @title StubExecutionManager

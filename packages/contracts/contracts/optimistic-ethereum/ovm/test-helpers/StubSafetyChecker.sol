@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import {SafetyChecker} from "../SafetyChecker.sol";
+import { SafetyChecker } from "../SafetyChecker.sol";
 
 /**
  * @title StubSafetyChecker
