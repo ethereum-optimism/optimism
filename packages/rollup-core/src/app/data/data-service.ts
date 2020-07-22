@@ -100,7 +100,7 @@ export class DefaultDataService implements DataService {
   public async insertL1RollupTransactions(
     l1TxHash: string,
     rollupTransactions: RollupTransaction[],
-    createBatch: boolean = false
+    queueForGethSubmission: boolean = false
   ): Promise<number> {
     if (!rollupTransactions || !rollupTransactions.length) {
       return
@@ -109,7 +109,7 @@ export class DefaultDataService implements DataService {
     let batchNumber: number
     const txContext = await this.rdb.startTransaction()
     try {
-      if (createBatch) {
+      if (queueForGethSubmission) {
         batchNumber = await this.insertGethSubmissionQueueEntry(
           rollupTransactions[0].l1TxHash,
           txContext
@@ -223,30 +223,6 @@ export class DefaultDataService implements DataService {
         e
       )
       await this.rdb.rollback(txContext)
-    }
-  }
-
-  /**
-   * @inheritDoc
-   */
-  public async getOldestUnverifiedL1TransactionBatch(): Promise<
-    GethSubmissionRecord
-  > {
-    const res: Row[] = await this.rdb.select(`
-      SELECT COUNT(*) as submission_size, geth_submission_queue_index, block_timestamp, 
-      FROM next_queued_geth_submission
-      GROUP BY geth_submission_queue_index, block_timestamp
-      ORDER BY geth_submission_queue_index ASC
-      LIMIT 1
-    `)
-
-    if (!res || !res.length || !res[0]['batch_size']) {
-      return undefined
-    }
-    return {
-      size: res[0]['submission_size'],
-      submissionNumber: res[0]['geth_submission_queue_index'],
-      blockTimestamp: res[0]['block_timestamp'],
     }
   }
 

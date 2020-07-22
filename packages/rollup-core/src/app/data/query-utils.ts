@@ -4,6 +4,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import { RollupTransaction, TransactionOutput } from '../../types'
 import { remove0x } from '@eth-optimism/core-utils/build'
+import {rsvToSignature} from '@eth-optimism/core-utils/build/src'
 export const l1BlockInsertStatement = `INSERT INTO l1_block(block_hash, parent_hash, block_number, block_timestamp, gas_limit, gas_used, processed) `
 export const getL1BlockInsertValue = (
   block: Block,
@@ -25,7 +26,7 @@ export const getL1TransactionInsertValue = (
     tx.to
   }', ${tx.nonce}, ${bigNumOrNull(tx.gasLimit)}, ${bigNumOrNull(
     tx.gasPrice
-  )}, '${tx.data}', '${tx.r}${remove0x(tx.s)}${tx.v.toString(16)}'`
+  )}, '${tx.data}', '${rsvToSignature(tx.r, tx.s, tx.v)}'`
 }
 
 export const l1RollupTxInsertStatement = `INSERT INTO l1_rollup_tx(sender, l1_message_sender, target, calldata, queue_origin, nonce, gas_limit, signature, geth_submission_queue_index, index_within_submission, l1_tx_hash, l1_tx_index, l1_tx_log_index) `
@@ -34,9 +35,9 @@ export const getL1RollupTransactionInsertValue = (
   batchNumber?: number
 ): string => {
   const batchNum = batchNumber || 'NULL'
-  return `${stringOrNull(tx.sender)}, ${stringOrNull(tx.l1MessageSender)}, '${
-    tx.target
-  }', '${tx.calldata}', ${tx.queueOrigin}, ${numOrNull(tx.nonce)}, ${numOrNull(
+  return `${stringOrNull(tx.sender)}, ${stringOrNull(tx.l1MessageSender)}, ${
+    stringOrNull(tx.target)
+  }, ${stringOrNull(tx.calldata)}, ${tx.queueOrigin}, ${numOrNull(tx.nonce)}, ${numOrNull(
     tx.gasLimit
   )}, ${stringOrNull(tx.signature)}, ${batchNum}, ${
     tx.indexWithinSubmission

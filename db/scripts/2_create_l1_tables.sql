@@ -79,14 +79,14 @@ CREATE TABLE l1_rollup_state_root (
 
 CREATE TABLE l1_rollup_tx (
   id BIGSERIAL NOT NULL,
-  sender CHARACTER(42) DEFAULT NULL,
-  l1_message_sender CHARACTER(42) DEFAULT NULL,
-  target CHARACTER(42) DEFAULT NULL,
+  sender TEXT DEFAULT NULL,
+  l1_message_sender TEXT DEFAULT NULL,
+  target TEXT DEFAULT NULL,
   calldata TEXT DEFAULT NULL,
   queue_origin SMALLINT NOT NULL,
   nonce NUMERIC(78) DEFAULT NULL,
   gas_limit NUMERIC(78) DEFAULT NULL,
-  signature CHARACTER(132) DEFAULT NULL,
+  signature TEXT DEFAULT NULL,
   geth_submission_queue_index BIGINT DEFAULT NULL,
   index_within_submission INT DEFAULT NULL,
   l1_tx_hash CHARACTER(66) NOT NULL,

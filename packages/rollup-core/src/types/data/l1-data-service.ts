@@ -51,14 +51,14 @@ export interface L1DataService {
    *
    * @param l1TxHash The L1 Transaction hash.
    * @param rollupTransactions The RollupTransactions to insert.
-   * @param createBatch Whether or not to create a batch from the provided RollupTransactions (whether or not they're part of the canonical chain).
-   * @returns The inserted transaction batch number if a batch was created.
+   * @param queueForGethSubmission Whether or not to queue the provided RollupTransactions for submission to Geth.
+   * @returns The inserted geth submission queue index if queued for geth submission.
    * @throws An error if there is a DB error.
    */
   insertL1RollupTransactions(
     l1TxHash: string,
     rollupTransactions: RollupTransaction[],
-    createBatch?: boolean
+    queueForGethSubmission?: boolean
   ): Promise<number>
 
   /**
