@@ -19,6 +19,7 @@ module.exports = {
   networks: {
     test: {
       network_id: 108,
+      networkCheckTimeout: 100000,
       provider: function() {
         return ProviderWrapper.wrapProviderAndStartLocalNode(new HDWalletProvider(mnemonic, "http://127.0.0.1:8545/", 0, 10));
       },
