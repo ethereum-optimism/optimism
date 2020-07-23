@@ -13,7 +13,8 @@
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
     "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
-    "test:db": "mocha --require ts-node/register 'test/**/*.dbspec.ts' --timeout 5000 --exit"
+    "test:db": "mocha --require ts-node/register 'test/**/*.dbspec.ts' --timeout 5000 --exit",
+    "test:all": "yarn test && yarn test:db"
   },
   "keywords": [
     "plasma",

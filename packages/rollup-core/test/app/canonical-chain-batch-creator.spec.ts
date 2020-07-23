@@ -20,7 +20,7 @@ class MockDataService extends DefaultDataService {
   }
 }
 
-describe('Optimistic Canonical Chain Batch Creator', () => {
+describe('Canonical Chain Batch Creator', () => {
   let batchCreator: CanonicalChainBatchCreator
   let dataService: MockDataService
 

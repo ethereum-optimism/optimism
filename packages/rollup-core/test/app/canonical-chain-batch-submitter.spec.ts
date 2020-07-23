@@ -21,7 +21,7 @@ interface BatchNumberHash {
 class MockDataService extends DefaultDataService {
   public readonly nextBatch: TransactionBatchSubmission[] = []
   public readonly txBatchesSubmitted: BatchNumberHash[] = []
-  public readonly txBatchesConfirmed: BatchNumberHash[] = []
+  public readonly txBatchesFinalized: BatchNumberHash[] = []
 
   constructor() {
     super(undefined)
@@ -44,7 +44,7 @@ class MockDataService extends DefaultDataService {
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
-    this.txBatchesConfirmed.push({ batchNumber, txHash: l1TxHash })
+    this.txBatchesFinalized.push({ batchNumber, txHash: l1TxHash })
   }
 }
 
@@ -82,22 +82,6 @@ class MockCanonicalTransactionChain {
   }
 }
 
-class MockStateCommitmentChain {
-  public responses: TransactionResponse[] = []
-
-  constructor(public readonly provider: MockProvider) {}
-
-  public async appendStateBatch(
-    batches: string[]
-  ): Promise<TransactionResponse> {
-    const response: TransactionResponse = this.responses.shift()
-    if (!response) {
-      throw Error('no response')
-    }
-    return response
-  }
-}
-
 describe('Canonical Chain Batch Submitter', () => {
   let batchSubmitter: CanonicalChainBatchSubmitter
   let dataService: MockDataService
@@ -123,7 +107,7 @@ describe('Canonical Chain Batch Submitter', () => {
       0,
       'No tx batches should have been submitted!'
     )
-    dataService.txBatchesConfirmed.length.should.equal(
+    dataService.txBatchesFinalized.length.should.equal(
       0,
       'No tx batches should have been confirmed!'
     )
@@ -156,7 +140,7 @@ describe('Canonical Chain Batch Submitter', () => {
       0,
       'No tx batches should have been submitted!'
     )
-    dataService.txBatchesConfirmed.length.should.equal(
+    dataService.txBatchesFinalized.length.should.equal(
       0,
       'No tx batches should have been confirmed!'
     )
@@ -202,15 +186,15 @@ describe('Canonical Chain Batch Submitter', () => {
       'Incorrect tx batch number submitted!'
     )
 
-    dataService.txBatchesConfirmed.length.should.equal(
+    dataService.txBatchesFinalized.length.should.equal(
       1,
       'No tx batches confirmed!'
     )
-    dataService.txBatchesConfirmed[0].txHash.should.equal(
+    dataService.txBatchesFinalized[0].txHash.should.equal(
       hash,
       'Incorrect tx hash confirmed!'
     )
-    dataService.txBatchesConfirmed[0].batchNumber.should.equal(
+    dataService.txBatchesFinalized[0].batchNumber.should.equal(
       batchNumber,
       'Incorrect tx batch number confirmed!'
     )
