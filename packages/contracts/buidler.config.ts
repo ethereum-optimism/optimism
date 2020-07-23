@@ -22,6 +22,9 @@ const config: BuidlerConfig = {
       url: 'http://localhost:8555',
     },
   },
+  mocha: {
+    timeout: 50000
+  }
 }
 
 export default config
