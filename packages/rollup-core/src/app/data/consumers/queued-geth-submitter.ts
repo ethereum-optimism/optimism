@@ -15,7 +15,7 @@ const log = getLogger('l2-batch-submitter')
  * Polls the database for new Rollup Transactions that were submitted to L1 that
  * have not yet been processed by L2 and submits them one-by-one to L2.
  */
-export class L2BatchSubmitter extends ScheduledTask {
+export class QueuedGethSubmitter extends ScheduledTask {
   constructor(
     private readonly l1DataService: L1DataService,
     private readonly l2NodeService: L2NodeService,
@@ -30,7 +30,7 @@ export class L2BatchSubmitter extends ScheduledTask {
   public async runTask(): Promise<void> {
     let blockBatches: BlockBatches
     try {
-      blockBatches = await this.l1DataService.getNextBatchForL2Submission()
+      blockBatches = await this.l1DataService.getNextQueuedGethSubmission()
     } catch (e) {
       logError(log, `Error fetching next batch for L2 submission!`, e)
       return
@@ -55,7 +55,7 @@ export class L2BatchSubmitter extends ScheduledTask {
     }
 
     try {
-      await this.l1DataService.markL1BatchSubmittedToL2(
+      await this.l1DataService.markQueuedGethSubmissionSubmittedToGeth(
         blockBatches.batchNumber
       )
     } catch (e) {

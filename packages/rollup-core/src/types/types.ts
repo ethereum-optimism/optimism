@@ -18,7 +18,7 @@ export interface L2ToL1Message {
 }
 
 export interface RollupTransaction {
-  batchIndex: number
+  indexWithinSubmission: number
   target: Address
   calldata: string
   sender?: Address
@@ -34,7 +34,7 @@ export interface RollupTransaction {
   signature?: string
 }
 
-export interface TransactionAndRoot {
+export interface TransactionOutput {
   timestamp: number
   blockNumber: number
   transactionIndex: number
@@ -43,6 +43,7 @@ export interface TransactionAndRoot {
   nonce: number
   calldata: string
   from: string
+  l1RollupTransactionId?: number
   gasLimit?: BigNumber
   gasPrice?: BigNumber
   l1MessageSender?: string
@@ -51,11 +52,10 @@ export interface TransactionAndRoot {
 }
 
 export interface VerificationCandidate {
-  l1BatchNumber: number
-  l2BatchNumber: number
+  batchNumber: number
   roots: Array<{
     l1Root: string
-    l2Root: string
+    gethRoot: string
   }>
 }
 

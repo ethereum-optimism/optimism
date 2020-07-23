@@ -4,17 +4,17 @@ import { TestUtils } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import { VerifierDataService } from '../../src/types/data'
 import { FraudProver, VerificationCandidate } from '../../src/types'
-import { Verifier } from '../../src/app'
+import { FraudDetector } from '../../src/app'
 
 class MockVerifierDataService implements VerifierDataService {
   public readonly verificationCandidates: VerificationCandidate[] = []
   public readonly batchesVerified: number[] = []
 
-  public async getVerificationCandidate(): Promise<VerificationCandidate> {
+  public async getNextVerificationCandidate(): Promise<VerificationCandidate> {
     return this.verificationCandidates.shift()
   }
 
-  public async verifyBatch(batchNumber): Promise<void> {
+  public async verifyStateRootBatch(batchNumber): Promise<void> {
     this.batchesVerified.push(batchNumber)
   }
 }
@@ -37,51 +37,29 @@ class MockFraudProver implements FraudProver {
   }
 }
 
-describe('Verifier', () => {
+describe('Fraud Detector', () => {
   let dataService: MockVerifierDataService
   let fraudProver: MockFraudProver
-  let verifier: Verifier
+  let fraudDetector: FraudDetector
 
   beforeEach(() => {
     dataService = new MockVerifierDataService()
     fraudProver = new MockFraudProver()
-    verifier = new Verifier(dataService, fraudProver, 10_000, 3)
+    fraudDetector = new FraudDetector(dataService, fraudProver, 10_000, 3)
   })
 
   it('should verify valid candidates', async () => {
     const roots = [
-      { l1Root: 'a', l2Root: 'a' },
-      { l1Root: 'b', l2Root: 'b' },
-      { l1Root: 'c', l2Root: 'c' },
+      { l1Root: 'a', gethRoot: 'a' },
+      { l1Root: 'b', gethRoot: 'b' },
+      { l1Root: 'c', gethRoot: 'c' },
     ]
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots,
     })
 
-    await verifier.runTask()
-
-    dataService.batchesVerified.length.should.equal(1, `Batch not verified!`)
-    dataService.batchesVerified[0].should.equal(
-      1,
-      `Batch 1 should be verified!`
-    )
-
-    fraudProver.provenFraud.length.should.equal(
-      0,
-      `No fraud should have been proven!`
-    )
-  })
-
-  it('should verify candidates without roots', async () => {
-    dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
-      roots: [],
-    })
-
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(1, `Batch not verified!`)
     dataService.batchesVerified[0].should.equal(
@@ -96,7 +74,27 @@ describe('Verifier', () => {
   })
 
   it('should not verify undefined candidates', async () => {
-    await verifier.runTask()
+    await fraudDetector.runTask()
+
+    dataService.batchesVerified.length.should.equal(
+      0,
+      `Batch should not be verified!`
+    )
+    fraudProver.provenFraud.length.should.equal(
+      0,
+      `No fraud should have been proven!`
+    )
+  })
+
+  it('should not verify candidates without roots', async () => {
+    dataService.verificationCandidates.push({
+      batchNumber: 1,
+      roots: [],
+    })
+
+    await TestUtils.assertThrowsAsync(async () => {
+      await fraudDetector.runTask()
+    })
 
     dataService.batchesVerified.length.should.equal(
       0,
@@ -110,70 +108,12 @@ describe('Verifier', () => {
 
   it('should not verify candidates without batch number', async () => {
     dataService.verificationCandidates.push({
-      l1BatchNumber: undefined,
-      l2BatchNumber: undefined,
-      roots: [{ l1Root: 'a', l2Root: 'a' }],
-    })
-
-    await verifier.runTask()
-
-    dataService.batchesVerified.length.should.equal(
-      0,
-      `Batch should not be verified!`
-    )
-    fraudProver.provenFraud.length.should.equal(
-      0,
-      `No fraud should have been proven!`
-    )
-  })
-
-  it('should not verify candidates without l1 batch number', async () => {
-    dataService.verificationCandidates.push({
-      l1BatchNumber: undefined,
-      l2BatchNumber: 1,
-      roots: [{ l1Root: 'a', l2Root: 'a' }],
-    })
-
-    await verifier.runTask()
-
-    dataService.batchesVerified.length.should.equal(
-      0,
-      `Batch should not be verified!`
-    )
-    fraudProver.provenFraud.length.should.equal(
-      0,
-      `No fraud should have been proven!`
-    )
-  })
-
-  it('should not verify candidates without l2 batch number', async () => {
-    dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: undefined,
-      roots: [{ l1Root: 'a', l2Root: 'a' }],
-    })
-
-    await verifier.runTask()
-
-    dataService.batchesVerified.length.should.equal(
-      0,
-      `Batch should not be verified!`
-    )
-    fraudProver.provenFraud.length.should.equal(
-      0,
-      `No fraud should have been proven!`
-    )
-  })
-
-  it('should throw on batch # mismatch', async () => {
-    dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 2,
-      roots: [{ l1Root: 'a', l2Root: 'a' }],
+      batchNumber: undefined,
+      roots: [{ l1Root: 'a', gethRoot: 'a' }],
     })
 
     await TestUtils.assertThrowsAsync(async () => {
-      await verifier.runTask()
+      await fraudDetector.runTask()
     })
 
     dataService.batchesVerified.length.should.equal(
@@ -188,18 +128,17 @@ describe('Verifier', () => {
 
   it('should prove fraud on position 0 state root mismatch', async () => {
     const roots = [
-      { l1Root: 'a', l2Root: 'b' },
-      { l1Root: 'b', l2Root: 'b' },
-      { l1Root: 'c', l2Root: 'c' },
+      { l1Root: 'a', gethRoot: 'b' },
+      { l1Root: 'b', gethRoot: 'b' },
+      { l1Root: 'c', gethRoot: 'c' },
     ]
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots,
     })
 
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(
       0,
@@ -221,18 +160,17 @@ describe('Verifier', () => {
 
   it('should prove fraud on position 1 state root mismatch', async () => {
     const roots = [
-      { l1Root: 'a', l2Root: 'a' },
-      { l1Root: 'b', l2Root: 'c' },
-      { l1Root: 'c', l2Root: 'c' },
+      { l1Root: 'a', gethRoot: 'a' },
+      { l1Root: 'b', gethRoot: 'c' },
+      { l1Root: 'c', gethRoot: 'c' },
     ]
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots,
     })
 
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(
       0,
@@ -254,19 +192,18 @@ describe('Verifier', () => {
 
   it('should only prove fraud once for the same fraud', async () => {
     const roots = [
-      { l1Root: 'a', l2Root: 'a' },
-      { l1Root: 'b', l2Root: 'c' },
-      { l1Root: 'c', l2Root: 'c' },
+      { l1Root: 'a', gethRoot: 'a' },
+      { l1Root: 'b', gethRoot: 'c' },
+      { l1Root: 'c', gethRoot: 'c' },
     ]
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots,
     })
 
-    await verifier.runTask()
-    await verifier.runTask()
+    await fraudDetector.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(
       0,
@@ -288,25 +225,23 @@ describe('Verifier', () => {
 
   it('should recover after proving fraud', async () => {
     const fraudRoots = [
-      { l1Root: 'a', l2Root: 'a' },
-      { l1Root: 'b', l2Root: 'c' },
-      { l1Root: 'c', l2Root: 'c' },
+      { l1Root: 'a', gethRoot: 'a' },
+      { l1Root: 'b', gethRoot: 'c' },
+      { l1Root: 'c', gethRoot: 'c' },
     ]
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots: fraudRoots,
     })
 
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots: fraudRoots,
     })
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(
       0,
@@ -326,18 +261,17 @@ describe('Verifier', () => {
     )
 
     const nonFraudRroots = [
-      { l1Root: 'a', l2Root: 'a' },
-      { l1Root: 'b', l2Root: 'b' },
-      { l1Root: 'c', l2Root: 'c' },
+      { l1Root: 'a', gethRoot: 'a' },
+      { l1Root: 'b', gethRoot: 'b' },
+      { l1Root: 'c', gethRoot: 'c' },
     ]
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 1,
-      l2BatchNumber: 1,
+      batchNumber: 1,
       roots: nonFraudRroots,
     })
 
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(
       1,
@@ -349,12 +283,11 @@ describe('Verifier', () => {
     )
 
     dataService.verificationCandidates.push({
-      l1BatchNumber: 2,
-      l2BatchNumber: 2,
+      batchNumber: 2,
       roots: fraudRoots,
     })
 
-    await verifier.runTask()
+    await fraudDetector.runTask()
 
     dataService.batchesVerified.length.should.equal(
       1,

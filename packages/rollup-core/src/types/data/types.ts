@@ -1,4 +1,4 @@
-import { TransactionAndRoot } from '../types'
+import { TransactionOutput } from '../types'
 
 export enum QueueOrigin {
   L1_TO_L2_QUEUE = 0,
@@ -6,25 +6,40 @@ export enum QueueOrigin {
   SEQUENCER = 2,
 }
 
-export enum L2BatchStatus {
-  UNBATCHED = 'UNBATCHED',
-  BATCHED = 'BATCHED',
-  TXS_SUBMITTED = 'TXS_SUBMITTED',
-  TXS_CONFIRMED = 'TXS_CONFIRMED',
-  ROOTS_SUBMITTED = 'ROOTS_SUBMITTED',
-  ROOTS_CONFIRMED = 'ROOTS_CONFIRMED',
+export enum BatchSubmissionStatus {
+  QUEUED = 'QUEUED',
+  SENT = 'SENT',
+  FINALIZED = 'FINALIZED',
 }
 
-export interface L1BatchRecord {
+export enum GethSubmissionQueueStatus {
+  QUEUED = 'QUEUED',
+  SENT = 'SENT',
+}
+
+export enum VerificationStatus {
+  UNVERIFIED = 'UNVERIFIED',
+  VERIFIED = 'VERIFIED',
+  FRAUDULENT = 'FRAUDULENT',
+  REMOVED = 'REMOVED',
+}
+
+export interface GethSubmissionRecord {
   blockTimestamp: number
-  batchNumber: number
-  batchSize: number
+  submissionNumber: number
+  size: number
 }
 
-export interface L1BatchSubmission {
-  l1TxBatchTxHash: string
-  l1StateRootBatchTxHash: string
-  status: string
-  l2BatchNumber: number
-  transactions: TransactionAndRoot[]
+export interface BatchSubmission {
+  submissionTxHash: string
+  status: BatchSubmissionStatus
+  batchNumber: number
+}
+
+export interface TransactionBatchSubmission extends BatchSubmission {
+  transactions: TransactionOutput[]
+}
+
+export interface StateCommitmentBatchSubmission extends BatchSubmission {
+  stateRoots: string[]
 }
