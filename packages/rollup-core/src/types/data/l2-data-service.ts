@@ -19,10 +19,15 @@ export interface L2DataService {
    * Builds a Canonical Chain Tx batch for L2 Tx Outputs that are not present on L1
    * if there are unbatched L2 Transaction Outputs with different timestamps.
    *
+   * @param minBatchSize The max size of the batch to build.
+   * @param maxBatchSize The max size of the batch to build.
    * @returns The number of the cc Batch that was built, or -1 if one wasn't built.
    * @throws An error if there is a DB error.
    */
-  tryBuildCanonicalChainBatchNotPresentOnL1(): Promise<number>
+  tryBuildCanonicalChainBatchNotPresentOnL1(
+    minBatchSize: number,
+    maxBatchSize: number
+  ): Promise<number>
 
   /**
    * Determines whether or not the next State Commitment Chain batch represents a set of

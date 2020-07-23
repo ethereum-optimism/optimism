@@ -1,38 +1,43 @@
 import {
   INVALID_ADDRESS,
   keccak256FromUtf8,
+  ONE,
+  remove0x,
   rsvToSignature,
   TestUtils,
-  ZERO_ADDRESS
+  ZERO,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-import {Row} from '@eth-optimism/core-db'
-import {BigNumber} from 'ethers/utils'
-import {Block, TransactionResponse} from 'ethers/providers'
+import { Row } from '@eth-optimism/core-db'
+import { BigNumber as BigNum } from 'ethers/utils'
+import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import {CHAIN_ID} from '../../src/app'
-import {QueueOrigin} from '../../src/types/data'
-import {RollupTransaction} from '../../src/types'
+import { CHAIN_ID } from '../../src/app'
+import { QueueOrigin } from '../../src/types/data'
+import { RollupTransaction, TransactionOutput } from '../../src/types'
 
 export const blockHash = keccak256FromUtf8('block hash')
 export const parentHash = keccak256FromUtf8('parent hash')
 export const blockNumber = 0
-export const timestamp = 1
+export const defaultTimestamp = 1
 export const defaultData: string = '0xdeadbeef'
 export const defaultFrom: string = ZERO_ADDRESS
 export const defaultTo: string = INVALID_ADDRESS
 export const defaultNonceString: string = '0x01'
 export const defaultNonceNum: number = 1
+export const defaultSignature: string = `${blockHash}${remove0x(parentHash)}99`
+export const defaultStateRoot: string = keccak256FromUtf8(blockHash)
 
-export const gasUsed = new BigNumber(1)
-export const gasLimit = new BigNumber(2)
-export const gasPrice = new BigNumber(3)
+export const gasUsed = new BigNum(1)
+export const gasLimit = new BigNum(2)
+export const gasPrice = new BigNum(3)
 
 export const l1Block: Block = {
   hash: blockHash,
   parentHash,
   number: blockNumber,
-  timestamp,
+  timestamp: defaultTimestamp,
   nonce: defaultNonceString,
   difficulty: 1234,
   gasLimit,
@@ -52,7 +57,7 @@ export const createTx = (
 ): TransactionResponse => {
   return {
     data,
-    timestamp,
+    timestamp: defaultTimestamp,
     hash,
     blockNumber: blockNum,
     blockHash: keccak256FromUtf8('block hash'),
@@ -62,7 +67,7 @@ export const createTx = (
     from,
     nonce,
     gasPrice,
-    value: new BigNumber(0),
+    value: new BigNum(0),
     chainId: CHAIN_ID,
     v: 1,
     r: keccak256FromUtf8('r'),
@@ -73,7 +78,43 @@ export const createTx = (
   }
 }
 
-export const createRollupTx = (tx: TransactionResponse, queueOrigin: QueueOrigin, txIndex: number = 0, submissionIndex: number = 0, l1MessageSender?: string, logIndex: number = 0): RollupTransaction => {
+export const createTxOutput = (
+  hash: string,
+  stateRoot: string = defaultStateRoot,
+  blockNum: number = blockNumber,
+  timestamp: number = defaultTimestamp,
+  l1MessageSender?: string,
+  from: string = defaultFrom,
+  signature: string = defaultSignature,
+  data: string = defaultData,
+  to: string = defaultTo,
+  nonce: number = defaultNonceNum
+): TransactionOutput => {
+  return {
+    calldata: data,
+    timestamp,
+    transactionHash: hash,
+    transactionIndex: 0,
+    blockNumber: blockNum,
+    gasLimit: ONE,
+    gasPrice: ZERO,
+    to,
+    from,
+    nonce,
+    l1MessageSender,
+    signature: defaultSignature,
+    stateRoot,
+  }
+}
+
+export const createRollupTx = (
+  tx: TransactionResponse,
+  queueOrigin: QueueOrigin,
+  txIndex: number = 0,
+  submissionIndex: number = 0,
+  l1MessageSender?: string,
+  logIndex: number = 0
+): RollupTransaction => {
   return {
     indexWithinSubmission: submissionIndex,
     target: tx.to,
@@ -88,11 +129,15 @@ export const createRollupTx = (tx: TransactionResponse, queueOrigin: QueueOrigin
     l1TxLogIndex: logIndex,
     nonce: defaultNonceNum,
     queueOrigin,
-    signature: rsvToSignature(tx.r, tx.s, tx.v)
+    signature: rsvToSignature(tx.r, tx.s, tx.v),
   }
 }
 
-export const verifyL1BlockRes = (row: Row, block: Block, processed: boolean) => {
+export const verifyL1BlockRes = (
+  row: Row,
+  block: Block,
+  processed: boolean
+) => {
   row['block_hash'].should.equal(block.hash, `Hash mismatch!`)
   row['parent_hash'].should.equal(block.parentHash, `Parent hash mismatch!`)
   row['block_number'].should.equal(
@@ -105,30 +150,141 @@ export const verifyL1BlockRes = (row: Row, block: Block, processed: boolean) => 
   )
   row['processed'].should.equal(processed, `processed mismatch!`)
 }
-export const verifyL1TxRes = (row: Row, tx: TransactionResponse, index: number) => {
-  row['block_number'].should.equal(tx.blockNumber.toString(10), `Tx ${index} block number mismatch!`)
+export const verifyL1TxRes = (
+  row: Row,
+  tx: TransactionResponse,
+  index: number
+) => {
+  row['block_number'].should.equal(
+    tx.blockNumber.toString(10),
+    `Tx ${index} block number mismatch!`
+  )
   row['tx_hash'].should.equal(tx.hash, `Tx ${index} hash mismatch!`)
   row['tx_index'].should.equal(index, `Tx ${index} index mismatch!`)
   row['from_address'].should.equal(tx.from, `Tx ${index} from mismatch!`)
   row['to_address'].should.equal(tx.to, `Tx ${index} to mismatch!`)
-  row['nonce'].should.equal(tx.nonce.toString(10), `Tx ${index} nonce mismatch!`)
-  row['gas_limit'].should.equal(tx.gasLimit.toString(), `Tx ${index} gas limit mismatch!`)
-  row['gas_price'].should.equal(tx.gasPrice.toString(), `Tx ${index} gas price mismatch!`)
+  row['nonce'].should.equal(
+    tx.nonce.toString(10),
+    `Tx ${index} nonce mismatch!`
+  )
+  row['gas_limit'].should.equal(
+    tx.gasLimit.toString(),
+    `Tx ${index} gas limit mismatch!`
+  )
+  row['gas_price'].should.equal(
+    tx.gasPrice.toString(),
+    `Tx ${index} gas price mismatch!`
+  )
   row['calldata'].should.equal(tx.data, `Tx ${index} calldata mismatch!`)
-  row['signature'].should.equal(rsvToSignature(tx.r, tx.s, tx.v), `Tx ${index} signature mismatch!`)
+  row['signature'].should.equal(
+    rsvToSignature(tx.r, tx.s, tx.v),
+    `Tx ${index} signature mismatch!`
+  )
 }
 
 export const verifyL1RollupTx = (row: Row, tx: RollupTransaction) => {
   TestUtils.nullSafeEquals(row['sender'], tx.sender, 'Sender mismatch!')
-  TestUtils.nullSafeEquals(row['l1_message_sender'], tx.l1MessageSender, 'L1 Message sender mismatch!')
+  TestUtils.nullSafeEquals(
+    row['l1_message_sender'],
+    tx.l1MessageSender,
+    'L1 Message sender mismatch!'
+  )
   TestUtils.nullSafeEquals(row['target'], tx.target, 'Target mismatch!')
   TestUtils.nullSafeEquals(row['calldata'], tx.calldata, 'Calldata mismatch!')
-  TestUtils.nullSafeEquals(row['queue_origin'], tx.queueOrigin, 'Queue Origin mismatch!')
-  TestUtils.nullSafeEquals(row['nonce'], tx.nonce.toString(10), 'Nonce mismatch!')
-  TestUtils.nullSafeEquals(row['gas_limit'], tx.gasLimit.toString(10), 'GasLimit mismatch!')
-  TestUtils.nullSafeEquals(row['signature'], tx.signature, 'Signature mismatch!')
-  TestUtils.nullSafeEquals(row['index_within_submission'], tx.indexWithinSubmission, 'Index within submission mismatch!')
-  TestUtils.nullSafeEquals(row['l1_tx_hash'], tx.l1TxHash, 'L1 Tx Hash mismatch!')
-  TestUtils.nullSafeEquals(row['l1_tx_index'], tx.l1TxIndex, 'L1 Tx Index mismatch!')
-  TestUtils.nullSafeEquals(row['l1_tx_log_index'], tx.l1TxLogIndex, 'L1 Tx Log Index mismatch!')
+  TestUtils.nullSafeEquals(
+    row['queue_origin'],
+    tx.queueOrigin,
+    'Queue Origin mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['nonce'],
+    tx.nonce.toString(10),
+    'Nonce mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['gas_limit'],
+    tx.gasLimit.toString(10),
+    'GasLimit mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['signature'],
+    tx.signature,
+    'Signature mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['index_within_submission'],
+    tx.indexWithinSubmission,
+    'Index within submission mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['l1_tx_hash'],
+    tx.l1TxHash,
+    'L1 Tx Hash mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['l1_tx_index'],
+    tx.l1TxIndex,
+    'L1 Tx Index mismatch!'
+  )
+  TestUtils.nullSafeEquals(
+    row['l1_tx_log_index'],
+    tx.l1TxLogIndex,
+    'L1 Tx Log Index mismatch!'
+  )
+}
+
+export const verifyStateRoot = (
+  row: Row,
+  root: string,
+  index: number,
+  batchNumber: number
+) => {
+  row['state_root'].should.equal(root, `root ${index} mismatch!`)
+  row['batch_index'].should.equal(index, `index ${index} mismatch!`)
+  row['batch_number'].should.equal(
+    batchNumber.toString(10),
+    `batch number ${index} mismatch!`
+  )
+}
+
+export const verifyL2TxOutput = (row: Row, tx: TransactionOutput) => {
+  TestUtils.nullSafeEquals(
+    row['block_number'],
+    tx.blockNumber.toString(10),
+    `Block Number mismatch!`
+  )
+  TestUtils.nullSafeEquals(
+    row['block_timestamp'],
+    tx.timestamp.toString(10),
+    `Timestamp mismatch!`
+  )
+  TestUtils.nullSafeEquals(
+    row['tx_index'],
+    tx.transactionIndex,
+    `Index mismatch!`
+  )
+  TestUtils.nullSafeEquals(row['tx_hash'], tx.transactionHash, `Hash mismatch!`)
+  TestUtils.nullSafeEquals(row['sender'], tx.from, `Sender mismatch!`)
+  TestUtils.nullSafeEquals(
+    row['l1_message_sender'],
+    tx.l1MessageSender,
+    `L1 Message Sender mismatch!`
+  )
+  TestUtils.nullSafeEquals(row['target'], tx.to, `Target mismatch!`)
+  TestUtils.nullSafeEquals(row['calldata'], tx.calldata, `Calldata mismatch!`)
+  TestUtils.nullSafeEquals(
+    row['nonce'],
+    tx.nonce.toString(10),
+    `Nonce mismatch!`
+  )
+  TestUtils.nullSafeEquals(
+    row['signature'],
+    tx.signature,
+    `Signature mismatch!`
+  )
+  TestUtils.nullSafeEquals(
+    row['state_root'],
+    tx.stateRoot,
+    `State Root mismatch!`
+  )
 }

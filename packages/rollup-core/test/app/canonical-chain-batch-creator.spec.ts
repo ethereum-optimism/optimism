@@ -26,7 +26,7 @@ describe('Optimistic Canonical Chain Batch Creator', () => {
 
   beforeEach(async () => {
     dataService = new MockDataService()
-    batchCreator = new CanonicalChainBatchCreator(dataService)
+    batchCreator = new CanonicalChainBatchCreator(dataService, 1, 10)
   })
 
   it('should run successfully when no batch is built', async () => {

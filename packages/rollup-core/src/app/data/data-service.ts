@@ -1,6 +1,6 @@
 /* External Imports */
 import { RDB, Row } from '@eth-optimism/core-db'
-import { getLogger, logError } from '@eth-optimism/core-utils'
+import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
 
 import { Block, TransactionResponse } from 'ethers/providers'
 
@@ -9,7 +9,6 @@ import {
   BlockBatches,
   DataService,
   GethSubmissionQueueStatus,
-  GethSubmissionRecord,
   TransactionBatchSubmission,
   BatchSubmissionStatus,
   RollupTransaction,
@@ -103,7 +102,7 @@ export class DefaultDataService implements DataService {
     queueForGethSubmission: boolean = false
   ): Promise<number> {
     if (!rollupTransactions || !rollupTransactions.length) {
-      return
+      return -1
     }
 
     let batchNumber: number
@@ -149,7 +148,7 @@ export class DefaultDataService implements DataService {
       SELECT l1_tx_hash, l1_tx_log_index, queue_origin
       FROM unqueued_rollup_tx
       WHERE queue_origin IN (${queueOrigins.join(',')}) 
-      ORDER BY l1_block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
+      ORDER BY block_number ASC, l1_tx_index ASC, l1_tx_log_index ASC 
       LIMIT 1
     `)
     if (!txHashRes || !txHashRes.length || !txHashRes[0]['l1_tx_hash']) {
@@ -302,7 +301,7 @@ export class DefaultDataService implements DataService {
     return this.rdb.execute(`
     UPDATE l1_block 
     SET processed = TRUE 
-    WHERE block_hash = ${blockHash}`)
+    WHERE block_hash = '${add0x(blockHash)}'`)
   }
 
   /*******************
@@ -323,37 +322,52 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async tryBuildCanonicalChainBatchNotPresentOnL1(): Promise<number> {
+  public async tryBuildCanonicalChainBatchNotPresentOnL1(
+    minBatchSize: number,
+    maxBatchSize: number
+  ): Promise<number> {
     // TODO: ADD SOME SIZE LIMIT
-    const timestampRes = await this.rdb.select(
-      `SELECT DISTINCT block_timestamp
+    const txRes = await this.rdb.select(
+      `SELECT DISTINCT COUNT(*) as total, block_timestamp
             FROM l2_tx_output
             WHERE
-              state_commitment_chain_batch_number IS NULL
+              canonical_chain_batch_number IS NULL
               AND l1_rollup_tx_id IS NULL
+            GROUP BY block_timestamp
             ORDER BY block_timestamp ASC
             LIMIT 2
       `
     )
 
-    if (!timestampRes || timestampRes.length < 2) {
+    if (
+      !txRes ||
+      !txRes.length ||
+      (txRes.length < 2 && parseInt(txRes[0]['total'], 10) < minBatchSize)
+    ) {
       return -1
     }
 
-    const batchTimestamp = timestampRes[0]['block_timestamp']
+    const batchTimestamp = parseInt(txRes[0]['block_timestamp'], 10)
 
     const txContext = await this.rdb.startTransaction()
     try {
       const batchNumber = await this.insertNewCanonicalChainBatch(txContext)
       await this.rdb.execute(
-        `UPDATE l2_tx_output
-        SET 
-          status = '${BatchSubmissionStatus.QUEUED}', 
-          canonical_chain_batch_number = ${batchNumber}
-        WHERE 
-          canonical_chain_batch_number IS NULL
-          AND l1_rollup_tx_id IS NULL
-          AND block_timestamp = ${batchTimestamp}`,
+        `UPDATE l2_tx_output tx
+        SET canonical_chain_batch_number = ${batchNumber}
+        FROM 
+          (
+            SELECT id
+            FROM l2_tx_output
+            WHERE
+              canonical_chain_batch_number IS NULL
+              AND l1_rollup_tx_id IS NULL
+              AND block_timestamp = ${batchTimestamp}
+            ORDER BY block_number ASC, tx_index ASC
+            LIMIT ${maxBatchSize}
+          ) t
+        WHERE tx.id = t.id 
+          `,
         txContext
       )
 
@@ -557,7 +571,7 @@ export class DefaultDataService implements DataService {
       ORDER BY block_number ASC, tx_index ASC`
     )
 
-    if (!res || !res.length || !res[0].data.length) {
+    if (!res || !res.length || !res[0]) {
       return undefined
     }
 
@@ -631,7 +645,7 @@ export class DefaultDataService implements DataService {
       ORDER BY block_number ASC, tx_index ASC`
     )
 
-    if (!res || !res.length || !res[0].data.length) {
+    if (!res || !res.length || !res[0]) {
       return undefined
     }
 
@@ -828,9 +842,14 @@ export class DefaultDataService implements DataService {
          FROM canonical_chain_batch`,
       txContext
     )
-    if (rows && !!rows.length && !!rows[0] && !!rows[0]['batch_number']) {
-      // TODO: make sure we don't need to cast
-      return rows[0]['batch_number']
+    if (
+      rows &&
+      !!rows.length &&
+      !!rows[0] &&
+      rows[0]['batch_number'] !== undefined &&
+      rows[0]['batch_number'] !== null
+    ) {
+      return parseInt(rows[0]['batch_number'], 10)
     }
 
     return -1
@@ -881,9 +900,14 @@ export class DefaultDataService implements DataService {
       `SELECT MAX(batch_number) as batch_number 
         FROM state_commitment_chain_batch`
     )
-    if (rows && !!rows.length && !!rows[0] && !!rows[0]['batch_number']) {
-      // TODO: make sure we don't need to cast
-      return rows[0]['batch_number']
+    if (
+      rows &&
+      !!rows.length &&
+      !!rows[0] &&
+      rows[0]['batch_number'] !== undefined &&
+      rows[0]['batch_number'] !== null
+    ) {
+      return parseInt(rows[0]['batch_number'], 10)
     }
 
     return -1
@@ -898,9 +922,14 @@ export class DefaultDataService implements DataService {
       `SELECT MAX(queue_index) as queue_index 
         FROM geth_submission_queue`
     )
-    if (rows && !!rows.length && !!rows[0] && !!rows[0]['queue_index']) {
-      // TODO: make sure we don't need to cast
-      return rows[0]['queue_index']
+    if (
+      rows &&
+      !!rows.length &&
+      !!rows[0] &&
+      rows[0]['queue_index'] !== undefined &&
+      rows[0]['queue_index'] !== null
+    ) {
+      return parseInt(rows[0]['queue_index'], 10)
     }
 
     return -1
@@ -915,9 +944,14 @@ export class DefaultDataService implements DataService {
       `SELECT MAX(batch_number) as batch_number 
         FROM l1_rollup_state_root_batch`
     )
-    if (rows && !!rows.length && !!rows[0] && !!rows[0]['batch_number']) {
-      // TODO: make sure we don't need to cast
-      return rows[0]['batch_number']
+    if (
+      rows &&
+      !!rows.length &&
+      !!rows[0] &&
+      rows[0]['batch_number'] !== undefined &&
+      rows[0]['batch_number'] !== null
+    ) {
+      return parseInt(rows[0]['batch_number'], 10)
     }
 
     return -1
