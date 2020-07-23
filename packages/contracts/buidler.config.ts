@@ -23,8 +23,8 @@ const config: BuidlerConfig = {
     },
   },
   mocha: {
-    timeout: 50000
-  }
+    timeout: 50000,
+  },
 }
 
 export default config
