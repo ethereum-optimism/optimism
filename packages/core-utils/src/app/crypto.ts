@@ -10,7 +10,7 @@ import {
 
 /* Internal Imports */
 import { HashAlgorithm, HashFunction } from '../types'
-import {add0x, numberToHexString, remove0x} from './misc'
+import { add0x, numberToHexString, remove0x } from './misc'
 
 /**
  * Creates an Md5 hash of the provided input
@@ -108,7 +108,9 @@ export const rsvToSignature = (r: string, s: string, v: number): string => {
   const sig = `${add0x(r)}${remove0x(s)}${vString}`
   // '0x' + 64 chars for r + 64 chars for s + 2 chars for v = 132
   if (sig.length !== 132) {
-    throw Error(`Invalid v [${vString}], r [${r}], s[${s}]. v [${vString.length}] should be 2 chars, r [${r.length}] should be 64 chars, and s [${s.length}] should be 64 chars.`)
+    throw Error(
+      `Invalid v [${vString}], r [${r}], s[${s}]. v [${vString.length}] should be 2 chars, r [${r.length}] should be 64 chars, and s [${s.length}] should be 64 chars.`
+    )
   }
 
   return sig
@@ -121,15 +123,19 @@ export const rsvToSignature = (r: string, s: string, v: number): string => {
  * @returns an object with R, S, and V.
  * @throws Error if signature is not the correct length.
  */
-export const signatureToRSV = (sig: string): {r: string, s: string, v: number} => {
+export const signatureToRSV = (
+  sig: string
+): { r: string; s: string; v: number } => {
   const unprefixed: string = remove0x(sig)
   if (unprefixed.length !== 130) {
-    throw Error(`Invalid signature. Must be 132 chars if prefixed with 0x and 130 otherwise. Got ${sig.length} chars. Signature: ${sig}`)
+    throw Error(
+      `Invalid signature. Must be 132 chars if prefixed with 0x and 130 otherwise. Got ${sig.length} chars. Signature: ${sig}`
+    )
   }
 
   return {
     r: unprefixed.substr(0, 64),
     s: unprefixed.substr(64, 64),
-    v: parseInt(unprefixed.substr(128, 2), 16)
+    v: parseInt(unprefixed.substr(128, 2), 16),
   }
 }

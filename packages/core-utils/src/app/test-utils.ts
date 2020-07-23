@@ -2,12 +2,14 @@
 import * as assert from 'assert'
 
 export class TestUtils {
-
   public static nullSafeEquals(first: any, second: any, msg?: string) {
     const firstExists: boolean = first !== undefined && first !== null
     const secondExists: boolean = second !== undefined && first !== null
 
-    firstExists.should.equal(secondExists, msg || `undefined / not undefined mismatch!`)
+    firstExists.should.equal(
+      secondExists,
+      msg || `undefined / not undefined mismatch!`
+    )
     if (firstExists) {
       first.should.equal(second, msg || `values don't match!`)
     }
