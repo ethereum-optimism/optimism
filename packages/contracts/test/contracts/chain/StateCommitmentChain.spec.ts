@@ -6,7 +6,13 @@ import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { makeRandomBatchOfSize, StateChainBatch } from '../../test-helpers'
+import {
+  makeRandomBatchOfSize,
+  StateChainBatch,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('state-commitment-chain', true)
@@ -45,7 +51,6 @@ describe('StateCommitmentChain', () => {
 
   let stateChain: Contract
   let canonicalTxChain: Contract
-  let rollupMerkleUtils: Contract
 
   const appendAndGenerateStateBatch = async (
     batch: string[],
@@ -71,37 +76,55 @@ describe('StateCommitmentChain', () => {
       .appendSequencerBatch(batch, timestamp)
   }
 
-  let RollupMerkleUtils: ContractFactory
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let CanonicalTransactionChain: ContractFactory
   let StateCommitmentChain: ContractFactory
   before(async () => {
-    RollupMerkleUtils = await ethers.getContractFactory('RollupMerkleUtils')
     CanonicalTransactionChain = await ethers.getContractFactory(
       'CanonicalTransactionChain'
     )
     StateCommitmentChain = await ethers.getContractFactory(
       'StateCommitmentChain'
     )
+  })
 
-    rollupMerkleUtils = await RollupMerkleUtils.deploy()
-
-    canonicalTxChain = await CanonicalTransactionChain.deploy(
-      rollupMerkleUtils.address,
-      await sequencer.getAddress(),
-      await l1ToL2TransactionPasser.getAddress(),
-      FORCE_INCLUSION_PERIOD
+  before(async () => {
+    canonicalTxChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'CanonicalTransactionChain',
+      {
+        factory: CanonicalTransactionChain,
+        params: [
+          resolver.addressResolver.address,
+          await sequencer.getAddress(),
+          await l1ToL2TransactionPasser.getAddress(),
+          FORCE_INCLUSION_PERIOD,
+        ],
+      }
     )
 
     await appendTxBatch(DEFAULT_TX_BATCH)
+    await resolver.addressResolver.setAddress(
+      'FraudVerifier',
+      await fraudVerifier.getAddress()
+    )
   })
 
   beforeEach(async () => {
-    stateChain = await StateCommitmentChain.deploy(
-      rollupMerkleUtils.address,
-      canonicalTxChain.address
+    stateChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'StateCommitmentChain',
+      {
+        factory: StateCommitmentChain,
+        params: [resolver.addressResolver.address],
+      }
     )
-
-    await stateChain.setFraudVerifier(await fraudVerifier.getAddress())
   })
 
   describe('appendStateBatch()', async () => {

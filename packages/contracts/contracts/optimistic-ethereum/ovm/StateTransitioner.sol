@@ -5,15 +5,16 @@ import { FraudVerifier } from "./FraudVerifier.sol";
 import { PartialStateManager } from "./PartialStateManager.sol";
 import { ExecutionManager } from "./ExecutionManager.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
-import { DataTypes } from "../utils/DataTypes.sol";
-import { EthMerkleTrie } from "../utils/EthMerkleTrie.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { EthMerkleTrie } from "../utils/libraries/EthMerkleTrie.sol";
 import { TransactionParser } from "./TransactionParser.sol";
 
 /**
  * @title StateTransitioner
  * @notice Manages the execution of a transaction suspected to be fraudulent.
  */
-contract StateTransitioner is IStateTransitioner {
+contract StateTransitioner is IStateTransitioner, ContractResolver {
     /*
      * Data Structures
      */
@@ -45,8 +46,6 @@ contract StateTransitioner is IStateTransitioner {
 
     FraudVerifier public fraudVerifier;
     PartialStateManager public stateManager;
-    ExecutionManager executionManager;
-    EthMerkleTrie public ethMerkleTrie;
 
 
     /*
@@ -66,20 +65,12 @@ contract StateTransitioner is IStateTransitioner {
      * Constructor
      */
 
-    /**
-     * @param _transitionIndex Position of the transaction suspected to be
-     * fraudulent within the canonical transaction chain.
-     * @param _preStateRoot Root of the state trie before the transaction was
-     * executed.
-     * @param _executionManagerAddress Address of the ExecutionManager to be
-     * used during transaction execution.
-     */
     constructor(
-        uint256 _transitionIndex,
+        address _addressResolver,
+        uint _transitionIndex,
         bytes32 _preStateRoot,
-        bytes32 _ovmTransactionHash,
-        address _executionManagerAddress
-    ) public {
+        bytes32 _ovmTransactionHash
+    ) public ContractResolver(_addressResolver) {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
@@ -87,9 +78,10 @@ contract StateTransitioner is IStateTransitioner {
         currentTransitionPhase = TransitionPhases.PreExecution;
 
         fraudVerifier = FraudVerifier(msg.sender);
-        executionManager = ExecutionManager(_executionManagerAddress);
-        stateManager = new PartialStateManager(address(this), address(executionManager));
-        ethMerkleTrie = new EthMerkleTrie();
+        // Finally we'll initialize a new state manager!
+        stateManager = new PartialStateManager(_addressResolver, address(this));
+        // And set our TransitionPhases to the PreExecution phase.
+        currentTransitionPhase = TransitionPhases.PreExecution;
     }
 
 
@@ -122,6 +114,7 @@ contract StateTransitioner is IStateTransitioner {
             codeHash := extcodehash(_codeContractAddress)
         }
 
+        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
         require (
             ethMerkleTrie.proveAccountState(
                 _ovmContractAddress,
@@ -174,6 +167,7 @@ contract StateTransitioner is IStateTransitioner {
             "Contract must be verified before proving storage!"
         );
 
+        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
         require (
             ethMerkleTrie.proveAccountStorageSlotValue(
                 _ovmContractAddress,
@@ -211,6 +205,7 @@ contract StateTransitioner is IStateTransitioner {
         );
 
         // Initialize our execution context.
+        ExecutionManager executionManager = resolveExecutionManager();
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
 
@@ -256,6 +251,7 @@ contract StateTransitioner is IStateTransitioner {
             bytes32 storageSlotValue
         ) = stateManager.popUpdatedStorageSlot();
 
+        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
         stateRoot = ethMerkleTrie.updateAccountStorageSlotValue(
             storageSlotContract,
             storageSlotKey,
@@ -282,6 +278,7 @@ contract StateTransitioner is IStateTransitioner {
             bytes32 codeHash
         ) = stateManager.popUpdatedContract();
 
+        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
         stateRoot = ethMerkleTrie.updateAccountState(
             ovmContractAddress,
             DataTypes.AccountState({
@@ -327,5 +324,18 @@ contract StateTransitioner is IStateTransitioner {
      */
     function isComplete() public view returns (bool) {
         return (currentTransitionPhase == TransitionPhases.Complete);
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveExecutionManager() internal view returns (ExecutionManager) {
+        return ExecutionManager(resolveContract("ExecutionManager"));
+    }
+
+    function resolveEthMerkleTrie() internal view returns (EthMerkleTrie) {
+        return EthMerkleTrie(resolveContract("EthMerkleTrie"));
     }
 }

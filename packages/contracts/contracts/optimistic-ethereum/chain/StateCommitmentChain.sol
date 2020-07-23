@@ -2,18 +2,17 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RollupMerkleUtils } from "../utils/RollupMerkleUtils.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
 import { CanonicalTransactionChain } from "./CanonicalTransactionChain.sol";
+import { FraudVerifier } from "../ovm/FraudVerifier.sol";
 
-contract StateCommitmentChain {
+contract StateCommitmentChain is ContractResolver {
     /*
     * Contract Variables
     */
 
-    CanonicalTransactionChain canonicalTransactionChain;
-    RollupMerkleUtils public merkleUtils;
-    address public fraudVerifier;
     uint public cumulativeNumElements;
     bytes32[] public batches;
 
@@ -27,21 +26,11 @@ contract StateCommitmentChain {
     * Constructor
     */
 
-    constructor(
-        address _rollupMerkleUtilsAddress,
-        address _canonicalTransactionChain
-    ) public {
-        merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
-        canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChain);
-    }
+    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
 
     /*
     * Public Functions
     */
-
-    function setFraudVerifier(address _fraudVerifier) public {
-        fraudVerifier = _fraudVerifier;
-    }
 
     function getBatchesLength() public view returns (uint) {
         return batches.length;
@@ -60,6 +49,9 @@ contract StateCommitmentChain {
     function appendStateBatch(
         bytes[] memory _stateBatch
     ) public {
+        CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
+
         require(
             cumulativeNumElements + _stateBatch.length <= canonicalTransactionChain.cumulativeNumElements(),
             "Cannot append more state commitments than total number of transactions in CanonicalTransactionChain"
@@ -93,6 +85,7 @@ contract StateCommitmentChain {
             return false;
         }
 
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         if (!merkleUtils.verify(
             batchHeader.elementsMerkleRoot,
             _element,
@@ -110,8 +103,10 @@ contract StateCommitmentChain {
         uint _batchIndex,
         DataTypes.StateChainBatchHeader memory _batchHeader
     ) public {
+        FraudVerifier fraudVerifier = resolveFraudVerifier();
+
         require(
-            msg.sender == fraudVerifier,
+            msg.sender == address(fraudVerifier),
             "Only FraudVerifier has permission to delete state batches"
         );
 
@@ -128,5 +123,22 @@ contract StateCommitmentChain {
 
         batches.length = _batchIndex;
         cumulativeNumElements = _batchHeader.cumulativePrevElements;
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+        return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveFraudVerifier() internal view returns (FraudVerifier) {
+        return FraudVerifier(resolveContract("FraudVerifier"));
+    }
+
+    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+        return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

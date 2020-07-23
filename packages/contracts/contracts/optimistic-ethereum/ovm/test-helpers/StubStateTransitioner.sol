@@ -3,13 +3,14 @@ pragma experimental ABIEncoderV2;
 
 import { FraudVerifier } from "../FraudVerifier.sol";
 import { ExecutionManager } from "../ExecutionManager.sol";
-import { DataTypes } from "../../utils/DataTypes.sol";
+import { ContractResolver } from "../../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../../utils/libraries/DataTypes.sol";
 import { IStateTransitioner } from "../interfaces/IStateTransitioner.sol";
 
 /**
  * @title StubStateTransitioner
  */
-contract StubStateTransitioner is IStateTransitioner {
+contract StubStateTransitioner is IStateTransitioner, ContractResolver {
     /*
      * Data Structures
      */
@@ -40,27 +41,18 @@ contract StubStateTransitioner is IStateTransitioner {
     bytes32 public ovmTransactionHash;
 
     FraudVerifier public fraudVerifier;
-    ExecutionManager executionManager;
 
 
     /*
      * Constructor
      */
 
-    /**
-     * @param _transitionIndex Position of the transaction suspected to be
-     * fraudulent within the canonical transaction chain.
-     * @param _preStateRoot Root of the state trie before the transaction was
-     * executed.
-     * @param _executionManagerAddress Address of the ExecutionManager to be
-     * used during transaction execution.
-     */
     constructor(
+        address _addressResolver,
         uint256 _transitionIndex,
         bytes32 _preStateRoot,
-        bytes32 _ovmTransactionHash,
-        address _executionManagerAddress
-    ) public {
+        bytes32 _ovmTransactionHash
+    ) public ContractResolver(_addressResolver) {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
@@ -68,7 +60,6 @@ contract StubStateTransitioner is IStateTransitioner {
         currentTransitionPhase = TransitionPhases.PreExecution;
 
         fraudVerifier = FraudVerifier(msg.sender);
-        executionManager = ExecutionManager(_executionManagerAddress);
     }
 
     function proveContractInclusion(

@@ -24,16 +24,17 @@ contract L2ExecutionManager is ExecutionManager {
      */
 
     constructor(
-        uint256 _opcodeWhitelistMask,
+        address _addressResolver,
         address _owner,
-        uint _gasLimit,
-        bool _overrideSafetyChecker
-    ) ExecutionManager(
-        _opcodeWhitelistMask,
-        _owner,
-        _gasLimit,
-        _overrideSafetyChecker
-    ) public {}
+        uint _blockGasLimit
+    )
+        public
+        ExecutionManager(
+            _addressResolver,
+            _owner,
+            _blockGasLimit
+        )
+    {}
 
 
     /*

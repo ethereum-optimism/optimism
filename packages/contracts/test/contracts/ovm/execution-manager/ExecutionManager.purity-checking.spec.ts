@@ -2,7 +2,7 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import { TransactionReceipt } from 'ethers/providers'
 
@@ -12,6 +12,9 @@ import {
   GAS_LIMIT,
   manuallyDeployOvmContractReturnReceipt,
   didCreateSucceed,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -26,22 +29,48 @@ describe('Execution Manager -- Safety Checking', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
+  let SafetyChecker: ContractFactory
   let DummyContract: ContractFactory
   let AddThree: ContractFactory
   before(async () => {
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
+    SafetyChecker = await ethers.getContractFactory('SafetyChecker')
     DummyContract = await ethers.getContractFactory('DummyContract')
     AddThree = await ethers.getContractFactory('AddThree')
   })
 
+  let safetyChecker: Contract
+  before(async () => {
+    safetyChecker = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'SafetyChecker',
+      {
+        factory: SafetyChecker,
+        params: [
+          resolver.addressResolver.address,
+          DEFAULT_OPCODE_WHITELIST_MASK,
+        ],
+      }
+    )
+  })
+
   let executionManager: Contract
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      false
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+      }
     )
   })
 

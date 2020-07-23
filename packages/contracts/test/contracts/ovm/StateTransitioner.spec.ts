@@ -20,11 +20,11 @@ import {
   StateTrieNode,
   TrieNode,
   compile,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  GAS_LIMIT,
   makeStateTrieUpdateTest,
   StateTrieUpdateTest,
   toHexString,
+  makeAddressResolver,
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -259,15 +259,15 @@ const getMappingStorageSlot = (key: string, index: number): string => {
 const initStateTransitioner = async (
   StateTransitioner: ContractFactory,
   StateManager: ContractFactory,
-  executionManager: Contract,
+  addressResolver: Contract,
   stateTrieRoot: string,
   transactionData: OVMTransactionData
 ): Promise<[Contract, Contract, OVMTransactionData]> => {
   const stateTransitioner = await StateTransitioner.deploy(
+    addressResolver.address,
     10,
     stateTrieRoot,
-    keccak256(encodeTransaction(transactionData)),
-    executionManager.address
+    keccak256(encodeTransaction(transactionData))
   )
   const stateManager = StateManager.attach(
     await stateTransitioner.stateManager()
@@ -344,25 +344,25 @@ describe('StateTransitioner', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
-  let ExecutionManager: ContractFactory
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
+  let executionManager: Contract
+  before(async () => {
+    executionManager = resolver.contracts.executionManager
+  })
+
   let StateTransitioner: ContractFactory
   let StateManager: ContractFactory
-  let executionManager: Contract
   let FraudTesterJson: any
   let MicroFraudTesterJson: any
   let FraudTester: ContractFactory
   let fraudTester: Contract
   before(async () => {
-    ExecutionManager = await ethers.getContractFactory('ExecutionManager')
     StateTransitioner = await ethers.getContractFactory('StateTransitioner')
     StateManager = await ethers.getContractFactory('PartialStateManager')
-
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
-    )
 
     const AllFraudTestJson = compile(
       solc,
@@ -413,7 +413,7 @@ describe('StateTransitioner', () => {
     ;[stateTransitioner, stateManager] = await initStateTransitioner(
       StateTransitioner,
       StateManager,
-      executionManager,
+      resolver.addressResolver,
       test.stateTrieRoot,
       makeDummyTransaction('0x00')
     )
@@ -523,7 +523,7 @@ describe('StateTransitioner', () => {
       ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
-        executionManager,
+        resolver.addressResolver,
         test.stateTrieRoot,
         await makeTransactionData(
           FraudTester,
@@ -576,7 +576,7 @@ describe('StateTransitioner', () => {
       ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
-        executionManager,
+        resolver.addressResolver,
         accessTest.stateTrieRoot,
         await makeTransactionData(
           FraudTester,
@@ -617,7 +617,7 @@ describe('StateTransitioner', () => {
       ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
-        executionManager,
+        resolver.addressResolver,
         test.stateTrieRoot,
         await makeTransactionData(
           FraudTester,
@@ -650,7 +650,7 @@ describe('StateTransitioner', () => {
       ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
-        executionManager,
+        resolver.addressResolver,
         test.stateTrieRoot,
         await makeTransactionData(
           FraudTester,
@@ -688,7 +688,7 @@ describe('StateTransitioner', () => {
       ] = await initStateTransitioner(
         StateTransitioner,
         StateManager,
-        executionManager,
+        resolver.addressResolver,
         test.stateTrieRoot,
         await makeTransactionData(
           FraudTester,
@@ -722,7 +722,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           test.stateTrieRoot,
           await makeTransactionData(
             FraudTester,
@@ -762,7 +762,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           test.stateTrieRoot,
           await makeTransactionData(
             FraudTester,
@@ -806,7 +806,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           test.stateTrieRoot,
           await makeTransactionData(
             FraudTester,
@@ -852,7 +852,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           test.stateTrieRoot,
           await makeTransactionData(
             FraudTester,
@@ -893,7 +893,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           test.stateTrieRoot,
           await makeTransactionData(
             FraudTester,
@@ -960,7 +960,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           accessTest.stateTrieRoot,
           await makeTransactionData(
             FraudTester,
@@ -1003,7 +1003,7 @@ describe('StateTransitioner', () => {
         ] = await initStateTransitioner(
           StateTransitioner,
           StateManager,
-          executionManager,
+          resolver.addressResolver,
           test.stateTrieRoot,
           await makeTransactionData(
             FraudTester,

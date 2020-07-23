@@ -629,6 +629,7 @@ describe('Web3Handler', () => {
 
     it('1/2 deploys the contracts', async () => {
       emAddress = await httpProvider.send('ovm_getExecutionManagerAddress', [])
+      process.env.L2_EXECUTION_MANAGER_ADDRESS = emAddress
       wallet = getWallet(httpProvider)
 
       simpleStorage = await deploySimpleStorage(wallet)

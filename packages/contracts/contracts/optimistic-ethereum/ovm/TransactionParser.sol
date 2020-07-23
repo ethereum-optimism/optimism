@@ -1,8 +1,8 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RLPWriter } from "../utils/RLPWriter.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 
 library TransactionParser {
     /**

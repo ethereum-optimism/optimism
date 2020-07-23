@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { DataTypes } from "../../utils/DataTypes.sol";
+import { DataTypes } from "../../utils/libraries/DataTypes.sol";
 
 /**
  * @title IStateTransitioner

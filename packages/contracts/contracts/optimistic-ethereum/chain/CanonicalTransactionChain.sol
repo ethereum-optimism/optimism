@@ -2,23 +2,22 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RollupMerkleUtils } from "../utils/RollupMerkleUtils.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
 import { L1ToL2TransactionQueue } from "../queue/L1ToL2TransactionQueue.sol";
 import { SafetyTransactionQueue } from "../queue/SafetyTransactionQueue.sol";
 
-contract CanonicalTransactionChain {
+contract CanonicalTransactionChain is ContractResolver {
     /*
      * Contract Variables
      */
     address public sequencer;
     uint public forceInclusionPeriod;
-    RollupMerkleUtils public merkleUtils;
-    L1ToL2TransactionQueue public l1ToL2Queue;
-    SafetyTransactionQueue public safetyQueue;
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
+
 
     /*
      * Events
@@ -28,26 +27,23 @@ contract CanonicalTransactionChain {
     event SafetyQueueBatchAppended( bytes32 _batchHeaderHash);
     event SequencerBatchAppended(bytes32 _batchHeaderHash);
 
+
     /*
      * Constructor
      */
 
     constructor(
-        address _rollupMerkleUtilsAddress,
+        address _addressResolver,
         address _sequencer,
         address _l1ToL2TransactionPasserAddress,
         uint _forceInclusionPeriod
-    ) public {
-        merkleUtils = RollupMerkleUtils(_rollupMerkleUtilsAddress);
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         sequencer = _sequencer;
         forceInclusionPeriod = _forceInclusionPeriod;
         lastOVMTimestamp = 0;
-
-        safetyQueue = new SafetyTransactionQueue(address(this));
-        l1ToL2Queue = new L1ToL2TransactionQueue(
-            _l1ToL2TransactionPasserAddress,
-            address(this)
-        );
     }
 
     /*
@@ -77,6 +73,9 @@ contract CanonicalTransactionChain {
     }
 
     function appendL1ToL2Batch() public {
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
         DataTypes.TimestampedHash memory l1ToL2Header = l1ToL2Queue.peek();
 
         require(
@@ -89,6 +88,9 @@ contract CanonicalTransactionChain {
     }
 
     function appendSafetyBatch() public {
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
         DataTypes.TimestampedHash memory safetyHeader = safetyQueue.peek();
 
         require(
@@ -137,6 +139,9 @@ contract CanonicalTransactionChain {
         bytes[] memory _txBatch,
         uint _timestamp
     ) public {
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
         require(
             authenticateAppend(msg.sender),
             "Message sender does not have permission to append a batch"
@@ -174,6 +179,7 @@ contract CanonicalTransactionChain {
 
         lastOVMTimestamp = _timestamp;
 
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
             false, // isL1ToL2Tx
@@ -204,6 +210,7 @@ contract CanonicalTransactionChain {
         }
 
         // verify elementsMerkleRoot
+        RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         if (!merkleUtils.verify(
             batchHeader.elementsMerkleRoot,
             _element,
@@ -215,5 +222,22 @@ contract CanonicalTransactionChain {
 
         //compare computed batch header with the batch header in the list.
         return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveL1ToL2TransactionQueue() internal view returns (L1ToL2TransactionQueue) {
+        return L1ToL2TransactionQueue(resolveContract("L1ToL2TransactionQueue"));
+    }
+
+    function resolveSafetyTransactionQueue() internal view returns (SafetyTransactionQueue) {
+        return SafetyTransactionQueue(resolveContract("SafetyTransactionQueue"));
+    }
+
+    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+        return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

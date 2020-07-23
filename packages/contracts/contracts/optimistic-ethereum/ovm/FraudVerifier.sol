@@ -2,11 +2,11 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RLPWriter } from "../utils/RLPWriter.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
 import { CanonicalTransactionChain } from "../chain/CanonicalTransactionChain.sol";
-import { ExecutionManager } from "./ExecutionManager.sol";
 import { StateTransitioner } from "./StateTransitioner.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
 import { StubStateTransitioner } from "./test-helpers/StubStateTransitioner.sol";
@@ -17,14 +17,11 @@ import { TransactionParser } from "./TransactionParser.sol";
  * @notice Manages fraud proof verification and modifies the state commitment
  * chain in the case that a transaction is shown to be invalid.
  */
-contract FraudVerifier {
+contract FraudVerifier is ContractResolver {
     /*
      * Contract Variables
      */
 
-    ExecutionManager executionManager;
-    StateCommitmentChain stateCommitmentChain;
-    CanonicalTransactionChain canonicalTransactionChain;
     mapping (uint256 => IStateTransitioner) public stateTransitioners;
 
     bool isTest;
@@ -33,23 +30,10 @@ contract FraudVerifier {
      * Constructor
      */
 
-    /**
-     * @param _executionManagerAddress Address of the ExecutionManager to use
-     * during the execution of transactions suspected to be fraudulent.
-     * @param _stateCommitmentChainAddress Address of the StateCommitmentChain
-     * to read state roots from and write to in the case that a fraud proof is
-     * successfully verified.
-     */
     constructor(
-        address _executionManagerAddress,
-        address _stateCommitmentChainAddress,
-        address _canonicalTransactionChainAddress,
+        address _addressResolver,
         bool _isTest
-    ) public {
-        executionManager = ExecutionManager(_executionManagerAddress);
-        stateCommitmentChain = StateCommitmentChain(_stateCommitmentChainAddress);
-        canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChainAddress);
-
+    ) public ContractResolver(_addressResolver) {
         isTest = _isTest;
     }
 
@@ -116,17 +100,17 @@ contract FraudVerifier {
         // match the provided one.
         if (isTest) {
             stateTransitioners[_preStateTransitionIndex] = new StubStateTransitioner(
+                address(addressResolver),
                 _preStateTransitionIndex,
                 _preStateRoot,
-                TransactionParser.getTransactionHash(_transactionData),
-                address(executionManager)
+                TransactionParser.getTransactionHash(_transactionData)
             );
         } else {
             stateTransitioners[_preStateTransitionIndex] = new StateTransitioner(
+                address(addressResolver),
                 _preStateTransitionIndex,
                 _preStateRoot,
-                TransactionParser.getTransactionHash(_transactionData),
-                address(executionManager)
+                TransactionParser.getTransactionHash(_transactionData)
             );
         }
     }
@@ -206,6 +190,7 @@ contract FraudVerifier {
         // However, since state roots are submitted in batches, we'll actually
         // need to remove all *batches* after (and including) the one in which
         // the fraudulent root was published.
+        StateCommitmentChain stateCommitmentChain = resolveStateCommitmentChain();
         stateCommitmentChain.deleteAfterInclusive(
             _postStateRootProof.batchIndex,
             _postStateRootProof.batchHeader
@@ -256,6 +241,7 @@ contract FraudVerifier {
         uint256 _stateRootIndex,
         DataTypes.StateElementInclusionProof memory _stateRootProof
     ) internal view returns (bool) {
+        StateCommitmentChain stateCommitmentChain = resolveStateCommitmentChain();
         return stateCommitmentChain.verifyElement(
             abi.encodePacked(_stateRoot),
             _stateRootIndex,
@@ -280,10 +266,24 @@ contract FraudVerifier {
         uint256 _transactionIndex,
         DataTypes.TxElementInclusionProof memory _transactionProof
     ) internal view returns (bool) {
+        CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
         return canonicalTransactionChain.verifyElement(
             TransactionParser.encodeTransactionData(_transaction),
             _transactionIndex,
             _transactionProof
         );
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+        return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveStateCommitmentChain() internal view returns (StateCommitmentChain) {
+        return StateCommitmentChain(resolveContract("StateCommitmentChain"));
     }
 }

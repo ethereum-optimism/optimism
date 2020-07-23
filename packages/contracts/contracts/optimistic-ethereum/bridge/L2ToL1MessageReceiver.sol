@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
 
 contract L2ToL1MessageReceiver {
     /*

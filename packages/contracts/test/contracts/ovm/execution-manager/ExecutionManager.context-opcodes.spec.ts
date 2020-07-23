@@ -10,6 +10,7 @@ import {
   ZERO_ADDRESS,
   TestUtils,
   getCurrentTime,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
@@ -23,6 +24,9 @@ import {
   addressToBytes32Address,
   encodeRawArguments,
   encodeMethodId,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -53,6 +57,11 @@ describe('Execution Manager -- Context opcodes', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
   let ContextContract: ContractFactory
   before(async () => {
@@ -61,18 +70,23 @@ describe('Execution Manager -- Context opcodes', () => {
   })
 
   let executionManager: Contract
+  beforeEach(async () => {
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+      }
+    )
+  })
+
   let contractAddress: Address
   let contract2Address: Address
   let contractAddress32: string
   let contract2Address32: string
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
-    )
-
     contractAddress = await manuallyDeployOvmContract(
       wallet,
       provider,

@@ -51,3 +51,4 @@ export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
 
 export const CHAIN_ID = 108
 export const ZERO_UINT = '00'.repeat(32)
+export const DEFAULT_FORCE_INCLUSION_PERIOD = 600

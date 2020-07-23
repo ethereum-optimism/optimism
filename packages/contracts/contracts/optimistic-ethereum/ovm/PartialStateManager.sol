@@ -1,9 +1,10 @@
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import {StateManager} from "./StateManager.sol";
-import {StateTransitioner} from "./StateTransitioner.sol";
-import {ExecutionManager} from "./ExecutionManager.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { StateManager } from "./StateManager.sol";
+import { StateTransitioner } from "./StateTransitioner.sol";
+import { ExecutionManager } from "./ExecutionManager.sol";
 
 /**
  * @title PartialStateManager
@@ -11,11 +12,10 @@ import {ExecutionManager} from "./ExecutionManager.sol";
  *         It is supplied with only the state which is used to execute a single transaction. This
  *         is unlike the FullStateManager which has access to every storage slot.
  */
-contract PartialStateManager {
+contract PartialStateManager is ContractResolver {
     address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
     StateTransitioner stateTransitioner;
-    ExecutionManager executionManager;
 
     mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
     mapping(address=>uint) ovmContractNonces;
@@ -39,6 +39,7 @@ contract PartialStateManager {
     }
 
     modifier onlyExecutionManager {
+        ExecutionManager executionManager = resolveExecutionManager();
         require(msg.sender == address(executionManager));
         _;
     }
@@ -46,9 +47,14 @@ contract PartialStateManager {
     /**
      * @notice Construct a new PartialStateManager
      */
-    constructor(address _stateTransitionerAddress, address _executionManagerAddress) public {
-        stateTransitioner = StateTransitioner(_stateTransitionerAddress);
-        executionManager = ExecutionManager(_executionManagerAddress);
+    constructor(
+        address _addressResolver,
+        address _stateTransitioner
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
+        stateTransitioner = StateTransitioner(_stateTransitioner);
     }
 
     /**
@@ -378,5 +384,14 @@ contract PartialStateManager {
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);
         return _codeContractHash;
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveExecutionManager() internal view returns (ExecutionManager) {
+        return ExecutionManager(resolveContract("ExecutionManager"));
     }
 }
