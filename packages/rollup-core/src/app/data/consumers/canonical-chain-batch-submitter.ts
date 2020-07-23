@@ -169,10 +169,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
 
     try {
       log.debug(`Marking tx batch ${batchNumber} confirmed!`)
-      await this.dataService.markTransactionBatchConfirmedOnL1(
-        batchNumber,
-        txHash
-      )
+      await this.dataService.markTransactionBatchFinalOnL1(batchNumber, txHash)
       log.debug(`Tx batch ${batchNumber} marked confirmed!`)
     } catch (e) {
       logError(log, `Error marking tx batch ${batchNumber} as confirmed!`, e)

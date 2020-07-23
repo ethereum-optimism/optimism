@@ -48,6 +48,7 @@ WHERE
        FROM l1_rollup_state_root_batch
        WHERE status = 'FRAUDULENT' OR status = 'REMOVED'
       ) = 0   -- there is no next_verification_batch if we're in a fraud workflow.
+  AND l2.state_root IS NOT NULL
 ORDER BY l1.batch_index ASC
 ;
 

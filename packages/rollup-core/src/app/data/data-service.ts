@@ -356,10 +356,12 @@ export class DefaultDataService implements DataService {
       const batchNumber = await this.insertNewCanonicalChainBatch(txContext)
       await this.rdb.execute(
         `UPDATE l2_tx_output tx
-        SET canonical_chain_batch_number = ${batchNumber}
+        SET 
+            canonical_chain_batch_number = ${batchNumber},
+            canonical_chain_batch_index = t.row_number
         FROM 
           (
-            SELECT id
+            SELECT id, row_number() over (ORDER BY id) -1 as row_number
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
@@ -474,9 +476,11 @@ export class DefaultDataService implements DataService {
       }
       await this.rdb.execute(
         `UPDATE l2_tx_output as tx
-        SET state_commitment_chain_batch_number = ${batchNumber}
+        SET 
+            state_commitment_chain_batch_number = ${batchNumber},
+            state_commitment_chain_batch_index = t.row_number
         FROM (
-          SELECT id
+          SELECT id, row_number() over (ORDER BY id) -1 as row_number
           FROM l2_tx_output
           WHERE state_commitment_chain_batch_number IS NULL
           ORDER BY block_number ASC, tx_index ASC
@@ -536,10 +540,13 @@ export class DefaultDataService implements DataService {
       )
       await this.rdb.execute(
         `UPDATE l2_tx_output as tx
-        SET state_commitment_chain_batch_number = ${batchNumber}
+        SET 
+            state_commitment_chain_batch_number = ${batchNumber},
+            state_commitment_chain_batch_index = t.row_number
         FROM (
-          SELECT id
+          SELECT id, row_number() over (ORDER BY id ASC) -1 AS row_number
           FROM l2_tx_output
+          WHERE state_commitment_chain_batch_number IS NULL 
           ORDER BY block_number ASC, tx_index ASC
           LIMIT ${maxBatchSize}
         ) t
@@ -574,6 +581,7 @@ export class DefaultDataService implements DataService {
     )
 
     if (!res || !res.length || !res[0]) {
+      log.debug(`No canonical chain tx batch to submit.`)
       return undefined
     }
 
@@ -621,7 +629,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async markTransactionBatchConfirmedOnL1(
+  public async markTransactionBatchFinalOnL1(
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
@@ -696,7 +704,7 @@ export class DefaultDataService implements DataService {
    */
   public async getNextVerificationCandidate(): Promise<VerificationCandidate> {
     const rows: Row[] = await this.rdb.select(
-      `SELECT batch_number, l1_batch_index, l1_root, geth_root
+      `SELECT batch_number, batch_index, l1_root, geth_root
       FROM next_verification_batch`
     )
 
@@ -726,8 +734,9 @@ export class DefaultDataService implements DataService {
   public async verifyStateRootBatch(batchNumber): Promise<void> {
     await this.rdb.execute(
       `UPDATE l1_rollup_state_root_batch
-      SET status = ${VerificationStatus.VERIFIED}
-      WHERE batch_number = ${batchNumber}`
+      SET status = '${VerificationStatus.VERIFIED}'
+      WHERE batch_number = ${batchNumber}
+        AND status = '${VerificationStatus.UNVERIFIED}'`
     )
   }
 

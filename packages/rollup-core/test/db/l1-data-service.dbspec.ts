@@ -14,6 +14,7 @@ import {
 import {
   createRollupTx,
   createTx,
+  deleteAllData,
   l1Block,
   verifyL1BlockRes,
   verifyL1RollupTx,
@@ -30,15 +31,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
   })
 
   beforeEach(async () => {
-    await postgres.execute(`DELETE FROM l2_tx_output`)
-    await postgres.execute(`DELETE FROM state_commitment_chain_batch`)
-    await postgres.execute(`DELETE FROM canonical_chain_batch`)
-    await postgres.execute(`DELETE FROM l1_rollup_tx`)
-    await postgres.execute(`DELETE FROM l1_rollup_state_root`)
-    await postgres.execute(`DELETE FROM l1_rollup_state_root_batch`)
-    await postgres.execute(`DELETE FROM geth_submission_queue`)
-    await postgres.execute(`DELETE FROM l1_tx`)
-    await postgres.execute(`DELETE FROM l1_block`)
+    await deleteAllData(postgres)
   })
 
   describe('insertL1Block', () => {

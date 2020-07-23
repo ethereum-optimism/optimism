@@ -88,7 +88,7 @@ export interface L2DataService {
    * @param l1SubmissionTxHash The tx hash of this rollup batch submission tx on L1.
    * @throws An error if there is a DB error.
    */
-  markTransactionBatchConfirmedOnL1(
+  markTransactionBatchFinalOnL1(
     batchNumber: number,
     l1SubmissionTxHash: string
   ): Promise<void>

@@ -8,7 +8,7 @@ import {
   ZERO,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { Row } from '@eth-optimism/core-db'
+import { PostgresDB, Row } from '@eth-optimism/core-db'
 import { BigNumber as BigNum } from 'ethers/utils'
 import { Block, TransactionResponse } from 'ethers/providers'
 
@@ -45,6 +45,18 @@ export const l1Block: Block = {
   miner: 'miner',
   extraData: 'extra',
   transactions: [],
+}
+
+export const deleteAllData = async (postgres: PostgresDB): Promise<void> => {
+  await postgres.execute(`DELETE FROM l2_tx_output`)
+  await postgres.execute(`DELETE FROM state_commitment_chain_batch`)
+  await postgres.execute(`DELETE FROM canonical_chain_batch`)
+  await postgres.execute(`DELETE FROM l1_rollup_tx`)
+  await postgres.execute(`DELETE FROM l1_rollup_state_root`)
+  await postgres.execute(`DELETE FROM l1_rollup_state_root_batch`)
+  await postgres.execute(`DELETE FROM geth_submission_queue`)
+  await postgres.execute(`DELETE FROM l1_tx`)
+  await postgres.execute(`DELETE FROM l1_block`)
 }
 
 export const createTx = (

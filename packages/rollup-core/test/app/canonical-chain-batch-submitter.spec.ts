@@ -40,7 +40,7 @@ class MockDataService extends DefaultDataService {
     this.txBatchesSubmitted.push({ batchNumber, txHash: l1TxHash })
   }
 
-  public async markTransactionBatchConfirmedOnL1(
+  public async markTransactionBatchFinalOnL1(
     batchNumber: number,
     l1TxHash: string
   ): Promise<void> {
