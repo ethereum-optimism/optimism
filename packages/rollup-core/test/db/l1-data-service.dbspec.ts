@@ -136,9 +136,8 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         tx.hash,
         [rTx1, rTx2]
       )
-      const indexExists = submissionIndex !== undefined
-      indexExists.should.equal(
-        false,
+      submissionIndex.should.equal(
+        -1,
         `Geth submission should not be scheduled!`
       )
 
@@ -168,8 +167,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         [rTx1, rTx2],
         true
       )
-      const indexExists = submissionIndex !== undefined
-      indexExists.should.equal(true, `Geth submission should be scheduled!`)
+      submissionIndex.should.equal(0, `Geth submission should be scheduled!`)
 
       const res: Row[] = await postgres.select(
         `SELECT * FROM l1_rollup_tx ORDER BY l1_tx_index ASC, l1_tx_log_index ASC, index_within_submission ASC `
@@ -198,9 +196,8 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         tx.hash,
         [rTx1, rTx2]
       )
-      let indexExists = submissionIndex !== undefined
-      indexExists.should.equal(
-        false,
+      submissionIndex.should.equal(
+        -1,
         `Geth submission should not be scheduled!`
       )
 
@@ -212,8 +209,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
       submissionIndex = await dataService.queueNextGethSubmission([
         QueueOrigin.SAFETY_QUEUE,
       ])
-      indexExists = submissionIndex !== undefined
-      indexExists.should.equal(true, `Geth submission should be scheduled!`)
+      submissionIndex.should.equal(0, `Geth submission should be scheduled!`)
 
       submissionRes = await postgres.select(
         `SELECT status FROM geth_submission_queue`
@@ -237,9 +233,8 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         tx.hash,
         [rTx1, rTx2]
       )
-      let indexExists = submissionIndex !== undefined
-      indexExists.should.equal(
-        false,
+      submissionIndex.should.equal(
+        -1,
         `Geth submission should not be scheduled!`
       )
 
@@ -251,9 +246,8 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
       submissionIndex = await dataService.queueNextGethSubmission([
         QueueOrigin.SAFETY_QUEUE,
       ])
-      indexExists = submissionIndex !== undefined
-      indexExists.should.equal(
-        false,
+      submissionIndex.should.equal(
+        -1,
         `Geth submission should not be scheduled!`
       )
 
@@ -275,9 +269,8 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         tx.hash,
         [rTx1, rTx2]
       )
-      let indexExists = submissionIndex !== undefined
-      indexExists.should.equal(
-        false,
+      submissionIndex.should.equal(
+        -1,
         `Geth submission should not be scheduled!`
       )
 
@@ -290,9 +283,8 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         QueueOrigin.SEQUENCER,
         QueueOrigin.L1_TO_L2_QUEUE,
       ])
-      indexExists = submissionIndex !== undefined
-      indexExists.should.equal(
-        false,
+      submissionIndex.should.equal(
+        -1,
         `Geth submission should not be scheduled!`
       )
 
@@ -334,8 +326,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
       verifyStateRoot(rootRes[1], stateRoots[1], 1, batchNumber)
       verifyStateRoot(rootRes[2], stateRoots[2], 2, batchNumber)
 
-      const batchExists = batchNumber !== undefined
-      batchExists.should.equal(true, `State root should be batched!`)
+      batchNumber.should.equal(0, `State root should be batched!`)
 
       const batchRes = await postgres.select(
         `SELECT status FROM l1_rollup_state_root_batch`
@@ -368,8 +359,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         [rTx1, rTx2],
         true
       )
-      const indexExists = submissionIndex !== undefined
-      indexExists.should.equal(true, `Geth submission should be scheduled!`)
+      submissionIndex.should.equal(0, `Geth submission should be scheduled!`)
 
       const indexRes = await postgres.select(
         `SELECT geth_submission_queue_index FROM next_queued_geth_submission`
@@ -395,8 +385,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         [rTx1, rTx2],
         true
       )
-      const indexExists = submissionIndex !== undefined
-      indexExists.should.equal(true, `Geth submission should be scheduled!`)
+      submissionIndex.should.equal(0, `Geth submission should be scheduled!`)
 
       let indexRes = await postgres.select(
         `SELECT geth_submission_queue_index FROM next_queued_geth_submission`

@@ -125,7 +125,7 @@ export class DefaultDataService implements DataService {
       )
 
       await this.rdb.commit(txContext)
-      return batchNumber
+      return batchNumber !== undefined ? batchNumber : -1
     } catch (e) {
       logError(
         log,
@@ -135,6 +135,7 @@ export class DefaultDataService implements DataService {
         e
       )
       await this.rdb.rollback(txContext)
+      throw e
     }
   }
 
@@ -152,7 +153,7 @@ export class DefaultDataService implements DataService {
       LIMIT 1
     `)
     if (!txHashRes || !txHashRes.length || !txHashRes[0]['l1_tx_hash']) {
-      return undefined
+      return -1
     }
 
     const txHash = txHashRes[0]['l1_tx_hash']
@@ -196,7 +197,7 @@ export class DefaultDataService implements DataService {
     stateRoots: string[]
   ): Promise<number> {
     if (!stateRoots || !stateRoots.length) {
-      return
+      return -1
     }
 
     let batchNumber
@@ -222,6 +223,7 @@ export class DefaultDataService implements DataService {
         e
       )
       await this.rdb.rollback(txContext)
+      throw e
     }
   }
 
@@ -393,13 +395,13 @@ export class DefaultDataService implements DataService {
       `SELECT (l1.batch_number - l2.batch_number) as l1_lead
       FROM 
         (
-          SELECT MAX(batch_number) as batch_number
+          SELECT COALESCE(NULLIF(MAX(batch_number), 0), COUNT(*)) as batch_number
           FROM l1_rollup_state_root_batch
         ) l1,
         (
-          SELECT MAX(batch_number) as batch_number
+          SELECT COALESCE(NULLIF(MAX(batch_number), 0), COUNT(*)) as batch_number
           FROM state_commitment_chain_batch
-          WHERE status <> ${BatchSubmissionStatus.QUEUED}
+          WHERE status <> '${BatchSubmissionStatus.QUEUED}'
         ) l2
 
       `
@@ -449,11 +451,10 @@ export class DefaultDataService implements DataService {
       throw Error(msg)
     }
 
-    const l1BatchSize: number = batchSizeRes[0]['l1_batch_size']
-
-    if (l1BatchSize > batchSizeRes[0]['l2_batch_size']) {
+    const l1BatchSize: number = parseInt(batchSizeRes[0]['l1_batch_size'], 10)
+    if (l1BatchSize === 0 || l1BatchSize > batchSizeRes[0]['l2_batch_size']) {
       log.debug(
-        `Cannot build L2 state commitment batch to match L1 batch number ${nextBatchNumber} yet because there are ${l1BatchSize} roots in the L1 batch and only ${batchSizeRes['l2_batch_size']} processed L2 roots.`
+        `Cannot build L2 state commitment batch to match L1 batch number ${nextBatchNumber} yet because there are ${l1BatchSize} roots in the L1 batch and ${batchSizeRes['l2_batch_size']} processed L2 roots.`
       )
       return -1
     }
@@ -472,8 +473,8 @@ export class DefaultDataService implements DataService {
         return -1
       }
       await this.rdb.execute(
-        `UPDATE l2_tx_output l
-        SET l.state_commitment_chain_batch_number = ${batchNumber}
+        `UPDATE l2_tx_output as tx
+        SET state_commitment_chain_batch_number = ${batchNumber}
         FROM (
           SELECT id
           FROM l2_tx_output
@@ -481,7 +482,7 @@ export class DefaultDataService implements DataService {
           ORDER BY block_number ASC, tx_index ASC
           LIMIT ${l1BatchSize}
         ) t
-        WHERE l.id = t.id`,
+        WHERE tx.id = t.id`,
         txContext
       )
       await this.rdb.commit(txContext)
@@ -520,10 +521,11 @@ export class DefaultDataService implements DataService {
       throw Error(msg)
     }
 
-    if (availableRootsRes[0]['available'] < minBatchSize) {
+    if (parseInt(availableRootsRes[0]['available'], 10) < minBatchSize) {
       log.debug(
         `Cannot build L2-only state commitment batch. Only ${availableRootsRes[0]['available']} unbatched L2 roots exist`
       )
+      return -1
     }
 
     const txContext = await this.rdb.startTransaction()
@@ -533,15 +535,15 @@ export class DefaultDataService implements DataService {
         txContext
       )
       await this.rdb.execute(
-        `UPDATE l2_tx_output l
-        SET l.state_commitment_chain_batch_number = ${batchNumber}
+        `UPDATE l2_tx_output as tx
+        SET state_commitment_chain_batch_number = ${batchNumber}
         FROM (
           SELECT id
           FROM l2_tx_output
           ORDER BY block_number ASC, tx_index ASC
           LIMIT ${maxBatchSize}
         ) t
-        WHERE l.id = t.id`,
+        WHERE tx.id = t.id`,
         txContext
       )
       await this.rdb.commit(txContext)

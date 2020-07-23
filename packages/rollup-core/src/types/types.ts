@@ -43,6 +43,7 @@ export interface TransactionOutput {
   nonce: number
   calldata: string
   from: string
+  l1RollupTransactionId?: number
   gasLimit?: BigNumber
   gasPrice?: BigNumber
   l1MessageSender?: string
