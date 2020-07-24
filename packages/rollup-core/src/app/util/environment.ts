@@ -17,7 +17,7 @@ export class Environment {
     logValue: boolean = true
   ): T {
     const res = fun(defaultValue)
-    if (!res) {
+    if (res === undefined || (typeof res === 'number' && isNaN(res))) {
       throw Error(
         `Expected Environment variable not set. Error calling Environment.${fun.name}()`
       )
@@ -30,6 +30,91 @@ export class Environment {
 
   public static clearDataKey(defaultValue?: string) {
     return process.env.CLEAR_DATA_KEY || defaultValue
+  }
+
+  public static isSequencerStack(defaultValue?: boolean): boolean {
+    return !!process.env.IS_SEQUENCER_STACK || defaultValue
+  }
+
+  // Microservices to run config
+  public static runL1ChainDataPersister(
+    defaultValue: boolean = false
+  ): boolean {
+    return !!process.env.RUN_L1_CHAIN_DATA_PERSISTER || defaultValue
+  }
+  public static runL2ChainDataPersister(
+    defaultValue: boolean = false
+  ): boolean {
+    return !!process.env.RUN_L2_CHAIN_DATA_PERSISTER || defaultValue
+  }
+  public static runGethSubmissionQueuer(
+    defaultValue: boolean = false
+  ): boolean {
+    return !!process.env.RUN_GETH_SUBMISSION_QUEUER || defaultValue
+  }
+  public static runQueuedGethSubmitter(defaultValue: boolean = false): boolean {
+    return !!process.env.RUN_QUEUED_GETH_SUBMITTER || defaultValue
+  }
+  public static runCanonicalChainBatchCreator(
+    defaultValue: boolean = false
+  ): boolean {
+    return !!process.env.RUN_CANONICAL_CHAIN_BATCH_CREATOR || defaultValue
+  }
+  public static runCanonicalChainBatchSubmitter(
+    defaultValue: boolean = false
+  ): boolean {
+    return !!process.env.RUN_CANONICAL_CHAIN_BATCH_SUBMITTER || defaultValue
+  }
+  public static runStateCommitmentChainBatchCreator(
+    defaultValue: boolean = false
+  ): boolean {
+    return (
+      !!process.env.RUN_STATE_COMMITMENT_CHAIN_BATCH_CREATOR || defaultValue
+    )
+  }
+  public static runStateCommitmentChainBatchSubmitter(
+    defaultValue: boolean = false
+  ): boolean {
+    return (
+      !!process.env.RUN_STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER || defaultValue
+    )
+  }
+  public static runFraudDetector(defaultValue: boolean = false): boolean {
+    return !!process.env.RUN_FRAUD_DETECTOR || defaultValue
+  }
+
+  // L1 Contract Addresses
+  public static canonicalTransactionChainContractAddress(
+    defaultValue?: string
+  ) {
+    return (
+      process.env.CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS || defaultValue
+    )
+  }
+  public static stateCommitmentChainContractAddress(defaultValue?: string) {
+    return process.env.STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS || defaultValue
+  }
+  public static l1ToL2TransactionQueueContractAddress(defaultValue?: string) {
+    return (
+      process.env.L1_TO_L2_TRANSACTION_QUEUE_CONTRACT_ADDRESS || defaultValue
+    )
+  }
+  public static safetyTransactionQueueContractAddress(defaultValue?: string) {
+    return process.env.SAFETY_TRANSACTION_QUEUE_CONTRACT_ADDRESS || defaultValue
+  }
+  public static l1ToL2TransactionPasserContractAddress(
+    defaultValue?: string
+  ): string {
+    return (
+      process.env.L1_TO_L2_TRANSACTION_PASSER_CONTRACT_ADDRESS || defaultValue
+    )
+  }
+  public static l2ToL1MessageReceiverContractAddress(
+    defaultValue?: string
+  ): string {
+    return (
+      process.env.L2_TO_L1_MESSAGE_RECEIVER_CONTRACT_ADDRESS || defaultValue
+    )
   }
 
   // Server Type Config
@@ -161,17 +246,9 @@ export class Environment {
   public static sequencerPrivateKey(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_PRIVATE_KEY || defaultValue
   }
-  public static l1ToL2TransactionPasserAddress(defaultValue?: string): string {
-    return process.env.L1_TO_L2_TRANSACTION_PASSER_ADDRESS || defaultValue
-  }
-  public static l2ToL1MessageReceiverAddress(defaultValue?: string): string {
-    return process.env.L2_TO_L1_MESSAGE_RECEIVER_ADDRESS || defaultValue
-  }
-  public static l2ToL1MessageFinalityDelayInBlocks(
-    defaultValue: number = 0
-  ): number {
-    return process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
-      ? parseInt(process.env.L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS, 10)
+  public static finalityDelayInBlocks(defaultValue?: number): number {
+    return process.env.FINALITY_DELAY_IN_BLOCKS
+      ? parseInt(process.env.FINALITY_DELAY_IN_BLOCKS, 10)
       : defaultValue
   }
   public static l1EarliestBlock(defaultValue: number = 0): number {
@@ -180,24 +257,139 @@ export class Environment {
       : defaultValue
   }
 
-  // Block Batch Processor Config
-  public static blockBatchProcessorPersistentDbPath(
-    defaultValue?: string
-  ): string {
-    return (
-      process.env.L1_BLOCK_BATCH_PROCESSOR_PERSISTENT_DB_PATH || defaultValue
-    )
+  // Batch Sizes
+  public static canonicalChainMinBatchSize(defaultValue?: number): number {
+    return process.env.CANONICAL_CHAIN_MIN_BATCH_SIZE
+      ? parseInt(process.env.CANONICAL_CHAIN_MIN_BATCH_SIZE, 10)
+      : defaultValue
   }
-  public static blockBatchProcessorPrivateKey(defaultValue?: string): string {
-    return process.env.L1_BLOCK_BATCH_PROCESSOR_PRIVATE_KEY || defaultValue
+
+  public static canonicalChainMaxBatchSize(defaultValue?: number): number {
+    return process.env.CANONICAL_CHAIN_MAX_BATCH_SIZE
+      ? parseInt(process.env.CANONICAL_CHAIN_MAX_BATCH_SIZE, 10)
+      : defaultValue
   }
-  public static blockBatchProcessorNumConfirmsRequired(
-    defaultValue: string = '1'
+
+  public static stateCommitmentChainMinBatchSize(
+    defaultValue?: number
   ): number {
-    return parseInt(
-      process.env.L1_BLOCK_BATCH_PROCESSOR_NUM_CONFIRMS_REQUIRED ||
-        defaultValue,
-      10
-    )
+    return process.env.STATE_COMMITMENT_CHAIN_MIN_BATCH_SIZE
+      ? parseInt(process.env.STATE_COMMITMENT_CHAIN_MIN_BATCH_SIZE, 10)
+      : defaultValue
+  }
+
+  public static stateCommitmentChainMaxBatchSize(
+    defaultValue?: number
+  ): number {
+    return process.env.STATE_COMMITMENT_CHAIN_MAX_BATCH_SIZE
+      ? parseInt(process.env.STATE_COMMITMENT_CHAIN_MAX_BATCH_SIZE, 10)
+      : defaultValue
+  }
+
+  // Poller periods
+  public static canonicalChainBatchCreatorPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.CANONICAL_CHAIN_BATCH_CREATOR_PERIOD_MILLIS
+      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_CREATOR_PERIOD_MILLIS, 10)
+      : defaultValue
+  }
+  public static canonicalChainBatchSubmitterPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.CANONICAL_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS
+      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS, 10)
+      : defaultValue
+  }
+  public static stateCommitmentChainBatchCreatorPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.STATE_COMMITMENT_CHAIN_BATCH_CREATOR_PERIOD_MILLIS
+      ? parseInt(
+          process.env.STATE_COMMITMENT_CHAIN_BATCH_CREATOR_PERIOD_MILLIS,
+          10
+        )
+      : defaultValue
+  }
+  public static stateCommitmentChainBatchSubmitterPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS
+      ? parseInt(
+          process.env.STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS,
+          10
+        )
+      : defaultValue
+  }
+  public static gethSubmissionQueuerPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.GETH_SUBMISSION_QUEUER_PERIOD_MILLIS
+      ? parseInt(process.env.GETH_SUBMISSION_QUEUER_PERIOD_MILLIS, 10)
+      : defaultValue
+  }
+  public static queuedGethSubmitterPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.QUEUED_GETH_SUBMITTER_PERIOD_MILLIS
+      ? parseInt(process.env.QUEUED_GETH_SUBMITTER_PERIOD_MILLIS, 10)
+      : defaultValue
+  }
+  public static fraudDetectorPeriodMillis(
+    defaultValue: number = 10_000
+  ): number {
+    return process.env.FRAUD_DETECTOR_PERIOD_MILLIS
+      ? parseInt(process.env.FRAUD_DETECTOR_PERIOD_MILLIS, 10)
+      : defaultValue
+  }
+
+  // Chain Data Persisters
+  public static l1ChainDataPersisterLevelDbPath(defaultValue?: string): string {
+    return process.env.L1_CHAIN_DATA_PERSISTER_DB_PATH || defaultValue
+  }
+  public static l2ChainDataPersisterLevelDbPath(defaultValue?: string): string {
+    return process.env.L2_CHAIN_DATA_PERSISTER_DB_PATH || defaultValue
+  }
+
+  // Postgres Database config
+  public static postgresHost(defaultValue?: string): string {
+    return process.env.POSTGRES_HOST || defaultValue
+  }
+  public static postgresPort(defaultValue: number = 5432): number {
+    return process.env.POSTGRES_PORT
+      ? parseInt(process.env.POSTGRES_PORT, 10)
+      : defaultValue
+  }
+  public static postgresUser(defaultValue?: string): string {
+    return process.env.POSTGRES_USER || defaultValue
+  }
+  public static postgresPassword(defaultValue?: string): string {
+    return process.env.POSTGRES_PASSWORD || defaultValue
+  }
+  public static postgresDatabase(defaultValue?: string): string {
+    return process.env.POSTGRES_DATABASE || defaultValue
+  }
+  public static postgresPoolSize(defaultValue?: number): number {
+    return process.env.POSTGRES_PORT
+      ? parseInt(process.env.POSTGRES_PORT, 10)
+      : defaultValue
+  }
+  public static postgresUseSsl(defaultValue?: boolean): boolean {
+    return !!process.env.POSTGRES_USE_SSL || defaultValue
+  }
+
+  // Misc
+  public static submitToL2GethPrivateKey(defaultValue?: string): string {
+    return process.env.SUBMIT_TO_L2_PRIVATE_KEY || defaultValue
+  }
+  public static reAlertOnUnresolvedFraudEveryNFraudDetectorRuns(
+    defaultValue: number = 10
+  ): number {
+    return process.env.REALERT_ON_UNRESOLVED_FRAUD_EVERY_N_FRAUD_DETECTOR_RUNS
+      ? parseInt(
+          process.env.REALERT_ON_UNRESOLVED_FRAUD_EVERY_N_FRAUD_DETECTOR_RUNS,
+          10
+        )
+      : defaultValue
   }
 }

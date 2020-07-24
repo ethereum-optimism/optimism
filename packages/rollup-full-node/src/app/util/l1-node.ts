@@ -167,7 +167,7 @@ const getL2ToL1MessageReceiverContract = async (
   nonceWhenDeployed: number
 ): Promise<Contract> => {
   const l2ToL1MessageReceiverAddress: Address =
-    Environment.l2ToL1MessageReceiverAddress() ||
+    Environment.l2ToL1MessageReceiverContractAddress() ||
     (await getDeployedContractAddress(
       nonceWhenDeployed,
       provider,
@@ -211,7 +211,7 @@ const deployL2ToL1MessageReceiver = async (
     contract = await deployContract(
       wallet,
       L2ToL1MessageReceiverContractDefinition,
-      [wallet.address, Environment.l2ToL1MessageFinalityDelayInBlocks()]
+      [wallet.address, Environment.finalityDelayInBlocks()]
     )
   } catch (e) {
     logError(log, 'Error Deploying L2ToL1MessageReceiver', e)
@@ -239,7 +239,7 @@ const getL1ToL2TransactionPasserContract = async (
   nonceWhenDeployed: number
 ): Promise<Contract> => {
   const l1ToL2transactionPasserAddress: Address =
-    Environment.l1ToL2TransactionPasserAddress() ||
+    Environment.l1ToL2TransactionPasserContractAddress() ||
     (await getDeployedContractAddress(
       nonceWhenDeployed,
       provider,

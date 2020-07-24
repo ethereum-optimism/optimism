@@ -18,6 +18,7 @@ import { ethers } from 'ethers'
 import {
   Address,
   L1DataService,
+  LogHandler,
   QueueOrigin,
   RollupTransaction,
 } from '../../../types'
@@ -25,6 +26,22 @@ import { CHAIN_ID } from '../../constants'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger('log-handler')
+
+/**
+ * Gets an array of all of the Rollup Log Handler functions.
+ *
+ * @returns The array of log handler functions.
+ */
+export const getAllHandlers = (): LogHandler[] => {
+  return [
+    L1ToL2TxEnqueuedLogHandler,
+    L1ToL2BatchAppendedLogHandler,
+    CalldataTxEnqueuedLogHandler,
+    SafetyQueueBatchAppendedLogHandler,
+    SequencerBatchAppendedLogHandler,
+    StateBatchAppendedLogHandler,
+  ]
+}
 
 /**
  * Handles the L1ToL2TxEnqueued event by parsing a RollupTransaction
