@@ -705,7 +705,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
 
   public async clientVersion(): Promise<string> {
     log.debug('Getting web3 client version')
-      const response = await this.context.provider.send(
+    const response = await this.context.provider.send(
       Web3RpcMethods.clientVersion,
       []
     )
