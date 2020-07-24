@@ -370,8 +370,8 @@ export class Environment {
     return process.env.POSTGRES_DATABASE || defaultValue
   }
   public static postgresPoolSize(defaultValue?: number): number {
-    return process.env.POSTGRES_PORT
-      ? parseInt(process.env.POSTGRES_PORT, 10)
+    return process.env.POSTGRES_CONNECTION_POOL_SIZE
+      ? parseInt(process.env.POSTGRES_CONNECTION_POOL_SIZE, 10)
       : defaultValue
   }
   public static postgresUseSsl(defaultValue?: boolean): boolean {

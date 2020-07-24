@@ -27,7 +27,7 @@ import {
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers, Wallet } from 'ethers'
-import { JsonRpcProvider, Provider } from 'ethers/providers'
+import {InfuraProvider, JsonRpcProvider, Provider} from 'ethers/providers'
 
 const log = getLogger('service-entrypoint')
 
@@ -307,9 +307,16 @@ const getDataService = (): DataService => {
 let l1Provider: Provider
 const getL1Provider = (): Provider => {
   if (!l1Provider) {
-    l1Provider = new JsonRpcProvider(
-      Environment.getOrThrow(Environment.l1NodeWeb3Url)
-    )
+    if (!!Environment.l1NodeInfuraNetwork() && !!Environment.l1NodeInfuraProjectId()) {
+      l1Provider = new InfuraProvider(
+        Environment.getOrThrow(Environment.l1NodeInfuraNetwork),
+        Environment.getOrThrow(Environment.l1NodeInfuraProjectId)
+      )
+    } else {
+      l1Provider = new JsonRpcProvider(
+        Environment.getOrThrow(Environment.l1NodeWeb3Url)
+      )
+    }
   }
   return l1Provider
 }
