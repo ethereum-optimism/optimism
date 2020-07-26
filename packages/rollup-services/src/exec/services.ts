@@ -24,6 +24,7 @@ import {
   StateBatchAppendedLogHandler,
   StateCommitmentChainBatchCreator,
   StateCommitmentChainBatchSubmitter,
+  updateEnvironmentVariables,
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers, Wallet } from 'ethers'
@@ -76,6 +77,15 @@ export const runServices = async (): Promise<any[]> => {
     services.push(createFraudDetector())
   }
 
+  if (!services) {
+    log.error(`No services configured! Exiting =|`)
+    process.exit(1)
+  }
+
+  setInterval(() => {
+    updateEnvironmentVariables()
+  }, 179_000)
+
   return services
 }
 
@@ -93,7 +103,8 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
     new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
-      )
+      ),
+      256
     ),
     getDataService(),
     getL1Provider(),

@@ -1,8 +1,9 @@
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, logError } from '@eth-optimism/core-utils'
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
 } from '../constants'
+import * as fs from 'fs'
 
 const log = getLogger('environment')
 
@@ -391,5 +392,83 @@ export class Environment {
           10
         )
       : defaultValue
+  }
+
+  public static environmentVariablesUpdateFilePath(
+    defaultValue: string = '/server/env_var_updates.config'
+  ): string {
+    return process.env.ENVIRONMENT_VARIABLES_UPDATE_FILE_PATH || defaultValue
+  }
+}
+
+/**
+ * Updates process environment variables from provided update file
+ * if any variables are updated.
+ *
+ * @param updateFilePath The path to the file from which to read env var updates.
+ */
+export const updateEnvironmentVariables = (
+  updateFilePath: string = Environment.environmentVariablesUpdateFilePath()
+) => {
+  try {
+    fs.readFile(updateFilePath, 'utf8', (error, data) => {
+      try {
+        let changesExist: boolean = false
+        if (!!error) {
+          logError(
+            log,
+            `Error reading environment variable updates from ${updateFilePath}`,
+            error
+          )
+          return
+        }
+
+        const lines = data.split('\n')
+        for (const rawLine of lines) {
+          if (!rawLine) {
+            continue
+          }
+          const line = rawLine.trim()
+          if (!line || line.startsWith('#')) {
+            continue
+          }
+
+          const varAssignmentSplit = line.split('=')
+          if (varAssignmentSplit.length !== 2) {
+            log.error(
+              `Invalid updated env variable line: ${line}. Expected some_var_name=somevalue`
+            )
+            continue
+          }
+          const deletePlaceholder = '$DELETE$'
+          const key = varAssignmentSplit[0].trim()
+          const value = varAssignmentSplit[1].trim()
+          if (value === deletePlaceholder && !!process.env[key]) {
+            delete process.env[key]
+            log.info(`Updated process.env.${key} to have no value.`)
+            changesExist = true
+          } else if (
+            value !== process.env[key] &&
+            value !== deletePlaceholder
+          ) {
+            process.env[key] = value
+            log.info(`Updated process.env.${key} to have value ${value}.`)
+            changesExist = true
+          }
+        }
+      } catch (e) {
+        logError(
+          log,
+          `Error updating environment variables from ${updateFilePath}`,
+          e
+        )
+      }
+    })
+  } catch (e) {
+    logError(
+      log,
+      `Error updating environment variables from ${updateFilePath}`,
+      e
+    )
   }
 }

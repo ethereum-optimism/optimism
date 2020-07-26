@@ -1,0 +1,69 @@
+version: "3"
+
+services:
+
+  # Look at packages/rollup-full-node/README.md for info on configuration
+  rollup-full-node:
+    volumes:
+      - full-node-data:/mnt/full-node:rw
+      - l1-node-data:/mnt/l1-node:rw
+      - l2-node-data:/mnt/l2-node:rw
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 8545:8545
+    environment:
+      - IS_TRANSACTION_NODE=1
+      - CLEAR_DATA_KEY=35
+      - STARTUP_WAIT_TIMEOUT=30
+      - OPCODE_WHITELIST_MASK
+      - LOCAL_L1_NODE_PORT
+      - LOCAL_L1_NODE_PERSISTENT_DB_PATH=/mnt/l1-node
+      - L1_NODE_INFURA_NETWORK
+      - L1_NODE_INFURA_PROJECT_ID
+      - L1_NODE_WEB3_URL
+      - L1_SEQUENCER_PRIVATE_KEY
+      - L1_SEQUENCER_MNEMONIC
+      - L1_EARLIEST_BLOCK
+      - L1_TO_L2_TRANSACTION_PASSER_ADDRESS
+      - L2_TO_L1_MESSAGE_RECEIVER_ADDRESS
+      - L2_TO_L1_MESSAGE_FINALITY_DELAY_IN_BLOCKS
+      - L2_RPC_SERVER_HOST
+      - L2_RPC_SERVER_PORT=8545
+      - L2_RPC_SERVER_PERSISTENT_DB_PATH=/mnt/full-node/level
+      - L2_WALLET_PRIVATE_KEY=0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797
+      - L2_NODE_WEB3_URL=http://geth_l2:9545/
+  #      - LOCAL_L2_NODE_PERSISTENT_DB_PATH=/mnt/l2-node/
+
+  # This service is optional -- the rollup-full-node can be configured to run its own ganache instance.
+  # Geth is more performant, but that may not matter for your use case.
+  geth_l2:
+    volumes:
+       - l2-node-data:/mnt/l2-node/l2:rw
+    build:
+      context: docker/geth
+      dockerfile: Dockerfile
+    environment:
+      - CLEAR_DATA_KEY=35
+      - VOLUME_PATH=/mnt/l2-node/l2
+      - HOSTNAME=geth_l2
+      - PORT=9545
+      - NETWORK_ID=108
+    expose:
+      - "9545"
+    ports:
+      - 9545:9545
+
+volumes:
+  full-node-data:
+  l1-node-data:
+  l2-node-data:
+
+
+
+
+
+
+
+

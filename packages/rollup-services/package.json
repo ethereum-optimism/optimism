@@ -11,8 +11,7 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' 'src/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "services": "env DEBUG=\"info:*,error:*\" node ./exec/services.js",
-    "services:debug": "env DEBUG=\"info:*,error:*,debug:*\" node ./exec/services.js"
+    "services": "node ./exec/services.js"
   },
   "keywords": [
     "plasma",

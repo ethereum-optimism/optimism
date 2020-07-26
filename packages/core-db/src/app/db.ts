@@ -32,7 +32,7 @@ import { BaseBucket } from './bucket'
 import { BaseRangeBucket } from './range-bucket'
 
 const log = getLogger('db')
-export const DEFAULT_PREFIX_LENGTH = 256
+export const DEFAULT_PREFIX_LENGTH = 3
 
 /**
  * Checks if an error is a NotFoundError.

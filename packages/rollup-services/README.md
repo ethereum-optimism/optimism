@@ -48,6 +48,8 @@ L2 Node (needed for some):
   * `CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS` - (Required) The address of the CanonicalTransactionChain contract
   * `STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS` - (Required) The address of the StateCommitmentChain contract
 * `L1_CHAIN_DATA_PERSISTER_DB_PATH` - (Required) The filepath where to locate (or create) the L1 Chain Data Persister LevelDB database
+* `L1_EARLIEST_BLOCK` - (Required) The earliest block to sync on L1 to start persisting data
+* `FINALITY_DELAY_IN_BLOCKS` - (Required) The number of blocks required to consider a submission final on L1
 
 #### L2 Chain Data Persister
 * Postgres - See Postgres section above
@@ -100,4 +102,15 @@ L2 Node (needed for some):
 ## Building & Running
 1. Make sure dependencies are installed just run `yarn` in the base directory
 2. Build `yarn build`
-3. Run `yarn services` (`yarn services:debug` for more verbose logging)
+3. Run `yarn services`
+
+## Controlling log output verbosity
+Before running, set the `DEBUG` environment variable to specify the verbosity level. It must be made up of comma-separated values of patterns to match in debug logs. Here's a few common options:
+* `debug*` - Will match all debug statements -- very verbose
+* `info*` - Will match all info statements -- less verbose, useful in most cases
+* `warn*` - Will match all warnings -- recommended at a minimum
+* `error*` - Will match all errors -- would not omit this
+
+Examples:
+* Everything but debug: `export DEBUG=info*,error*,warn*`
+* Most verbose: `export DEBUG=info*,error*,warn*,debug*`
