@@ -13,9 +13,10 @@ describe.only('DepositedERC20', () => {
   const provider = ethers.provider
 
   let wallet: Signer
+  let badwallet: Signer
   let DepositedERC20: ContractFactory
   before(async () => {
-    ;[wallet] = await ethers.getSigners()
+    ;[wallet, badwallet] = await ethers.getSigners()
     DepositedERC20 = await ethers.getContractFactory('DepositedERC20')
   })
 
@@ -34,7 +35,13 @@ describe.only('DepositedERC20', () => {
 
   describe('processDeposit()', async () => {
     it('throws error if msg sender is not L2ERC20Bridge address', async () => {
-      depositedERC20.processDeposit("0x"+"00".repeat(20), 5)
+      const evilDepositedERC20 = depositedERC20.connect(badwallet)
+      await TestUtils.assertRevertsAsync(
+        'Get outta here. L2 factory bridge address ONLY.',
+        async () => {
+          await evilDepositedERC20.processDeposit("0x"+"00".repeat(20), 5)
+        }
+      )
     })
   })
 
