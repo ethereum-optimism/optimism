@@ -39,9 +39,13 @@ describe.only('DepositedERC20', () => {
       await TestUtils.assertRevertsAsync(
         'Get outta here. L2 factory bridge address ONLY.',
         async () => {
-          await evilDepositedERC20.processDeposit("0x"+"00".repeat(20), 5)
+          await evilDepositedERC20.processDeposit('0x' + '00'.repeat(20), 5)
         }
       )
+    })
+
+    it('does not throw error if called by L2ERC20Bridge address', async () => {
+      await depositedERC20.processDeposit('0x' + '00'.repeat(20), 5)
     })
   })
 
