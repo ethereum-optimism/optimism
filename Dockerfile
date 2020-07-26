@@ -5,7 +5,7 @@ COPY . /server
 RUN yarn
 
 # Copy live env config updates file to /server so that it may be updated while running.
-COPY ./packages/rollup-full-node/config/env_var_updates.config /server
+COPY ./packages/rollup-core/config/env_var_updates.config /server
 
 WORKDIR /server/packages/rollup-full-node
 
