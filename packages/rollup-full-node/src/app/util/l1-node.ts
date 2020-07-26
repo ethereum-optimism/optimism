@@ -211,7 +211,7 @@ const deployL2ToL1MessageReceiver = async (
     contract = await deployContract(
       wallet,
       L2ToL1MessageReceiverContractDefinition,
-      [wallet.address, Environment.finalityDelayInBlocks()]
+      [wallet.address, Environment.finalityDelayInBlocks(1) - 1]
     )
   } catch (e) {
     logError(log, 'Error Deploying L2ToL1MessageReceiver', e)
