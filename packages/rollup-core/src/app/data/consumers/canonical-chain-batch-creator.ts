@@ -2,7 +2,7 @@
 import { getLogger, logError, ScheduledTask } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { DataService, GethSubmissionRecord } from '../../../types/data'
+import { DataService } from '../../../types/data'
 
 const log = getLogger('l2-batch-creator')
 

@@ -12,7 +12,10 @@ import {
   Logger,
   SimpleClient,
 } from '@eth-optimism/core-utils'
-import { Environment } from '@eth-optimism/rollup-core'
+import {
+  Environment,
+  updateEnvironmentVariables,
+} from '@eth-optimism/rollup-core'
 import cors = require('cors')
 
 import { JsonRpcProvider } from 'ethers/providers'
@@ -130,7 +133,7 @@ const startRoutingServer = async (): Promise<FullnodeContext> => {
   log.info(`Listening at ${baseUrl}`)
 
   setInterval(() => {
-    updateEnvironmentVariables('/server/env_var_updates.config')
+    updateEnvironmentVariables()
   }, 179_000)
 
   return {
@@ -286,76 +289,6 @@ const initializeDBPaths = (isTestMode: boolean) => {
       }
       makeDataDirectory()
     }
-  }
-}
-
-/**
- * Updates process environment variables from provided update file
- * if any variables are updated.
- *
- * @param updateFilePath The path to the file from which to read env var updates.
- */
-const updateEnvironmentVariables = (updateFilePath: string) => {
-  try {
-    fs.readFile(updateFilePath, 'utf8', (error, data) => {
-      try {
-        let changesExist: boolean = false
-        if (!!error) {
-          logError(
-            log,
-            `Error reading environment variable updates from ${updateFilePath}`,
-            error
-          )
-          return
-        }
-
-        const lines = data.split('\n')
-        for (const rawLine of lines) {
-          if (!rawLine) {
-            continue
-          }
-          const line = rawLine.trim()
-          if (!line || line.startsWith('#')) {
-            continue
-          }
-
-          const varAssignmentSplit = line.split('=')
-          if (varAssignmentSplit.length !== 2) {
-            log.error(
-              `Invalid updated env variable line: ${line}. Expected some_var_name=somevalue`
-            )
-            continue
-          }
-          const deletePlaceholder = '$DELETE$'
-          const key = varAssignmentSplit[0].trim()
-          const value = varAssignmentSplit[1].trim()
-          if (value === deletePlaceholder && !!process.env[key]) {
-            delete process.env[key]
-            log.info(`Updated process.env.${key} to have no value.`)
-            changesExist = true
-          } else if (
-            value !== process.env[key] &&
-            value !== deletePlaceholder
-          ) {
-            process.env[key] = value
-            log.info(`Updated process.env.${key} to have value ${value}.`)
-            changesExist = true
-          }
-        }
-      } catch (e) {
-        logError(
-          log,
-          `Error updating environment variables from ${updateFilePath}`,
-          e
-        )
-      }
-    })
-  } catch (e) {
-    logError(
-      log,
-      `Error updating environment variables from ${updateFilePath}`,
-      e
-    )
   }
 }
 
