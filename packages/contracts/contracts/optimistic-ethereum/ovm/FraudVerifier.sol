@@ -36,17 +36,13 @@ contract FraudVerifier is ContractResolver {
 
     /**
      * @param _addressResolver Address of the AddressResolver contract.
-     * @param _isTest Whether or not to throw into testing mode.
      */
     constructor(
-        address _addressResolver,
-        bool _isTest
+        address _addressResolver
     )
         public
         ContractResolver(_addressResolver)
-    {
-        isTest = _isTest;
-    }
+    {}
 
 
     /*
@@ -111,21 +107,22 @@ contract FraudVerifier is ContractResolver {
         // this is handled by the hasStateTransitioner check above, which would
         // fail when the existing StateTransitioner's pre-state root does not
         // match the provided one.
-        if (isTest) {
-            stateTransitioners[_preStateTransitionIndex] = new StubStateTransitioner(
-                address(addressResolver),
-                _preStateTransitionIndex,
-                _preStateRoot,
-                TransactionParser.getTransactionHash(_transactionData)
-            );
-        } else {
-            stateTransitioners[_preStateTransitionIndex] = new StateTransitioner(
-                address(addressResolver),
-                _preStateTransitionIndex,
-                _preStateRoot,
-                TransactionParser.getTransactionHash(_transactionData)
-            );
-        }
+
+        // #if FLAG_IS_TEST
+        stateTransitioners[_preStateTransitionIndex] = new StubStateTransitioner(
+            address(addressResolver),
+            _preStateTransitionIndex,
+            _preStateRoot,
+            TransactionParser.getTransactionHash(_transactionData)
+        );
+        // #else
+        stateTransitioners[_preStateTransitionIndex] = new StateTransitioner(
+            address(addressResolver),
+            _preStateTransitionIndex,
+            _preStateRoot,
+            TransactionParser.getTransactionHash(_transactionData)
+        );
+        // #endif
     }
 
     /**

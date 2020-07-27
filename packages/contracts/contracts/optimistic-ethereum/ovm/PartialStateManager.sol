@@ -8,6 +8,9 @@ import { ExecutionManager } from "./ExecutionManager.sol";
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
+/* Testing Imports */
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title PartialStateManager
  * @notice The PartialStateManager is used for the on-chain fraud proof checker.
@@ -91,6 +94,10 @@ contract PartialStateManager is ContractResolver {
         public
         onlyStateTransitioner
     {
+        // #if FLAG_IS_DEBUG
+        console.log("Initializing new transaction execution.");
+        // #endif
+
         existsInvalidStateAccessFlag = false;
         updatedStorageSlotCounter = 0;
         updatedContractsCounter = 0;
@@ -114,6 +121,15 @@ contract PartialStateManager is ContractResolver {
         public
         onlyStateTransitioner
     {
+        // #if FLAG_IS_DEBUG
+        console.log("Inserting verified storage slot.");
+        console.log("Contract address: %s", _ovmContractAddress);
+        console.log("Slot ID:");
+        console.logBytes32(_slot);
+        console.log("Slot value:");
+        console.logBytes32(_value);
+        // #endif
+
         isVerifiedStorage[_ovmContractAddress][_slot] = true;
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
@@ -132,6 +148,13 @@ contract PartialStateManager is ContractResolver {
         public
         onlyStateTransitioner
     {
+        // #if FLAG_IS_DEBUG
+        console.log("Inserting verified contract.");
+        console.log("OVM contract address: %s", _ovmContractAddress);
+        console.log("Code contract address: %s", _codeContractAddress);
+        console.log("Contract nonce: %s", _nonce);
+        // #endif
+
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
@@ -528,6 +551,13 @@ contract PartialStateManager is ContractResolver {
         private
     {
         if (!isVerifiedStorage[_ovmContractAddress][_slot]) {
+            // #if FLAG_IS_DEBUG
+            console.log("Flagging as unverified because of a storage slot access.");
+            console.log("Contract address: %s", _ovmContractAddress);
+            console.log("Slot ID:");
+            console.logBytes32(_slot);
+            // #endif
+
             existsInvalidStateAccessFlag = true;
         }
     }
@@ -542,6 +572,11 @@ contract PartialStateManager is ContractResolver {
         private
     {
         if (!isVerifiedContract[_ovmContractAddress]) {
+            // #if FLAG_IS_DEBUG
+            console.log("Flagging as unverified because of a contract access.");
+            console.log("Contract address: %s", _ovmContractAddress);
+            // #endif
+
             existsInvalidStateAccessFlag = true;
         }
     }

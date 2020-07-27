@@ -198,7 +198,7 @@ describe('FraudVerifier', () => {
       'FraudVerifier',
       {
         factory: FraudVerifier,
-        params: [resolver.addressResolver.address, true],
+        params: [resolver.addressResolver.address],
       }
     )
   })
