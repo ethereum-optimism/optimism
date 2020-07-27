@@ -1,5 +1,5 @@
 /* External Imports */
-import {getLogger, ScheduledTask} from '@eth-optimism/core-utils'
+import { getLogger, ScheduledTask } from '@eth-optimism/core-utils'
 import { BaseDB, getLevelInstance, PostgresDB } from '@eth-optimism/core-db'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 import {
@@ -86,7 +86,7 @@ export const runServices = async (): Promise<any[]> => {
     process.exit(1)
   }
 
-  await Promise.all(scheduledTasks.map(x => x.start()))
+  await Promise.all(scheduledTasks.map((x) => x.start()))
 
   setInterval(() => {
     updateEnvironmentVariables()
