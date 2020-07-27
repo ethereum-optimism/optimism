@@ -28,8 +28,8 @@ describe('Contract Deployment', () => {
           gasLimit: GAS_LIMIT,
           forceInclusionPeriod: DEFAULT_FORCE_INCLUSION_PERIOD,
           owner: wallet,
-          sequencer: sequencer,
-          l1ToL2TransactionPasser: l1ToL2TransactionPasser,
+          sequencer,
+          l1ToL2TransactionPasser,
         },
       }
 
