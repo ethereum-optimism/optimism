@@ -76,13 +76,13 @@ export const factoryToContractName = {
   ContractAddressGenerator: 'contractAddressGenerator',
   EthMerkleTrie: 'ethMerkleTrie',
   RLPEncode: 'rlpEncode',
-  RollupMerkleUtils: 'rollupMerkleUtils'
+  RollupMerkleUtils: 'rollupMerkleUtils',
 }
 
 export interface RollupDeployConfig {
   signer: Signer
   rollupOptions: RollupOptions
   addressResolverConfig?: ContractDeployOptions
-  contractDeployConfig?: ContractDeployConfig
+  contractDeployConfig?: Partial<ContractDeployConfig>
   dependencies?: ContractFactoryName[]
 }

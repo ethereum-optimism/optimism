@@ -5,7 +5,10 @@ import { ethers } from '@nomiclabs/buidler'
 
 /* Internal Imports */
 import { deployAllContracts } from '../../src'
-import { RollupDeployConfig, factoryToContractName } from '../../src/deployment/types'
+import {
+  RollupDeployConfig,
+  factoryToContractName,
+} from '../../src/deployment/types'
 import { Signer } from 'ethers'
 import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD } from '../test-helpers'
 
@@ -26,15 +29,17 @@ describe('Contract Deployment', () => {
           forceInclusionPeriod: DEFAULT_FORCE_INCLUSION_PERIOD,
           owner: wallet,
           sequencer: sequencer,
-          l1ToL2TransactionPasser: l1ToL2TransactionPasser
-        }
+          l1ToL2TransactionPasser: l1ToL2TransactionPasser,
+        },
       }
 
       const resolver = await deployAllContracts(config)
 
-      expect(Object.values(factoryToContractName).every((contractName) => {
-        return contractName in resolver.contracts
-      })).to.be.true
+      expect(
+        Object.values(factoryToContractName).every((contractName) => {
+          return contractName in resolver.contracts
+        })
+      ).to.be.true
     })
   })
 })

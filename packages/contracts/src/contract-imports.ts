@@ -11,7 +11,10 @@ export const getContractInterface = (name: string): Interface => {
   return new ethers.utils.Interface(definition.abi)
 }
 
-export const getContractFactory = (name: string, signer?: Signer): ContractFactory => {
+export const getContractFactory = (
+  name: string,
+  signer?: Signer
+): ContractFactory => {
   const definition = getContractDefinition(name)
   const contractInterface = getContractInterface(name)
   return new ContractFactory(contractInterface, definition.bytecode, signer)

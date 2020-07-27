@@ -4,7 +4,12 @@ import { Contract } from 'ethers'
 /* Internal Imports */
 import { getContractFactory } from '../contract-imports'
 import { mergeDefaultConfig } from './default-config'
-import { ContractDeployOptions, RollupDeployConfig, factoryToContractName, AddressResolverMapping } from './types'
+import {
+  ContractDeployOptions,
+  RollupDeployConfig,
+  factoryToContractName,
+  AddressResolverMapping,
+} from './types'
 
 /**
  * Deploys a single contract.
@@ -15,9 +20,7 @@ const deployContract = async (
   config: ContractDeployOptions
 ): Promise<Contract> => {
   config.factory = config.factory.connect(config.signer)
-  const deployedContract = await config.factory.deploy(
-    ...config.params
-  )
+  const deployedContract = await config.factory.deploy(...config.params)
   return deployedContract
 }
 
@@ -51,7 +54,7 @@ export const deployAllContracts = async (
     config.addressResolverConfig = {
       factory: getContractFactory('AddressResolver'),
       params: [],
-      signer: config.signer
+      signer: config.signer,
     }
   }
 
@@ -66,10 +69,7 @@ export const deployAllContracts = async (
 
   const contracts: any = {}
   for (const name of Object.keys(deployConfig)) {
-    if (
-      !config.dependencies ||
-      config.dependencies.includes(name as any)
-    ) {
+    if (!config.dependencies || config.dependencies.includes(name as any)) {
       const contractName = factoryToContractName[name]
       contracts[contractName] = await deployAndRegister(
         addressResolver,

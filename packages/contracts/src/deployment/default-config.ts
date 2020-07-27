@@ -23,12 +23,12 @@ export const getDefaultContractDeployConfig = async (
         addressResolver.address,
         await options.l1ToL2TransactionPasser.getAddress(),
       ],
-      signer: wallet
+      signer: wallet,
     },
     SafetyTransactionQueue: {
       factory: getContractFactory('SafetyTransactionQueue'),
       params: [addressResolver.address],
-      signer: wallet
+      signer: wallet,
     },
     CanonicalTransactionChain: {
       factory: getContractFactory('CanonicalTransactionChain'),
@@ -38,52 +38,56 @@ export const getDefaultContractDeployConfig = async (
         await options.l1ToL2TransactionPasser.getAddress(),
         options.forceInclusionPeriod,
       ],
-      signer: wallet
+      signer: wallet,
     },
     StateCommitmentChain: {
       factory: getContractFactory('StateCommitmentChain'),
       params: [addressResolver.address],
-      signer: wallet
+      signer: wallet,
     },
     StateManager: {
       factory: getContractFactory('FullStateManager'),
       params: [],
-      signer: wallet
+      signer: wallet,
     },
     ExecutionManager: {
       factory: getContractFactory('ExecutionManager'),
-      params: [addressResolver.address, await options.owner.getAddress(), options.gasLimit],
-      signer: wallet
+      params: [
+        addressResolver.address,
+        await options.owner.getAddress(),
+        options.gasLimit,
+      ],
+      signer: wallet,
     },
     SafetyChecker: {
       factory: getContractFactory('StubSafetyChecker'),
       params: [],
-      signer: wallet
+      signer: wallet,
     },
     FraudVerifier: {
       factory: getContractFactory('FraudVerifier'),
       params: [addressResolver.address, true],
-      signer: wallet
+      signer: wallet,
     },
     ContractAddressGenerator: {
       factory: getContractFactory('ContractAddressGenerator'),
       params: [],
-      signer: wallet
+      signer: wallet,
     },
     EthMerkleTrie: {
       factory: getContractFactory('EthMerkleTrie'),
       params: [],
-      signer: wallet
+      signer: wallet,
     },
     RLPEncode: {
       factory: getContractFactory('RLPEncode'),
       params: [],
-      signer: wallet
+      signer: wallet,
     },
     RollupMerkleUtils: {
       factory: getContractFactory('RollupMerkleUtils'),
       params: [],
-      signer: wallet
+      signer: wallet,
     },
   }
 }
@@ -101,9 +105,13 @@ export const mergeDefaultConfig = async (
   signer?: Signer,
   options?: RollupOptions
 ): Promise<ContractDeployConfig> => {
-  const defaultConfig = await getDefaultContractDeployConfig(addressResolver, signer, options)
+  const defaultConfig = await getDefaultContractDeployConfig(
+    addressResolver,
+    signer,
+    options
+  )
   return {
     ...defaultConfig,
-    ...config
+    ...config,
   }
 }
