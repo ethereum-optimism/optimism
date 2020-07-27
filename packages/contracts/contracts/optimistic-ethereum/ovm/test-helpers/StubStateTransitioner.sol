@@ -1,11 +1,14 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/* Contract Imports */
 import { FraudVerifier } from "../FraudVerifier.sol";
 import { ExecutionManager } from "../ExecutionManager.sol";
+import { IStateTransitioner } from "../interfaces/IStateTransitioner.sol";
+
+/* Library Imports */
 import { ContractResolver } from "../../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../../utils/libraries/DataTypes.sol";
-import { IStateTransitioner } from "../interfaces/IStateTransitioner.sol";
 
 /**
  * @title StubStateTransitioner

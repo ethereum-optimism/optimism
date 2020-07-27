@@ -11,17 +11,18 @@ import { DataTypes } from "./DataTypes.sol";
 /**
  * @notice Convenience wrapper for ETH-related trie operations.
  */
-contract EthMerkleTrie is MerkleTrie {
+library EthMerkleTrie {
     /*
      * Contract Constants
      */
 
     bytes32 constant private BYTES32_NULL = bytes32('');
     uint256 constant private UINT256_NULL = uint256(0);
+    bytes constant private RLP_NULL_BYTES = hex'80';
 
 
     /*
-     * Public Functions
+     * Internal Functions
      */
 
     /**
@@ -44,7 +45,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _storageTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -56,7 +57,7 @@ contract EthMerkleTrie is MerkleTrie {
         );
 
         // Verify inclusion of the given k/v pair in the storage trie.
-        return verifyInclusionProof(
+        return MerkleTrie.verifyInclusionProof(
             abi.encodePacked(_key),
             abi.encodePacked(_value),
             _storageTrieWitness,
@@ -84,7 +85,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _storageTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -96,7 +97,7 @@ contract EthMerkleTrie is MerkleTrie {
         );
 
         // Generate a new storage root.
-        accountState.storageRoot = update(
+        accountState.storageRoot = MerkleTrie.update(
             abi.encodePacked(_key),
             abi.encodePacked(_value),
             _storageTrieWitness,
@@ -129,7 +130,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -164,7 +165,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -202,7 +203,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -240,7 +241,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -278,7 +279,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -318,7 +319,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -383,7 +384,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -421,7 +422,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -459,7 +460,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -497,7 +498,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -522,7 +523,7 @@ contract EthMerkleTrie is MerkleTrie {
 
 
     /*
-     * Internal Functions
+     * Private Functions
      */
 
     /**
@@ -533,7 +534,7 @@ contract EthMerkleTrie is MerkleTrie {
     function decodeAccountState(
         bytes memory _encodedAccountState
     )
-        internal
+        private
         pure
         returns (DataTypes.AccountState memory)
     {
@@ -555,7 +556,7 @@ contract EthMerkleTrie is MerkleTrie {
     function encodeAccountState(
         DataTypes.AccountState memory _accountState
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -584,7 +585,7 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        internal
+        private
         pure
         returns (DataTypes.AccountState memory)
     {
@@ -598,7 +599,7 @@ contract EthMerkleTrie is MerkleTrie {
         (
             bool exists,
             bytes memory encodedAccountState
-        ) = get(
+        ) = MerkleTrie.get(
             abi.encodePacked(_address),
             _stateTrieWitness,
             _stateTrieRoot
@@ -622,13 +623,13 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
-        internal
+        private
         pure
         returns (bytes32)
     {
         bytes memory encodedAccountState = encodeAccountState(_accountState);
 
-        return update(
+        return MerkleTrie.update(
             abi.encodePacked(_address),
             encodedAccountState,
             _stateTrieWitness,

@@ -8,7 +8,7 @@ import { RLPWriter } from "./RLPWriter.sol";
 /**
  * @title MerkleTrie
  */
-contract MerkleTrie {
+library MerkleTrie {
     /*
      * Data Structures
      */
@@ -52,7 +52,7 @@ contract MerkleTrie {
 
 
     /*
-     * Public Functions
+     * Internal Functions
      */
 
     /**
@@ -73,7 +73,7 @@ contract MerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -98,7 +98,7 @@ contract MerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         pure
         returns (bool)
     {
@@ -122,7 +122,7 @@ contract MerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         pure
         returns (bytes32)
     {
@@ -146,7 +146,7 @@ contract MerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         pure
         returns (bool, bytes memory)
     {
@@ -162,8 +162,9 @@ contract MerkleTrie {
         );
     }
 
+
     /*
-     * Internal Functions
+     * Private Functions
      */
 
     /**
@@ -187,7 +188,7 @@ contract MerkleTrie {
         bytes32 _root,
         bool _inclusion
     )
-        internal
+        private
         pure
         returns (bool)
     {
@@ -226,7 +227,7 @@ contract MerkleTrie {
         bytes memory _key,
         bytes32 _root
     )
-        internal
+        private
         pure
         returns (
             uint256,
@@ -345,7 +346,7 @@ contract MerkleTrie {
         bytes memory _keyRemainder,
         bytes memory _value
     )
-        internal
+        private
         pure
         returns (TrieNode[] memory)
     {
@@ -469,7 +470,7 @@ contract MerkleTrie {
         TrieNode[] memory _nodes,
         bytes memory _key
     )
-        internal
+        private
         pure
         returns (bytes32)
     {
@@ -530,7 +531,7 @@ contract MerkleTrie {
     function parseProof(
         bytes memory _proof
     )
-        internal
+        private
         pure
         returns (TrieNode[] memory)
     {
@@ -558,7 +559,7 @@ contract MerkleTrie {
     function getNodeID(
         RLPReader.RLPItem memory _node
     )
-        internal
+        private
         pure
         returns (bytes32)
     {
@@ -583,7 +584,7 @@ contract MerkleTrie {
     function getNodePath(
         TrieNode memory _node
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -599,7 +600,7 @@ contract MerkleTrie {
     function getNodeKey(
         TrieNode memory _node
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -614,7 +615,7 @@ contract MerkleTrie {
     function getNodeValue(
         TrieNode memory _node
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -630,7 +631,7 @@ contract MerkleTrie {
     function getNodeHash(
         bytes memory _encoded
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -649,7 +650,7 @@ contract MerkleTrie {
     function getNodeType(
         TrieNode memory _node
     )
-        internal
+        private
         pure
         returns (NodeType)
     {
@@ -680,7 +681,7 @@ contract MerkleTrie {
         bytes memory _a,
         bytes memory _b
     )
-        internal
+        private
         pure
         returns (uint256)
     {
@@ -699,7 +700,7 @@ contract MerkleTrie {
     function makeNode(
         bytes[] memory _raw
     )
-        internal
+        private
         pure
         returns (TrieNode memory)
     {
@@ -719,7 +720,7 @@ contract MerkleTrie {
     function makeNode(
         RLPReader.RLPItem[] memory _items
     )
-        internal
+        private
         pure
         returns (TrieNode memory)
     {
@@ -739,8 +740,8 @@ contract MerkleTrie {
     function makeExtensionNode(
         bytes memory _key,
         bytes memory _value
-    ) 
-        internal
+    )
+        private
         pure
         returns (TrieNode memory)
     {
@@ -763,8 +764,8 @@ contract MerkleTrie {
     function makeLeafNode(
         bytes memory _key,
         bytes memory _value
-    ) 
-        internal
+    )
+        private
         pure
         returns (TrieNode memory)
     {
@@ -780,7 +781,7 @@ contract MerkleTrie {
      * @return Empty branch node as a TrieNode stuct.
      */
     function makeEmptyBranchNode()
-        internal
+        private
         pure
         returns (TrieNode memory)
     {
@@ -801,7 +802,7 @@ contract MerkleTrie {
         TrieNode memory _branch,
         bytes memory _value
     )
-        internal
+        private
         pure
         returns (TrieNode memory)
     {
@@ -822,7 +823,7 @@ contract MerkleTrie {
         uint8 _index,
         bytes memory _value
     )
-        internal
+        private
         pure
         returns (TrieNode memory)
     {
@@ -841,7 +842,7 @@ contract MerkleTrie {
         bytes memory _key,
         bool _isLeaf
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -860,7 +861,7 @@ contract MerkleTrie {
     function removeHexPrefix(
         bytes memory _path
     )
-        internal
+        private
         pure
         returns (bytes memory)
     {
@@ -887,7 +888,7 @@ contract MerkleTrie {
         TrieNode[] memory _b,
         uint256 _bLength
     )
-        internal
+        private
         pure
         returns (TrieNode[] memory)
     {

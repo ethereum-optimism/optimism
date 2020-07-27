@@ -11,7 +11,7 @@ import { SafetyChecker } from "./SafetyChecker.sol";
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { ContractAddressGenerator } from "../utils/libraries/ContractAddressGenerator.sol";
-import { RLPEncode } from "../utils/libraries/RLPEncode.sol";
+import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 
 /* Testing Imports */
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
@@ -246,8 +246,7 @@ contract ExecutionManager is ContractResolver {
             callSize = _callBytes.length + 4;
 
             // Emit event that we are creating a contract with an EOA
-            ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
-            address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
+            address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
             emit EOACreatedContract(_newOvmContractAddress);
         } else {
             methodId = METHOD_ID_OVM_CALL;
@@ -328,27 +327,25 @@ contract ExecutionManager is ContractResolver {
         view
         returns (address)
     {
-        RLPEncode rlp = resolveRLPEncode();
-
         bytes[] memory message = new bytes[](9);
-        message[0] = rlp.encodeUint(_nonce); // Nonce
-        message[1] = rlp.encodeUint(0); // Gas price
-        message[2] = rlp.encodeUint(executionContext.gasLimit); // Gas limit
+        message[0] = RLPWriter.encodeUint(_nonce); // Nonce
+        message[1] = RLPWriter.encodeUint(0); // Gas price
+        message[2] = RLPWriter.encodeUint(executionContext.gasLimit); // Gas limit
 
         // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
         if (_to == ZERO_ADDRESS) {
-            message[3] = rlp.encodeUint(0);
+            message[3] = RLPWriter.encodeUint(0);
         } else {
-            message[3] = rlp.encodeAddress(_to);
+            message[3] = RLPWriter.encodeAddress(_to);
         }
 
-        message[4] = rlp.encodeUint(0); // Value
-        message[5] = rlp.encodeBytes(_callData); // Data
-        message[6] = rlp.encodeUint(executionContext.chainId); // ChainID
-        message[7] = rlp.encodeUint(0); // Zeros for R
-        message[8] = rlp.encodeUint(0); // Zeros for S
+        message[4] = RLPWriter.encodeUint(0); // Value
+        message[5] = RLPWriter.encodeBytes(_callData); // Data
+        message[6] = RLPWriter.encodeUint(executionContext.chainId); // ChainID
+        message[7] = RLPWriter.encodeUint(0); // Zeros for R
+        message[8] = RLPWriter.encodeUint(0); // Zeros for S
 
-        bytes memory encodedMessage = rlp.encodeList(message);
+        bytes memory encodedMessage = RLPWriter.encodeList(message);
         bytes32 hash = keccak256(abi.encodePacked(encodedMessage));
 
         /*
@@ -625,8 +622,7 @@ contract ExecutionManager is ContractResolver {
         // First we need to generate the CREATE address
         address creator = executionContext.ovmActiveContract;
         uint creatorNonce = stateManager.getOvmContractNonce(creator);
-        ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
-        address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
+        address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
 
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
@@ -689,8 +685,7 @@ contract ExecutionManager is ContractResolver {
 
         // First we need to generate the CREATE2 address
         address creator = executionContext.ovmActiveContract;
-        ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
-        address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
+        address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
 
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
@@ -1275,22 +1270,6 @@ contract ExecutionManager is ContractResolver {
         returns (SafetyChecker)
     {
         return SafetyChecker(resolveContract("SafetyChecker"));
-    }
-
-    function resolveContractAddressGenerator()
-        internal
-        view
-        returns (ContractAddressGenerator)
-    {
-        return ContractAddressGenerator(resolveContract("ContractAddressGenerator"));
-    }
-
-    function resolveRLPEncode()
-        internal
-        view
-        returns (RLPEncode)
-    {
-        return RLPEncode(resolveContract("RLPEncode"));
     }
 
     function resolveStateManager()

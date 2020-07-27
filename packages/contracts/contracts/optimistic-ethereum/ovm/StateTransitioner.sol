@@ -131,9 +131,8 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
             codeHash := extcodehash(_codeContractAddress)
         }
 
-        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
         require (
-            ethMerkleTrie.proveAccountState(
+            EthMerkleTrie.proveAccountState(
                 _ovmContractAddress,
                 DataTypes.AccountState({
                     nonce: _nonce,
@@ -187,9 +186,8 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
             "Contract must be verified before proving storage!"
         );
 
-        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
         require (
-            ethMerkleTrie.proveAccountStorageSlotValue(
+            EthMerkleTrie.proveAccountStorageSlotValue(
                 _ovmContractAddress,
                 _slot,
                 _value,
@@ -276,8 +274,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
             bytes32 storageSlotValue
         ) = stateManager.popUpdatedStorageSlot();
 
-        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
-        stateRoot = ethMerkleTrie.updateAccountStorageSlotValue(
+        stateRoot = EthMerkleTrie.updateAccountStorageSlotValue(
             storageSlotContract,
             storageSlotKey,
             storageSlotValue,
@@ -306,8 +303,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
             bytes32 codeHash
         ) = stateManager.popUpdatedContract();
 
-        EthMerkleTrie ethMerkleTrie = resolveEthMerkleTrie();
-        stateRoot = ethMerkleTrie.updateAccountState(
+        stateRoot = EthMerkleTrie.updateAccountState(
             ovmContractAddress,
             DataTypes.AccountState({
                 nonce: contractNonce,
@@ -369,13 +365,5 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         returns (ExecutionManager)
     {
         return ExecutionManager(resolveContract("ExecutionManager"));
-    }
-
-    function resolveEthMerkleTrie()
-        internal
-        view
-        returns (EthMerkleTrie)
-    {
-        return EthMerkleTrie(resolveContract("EthMerkleTrie"));
     }
 }

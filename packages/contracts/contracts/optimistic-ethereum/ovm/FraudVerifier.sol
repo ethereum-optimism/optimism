@@ -27,7 +27,6 @@ contract FraudVerifier is ContractResolver {
      */
 
     mapping (uint256 => IStateTransitioner) public stateTransitioners;
-    bool private isTest;
 
 
     /*

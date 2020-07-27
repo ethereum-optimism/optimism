@@ -67,18 +67,6 @@ export const getDefaultDeployConfig = async (
  */
 export const getLibraryDeployConfig = async (): Promise<any> => {
   return {
-    ContractAddressGenerator: {
-      factory: await ethers.getContractFactory('ContractAddressGenerator'),
-      params: [],
-    },
-    EthMerkleTrie: {
-      factory: await ethers.getContractFactory('EthMerkleTrie'),
-      params: [],
-    },
-    RLPEncode: {
-      factory: await ethers.getContractFactory('RLPEncode'),
-      params: [],
-    },
     RollupMerkleUtils: {
       factory: await ethers.getContractFactory('RollupMerkleUtils'),
       params: [],

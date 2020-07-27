@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Internal Imports */
-import { RLPEncode } from "./RLPEncode.sol";
+import { RLPWriter } from "./RLPWriter.sol";
 
 /**
  * @title ContractAddressGenerator
@@ -10,27 +10,9 @@ import { RLPEncode } from "./RLPEncode.sol";
  *         This is used in Rollup to make sure we have address parity with the
  *         Ethereum mainchain.
  */
-contract ContractAddressGenerator {
+library ContractAddressGenerator {
     /*
-     * Contract Variables
-     */
-
-    RLPEncode private rlp;
-
-
-    /*
-     * Constructor
-     */
-
-    constructor()
-        public
-    {
-        rlp = new RLPEncode();
-    }
-
-
-    /*
-     * Public Functions
+     * Internal Functions
      */
 
     /**
@@ -44,17 +26,17 @@ contract ContractAddressGenerator {
         address _origin,
         uint _nonce
     )
-        public
-        view
+        internal
+        pure
         returns (address)
     {
         // Create a list of RLP encoded parameters.
         bytes[] memory list = new bytes[](2);
-        list[0] = rlp.encodeAddress(_origin);
-        list[1] = rlp.encodeUint(_nonce);
+        list[0] = RLPWriter.encodeAddress(_origin);
+        list[1] = RLPWriter.encodeUint(_nonce);
 
         // RLP encode the list itself.
-        bytes memory encodedList = rlp.encodeList(list);
+        bytes memory encodedList = RLPWriter.encodeList(list);
 
         // Return an address from the hash of the encoded list.
         return getAddressFromHash(keccak256(encodedList));
@@ -73,7 +55,7 @@ contract ContractAddressGenerator {
         bytes32 _salt,
         bytes memory _ovmInitcode
     )
-        public
+        internal
         pure
         returns (address)
     {
@@ -90,7 +72,7 @@ contract ContractAddressGenerator {
 
 
     /*
-     * Internal Functions
+     * Private Functions
      */
 
     /**
@@ -103,7 +85,7 @@ contract ContractAddressGenerator {
     function getAddressFromHash(
         bytes32 _hash
     )
-        internal
+        private
         pure
         returns (address)
     {

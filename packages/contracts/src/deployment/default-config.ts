@@ -69,21 +69,6 @@ export const getDefaultContractDeployConfig = async (
       params: [addressResolver.address, true],
       signer: wallet,
     },
-    ContractAddressGenerator: {
-      factory: getContractFactory('ContractAddressGenerator'),
-      params: [],
-      signer: wallet,
-    },
-    EthMerkleTrie: {
-      factory: getContractFactory('EthMerkleTrie'),
-      params: [],
-      signer: wallet,
-    },
-    RLPEncode: {
-      factory: getContractFactory('RLPEncode'),
-      params: [],
-      signer: wallet,
-    },
     RollupMerkleUtils: {
       factory: getContractFactory('RollupMerkleUtils'),
       params: [],
