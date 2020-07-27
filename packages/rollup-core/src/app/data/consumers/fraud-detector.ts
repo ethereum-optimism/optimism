@@ -31,6 +31,7 @@ export class FraudDetector extends ScheduledTask {
   public async runTask(): Promise<void> {
     const verifierCandidate: VerificationCandidate = await this.dataService.getNextVerificationCandidate()
     if (!verifierCandidate) {
+      log.debug(`No verifier candidate is available, returning...`)
       return
     }
 

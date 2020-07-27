@@ -23,7 +23,8 @@ export class Environment {
         `Expected Environment variable not set. Error calling Environment.${fun.name}()`
       )
     }
-    if (logValue) {
+    const lowerName: string = fun.name.toLowerCase()
+    if (logValue && lowerName.indexOf('password') < 0 && lowerName.indexOf('private') < 0) {
       log.info(`Environment: ${fun.name} = ${res}`)
     }
     return res

@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import {getLogger, ScheduledTask} from '@eth-optimism/core-utils'
 import { BaseDB, getLevelInstance, PostgresDB } from '@eth-optimism/core-db'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 import {
@@ -38,7 +38,9 @@ const log = getLogger('service-entrypoint')
  * @returns The services being run.
  */
 export const runServices = async (): Promise<any[]> => {
+  log.info(`Running services!`)
   const services: any[] = []
+  const scheduledTasks: ScheduledTask[] = []
 
   if (Environment.runL1ChainDataPersister()) {
     log.info(`Running L1 Chain Data Persister`)
@@ -50,37 +52,41 @@ export const runServices = async (): Promise<any[]> => {
   }
   if (Environment.runGethSubmissionQueuer()) {
     log.info(`Running Geth Submission Queuer`)
-    services.push(createGethSubmissionQueuer())
+    scheduledTasks.push(await createGethSubmissionQueuer())
   }
   if (Environment.runQueuedGethSubmitter()) {
     log.info(`Running Queued Geth Submitter`)
-    services.push(createQueuedGethSubmitter())
+    scheduledTasks.push(await createQueuedGethSubmitter())
   }
   if (Environment.runCanonicalChainBatchCreator()) {
     log.info(`Running Canonical Chain Batch Creator`)
-    services.push(createCanonicalChainBatchCreator())
+    scheduledTasks.push(await createCanonicalChainBatchCreator())
   }
   if (Environment.runCanonicalChainBatchSubmitter()) {
     log.info(`Running Canonical Chain Batch Submitter`)
-    services.push(createCanonicalChainBatchSubmitter())
+    scheduledTasks.push(await createCanonicalChainBatchSubmitter())
   }
   if (Environment.runStateCommitmentChainBatchCreator()) {
     log.info(`Running State Commitment Chain Batch Creator`)
-    services.push(createStateCommitmentChainBatchCreator())
+    scheduledTasks.push(await createStateCommitmentChainBatchCreator())
   }
   if (Environment.runStateCommitmentChainBatchSubmitter()) {
     log.info(`Running State Commitment Chain Batch Submitter`)
-    services.push(createStateCommitmentChainBatchSubmitter())
+    scheduledTasks.push(await createStateCommitmentChainBatchSubmitter())
   }
   if (Environment.runFraudDetector()) {
     log.info(`Running Fraud Detector`)
-    services.push(createFraudDetector())
+    scheduledTasks.push(await createFraudDetector())
   }
 
-  if (!services) {
+  services.push(...scheduledTasks)
+
+  if (!services.length) {
     log.error(`No services configured! Exiting =|`)
     process.exit(1)
   }
+
+  await Promise.all(scheduledTasks.map(x => x.start()))
 
   setInterval(() => {
     updateEnvironmentVariables()

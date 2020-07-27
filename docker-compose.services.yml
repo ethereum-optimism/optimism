@@ -11,12 +11,14 @@ services:
       context: .
       dockerfile: Dockerfile.services
     environment:
+# Logging
+      - DEBUG=info*,error*,warn*,debug*     # The comma-separated logging patterns to match (common options are `error*`, `info*`, `warn*`, and `debug*`)
 # Postgres
-      - POSTGRES_HOST=posgres               # (Required) The host DNS entry / IP for the postgres DB
-      - POSTGRES_PORT                       # The port for postgres (defaults to 5432)
+      - POSTGRES_HOST=postgres              # (Required) The host DNS entry / IP for the postgres DB
+      - POSTGRES_PORT=5432                  # (Required) Should almost always be 5432
       - POSTGRES_USER=test                  # (Required) The user to use to connect to the db
       - POSTGRES_PASSWORD=test              # (Required) The password to use to connect to the db
-      - POSTGRES_DATABASE                   # The database name to connect to (defaults to `rollup`)
+      - POSTGRES_DATABASE=rollup            # (Required) The database name to connect to (should be `rollup`)
       - POSTGRES_CONNECTION_POOL_SIZE       # The connection pool size for postgres (defaults to 20)
       - POSTGRES_USE_SSL                    # Set to anything to indicate that SSL should be used in the connection
 # L1 Node
