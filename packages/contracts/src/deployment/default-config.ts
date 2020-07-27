@@ -66,7 +66,7 @@ export const getDefaultContractDeployConfig = async (
     },
     FraudVerifier: {
       factory: getContractFactory('FraudVerifier'),
-      params: [addressResolver.address, true],
+      params: [addressResolver.address],
       signer: wallet,
     },
     RollupMerkleUtils: {
