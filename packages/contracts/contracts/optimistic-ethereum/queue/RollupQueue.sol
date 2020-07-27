@@ -27,6 +27,10 @@ contract RollupQueue {
     * Public Functions
     */
 
+    /**
+     * Gets the total number of batches.
+     * @return Total submitted batches.
+     */
     function getBatchHeadersLength()
         public
         view
@@ -35,6 +39,10 @@ contract RollupQueue {
         return batchHeaders.length;
     }
 
+    /**
+     * Checks if the queue is empty.
+     * @return Whether or not the queue is empty.
+     */
     function isEmpty()
         public
         view
@@ -43,6 +51,10 @@ contract RollupQueue {
         return front >= batchHeaders.length;
     }
 
+    /**
+     * Peeks the front element on the queue.
+     * @return Front queue element.
+     */
     function peek()
         public
         view
@@ -52,6 +64,10 @@ contract RollupQueue {
         return batchHeaders[front];
     }
 
+    /**
+     * Peeks the timestamp of the front element on the queue.
+     * @return Front queue element timestamp.
+     */
     function peekTimestamp()
         public
         view
@@ -61,6 +77,11 @@ contract RollupQueue {
         return frontBatch.timestamp;
     }
 
+    /**
+     * Checks whether a sender is allowed to enqueue.
+     * @param _sender Sender address to check.
+     * @return Whether or not the sender can enqueue.
+     */
     function authenticateEnqueue(
         address _sender
     )
@@ -71,6 +92,11 @@ contract RollupQueue {
         return true;
     }
 
+    /**
+     * Checks whether a sender is allowed to dequeue.
+     * @param _sender Sender address to check.
+     * @return Whether or not the sender can dequeue.
+     */
     function authenticateDequeue(
         address _sender
     )
@@ -81,6 +107,10 @@ contract RollupQueue {
         return true;
     }
 
+    /**
+     * Checks if this is a calldata transaction queue.
+     * @return Whether or not this is a calldata tx queue.
+     */
     function isCalldataTxQueue()
         public
         returns (bool)
@@ -88,6 +118,10 @@ contract RollupQueue {
         return true;
     }
 
+    /**
+     * Attempts to enqueue a transaction.
+     * @param _tx Transaction data to enqueue.
+     */
     function enqueueTx(
         bytes memory _tx
     )
@@ -113,6 +147,9 @@ contract RollupQueue {
         }
     }
 
+    /**
+     * Attempts to dequeue a transaction.
+     */
     function dequeue()
         public
     {

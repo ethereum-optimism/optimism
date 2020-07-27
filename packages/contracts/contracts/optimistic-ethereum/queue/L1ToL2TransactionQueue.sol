@@ -23,6 +23,10 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
      * Constructor
      */
 
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     * @param _l1ToL2TransactionPasser Address of the L1-L2 transaction passer.
+     */
     constructor(
         address _addressResolver,
         address _l1ToL2TransactionPasser
@@ -38,6 +42,11 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
      * Public Functions
      */
 
+    /**
+     * Checks whether a sender is allowed to enqueue.
+     * @param _sender Sender address to check.
+     * @return Whether or not the sender can enqueue.
+     */
     function authenticateEnqueue(
         address _sender
     )
@@ -48,6 +57,11 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         return _sender == l1ToL2TransactionPasser;
     }
 
+    /**
+     * Checks whether a sender is allowed to dequeue.
+     * @param _sender Sender address to check.
+     * @return Whether or not the sender can dequeue.
+     */
     function authenticateDequeue(
         address _sender
     )
@@ -58,6 +72,10 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         return _sender == address(resolveCanonicalTransactionChain());
     }
 
+    /**
+     * Checks whether this is a calldata transaction queue.
+     * @return Whether or not this is a calldata tx queue.
+     */
     function isCalldataTxQueue()
         public
         returns (bool)
