@@ -4,6 +4,7 @@ import {
   BigNumber,
   getLogger,
   getTxSigner,
+  INVALID_ADDRESS,
   logError,
   remove0x,
 } from '@eth-optimism/core-utils'
@@ -27,20 +28,11 @@ import { CHAIN_ID } from '../../constants'
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger('log-handler')
 
-/**
- * Gets an array of all of the Rollup Log Handler functions.
- *
- * @returns The array of log handler functions.
- */
-export const getAllHandlers = (): LogHandler[] => {
-  return [
-    L1ToL2TxEnqueuedLogHandler,
-    L1ToL2BatchAppendedLogHandler,
-    CalldataTxEnqueuedLogHandler,
-    SafetyQueueBatchAppendedLogHandler,
-    SequencerBatchAppendedLogHandler,
-    StateBatchAppendedLogHandler,
-  ]
+const defaultTransaction: Partial<RollupTransaction> = {
+  sender: INVALID_ADDRESS,
+  target: INVALID_ADDRESS,
+  gasLimit: 1,
+  calldata: '0x',
 }
 
 /**
@@ -69,29 +61,29 @@ export const L1ToL2TxEnqueuedLogHandler = async (
 
   const data: string = remove0x(l.data)
 
-  let rollupTransaction: RollupTransaction
+  const rollupTransaction: any = { ...defaultTransaction }
   try {
-    rollupTransaction = {
-      l1BlockNumber: tx.blockNumber,
-      l1Timestamp: tx.timestamp,
-      l1TxHash: l.transactionHash,
-      l1TxIndex: l.transactionIndex,
-      l1TxLogIndex: l.transactionLogIndex,
-      queueOrigin: QueueOrigin.L1_TO_L2_QUEUE,
-      indexWithinSubmission: 0,
-      sender: l.address,
-      l1MessageSender: add0x(data.substr(0, 40)),
-      target: add0x(data.substr(40, 40)),
-      // TODO: Change gasLimit to a BigNumber so it can support 256 bits
-      gasLimit: new BigNumber(data.substr(80, 64), 'hex').toNumber(),
-      calldata: add0x(data.substr(144)),
-    }
+    rollupTransaction.l1BlockNumber = tx.blockNumber
+    rollupTransaction.l1Timestamp = tx.timestamp
+    rollupTransaction.l1TxHash = l.transactionHash
+    rollupTransaction.l1TxIndex = l.transactionIndex
+    rollupTransaction.l1TxLogIndex = l.transactionLogIndex
+    rollupTransaction.queueOrigin = QueueOrigin.L1_TO_L2_QUEUE
+    rollupTransaction.indexWithinSubmission = 0
+    rollupTransaction.sender = l.address
+    rollupTransaction.l1MessageSender = add0x(data.substr(0, 40))
+    rollupTransaction.target = add0x(data.substr(40, 40))
+    // TODO: Change gasLimit to a BigNumber so it can support 256 bits
+    rollupTransaction.gasLimit = new BigNumber(
+      data.substr(80, 64),
+      'hex'
+    ).toNumber()
+    rollupTransaction.calldata = add0x(data.substr(144))
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
     log.debug(
       `Error parsing calldata tx from CalldataTxEnqueued event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
     )
-    return
   }
 
   await ds.insertL1RollupTransactions(l.transactionHash, [rollupTransaction])
@@ -122,7 +114,7 @@ export const CalldataTxEnqueuedLogHandler = async (
     `CalldataTxEnqueued event received at block ${tx.blockNumber}, tx ${l.transactionIndex}, log: ${l.transactionLogIndex}. TxHash: ${tx.hash}. Calldata: ${tx.data}`
   )
 
-  let rollupTransaction: RollupTransaction
+  const rollupTransaction: any = { ...defaultTransaction }
   try {
     // Skip the 4 bytes of MethodID
     const l1TxCalldata = remove0x(ethers.utils.hexDataSlice(tx.data, 4))
@@ -148,29 +140,26 @@ export const CalldataTxEnqueuedLogHandler = async (
     const v = parseInt(signature.substr(130, 2), 16)
     const sender: string = await getTxSigner(unsigned, r, s, v)
 
-    rollupTransaction = {
-      l1BlockNumber: tx.blockNumber,
-      l1Timestamp: tx.timestamp,
-      l1TxHash: l.transactionHash,
-      l1TxIndex: l.transactionIndex,
-      l1TxLogIndex: l.transactionLogIndex,
-      queueOrigin: QueueOrigin.SAFETY_QUEUE,
-      indexWithinSubmission: 0,
-      sender,
-      target,
-      // TODO Change nonce to a BigNumber so it can support 256 bits
-      nonce: nonce.toNumber(),
-      // TODO: Change gasLimit to a BigNumber so it can support 256 bits
-      gasLimit: gasLimit.toNumber(),
-      signature,
-      calldata,
-    }
+    rollupTransaction.l1BlockNumber = tx.blockNumber
+    rollupTransaction.l1Timestamp = tx.timestamp
+    rollupTransaction.l1TxHash = l.transactionHash
+    rollupTransaction.l1TxIndex = l.transactionIndex
+    rollupTransaction.l1TxLogIndex = l.transactionLogIndex
+    rollupTransaction.queueOrigin = QueueOrigin.SAFETY_QUEUE
+    rollupTransaction.indexWithinSubmission = 0
+    rollupTransaction.sender = sender
+    rollupTransaction.target = target
+    // TODO Change nonce to a BigNumber so it can support 256 bits
+    rollupTransaction.nonce = nonce.toNumber()
+    // TODO= Change gasLimit to a BigNumber so it can support 256 bits
+    rollupTransaction.gasLimit = gasLimit.toNumber()
+    rollupTransaction.signature = signature
+    rollupTransaction.calldata = calldata
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
     log.debug(
       `Error parsing calldata tx from CalldataTxEnqueued event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
     )
-    return
   }
 
   await ds.insertL1RollupTransactions(l.transactionHash, [rollupTransaction])

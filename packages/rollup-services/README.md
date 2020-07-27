@@ -6,7 +6,7 @@ Contains executable scripts for the various rollup microservices contained in [r
 All microservice configuration, including _which_ microservices get started, is done via environment variables.
 
 ### Which Microservices to Run
-Below is a list of environment variables to set _to something_ in order to run the associated microservices:
+Below is a list of environment variables to set _to anything_ in order to run the associated microservices:
 * L1 Chain Data Persister: `RUN_L1_CHAIN_DATA_PERSISTER=1`
 * L2 Chain Data Persister: `RUN_L2_CHAIN_DATA_PERSISTER=1`
 * Geth Submission Queuer: `RUN_GETH_SUBMISSION_QUEUER=1`
