@@ -46,7 +46,10 @@ contract FullStateManager is StateManager {
     function getStorage(
         address _ovmContractAddress,
         bytes32 _slot
-    ) public returns (bytes32) {
+    )
+        public
+        returns (bytes32)
+    {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
@@ -59,7 +62,11 @@ contract FullStateManager is StateManager {
     function getStorageView(
         address _ovmContractAddress,
         bytes32 _slot
-    ) public view returns (bytes32) {
+    )
+        public
+        view
+        returns (bytes32)
+    {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
@@ -73,7 +80,9 @@ contract FullStateManager is StateManager {
         address _ovmContractAddress,
         bytes32 _slot,
         bytes32 _value
-    ) public {
+    )
+        public
+    {
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
@@ -89,7 +98,10 @@ contract FullStateManager is StateManager {
      */
     function getOvmContractNonce(
         address _ovmContractAddress
-    ) public returns (uint) {
+    )
+        public
+        returns (uint)
+    {
         return ovmContractNonces[_ovmContractAddress];
     }
 
@@ -100,7 +112,11 @@ contract FullStateManager is StateManager {
      */
     function getOvmContractNonceView(
         address _ovmContractAddress
-    ) public view returns (uint) {
+    )
+        public
+        view
+        returns (uint)
+    {
         return ovmContractNonces[_ovmContractAddress];
     }
 
@@ -112,7 +128,9 @@ contract FullStateManager is StateManager {
     function setOvmContractNonce(
         address _ovmContractAddress,
         uint _value
-    ) public {
+    )
+        public
+    {
         ovmContractNonces[_ovmContractAddress] = _value;
     }
 
@@ -122,7 +140,9 @@ contract FullStateManager is StateManager {
      */
     function incrementOvmContractNonce(
         address _ovmContractAddress
-    ) public {
+    )
+        public
+    {
         ovmContractNonces[_ovmContractAddress] += 1;
     }
 
@@ -140,7 +160,9 @@ contract FullStateManager is StateManager {
     function associateCodeContract(
         address _ovmContractAddress,
         address _codeContractAddress
-    ) public {
+    )
+        public
+    {
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
         codeContractAddressToOvmAddress[_codeContractAddress] = _ovmContractAddress;
     }
@@ -151,7 +173,9 @@ contract FullStateManager is StateManager {
      */
     function associateCreatedContract(
         address _ovmContractAddress
-    ) public {
+    )
+        public
+    {
         return;
     }
 
@@ -162,7 +186,11 @@ contract FullStateManager is StateManager {
      */
     function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
-    ) public view returns (address) {
+    )
+        public
+        view
+        returns (address)
+    {
         return ovmAddressToCodeContractAddress[_ovmContractAddress];
     }
 
@@ -173,7 +201,11 @@ contract FullStateManager is StateManager {
      */
     function getOvmAddressFromCodeContractAddress(
         address _codeContractAddress
-    ) public view returns (address) {
+    )
+        public
+        view
+        returns (address)
+    {
         return codeContractAddressToOvmAddress[_codeContractAddress];
     }
 
@@ -185,7 +217,11 @@ contract FullStateManager is StateManager {
      */
     function getCodeContractBytecode(
         address _codeContractAddress
-    ) public view returns (bytes memory codeContractBytecode) {
+    )
+        public
+        view
+        returns (bytes memory codeContractBytecode)
+    {
         assembly {
             // retrieve the size of the code
             let size := extcodesize(_codeContractAddress)
@@ -208,7 +244,11 @@ contract FullStateManager is StateManager {
      */
     function getCodeContractHash(
         address _codeContractAddress
-    ) public view returns (bytes32 _codeContractHash) {
+    )
+        public
+        view
+        returns (bytes32 _codeContractHash)
+    {
         // TODO: Look up cached hash values eventually to avoid having to load all of this bytecode
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);

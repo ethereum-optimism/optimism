@@ -9,6 +9,16 @@ import { DataTypes } from "../utils/libraries/DataTypes.sol";
  */
 contract L2ToL1MessageReceiver {
     /*
+     * Structs
+     */
+
+    struct EnqueuedL2ToL1Message {
+        DataTypes.L2ToL1Message message;
+        uint l1BlockEnqueued;
+    }
+
+
+    /*
      * Events
      */
 
@@ -17,16 +27,6 @@ contract L2ToL1MessageReceiver {
         bytes callData,
         uint nonce
     );
-
-
-    /*
-     * Structs
-     */
-
-    struct EnqueuedL2ToL1Message {
-        DataTypes.L2ToL1Message message;
-        uint l1BlockEnqueued;
-    }
 
 
     /*
@@ -47,7 +47,12 @@ contract L2ToL1MessageReceiver {
      * @param _sequencer Current sequencer address.
      * @param _blocksUntilFinal Blocks until transactions are considered final.
      */
-    constructor(address _sequencer, uint _blocksUntilFinal) public {
+    constructor(
+        address _sequencer,
+        uint _blocksUntilFinal
+    )
+        public
+    {
         sequencer = _sequencer;
         blocksUntilFinal = _blocksUntilFinal;
     }
@@ -63,7 +68,9 @@ contract L2ToL1MessageReceiver {
      */
     function enqueueL2ToL1Message(
         DataTypes.L2ToL1Message memory _message
-    ) public {
+    )
+        public
+    {
         require(
             msg.sender == sequencer,
             "For now, only our trusted sequencer can enqueue messages."
@@ -95,7 +102,11 @@ contract L2ToL1MessageReceiver {
     function verifyL2ToL1Message(
         DataTypes.L2ToL1Message memory _message,
         uint _nonce
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         // The enqueued message for the given nonce must match the _message
         // being verified.
         bytes32 givenMessageHash = getMessageHash(_message);
@@ -122,7 +133,11 @@ contract L2ToL1MessageReceiver {
      */
     function getMessageHash(
         DataTypes.L2ToL1Message memory _message
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(_message));
     }
 }

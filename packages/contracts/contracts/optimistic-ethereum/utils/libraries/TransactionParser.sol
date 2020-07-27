@@ -20,7 +20,11 @@ library TransactionParser {
      */
     function getTransactionHash(
         DataTypes.OVMTransactionData memory _transaction
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         bytes memory encodedTransaction = encodeTransactionData(_transaction);
         return keccak256(encodedTransaction);
     }
@@ -36,7 +40,11 @@ library TransactionParser {
      */
     function encodeTransactionData(
         DataTypes.OVMTransactionData memory _transactionData
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes[] memory raw = new bytes[](7);
 
         raw[0] = RLPWriter.encodeUint(_transactionData.timestamp);

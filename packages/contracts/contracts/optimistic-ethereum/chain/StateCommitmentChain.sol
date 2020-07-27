@@ -15,18 +15,18 @@ import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
  */
 contract StateCommitmentChain is ContractResolver {
     /*
+     * Events
+     */
+
+    event StateBatchAppended(bytes32 _batchHeaderHash);
+
+
+    /*
     * Contract Variables
     */
 
     uint public cumulativeNumElements;
     bytes32[] public batches;
-
-
-    /*
-     * Events
-     */
-
-    event StateBatchAppended(bytes32 _batchHeaderHash);
 
 
     /*
@@ -36,7 +36,12 @@ contract StateCommitmentChain is ContractResolver {
     /**
      * @param _addressResolver Address of the AddressResolver contract.
      */
-    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
+    constructor(
+        address _addressResolver
+    )
+        public
+        ContractResolver(_addressResolver)
+    {}
 
 
     /*
@@ -46,7 +51,11 @@ contract StateCommitmentChain is ContractResolver {
     /**
      * @return Total number of published state batches.
      */
-    function getBatchesLength() public view returns (uint) {
+    function getBatchesLength()
+        public
+        view
+        returns (uint)
+    {
         return batches.length;
     }
 
@@ -57,7 +66,11 @@ contract StateCommitmentChain is ContractResolver {
      */
     function hashBatchHeader(
         DataTypes.StateChainBatchHeader memory _batchHeader
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(
             _batchHeader.elementsMerkleRoot,
             _batchHeader.numElementsInBatch,
@@ -71,7 +84,9 @@ contract StateCommitmentChain is ContractResolver {
      */
     function appendStateBatch(
         bytes[] memory _stateBatch
-    ) public {
+    )
+        public
+    {
         CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
         RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
 
@@ -106,7 +121,11 @@ contract StateCommitmentChain is ContractResolver {
         bytes memory _element,
         uint _position,
         DataTypes.StateElementInclusionProof memory _inclusionProof
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         DataTypes.StateChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;
         if (_position != _inclusionProof.indexInBatch +
             batchHeader.cumulativePrevElements) {
@@ -136,7 +155,9 @@ contract StateCommitmentChain is ContractResolver {
     function deleteAfterInclusive(
         uint _batchIndex,
         DataTypes.StateChainBatchHeader memory _batchHeader
-    ) public {
+    )
+        public
+    {
         FraudVerifier fraudVerifier = resolveFraudVerifier();
 
         require(
@@ -164,15 +185,27 @@ contract StateCommitmentChain is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+    function resolveCanonicalTransactionChain()
+        internal
+        view
+        returns (CanonicalTransactionChain)
+    {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
     }
 
-    function resolveFraudVerifier() internal view returns (FraudVerifier) {
+    function resolveFraudVerifier()
+        internal
+        view
+        returns (FraudVerifier)
+    {
         return FraudVerifier(resolveContract("FraudVerifier"));
     }
 
-    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+    function resolveRollupMerkleUtils()
+        internal
+        view
+        returns (RollupMerkleUtils)
+    {
         return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

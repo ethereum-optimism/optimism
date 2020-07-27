@@ -39,7 +39,6 @@ contract StubStateTransitioner is IStateTransitioner, ContractResolver {
     bytes32 public preStateRoot;
     bytes32 public stateRoot;
     bytes32 public ovmTransactionHash;
-
     FraudVerifier public fraudVerifier;
 
 
@@ -52,7 +51,10 @@ contract StubStateTransitioner is IStateTransitioner, ContractResolver {
         uint256 _transitionIndex,
         bytes32 _preStateRoot,
         bytes32 _ovmTransactionHash
-    ) public ContractResolver(_addressResolver) {
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
@@ -62,12 +64,19 @@ contract StubStateTransitioner is IStateTransitioner, ContractResolver {
         fraudVerifier = FraudVerifier(msg.sender);
     }
 
+
+    /*
+     * Public Functions
+     */
+
     function proveContractInclusion(
         address _ovmContractAddress,
         address _codeContractAddress,
         uint256 _nonce,
         bytes memory _stateTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
@@ -77,38 +86,56 @@ contract StubStateTransitioner is IStateTransitioner, ContractResolver {
         bytes32 _value,
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     function applyTransaction(
         DataTypes.OVMTransactionData memory _transactionData
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     function proveUpdatedStorageSlot(
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     function proveUpdatedContract(
         bytes memory _stateTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
-    function completeTransition() public {
+    function completeTransition()
+        public
+    {
         currentTransitionPhase = TransitionPhases.Complete;
     }
 
-    function isComplete() public view returns (bool) {
+    function isComplete()
+        public
+        view
+        returns (bool)
+    {
         return (currentTransitionPhase == TransitionPhases.Complete);
     }
 
-    function setStateRoot(bytes32 _stateRoot) public {
+    function setStateRoot(
+        bytes32 _stateRoot
+    )
+        public
+    {
         stateRoot = _stateRoot;
     }
 }

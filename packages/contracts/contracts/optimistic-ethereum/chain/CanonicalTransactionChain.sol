@@ -15,6 +15,15 @@ import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
  */
 contract CanonicalTransactionChain is ContractResolver {
     /*
+     * Events
+     */
+
+    event L1ToL2BatchAppended( bytes32 _batchHeaderHash);
+    event SafetyQueueBatchAppended( bytes32 _batchHeaderHash);
+    event SequencerBatchAppended(bytes32 _batchHeaderHash);
+
+
+    /*
      * Contract Variables
      */
 
@@ -23,15 +32,6 @@ contract CanonicalTransactionChain is ContractResolver {
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
-
-
-    /*
-     * Events
-     */
-
-    event L1ToL2BatchAppended( bytes32 _batchHeaderHash);
-    event SafetyQueueBatchAppended( bytes32 _batchHeaderHash);
-    event SequencerBatchAppended(bytes32 _batchHeaderHash);
 
 
     /*
@@ -66,7 +66,11 @@ contract CanonicalTransactionChain is ContractResolver {
     /**
      * @return Total number of published transaction batches.
      */
-    function getBatchesLength() public view returns (uint) {
+    function getBatchesLength()
+        public
+        view
+        returns (uint)
+    {
        return batches.length;
     }
 
@@ -77,7 +81,11 @@ contract CanonicalTransactionChain is ContractResolver {
      */
     function hashBatchHeader(
         DataTypes.TxChainBatchHeader memory _batchHeader
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(
             _batchHeader.timestamp,
             _batchHeader.isL1ToL2Tx,
@@ -94,14 +102,20 @@ contract CanonicalTransactionChain is ContractResolver {
      */
     function authenticateAppend(
         address _sender
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         return _sender == sequencer;
     }
 
     /**
      * Attempts to append a transaction batch from pending L1 transactions.
      */
-    function appendL1ToL2Batch() public {
+    function appendL1ToL2Batch()
+        public
+    {
         L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
 
@@ -119,7 +133,9 @@ contract CanonicalTransactionChain is ContractResolver {
     /**
      * Attempts to append a transaction batch from the safety queue.
      */
-    function appendSafetyBatch() public {
+    function appendSafetyBatch()
+        public
+    {
         L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
 
@@ -142,7 +158,9 @@ contract CanonicalTransactionChain is ContractResolver {
     function appendSequencerBatch(
         bytes[] memory _txBatch,
         uint _timestamp
-    ) public {
+    )
+        public
+    {
         L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
 
@@ -208,7 +226,11 @@ contract CanonicalTransactionChain is ContractResolver {
         bytes memory _element,
         uint _position,
         DataTypes.TxElementInclusionProof memory _inclusionProof
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         // For convenience, store the batchHeader
         DataTypes.TxChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;
 
@@ -246,7 +268,9 @@ contract CanonicalTransactionChain is ContractResolver {
     function _appendQueueBatch(
         DataTypes.TimestampedHash memory _timestampedHash,
         bool _isL1ToL2Tx
-    ) internal {
+    )
+        internal
+    {
         uint timestamp = _timestampedHash.timestamp;
 
         require(
@@ -281,15 +305,27 @@ contract CanonicalTransactionChain is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveL1ToL2TransactionQueue() internal view returns (L1ToL2TransactionQueue) {
+    function resolveL1ToL2TransactionQueue()
+        internal
+        view
+        returns (L1ToL2TransactionQueue)
+    {
         return L1ToL2TransactionQueue(resolveContract("L1ToL2TransactionQueue"));
     }
 
-    function resolveSafetyTransactionQueue() internal view returns (SafetyTransactionQueue) {
+    function resolveSafetyTransactionQueue()
+        internal
+        view
+        returns (SafetyTransactionQueue)
+    {
         return SafetyTransactionQueue(resolveContract("SafetyTransactionQueue"));
     }
 
-    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+    function resolveRollupMerkleUtils()
+        internal
+        view
+        returns (RollupMerkleUtils)
+    {
         return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

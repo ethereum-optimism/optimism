@@ -69,7 +69,10 @@ contract SequencerBatchSubmitter is ContractResolver {
         bytes[] memory _txBatch,
         uint _txBatchTimestamp,
         bytes[] memory _stateBatch
-    ) public onlySequencer {
+    )
+        public
+        onlySequencer
+    {
         require(
             _stateBatch.length == _txBatch.length,
             "Must append the same number of state roots and transactions"
@@ -87,11 +90,19 @@ contract SequencerBatchSubmitter is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+    function resolveCanonicalTransactionChain()
+        internal
+        view
+        returns (CanonicalTransactionChain)
+    {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
     }
 
-    function resolveStateCommitmentChain() internal view returns (StateCommitmentChain) {
+    function resolveStateCommitmentChain()
+        internal
+        view
+        returns (StateCommitmentChain)
+    {
         return StateCommitmentChain(resolveContract("StateCommitmentChain"));
     }
 }

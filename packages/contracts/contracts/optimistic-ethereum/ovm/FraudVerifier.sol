@@ -29,6 +29,7 @@ contract FraudVerifier is ContractResolver {
     mapping (uint256 => IStateTransitioner) public stateTransitioners;
     bool private isTest;
 
+
     /*
      * Constructor
      */
@@ -40,7 +41,10 @@ contract FraudVerifier is ContractResolver {
     constructor(
         address _addressResolver,
         bool _isTest
-    ) public ContractResolver(_addressResolver) {
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         isTest = _isTest;
     }
 
@@ -72,7 +76,9 @@ contract FraudVerifier is ContractResolver {
         DataTypes.StateElementInclusionProof memory _preStateRootProof,
         DataTypes.OVMTransactionData memory _transactionData,
         DataTypes.TxElementInclusionProof memory _transactionProof
-    ) public {
+    )
+        public
+    {
         // For user convenience; no point in carrying out extra work here if a
         // StateTransitioner instance already exists for the given state
         // transition index. Return early to save the user some gas.
@@ -141,7 +147,9 @@ contract FraudVerifier is ContractResolver {
         DataTypes.StateElementInclusionProof memory _preStateRootProof,
         bytes32 _postStateRoot,
         DataTypes.StateElementInclusionProof memory _postStateRootProof
-    ) public {
+    )
+        public
+    {
         IStateTransitioner stateTransitioner = stateTransitioners[_preStateTransitionIndex];
 
         // Fraud cannot be verified until the StateTransitioner has fully
@@ -216,7 +224,11 @@ contract FraudVerifier is ContractResolver {
     function hasStateTransitioner(
         uint256 _stateTransitionIndex,
         bytes32 _preStateRoot
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         IStateTransitioner stateTransitioner = stateTransitioners[_stateTransitionIndex];
 
         return (
@@ -247,7 +259,11 @@ contract FraudVerifier is ContractResolver {
         bytes32 _stateRoot,
         uint256 _stateRootIndex,
         DataTypes.StateElementInclusionProof memory _stateRootProof
-    ) internal view returns (bool) {
+    )
+        internal
+        view
+        returns (bool)
+    {
         StateCommitmentChain stateCommitmentChain = resolveStateCommitmentChain();
         return stateCommitmentChain.verifyElement(
             abi.encodePacked(_stateRoot),
@@ -272,7 +288,11 @@ contract FraudVerifier is ContractResolver {
         DataTypes.OVMTransactionData memory _transaction,
         uint256 _transactionIndex,
         DataTypes.TxElementInclusionProof memory _transactionProof
-    ) internal view returns (bool) {
+    )
+        internal
+        view
+        returns (bool)
+    {
         CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
         return canonicalTransactionChain.verifyElement(
             TransactionParser.encodeTransactionData(_transaction),
@@ -286,11 +306,19 @@ contract FraudVerifier is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+    function resolveCanonicalTransactionChain()
+        internal
+        view
+        returns (CanonicalTransactionChain)
+    {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
     }
 
-    function resolveStateCommitmentChain() internal view returns (StateCommitmentChain) {
+    function resolveStateCommitmentChain()
+        internal
+        view
+        returns (StateCommitmentChain)
+    {
         return StateCommitmentChain(resolveContract("StateCommitmentChain"));
     }
 }

@@ -1,15 +1,40 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
-import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+/* Contract Imports */
 import { CanonicalTransactionChain } from "../chain/CanonicalTransactionChain.sol";
 import { RollupQueue } from "./RollupQueue.sol";
 
-contract SafetyTransactionQueue is ContractResolver, RollupQueue {
-    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
-    function authenticateDequeue(address _sender) public view returns (bool) {
+/**
+ * @title SafetyTransactionQueue
+ */
+contract SafetyTransactionQueue is ContractResolver, RollupQueue {
+    /*
+     * Constructor
+     */
+
+    constructor(
+        address _addressResolver
+    )
+        public
+        ContractResolver(_addressResolver)
+    {}
+
+
+    /*
+     * Public Functions
+     */
+
+    function authenticateDequeue(
+        address _sender
+    )
+        public
+        view
+        returns (bool)
+    {
         return _sender == address(resolveCanonicalTransactionChain());
     }
 
@@ -18,7 +43,11 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
      * Contract Resolution
      */
 
-    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+    function resolveCanonicalTransactionChain()
+        internal
+        view
+        returns (CanonicalTransactionChain)
+    {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
     }
 }

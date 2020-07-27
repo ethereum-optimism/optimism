@@ -36,7 +36,9 @@ contract L1ToL2TransactionPasser {
     function passTransactionToL2(
         address _ovmEntrypoint,
         bytes memory _ovmCalldata
-    ) public {
+    )
+        public
+    {
         // TODO: Actually create/enqueue a rollup block with this message.
         // We are simply mocking this functionality for now.
 

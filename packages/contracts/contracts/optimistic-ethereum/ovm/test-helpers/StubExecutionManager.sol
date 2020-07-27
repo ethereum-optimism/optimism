@@ -1,13 +1,35 @@
 pragma solidity ^0.5.0;
 
+/* Contract Imports */
 import { PartialStateManager } from "../PartialStateManager.sol";
 
+/**
+ * @title StubExecutionManager
+ */
 contract StubExecutionManager {
+    /*
+     * Contract Variables
+     */
+
     PartialStateManager private stateManager;
 
-    function setStateManager(address _stateManagerAddress) external {
+
+    /*
+     * External Functions
+     */
+
+    function setStateManager(
+        address _stateManagerAddress
+    )
+        external
+    {
         stateManager = PartialStateManager(_stateManagerAddress);
     }
+
+
+    /*
+     * Public Functions
+     */
 
     function executeTransaction(
         uint _timestamp,
@@ -17,7 +39,9 @@ contract StubExecutionManager {
         address _fromAddress,
         address _l1MsgSenderAddress,
         bool _allowRevert
-    ) public {
+    )
+        public
+    {
         // Just call the state manager to store values a couple times
         stateManager.setStorage(
             0x1111111111111111111111111111111111111111,

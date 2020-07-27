@@ -24,28 +24,6 @@ import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
  */
 contract ExecutionManager is ContractResolver {
     /*
-     * Contract Constants
-     */
-
-    address constant private ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-
-    // Bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
-    bytes32 constant private METHOD_ID_OVM_CALL = keccak256("ovmCALL()") >> 224;
-    bytes32 constant private METHOD_ID_OVM_CREATE = keccak256("ovmCREATE()") >> 224;
-
-    // Precompile addresses
-    address constant private L2_L2_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
-    address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
-
-
-    /*
-     * Contract Variables
-     */
-
-    DataTypes.ExecutionContext executionContext;
-
-
-    /*
      * Events
      */
 
@@ -72,6 +50,28 @@ contract ExecutionManager is ContractResolver {
     event EOACallRevert(
         bytes _revertMessage
     );
+
+
+    /*
+     * Contract Constants
+     */
+
+    address constant private ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+
+    // Bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
+    bytes32 constant private METHOD_ID_OVM_CALL = keccak256("ovmCALL()") >> 224;
+    bytes32 constant private METHOD_ID_OVM_CREATE = keccak256("ovmCREATE()") >> 224;
+
+    // Precompile addresses
+    address constant private L2_L2_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
+    address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
+
+
+    /*
+     * Contract Variables
+     */
+
+    DataTypes.ExecutionContext executionContext;
 
 
     /*
@@ -123,7 +123,11 @@ contract ExecutionManager is ContractResolver {
      * different execution.
      * @param _stateManagerAddress Address of the new StateManager.
      */
-    function setStateManager(address _stateManagerAddress) public {
+    function setStateManager(
+        address _stateManagerAddress
+    )
+        public
+    {
         addressResolver.setAddress("StateManager", _stateManagerAddress);
     }
 
@@ -132,7 +136,11 @@ contract ExecutionManager is ContractResolver {
      * sequencer to correct nonces when transactions fail.
      * @param _addr The address of the nonce to increment.
      */
-    function incrementNonce(address _addr) public {
+    function incrementNonce(
+        address _addr
+    )
+        public
+    {
         StateManager stateManager = resolveStateManager();
         stateManager.incrementOvmContractNonce(_addr);
     }
@@ -164,7 +172,9 @@ contract ExecutionManager is ContractResolver {
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) public {
+    )
+        public
+    {
         StateManager stateManager = resolveStateManager();
 
         // Get EOA address
@@ -211,7 +221,9 @@ contract ExecutionManager is ContractResolver {
         address _fromAddress,
         address _l1MsgSenderAddress,
         bool _allowRevert
-    ) public {
+    )
+        public
+    {
         StateManager stateManager = resolveStateManager();
 
         require(_timestamp > 0, "Timestamp must be greater than 0");
@@ -311,7 +323,11 @@ contract ExecutionManager is ContractResolver {
         uint8 _v,
         bytes32 _r,
         bytes32 _s
-    ) public view returns (address) {
+    )
+        public
+        view
+        returns (address)
+    {
         RLPEncode rlp = resolveRLPEncode();
 
         bytes[] memory message = new bytes[](9);
@@ -360,7 +376,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: 32-byte CALLER address containing the left-padded, big-endian encoding of the address.
      */
-    function ovmCALLER() public view {
+    function ovmCALLER()
+        public
+        view
+    {
         // First make sure the ovmMsgSender was set
         require(
             executionContext.ovmMsgSender != ZERO_ADDRESS,
@@ -387,7 +406,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: 32-byte ADDRESS containing the left-padded, big-endian encoding of the address.
      */
-    function ovmADDRESS() public view {
+    function ovmADDRESS()
+        public
+        view
+    {
         // First make sure the ovmMsgSender was set
         require(
             executionContext.ovmActiveContract != ZERO_ADDRESS,
@@ -413,7 +435,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the current timestamp.
      */
-    function ovmTIMESTAMP() public view {
+    function ovmTIMESTAMP()
+        public
+        view
+    {
         uint t = executionContext.timestamp;
 
         assembly {
@@ -432,7 +457,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the current timestamp.
      */
-    function ovmCHAINID() public view {
+    function ovmCHAINID()
+        public
+        view
+    {
         uint chainId = 108;
 
         assembly {
@@ -451,7 +479,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the current gas limit.
      */
-    function ovmGASLIMIT() public view {
+    function ovmGASLIMIT()
+        public
+        view
+    {
         uint g = executionContext.gasLimit;
 
         assembly {
@@ -469,7 +500,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the fraud proof gas limit.
      */
-    function ovmBlockGasLimit() public view {
+    function ovmBlockGasLimit()
+        public
+        view
+    {
         uint g = executionContext.gasLimit;
 
         assembly {
@@ -486,7 +520,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the current queue origin.
      */
-    function ovmQueueOrigin() public view {
+    function ovmQueueOrigin()
+        public
+        view
+    {
         uint q = executionContext.queueOrigin;
 
         assembly {
@@ -503,7 +540,10 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 of 1 if in a static context and 0 if not.
      */
-    function isStaticContext() public view {
+    function isStaticContext()
+        public
+        view
+    {
         uint staticContext = executionContext.inStaticContext ? 1 : 0;
 
         assembly {
@@ -523,7 +563,10 @@ contract ExecutionManager is ContractResolver {
      * Below format of the bytes expected as input and written as output:
      * returndata: 32-byte ORIGIN address containing the left-padded, big-endian encoding of the address.
      */
-    function ovmORIGIN() public view {
+    function ovmORIGIN()
+        public
+        view
+    {
         require(
             executionContext.ovmTxOrigin != ZERO_ADDRESS,
             "Error: attempting to access non-existent txOrigin."
@@ -552,7 +595,9 @@ contract ExecutionManager is ContractResolver {
      *       [ovmInitcode (bytes (variable length))]
      * returndata: [newOvmContractAddress (as bytes32)] -- will be all 0s if this create failed.
      */
-    function ovmCREATE() public {
+    function ovmCREATE()
+        public
+    {
         StateManager stateManager = resolveStateManager();
 
         if (executionContext.inStaticContext) {
@@ -614,7 +659,9 @@ contract ExecutionManager is ContractResolver {
      *       [ovmInitcode (bytes (variable length))]
      * returndata: [newOvmContractAddress (as bytes32)] -- will be all 0s if this create failed.
      */
-    function ovmCREATE2() public {
+    function ovmCREATE2()
+        public
+    {
         if (executionContext.inStaticContext) {
             // Cannot create new contracts from a STATICCALL -- return 0 address
             assembly {
@@ -674,7 +721,9 @@ contract ExecutionManager is ContractResolver {
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
-    function ovmCALL() public {
+    function ovmCALL()
+        public
+    {
         StateManager stateManager = resolveStateManager();
         uint callSize;
         bytes memory _callBytes;
@@ -744,7 +793,9 @@ contract ExecutionManager is ContractResolver {
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
-    function ovmSTATICCALL() public {
+    function ovmSTATICCALL()
+        public
+    {
         StateManager stateManager = resolveStateManager();
         uint callSize;
         bytes memory _callBytes;
@@ -816,7 +867,9 @@ contract ExecutionManager is ContractResolver {
      *       [callBytes (bytes (variable length))]
      * returndata: [variable-length bytes returned from call]
      */
-    function ovmDELEGATECALL() public {
+    function ovmDELEGATECALL()
+        public
+    {
         StateManager stateManager = resolveStateManager();
         uint callSize;
         bytes memory _callBytes;
@@ -876,7 +929,9 @@ contract ExecutionManager is ContractResolver {
      *       [storageSlot (bytes32)]
      * returndata: [storageValue (bytes32)]
      */
-    function ovmSLOAD() public {
+    function ovmSLOAD()
+        public
+    {
         StateManager stateManager = resolveStateManager();
         bytes32 _storageSlot;
         assembly {
@@ -904,7 +959,9 @@ contract ExecutionManager is ContractResolver {
      *       [storageValue (bytes32)]
      * returndata: empty.
      */
-    function ovmSSTORE() public {
+    function ovmSSTORE()
+        public
+    {
         StateManager stateManager = resolveStateManager();
         require(!executionContext.inStaticContext, "Cannot call SSTORE from within a STATICCALL.");
 
@@ -936,7 +993,10 @@ contract ExecutionManager is ContractResolver {
      *      [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      * returndata: 32 bytes: the big-endian codesize int.
      */
-    function ovmEXTCODESIZE() public view {
+    function ovmEXTCODESIZE()
+        public
+        view
+    {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
         assembly {
@@ -964,7 +1024,10 @@ contract ExecutionManager is ContractResolver {
      *      [targetOvmContractAddress (address as bytes32 (left-padded, big-endian))]
      * returndata: 32 bytes: the hash.
      */
-    function ovmEXTCODEHASH() public view {
+    function ovmEXTCODEHASH()
+        public
+        view
+    {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
         assembly {
@@ -997,7 +1060,10 @@ contract ExecutionManager is ContractResolver {
      *       [length (uint (32))]
      * returndata: length (input param) bytes of contract at address, starting at index.
      */
-    function ovmEXTCODECOPY() public view {
+    function ovmEXTCODECOPY()
+        public
+        view
+    {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
         uint _index;
@@ -1028,7 +1094,10 @@ contract ExecutionManager is ContractResolver {
      *         L1MessageSender precompile.
      * @return The L1MessageSender in our current execution context.
      */
-    function getL1MessageSender() public returns(address) {
+    function getL1MessageSender()
+        public
+        returns(address)
+    {
         require(
             executionContext.ovmActiveContract == L1_MESSAGE_SENDER,
             "Only the L1MessageSender precompile is allowed to call getL1MessageSender(...)!"
@@ -1047,7 +1116,11 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
-    function getStateManagerAddress() public view returns (address) {
+    function getStateManagerAddress()
+        public
+        view
+        returns (address)
+    {
         StateManager stateManager = resolveStateManager();
         return address(stateManager);
     }
@@ -1066,7 +1139,9 @@ contract ExecutionManager is ContractResolver {
     function createNewContract(
         address _newOvmContractAddress,
         bytes memory _ovmInitcode
-    ) internal {
+    )
+        internal
+    {
         StateManager stateManager = resolveStateManager();
         SafetyChecker safetyChecker = resolveSafetyChecker();
 
@@ -1101,7 +1176,10 @@ contract ExecutionManager is ContractResolver {
      */
     function deployCodeContract(
         bytes memory _ovmContractInitcode
-    ) internal returns(address codeContractAddress) {
+    )
+        internal
+        returns(address codeContractAddress)
+    {
         // Deploy a new contract with this _ovmContractInitCode
         assembly {
             // Set our codeContractAddress to the address returned by our CREATE operation
@@ -1127,7 +1205,9 @@ contract ExecutionManager is ContractResolver {
         uint _queueOrigin,
         address _ovmTxOrigin,
         address _l1MsgSender
-    ) internal {
+    )
+        internal
+    {
         // First zero out the context for good measure (Note ZERO_ADDRESS is
         // reserved for the genesis contract & initial msgSender).
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
@@ -1148,7 +1228,10 @@ contract ExecutionManager is ContractResolver {
      */
     function switchActiveContract(
         address _newActiveContract
-    ) internal returns (address _oldMsgSender, address _oldActiveContract) {
+    )
+        internal
+        returns (address _oldMsgSender, address _oldActiveContract)
+    {
         // Store references to the old context
         _oldActiveContract = executionContext.ovmActiveContract;
         _oldMsgSender = executionContext.ovmMsgSender;
@@ -1173,7 +1256,9 @@ contract ExecutionManager is ContractResolver {
     function restoreContractContext(
         address _msgSender,
         address _activeContract
-    ) internal {
+    )
+        internal
+    {
         // Revert back to the old context
         executionContext.ovmActiveContract = _activeContract;
         executionContext.ovmMsgSender = _msgSender;
@@ -1184,19 +1269,35 @@ contract ExecutionManager is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveSafetyChecker() internal view returns (SafetyChecker) {
+    function resolveSafetyChecker()
+        internal
+        view
+        returns (SafetyChecker)
+    {
         return SafetyChecker(resolveContract("SafetyChecker"));
     }
 
-    function resolveContractAddressGenerator() internal view returns (ContractAddressGenerator) {
+    function resolveContractAddressGenerator()
+        internal
+        view
+        returns (ContractAddressGenerator)
+    {
         return ContractAddressGenerator(resolveContract("ContractAddressGenerator"));
     }
 
-    function resolveRLPEncode() internal view returns (RLPEncode) {
+    function resolveRLPEncode()
+        internal
+        view
+        returns (RLPEncode)
+    {
         return RLPEncode(resolveContract("RLPEncode"));
     }
 
-    function resolveStateManager() internal view returns (StateManager) {
+    function resolveStateManager()
+        internal
+        view
+        returns (StateManager)
+    {
         return StateManager(resolveContract("StateManager"));
     }
 }

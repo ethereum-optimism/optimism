@@ -52,7 +52,9 @@ contract L2ExecutionManager is ExecutionManager {
         bytes32 ovmTransactionHash,
         bytes32 internalTransactionHash,
         bytes memory signedOvmTx
-    ) public {
+    )
+        public
+    {
         evmHashToOvmHash[internalTransactionHash] = ovmTransactionHash;
         ovmHashToEvmHash[ovmTransactionHash] = internalTransactionHash;
         ovmHashToOvmTx[ovmTransactionHash] = signedOvmTx;
@@ -65,7 +67,11 @@ contract L2ExecutionManager is ExecutionManager {
      */
     function getOvmTransactionHash(
         bytes32 evmTransactionHash
-    ) public view returns (bytes32) {
+    )
+        public
+        view
+        returns (bytes32)
+    {
         return evmHashToOvmHash[evmTransactionHash];
     }
 
@@ -76,7 +82,11 @@ contract L2ExecutionManager is ExecutionManager {
      */
     function getInternalTransactionHash(
         bytes32 ovmTransactionHash
-    ) public view returns (bytes32) {
+    )
+        public
+        view
+        returns (bytes32)
+    {
         return ovmHashToEvmHash[ovmTransactionHash];
     }
 
@@ -87,7 +97,11 @@ contract L2ExecutionManager is ExecutionManager {
      */
     function getOvmTransaction(
         bytes32 ovmTransactionHash
-    ) public view returns (bytes memory) {
+    )
+        public
+        view
+        returns (bytes memory)
+    {
         return ovmHashToOvmTx[ovmTransactionHash];
     }
 }

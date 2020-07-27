@@ -11,11 +11,27 @@ import { RLPEncode } from "./RLPEncode.sol";
  *         Ethereum mainchain.
  */
 contract ContractAddressGenerator {
-    RLPEncode rlp;
+    /*
+     * Contract Variables
+     */
 
-    constructor() public {
+    RLPEncode private rlp;
+
+
+    /*
+     * Constructor
+     */
+
+    constructor()
+        public
+    {
         rlp = new RLPEncode();
     }
+
+
+    /*
+     * Public Functions
+     */
 
     /**
      * @notice Generate a contract address using CREATE.
@@ -24,7 +40,14 @@ contract ContractAddressGenerator {
      *               each time CREATE is called).
      * @return Address of the contract to be created.
      */
-    function getAddressFromCREATE(address _origin, uint _nonce) public view returns (address) {
+    function getAddressFromCREATE(
+        address _origin,
+        uint _nonce
+    )
+        public
+        view
+        returns (address)
+    {
         // Create a list of RLP encoded parameters.
         bytes[] memory list = new bytes[](2);
         list[0] = rlp.encodeAddress(_origin);
@@ -49,7 +72,11 @@ contract ContractAddressGenerator {
         address _origin,
         bytes32 _salt,
         bytes memory _ovmInitcode
-    ) public pure returns (address) {
+    )
+        public
+        pure
+        returns (address)
+    {
         // Hash all of the parameters together.
         bytes32 hashedData = keccak256(abi.encodePacked(
             byte(0xff),
@@ -61,6 +88,11 @@ contract ContractAddressGenerator {
         return getAddressFromHash(hashedData);
     }
 
+
+    /*
+     * Internal Functions
+     */
+
     /**
      * @dev Determines an address from a 32 byte hash. Since addresses are only
      *      20 bytes, we need to retrieve the last 20 bytes from the original
@@ -68,7 +100,13 @@ contract ContractAddressGenerator {
      * @param _hash Hash to convert to an address.
      * @return Hash converted to an address.
      */
-    function getAddressFromHash(bytes32 _hash) internal pure returns (address) {
+    function getAddressFromHash(
+        bytes32 _hash
+    )
+        internal
+        pure
+        returns (address)
+    {
         return address(bytes20(uint160(uint256(_hash))));
     }
 }

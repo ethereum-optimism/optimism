@@ -58,7 +58,11 @@ contract SafetyChecker is ContractResolver {
      */
     function isBytecodeSafe(
         bytes memory _bytecode
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         bool seenJUMP = false;
         bool insideUnreachableCode = false;
         uint256[] memory ops = new uint256[](_bytecode.length);
@@ -167,7 +171,11 @@ contract SafetyChecker is ContractResolver {
     function toAddress(
         bytes memory _bytes,
         uint256 _start
-    ) internal pure returns (address addr) {
+    )
+        internal
+        pure
+        returns (address addr)
+    {
         require(_bytes.length >= (_start + 20), "Addresses must be at least 20 bytes");
 
         assembly {
@@ -180,7 +188,11 @@ contract SafetyChecker is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveExecutionManager() internal view returns (ExecutionManager) {
+    function resolveExecutionManager()
+        internal
+        view
+        returns (ExecutionManager)
+    {
         return ExecutionManager(resolveContract("ExecutionManager"));
     }
 }

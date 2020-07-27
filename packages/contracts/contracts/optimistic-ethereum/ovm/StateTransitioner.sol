@@ -55,7 +55,9 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      * Modifiers
      */
 
-    modifier onlyDuringPhase(TransitionPhases _phase) {
+    modifier onlyDuringPhase(
+        TransitionPhases _phase
+    ) {
         require(
             currentTransitionPhase == _phase,
             "Must be called during the correct phase."
@@ -79,7 +81,10 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         uint _transitionIndex,
         bytes32 _preStateRoot,
         bytes32 _ovmTransactionHash
-    ) public ContractResolver(_addressResolver) {
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
@@ -117,7 +122,10 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         address _codeContractAddress,
         uint256 _nonce,
         bytes memory _stateTrieWitness
-    ) public onlyDuringPhase(TransitionPhases.PreExecution) {
+    )
+        public
+        onlyDuringPhase(TransitionPhases.PreExecution)
+    {
         bytes32 codeHash;
         assembly {
             codeHash := extcodehash(_codeContractAddress)
@@ -170,7 +178,10 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         bytes32 _value,
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
-    ) public onlyDuringPhase(TransitionPhases.PreExecution) {
+    )
+        public
+        onlyDuringPhase(TransitionPhases.PreExecution)
+    {
         require(
             stateManager.isVerifiedContract(_ovmContractAddress),
             "Contract must be verified before proving storage!"
@@ -207,7 +218,9 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      */
     function applyTransaction(
         DataTypes.OVMTransactionData memory _transactionData
-    ) public {
+    )
+        public
+    {
         require(
             TransactionParser.getTransactionHash(_transactionData) == ovmTransactionHash,
             "Provided transaction does not match the original transaction."
@@ -253,7 +266,10 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
     function proveUpdatedStorageSlot(
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
-    ) public onlyDuringPhase(TransitionPhases.PostExecution) {
+    )
+        public
+        onlyDuringPhase(TransitionPhases.PostExecution)
+    {
         (
             address storageSlotContract,
             bytes32 storageSlotKey,
@@ -280,7 +296,10 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      */
     function proveUpdatedContract(
         bytes memory _stateTrieWitness
-    ) public onlyDuringPhase(TransitionPhases.PostExecution) {
+    )
+        public
+        onlyDuringPhase(TransitionPhases.PostExecution)
+    {
         (
             address ovmContractAddress,
             uint contractNonce,
@@ -331,7 +350,11 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      * Utility; checks whether the process is complete.
      * @return `true` if the process is complete, `false` otherwise.
      */
-    function isComplete() public view returns (bool) {
+    function isComplete()
+        public
+        view
+        returns (bool)
+    {
         return (currentTransitionPhase == TransitionPhases.Complete);
     }
 
@@ -340,11 +363,19 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      * Contract Resolution
      */
 
-    function resolveExecutionManager() internal view returns (ExecutionManager) {
+    function resolveExecutionManager()
+        internal
+        view
+        returns (ExecutionManager)
+    {
         return ExecutionManager(resolveContract("ExecutionManager"));
     }
 
-    function resolveEthMerkleTrie() internal view returns (EthMerkleTrie) {
+    function resolveEthMerkleTrie()
+        internal
+        view
+        returns (EthMerkleTrie)
+    {
         return EthMerkleTrie(resolveContract("EthMerkleTrie"));
     }
 }

@@ -1,11 +1,34 @@
-// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.5.0;
 
-import './BytesLib.sol';
-import './RLPReader.sol';
-import './RLPWriter.sol';
+/* Library Imports */
+import { BytesLib } from "./BytesLib.sol";
+import { RLPReader } from "./RLPReader.sol";
+import { RLPWriter } from "./RLPWriter.sol";
 
+/**
+ * @title MerkleTrie
+ */
 contract MerkleTrie {
+    /*
+     * Data Structures
+     */
+
+    enum NodeType {
+        BranchNode,
+        ExtensionNode,
+        LeafNode
+    }
+
+    struct TrieNode {
+        bytes encoded;
+        RLPReader.RLPItem[] decoded;
+    }
+
+
+    /*
+     * Contract Constants
+     */
+
     // TREE_RADIX determines the number of elements per branch node.
     uint256 constant TREE_RADIX = 16;
     // Branch nodes have TREE_RADIX elements plus an additional `value` slot.
@@ -26,17 +49,6 @@ contract MerkleTrie {
     // Just a utility constant. RLP represents `NULL` as 0x80.
     bytes1 constant RLP_NULL = bytes1(0x80);
     bytes constant RLP_NULL_BYTES = hex'80';
-
-    enum NodeType {
-        BranchNode,
-        ExtensionNode,
-        LeafNode
-    }
-
-    struct TrieNode {
-        bytes encoded;
-        RLPReader.RLPItem[] decoded;
-    }
 
 
     /*
@@ -60,7 +72,11 @@ contract MerkleTrie {
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         return verifyProof(_key, _value, _proof, _root, true);
     }
 
@@ -81,7 +97,11 @@ contract MerkleTrie {
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         return verifyProof(_key, _value, _proof, _root, false);
     }
 
@@ -101,7 +121,11 @@ contract MerkleTrie {
         bytes memory _value,
         bytes memory _proof,
         bytes32 _root
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, ) = walkNodePath(proof, _key, _root);
 
@@ -121,7 +145,11 @@ contract MerkleTrie {
         bytes memory _key,
         bytes memory _proof,
         bytes32 _root
-    ) public pure returns (bool, bytes memory) {
+    )
+        public
+        pure
+        returns (bool, bytes memory)
+    {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, ) = walkNodePath(proof, _key, _root);
 
@@ -158,7 +186,11 @@ contract MerkleTrie {
         bytes memory _proof,
         bytes32 _root,
         bool _inclusion
-    ) internal pure returns (bool) {
+    )
+        internal
+        pure
+        returns (bool)
+    {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = walkNodePath(proof, _key, _root);
 
@@ -193,11 +225,15 @@ contract MerkleTrie {
         TrieNode[] memory _proof,
         bytes memory _key,
         bytes32 _root
-    ) internal pure returns (
-        uint256,
-        bytes memory,
-        bool
-    ) {
+    )
+        internal
+        pure
+        returns (
+            uint256,
+            bytes memory,
+            bool
+        )
+    {
         uint256 pathLength = 0;
         bytes memory key = BytesLib.toNibbles(_key);
 
@@ -308,7 +344,11 @@ contract MerkleTrie {
         uint256 _pathLength,
         bytes memory _keyRemainder,
         bytes memory _value
-    ) internal pure returns (TrieNode[] memory) {
+    )
+        internal
+        pure
+        returns (TrieNode[] memory)
+    {
         bytes memory keyRemainder = _keyRemainder;
 
         // Most of our logic depends on the status of the last node in the path.
@@ -428,7 +468,11 @@ contract MerkleTrie {
     function getUpdatedTrieRoot(
         TrieNode[] memory _nodes,
         bytes memory _key
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         bytes memory key = BytesLib.toNibbles(_key);
 
         // Some variables to keep track of during iteration.
@@ -485,7 +529,11 @@ contract MerkleTrie {
      */
     function parseProof(
         bytes memory _proof
-    ) internal pure returns (TrieNode[] memory) {
+    )
+        internal
+        pure
+        returns (TrieNode[] memory)
+    {
         RLPReader.RLPItem[] memory nodes = RLPReader.toList(RLPReader.toRlpItem(_proof));
         TrieNode[] memory proof = new TrieNode[](nodes.length);
 
@@ -509,7 +557,11 @@ contract MerkleTrie {
      */
     function getNodeID(
         RLPReader.RLPItem memory _node
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         bytes memory nodeID;
 
         if (_node.len < 32) {
@@ -530,7 +582,11 @@ contract MerkleTrie {
      */
     function getNodePath(
         TrieNode memory _node
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return BytesLib.toNibbles(RLPReader.toBytes(_node.decoded[0]));
     }
 
@@ -542,7 +598,11 @@ contract MerkleTrie {
      */
     function getNodeKey(
         TrieNode memory _node
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return removeHexPrefix(getNodePath(_node));
     }
 
@@ -553,7 +613,11 @@ contract MerkleTrie {
      */
     function getNodeValue(
         TrieNode memory _node
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return RLPReader.toBytes(_node.decoded[_node.decoded.length - 1]);
     }
 
@@ -565,7 +629,11 @@ contract MerkleTrie {
      */
     function getNodeHash(
         bytes memory _encoded
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         if (_encoded.length < 32) {
             return _encoded;
         } else {
@@ -580,7 +648,11 @@ contract MerkleTrie {
      */
     function getNodeType(
         TrieNode memory _node
-    ) internal pure returns (NodeType) {
+    )
+        internal
+        pure
+        returns (NodeType)
+    {
         if (_node.decoded.length == BRANCH_NODE_LENGTH) {
             return NodeType.BranchNode;
         } else if (_node.decoded.length == LEAF_OR_EXTENSION_NODE_LENGTH) {
@@ -604,7 +676,14 @@ contract MerkleTrie {
      * @param _b Second nibble array.
      * @return Number of shared nibbles.
      */
-    function getSharedNibbleLength(bytes memory _a, bytes memory _b) internal pure returns (uint256) {
+    function getSharedNibbleLength(
+        bytes memory _a,
+        bytes memory _b
+    )
+        internal
+        pure
+        returns (uint256)
+    {
         uint256 i = 0;
         while (_a.length > i && _b.length > i && _a[i] == _b[i]) {
             i++;
@@ -619,7 +698,11 @@ contract MerkleTrie {
      */
     function makeNode(
         bytes[] memory _raw
-    ) internal pure returns (TrieNode memory) {
+    )
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes memory encoded = RLPWriter.encodeList(_raw);
 
         return TrieNode({
@@ -635,7 +718,11 @@ contract MerkleTrie {
      */
     function makeNode(
         RLPReader.RLPItem[] memory _items
-    ) internal pure returns (TrieNode memory) {
+    )
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes[] memory raw = new bytes[](_items.length);
         for (uint256 i = 0; i < _items.length; i++) {
             raw[i] = RLPReader.toRlpBytes(_items[i]);
@@ -652,7 +739,11 @@ contract MerkleTrie {
     function makeExtensionNode(
         bytes memory _key,
         bytes memory _value
-    ) internal pure returns (TrieNode memory) {
+    ) 
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = addHexPrefix(_key, false);
         raw[0] = RLPWriter.encodeBytes(BytesLib.fromNibbles(key));
@@ -672,7 +763,11 @@ contract MerkleTrie {
     function makeLeafNode(
         bytes memory _key,
         bytes memory _value
-    ) internal pure returns (TrieNode memory) {
+    ) 
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = addHexPrefix(_key, true);
         raw[0] = RLPWriter.encodeBytes(BytesLib.fromNibbles(key));
@@ -684,7 +779,11 @@ contract MerkleTrie {
      * @notice Creates an empty branch node.
      * @return Empty branch node as a TrieNode stuct.
      */
-    function makeEmptyBranchNode() internal pure returns (TrieNode memory) {
+    function makeEmptyBranchNode()
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes[] memory raw = new bytes[](BRANCH_NODE_LENGTH);
         for (uint256 i = 0; i < raw.length; i++) {
             raw[i] = RLP_NULL_BYTES;
@@ -701,7 +800,11 @@ contract MerkleTrie {
     function editBranchValue(
         TrieNode memory _branch,
         bytes memory _value
-    ) internal pure returns (TrieNode memory) {
+    )
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes memory encoded = RLPWriter.encodeBytes(_value);
         _branch.decoded[_branch.decoded.length - 1] = RLPReader.toRlpItem(encoded);
         return makeNode(_branch.decoded);
@@ -718,7 +821,11 @@ contract MerkleTrie {
         TrieNode memory _branch,
         uint8 _index,
         bytes memory _value
-    ) internal pure returns (TrieNode memory) {
+    )
+        internal
+        pure
+        returns (TrieNode memory)
+    {
         bytes memory encoded = _value.length < 32 ? _value : RLPWriter.encodeBytes(_value);
         _branch.decoded[_index] = RLPReader.toRlpItem(encoded);
         return makeNode(_branch.decoded);
@@ -733,7 +840,11 @@ contract MerkleTrie {
     function addHexPrefix(
         bytes memory _key,
         bool _isLeaf
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         uint8 prefix = _isLeaf ? uint8(0x02) : uint8(0x00);
         uint8 offset = uint8(_key.length % 2);
         bytes memory prefixed = new bytes(2 - offset);
@@ -748,7 +859,11 @@ contract MerkleTrie {
      */
     function removeHexPrefix(
         bytes memory _path
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         if (uint8(_path[0]) % 2 == 0) {
             return BytesLib.slice(_path, 2);
         } else {
@@ -771,7 +886,11 @@ contract MerkleTrie {
         uint256 _aLength,
         TrieNode[] memory _b,
         uint256 _bLength
-    ) internal pure returns (TrieNode[] memory) {
+    )
+        internal
+        pure
+        returns (TrieNode[] memory)
+    {
         TrieNode[] memory ret = new TrieNode[](_aLength + _bLength);
 
         // Copy elements from the first array.

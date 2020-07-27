@@ -22,14 +22,26 @@ contract L1MessageSender {
     /**
      * @param _executionManagerAddress Address of the ExecutionManager contract.
      */
-    constructor(address _executionManagerAddress) public {
+    constructor(
+        address _executionManagerAddress
+    )
+        public
+    {
         executionManager = ExecutionManager(_executionManagerAddress);
     }
+
+
+    /*
+     * Public Functions
+     */
 
     /**
      * @return L1 message sender address (msg.sender).
      */
-    function getL1MessageSender() public returns (address) {
+    function getL1MessageSender()
+        public
+        returns (address)
+    {
         return executionManager.getL1MessageSender();
     }
 }

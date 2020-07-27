@@ -6,7 +6,7 @@ pragma experimental ABIEncoderV2;
  */
 contract RollupMerkleUtils {
     /*
-     * Structs
+     * Data Structures
      */
 
     struct SparseMerkleTree {
@@ -32,7 +32,9 @@ contract RollupMerkleUtils {
      * Initialize a new SparseMerkleUtils contract, computing the
      * default hashes for the sparse merkle tree (SMT).
      */
-    constructor() public {
+    constructor()
+        public
+    {
         setDefaultHashes();
     }
 
@@ -48,7 +50,11 @@ contract RollupMerkleUtils {
      */
     function getMerkleRoot(
         bytes[] memory _dataBlocks
-    ) public view returns (bytes32) {
+    )
+        public
+        view
+        returns (bytes32)
+    {
         uint nextLevelLength = _dataBlocks.length;
         uint currentLevel = 0;
 
@@ -104,7 +110,11 @@ contract RollupMerkleUtils {
         bytes memory _dataBlock,
         uint _path,
         bytes32[] memory _siblings
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         // First compute the leaf node.
         bytes32 computedNode = keccak256(_dataBlock);
 
@@ -136,7 +146,11 @@ contract RollupMerkleUtils {
         bytes memory _dataBlock,
         uint _path,
         bytes32[] memory _siblings
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         // First compute the leaf node
         bytes32 calculatedRoot = computeInclusionProofRoot(
             _dataBlock,
@@ -153,7 +167,12 @@ contract RollupMerkleUtils {
      * @param _dataBlock The data block we're storing/verifying
      * @param _path The path from the leaf to the root / the index of the leaf.
      */
-    function update(bytes memory _dataBlock, uint _path) public {
+    function update(
+        bytes memory _dataBlock,
+        uint _path
+    )
+        public
+    {
         bytes32[] memory siblings = getSiblings(_path);
         store(_dataBlock, _path, siblings);
     }
@@ -163,7 +182,12 @@ contract RollupMerkleUtils {
      * @param _leaf The leaf we're storing/verifying
      * @param _path The path from the leaf to the root / the index of the leaf.
      */
-    function updateLeaf(bytes32 _leaf, uint _path) public {
+    function updateLeaf(
+        bytes32 _leaf,
+        uint _path
+    )
+        public
+    {
         bytes32[] memory siblings = getSiblings(_path);
         storeLeaf(_leaf, _path, siblings);
     }
@@ -178,7 +202,9 @@ contract RollupMerkleUtils {
         bytes memory _dataBlock,
         uint _path,
         bytes32[] memory _siblings
-    ) public {
+    )
+        public
+    {
         bytes32 oldRoot = tree.root;
         store(_dataBlock, _path, _siblings);
 
@@ -198,7 +224,9 @@ contract RollupMerkleUtils {
         bytes memory _dataBlock,
         uint _path,
         bytes32[] memory _siblings
-    ) public {
+    )
+        public
+    {
         // Compute the leaf node & store the leaf
         bytes32 leaf = keccak256(_dataBlock);
         storeLeaf(leaf, _path, _siblings);
@@ -214,7 +242,9 @@ contract RollupMerkleUtils {
         bytes32 _leaf,
         uint _path,
         bytes32[] memory _siblings
-    ) public {
+    )
+        public
+    {
         // First compute the leaf node
         bytes32 computedNode = _leaf;
 
@@ -244,7 +274,13 @@ contract RollupMerkleUtils {
      * @param _path The path from the leaf to the root / the index of the leaf.
      * @return The sibling nodes along the way.
      */
-    function getSiblings(uint _path) public view returns (bytes32[] memory) {
+    function getSiblings(
+        uint _path
+    )
+        public
+        view
+        returns (bytes32[] memory)
+    {
         bytes32[] memory siblings = new bytes32[](tree.height);
         bytes32 computedNode = tree.root;
 
@@ -268,7 +304,11 @@ contract RollupMerkleUtils {
      * Get our stored tree's root
      * @return The merkle root of the tree
      */
-    function getRoot() public view returns (bytes32) {
+    function getRoot()
+        public
+        view
+        returns (bytes32)
+    {
         return tree.root;
     }
 
@@ -277,7 +317,12 @@ contract RollupMerkleUtils {
      * @param _root The merkle root of the tree
      * @param _height The height of the tree
      */
-    function setMerkleRootAndHeight(bytes32 _root, uint _height) public {
+    function setMerkleRootAndHeight(
+        bytes32 _root,
+        uint _height
+    )
+        public
+    {
         tree.root = _root;
         tree.height = _height;
     }
@@ -292,7 +337,9 @@ contract RollupMerkleUtils {
         bytes32 _parent,
         bytes32 _leftChild,
         bytes32 _rightChild
-    ) public {
+    )
+        public
+    {
         tree.nodes[getLeftSiblingKey(_parent)] = _leftChild;
         tree.nodes[getRightSiblingKey(_parent)] = _rightChild;
     }
@@ -307,7 +354,11 @@ contract RollupMerkleUtils {
     function getNthBitFromRight(
         uint _intVal,
         uint _index
-    ) public pure returns (uint8) {
+    )
+        public
+        pure
+        returns (uint8)
+    {
         return uint8(_intVal >> _index & 1);
     }
 
@@ -318,7 +369,11 @@ contract RollupMerkleUtils {
      */
     function getChildren(
         bytes32 _parent
-    ) public view returns (bytes32, bytes32) {
+    )
+        public
+        view
+        returns (bytes32, bytes32)
+    {
         return (
             tree.nodes[getLeftSiblingKey(_parent)],
             tree.nodes[getRightSiblingKey(_parent)]
@@ -331,7 +386,13 @@ contract RollupMerkleUtils {
      * @param _parent The parent node
      * @return the key for the left sibling (0 as the first bit)
      */
-    function getLeftSiblingKey(bytes32 _parent) public pure returns(bytes32) {
+    function getLeftSiblingKey(
+        bytes32 _parent
+    )
+        public
+        pure
+        returns(bytes32)
+    {
         return _parent & 0x0111111111111111111111111111111111111111111111111111111111111111;
     }
 
@@ -341,7 +402,13 @@ contract RollupMerkleUtils {
      * @param _parent The parent node
      * @return the key for the right sibling (1 as the first bit)
      */
-    function getRightSiblingKey(bytes32 _parent) public pure returns(bytes32) {
+    function getRightSiblingKey(
+        bytes32 _parent
+    )
+        public
+        pure
+        returns(bytes32)
+    {
         return _parent | 0x1000000000000000000000000000000000000000000000000000000000000000;
     }
 
@@ -353,7 +420,9 @@ contract RollupMerkleUtils {
     /**
      * Set default hashes.
      */
-    function setDefaultHashes() internal {
+    function setDefaultHashes()
+        internal
+    {
         // Set the initial default hash.
         defaultHashes[0] = keccak256(abi.encodePacked(uint(0)));
 
@@ -371,7 +440,11 @@ contract RollupMerkleUtils {
     function getParent(
         bytes32 _left,
         bytes32 _right
-    ) internal pure returns(bytes32) {
+    )
+        internal
+        pure
+        returns(bytes32)
+    {
         return keccak256(abi.encodePacked(_left, _right));
     }
 }

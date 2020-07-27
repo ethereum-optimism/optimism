@@ -8,8 +8,17 @@ import { DataTypes } from "../../utils/libraries/DataTypes.sol";
  * @title IStateTransitioner
  */
 contract IStateTransitioner {
+    /*
+     * Contract Variables
+     */
+
     bytes32 public preStateRoot;
     bytes32 public stateRoot;
+
+
+    /*
+     * Public Functions
+     */
 
     function proveContractInclusion(
         address _ovmContractAddress,

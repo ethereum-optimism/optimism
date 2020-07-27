@@ -1,6 +1,7 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/* Library Imports */
 import { MerkleTrie } from "./MerkleTrie.sol";
 import { RLPWriter } from "./RLPWriter.sol";
 import { RLPReader } from "./RLPReader.sol";
@@ -11,8 +12,13 @@ import { DataTypes } from "./DataTypes.sol";
  * @notice Convenience wrapper for ETH-related trie operations.
  */
 contract EthMerkleTrie is MerkleTrie {
-    bytes32 constant BYTES32_NULL = bytes32('');
-    uint256 constant UINT256_NULL = uint256(0);
+    /*
+     * Contract Constants
+     */
+
+    bytes32 constant private BYTES32_NULL = bytes32('');
+    uint256 constant private UINT256_NULL = uint256(0);
+
 
     /*
      * Public Functions
@@ -37,7 +43,11 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         // Retrieve the current storage root.
         DataTypes.AccountState memory accountState = getAccountState(
             _address,
@@ -73,7 +83,11 @@ contract EthMerkleTrie is MerkleTrie {
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         // Retreive the old storage root.
         DataTypes.AccountState memory accountState = getAccountState(
             _address,
@@ -114,7 +128,11 @@ contract EthMerkleTrie is MerkleTrie {
         DataTypes.ProofMatrix memory _proofMatrix,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         // Pull the current account state.
         DataTypes.AccountState memory accountState = getAccountState(
             _address,
@@ -145,7 +163,11 @@ contract EthMerkleTrie is MerkleTrie {
         uint256 _nonce,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         return proveAccountState(
             _address,
             DataTypes.AccountState({
@@ -179,7 +201,11 @@ contract EthMerkleTrie is MerkleTrie {
         uint256 _balance,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         return proveAccountState(
             _address,
             DataTypes.AccountState({
@@ -213,7 +239,11 @@ contract EthMerkleTrie is MerkleTrie {
         bytes32 _storageRoot,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         return proveAccountState(
             _address,
             DataTypes.AccountState({
@@ -247,7 +277,11 @@ contract EthMerkleTrie is MerkleTrie {
         bytes32 _codeHash,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bool) {
+    )
+        public
+        pure
+        returns (bool)
+    {
         return proveAccountState(
             _address,
             DataTypes.AccountState({
@@ -283,7 +317,11 @@ contract EthMerkleTrie is MerkleTrie {
         DataTypes.ProofMatrix memory _proofMatrix,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         DataTypes.AccountState memory newAccountState = _accountState;
 
         // If the user has provided everything, don't bother pulling the
@@ -344,7 +382,11 @@ contract EthMerkleTrie is MerkleTrie {
         uint256 _nonce,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return updateAccountState(
             _address,
             DataTypes.AccountState({
@@ -378,7 +420,11 @@ contract EthMerkleTrie is MerkleTrie {
         uint256 _balance,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return updateAccountState(
             _address,
             DataTypes.AccountState({
@@ -412,7 +458,11 @@ contract EthMerkleTrie is MerkleTrie {
         bytes32 _storageRoot,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return updateAccountState(
             _address,
             DataTypes.AccountState({
@@ -446,7 +496,11 @@ contract EthMerkleTrie is MerkleTrie {
         bytes32 _codeHash,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return updateAccountState(
             _address,
             DataTypes.AccountState({
@@ -478,7 +532,11 @@ contract EthMerkleTrie is MerkleTrie {
      */
     function decodeAccountState(
         bytes memory _encodedAccountState
-    ) internal pure returns (DataTypes.AccountState memory) {
+    )
+        internal
+        pure
+        returns (DataTypes.AccountState memory)
+    {
         RLPReader.RLPItem[] memory accountState = RLPReader.toList(RLPReader.toRlpItem(_encodedAccountState));
 
         return DataTypes.AccountState({
@@ -496,7 +554,11 @@ contract EthMerkleTrie is MerkleTrie {
      */
     function encodeAccountState(
         DataTypes.AccountState memory _accountState
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes[] memory raw = new bytes[](4);
 
         // Unfortunately we can't create this array outright because
@@ -521,7 +583,11 @@ contract EthMerkleTrie is MerkleTrie {
         address _address,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) internal pure returns (DataTypes.AccountState memory) {
+    )
+        internal
+        pure
+        returns (DataTypes.AccountState memory)
+    {
         DataTypes.AccountState memory DEFAULT_ACCOUNT_STATE = DataTypes.AccountState({
             nonce: UINT256_NULL,
             balance: UINT256_NULL,
@@ -555,7 +621,11 @@ contract EthMerkleTrie is MerkleTrie {
         address _address,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         bytes memory encodedAccountState = encodeAccountState(_accountState);
 
         return update(
