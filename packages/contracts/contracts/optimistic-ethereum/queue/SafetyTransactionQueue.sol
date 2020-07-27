@@ -16,6 +16,9 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
      * Constructor
      */
 
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     */
     constructor(
         address _addressResolver
     )
@@ -28,6 +31,11 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
      * Public Functions
      */
 
+    /**
+     * Checks that a sender is authenticated to dequeue.
+     * @param _sender Address to check.
+     * @return Whether or not the sender can dequeue.
+     */
     function authenticateDequeue(
         address _sender
     )
