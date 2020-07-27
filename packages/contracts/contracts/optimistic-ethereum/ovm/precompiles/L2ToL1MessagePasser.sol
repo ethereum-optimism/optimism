@@ -1,6 +1,9 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/**
+ * @title L2ToL1MessagePasser
+ */
 contract L2ToL1MessagePasser {
     /*
      * Events
@@ -17,14 +20,17 @@ contract L2ToL1MessagePasser {
      * Contract Variables
      */
 
-    uint nonce;
-    address executionManagerAddress;
+    uint private nonce;
+    address private executionManagerAddress;
 
 
     /*
      * Constructor
      */
 
+    /**
+     * @param _executionManagerAddress Address of the ExecutionManager contract.
+     */
     constructor(address _executionManagerAddress) public {
         executionManagerAddress = _executionManagerAddress;
     }
@@ -34,6 +40,10 @@ contract L2ToL1MessagePasser {
      * Public Functions
      */
 
+    /**
+     * Passes a message to L1.
+     * @param _messageData Message to pass to L1.
+     */
     function passMessageToL1(bytes memory _messageData) public {
         // For now, to be trustfully relayed by sequencer to L1, so just emit
         // an event for the sequencer to pick up.
@@ -50,6 +60,10 @@ contract L2ToL1MessagePasser {
      * Internal Functions
      */
 
+    /**
+     * Retrieves the OVM message caller.
+     * @return Address of the message caller.
+     */
     function getCALLER() internal returns (address) {
         bytes32 methodId = keccak256("ovmCALLER()");
         address addr = executionManagerAddress;

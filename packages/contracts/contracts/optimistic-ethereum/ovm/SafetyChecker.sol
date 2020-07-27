@@ -1,8 +1,11 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+/* Contract Imports */
 import { ExecutionManager } from "./ExecutionManager.sol";
+
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
 /**
  * @title SafetyChecker
@@ -12,8 +15,21 @@ import { ExecutionManager } from "./ExecutionManager.sol";
  *              2. All CALLs are to the Execution Manager and have no value.
  */
 contract SafetyChecker is ContractResolver {
+    /*
+     * Contract Variables
+     */
+
     uint256 public opcodeWhitelistMask;
 
+
+    /*
+     * Constructor
+     */
+
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     * @param _opcodeWhitelistMask Whitelist mask of allowed opcodes.
+     */
     constructor(
         address _addressResolver,
         uint256 _opcodeWhitelistMask
@@ -24,26 +40,13 @@ contract SafetyChecker is ContractResolver {
         opcodeWhitelistMask = _opcodeWhitelistMask;
     }
 
-    /**
-     * @notice Converts the 20 bytes at _start of _bytes into an address.
-     * @param _bytes The bytes to extract the address from.
-     * @param _start The start index from which to extract the address from
-     *               (e.g. 0 if _bytes starts with the address).
-     * @return Bytes converted to an address.
+
+    /*
+     * Public Functions
      */
-    function toAddress(
-        bytes memory _bytes,
-        uint256 _start
-    ) internal pure returns (address addr) {
-        require(_bytes.length >= (_start + 20), "Addresses must be at least 20 bytes");
-
-        assembly {
-            addr := mload(add(add(_bytes, 20), _start))
-        }
-    }
 
     /**
-     * @notice Returns whether or not all of the provided bytecode is safe.
+     * Returns whether or not all of the provided bytecode is safe.
      * @dev More info on creation vs. runtime bytecode:
      * https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904.
      * @param _bytecode The bytecode to safety check. This can be either
@@ -147,6 +150,29 @@ contract SafetyChecker is ContractResolver {
             }
         }
         return true;
+    }
+
+
+    /*
+     * Internal Functions
+     */
+
+    /**
+     * Converts the 20 bytes at _start of _bytes into an address.
+     * @param _bytes The bytes to extract the address from.
+     * @param _start The start index from which to extract the address from
+     *               (e.g. 0 if _bytes starts with the address).
+     * @return Bytes converted to an address.
+     */
+    function toAddress(
+        bytes memory _bytes,
+        uint256 _start
+    ) internal pure returns (address addr) {
+        require(_bytes.length >= (_start + 20), "Addresses must be at least 20 bytes");
+
+        assembly {
+            addr := mload(add(add(_bytes, 20), _start))
+        }
     }
 
 

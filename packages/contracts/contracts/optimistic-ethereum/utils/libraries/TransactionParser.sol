@@ -1,12 +1,20 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { DataTypes } from "../utils/libraries/DataTypes.sol";
-import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
+/* Library Imports */
+import { DataTypes } from "./DataTypes.sol";
+import { RLPWriter } from "./RLPWriter.sol";
 
+/**
+ * @title TransactionParser
+ */
 library TransactionParser {
+    /*
+     * Internal Functions
+     */
+
     /**
-     * @notice Utility; computes the hash of a given transaction.
+     * Utility; computes the hash of a given transaction.
      * @param _transaction OVM transaction to hash.
      * @return Hash of the provided transaction.
      */
@@ -18,7 +26,7 @@ library TransactionParser {
     }
 
     /**
-     * @notice Utility; RLP encodes an OVMTransactionData struct.
+     * Utility; RLP encodes an OVMTransactionData struct.
      * @dev Likely to be changed (if not moved to another contract). Currently
      * remaining here as to avoid modifying CanonicalTransactionChain. Unclear
      * whether or not this is the correct transaction structure, but it should

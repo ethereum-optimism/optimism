@@ -2,11 +2,8 @@ pragma solidity ^0.5.0;
 
 import { PartialStateManager } from "../PartialStateManager.sol";
 
-/**
- * @title StubExecutionManager
- */
 contract StubExecutionManager {
-    PartialStateManager stateManager;
+    PartialStateManager private stateManager;
 
     function setStateManager(address _stateManagerAddress) external {
         stateManager = PartialStateManager(_stateManagerAddress);

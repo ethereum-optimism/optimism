@@ -9,11 +9,11 @@ pragma experimental ABIEncoderV2;
  */
 library RLPWriter {
     /*
-     * Public functions
+     * Internal Functions
      */
 
     /**
-     * @dev RLP encodes a byte string.
+     * RLP encodes a byte string.
      * @param self The byte string to encode.
      * @return The RLP encoded string in bytes.
      */
@@ -28,7 +28,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes a list of RLP encoded byte byte strings.
+     * RLP encodes a list of RLP encoded byte byte strings.
      * @param self The list of RLP encoded byte strings.
      * @return The RLP encoded list of items in bytes.
      */
@@ -38,7 +38,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes a string.
+     * RLP encodes a string.
      * @param self The string to encode.
      * @return The RLP encoded string in bytes.
      */
@@ -47,7 +47,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes an address.
+     * RLP encodes an address.
      * @param self The address to encode.
      * @return The RLP encoded address in bytes.
      */
@@ -63,7 +63,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes a uint.
+     * RLP encodes a uint.
      * @param self The uint to encode.
      * @return The RLP encoded uint in bytes.
      */
@@ -72,7 +72,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes an int.
+     * RLP encodes an int.
      * @param self The int to encode.
      * @return The RLP encoded int in bytes.
      */
@@ -81,7 +81,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes a bool.
+     * RLP encodes a bool.
      * @param self The bool to encode.
      * @return The RLP encoded bool in bytes.
      */
@@ -97,7 +97,7 @@ library RLPWriter {
      */
 
     /**
-     * @dev Encode the first byte, followed by the `len` in binary form if `length` is more than 55.
+     * Encode the first byte, followed by the `len` in binary form if `length` is more than 55.
      * @param len The length of the string or the payload.
      * @param offset 128 if item is string, 192 if item is list.
      * @return RLP encoded bytes.
@@ -125,7 +125,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev Encode integer in big endian binary form with no leading zeroes.
+     * Encode integer in big endian binary form with no leading zeroes.
      * @notice TODO: This should be optimized with assembly to save gas costs.
      * @param _x The integer to encode.
      * @return RLP encoded bytes.
@@ -149,7 +149,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev Copies a piece of memory to another location.
+     * Copies a piece of memory to another location.
      * @notice From: https://github.com/Arachnid/solidity-stringutils/blob/master/src/strings.sol.
      * @param _dest Destination location.
      * @param _src Source location.
@@ -177,7 +177,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev Flattens a list of byte strings into one byte string.
+     * Flattens a list of byte strings into one byte string.
      * @notice From: https://github.com/sammayo/solidity-rlp-encoder/blob/master/RLPEncode.sol.
      * @param _list List of byte strings to flatten.
      * @return The flattened byte string.
@@ -211,7 +211,7 @@ library RLPWriter {
     }
 
     /**
-     * @dev Concatenates two bytes.
+     * Concatenates two bytes.
      * @notice From: https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol.
      * @param _preBytes First byte string.
      * @param _postBytes Second byte string.

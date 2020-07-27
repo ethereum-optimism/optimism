@@ -1,17 +1,23 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
-import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
-import { DataTypes } from "../utils/libraries/DataTypes.sol";
-import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
+/* Contract Imports */
 import { L1ToL2TransactionQueue } from "../queue/L1ToL2TransactionQueue.sol";
 import { SafetyTransactionQueue } from "../queue/SafetyTransactionQueue.sol";
 
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
+
+/**
+ * @title CanonicalTransactionChain
+ */
 contract CanonicalTransactionChain is ContractResolver {
     /*
      * Contract Variables
      */
+
     address public sequencer;
     uint public forceInclusionPeriod;
     uint public cumulativeNumElements;
@@ -32,6 +38,12 @@ contract CanonicalTransactionChain is ContractResolver {
      * Constructor
      */
 
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     * @param _sequencer Address of the sequencer.
+     * @param _l1ToL2TransactionPasserAddress Address of the L1-L2 transaction passing contract.
+     * @param _forceInclusionPeriod Timeout in seconds when a transaction must be published.
+     */
     constructor(
         address _addressResolver,
         address _sequencer,
@@ -46,14 +58,23 @@ contract CanonicalTransactionChain is ContractResolver {
         lastOVMTimestamp = 0;
     }
 
+
     /*
      * Public Functions
      */
 
+    /**
+     * @return Total number of published transaction batches.
+     */
     function getBatchesLength() public view returns (uint) {
        return batches.length;
     }
 
+    /**
+     * Computes the hash of a batch header.
+     * @param _batchHeader Header to hash.
+     * @return Hash of the provided header.
+     */
     function hashBatchHeader(
         DataTypes.TxChainBatchHeader memory _batchHeader
     ) public pure returns (bytes32) {
@@ -66,12 +87,20 @@ contract CanonicalTransactionChain is ContractResolver {
         ));
     }
 
+    /**
+     * Checks whether a sender is allowed to append to the chain.
+     * @param _sender Address to check.
+     * @return Whether or not the address can append.
+     */
     function authenticateAppend(
         address _sender
     ) public view returns (bool) {
         return _sender == sequencer;
     }
 
+    /**
+     * Attempts to append a transaction batch from pending L1 transactions.
+     */
     function appendL1ToL2Batch() public {
         L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
@@ -87,6 +116,9 @@ contract CanonicalTransactionChain is ContractResolver {
         l1ToL2Queue.dequeue();
     }
 
+    /**
+     * Attempts to append a transaction batch from the safety queue.
+     */
     function appendSafetyBatch() public {
         L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
@@ -102,39 +134,11 @@ contract CanonicalTransactionChain is ContractResolver {
         safetyQueue.dequeue();
     }
 
-    function _appendQueueBatch(
-        DataTypes.TimestampedHash memory timestampedHash,
-        bool isL1ToL2Tx
-    ) internal {
-        uint timestamp = timestampedHash.timestamp;
-
-        require(
-            timestamp + forceInclusionPeriod <= now || authenticateAppend(msg.sender),
-            "Message sender does not have permission to append this batch"
-        );
-
-        lastOVMTimestamp = timestamp;
-        bytes32 elementsMerkleRoot = timestampedHash.txHash;
-        uint numElementsInBatch = 1;
-
-        bytes32 batchHeaderHash = keccak256(abi.encodePacked(
-            timestamp,
-            isL1ToL2Tx,
-            elementsMerkleRoot,
-            numElementsInBatch,
-            cumulativeNumElements // cumulativePrevElements
-        ));
-
-        batches.push(batchHeaderHash);
-        cumulativeNumElements += numElementsInBatch;
-
-        if (isL1ToL2Tx) {
-            emit L1ToL2BatchAppended(batchHeaderHash);
-        } else {
-            emit SafetyQueueBatchAppended(batchHeaderHash);
-        }
-    }
-
+    /**
+     * Attempts to append a batch provided by the sequencer.
+     * @param _txBatch Transaction batch to append.
+     * @param _timestamp Timestamp for the batch.
+     */
     function appendSequencerBatch(
         bytes[] memory _txBatch,
         uint _timestamp
@@ -194,11 +198,16 @@ contract CanonicalTransactionChain is ContractResolver {
         emit SequencerBatchAppended(batchHeaderHash);
     }
 
-    // verifies an element is in the current list at the given position
+    /**
+     * Checks that an element is included within a published batch.
+     * @param _element Element to prove within the batch.
+     * @param _position Index of the element within the batch.
+     * @param _inclusionProof Inclusion proof for the element/batch.
+     */
     function verifyElement(
-        bytes memory _element, // the element of the list being proven
-        uint _position, // the position in the list of the element being proven
-        DataTypes.TxElementInclusionProof memory _inclusionProof  // inclusion proof in the rollup batch
+        bytes memory _element,
+        uint _position,
+        DataTypes.TxElementInclusionProof memory _inclusionProof
     ) public view returns (bool) {
         // For convenience, store the batchHeader
         DataTypes.TxChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;
@@ -222,6 +231,49 @@ contract CanonicalTransactionChain is ContractResolver {
 
         //compare computed batch header with the batch header in the list.
         return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
+    }
+
+
+    /*
+     * Internal Functions
+     */
+
+    /**
+     * Appends a batch.
+     * @param _timestampedHash Timestamped transaction hash.
+     * @param _isL1ToL2Tx Whether or not this is an L1-L2 transaction.
+     */
+    function _appendQueueBatch(
+        DataTypes.TimestampedHash memory _timestampedHash,
+        bool _isL1ToL2Tx
+    ) internal {
+        uint timestamp = _timestampedHash.timestamp;
+
+        require(
+            timestamp + forceInclusionPeriod <= now || authenticateAppend(msg.sender),
+            "Message sender does not have permission to append this batch"
+        );
+
+        lastOVMTimestamp = timestamp;
+        bytes32 elementsMerkleRoot = _timestampedHash.txHash;
+        uint numElementsInBatch = 1;
+
+        bytes32 batchHeaderHash = keccak256(abi.encodePacked(
+            timestamp,
+            _isL1ToL2Tx,
+            elementsMerkleRoot,
+            numElementsInBatch,
+            cumulativeNumElements // cumulativePrevElements
+        ));
+
+        batches.push(batchHeaderHash);
+        cumulativeNumElements += numElementsInBatch;
+
+        if (_isL1ToL2Tx) {
+            emit L1ToL2BatchAppended(batchHeaderHash);
+        } else {
+            emit SafetyQueueBatchAppended(batchHeaderHash);
+        }
     }
 
 

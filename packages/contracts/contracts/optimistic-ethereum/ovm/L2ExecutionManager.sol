@@ -1,22 +1,22 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
+/* Contract Imports */
 import { ExecutionManager } from "./ExecutionManager.sol";
 
 /**
  * @title L2ExecutionManager
- * @notice This extension of ExecutionManager that should only run in L2 because it has optimistic execution details
- *         that are unnecessary and inefficient to run in L1.
+ * @notice This extension of ExecutionManager that should only run in L2 because it has optimistic
+ *         execution details that are unnecessary and inefficient to run in L1.
  */
 contract L2ExecutionManager is ExecutionManager {
     /*
      * Contract Variables
      */
 
-    mapping(bytes32 => bytes32) ovmHashToEvmHash;
-    mapping(bytes32 => bytes32) evmHashToOvmHash;
-    mapping(bytes32 => bytes) ovmHashToOvmTx;
+    mapping(bytes32 => bytes32) private ovmHashToEvmHash;
+    mapping(bytes32 => bytes32) private evmHashToOvmHash;
+    mapping(bytes32 => bytes) private ovmHashToOvmTx;
 
 
     /*

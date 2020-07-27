@@ -1,8 +1,8 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/*
- * Merkle Tree Utilities for Rollup
+/**
+ * @title RollupMerkleUtils
  */
 contract RollupMerkleUtils {
     /*
@@ -29,8 +29,8 @@ contract RollupMerkleUtils {
      */
 
     /**
-     * @notice Initialize a new SparseMerkleUtils contract, computing the
-     *         default hashes for the sparse merkle tree (SMT).
+     * Initialize a new SparseMerkleUtils contract, computing the
+     * default hashes for the sparse merkle tree (SMT).
      */
     constructor() public {
         setDefaultHashes();
@@ -42,7 +42,7 @@ contract RollupMerkleUtils {
      */
 
     /**
-     * @notice Get the sparse merkle root computed from some set of data blocks.
+     * Get the sparse merkle root computed from some set of data blocks.
      * @param _dataBlocks The data being used to generate the tree.
      * @return the sparse merkle tree root
      */
@@ -94,7 +94,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Calculate root from an inclusion proof.
+     * Calculate root from an inclusion proof.
      * @param _dataBlock The data block we're calculating root for.
      * @param _path The path from the leaf to the root.
      * @param _siblings The sibling nodes along the way.
@@ -124,7 +124,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Verify an inclusion proof.
+     * Verify an inclusion proof.
      * @param _root The root of the tree we are verifying inclusion for.
      * @param _dataBlock The data block we're verifying inclusion for.
      * @param _path The path from the leaf to the root.
@@ -149,7 +149,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Update the stored tree / root with a particular dataBlock at some path (no siblings needed)
+     * Update the stored tree / root with a particular dataBlock at some path (no siblings needed)
      * @param _dataBlock The data block we're storing/verifying
      * @param _path The path from the leaf to the root / the index of the leaf.
      */
@@ -169,7 +169,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Store a particular merkle proof & verify that the root did not change.
+     * Store a particular merkle proof & verify that the root did not change.
      * @param _dataBlock The data block we're storing/verifying
      * @param _path The path from the leaf to the root / the index of the leaf.
      * @param _siblings The sibling nodes along the way.
@@ -189,7 +189,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Store a particular dataBlock & its intermediate nodes in the tree
+     * Store a particular dataBlock & its intermediate nodes in the tree
      * @param _dataBlock The data block we're storing.
      * @param _path The path from the leaf to the root / the index of the leaf.
      * @param _siblings The sibling nodes along the way.
@@ -205,7 +205,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Store a particular leaf hash & its intermediate nodes in the tree
+     * Store a particular leaf hash & its intermediate nodes in the tree
      * @param _leaf The leaf we're storing.
      * @param _path The path from the leaf to the root / the index of the leaf.
      * @param _siblings The sibling nodes along the way.
@@ -239,8 +239,8 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Get siblings for a leaf at a particular index of the tree.
-     *         This is used for updates which don't include sibling nodes.
+     * Get siblings for a leaf at a particular index of the tree.
+     * This is used for updates which don't include sibling nodes.
      * @param _path The path from the leaf to the root / the index of the leaf.
      * @return The sibling nodes along the way.
      */
@@ -265,7 +265,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Get our stored tree's root
+     * Get our stored tree's root
      * @return The merkle root of the tree
      */
     function getRoot() public view returns (bytes32) {
@@ -273,7 +273,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Set the tree root and height of the stored tree
+     * Set the tree root and height of the stored tree
      * @param _root The merkle root of the tree
      * @param _height The height of the tree
      */
@@ -283,7 +283,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Store node in the (in-storage) sparse merkle tree
+     * Store node in the (in-storage) sparse merkle tree
      * @param _parent The parent node
      * @param _leftChild The left child of the parent in the tree
      * @param _rightChild The right child of the parent in the tree
@@ -312,7 +312,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Get the children of some parent in the tree
+     * Get the children of some parent in the tree
      * @param _parent The parent node
      * @return (rightChild, leftChild) -- the two children of the parent
      */
@@ -326,8 +326,8 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Get the right sibling key. Note that these keys overwrite the first bit of the hash
-               to signify if it is on the right side of the parent or on the left
+     * Get the right sibling key. Note that these keys overwrite the first bit of the hash
+     * to signify if it is on the right side of the parent or on the left
      * @param _parent The parent node
      * @return the key for the left sibling (0 as the first bit)
      */
@@ -336,8 +336,8 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Get the right sibling key. Note that these keys overwrite the first bit of the hash
-               to signify if it is on the right side of the parent or on the left
+     * Get the right sibling key. Note that these keys overwrite the first bit of the hash
+     * to signify if it is on the right side of the parent or on the left
      * @param _parent The parent node
      * @return the key for the right sibling (1 as the first bit)
      */
@@ -351,7 +351,7 @@ contract RollupMerkleUtils {
      */
 
     /**
-     * @notice Set default hashes
+     * Set default hashes.
      */
     function setDefaultHashes() internal {
         // Set the initial default hash.
@@ -363,7 +363,7 @@ contract RollupMerkleUtils {
     }
 
     /**
-     * @notice Get the parent of two children nodes in the tree
+     * Get the parent of two children nodes in the tree
      * @param _left The left child
      * @param _right The right child
      * @return The parent node

@@ -1,16 +1,20 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
-import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
-import { DataTypes } from "../utils/libraries/DataTypes.sol";
-import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
+/* Contract Imports */
 import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
 import { CanonicalTransactionChain } from "../chain/CanonicalTransactionChain.sol";
 import { StateTransitioner } from "./StateTransitioner.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
+
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
+import { TransactionParser } from "../utils/libraries/TransactionParser.sol";
+
+/* Testing Imports */
 import { StubStateTransitioner } from "./test-helpers/StubStateTransitioner.sol";
-import { TransactionParser } from "./TransactionParser.sol";
 
 /**
  * @title FraudVerifier
@@ -23,13 +27,16 @@ contract FraudVerifier is ContractResolver {
      */
 
     mapping (uint256 => IStateTransitioner) public stateTransitioners;
-
-    bool isTest;
+    bool private isTest;
 
     /*
      * Constructor
      */
 
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     * @param _isTest Whether or not to throw into testing mode.
+     */
     constructor(
         address _addressResolver,
         bool _isTest
@@ -43,7 +50,7 @@ contract FraudVerifier is ContractResolver {
      */
 
     /**
-     * @notice Initializes the fraud proof verification process. Creates a new
+     * Initializes the fraud proof verification process. Creates a new
      * StateTransitioner instance if none already exists for the given state
      * transition index.
      * @param _preStateTransitionIndex Index of the state transition suspected
@@ -116,7 +123,7 @@ contract FraudVerifier is ContractResolver {
     }
 
     /**
-     * @notice Finalizes the fraud verification process. Checks that the state
+     * Finalizes the fraud verification process. Checks that the state
      * transitioner has executed the transition to completion and that the
      * resulting state root differs from the one previous published.
      * @param _preStateTransitionIndex Index of the state transition suspected
@@ -198,7 +205,7 @@ contract FraudVerifier is ContractResolver {
     }
 
     /**
-     * @notice Utility; checks whether a StateTransitioner exists for a given
+     * Utility; checks whether a StateTransitioner exists for a given
      * state transition index. Can be used by clients to preemtively avoid
      * attempts to initialize the same StateTransitioner multiple times.
      * @param _stateTransitionIndex Index of the state transition suspected to
@@ -224,7 +231,7 @@ contract FraudVerifier is ContractResolver {
      */
 
     /**
-     * @notice Utility; verifies that a given state root is valid. Mostly just
+     * Utility; verifies that a given state root is valid. Mostly just
      * a convenience wrapper around the current verification method within
      * StateCommitmentChain.
      * @param _stateRoot State trie root to prove is included in the commitment
@@ -250,7 +257,7 @@ contract FraudVerifier is ContractResolver {
     }
 
     /**
-     * @notice Utility; verifies that a given transaction is valid. Mostly just
+     * Utility; verifies that a given transaction is valid. Mostly just
      * a convenience wrapper around the current verification method within
      * CanonicalTransactionChain.
      * @param _transaction OVM transaction data to verify.

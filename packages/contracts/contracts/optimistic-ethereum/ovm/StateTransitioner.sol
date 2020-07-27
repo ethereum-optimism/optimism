@@ -1,14 +1,17 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/* Contract Imports */
 import { FraudVerifier } from "./FraudVerifier.sol";
 import { PartialStateManager } from "./PartialStateManager.sol";
 import { ExecutionManager } from "./ExecutionManager.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
+
+/* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { EthMerkleTrie } from "../utils/libraries/EthMerkleTrie.sol";
-import { TransactionParser } from "./TransactionParser.sol";
+import { TransactionParser } from "../utils/libraries/TransactionParser.sol";
 
 /**
  * @title StateTransitioner
@@ -30,8 +33,8 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      * Contract Constants
      */
 
-    bytes32 constant BYTES32_NULL = bytes32('');
-    uint256 constant UINT256_NULL = uint256(0);
+    bytes32 constant private BYTES32_NULL = bytes32('');
+    uint256 constant private UINT256_NULL = uint256(0);
 
 
     /*
@@ -65,6 +68,12 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      * Constructor
      */
 
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     * @param _transitionIndex Index of the state transition to execute.
+     * @param _preStateRoot Root of the state before the transition.
+     * @param _ovmTransactionHash Hash of the transaction being executed.
+     */
     constructor(
         address _addressResolver,
         uint _transitionIndex,
@@ -94,7 +103,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      *****************************/
 
     /**
-     * @notice Allows a user to prove the state for a given contract. Currently
+     * Allows a user to prove the state for a given contract. Currently
      * only requires that the user prove the nonce. Only callable before the
      * transaction suspected to be fraudulent has been executed.
      * @param _ovmContractAddress Address of the contract on the OVM.
@@ -144,7 +153,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
     }
 
     /**
-     * @notice Allows a user to prove the value of a given storage slot for
+     * Allows a user to prove the value of a given storage slot for
      * some contract. Only callable before the transaction suspected to be
      * fraudulent has been executed.
      * @param _ovmContractAddress Address of the contract on the OVM.
@@ -192,7 +201,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      *************************/
 
     /**
-    * @notice Executes the transaction suspected to be fraudulent via the
+    * Executes the transaction suspected to be fraudulent via the
     * ExecutionManager. Will revert if the transaction attempts to access
     * state that has not been proven during the pre-execution phase.
      */
@@ -233,7 +242,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
      ******************************/
 
     /**
-     * @notice Updates the root of the state trie by making a modification to
+     * Updates the root of the state trie by making a modification to
      * a contract's storage slot. Contract storage to be modified depends on a
      * stack of slots modified during execution.
      * @param _stateTrieWitness Merkle trie inclusion proof for the contract
@@ -263,7 +272,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
     }
 
     /**
-     * @notice Updates the root of the state trie by making a modification to
+     * Updates the root of the state trie by making a modification to
      * a contract's state. Contract to be modified depends on a stack of
      * contract states modified during execution.
      * @param _stateTrieWitness Merkle trie inclusion proof for the contract
@@ -299,7 +308,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
     }
 
     /**
-     * @notice Finalizes the state transition process once all state trie or
+     * Finalizes the state transition process once all state trie or
      * storage trie modifications have been reflected in the state root.
      */
     function completeTransition()
@@ -319,7 +328,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
     }
 
     /**
-     * @notice Utility; checks whether the process is complete.
+     * Utility; checks whether the process is complete.
      * @return `true` if the process is complete, `false` otherwise.
      */
     function isComplete() public view returns (bool) {

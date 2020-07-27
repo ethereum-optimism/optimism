@@ -1,25 +1,38 @@
-/*
-* @author Hamdi Allam hamdi.allam97@gmail.com
-* Please reach out with any questions or concerns
-*/
 pragma solidity ^0.5.0;
 
+/**
+ * @title RLPReader
+ * @author Hamdi Allam hamdi.allam97@gmail.com
+ */
 library RLPReader {
-    uint8 constant STRING_SHORT_START = 0x80;
-    uint8 constant STRING_LONG_START  = 0xb8;
-    uint8 constant LIST_SHORT_START   = 0xc0;
-    uint8 constant LIST_LONG_START    = 0xf8;
+    /*
+     * Contract Constants
+     */
 
-    uint8 constant WORD_SIZE = 32;
+    uint8 constant private STRING_SHORT_START = 0x80;
+    uint8 constant private STRING_LONG_START  = 0xb8;
+    uint8 constant private LIST_SHORT_START   = 0xc0;
+    uint8 constant private LIST_LONG_START    = 0xf8;
+    uint8 constant private WORD_SIZE = 32;
+
+
+    /*
+     * Structs
+     */
 
     struct RLPItem {
         uint len;
         uint memPtr;
     }
 
+
     /*
-    * @param item RLP encoded bytes
-    */
+     * Internal Functions
+     */
+
+    /**
+     * @param item RLP encoded bytes
+     */
     function toRlpItem(bytes memory item) internal pure returns (RLPItem memory) {
         uint memPtr;
         assembly {
@@ -29,23 +42,23 @@ library RLPReader {
         return RLPItem(item.length, memPtr);
     }
 
-    /*
-    * @param item RLP encoded bytes
-    */
+    /**
+     * @param item RLP encoded bytes
+     */
     function rlpLen(RLPItem memory item) internal pure returns (uint) {
         return item.len;
     }
 
-    /*
-    * @param item RLP encoded bytes
-    */
+    /**
+     * @param item RLP encoded bytes
+     */
     function payloadLen(RLPItem memory item) internal pure returns (uint) {
         return item.len - _payloadOffset(item.memPtr);
     }
 
-    /*
-    * @param item RLP encoded list in bytes
-    */
+    /**
+     * @param item RLP encoded list in bytes
+     */
     function toList(RLPItem memory item) internal pure returns (RLPItem[] memory result) {
         require(isList(item));
 

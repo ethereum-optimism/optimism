@@ -1,9 +1,12 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
+/* Library Imports */
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 
+/**
+ * @title L2ToL1MessageReceiver
+ */
 contract L2ToL1MessageReceiver {
     /*
      * Events
@@ -40,6 +43,10 @@ contract L2ToL1MessageReceiver {
      * Constructor
      */
 
+    /**
+     * @param _sequencer Current sequencer address.
+     * @param _blocksUntilFinal Blocks until transactions are considered final.
+     */
     constructor(address _sequencer, uint _blocksUntilFinal) public {
         sequencer = _sequencer;
         blocksUntilFinal = _blocksUntilFinal;
@@ -50,6 +57,10 @@ contract L2ToL1MessageReceiver {
      * Public Functions
      */
 
+    /**
+     * Adds a message to the queue.
+     * @param _message Message to add to the queue.
+     */
     function enqueueL2ToL1Message(
         DataTypes.L2ToL1Message memory _message
     ) public {
@@ -75,6 +86,12 @@ contract L2ToL1MessageReceiver {
         messageNonce += 1;
     }
 
+    /**
+     * Verifies that a message was queued and finalized.
+     * @param _message Message to verify.
+     * @param _nonce Nonce for the given message.
+     * @return Whether or not the message is verified.
+     */
     function verifyL2ToL1Message(
         DataTypes.L2ToL1Message memory _message,
         uint _nonce
@@ -98,6 +115,11 @@ contract L2ToL1MessageReceiver {
      * Internal Functions
      */
 
+    /**
+     * Calculates the hash of a given message.
+     * @param _message Message to hash.
+     * @return Hash of the provided message.
+     */
     function getMessageHash(
         DataTypes.L2ToL1Message memory _message
     ) internal pure returns (bytes32) {
