@@ -14,7 +14,7 @@ import './plugins/hijack-compiler'
 
 const parseSolppFlags = (): { [flag: string]: boolean } => {
   const flags: { [flag: string]: boolean } = {}
-  
+
   const solppEnv = process.env.SOLPP_FLAGS
   if (!solppEnv) {
     return flags
@@ -43,9 +43,9 @@ const config: BuidlerConfig = {
   },
   solpp: {
     defs: {
-      ...parseSolppFlags()
-    }
-  }
+      ...parseSolppFlags(),
+    },
+  },
 }
 
 export default config
