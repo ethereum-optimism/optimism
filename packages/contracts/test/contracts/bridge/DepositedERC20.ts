@@ -49,7 +49,7 @@ describe.only('DepositedERC20', () => {
     })
 
     it('mints tokens and increases total supply', async () => {
-      
+
       const initialTotalSupply = (await depositedERC20.totalSupply()).toNumber()
       const depositAmount = 5
       await depositedERC20.processDeposit('0x' + '00'.repeat(20), depositAmount)
@@ -59,10 +59,14 @@ describe.only('DepositedERC20', () => {
 
     it('mints tokens to the depositer', async () => {
       const depositerAddress = '0x' + '00'.repeat(20)
-      const initialBalance = (await depositedERC20.balanceOf(depositerAddress)).toNumber()
+      const initialBalance = (
+        await depositedERC20.balanceOf(depositerAddress)
+      ).toNumber()
       const depositAmount = 5
       await depositedERC20.processDeposit('0x' + '00'.repeat(20), depositAmount)
-      const newBalance = (await depositedERC20.balanceOf(depositerAddress)).toNumber()
+      const newBalance = (
+        await depositedERC20.balanceOf(depositerAddress)
+      ).toNumber()
       newBalance.should.equal(initialBalance + depositAmount)
     })
   })

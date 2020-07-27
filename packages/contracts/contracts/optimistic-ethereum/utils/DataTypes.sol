@@ -90,4 +90,11 @@ contract DataTypes {
         address l1MsgSenderAddress;
         bool allowRevert;
     }
+
+    struct ERC20Withdrawal {
+        address withdrawer;
+        uint amount;
+        uint256 withdrawalNonce;
+    }
+
 }
