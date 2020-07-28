@@ -1,8 +1,8 @@
+/* tslint:disable:no-empty */
 import { expect } from '../../setup'
 
 /* External Imports */
 import * as path from 'path'
-import * as rlp from 'rlp'
 import { ethers } from '@nomiclabs/buidler'
 import { getLogger, TestUtils, remove0x } from '@eth-optimism/core-utils'
 import * as solc from '@eth-optimism/solc-transpiler'
@@ -419,6 +419,14 @@ describe('StateTransitioner', () => {
           await stateManager.isVerifiedContract(fraudTester.address)
         ).to.equal(false)
       })
+
+      it('should fail if the code contract has not been deployed', async () => {})
+
+      it('should fail if the code contract is invalid', async () => {})
+
+      it('should fail if the state trie witness is invalid', async () => {})
+
+      it('should fail if the transaction has been executed', async () => {})
     })
 
     describe('proveStorageSlotInclusion(...)', async () => {
@@ -474,6 +482,14 @@ describe('StateTransitioner', () => {
         ).to.equal(false)
       })
     })
+
+    it('should fail if the transaction has already been executed', async () => {})
+
+    it('should fail if the provided contract has not been verified', async () => {})
+
+    it('should fail if the state trie witness is invalid', async () => {})
+
+    it('should fail if the storage trie witness is invalid', async () => {})
   })
 
   describe('applyTransaction(...)', async () => {
@@ -672,6 +688,10 @@ describe('StateTransitioner', () => {
         STATE_TRANSITIONER_PHASES.PRE_EXECUTION
       )
     })
+
+    it('should succeed even if the underlying transaction reverts', async () => {})
+
+    it('should fail if the provided transaction data does not match the original data', async () => {})
   })
 
   describe('Post-Execution', async () => {
@@ -803,6 +823,12 @@ describe('StateTransitioner', () => {
         expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
       })
+
+      it('should revert if the transaction has not been executed', async () => {})
+
+      it('should revert if the provided state trie witness is invalid', async () => {})
+
+      it('should revert if the provided storage trie witness is invalid', async () => {})
     })
 
     describe('proveUpdatedContract(...)', async () => {
@@ -890,6 +916,14 @@ describe('StateTransitioner', () => {
         expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
         expect(await stateManager.updatedContractsCounter()).to.equal(0)
       })
+
+      it('should update when an externally owned account has been modified', async () => {})
+
+      it('should update when multiple EOAs have been modified', async () => {})
+
+      it('should revert if the transaction has not been executed yet', async () => {})
+
+      it('should revert if the provided state trie witness is invalid', async () => {})
     })
 
     describe('completeTransition(...)', async () => {
@@ -952,9 +986,7 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
-        expect(await stateTransitioner.currentTransitionPhase()).to.equal(
-          STATE_TRANSITIONER_PHASES.COMPLETE
-        )
+        expect(await stateTransitioner.isComplete()).to.equal(true)
       })
 
       it('should correctly finalize when storage slots are changed', async () => {
@@ -990,10 +1022,14 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
-        expect(await stateTransitioner.currentTransitionPhase()).to.equal(
-          STATE_TRANSITIONER_PHASES.COMPLETE
-        )
+        expect(await stateTransitioner.isComplete()).to.equal(true)
       })
+
+      it('should not finalize if the transaction has not been executed yet', async () => {})
+
+      it('should not finalize if there are still storage slots to be updated', async () => {})
+
+      it('should not finalize if there are still contracts to be updated', async () => {})
     })
   })
 })

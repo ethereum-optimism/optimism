@@ -39,6 +39,53 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
+"@eth-optimism/core-db@^0.0.1-alpha.27":
+  version "0.0.1-alpha.27"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-db/-/core-db-0.0.1-alpha.27.tgz#c1b5bab856d5bca44d26de9685e2fa9f1b48b579"
+  integrity sha512-kKkGvss/w7q57NTTFWbY1B3VKI0soClBHDvcP1t5CJrNw7ggkSrlgEbx+LsriTd/vn+fL5iUgwCIcUJn711A0Q==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
+    abstract-leveldown "^6.2.2"
+    async-lock "^1.2.2"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    debug "^4.1.1"
+    ethers "^4.0.39"
+    level "^6.0.0"
+    memdown "^4.0.0"
+
+"@eth-optimism/core-utils@^0.0.1-alpha.27":
+  version "0.0.1-alpha.27"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.0.1-alpha.27.tgz#b43c8b5cd8ee89de7294c5f93aef5c47ee846cf5"
+  integrity sha512-OLQONkCevn6xaAyFlxOrL5BkE8BycvicBk0+RDL13g4OXSl/WkLaAjzUJcxYsGDzDUaB7yPUcwLQwUaT6xmcww==
+  dependencies:
+    abstract-leveldown "^6.2.2"
+    async-lock "^1.2.2"
+    axios "^0.19.0"
+    bn.js "^4.11.8"
+    body-parser "^1.19.0"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    debug "^4.1.1"
+    dotenv "^8.2.0"
+    ethereumjs-util "^6.2.0"
+    ethers "^4.0.37"
+    express "^4.17.1"
+    memdown "^4.0.0"
+    ts-md5 "^1.2.4"
+    uuid "^3.3.3"
+
+"@eth-optimism/rollup-core@^0.0.1-alpha.28":
+  version "0.0.1-alpha.28"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-core/-/rollup-core-0.0.1-alpha.28.tgz#845de41ed266e0f1fd738776cb68bfe1fa391104"
+  integrity sha512-NYNIkokGCJwsZAe4pWO3FGQV4g/AmTuHZsMiYrpwIJ8+sc3cWNDWl6gyOksaofBMjRES4cGDLoU3xvO1jzI7Tw==
+  dependencies:
+    "@eth-optimism/core-db" "^0.0.1-alpha.27"
+    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
+    async-lock "^1.2.2"
+    ethereum-waffle "2.1.0"
+    ethers "^4.0.39"
+
 "@ethereum-waffle/chai@^3.0.2":
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/chai/-/chai-3.0.2.tgz#5492398abbf2b64ec2524deac78777ee62d02d08"

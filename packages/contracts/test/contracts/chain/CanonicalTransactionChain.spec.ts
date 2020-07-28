@@ -1,3 +1,4 @@
+/* tslint:disable:no-empty */
 import '../../setup'
 
 /* External Imports */
@@ -103,6 +104,16 @@ describe('CanonicalTransactionChain', () => {
         params: [resolver.addressResolver.address],
       }
     )
+  })
+
+  describe('hashBatchHeader(...)', async () => {
+    it('should correctly compute the hash of a given batch', async () => {})
+  })
+
+  describe('authenticateAppend(...)', async () => {
+    it('should return true when the sender is the sequencer', async () => {})
+
+    it('should return false when the sender is not the sequencer', async () => {})
   })
 
   describe('appendSequencerBatch()', async () => {
@@ -814,6 +825,10 @@ describe('CanonicalTransactionChain', () => {
       )
       isIncluded.should.equal(false)
     })
+
+    it('should return false when element data is invalid', async () => {})
+
+    it('should return false when siblings are invalid', async () => {})
   })
 
   describe('Event Emitting', () => {
