@@ -25,9 +25,9 @@ export const buildCreate2Address = (
   saltHex: string,
   byteCode: string
 ): string => {
-  const preimage: string = `ff${remove0x(creatorAddress)}${remove0x(
+  const preimage: string = `0xff${remove0x(creatorAddress)}${remove0x(
     saltHex
-  )}${keccak256(byteCode)}`
+  )}${remove0x(keccak256(byteCode))}`
   return add0x(
     keccak256(preimage)
       .slice(-40)
