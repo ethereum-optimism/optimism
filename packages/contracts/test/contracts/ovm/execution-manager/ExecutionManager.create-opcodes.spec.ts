@@ -103,10 +103,7 @@ describe('ExecutionManager -- Create opcodes', () => {
         safetyChecker.address
       )
 
-      const data = encodeFunctionData(
-        'ovmCREATE',
-        [deployInvalidTx.data]
-      )
+      const data = encodeFunctionData('ovmCREATE', [deployInvalidTx.data])
 
       await TestUtils.assertRevertsAsync(
         'Contract init (creation) code is not safe',
@@ -128,10 +125,7 @@ describe('ExecutionManager -- Create opcodes', () => {
         stubSafetyChecker.address
       )
 
-      const data = encodeFunctionData(
-        'ovmCREATE2',
-        [0, deployTx.data]
-      )
+      const data = encodeFunctionData('ovmCREATE2', [0, deployTx.data])
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({
@@ -153,10 +147,7 @@ describe('ExecutionManager -- Create opcodes', () => {
         safetyChecker.address
       )
 
-      const data = encodeFunctionData(
-        'ovmCREATE2',
-        [0, deployInvalidTx.data]
-      )
+      const data = encodeFunctionData('ovmCREATE2', [0, deployInvalidTx.data])
 
       await TestUtils.assertRevertsAsync(
         'Contract init (creation) code is not safe',

@@ -53,10 +53,10 @@ describe('ExecutionManager -- Storage opcodes', () => {
   })
 
   const sstore = async (): Promise<void> => {
-    const data = encodeFunctionData(
-      'ovmSSTORE',
-      [ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32]
-    )
+    const data = encodeFunctionData('ovmSSTORE', [
+      ONE_FILLED_BYTES_32,
+      TWO_FILLED_BYTES_32,
+    ])
 
     // Now actually apply it to our execution manager
     const tx = await wallet.sendTransaction({
@@ -94,10 +94,10 @@ describe('ExecutionManager -- Storage opcodes', () => {
     it('loads a value immediately after it is stored', async () => {
       await sstore()
 
-      const data = encodeFunctionData(
-        'ovmSLOAD',
-        [ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32]
-      )
+      const data = encodeFunctionData('ovmSLOAD', [
+        ONE_FILLED_BYTES_32,
+        TWO_FILLED_BYTES_32,
+      ])
 
       // Now actually apply it to our execution manager
       const result = await executionManager.provider.call({

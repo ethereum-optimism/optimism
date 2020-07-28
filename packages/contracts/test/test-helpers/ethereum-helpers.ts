@@ -141,10 +141,18 @@ export const compile = (
   return JSON.parse(compiler.compile(JSON.stringify(input)))
 }
 
-export const encodeFunctionData = (functionName: string, functionParams: any[] = []): string => {
-  return add0x(encodeMethodId(functionName) + encodeRawArguments(functionParams))
+export const encodeFunctionData = (
+  functionName: string,
+  functionParams: any[] = []
+): string => {
+  return add0x(
+    encodeMethodId(functionName) + encodeRawArguments(functionParams)
+  )
 }
 
-export const getCodeHash = async (provider: any, address: string): Promise<string> => {
+export const getCodeHash = async (
+  provider: any,
+  address: string
+): Promise<string> => {
   return keccak256(await provider.getCode(address))
 }

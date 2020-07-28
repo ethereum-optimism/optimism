@@ -25,7 +25,7 @@ import {
   deployAndRegister,
   AddressResolverMapping,
   callExecutionManagerExecuteTransaction,
-  encodeFunctionData
+  encodeFunctionData,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -79,14 +79,11 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
   describe('OVM L2 -> L1 message passer', () => {
     it(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
       const bytesToSendToL1 = '0x123412341234deadbeef'
-      const callBytes = encodeFunctionData(
-        'makeCall',
-        [
-          addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
-          ethereumjsAbi.methodID('passMessageToL1', ['bytes']),
-          abi.encode(['bytes'], [bytesToSendToL1]),
-        ]
-      )
+      const callBytes = encodeFunctionData('makeCall', [
+        addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
+        ethereumjsAbi.methodID('passMessageToL1', ['bytes']),
+        abi.encode(['bytes'], [bytesToSendToL1]),
+      ])
 
       const data = executionManager.interface.encodeFunctionData(
         'executeTransaction',

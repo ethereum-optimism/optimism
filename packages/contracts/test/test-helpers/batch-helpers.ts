@@ -1,5 +1,5 @@
-import { Contract, Signer } from "ethers"
-import { TxChainBatch, TxQueueBatch, StateChainBatch } from "./types"
+import { Contract, Signer } from 'ethers'
+import { TxChainBatch, TxQueueBatch, StateChainBatch } from './types'
 
 export function makeRepeatedBytes(value: string, length: number): string {
   const repeated = value.repeat((length * 2) / value.length + 1)

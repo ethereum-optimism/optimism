@@ -23,7 +23,7 @@ import {
   deployAndRegister,
   AddressResolverMapping,
   executeTestTransaction,
-  executePersistedTestTransaction
+  executePersistedTestTransaction,
 } from '../../../test-helpers'
 
 /* Logging */

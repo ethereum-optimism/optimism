@@ -6,10 +6,7 @@ import { getLogger } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
-import {
-  makeAddressResolver,
-  AddressResolverMapping,
-} from '../../test-helpers'
+import { makeAddressResolver, AddressResolverMapping } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('partial-state-manager', true)

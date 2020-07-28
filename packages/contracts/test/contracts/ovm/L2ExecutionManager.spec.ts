@@ -10,7 +10,7 @@ import {
   GAS_LIMIT,
   makeAddressResolver,
   AddressResolverMapping,
-  fillHexBytes
+  fillHexBytes,
 } from '../../test-helpers'
 
 /* Logging */

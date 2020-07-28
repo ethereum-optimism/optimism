@@ -3,7 +3,11 @@ import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { EVMOpcode, Opcode, DEFAULT_UNSAFE_OPCODES } from '@eth-optimism/rollup-core'
+import {
+  EVMOpcode,
+  Opcode,
+  DEFAULT_UNSAFE_OPCODES,
+} from '@eth-optimism/rollup-core'
 
 export { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 export { DEFAULT_UNSAFE_OPCODES } from '@eth-optimism/rollup-core'
@@ -15,7 +19,6 @@ export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
     privateKey: account.secretKey,
   }
 })
-
 
 export const GAS_LIMIT = 1_000_000_000
 export const DEFAULT_OPCODE_WHITELIST_MASK =
@@ -41,5 +44,5 @@ export const WHITELISTED_NOT_HALTING_OR_CALL = Opcode.ALL_OP_CODES.filter(
 )
 
 export const fillHexBytes = (byte: string): string => {
-  return '0x' + byte.repeat(32);
+  return '0x' + byte.repeat(32)
 }

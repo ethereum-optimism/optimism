@@ -334,7 +334,9 @@ export interface OVMTransactionData {
   allowRevert: boolean
 }
 
-export const makeDummyOvmTransaction = (calldata: string): OVMTransactionData => {
+export const makeDummyOvmTransaction = (
+  calldata: string
+): OVMTransactionData => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
     queueOrigin: 0,
@@ -346,7 +348,9 @@ export const makeDummyOvmTransaction = (calldata: string): OVMTransactionData =>
   }
 }
 
-export const encodeOvmTransaction = (transaction: OVMTransactionData): string => {
+export const encodeOvmTransaction = (
+  transaction: OVMTransactionData
+): string => {
   return toHexString(
     rlp.encode([
       transaction.timestamp,

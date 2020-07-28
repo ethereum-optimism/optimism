@@ -107,11 +107,7 @@ describe('CanonicalTransactionChain', () => {
 
   describe('appendSequencerBatch()', async () => {
     it('should not throw when appending a batch from the sequencer', async () => {
-      await appendSequencerBatch(
-        canonicalTxChain,
-        sequencer,
-        DEFAULT_BATCH
-      )
+      await appendSequencerBatch(canonicalTxChain, sequencer, DEFAULT_BATCH)
     })
 
     it('should throw if submitting an empty batch', async () => {
@@ -119,11 +115,7 @@ describe('CanonicalTransactionChain', () => {
       await TestUtils.assertRevertsAsync(
         'Cannot submit an empty batch',
         async () => {
-          await appendSequencerBatch(
-            canonicalTxChain,
-            sequencer,
-            emptyBatch
-          )
+          await appendSequencerBatch(canonicalTxChain, sequencer, emptyBatch)
         }
       )
     })
@@ -180,21 +172,13 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should add to batches array', async () => {
-      await appendSequencerBatch(
-        canonicalTxChain,
-        sequencer,
-        DEFAULT_BATCH
-      )
+      await appendSequencerBatch(canonicalTxChain, sequencer, DEFAULT_BATCH)
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      await appendSequencerBatch(
-        canonicalTxChain,
-        sequencer,
-        DEFAULT_BATCH
-      )
+      await appendSequencerBatch(canonicalTxChain, sequencer, DEFAULT_BATCH)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(DEFAULT_BATCH.length)
     })
@@ -272,7 +256,9 @@ describe('CanonicalTransactionChain', () => {
 
       it('should revert when there is an older batch in the L1ToL2Queue', async () => {
         const snapshotID = await provider.send('evm_snapshot', [])
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD])
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD,
+        ])
         const newTimestamp = localBatch.timestamp + 60
         await TestUtils.assertRevertsAsync(
           'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
@@ -312,7 +298,9 @@ describe('CanonicalTransactionChain', () => {
 
       it('should revert when there is an older batch in the SafetyQueue', async () => {
         const snapshotID = await provider.send('evm_snapshot', [])
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD])
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD,
+        ])
         const newTimestamp = localBatch.timestamp + 60
         await TestUtils.assertRevertsAsync(
           'Must process older SafetyQueue batches first to enforce timestamp monotonicity',
@@ -338,7 +326,9 @@ describe('CanonicalTransactionChain', () => {
         )
         safetyTimestamp = localSafetyBatch.timestamp
         snapshotID = await provider.send('evm_snapshot', [])
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD / 2])
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD / 2,
+        ])
         const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(
           provider,
           l1ToL2Queue,
@@ -377,7 +367,9 @@ describe('CanonicalTransactionChain', () => {
       })
 
       it('should revert when appending a batch with a timestamp newer than both batches', async () => {
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD / 10]) // increase time by 60 seconds
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD / 10,
+        ]) // increase time by 60 seconds
         const oldTimestamp = l1ToL2Timestamp + 1
         await TestUtils.assertRevertsAsync(
           'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
@@ -403,7 +395,9 @@ describe('CanonicalTransactionChain', () => {
         )
         l1ToL2Timestamp = localL1ToL2Batch.timestamp
         snapshotID = await provider.send('evm_snapshot', [])
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD / 2])
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD / 2,
+        ])
         const localSafetyBatch = await enqueueAndGenerateSafetyBatch(
           provider,
           safetyQueue,
@@ -442,7 +436,9 @@ describe('CanonicalTransactionChain', () => {
       })
 
       it('should revert when appending a batch with a timestamp newer than both batches', async () => {
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD / 10]) // increase time by 60 seconds
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD / 10,
+        ]) // increase time by 60 seconds
         const newTimestamp = safetyTimestamp + 1
         await TestUtils.assertRevertsAsync(
           'Must process older L1ToL2Queue batches first to enforce timestamp monotonicity',
@@ -505,7 +501,9 @@ describe('CanonicalTransactionChain', () => {
 
       it('should allow non-sequencer to appendL1ToL2Batch after inclusion period has elapsed', async () => {
         const snapshotID = await provider.send('evm_snapshot', [])
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD])
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD,
+        ])
         await canonicalTxChain.appendL1ToL2Batch()
         await provider.send('evm_revert', [snapshotID])
       })
@@ -615,7 +613,9 @@ describe('CanonicalTransactionChain', () => {
 
       it('should allow non-sequencer to appendSafetyBatch after force inclusion period has elapsed', async () => {
         const snapshotID = await provider.send('evm_snapshot', [])
-        await provider.send('evm_increaseTime', [DEFAULT_FORCE_INCLUSION_PERIOD])
+        await provider.send('evm_increaseTime', [
+          DEFAULT_FORCE_INCLUSION_PERIOD,
+        ])
         await canonicalTxChain.appendSafetyBatch()
         await provider.send('evm_revert', [snapshotID])
       })

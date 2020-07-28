@@ -30,7 +30,7 @@ export const OVM_METHOD_IDS = fromPairs(
     'ovmADDRESS',
     'ovmCALLER',
     'ovmCREATE',
-    'ovmCREATE2'
+    'ovmCREATE2',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
 
@@ -88,10 +88,7 @@ export const executePersistedTestTransaction = async (
   methodName: string,
   args: any[]
 ): Promise<string> => {
-  const callBytes = encodeFunctionData(
-    methodName,
-    args
-  )
+  const callBytes = encodeFunctionData(methodName, args)
 
   const data = executionManager.interface.encodeFunctionData(
     'executeTransaction',
@@ -122,10 +119,7 @@ export const executeTestTransaction = async (
   args: any[],
   queueOrigin = ZERO_ADDRESS
 ): Promise<string> => {
-  const callBytes = encodeFunctionData(
-    methodName,
-    args
-  )
+  const callBytes = encodeFunctionData(methodName, args)
 
   const data = executionManager.interface.encodeFunctionData(
     'executeTransaction',

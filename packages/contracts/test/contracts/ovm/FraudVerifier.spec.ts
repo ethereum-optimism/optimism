@@ -15,7 +15,7 @@ import {
   makeDummyOvmTransaction,
   encodeOvmTransaction,
   appendAndGenerateTransactionBatch,
-  appendAndGenerateStateBatch
+  appendAndGenerateStateBatch,
 } from '../../test-helpers'
 
 /* Tests */

@@ -27,7 +27,7 @@ import {
   makeDummyOvmTransaction,
   encodeOvmTransaction,
   OVMTransactionData,
-  getCodeHash
+  getCodeHash,
 } from '../../test-helpers'
 
 /* Logging */

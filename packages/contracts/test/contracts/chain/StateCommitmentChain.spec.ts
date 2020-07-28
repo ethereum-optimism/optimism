@@ -84,11 +84,7 @@ describe('StateCommitmentChain', () => {
       }
     )
 
-    await appendTxBatch(
-      canonicalTxChain,
-      sequencer,
-      DEFAULT_TX_BATCH
-    )
+    await appendTxBatch(canonicalTxChain, sequencer, DEFAULT_TX_BATCH)
 
     await resolver.addressResolver.setAddress(
       'FraudVerifier',
@@ -187,11 +183,7 @@ describe('StateCommitmentChain', () => {
   describe('verifyElement() ', async () => {
     it('should return true for valid elements for different batches and elements', async () => {
       // add enough transaction batches so # txs > # state roots
-      await appendTxBatch(
-        canonicalTxChain,
-        sequencer,
-        DEFAULT_TX_BATCH
-      )
+      await appendTxBatch(canonicalTxChain, sequencer, DEFAULT_TX_BATCH)
 
       const numBatches = 4
       let cumulativePrevElements = 0
@@ -227,10 +219,7 @@ describe('StateCommitmentChain', () => {
 
     it('should return false for wrong position with wrong indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateStateBatch(
-        stateChain,
-        batch
-      )
+      const localBatch = await appendAndGenerateStateBatch(stateChain, batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -249,10 +238,7 @@ describe('StateCommitmentChain', () => {
 
     it('should return false for wrong position and matching indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateStateBatch(
-        stateChain,
-        batch
-      )
+      const localBatch = await appendAndGenerateStateBatch(stateChain, batch)
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
