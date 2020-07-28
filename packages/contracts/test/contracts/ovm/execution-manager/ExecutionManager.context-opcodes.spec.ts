@@ -231,4 +231,42 @@ describe('Execution Manager -- Context opcodes', () => {
       remove0x(result).should.equal(queueOrigin, 'Queue origins do not match.')
     })
   })
+
+  describe('ovmBlockGasLimit', async () => {
+    it('should retrieve the block gas limit', async () => {
+      
+    })
+  })
+
+  describe('isStaticContext', async () => {
+    it('should be true when inside a static context', async () => {
+
+    })
+
+    it('should be false when not in a static context', async () => {
+
+    })
+  })
+
+  describe('ovmORIGIN', async () => {
+    it('should give us the origin of the transaction', async () => {
+
+    })
+
+    it('should revert if the transaction has no origin', async () => {
+
+    })
+  })
+
+  describe('setStateManager', async () => {
+    it('should allow us to change the state manager address', async () => {
+      
+    })
+  })
+
+  describe('incrementNonce', async () => {
+    it('should increment a contract nonce', async () => {
+      
+    })
+  })
 })

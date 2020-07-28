@@ -103,8 +103,7 @@ describe('Execution Manager -- Safety Checking', () => {
         AddThree,
         []
       )
-      console.log('Execution Manager Address:', executionManager.address)
-      console.log('AddThree Bytecode:', AddThree.bytecode)
+
       const createSucceeded = await didCreateSucceed(
         executionManager,
         receipt.transactionHash
