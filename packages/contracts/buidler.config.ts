@@ -45,6 +45,7 @@ const config: BuidlerConfig = {
     defs: {
       ...parseSolppFlags(),
     },
+    collapseEmptyLines: true,
   },
 }
 
