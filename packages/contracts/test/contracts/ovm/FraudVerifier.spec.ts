@@ -1,7 +1,6 @@
 import { expect } from '../../setup'
 
 /* External Imports */
-import * as rlp from 'rlp'
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { TestUtils } from '@eth-optimism/core-utils'
@@ -10,127 +9,32 @@ import { TestUtils } from '@eth-optimism/core-utils'
 import {
   TxChainBatch,
   StateChainBatch,
-  toHexString,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  makeDummyOvmTransaction,
+  encodeOvmTransaction,
+  appendAndGenerateTransactionBatch,
+  appendAndGenerateStateBatch
 } from '../../test-helpers'
-
-interface OVMTransactionData {
-  timestamp: number
-  queueOrigin: number
-  ovmEntrypoint: string
-  callBytes: string
-  fromAddress: string
-  l1MsgSenderAddress: string
-  allowRevert: boolean
-}
-
-const NULL_ADDRESS = '0x' + '00'.repeat(20)
-const FORCE_INCLUSION_PERIOD = 600
-
-const makeDummyTransaction = (calldata: string): OVMTransactionData => {
-  return {
-    timestamp: Math.floor(Date.now() / 1000),
-    queueOrigin: 0,
-    ovmEntrypoint: NULL_ADDRESS,
-    callBytes: calldata,
-    fromAddress: NULL_ADDRESS,
-    l1MsgSenderAddress: NULL_ADDRESS,
-    allowRevert: false,
-  }
-}
-
-const encodeTransaction = (transaction: OVMTransactionData): string => {
-  return toHexString(
-    rlp.encode([
-      transaction.timestamp,
-      transaction.queueOrigin,
-      transaction.ovmEntrypoint,
-      transaction.callBytes,
-      transaction.fromAddress,
-      transaction.l1MsgSenderAddress,
-      transaction.allowRevert ? 1 : 0,
-    ])
-  )
-}
-
-const appendTransactionBatch = async (
-  canonicalTransactionChain: Contract,
-  sequencer: Signer,
-  batch: string[]
-): Promise<number> => {
-  const timestamp = Math.floor(Date.now() / 1000)
-
-  await canonicalTransactionChain
-    .connect(sequencer)
-    .appendSequencerBatch(batch, timestamp)
-
-  return timestamp
-}
-
-const appendAndGenerateTransactionBatch = async (
-  canonicalTransactionChain: Contract,
-  sequencer: Signer,
-  batch: string[],
-  batchIndex: number = 0,
-  cumulativePrevElements: number = 0
-): Promise<TxChainBatch> => {
-  const timestamp = await appendTransactionBatch(
-    canonicalTransactionChain,
-    sequencer,
-    batch
-  )
-
-  const localBatch = new TxChainBatch(
-    timestamp,
-    false,
-    batchIndex,
-    cumulativePrevElements,
-    batch
-  )
-
-  await localBatch.generateTree()
-
-  return localBatch
-}
-
-const appendAndGenerateStateBatch = async (
-  stateCommitmentChain: Contract,
-  batch: string[],
-  batchIndex: number = 0,
-  cumulativePrevElements: number = 0
-): Promise<StateChainBatch> => {
-  await stateCommitmentChain.appendStateBatch(batch)
-
-  const localBatch = new StateChainBatch(
-    batchIndex,
-    cumulativePrevElements,
-    batch
-  )
-
-  await localBatch.generateTree()
-
-  return localBatch
-}
-
-const DUMMY_STATE_BATCH = [
-  '0x' + '01'.repeat(32),
-  '0x' + '02'.repeat(32),
-  '0x' + '03'.repeat(32),
-  '0x' + '04'.repeat(32),
-]
 
 /* Tests */
 describe('FraudVerifier', () => {
+  const DUMMY_STATE_BATCH = [
+    '0x' + '01'.repeat(32),
+    '0x' + '02'.repeat(32),
+    '0x' + '03'.repeat(32),
+    '0x' + '04'.repeat(32),
+  ]
+
   // Must create these when the tests are executed or the timestamp will be
   // invalid when we have a lot of tests to run.
   const DUMMY_TRANSACTION_BATCH = DUMMY_STATE_BATCH.map((element) => {
-    return makeDummyTransaction(element)
+    return makeDummyOvmTransaction(element)
   })
   const ENCODED_DUMMY_TRANSACTION_BATCH = DUMMY_TRANSACTION_BATCH.map(
     (transaction) => {
-      return encodeTransaction(transaction)
+      return encodeOvmTransaction(transaction)
     }
   )
 

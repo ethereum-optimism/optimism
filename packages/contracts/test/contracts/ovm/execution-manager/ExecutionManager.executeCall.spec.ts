@@ -30,8 +30,6 @@ import {
 /* Logging */
 const log = getLogger('execution-manager-calls', true)
 
-export const abi = new ethers.utils.AbiCoder()
-
 /* Tests */
 describe('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider

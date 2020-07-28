@@ -8,7 +8,6 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 /* Internal Imports */
 import {
   makeAddressResolver,
-  deployAndRegister,
   AddressResolverMapping,
 } from '../../test-helpers'
 

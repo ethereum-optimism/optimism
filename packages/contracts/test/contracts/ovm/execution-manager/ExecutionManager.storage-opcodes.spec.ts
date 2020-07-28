@@ -2,18 +2,17 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { abi, getLogger, add0x, NULL_ADDRESS } from '@eth-optimism/core-utils'
+import { abi, getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
-  encodeMethodId,
-  encodeRawArguments,
+  encodeFunctionData,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  fillHexBytes,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -22,8 +21,8 @@ const log = getLogger('execution-manager-storage', true)
 /* Tests */
 describe('ExecutionManager -- Storage opcodes', () => {
   const provider = ethers.provider
-  const ONE_FILLED_BYTES_32 = '0x' + '11'.repeat(32)
-  const TWO_FILLED_BYTES_32 = '0x' + '22'.repeat(32)
+  const ONE_FILLED_BYTES_32 = fillHexBytes('11')
+  const TWO_FILLED_BYTES_32 = fillHexBytes('22')
 
   let wallet: Signer
   before(async () => {
@@ -54,10 +53,11 @@ describe('ExecutionManager -- Storage opcodes', () => {
   })
 
   const sstore = async (): Promise<void> => {
-    const data = add0x(
-      encodeMethodId('ovmSSTORE') +
-        encodeRawArguments([ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32])
+    const data = encodeFunctionData(
+      'ovmSSTORE',
+      [ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32]
     )
+
     // Now actually apply it to our execution manager
     const tx = await wallet.sendTransaction({
       to: executionManager.address,
@@ -94,9 +94,9 @@ describe('ExecutionManager -- Storage opcodes', () => {
     it('loads a value immediately after it is stored', async () => {
       await sstore()
 
-      const data = add0x(
-        encodeMethodId('ovmSLOAD') +
-          encodeRawArguments([ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32])
+      const data = encodeFunctionData(
+        'ovmSLOAD',
+        [ONE_FILLED_BYTES_32, TWO_FILLED_BYTES_32]
       )
 
       // Now actually apply it to our execution manager

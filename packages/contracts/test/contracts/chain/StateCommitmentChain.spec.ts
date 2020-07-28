@@ -7,11 +7,13 @@ import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
+  DEFAULT_FORCE_INCLUSION_PERIOD,
   makeRandomBatchOfSize,
-  StateChainBatch,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  appendAndGenerateStateBatch,
+  appendTxBatch,
 } from '../../test-helpers'
 
 /* Logging */
@@ -32,7 +34,6 @@ describe('StateCommitmentChain', () => {
     '0x1234',
     '0x5678',
   ]
-  const FORCE_INCLUSION_PERIOD = 600
 
   let wallet: Signer
   let sequencer: Signer
@@ -48,33 +49,6 @@ describe('StateCommitmentChain', () => {
       randomWallet,
     ] = await ethers.getSigners()
   })
-
-  let stateChain: Contract
-  let canonicalTxChain: Contract
-
-  const appendAndGenerateStateBatch = async (
-    batch: string[],
-    batchIndex: number = 0,
-    cumulativePrevElements: number = 0
-  ): Promise<StateChainBatch> => {
-    await stateChain.appendStateBatch(batch)
-    // Generate a local version of the rollup batch
-    const localBatch = new StateChainBatch(
-      batchIndex,
-      cumulativePrevElements,
-      batch
-    )
-    await localBatch.generateTree()
-    return localBatch
-  }
-
-  const appendTxBatch = async (batch: string[]): Promise<void> => {
-    const timestamp = Math.floor(Date.now() / 1000)
-    // Submit the rollup batch on-chain
-    await canonicalTxChain
-      .connect(sequencer)
-      .appendSequencerBatch(batch, timestamp)
-  }
 
   let resolver: AddressResolverMapping
   before(async () => {
@@ -92,6 +66,8 @@ describe('StateCommitmentChain', () => {
     )
   })
 
+  let stateChain: Contract
+  let canonicalTxChain: Contract
   before(async () => {
     canonicalTxChain = await deployAndRegister(
       resolver.addressResolver,
@@ -103,12 +79,17 @@ describe('StateCommitmentChain', () => {
           resolver.addressResolver.address,
           await sequencer.getAddress(),
           await l1ToL2TransactionPasser.getAddress(),
-          FORCE_INCLUSION_PERIOD,
+          DEFAULT_FORCE_INCLUSION_PERIOD,
         ],
       }
     )
 
-    await appendTxBatch(DEFAULT_TX_BATCH)
+    await appendTxBatch(
+      canonicalTxChain,
+      sequencer,
+      DEFAULT_TX_BATCH
+    )
+
     await resolver.addressResolver.setAddress(
       'FraudVerifier',
       await fraudVerifier.getAddress()
@@ -157,7 +138,10 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should calculate batchHeaderHash correctly', async () => {
-      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        DEFAULT_STATE_BATCH
+      )
       const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
       const calculatedBatchHeaderHash = await stateChain.batches(0)
       calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
@@ -170,6 +154,7 @@ describe('StateCommitmentChain', () => {
         const batch = makeRandomBatchOfSize(batchIndex + 1)
         const cumulativePrevElements = expectedNumElements
         const localBatch = await appendAndGenerateStateBatch(
+          stateChain,
           batch,
           batchIndex,
           cumulativePrevElements
@@ -202,7 +187,11 @@ describe('StateCommitmentChain', () => {
   describe('verifyElement() ', async () => {
     it('should return true for valid elements for different batches and elements', async () => {
       // add enough transaction batches so # txs > # state roots
-      await appendTxBatch(DEFAULT_TX_BATCH)
+      await appendTxBatch(
+        canonicalTxChain,
+        sequencer,
+        DEFAULT_TX_BATCH
+      )
 
       const numBatches = 4
       let cumulativePrevElements = 0
@@ -210,6 +199,7 @@ describe('StateCommitmentChain', () => {
         const batchSize = batchIndex * batchIndex + 1 // 1, 2, 5, 10
         const batch = makeRandomBatchOfSize(batchSize)
         const localBatch = await appendAndGenerateStateBatch(
+          stateChain,
           batch,
           batchIndex,
           cumulativePrevElements
@@ -237,7 +227,10 @@ describe('StateCommitmentChain', () => {
 
     it('should return false for wrong position with wrong indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateStateBatch(batch)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        batch
+      )
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -256,7 +249,10 @@ describe('StateCommitmentChain', () => {
 
     it('should return false for wrong position and matching indexInBatch', async () => {
       const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
-      const localBatch = await appendAndGenerateStateBatch(batch)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        batch
+      )
       const elementIndex = 1
       const element = batch[elementIndex]
       const position = localBatch.getPosition(elementIndex)
@@ -280,7 +276,10 @@ describe('StateCommitmentChain', () => {
     it('should not allow deletion from address other than fraud verifier', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
-      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        DEFAULT_STATE_BATCH
+      )
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
         numElementsInBatch: DEFAULT_STATE_BATCH.length,
@@ -301,6 +300,7 @@ describe('StateCommitmentChain', () => {
         const cumulativePrevElements = 0
         const batchIndex = 0
         const localBatch = await appendAndGenerateStateBatch(
+          stateChain,
           DEFAULT_STATE_BATCH
         )
         const batchHeader = {
@@ -321,6 +321,7 @@ describe('StateCommitmentChain', () => {
 
       it('should successfully append a batch after deletion', async () => {
         const localBatch = await appendAndGenerateStateBatch(
+          stateChain,
           DEFAULT_STATE_BATCH
         )
         const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
@@ -335,6 +336,7 @@ describe('StateCommitmentChain', () => {
       for (let batchIndex = 0; batchIndex < 5; batchIndex++) {
         const cumulativePrevElements = batchIndex * DEFAULT_STATE_BATCH.length
         const localBatch = await appendAndGenerateStateBatch(
+          stateChain,
           DEFAULT_STATE_BATCH,
           batchIndex,
           cumulativePrevElements
@@ -358,7 +360,10 @@ describe('StateCommitmentChain', () => {
     it('should revert if batchHeader is incorrect', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 0
-      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        DEFAULT_STATE_BATCH
+      )
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
         numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
@@ -378,7 +383,10 @@ describe('StateCommitmentChain', () => {
     it('should revert if trying to delete a batch outside of valid range', async () => {
       const cumulativePrevElements = 0
       const batchIndex = 1 // outside of range
-      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        DEFAULT_STATE_BATCH
+      )
       const batchHeader = {
         elementsMerkleRoot: await localBatch.elementsMerkleTree.getRootHash(),
         numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
@@ -401,7 +409,10 @@ describe('StateCommitmentChain', () => {
       stateChain.on(stateChain.filters['StateBatchAppended'](), (...data) => {
         receivedBatchHeaderHash = data[0]
       })
-      const localBatch = await appendAndGenerateStateBatch(DEFAULT_STATE_BATCH)
+      const localBatch = await appendAndGenerateStateBatch(
+        stateChain,
+        DEFAULT_STATE_BATCH
+      )
 
       await sleep(5_000)
 

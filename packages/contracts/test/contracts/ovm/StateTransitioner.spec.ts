@@ -22,43 +22,23 @@ import {
   compile,
   makeStateTrieUpdateTest,
   StateTrieUpdateTest,
-  toHexString,
   makeAddressResolver,
   AddressResolverMapping,
+  makeDummyOvmTransaction,
+  encodeOvmTransaction,
+  OVMTransactionData,
+  getCodeHash
 } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
 
-const NULL_ADDRESS = '0x' + '00'.repeat(20)
 const DUMMY_ACCOUNT_ADDRESSES = [
   '0x548855F6073c3430285c61Ed0ABf62F12084aA41',
   '0xD80e66Cbc34F06d24a0a4fDdD6f2aDB41ac1517D',
   '0x069889F3DC507DdA244d19b5f24caDCDd2a735c2',
   '0x808E5eCe9a8EA2cdce515764139Ee24bEF7098b4',
 ]
-
-interface OVMTransactionData {
-  timestamp: number
-  queueOrigin: number
-  ovmEntrypoint: string
-  callBytes: string
-  fromAddress: string
-  l1MsgSenderAddress: string
-  allowRevert: boolean
-}
-
-const makeDummyTransaction = (calldata: string): OVMTransactionData => {
-  return {
-    timestamp: Math.floor(Date.now() / 1000),
-    queueOrigin: 0,
-    ovmEntrypoint: NULL_ADDRESS,
-    callBytes: calldata,
-    fromAddress: NULL_ADDRESS,
-    l1MsgSenderAddress: NULL_ADDRESS,
-    allowRevert: false,
-  }
-}
 
 const EMPTY_ACCOUNT_STATE = (): StateTrieNode => {
   return cloneDeep({
@@ -107,20 +87,6 @@ const DUMMY_STATE_TRIE = {
   },
 }
 
-const encodeTransaction = (transaction: OVMTransactionData): string => {
-  return toHexString(
-    rlp.encode([
-      transaction.timestamp,
-      transaction.queueOrigin,
-      transaction.ovmEntrypoint,
-      transaction.callBytes,
-      transaction.fromAddress,
-      transaction.l1MsgSenderAddress,
-      transaction.allowRevert ? 1 : 0,
-    ])
-  )
-}
-
 const makeStateTrie = (account: string, state: any, storage: any[]): any => {
   return {
     [account]: {
@@ -129,10 +95,6 @@ const makeStateTrie = (account: string, state: any, storage: any[]): any => {
     },
     ...DUMMY_STATE_TRIE,
   }
-}
-
-const getCodeHash = async (provider: any, address: string): Promise<string> => {
-  return keccak256(await provider.getCode(address))
 }
 
 const makeTransactionData = async (
@@ -267,7 +229,7 @@ const initStateTransitioner = async (
     addressResolver.address,
     10,
     stateTrieRoot,
-    keccak256(encodeTransaction(transactionData))
+    keccak256(encodeOvmTransaction(transactionData))
   )
   const stateManager = StateManager.attach(
     await stateTransitioner.stateManager()
@@ -415,7 +377,7 @@ describe('StateTransitioner', () => {
       StateManager,
       resolver.addressResolver,
       test.stateTrieRoot,
-      makeDummyTransaction('0x00')
+      makeDummyOvmTransaction('0x00')
     )
   })
 

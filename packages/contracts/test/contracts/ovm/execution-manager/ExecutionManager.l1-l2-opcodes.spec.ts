@@ -9,88 +9,27 @@ import {
   bufToHexString,
   ZERO_ADDRESS,
   NULL_ADDRESS,
+  abi,
 } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
-import { cloneDeep, fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
   Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
-  encodeMethodId,
-  encodeRawArguments,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  callExecutionManagerExecuteTransaction,
+  encodeFunctionData
 } from '../../../test-helpers'
-
-/* Contract Imports */
-import * as ExecutionManagerJson from '../../../../artifacts/ExecutionManager.json'
 
 /* Logging */
 const log = getLogger('l2-to-l1-messaging', true)
-
-export const abi = new ethers.utils.AbiCoder()
-
-const methodIds = fromPairs(
-  ['makeCall'].map((methodId) => [methodId, encodeMethodId(methodId)])
-)
-
-/***********
- * HELPERS *
- **********/
-
-/**
- * Override the ABI description of a particular function, changing it's `constant` & `outputs` values.
- * @param {Array} an abi object.
- * @param {string} the name of the function we would like to change.
- * @param {Object} an object containing the new `constant` & `outputs` values.
- */
-function overrideAbiFunctionData(
-  abiDefinition: any,
-  functionName: string,
-  functionData: { constant: boolean; outputs: any[]; stateMutability: string }
-): void {
-  for (const functionDefinition of abiDefinition) {
-    if (functionDefinition.name === functionName) {
-      functionDefinition.constant = functionData.constant
-      functionDefinition.outputs = functionData.outputs.map((output) => {
-        return { internalType: output, name: '', type: output }
-      })
-      functionDefinition.stateMutability = functionData.stateMutability
-    }
-  }
-}
-
-/**
- * Use executeTransaction with `eth_call`.
- * @param {ethers.Contract} an ExecutionManager contract instance used for it's address & provider.
- * @param {Array} an array of parameters which should be fed into `executeTransaction(...)`.
- * @param {OutputTypes} an array ABI types which should be used to decode the output of the call.
- */
-function callExecutionManagerExecuteTransaction(
-  executionManager: Contract,
-  parameters: any[],
-  outputTypes: any[]
-): Promise<any[]> {
-  const modifiedAbi = cloneDeep(ExecutionManagerJson.abi)
-  overrideAbiFunctionData(modifiedAbi, 'executeTransaction', {
-    constant: true,
-    outputs: outputTypes,
-    stateMutability: 'view',
-  })
-  const callableExecutionManager = new Contract(
-    executionManager.address,
-    modifiedAbi,
-    executionManager.provider
-  )
-  return callableExecutionManager.executeTransaction.apply(null, parameters)
-}
 
 /* Tests */
 describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
@@ -140,17 +79,15 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
   describe('OVM L2 -> L1 message passer', () => {
     it(`Should emit the right msg.sender and calldata when an L2->L1 call is made`, async () => {
       const bytesToSendToL1 = '0x123412341234deadbeef'
-      const callBytes = add0x(
-        methodIds.makeCall +
-          encodeRawArguments([
-            addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
-            ethereumjsAbi.methodID('passMessageToL1', ['bytes']),
-            abi.encode(['bytes'], [bytesToSendToL1]),
-          ])
+      const callBytes = encodeFunctionData(
+        'makeCall',
+        [
+          addressToBytes32Address(L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS),
+          ethereumjsAbi.methodID('passMessageToL1', ['bytes']),
+          abi.encode(['bytes'], [bytesToSendToL1]),
+        ]
       )
-      const passMessageToL1MethodId = bufToHexString(
-        ethereumjsAbi.methodID('passMessageToL1', ['bytes'])
-      )
+
       const data = executionManager.interface.encodeFunctionData(
         'executeTransaction',
         [

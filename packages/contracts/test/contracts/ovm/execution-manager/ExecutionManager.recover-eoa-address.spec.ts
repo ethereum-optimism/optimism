@@ -8,7 +8,6 @@ import { Contract, ContractFactory } from 'ethers'
 /* Internal Imports */
 import {
   CHAIN_ID,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   signTransaction,
   getSignedComponents,
@@ -20,8 +19,6 @@ import {
 
 /* Logging */
 const log = getLogger('execution-manager-recover-eoa-address', true)
-
-export const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
 describe('Execution Manager -- Recover EOA Address', () => {

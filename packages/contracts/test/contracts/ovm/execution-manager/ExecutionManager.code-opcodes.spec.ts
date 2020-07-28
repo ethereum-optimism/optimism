@@ -15,7 +15,6 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
   executeOVMCall,
@@ -27,8 +26,6 @@ import {
 
 /* Logging */
 const log = getLogger('execution-manager-code-opcodes', true)
-
-export const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
 describe('Execution Manager -- Code-related opcodes', () => {

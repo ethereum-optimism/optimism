@@ -7,46 +7,27 @@ import {
   hexStrToNumber,
   remove0x,
   add0x,
-  ZERO_ADDRESS,
   TestUtils,
   getCurrentTime,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
-import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
+  OVM_METHOD_IDS,
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
-  encodeRawArguments,
-  encodeMethodId,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  executeTestTransaction,
 } from '../../../test-helpers'
 
 /* Logging */
 const log = getLogger('execution-manager-context', true)
-
-export const abi = new ethers.utils.AbiCoder()
-
-const methodIds = fromPairs(
-  [
-    'callThroughExecutionManager',
-    'getADDRESS',
-    'getCALLER',
-    'getGASLIMIT',
-    'getQueueOrigin',
-    'getTIMESTAMP',
-    'getCHAINID',
-    'ovmADDRESS',
-    'ovmCALLER',
-  ].map((methodId) => [methodId, encodeMethodId(methodId)])
-)
 
 /* Tests */
 describe('Execution Manager -- Context opcodes', () => {
@@ -115,15 +96,21 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmCALLER', async () => {
     it('reverts when CALLER is not set', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executeTransaction(contractAddress, methodIds.ovmCALLER, [])
+        await executeTestTransaction(
+          executionManager,
+          contractAddress,
+          'ovmCALLER',
+          []
+        )
       })
     })
 
     it('properly retrieves CALLER when caller is set', async () => {
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getCALLER]
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getCALLER]
       )
       log.debug(`CALLER result: ${result}`)
 
@@ -135,15 +122,21 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmADDRESS', async () => {
     it('reverts when ADDRESS is not set', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executeTransaction(contractAddress, methodIds.ovmADDRESS, [])
+        await executeTestTransaction(
+          executionManager,
+          contractAddress,
+          'ovmADDRESS',
+          []
+        )
       })
     })
 
     it('properly retrieves ADDRESS when address is set', async () => {
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getADDRESS]
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getADDRESS]
       )
 
       log.debug(`ADDRESS result: ${result}`)
@@ -156,10 +149,11 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmTIMESTAMP', async () => {
     it('properly retrieves TIMESTAMP', async () => {
       const timestamp: number = getCurrentTime()
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getTIMESTAMP]
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getTIMESTAMP]
       )
 
       log.debug(`TIMESTAMP result: ${result}`)
@@ -175,10 +169,11 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmCHAINID', async () => {
     it('properly retrieves CHAINID', async () => {
       const chainId: number = 108
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getCHAINID]
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getCHAINID]
       )
 
       log.debug(`CHAINID result: ${result}`)
@@ -190,10 +185,11 @@ describe('Execution Manager -- Context opcodes', () => {
 
   describe('ovmGASLIMIT', async () => {
     it('properly retrieves GASLIMIT', async () => {
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getGASLIMIT]
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getGASLIMIT]
       )
 
       log.debug(`GASLIMIT result: ${result}`)
@@ -206,10 +202,11 @@ describe('Execution Manager -- Context opcodes', () => {
   describe('ovmQueueOrigin', async () => {
     it('gets Queue Origin when it is 0', async () => {
       const queueOrigin: string = '00'.repeat(32)
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getQueueOrigin]
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getQueueOrigin]
       )
 
       log.debug(`QUEUE ORIGIN result: ${result}`)
@@ -220,10 +217,11 @@ describe('Execution Manager -- Context opcodes', () => {
 
     it('properly retrieves Queue Origin when queue origin is set', async () => {
       const queueOrigin: string = '00'.repeat(30) + '1111'
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         contractAddress,
-        methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getQueueOrigin],
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.getQueueOrigin],
         add0x(queueOrigin)
       )
 
@@ -233,30 +231,4 @@ describe('Execution Manager -- Context opcodes', () => {
       remove0x(result).should.equal(queueOrigin, 'Queue origins do not match.')
     })
   })
-
-  const executeTransaction = async (
-    address: string,
-    methodId: string,
-    args: any[],
-    queueOrigin = ZERO_ADDRESS
-  ): Promise<string> => {
-    const callBytes = add0x(methodId + encodeRawArguments(args))
-    const data = executionManager.interface.encodeFunctionData(
-      'executeTransaction',
-      [
-        getCurrentTime(),
-        queueOrigin,
-        address,
-        callBytes,
-        ZERO_ADDRESS,
-        ZERO_ADDRESS,
-        true,
-      ]
-    )
-    return executionManager.provider.call({
-      to: executionManager.address,
-      data,
-      gasLimit: GAS_LIMIT,
-    })
-  }
 })

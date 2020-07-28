@@ -5,47 +5,29 @@ import { ethers } from '@nomiclabs/buidler'
 import {
   getLogger,
   remove0x,
-  add0x,
   TestUtils,
-  getCurrentTime,
   ZERO_ADDRESS,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
-import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
+  OVM_METHOD_IDS,
   Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
   didCreateSucceed,
-  encodeMethodId,
-  encodeRawArguments,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  executeTestTransaction,
+  executePersistedTestTransaction
 } from '../../../test-helpers'
 
 /* Logging */
 const log = getLogger('execution-manager-calls', true)
-
-export const abi = new ethers.utils.AbiCoder()
-
-const methodIds = fromPairs(
-  [
-    'makeCall',
-    'makeStaticCall',
-    'makeStaticCallThenCall',
-    'staticFriendlySLOAD',
-    'notStaticFriendlySSTORE',
-    'notStaticFriendlyCREATE',
-    'notStaticFriendlyCREATE2',
-    'makeDelegateCall',
-  ].map((methodId) => [methodId, encodeMethodId(methodId)])
-)
 
 const sloadKey: string = '11'.repeat(32)
 const unpopultedSLOADResult: string = '00'.repeat(32)
@@ -131,9 +113,10 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmCALL', async () => {
     it('properly executes ovmCALL to SLOAD', async () => {
-      const result: string = await executeTransaction(
+      const result: string = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
       log.debug(`Result: [${result}]`)
@@ -142,20 +125,23 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to SSTORE', async () => {
-      await executePersistedTransaction(
+      await executePersistedTestTransaction(
+        executionManager,
+        wallet,
         callContractAddress,
-        methodIds.makeCall,
+        'makeCall',
         [
           addressToBytes32Address(callContract2Address),
-          methodIds.notStaticFriendlySSTORE,
+          OVM_METHOD_IDS.notStaticFriendlySSTORE,
           sloadKey,
           populatedSLOADResult,
         ]
       )
 
-      const result: string = await executeTransaction(
+      const result: string = await executeTestTransaction(
+        executionManager,
         callContract2Address,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
 
@@ -166,9 +152,10 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE', async () => {
-      const result: string = await executeTransaction(
+      const result: string = await executeTestTransaction(
+        executionManager,
         callContract2Address,
-        methodIds.notStaticFriendlyCREATE,
+        'notStaticFriendlyCREATE',
         [deployTx.data]
       )
 
@@ -183,9 +170,10 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes ovmCALL to CREATE2', async () => {
-      const result: string = await executeTransaction(
+      const result: string = await executeTestTransaction(
+        executionManager,
         callContract2Address,
-        methodIds.notStaticFriendlyCREATE2,
+        'notStaticFriendlyCREATE2',
         [0, deployTx.data]
       )
 
@@ -202,21 +190,24 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmDELEGATECALL', async () => {
     it('properly executes ovmDELEGATECALL to SSTORE', async () => {
-      await executePersistedTransaction(
+      await executePersistedTestTransaction(
+        executionManager,
+        wallet,
         callContractAddress,
-        methodIds.makeDelegateCall,
+        'makeDelegateCall',
         [
           addressToBytes32Address(callContract2Address),
-          methodIds.notStaticFriendlySSTORE,
+          OVM_METHOD_IDS.notStaticFriendlySSTORE,
           sloadKey,
           populatedSLOADResult,
         ]
       )
 
       // Stored in contract 2 via delegate call but accessed via contract 1
-      const result: string = await executeTransaction(
+      const result: string = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
 
@@ -227,9 +218,10 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored result!'
       )
 
-      const contract2Result: string = await executeTransaction(
+      const contract2Result: string = await executeTestTransaction(
+        executionManager,
         callContract2Address,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
 
@@ -244,22 +236,25 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('properly executes nested ovmDELEGATECALLs to SSTORE', async () => {
       // contract 1 delegate calls contract 2 delegate calls contract 3
-      const result = await executePersistedTransaction(
+      const result = await executePersistedTestTransaction(
+        executionManager,
+        wallet,
         callContractAddress,
-        methodIds.makeDelegateCall,
+        'makeDelegateCall',
         [
           addressToBytes32Address(callContract2Address),
-          methodIds.makeDelegateCall,
+          OVM_METHOD_IDS.makeDelegateCall,
           addressToBytes32Address(callContract3Address),
-          methodIds.notStaticFriendlySSTORE,
+          OVM_METHOD_IDS.notStaticFriendlySSTORE,
           sloadKey,
           populatedSLOADResult,
         ]
       )
 
-      const contract1Result: string = await executeTransaction(
+      const contract1Result: string = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
 
@@ -271,9 +266,10 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should yield stored data!'
       )
 
-      const contract2Result: string = await executeTransaction(
+      const contract2Result: string = await executeTestTransaction(
+        executionManager,
         callContract2Address,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
 
@@ -285,9 +281,10 @@ describe('Execution Manager -- Call opcodes', () => {
         'SLOAD should not yield any data (0 x 32 bytes)!'
       )
 
-      const contract3Result: string = await executeTransaction(
+      const contract3Result: string = await executeTestTransaction(
+        executionManager,
         callContract3Address,
-        methodIds.staticFriendlySLOAD,
+        'staticFriendlySLOAD',
         [sloadKey]
       )
 
@@ -303,12 +300,13 @@ describe('Execution Manager -- Call opcodes', () => {
 
   describe('ovmSTATICCALL', async () => {
     it('properly executes ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.makeStaticCall,
+        'makeStaticCall',
         [
           addressToBytes32Address(callContract2Address),
-          methodIds.staticFriendlySLOAD,
+          OVM_METHOD_IDS.staticFriendlySLOAD,
           sloadKey,
         ]
       )
@@ -319,14 +317,15 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('properly executes nested ovmSTATICCALL to SLOAD', async () => {
-      const result = await executeTransaction(
+      const result = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.makeStaticCall,
+        'makeStaticCall',
         [
           addressToBytes32Address(callContract2Address),
-          methodIds.makeStaticCall,
+          OVM_METHOD_IDS.makeStaticCall,
           addressToBytes32Address(callContract2Address),
-          methodIds.staticFriendlySLOAD,
+          OVM_METHOD_IDS.staticFriendlySLOAD,
           sloadKey,
         ]
       )
@@ -338,21 +337,24 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('successfully makes static call then call', async () => {
       // Should not throw
-      await executeTransaction(
+      await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.makeStaticCallThenCall,
+        'makeStaticCallThenCall',
         [addressToBytes32Address(callContractAddress)]
       )
     })
 
     it('remains in static context when exiting nested static context', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executePersistedTransaction(
+        await executePersistedTestTransaction(
+          executionManager,
+          wallet,
           callContractAddress,
-          methodIds.makeStaticCall,
+          'makeStaticCall',
           [
             addressToBytes32Address(callContractAddress),
-            methodIds.makeStaticCallThenCall,
+            OVM_METHOD_IDS.makeStaticCallThenCall,
             addressToBytes32Address(callContractAddress),
           ]
         )
@@ -361,12 +363,14 @@ describe('Execution Manager -- Call opcodes', () => {
 
     it('fails on ovmSTATICCALL to SSTORE', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await executePersistedTransaction(
+        await executePersistedTestTransaction(
+          executionManager,
+          wallet,
           callContractAddress,
-          methodIds.makeStaticCall,
+          'makeStaticCall',
           [
             addressToBytes32Address(callContractAddress),
-            methodIds.notStaticFriendlySSTORE,
+            OVM_METHOD_IDS.notStaticFriendlySSTORE,
             sloadKey,
             populatedSLOADResult,
           ]
@@ -375,12 +379,14 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('Fails to create on ovmSTATICCALL to CREATE -- tx', async () => {
-      const hash = await executePersistedTransaction(
+      const hash = await executePersistedTestTransaction(
+        executionManager,
+        wallet,
         callContractAddress,
-        methodIds.makeStaticCall,
+        'makeStaticCall',
         [
           addressToBytes32Address(callContractAddress),
-          methodIds.notStaticFriendlyCREATE,
+          OVM_METHOD_IDS.notStaticFriendlyCREATE,
           deployTx.data,
         ]
       )
@@ -390,12 +396,13 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('Fails to create on ovmSTATICCALL to CREATE -- call', async () => {
-      const address = await executeTransaction(
+      const address = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.makeStaticCall,
+        'makeStaticCall',
         [
           addressToBytes32Address(callContractAddress),
-          methodIds.notStaticFriendlyCREATE,
+          OVM_METHOD_IDS.notStaticFriendlyCREATE,
           deployTx.data,
         ]
       )
@@ -407,12 +414,14 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- tx', async () => {
-      const hash = await executePersistedTransaction(
+      const hash = await executePersistedTestTransaction(
+        executionManager,
+        wallet,
         callContractAddress,
-        methodIds.makeStaticCall,
+        'makeStaticCall',
         [
           addressToBytes32Address(callContractAddress),
-          methodIds.notStaticFriendlyCREATE2,
+          OVM_METHOD_IDS.notStaticFriendlyCREATE2,
           0,
           deployTx.data,
         ]
@@ -423,12 +432,13 @@ describe('Execution Manager -- Call opcodes', () => {
     })
 
     it('fails on ovmSTATICCALL to CREATE2 -- call', async () => {
-      const res = await executeTransaction(
+      const res = await executeTestTransaction(
+        executionManager,
         callContractAddress,
-        methodIds.makeStaticCall,
+        'makeStaticCall',
         [
           addressToBytes32Address(callContractAddress),
-          methodIds.notStaticFriendlyCREATE2,
+          OVM_METHOD_IDS.notStaticFriendlyCREATE2,
           0,
           deployTx.data,
         ]
@@ -440,57 +450,4 @@ describe('Execution Manager -- Call opcodes', () => {
       )
     })
   })
-
-  const executePersistedTransaction = async (
-    contractAddress: string,
-    methodId: string,
-    args: any[]
-  ): Promise<string> => {
-    const callBytes = add0x(methodId + encodeRawArguments(args))
-    const data = executionManager.interface.encodeFunctionData(
-      'executeTransaction',
-      [
-        getCurrentTime(),
-        0,
-        callContractAddress,
-        callBytes,
-        ZERO_ADDRESS,
-        ZERO_ADDRESS,
-        true,
-      ]
-    )
-
-    const receipt = await wallet.sendTransaction({
-      to: executionManager.address,
-      data: add0x(data),
-      gasLimit: GAS_LIMIT,
-    })
-
-    return receipt.hash
-  }
-
-  const executeTransaction = async (
-    contractAddress: string,
-    methodId: string,
-    args: any[]
-  ): Promise<string> => {
-    const callBytes = add0x(methodId + encodeRawArguments(args))
-    const data = executionManager.interface.encodeFunctionData(
-      'executeTransaction',
-      [
-        getCurrentTime(),
-        0,
-        contractAddress,
-        callBytes,
-        ZERO_ADDRESS,
-        ZERO_ADDRESS,
-        true,
-      ]
-    )
-    return executionManager.provider.call({
-      to: executionManager.address,
-      data,
-      gasLimit: GAS_LIMIT,
-    })
-  }
 })

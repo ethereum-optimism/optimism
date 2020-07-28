@@ -2,25 +2,23 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { add0x, getLogger } from '@eth-optimism/core-utils'
+import { add0x, getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   makeAddressResolver,
-  deployAndRegister,
   AddressResolverMapping,
+  fillHexBytes
 } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('l2-execution-manager-calls', true)
 
-export const abi = new ethers.utils.AbiCoder()
-const zero32: string = add0x('00'.repeat(32))
-const key: string = add0x('01'.repeat(32))
-const value: string = add0x('02'.repeat(32))
+const zero32: string = fillHexBytes('00')
+const key: string = fillHexBytes('01')
+const value: string = fillHexBytes('02')
 
 describe('L2 Execution Manager', () => {
   let wallet: Signer
@@ -42,7 +40,7 @@ describe('L2 Execution Manager', () => {
   beforeEach(async () => {
     l2ExecutionManager = await L2ExecutionManager.deploy(
       resolver.addressResolver.address,
-      '0x' + '00'.repeat(20),
+      NULL_ADDRESS,
       GAS_LIMIT
     )
   })

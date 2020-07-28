@@ -2,15 +2,18 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
+import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
+import { EVMOpcode, Opcode } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_UNSAFE_OPCODES,
-  EVMOpcode,
-  Opcode,
+  WHITELISTED_NOT_HALTING_OR_CALL,
+  HALTING_OPCODES,
+  HALTING_OPCODES_NO_JUMP,
+  JUMP_OPCODES,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
@@ -19,22 +22,10 @@ import {
 /* Logging */
 const log = getLogger('safety-checker', true)
 
-/* Helpers */
-const executionManagerAddress = add0x('12'.repeat(20)) // Test Execution Manager address 0x121...212
-const haltingOpcodes: EVMOpcode[] = Opcode.HALTING_OP_CODES
-const haltingOpcodesNoJump: EVMOpcode[] = haltingOpcodes.filter(
-  (x) => x.name !== 'JUMP'
-)
-const jumps: EVMOpcode[] = [Opcode.JUMP, Opcode.JUMPI]
-const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
-  (x) =>
-    DEFAULT_UNSAFE_OPCODES.indexOf(x) < 0 &&
-    haltingOpcodes.indexOf(x) < 0 &&
-    x.name !== 'CALL'
-)
-
 /* Tests */
 describe('Safety Checker', () => {
+  const executionManagerAddress = add0x('12'.repeat(20)) // Test Execution Manager address 0x121...212
+
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -93,7 +84,7 @@ describe('Safety Checker', () => {
       })
 
       it('should correctly classify whitelisted', async () => {
-        for (const opcode of whitelistedNotHaltingOrCALL) {
+        for (const opcode of WHITELISTED_NOT_HALTING_OR_CALL) {
           if (!opcode.name.startsWith('PUSH')) {
             const res: boolean = await safetyChecker.isBytecodeSafe(
               `0x${opcode.code.toString('hex')}`
@@ -157,7 +148,7 @@ describe('Safety Checker', () => {
           'hex'
         )
 
-        for (const opcode of whitelistedNotHaltingOrCALL) {
+        for (const opcode of WHITELISTED_NOT_HALTING_OR_CALL) {
           bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
             opcode.programBytesConsumed
           )}`
@@ -173,7 +164,7 @@ describe('Safety Checker', () => {
           'hex'
         )
 
-        for (const opcode of whitelistedNotHaltingOrCALL) {
+        for (const opcode of WHITELISTED_NOT_HALTING_OR_CALL) {
           bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
             opcode.programBytesConsumed
           )}`
@@ -192,7 +183,7 @@ describe('Safety Checker', () => {
 
     describe('handles unreachable code', async () => {
       it(`skips unreachable bytecode after a halting opcode`, async () => {
-        for (const haltingOp of haltingOpcodes) {
+        for (const haltingOp of HALTING_OPCODES) {
           let bytecode: string = '0x'
           bytecode += haltingOp.code.toString('hex')
           for (const opcode of DEFAULT_UNSAFE_OPCODES) {
@@ -206,7 +197,7 @@ describe('Safety Checker', () => {
         }
       })
       it('skips bytecode after an unreachable JUMPDEST', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
+        for (const haltingOp of HALTING_OPCODES_NO_JUMP) {
           let bytecode: string = '0x'
           bytecode += haltingOp.code.toString('hex')
           bytecode += Opcode.JUMPDEST.code.toString('hex')
@@ -222,8 +213,8 @@ describe('Safety Checker', () => {
       })
 
       it('parses opcodes after a reachable JUMPDEST', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
+        for (const haltingOp of HALTING_OPCODES_NO_JUMP) {
+          for (const jump of JUMP_OPCODES) {
             let bytecode: string = '0x'
             bytecode += jump.code.toString('hex')
             bytecode += Opcode.JUMPDEST.code.toString('hex') // JUMPDEST here so that the haltingOp is reachable
@@ -269,8 +260,8 @@ describe('Safety Checker', () => {
       })
 
       it('should correctly handle alternating reachable/uncreachable code ending in reachable, valid code', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
+        for (const haltingOp of HALTING_OPCODES_NO_JUMP) {
+          for (const jump of JUMP_OPCODES) {
             let bytecode: string = '0x'
             bytecode += jump.code.toString('hex')
             // JUMPDEST here so that the haltingOp is reachable
@@ -283,7 +274,7 @@ describe('Safety Checker', () => {
               }
               bytecode += Opcode.JUMPDEST.code.toString('hex')
               // Reachable, valid code
-              for (const opcode of whitelistedNotHaltingOrCALL) {
+              for (const opcode of WHITELISTED_NOT_HALTING_OR_CALL) {
                 bytecode += opcode.code.toString('hex')
               }
             }
@@ -297,8 +288,8 @@ describe('Safety Checker', () => {
       }).timeout(30_000)
 
       it('should correctly handle alternating reachable/uncreachable code ending in reachable, invalid code', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
+        for (const haltingOp of HALTING_OPCODES_NO_JUMP) {
+          for (const jump of JUMP_OPCODES) {
             let bytecode: string = '0x'
             bytecode += jump.code.toString('hex')
             // JUMPDEST here so that the haltingOp is reachable
@@ -311,7 +302,7 @@ describe('Safety Checker', () => {
               }
               bytecode += Opcode.JUMPDEST.code.toString('hex')
               // Reachable, valid code
-              for (const opcode of whitelistedNotHaltingOrCALL) {
+              for (const opcode of WHITELISTED_NOT_HALTING_OR_CALL) {
                 bytecode += opcode.code.toString('hex')
               }
             }
@@ -381,7 +372,7 @@ describe('Safety Checker', () => {
         }
       })
       it(`rejects invalid CALLs using opcodes other than PUSH or DUP to set gas`, async () => {
-        const invalidGasSetters: EVMOpcode[] = whitelistedNotHaltingOrCALL.filter(
+        const invalidGasSetters: EVMOpcode[] = WHITELISTED_NOT_HALTING_OR_CALL.filter(
           (x) => !x.name.startsWith('PUSH') && !x.name.startsWith('DUP')
         )
         log.debug(`Invalid Gas Setters ${invalidGasSetters.map((x) => x.name)}`)
@@ -406,7 +397,7 @@ describe('Safety Checker', () => {
         }
       })
       it(`rejects invalid CALLs using opcodes other than PUSH1 to set value`, async () => {
-        const invalidValueSetters: EVMOpcode[] = whitelistedNotHaltingOrCALL.filter(
+        const invalidValueSetters: EVMOpcode[] = WHITELISTED_NOT_HALTING_OR_CALL.filter(
           (x) => x.name !== 'PUSH1'
         )
         log.debug(
@@ -436,7 +427,7 @@ describe('Safety Checker', () => {
         }
       }).timeout(20_000)
       it(`rejects invalid CALLs using opcodes other than PUSH20 to set address`, async () => {
-        const invalidAddressSetters: EVMOpcode[] = whitelistedNotHaltingOrCALL.filter(
+        const invalidAddressSetters: EVMOpcode[] = WHITELISTED_NOT_HALTING_OR_CALL.filter(
           (x) => x.name !== 'PUSH20'
         )
         log.debug(

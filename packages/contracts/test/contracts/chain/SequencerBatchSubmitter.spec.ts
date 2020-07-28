@@ -7,11 +7,12 @@ import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
-  StateChainBatch,
-  TxChainBatch,
+  DEFAULT_FORCE_INCLUSION_PERIOD,
   makeAddressResolver,
   AddressResolverMapping,
   deployAndRegister,
+  generateTxBatch,
+  generateStateBatch,
 } from '../../test-helpers'
 
 /* Logging */
@@ -21,7 +22,6 @@ const log = getLogger('batch-submitter', true)
 describe('SequencerBatchSubmitter', () => {
   const DEFAULT_STATE_BATCH = ['0x1234', '0x5678']
   const DEFAULT_TX_BATCH = ['0xabcd', '0xef12']
-  const FORCE_INCLUSION_PERIOD = 600
 
   let wallet: Signer
   let sequencer: Signer
@@ -37,41 +37,6 @@ describe('SequencerBatchSubmitter', () => {
       randomWallet,
     ] = await ethers.getSigners()
   })
-
-  let stateChain: Contract
-  let canonicalTxChain: Contract
-  let sequencerBatchSubmitter: Contract
-
-  const generateStateBatch = async (
-    batch: string[],
-    batchIndex: number = 0,
-    cumulativePrevElements: number = 0
-  ): Promise<StateChainBatch> => {
-    const localBatch = new StateChainBatch(
-      batchIndex,
-      cumulativePrevElements,
-      batch
-    )
-    await localBatch.generateTree()
-    return localBatch
-  }
-
-  const generateTxBatch = async (
-    batch: string[],
-    timestamp: number,
-    batchIndex: number = 0,
-    cumulativePrevElements: number = 0
-  ): Promise<TxChainBatch> => {
-    const localBatch = new TxChainBatch(
-      timestamp,
-      false,
-      batchIndex,
-      cumulativePrevElements,
-      batch
-    )
-    await localBatch.generateTree()
-    return localBatch
-  }
 
   let resolver: AddressResolverMapping
   before(async () => {
@@ -98,6 +63,9 @@ describe('SequencerBatchSubmitter', () => {
     )
   })
 
+  let stateChain: Contract
+  let canonicalTxChain: Contract
+  let sequencerBatchSubmitter: Contract
   beforeEach(async () => {
     sequencerBatchSubmitter = await deployAndRegister(
       resolver.addressResolver,
@@ -122,7 +90,7 @@ describe('SequencerBatchSubmitter', () => {
           resolver.addressResolver.address,
           sequencerBatchSubmitter.address,
           await l1ToL2TransactionPasser.getAddress(),
-          FORCE_INCLUSION_PERIOD,
+          DEFAULT_FORCE_INCLUSION_PERIOD,
         ],
       }
     )

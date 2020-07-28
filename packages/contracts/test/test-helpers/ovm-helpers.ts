@@ -1,6 +1,7 @@
 /* External Imports */
+import * as rlp from 'rlp'
 import { ethers, Signer, Contract, ContractFactory } from 'ethers'
-import { Log, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import { Log, TransactionReceipt } from 'ethers/providers'
 import {
   abi,
   add0x,
@@ -11,6 +12,7 @@ import {
   numberToHexString,
   bufToHexString,
   getCurrentTime,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -20,6 +22,7 @@ import { encodeMethodId, encodeRawArguments } from './ethereum-helpers'
 
 /* Contract Imports */
 import { getContractInterface } from '../../index'
+import { toHexString } from './trie-helpers'
 
 const ExecutionManagerInterface = getContractInterface('ExecutionManager')
 const logger = getLogger('contracts:test-helpers', true)
@@ -319,4 +322,40 @@ export const executeOVMCall = async (
     data,
     gasLimit: GAS_LIMIT,
   })
+}
+
+export interface OVMTransactionData {
+  timestamp: number
+  queueOrigin: number
+  ovmEntrypoint: string
+  callBytes: string
+  fromAddress: string
+  l1MsgSenderAddress: string
+  allowRevert: boolean
+}
+
+export const makeDummyOvmTransaction = (calldata: string): OVMTransactionData => {
+  return {
+    timestamp: Math.floor(Date.now() / 1000),
+    queueOrigin: 0,
+    ovmEntrypoint: NULL_ADDRESS,
+    callBytes: calldata,
+    fromAddress: NULL_ADDRESS,
+    l1MsgSenderAddress: NULL_ADDRESS,
+    allowRevert: false,
+  }
+}
+
+export const encodeOvmTransaction = (transaction: OVMTransactionData): string => {
+  return toHexString(
+    rlp.encode([
+      transaction.timestamp,
+      transaction.queueOrigin,
+      transaction.ovmEntrypoint,
+      transaction.callBytes,
+      transaction.fromAddress,
+      transaction.l1MsgSenderAddress,
+      transaction.allowRevert ? 1 : 0,
+    ])
+  )
 }

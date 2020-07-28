@@ -5,34 +5,24 @@ import { ethers } from '@nomiclabs/buidler'
 import {
   getLogger,
   remove0x,
-  add0x,
   TestUtils,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
-import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
   DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   executeOVMCall,
-  encodeMethodId,
-  encodeRawArguments,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  encodeFunctionData,
 } from '../../../test-helpers'
 
 /* Logging */
 const log = getLogger('execution-manager-create', true)
-
-const methodIds = fromPairs(
-  ['ovmCREATE', 'ovmCREATE2'].map((methodId) => [
-    methodId,
-    encodeMethodId(methodId),
-  ])
-)
 
 /* Tests */
 describe('ExecutionManager -- Create opcodes', () => {
@@ -113,9 +103,11 @@ describe('ExecutionManager -- Create opcodes', () => {
         safetyChecker.address
       )
 
-      const data = add0x(
-        methodIds.ovmCREATE + encodeRawArguments([deployInvalidTx.data])
+      const data = encodeFunctionData(
+        'ovmCREATE',
+        [deployInvalidTx.data]
       )
+
       await TestUtils.assertRevertsAsync(
         'Contract init (creation) code is not safe',
         async () => {
@@ -136,8 +128,9 @@ describe('ExecutionManager -- Create opcodes', () => {
         stubSafetyChecker.address
       )
 
-      const data = add0x(
-        methodIds.ovmCREATE2 + encodeRawArguments([0, deployTx.data])
+      const data = encodeFunctionData(
+        'ovmCREATE2',
+        [0, deployTx.data]
       )
 
       // Now actually apply it to our execution manager
@@ -160,8 +153,9 @@ describe('ExecutionManager -- Create opcodes', () => {
         safetyChecker.address
       )
 
-      const data = add0x(
-        methodIds.ovmCREATE2 + encodeRawArguments([0, deployInvalidTx.data])
+      const data = encodeFunctionData(
+        'ovmCREATE2',
+        [0, deployInvalidTx.data]
       )
 
       await TestUtils.assertRevertsAsync(
