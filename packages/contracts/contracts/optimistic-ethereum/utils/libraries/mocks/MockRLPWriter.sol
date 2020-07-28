@@ -8,7 +8,7 @@ contract MockRLPWriter {
     function encodeBytes(
         bytes memory self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {
@@ -18,7 +18,7 @@ contract MockRLPWriter {
     function encodeList(
         bytes[] memory self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {
@@ -28,7 +28,7 @@ contract MockRLPWriter {
     function encodeString(
         string memory self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {
@@ -38,7 +38,7 @@ contract MockRLPWriter {
     function encodeAddress(
         address self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {
@@ -48,7 +48,7 @@ contract MockRLPWriter {
     function encodeUint(
         uint self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {
@@ -58,7 +58,7 @@ contract MockRLPWriter {
     function encodeInt(
         int self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {
@@ -68,7 +68,7 @@ contract MockRLPWriter {
     function encodeBool(
         bool self
     )
-        internal
+        public
         pure
         returns (bytes memory)
     {

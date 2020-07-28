@@ -23,7 +23,7 @@ contract MockContractAddressGenerator {
         bytes32 _salt,
         bytes memory _ovmInitcode
     )
-        internal
+        public
         pure
         returns (address)
     {
