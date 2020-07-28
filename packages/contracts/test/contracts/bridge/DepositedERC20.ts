@@ -4,6 +4,7 @@ import '../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
+import { MessageChannel } from 'worker_threads'
 
 /* Logging */
 const log = getLogger('rollup-queue', true)
@@ -14,9 +15,10 @@ describe.only('DepositedERC20', () => {
 
   let wallet: Signer
   let badwallet: Signer
+  let userWallet: Signer
   let DepositedERC20: ContractFactory
   before(async () => {
-    ;[wallet, badwallet] = await ethers.getSigners()
+    ;[wallet, badwallet, userWallet] = await ethers.getSigners()
     DepositedERC20 = await ethers.getContractFactory('DepositedERC20')
   })
 
@@ -27,7 +29,7 @@ describe.only('DepositedERC20', () => {
 
   describe('constructor()', async () => {
     it('sets DepositedERC20 factory address correctly', async () => {
-      const factoryAddress = await depositedERC20.l2ERC20BridgeAddress()
+      const factoryAddress = await depositedERC20.l2ERC20Bridge()
       factoryAddress.should.equal(await wallet.getAddress())
       console.log('test')
     })
@@ -71,4 +73,26 @@ describe.only('DepositedERC20', () => {
     })
   })
 
+  describe('initializeWithdrawal()', async () => {
+    it('burns tokens from message sender and decreases total supply', async () => {
+      //Give wallet a balance to in order to withdraw
+      await depositedERC20.processDeposit(userWallet.getAddress(), 100)
+      const initialSupply = (await depositedERC20.totalSupply()).toNumber()
+      const initialBalance = (
+        await depositedERC20.balanceOf(userWallet.getAddress())
+      ).toNumber()
+      const withdrawalAmount = 5
+      await depositedERC20
+        .connect(userWallet)
+        .initializeWithdrawal('0x' + '00'.repeat(20), withdrawalAmount)
+      const newSupply = (await depositedERC20.totalSupply()).toNumber()
+      const newBalance = (
+        await depositedERC20.balanceOf(userWallet.getAddress())
+      ).toNumber()
+      // Tests that tokens are burned from withdrawer
+      newBalance.should.equal(initialBalance - withdrawalAmount)
+      // Tests that total token supply decreases by the same amount
+      newSupply.should.equal(initialSupply - withdrawalAmount)
+    })
+  })
 })
