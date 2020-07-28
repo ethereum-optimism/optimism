@@ -25,7 +25,7 @@
     "test": "yarn run test:contracts",
     "test:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST,FLAG_IS_DEBUG\" buidler test --show-stack-traces",
     "coverage": "yarn run coverage:contracts",
-    "coverage:contracts": "buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
+    "coverage:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST\" buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
     "build": "yarn run build:contracts && yarn run build:typescript",
     "build:contracts": "buidler compile",
     "build:typescript": "tsc -p .",
