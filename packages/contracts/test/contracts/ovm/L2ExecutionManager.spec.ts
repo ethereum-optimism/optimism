@@ -20,6 +20,12 @@ const zero32: string = fillHexBytes('00')
 const key: string = fillHexBytes('01')
 const value: string = fillHexBytes('02')
 
+const fakeSignedTx = add0x(
+  Buffer.from('derp')
+    .toString('hex')
+    .repeat(20)
+)
+
 describe('L2 Execution Manager', () => {
   let wallet: Signer
   before(async () => {
@@ -45,17 +51,13 @@ describe('L2 Execution Manager', () => {
     )
   })
 
-  describe('Store OVM transactions', async () => {
-    const fakeSignedTx = add0x(
-      Buffer.from('derp')
-        .toString('hex')
-        .repeat(20)
-    )
-
+  describe('storeOvmTransaction(...)', async () => {
     it('properly maps OVM tx hash to internal tx hash', async () => {
       await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
     })
+  })
 
+  describe('getInternalTransactionHash(...)', async () => {
     it('properly reads non-existent mapping', async () => {
       const result = await l2ExecutionManager.getInternalTransactionHash(key)
       result.should.equal(zero32, 'Incorrect unpopulated result!')
@@ -66,13 +68,17 @@ describe('L2 Execution Manager', () => {
       const result = await l2ExecutionManager.getInternalTransactionHash(key)
       result.should.equal(value, 'Incorrect hash mapped!')
     })
+  })
 
+  describe('getOvmTransactionHash(...)', async () => {
     it('properly reads existing internal tx hash -> OVM tx hash mapping', async () => {
       await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
       const result = await l2ExecutionManager.getOvmTransactionHash(value)
       result.should.equal(key, 'Incorrect hash mapped!')
     })
+  })
 
+  describe('getOvmTransaction(...)', async () => {
     it('properly reads existing OVM tx hash -> OVM tx mapping', async () => {
       await l2ExecutionManager.storeOvmTransaction(key, value, fakeSignedTx)
       const result = await l2ExecutionManager.getOvmTransaction(key)
