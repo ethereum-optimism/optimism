@@ -6,7 +6,7 @@ import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
 import {
-  BlockBatches,
+  GethSubmission,
   DataService,
   GethSubmissionQueueStatus,
   TransactionBatchSubmission,
@@ -230,7 +230,7 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async getNextQueuedGethSubmission(): Promise<BlockBatches> {
+  public async getNextQueuedGethSubmission(): Promise<GethSubmission> {
     const res: Row[] = await this.rdb.select(`
       SELECT geth_submission_queue_index, target, calldata, block_timestamp, block_number, l1_tx_hash, l1_tx_index, l1_tx_log_index, queue_origin, sender, l1_message_sender, gas_limit, nonce, signature
       FROM next_queued_geth_submission
@@ -248,38 +248,37 @@ export class DefaultDataService implements DataService {
       batchNumber: gethSubmissionNumber,
       timestamp,
       blockNumber,
-      batches: [
-        res.map((row: Row, indexWithinSubmission: number) => {
-          const tx: RollupTransaction = {
-            indexWithinSubmission,
-            l1TxHash: row['l1_tx_hash'],
-            l1TxIndex: row['l1_tx_index'],
-            l1TxLogIndex: row['l1_tx_log_index'],
-            target: row['target'],
-            calldata: row['calldata'], // TODO: may have to format Buffer => string
-            l1Timestamp: row['block_timestamp'],
-            l1BlockNumber: row['block_number'],
-            queueOrigin: row['queue_origin'],
-          }
+      rollupTransactions: res.map((row: Row, indexWithinSubmission: number) => {
+        const tx: RollupTransaction = {
+          l1RollupTxId: parseInt(row['id'], 10),
+          indexWithinSubmission,
+          l1TxHash: row['l1_tx_hash'],
+          l1TxIndex: row['l1_tx_index'],
+          l1TxLogIndex: row['l1_tx_log_index'],
+          target: row['target'],
+          calldata: row['calldata'], // TODO: may have to format Buffer => string
+          l1Timestamp: row['block_timestamp'],
+          l1BlockNumber: row['block_number'],
+          queueOrigin: row['queue_origin'],
+        }
 
-          if (!!row['sender']) {
-            tx.sender = row['sender']
-          }
-          if (!!row['l1MessageSender']) {
-            tx.l1MessageSender = row['l1_message_sender']
-          }
-          if (!!row['gas_limit']) {
-            tx.gasLimit = row['gas_limit']
-          }
-          if (!!row['nonce']) {
-            tx.nonce = row['nonce']
-          }
-          if (!!row['signature']) {
-            tx.nonce = row['signature']
-          }
-          return tx
-        }),
-      ],
+        if (!!row['sender']) {
+          tx.sender = row['sender']
+        }
+        if (!!row['l1MessageSender']) {
+          tx.l1MessageSender = row['l1_message_sender']
+        }
+        if (!!row['gas_limit']) {
+          tx.gasLimit = row['gas_limit']
+        }
+        if (!!row['nonce']) {
+          tx.nonce = parseInt(row['nonce'], 10)
+        }
+        if (!!row['signature']) {
+          tx.nonce = row['signature']
+        }
+        return tx
+      }),
     }
   }
 
@@ -599,7 +598,7 @@ export class DefaultDataService implements DataService {
         transactionHash: row['tx_hash'],
         to: row['target'],
         from: row['sender'],
-        nonce: row['nonce'],
+        nonce: parseInt(row['nonce'], 10),
         calldata: row['calldata'],
         stateRoot: row['state_root'],
         gasPrice: row['gas_price'],
