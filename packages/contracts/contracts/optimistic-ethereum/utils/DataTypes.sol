@@ -92,9 +92,10 @@ contract DataTypes {
     }
 
     struct ERC20Withdrawal {
-        address withdrawer;
+        address withdrawTo;
         uint amount;
-        uint256 withdrawalNonce;
+        address l1ERC20Address;
+        uint nonce;
     }
 
 }
