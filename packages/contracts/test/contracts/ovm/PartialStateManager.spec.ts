@@ -503,9 +503,9 @@ describe('PartialStateManager', () => {
     })
   })
 
-  describe('associateCreatedContract(...)', async () => {
+  describe('registerCreatedContract(...)', async () => {
     it('should mark the contract as verified and set its nonce to zero', async () => {
-      await partialStateManager.associateCreatedContract(DUMMY_CONTRACTS[0])
+      await partialStateManager.registerCreatedContract(DUMMY_CONTRACTS[0])
 
       const isVerifiedContract = await partialStateManager.isVerifiedContract(
         DUMMY_CONTRACTS[0]
@@ -520,7 +520,7 @@ describe('PartialStateManager', () => {
 
     it('should fail if not called by the execution manager', async () => {
       await TestUtils.assertThrowsAsync(async () => {
-        await partialStateManager.associateCreatedContract(DUMMY_CONTRACTS[0], {
+        await partialStateManager.registerCreatedContract(DUMMY_CONTRACTS[0], {
           from: await randomWallet.getAddress(),
         })
       })
@@ -584,7 +584,7 @@ describe('PartialStateManager', () => {
 
   describe('peekUpdatedContract()', async () => {
     it('should return the last contract on the queue', async () => {
-      await partialStateManager.associateCreatedContract(DUMMY_CONTRACTS[0])
+      await partialStateManager.registerCreatedContract(DUMMY_CONTRACTS[0])
       await partialStateManager.associateCodeContract(
         DUMMY_CONTRACTS[0],
         DUMMY_CODE_CONTRACTS[0]
@@ -610,7 +610,7 @@ describe('PartialStateManager', () => {
 
   describe('popUpdatedContract()', async () => {
     it('should return the last contract on the queue and remove it', async () => {
-      await partialStateManager.associateCreatedContract(DUMMY_CONTRACTS[0])
+      await partialStateManager.registerCreatedContract(DUMMY_CONTRACTS[0])
       await partialStateManager.associateCodeContract(
         DUMMY_CONTRACTS[0],
         DUMMY_CODE_CONTRACTS[0]

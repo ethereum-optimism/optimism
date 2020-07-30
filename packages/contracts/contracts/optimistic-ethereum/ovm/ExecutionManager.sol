@@ -63,7 +63,7 @@ contract ExecutionManager is ContractResolver {
     bytes32 constant private METHOD_ID_OVM_CREATE = keccak256("ovmCREATE()") >> 224;
 
     // Precompile addresses
-    address constant private L2_L2_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
+    address constant private L2_TO_L1_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
 
 
@@ -100,8 +100,8 @@ contract ExecutionManager is ContractResolver {
         }
 
         // Deploy custom precompiles
-        L2ToL1MessagePasser l1ToL2MessagePasser = new L2ToL1MessagePasser(address(this));
-        stateManager.associateCodeContract(L2_L2_OVM_MESSAGE_PASSER, address(l1ToL2MessagePasser));
+        L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
+        stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
 
@@ -129,20 +129,6 @@ contract ExecutionManager is ContractResolver {
         public
     {
         addressResolver.setAddress("StateManager", _stateManagerAddress);
-    }
-
-    /**
-     * Increments the provided address's nonce. This is only used by the
-     * sequencer to correct nonces when transactions fail.
-     * @param _addr The address of the nonce to increment.
-     */
-    function incrementNonce(
-        address _addr
-    )
-        public
-    {
-        StateManager stateManager = resolveStateManager();
-        stateManager.incrementOvmContractNonce(_addr);
     }
 
 
@@ -204,7 +190,7 @@ contract ExecutionManager is ContractResolver {
     }
 
     /**
-     * Execute an unsigned EOA transaction. Note that unsigned EOA calls are unauthenticated.
+     * Execute a transaction. Note that unsigned EOA calls are unauthenticated.
      * This means that they should not be allowed for normal execution.
      * @param _timestamp The timestamp which should be used for this call's context.
      * @param _queueOrigin The parent-chain queue from which this call originated.
@@ -628,7 +614,7 @@ contract ExecutionManager is ContractResolver {
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
         // Insert the newly created contract into our state manager.
-        stateManager.associateCreatedContract(_newOvmContractAddress);
+        stateManager.registerCreatedContract(_newOvmContractAddress);
 
         // We also need to increment the contract nonce
         stateManager.incrementOvmContractNonce(creator);
@@ -1085,8 +1071,8 @@ contract ExecutionManager is ContractResolver {
     }
 
     /**
-     * @notice Getter for the execution context's L1MessageSender. Used by the
-     *         L1MessageSender precompile.
+     * Getter for the execution context's L1MessageSender. Used by the
+     * L1MessageSender precompile.
      * @return The L1MessageSender in our current execution context.
      */
     function getL1MessageSender()
@@ -1111,6 +1097,10 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
+    /**
+     * Queries the address of the state manager.
+     * @return State manager address.
+     */
     function getStateManagerAddress()
         public
         view

@@ -103,7 +103,6 @@ describe('Execution Manager -- Safety Checking', () => {
         AddThree,
         []
       )
-
       const createSucceeded = await didCreateSucceed(
         executionManager,
         receipt.transactionHash

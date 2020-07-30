@@ -439,7 +439,7 @@ contract PartialStateManager is ContractResolver {
      * marks the contract as verified.
      * @param _ovmContractAddress Address of the contract to mark as verified.
      */
-    function associateCreatedContract(
+    function registerCreatedContract(
         address _ovmContractAddress
     )
         public

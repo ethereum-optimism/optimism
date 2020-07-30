@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Contract Imports */
 import { ExecutionManager } from "./ExecutionManager.sol";
+import { StateManager } from "./StateManager.sol";
 
 /**
  * @title L2ExecutionManager
@@ -40,6 +41,20 @@ contract L2ExecutionManager is ExecutionManager {
     /*
      * Public Functions
      */
+
+    /**
+     * Increments the provided address's nonce. This is only used by the
+     * sequencer to correct nonces when transactions fail.
+     * @param _addr The address of the nonce to increment.
+     */
+    function incrementNonce(
+        address _addr
+    )
+        public
+    {
+        StateManager stateManager = resolveStateManager();
+        stateManager.incrementOvmContractNonce(_addr);
+    }
 
     /**
      * @notice Stores the provided OVM transaction, mapping its hash to its value and its hash to the EVM tx hash
