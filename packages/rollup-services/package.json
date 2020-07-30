@@ -1,0 +1,48 @@
+{
+  "name": "@eth-optimism/rollup-services",
+  "version": "0.0.1-alpha.27",
+  "description": "[Optimism] Optimistic Rollup Services Library",
+  "main": "build/index.js",
+  "files": [
+    "build/**/*.js"
+  ],
+  "scripts": {
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
+    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' 'src/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "services": "node ./exec/services.js"
+  },
+  "keywords": [
+    "plasma",
+    "group",
+    "ethereum",
+    "client",
+    "services"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/rollup-services#readme",
+  "bugs": "https://github.com/ethereum-optimism/optimism-monorepo/labels/%40eth-optimism%2Frollup-services",
+  "license": "MIT",
+  "author": "Optimism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
+  },
+  "dependencies": {
+    "@eth-optimism/core-db": "^0.0.1-alpha.26",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.26",
+    "@eth-optimism/rollup-core": "^0.0.1-alpha.27",
+    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.27",
+    "ethers": "^4.0.39"
+  },
+  "devDependencies": {
+    "@types/abstract-leveldown": "^5.0.1",
+    "@types/node": "^12.0.7",
+    "rimraf": "^2.6.3",
+    "ts-node": "^8.2.0",
+    "typescript": "^3.5.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

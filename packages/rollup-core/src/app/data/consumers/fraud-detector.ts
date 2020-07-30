@@ -31,6 +31,7 @@ export class FraudDetector extends ScheduledTask {
   public async runTask(): Promise<void> {
     const verifierCandidate: VerificationCandidate = await this.dataService.getNextVerificationCandidate()
     if (!verifierCandidate) {
+      log.debug(`No verifier candidate is available, returning...`)
       return
     }
 
@@ -53,7 +54,12 @@ export class FraudDetector extends ScheduledTask {
           log.error(
             `Batch #${verifierCandidate.batchNumber} state roots differ at index ${i}! L1 root: ${root.l1Root}, Geth root: ${root.gethRoot}`
           )
-          await this.fraudProver.proveFraud(verifierCandidate.batchNumber, i)
+          if (!!this.fraudProver) {
+            await this.fraudProver.proveFraud(verifierCandidate.batchNumber, i)
+          } else {
+            // TODO: take this away and make Fraud Prover mandatory when Fraud Prover exists.
+            log.error(`No Fraud Prover Configured!`)
+          }
         }
         this.fraudCount++
         return

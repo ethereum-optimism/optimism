@@ -127,7 +127,7 @@ function getL2Wallet(provider: JsonRpcProvider): Wallet {
     log.info(`Initialized wallet from private key. Address: ${wallet.address}`)
   } else if (!!Environment.l2WalletMnemonic()) {
     wallet = Wallet.fromMnemonic(Environment.l2WalletMnemonic())
-    wallet.connect(provider)
+    wallet = wallet.connect(provider)
     log.info(`Initialized wallet from mnemonic. Address: ${wallet.address}`)
   } else if (!!Environment.l2WalletPrivateKeyPath()) {
     try {
