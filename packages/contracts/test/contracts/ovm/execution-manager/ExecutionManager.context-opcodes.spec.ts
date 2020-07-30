@@ -1,4 +1,3 @@
-/* tslint:disable:no-empty */
 import { should } from '../../../setup'
 
 /* External Imports */
@@ -11,8 +10,9 @@ import {
   TestUtils,
   getCurrentTime,
   NULL_ADDRESS,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory, Signer } from 'ethers'
+import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 
 /* Internal Imports */
 import {
@@ -234,26 +234,74 @@ describe('Execution Manager -- Context opcodes', () => {
   })
 
   describe('ovmBlockGasLimit', async () => {
-    it('should retrieve the block gas limit', async () => {})
+    it('should retrieve the block gas limit', async () => {
+      const result = await executeTestTransaction(
+        executionManager,
+        contractAddress,
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.ovmBlockGasLimit]
+      )
+
+      const resultNum = BigNumber.from(result).toNumber()
+      resultNum.should.equal(GAS_LIMIT, 'Block gas limit was incorrect')
+    })
   })
 
   describe('isStaticContext', async () => {
-    it('should be true when inside a static context', async () => {})
+    it('should be true when inside a static context', async () => {
+      const result = await executeTestTransaction(
+        executionManager,
+        contractAddress,
+        'staticCallThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.isStaticContext]
+      )
 
-    it('should be false when not in a static context', async () => {})
+      const resultNum = BigNumber.from(result).toNumber()
+      resultNum.should.equal(1, 'Context is not static but should be')
+    })
+
+    it('should be false when not in a static context', async () => {
+      const result = await executeTestTransaction(
+        executionManager,
+        contractAddress,
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.isStaticContext]
+      )
+
+      const resultNum = BigNumber.from(result).toNumber()
+      resultNum.should.equal(0, 'Context is static but should not be')
+    })
   })
 
   describe('ovmORIGIN', async () => {
-    it('should give us the origin of the transaction', async () => {})
+    it('should give us the origin of the transaction', async () => {
+      const origin = await wallet.getAddress()
+      const result = await executeTestTransaction(
+        executionManager,
+        contractAddress,
+        'callThroughExecutionManager',
+        [contract2Address32, OVM_METHOD_IDS.ovmORIGIN],
+        ZERO_ADDRESS,
+        origin
+      )
 
-    it('should revert if the transaction has no origin', async () => {})
-  })
+      result.should.equal(
+        addressToBytes32Address(origin),
+        'Returned origin is incorrect'
+      )
+    })
 
-  describe('setStateManager', async () => {
-    it('should allow us to change the state manager address', async () => {})
-  })
-
-  describe('incrementNonce', async () => {
-    it('should increment a contract nonce', async () => {})
+    it('should revert if the transaction has no origin', async () => {
+      await TestUtils.assertThrowsAsync(async () => {
+        await executeTestTransaction(
+          executionManager,
+          contractAddress,
+          'callThroughExecutionManager',
+          [contract2Address32, OVM_METHOD_IDS.ovmORIGIN],
+          ZERO_ADDRESS,
+          ZERO_ADDRESS
+        )
+      })
+    })
   })
 })

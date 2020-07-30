@@ -1,4 +1,3 @@
-/* tslint:disable:no-empty */
 import { expect } from '../../setup'
 
 /* External Imports */
@@ -102,7 +101,8 @@ const makeTransactionData = async (
   target: Contract,
   wallet: Signer,
   functionName: string,
-  functionArgs: any[]
+  functionArgs: any[],
+  eoa?: boolean
 ): Promise<OVMTransactionData> => {
   const calldata = TargetFactory.interface.encodeFunctionData(
     functionName,
@@ -114,7 +114,7 @@ const makeTransactionData = async (
     queueOrigin: 1,
     ovmEntrypoint: target.address,
     callBytes: calldata,
-    fromAddress: target.address,
+    fromAddress: eoa ? await wallet.getAddress() : target.address,
     l1MsgSenderAddress: await wallet.getAddress(),
     allowRevert: false,
   }
@@ -124,7 +124,10 @@ const proveAllStorageUpdates = async (
   stateTransitioner: Contract,
   stateManager: Contract,
   stateTrie: StateTrieMap
-): Promise<string> => {
+): Promise<{
+  trie: StateTrieMap
+  newStateTrieRoot: string
+}> => {
   let updateTest: AccountStorageUpdateTest
   let trie = cloneDeep(stateTrie)
 
@@ -160,14 +163,20 @@ const proveAllStorageUpdates = async (
     ])
   }
 
-  return updateTest.newStateTrieRoot
+  return {
+    trie,
+    newStateTrieRoot: updateTest.newStateTrieRoot,
+  }
 }
 
 const proveAllContractUpdates = async (
   stateTransitioner: Contract,
   stateManager: Contract,
   stateTrie: StateTrieMap
-): Promise<string> => {
+): Promise<{
+  trie: StateTrieMap
+  newStateTrieRoot: string
+}> => {
   let updateTest: StateTrieUpdateTest
   let trie = cloneDeep(stateTrie)
 
@@ -207,7 +216,10 @@ const proveAllContractUpdates = async (
     ])
   }
 
-  return updateTest.newStateTrieRoot
+  return {
+    trie,
+    newStateTrieRoot: updateTest.newStateTrieRoot,
+  }
 }
 
 const getMappingStorageSlot = (key: string, index: number): string => {
@@ -349,22 +361,52 @@ describe('StateTransitioner', () => {
 
   let stateTrie: any
   let test: AccountStorageProofTest
+  let eoaTest: AccountStorageProofTest
+  let wrongTest: AccountStorageProofTest
   before(async () => {
-    stateTrie = makeStateTrie(
-      fraudTester.address,
-      {
-        nonce: 0,
-        balance: 0,
-        storageRoot: null,
-        codeHash: await getCodeHash(ethers.provider, fraudTester.address),
+    stateTrie = {
+      ...makeStateTrie(
+        fraudTester.address,
+        {
+          nonce: 0,
+          balance: 0,
+          storageRoot: null,
+          codeHash: await getCodeHash(ethers.provider, fraudTester.address),
+        },
+        DUMMY_ACCOUNT_STORAGE()
+      ),
+      ...{
+        [await wallet.getAddress()]: {
+          state: {
+            nonce: 0,
+            balance: 0,
+            storageRoot: null,
+            codeHash: await getCodeHash(
+              ethers.provider,
+              await wallet.getAddress()
+            ),
+          },
+          storage: DUMMY_ACCOUNT_STORAGE(),
+        },
       },
-      DUMMY_ACCOUNT_STORAGE()
-    )
+    }
 
     test = await makeAccountStorageProofTest(
       stateTrie,
       fraudTester.address,
       DUMMY_ACCOUNT_STORAGE()[0].key
+    )
+
+    eoaTest = await makeAccountStorageProofTest(
+      stateTrie,
+      await wallet.getAddress(),
+      DUMMY_ACCOUNT_STORAGE()[0].key
+    )
+
+    wrongTest = await makeAccountStorageProofTest(
+      stateTrie,
+      DUMMY_ACCOUNT_ADDRESSES[0],
+      DUMMY_ACCOUNT_STORAGE()[1].key
     )
   })
 
@@ -420,13 +462,39 @@ describe('StateTransitioner', () => {
         ).to.equal(false)
       })
 
-      it('should fail if the code contract has not been deployed', async () => {})
+      it('should fail if the code contract is invalid', async () => {
+        try {
+          await stateTransitioner.proveContractInclusion(
+            fraudTester.address,
+            await wallet.getAddress(), // Wrong code contract address.
+            0,
+            test.stateTrieWitness
+          )
+        } catch (e) {
+          expect(e.toString()).to.contain('Invalid account state provided.')
+        }
 
-      it('should fail if the code contract is invalid', async () => {})
+        expect(
+          await stateManager.isVerifiedContract(fraudTester.address)
+        ).to.equal(false)
+      })
 
-      it('should fail if the state trie witness is invalid', async () => {})
+      it('should fail if the state trie witness is invalid', async () => {
+        try {
+          await stateTransitioner.proveContractInclusion(
+            fraudTester.address,
+            fraudTester.address,
+            0,
+            wrongTest.stateTrieWitness // Wrong witness
+          )
+        } catch (e) {
+          expect(e.toString()).to.contain('Invalid large internal hash')
+        }
 
-      it('should fail if the transaction has been executed', async () => {})
+        expect(
+          await stateManager.isVerifiedContract(fraudTester.address)
+        ).to.equal(false)
+      })
     })
 
     describe('proveStorageSlotInclusion(...)', async () => {
@@ -481,15 +549,88 @@ describe('StateTransitioner', () => {
           )
         ).to.equal(false)
       })
+
+      it('should fail if the provided contract has not been verified', async () => {
+        // Not proving contract inclusion first.
+
+        try {
+          await stateTransitioner.proveStorageSlotInclusion(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key,
+            DUMMY_ACCOUNT_STORAGE()[0].val,
+            test.stateTrieWitness,
+            test.storageTrieWitness
+          )
+        } catch (e) {
+          expect(e.toString()).to.contain(
+            'Contract must be verified before proving storage!'
+          )
+        }
+
+        expect(
+          await stateManager.isVerifiedStorage(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key
+          )
+        ).to.equal(false)
+      })
+
+      it('should fail if the state trie witness is invalid', async () => {
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        try {
+          await stateTransitioner.proveStorageSlotInclusion(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key,
+            DUMMY_ACCOUNT_STORAGE()[0].val,
+            wrongTest.stateTrieWitness, // Wrong state trie witness
+            test.storageTrieWitness
+          )
+        } catch (e) {
+          expect(e.toString()).to.contain('Invalid large internal hash')
+        }
+
+        expect(
+          await stateManager.isVerifiedStorage(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key
+          )
+        ).to.equal(false)
+      })
+
+      it('should fail if the storage trie witness is invalid', async () => {
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        try {
+          await stateTransitioner.proveStorageSlotInclusion(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key,
+            DUMMY_ACCOUNT_STORAGE()[0].val,
+            test.stateTrieWitness,
+            wrongTest.storageTrieWitness // Wrong storage trie witness
+          )
+        } catch (e) {
+          expect(e.toString()).to.contain('Invalid large internal hash')
+        }
+
+        expect(
+          await stateManager.isVerifiedStorage(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key
+          )
+        ).to.equal(false)
+      })
     })
-
-    it('should fail if the transaction has already been executed', async () => {})
-
-    it('should fail if the provided contract has not been verified', async () => {})
-
-    it('should fail if the state trie witness is invalid', async () => {})
-
-    it('should fail if the storage trie witness is invalid', async () => {})
   })
 
   describe('applyTransaction(...)', async () => {
@@ -689,9 +830,74 @@ describe('StateTransitioner', () => {
       )
     })
 
-    it('should succeed even if the underlying transaction reverts', async () => {})
+    it('should succeed even if the underlying transaction reverts', async () => {
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
+        StateTransitioner,
+        StateManager,
+        resolver.addressResolver,
+        test.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'doRevert',
+          []
+        )
+      )
 
-    it('should fail if the provided transaction data does not match the original data', async () => {})
+      await stateTransitioner.proveContractInclusion(
+        fraudTester.address,
+        fraudTester.address,
+        0,
+        test.stateTrieWitness
+      )
+
+      await stateTransitioner.applyTransaction(transactionData)
+
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.POST_EXECUTION
+      )
+    })
+
+    it('should fail if the provided transaction data does not match the original data', async () => {
+      ;[
+        stateTransitioner,
+        stateManager,
+        transactionData,
+      ] = await initStateTransitioner(
+        StateTransitioner,
+        StateManager,
+        resolver.addressResolver,
+        test.stateTrieRoot,
+        await makeTransactionData(
+          FraudTester,
+          fraudTester,
+          wallet,
+          'doRevert',
+          []
+        )
+      )
+
+      await TestUtils.assertRevertsAsync(
+        'Provided transaction does not match the original transaction.',
+        async () => {
+          await stateTransitioner.applyTransaction({
+            ...transactionData,
+            ...{
+              timestamp: 12345, // Wrong timestamp.
+            },
+          })
+        }
+      )
+
+      expect(await stateTransitioner.currentTransitionPhase()).to.equal(
+        STATE_TRANSITIONER_PHASES.PRE_EXECUTION
+      )
+    })
   })
 
   describe('Post-Execution', async () => {
@@ -726,7 +932,7 @@ describe('StateTransitioner', () => {
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
 
-        const newStateTrieRoot = await proveAllStorageUpdates(
+        const { trie, newStateTrieRoot } = await proveAllStorageUpdates(
           stateTransitioner,
           stateManager,
           stateTrie
@@ -770,7 +976,7 @@ describe('StateTransitioner', () => {
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(3)
 
-        const newStateTrieRoot = await proveAllStorageUpdates(
+        const { trie, newStateTrieRoot } = await proveAllStorageUpdates(
           stateTransitioner,
           stateManager,
           stateTrie
@@ -814,7 +1020,7 @@ describe('StateTransitioner', () => {
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
 
-        const newStateTrieRoot = await proveAllStorageUpdates(
+        const { trie, newStateTrieRoot } = await proveAllStorageUpdates(
           stateTransitioner,
           stateManager,
           stateTrie
@@ -824,11 +1030,123 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
       })
 
-      it('should revert if the transaction has not been executed', async () => {})
+      it('should revert if the provided state trie witness is invalid', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
 
-      it('should revert if the provided state trie witness is invalid', async () => {})
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
 
-      it('should revert if the provided storage trie witness is invalid', async () => {})
+        await stateTransitioner.applyTransaction(transactionData)
+
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+
+        const [
+          storageSlotContract,
+          storageSlotKey,
+          storageSlotValue,
+        ] = await stateManager.peekUpdatedStorageSlot()
+
+        const updateTest = await makeAccountStorageUpdateTest(
+          stateTrie,
+          storageSlotContract,
+          storageSlotKey,
+          storageSlotValue
+        )
+
+        const oldStateRoot = await stateTransitioner.stateRoot()
+
+        await TestUtils.assertRevertsAsync(
+          'Invalid large internal hash',
+          async () => {
+            await stateTransitioner.proveUpdatedStorageSlot(
+              wrongTest.stateTrieWitness, // Wrong state trie witness
+              updateTest.storageTrieWitness
+            )
+          }
+        )
+
+        expect(await stateTransitioner.stateRoot()).to.equal(oldStateRoot)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+      })
+
+      it('should revert if the provided storage trie witness is invalid', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        await stateTransitioner.applyTransaction(transactionData)
+
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+
+        const [
+          storageSlotContract,
+          storageSlotKey,
+          storageSlotValue,
+        ] = await stateManager.peekUpdatedStorageSlot()
+
+        const updateTest = await makeAccountStorageUpdateTest(
+          stateTrie,
+          storageSlotContract,
+          storageSlotKey,
+          storageSlotValue
+        )
+
+        const oldStateRoot = await stateTransitioner.stateRoot()
+
+        await TestUtils.assertRevertsAsync(
+          'Invalid large internal hash',
+          async () => {
+            await stateTransitioner.proveUpdatedStorageSlot(
+              updateTest.stateTrieWitness,
+              wrongTest.storageTrieWitness // Wrong storage trie witness
+            )
+          }
+        )
+
+        expect(await stateTransitioner.stateRoot()).to.equal(oldStateRoot)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+      })
     })
 
     describe('proveUpdatedContract(...)', async () => {
@@ -863,7 +1181,7 @@ describe('StateTransitioner', () => {
         // One update for each new contract, plus one nonce update for the creating contract.
         expect(await stateManager.updatedContractsCounter()).to.equal(2)
 
-        const newStateTrieRoot = await proveAllContractUpdates(
+        const { trie, newStateTrieRoot } = await proveAllContractUpdates(
           stateTransitioner,
           stateManager,
           stateTrie
@@ -907,7 +1225,7 @@ describe('StateTransitioner', () => {
         // One update for each new contract, plus one nonce update for the creating contract.
         expect(await stateManager.updatedContractsCounter()).to.equal(4)
 
-        const newStateTrieRoot = await proveAllContractUpdates(
+        const { trie, newStateTrieRoot } = await proveAllContractUpdates(
           stateTransitioner,
           stateManager,
           stateTrie
@@ -917,13 +1235,99 @@ describe('StateTransitioner', () => {
         expect(await stateManager.updatedContractsCounter()).to.equal(0)
       })
 
-      it('should update when an externally owned account has been modified', async () => {})
+      it('should update when an externally owned account has been modified', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'createContract',
+            ['0x' + MicroFraudTesterJson.evm.bytecode.object],
+            true // EOA transaction.
+          )
+        )
 
-      it('should update when multiple EOAs have been modified', async () => {})
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
 
-      it('should revert if the transaction has not been executed yet', async () => {})
+        await stateTransitioner.proveContractInclusion(
+          await wallet.getAddress(),
+          await wallet.getAddress(),
+          0,
+          eoaTest.stateTrieWitness
+        )
 
-      it('should revert if the provided state trie witness is invalid', async () => {})
+        await stateTransitioner.applyTransaction(transactionData)
+
+        expect(await stateManager.updatedContractsCounter()).to.equal(3)
+
+        const { trie, newStateTrieRoot } = await proveAllContractUpdates(
+          stateTransitioner,
+          stateManager,
+          stateTrie
+        )
+
+        expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
+        expect(await stateManager.updatedContractsCounter()).to.equal(0)
+      })
+
+      it('should revert if the provided state trie witness is invalid', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'createContract',
+            ['0x' + MicroFraudTesterJson.evm.bytecode.object]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        await stateTransitioner.applyTransaction(transactionData)
+
+        // One update for each new contract, plus one nonce update for the creating contract.
+        expect(await stateManager.updatedContractsCounter()).to.equal(2)
+
+        const oldStateRoot = await stateTransitioner.stateRoot()
+
+        await TestUtils.assertRevertsAsync(
+          'Invalid large internal hash',
+          async () => {
+            await stateTransitioner.proveUpdatedContract(
+              wrongTest.stateTrieWitness
+            ) // Wrong state trie witness
+          }
+        )
+
+        expect(await stateTransitioner.stateRoot()).to.equal(oldStateRoot)
+        expect(await stateManager.updatedContractsCounter()).to.equal(2)
+      })
     })
 
     describe('completeTransition(...)', async () => {
@@ -984,6 +1388,10 @@ describe('StateTransitioner', () => {
 
         await stateTransitioner.applyTransaction(transactionData)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
+        expect(await stateManager.updatedContractsCounter()).to.equal(1)
+
+        await proveAllContractUpdates(stateTransitioner, stateManager, trie)
+        expect(await stateManager.updatedContractsCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
         expect(await stateTransitioner.isComplete()).to.equal(true)
@@ -1017,19 +1425,144 @@ describe('StateTransitioner', () => {
 
         await stateTransitioner.applyTransaction(transactionData)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+        expect(await stateManager.updatedContractsCounter()).to.equal(1)
 
-        await proveAllStorageUpdates(stateTransitioner, stateManager, stateTrie)
+        const { trie, newStateTrieRoot } = await proveAllContractUpdates(
+          stateTransitioner,
+          stateManager,
+          stateTrie
+        )
+        expect(await stateManager.updatedContractsCounter()).to.equal(0)
+
+        await proveAllStorageUpdates(stateTransitioner, stateManager, trie)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
 
         await stateTransitioner.completeTransition()
         expect(await stateTransitioner.isComplete()).to.equal(true)
       })
 
-      it('should not finalize if the transaction has not been executed yet', async () => {})
+      it('should not finalize if the transaction has not been executed yet', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
 
-      it('should not finalize if there are still storage slots to be updated', async () => {})
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
 
-      it('should not finalize if there are still contracts to be updated', async () => {})
+        // Don't apply the transaction
+
+        await TestUtils.assertRevertsAsync(
+          'Must be called during the correct phase.',
+          async () => {
+            await stateTransitioner.completeTransition()
+          }
+        )
+
+        expect(await stateTransitioner.isComplete()).to.equal(false)
+      })
+
+      it('should not finalize if there are still storage slots to be updated', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        await stateTransitioner.applyTransaction(transactionData)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+
+        // Don't prove the storage slot updates.
+
+        await TestUtils.assertRevertsAsync(
+          'All storage updates must be proven to complete the transition.',
+          async () => {
+            await stateTransitioner.completeTransition()
+          }
+        )
+
+        expect(await stateTransitioner.isComplete()).to.equal(false)
+      })
+
+      it('should not finalize if there are still contracts to be updated', async () => {
+        ;[
+          stateTransitioner,
+          stateManager,
+          transactionData,
+        ] = await initStateTransitioner(
+          StateTransitioner,
+          StateManager,
+          resolver.addressResolver,
+          test.stateTrieRoot,
+          await makeTransactionData(
+            FraudTester,
+            fraudTester,
+            wallet,
+            'setStorage',
+            [keccak256('0xabc'), keccak256('0xdef')]
+          )
+        )
+
+        await stateTransitioner.proveContractInclusion(
+          fraudTester.address,
+          fraudTester.address,
+          0,
+          test.stateTrieWitness
+        )
+
+        await stateTransitioner.applyTransaction(transactionData)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+
+        await proveAllStorageUpdates(stateTransitioner, stateManager, stateTrie)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
+
+        // Don't prove the contract updates.
+
+        await TestUtils.assertRevertsAsync(
+          'All contract updates must be proven to complete the transition.',
+          async () => {
+            await stateTransitioner.completeTransition()
+          }
+        )
+
+        expect(await stateTransitioner.isComplete()).to.equal(false)
+      })
     })
   })
 })

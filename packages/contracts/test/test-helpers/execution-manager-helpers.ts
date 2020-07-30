@@ -17,6 +17,7 @@ export const OVM_METHOD_IDS = fromPairs(
     'makeStaticCall',
     'makeStaticCallThenCall',
     'callThroughExecutionManager',
+    'staticCallThroughExecutionManager',
     'staticFriendlySLOAD',
     'notStaticFriendlySSTORE',
     'notStaticFriendlyCREATE',
@@ -31,6 +32,9 @@ export const OVM_METHOD_IDS = fromPairs(
     'ovmCALLER',
     'ovmCREATE',
     'ovmCREATE2',
+    'ovmORIGIN',
+    'ovmBlockGasLimit',
+    'isStaticContext',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
 
@@ -117,7 +121,8 @@ export const executeTestTransaction = async (
   contractAddress: string,
   methodName: string,
   args: any[],
-  queueOrigin = ZERO_ADDRESS
+  queueOrigin = ZERO_ADDRESS,
+  ovmTxOrign = ZERO_ADDRESS
 ): Promise<string> => {
   const callBytes = encodeFunctionData(methodName, args)
 
@@ -128,7 +133,7 @@ export const executeTestTransaction = async (
       queueOrigin,
       contractAddress,
       callBytes,
-      ZERO_ADDRESS,
+      ovmTxOrign,
       ZERO_ADDRESS,
       true,
     ]

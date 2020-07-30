@@ -32,20 +32,20 @@ contract PartialStateManager is ContractResolver {
 
     StateTransitioner private stateTransitioner;
 
-    mapping(address => mapping(bytes32 => bytes32)) private ovmContractStorage;
-    mapping(address => uint) private ovmContractNonces;
-    mapping(address => address) private ovmAddressToCodeContractAddress;
+    mapping(address => mapping(bytes32 => bytes32)) public ovmContractStorage;
+    mapping(address => uint) public ovmContractNonces;
+    mapping(address => address) public ovmAddressToCodeContractAddress;
 
     bool public existsInvalidStateAccessFlag;
 
     mapping(address => mapping(bytes32 => bool)) public isVerifiedStorage;
     mapping(address => bool) public isVerifiedContract;
-    mapping(uint => bytes32) private updatedStorageSlotContract;
-    mapping(uint => bytes32) private updatedStorageSlotKey;
-    mapping(address => mapping(bytes32 => bool)) private storageSlotTouched;
+    mapping(uint => bytes32) public updatedStorageSlotContract;
+    mapping(uint => bytes32) public updatedStorageSlotKey;
+    mapping(address => mapping(bytes32 => bool)) public storageSlotTouched;
     uint public updatedStorageSlotCounter;
-    mapping(uint => address) private updatedContracts;
-    mapping(address => bool) private contractTouched;
+    mapping(uint => address) public updatedContracts;
+    mapping(address => bool) public contractTouched;
     uint public updatedContractsCounter;
 
 

@@ -332,11 +332,11 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
     {
         require(
             stateManager.updatedStorageSlotCounter() == 0,
-            "There's still updated storage to account for!"
+            "All storage updates must be proven to complete the transition."
         );
         require(
-            stateManager.updatedStorageSlotCounter() == 0,
-            "There's still updated contracts to account for!"
+            stateManager.updatedContractsCounter() == 0,
+            "All contract updates must be proven to complete the transition."
         );
 
         currentTransitionPhase = TransitionPhases.Complete;

@@ -23,7 +23,7 @@
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "test": "yarn run test:contracts",
-    "test:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST,FLAG_IS_DEBUG\" buidler test --show-stack-traces",
+    "test:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST,FLAG_IS_DEBUG\" buidler test \"test/contracts/ovm/StateTransitioner.spec.ts\" --show-stack-traces",
     "coverage": "yarn run coverage:contracts",
     "coverage:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST\" buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
     "build": "yarn run build:contracts && yarn run build:typescript",

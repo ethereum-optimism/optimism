@@ -3,6 +3,10 @@ pragma solidity ^0.5.0;
 contract BaseFraudTester {
     mapping (bytes32 => bytes32) public builtInStorage;
 
+    function doRevert() public {
+        revert("Performing a revert for testing.");
+    }
+
     function setStorage(bytes32 key, bytes32 value) public {
         builtInStorage[key] = value;
     }

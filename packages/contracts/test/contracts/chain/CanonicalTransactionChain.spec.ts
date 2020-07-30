@@ -1,4 +1,3 @@
-/* tslint:disable:no-empty */
 import '../../setup'
 
 /* External Imports */
@@ -17,6 +16,7 @@ import {
   AddressResolverMapping,
   appendSequencerBatch,
   appendAndGenerateSequencerBatch,
+  createTxChainBatch,
   enqueueAndGenerateSafetyBatch,
   enqueueAndGenerateL1ToL2Batch,
 } from '../../test-helpers'
@@ -107,13 +107,44 @@ describe('CanonicalTransactionChain', () => {
   })
 
   describe('hashBatchHeader(...)', async () => {
-    it('should correctly compute the hash of a given batch', async () => {})
+    it('should correctly compute the hash of a given batch', async () => {
+      const localBatch = await createTxChainBatch(
+        DEFAULT_BATCH,
+        Math.floor(Date.now() / 1000),
+        false,
+        0,
+        0
+      )
+
+      const expectedBatchHeaderHash = await localBatch.hashBatchHeader()
+      const calculatedBatchHeaderHash = await canonicalTxChain.hashBatchHeader({
+        timestamp: localBatch.timestamp,
+        isL1ToL2Tx: localBatch.isL1ToL2Tx,
+        elementsMerkleRoot: localBatch.elementsMerkleTree.getRootHash(),
+        numElementsInBatch: localBatch.elements.length,
+        cumulativePrevElements: localBatch.cumulativePrevElements,
+      })
+
+      calculatedBatchHeaderHash.should.equal(expectedBatchHeaderHash)
+    })
   })
 
   describe('authenticateAppend(...)', async () => {
-    it('should return true when the sender is the sequencer', async () => {})
+    it('should return true when the sender is the sequencer', async () => {
+      const result = await canonicalTxChain.authenticateAppend(
+        await sequencer.getAddress()
+      )
 
-    it('should return false when the sender is not the sequencer', async () => {})
+      result.should.equal(true)
+    })
+
+    it('should return false when the sender is not the sequencer', async () => {
+      const result = await canonicalTxChain.authenticateAppend(
+        await randomWallet.getAddress()
+      )
+
+      result.should.equal(false)
+    })
   })
 
   describe('appendSequencerBatch()', async () => {
@@ -820,15 +851,56 @@ describe('CanonicalTransactionChain', () => {
       elementInclusionProof.indexInBatch++
       const isIncluded = await canonicalTxChain.verifyElement(
         element,
-        wrongPosition,
+        position,
         elementInclusionProof
       )
       isIncluded.should.equal(false)
     })
 
-    it('should return false when element data is invalid', async () => {})
+    it('should return false when element data is invalid', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const localBatch = await appendAndGenerateSequencerBatch(
+        canonicalTxChain,
+        sequencer,
+        batch
+      )
+      const elementIndex = 1
+      const position = localBatch.getPosition(elementIndex)
+      const elementInclusionProof = await localBatch.getElementInclusionProof(
+        elementIndex
+      )
 
-    it('should return false when siblings are invalid', async () => {})
+      const isIncluded = await canonicalTxChain.verifyElement(
+        batch[elementIndex + 1], // Wrong element
+        position,
+        elementInclusionProof
+      )
+
+      isIncluded.should.equal(false)
+    })
+
+    it('should return false when siblings are invalid', async () => {
+      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const localBatch = await appendAndGenerateSequencerBatch(
+        canonicalTxChain,
+        sequencer,
+        batch
+      )
+      const elementIndex = 1
+      const element = batch[elementIndex]
+      const position = localBatch.getPosition(elementIndex)
+      const elementInclusionProof = await localBatch.getElementInclusionProof(
+        elementIndex + 1 // Proof for the wrong thing
+      )
+
+      const isIncluded = await canonicalTxChain.verifyElement(
+        element,
+        position,
+        elementInclusionProof
+      )
+
+      isIncluded.should.equal(false)
+    })
   })
 
   describe('Event Emitting', () => {
