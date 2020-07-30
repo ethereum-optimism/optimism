@@ -27,11 +27,19 @@ contract DataTypes {
         uint chainId;
         uint timestamp;
         uint queueOrigin;
-        uint gasLimit;
         address ovmActiveContract;
         address ovmMsgSender;
         address ovmTxOrigin;
         address l1MessageSender;
+        uint ovmTxGasLimit;
+    }
+
+    struct ChainParams {
+        uint OvmTxFlatGasFee; // The flat gas fee imposed on all transactions
+        uint OvmTxMaxGas; // Max gas a single transaction is allowed
+        uint GasRateLimitEpochLength; // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
+        uint MaxSequencedGasPerEpoch; // The max gas which sequenced tansactions consume per rate limit epoch
+        uint MaxQueuedGasPerEpoch; // The max gas which queued tansactions consume per rate limit epoch
     }
 
     struct TxElementInclusionProof {
@@ -88,6 +96,7 @@ contract DataTypes {
         bytes callBytes;
         address fromAddress;
         address l1MsgSenderAddress;
+        uint gasLimit;
         bool allowRevert;
     }
 }
