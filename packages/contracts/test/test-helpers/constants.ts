@@ -29,9 +29,7 @@ export const CHAIN_ID = 108
 export const ZERO_UINT = '00'.repeat(32)
 export const DEFAULT_FORCE_INCLUSION_PERIOD = 600
 
-export const DEFAULT_UNSAFE_OPCODES = UNSAFE_OPCODES.concat([
-  Opcode.CHAINID
-])
+export const DEFAULT_UNSAFE_OPCODES = UNSAFE_OPCODES.concat([Opcode.CHAINID])
 
 export const HALTING_OPCODES = Opcode.HALTING_OP_CODES
 export const HALTING_OPCODES_NO_JUMP = HALTING_OPCODES.filter(
