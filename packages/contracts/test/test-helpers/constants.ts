@@ -4,13 +4,11 @@ import { defaultAccounts } from 'ethereum-waffle'
 
 /* Internal Imports */
 import {
-  EVMOpcode,
   Opcode,
-  DEFAULT_UNSAFE_OPCODES,
+  DEFAULT_UNSAFE_OPCODES as UNSAFE_OPCODES,
 } from '@eth-optimism/rollup-core'
 
 export { ZERO_ADDRESS } from '@eth-optimism/core-utils'
-export { DEFAULT_UNSAFE_OPCODES } from '@eth-optimism/rollup-core'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
@@ -30,6 +28,10 @@ export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
 export const CHAIN_ID = 108
 export const ZERO_UINT = '00'.repeat(32)
 export const DEFAULT_FORCE_INCLUSION_PERIOD = 600
+
+export const DEFAULT_UNSAFE_OPCODES = UNSAFE_OPCODES.concat([
+  Opcode.CHAINID
+])
 
 export const HALTING_OPCODES = Opcode.HALTING_OP_CODES
 export const HALTING_OPCODES_NO_JUMP = HALTING_OPCODES.filter(
