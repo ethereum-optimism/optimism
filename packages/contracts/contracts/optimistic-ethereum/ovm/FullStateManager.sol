@@ -171,7 +171,7 @@ contract FullStateManager is StateManager {
      * Marks a contract as newly created. Unused within this implementation.
      * @param _ovmContractAddress Address to mark as newly created.
      */
-    function associateCreatedContract(
+    function registerCreatedContract(
         address _ovmContractAddress
     )
         public
