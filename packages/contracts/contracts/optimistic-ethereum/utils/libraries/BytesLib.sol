@@ -1,3 +1,5 @@
+pragma solidity ^0.5.0;
+
 /*
  * @title Solidity Bytes Arrays Utils
  * @author Gonçalo Sá <goncalo.sa@consensys.net>
@@ -5,10 +7,11 @@
  * @dev Bytes tightly packed arrays utility library for ethereum contracts written in Solidity.
  *      The library lets you concatenate, slice and type cast bytes arrays both in memory and storage.
  */
-pragma solidity ^0.5.0;
-
-
 library BytesLib {
+    /*
+     * Internal Functions
+     */
+
     function concat(
         bytes memory _preBytes,
         bytes memory _postBytes
@@ -167,7 +170,13 @@ library BytesLib {
         return slice(_bytes, _start, _bytes.length - _start);
     }
 
-    function toBytes32(bytes memory _bytes) internal pure returns (bytes32) {
+    function toBytes32(
+        bytes memory _bytes
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         bytes32 ret;
         assembly {
             ret := mload(add(_bytes, 32))
@@ -175,11 +184,23 @@ library BytesLib {
         return ret;
     }
 
-    function toUint256(bytes memory _bytes) internal pure returns (uint256) {
+    function toUint256(
+        bytes memory _bytes
+    )
+        internal
+        pure
+        returns (uint256)
+    {
         return uint256(toBytes32(_bytes));
     }
 
-    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
+    function toNibbles(
+        bytes memory _bytes
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory nibbles = new bytes(_bytes.length * 2);
 
         for (uint256 i = 0; i < _bytes.length; i++) {
@@ -190,7 +211,13 @@ library BytesLib {
         return nibbles;
     }
 
-    function fromNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
+    function fromNibbles(
+        bytes memory _bytes
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory ret = new bytes(_bytes.length / 2);
 
         for (uint256 i = 0; i < ret.length; i++) {
@@ -200,7 +227,14 @@ library BytesLib {
         return ret;
     }
 
-    function equal(bytes memory _bytes, bytes memory _other) internal pure returns (bool) {
+    function equal(
+        bytes memory _bytes,
+        bytes memory _other
+    )
+        internal
+        pure
+        returns (bool)
+    {
         return keccak256(_bytes) == keccak256(_other);
     }
 }

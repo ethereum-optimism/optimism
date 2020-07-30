@@ -1,15 +1,43 @@
 pragma solidity ^0.5.0;
 
+/* Library Imports */
 import { AddressResolver } from "./AddressResolver.sol";
 
+/**
+ * @title ContractResolver
+ */
 contract ContractResolver {
-    AddressResolver addressResolver;
+    /*
+     * Contract Variables
+     */
 
-    constructor(address _addressResolver) public {
+    AddressResolver internal addressResolver;
+
+
+    /*
+     * Constructor
+     */
+
+    constructor(
+        address _addressResolver
+    )
+        public
+    {
         addressResolver = AddressResolver(_addressResolver);
     }
 
-    function resolveContract(string memory _name) public view returns (address) {
+
+    /*
+     * Public Functions
+     */
+
+    function resolveContract(
+        string memory _name
+    )
+        public
+        view
+        returns (address)
+    {
         return addressResolver.getAddress(_name);
     }
 }

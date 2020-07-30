@@ -9,15 +9,21 @@ pragma experimental ABIEncoderV2;
  */
 library RLPWriter {
     /*
-     * Public functions
+     * Internal Functions
      */
 
     /**
-     * @dev RLP encodes a byte string.
+     * RLP encodes a byte string.
      * @param self The byte string to encode.
      * @return The RLP encoded string in bytes.
      */
-    function encodeBytes(bytes memory self) internal pure returns (bytes memory) {
+    function encodeBytes(
+        bytes memory self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory encoded;
         if (self.length == 1 && uint8(self[0]) < 128) {
             encoded = self;
@@ -28,30 +34,48 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes a list of RLP encoded byte byte strings.
+     * RLP encodes a list of RLP encoded byte byte strings.
      * @param self The list of RLP encoded byte strings.
      * @return The RLP encoded list of items in bytes.
      */
-    function encodeList(bytes[] memory self) internal pure returns (bytes memory) {
+    function encodeList(
+        bytes[] memory self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory list = flatten(self);
         return concat(encodeLength(list.length, 192), list);
     }
 
     /**
-     * @dev RLP encodes a string.
+     * RLP encodes a string.
      * @param self The string to encode.
      * @return The RLP encoded string in bytes.
      */
-    function encodeString(string memory self) internal pure returns (bytes memory) {
+    function encodeString(
+        string memory self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return encodeBytes(bytes(self));
     }
 
     /**
-     * @dev RLP encodes an address.
+     * RLP encodes an address.
      * @param self The address to encode.
      * @return The RLP encoded address in bytes.
      */
-    function encodeAddress(address self) internal pure returns (bytes memory) {
+    function encodeAddress(
+        address self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory inputBytes;
         assembly {
             let m := mload(0x40)
@@ -63,29 +87,47 @@ library RLPWriter {
     }
 
     /**
-     * @dev RLP encodes a uint.
+     * RLP encodes a uint.
      * @param self The uint to encode.
      * @return The RLP encoded uint in bytes.
      */
-    function encodeUint(uint self) internal pure returns (bytes memory) {
+    function encodeUint(
+        uint self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return encodeBytes(toBinary(self));
     }
 
     /**
-     * @dev RLP encodes an int.
+     * RLP encodes an int.
      * @param self The int to encode.
      * @return The RLP encoded int in bytes.
      */
-    function encodeInt(int self) internal pure returns (bytes memory) {
+    function encodeInt(
+        int self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return encodeUint(uint(self));
     }
 
     /**
-     * @dev RLP encodes a bool.
+     * RLP encodes a bool.
      * @param self The bool to encode.
      * @return The RLP encoded bool in bytes.
      */
-    function encodeBool(bool self) internal pure returns (bytes memory) {
+    function encodeBool(
+        bool self
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory encoded = new bytes(1);
         encoded[0] = (self ? bytes1(0x01) : bytes1(0x80));
         return encoded;
@@ -93,16 +135,23 @@ library RLPWriter {
 
 
     /*
-     * Private functions
+     * Private Functions
      */
 
     /**
-     * @dev Encode the first byte, followed by the `len` in binary form if `length` is more than 55.
+     * Encode the first byte, followed by the `len` in binary form if `length` is more than 55.
      * @param len The length of the string or the payload.
      * @param offset 128 if item is string, 192 if item is list.
      * @return RLP encoded bytes.
      */
-    function encodeLength(uint len, uint offset) private pure returns (bytes memory) {
+    function encodeLength(
+        uint len,
+        uint offset
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         bytes memory encoded;
         if (len < 56) {
             encoded = new bytes(1);
@@ -125,12 +174,18 @@ library RLPWriter {
     }
 
     /**
-     * @dev Encode integer in big endian binary form with no leading zeroes.
+     * Encode integer in big endian binary form with no leading zeroes.
      * @notice TODO: This should be optimized with assembly to save gas costs.
      * @param _x The integer to encode.
      * @return RLP encoded bytes.
      */
-    function toBinary(uint _x) private pure returns (bytes memory) {
+    function toBinary(
+        uint _x
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         bytes memory b = new bytes(32);
         assembly {
             mstore(add(b, 32), _x)
@@ -149,13 +204,20 @@ library RLPWriter {
     }
 
     /**
-     * @dev Copies a piece of memory to another location.
+     * Copies a piece of memory to another location.
      * @notice From: https://github.com/Arachnid/solidity-stringutils/blob/master/src/strings.sol.
      * @param _dest Destination location.
      * @param _src Source location.
      * @param _len Length of memory to copy.
      */
-    function memcpy(uint _dest, uint _src, uint _len) private pure {
+    function memcpy(
+        uint _dest,
+        uint _src,
+        uint _len
+    )
+        private
+        pure
+    {
         uint dest = _dest;
         uint src = _src;
         uint len = _len;
@@ -177,12 +239,18 @@ library RLPWriter {
     }
 
     /**
-     * @dev Flattens a list of byte strings into one byte string.
+     * Flattens a list of byte strings into one byte string.
      * @notice From: https://github.com/sammayo/solidity-rlp-encoder/blob/master/RLPEncode.sol.
      * @param _list List of byte strings to flatten.
      * @return The flattened byte string.
      */
-    function flatten(bytes[] memory _list) private pure returns (bytes memory) {
+    function flatten(
+        bytes[] memory _list
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         if (_list.length == 0) {
             return new bytes(0);
         }
@@ -211,13 +279,20 @@ library RLPWriter {
     }
 
     /**
-     * @dev Concatenates two bytes.
+     * Concatenates two bytes.
      * @notice From: https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol.
      * @param _preBytes First byte string.
      * @param _postBytes Second byte string.
      * @return Both byte string combined.
      */
-    function concat(bytes memory _preBytes, bytes memory _postBytes) private pure returns (bytes memory) {
+    function concat(
+        bytes memory _preBytes,
+        bytes memory _postBytes
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         bytes memory tempBytes;
 
         assembly {

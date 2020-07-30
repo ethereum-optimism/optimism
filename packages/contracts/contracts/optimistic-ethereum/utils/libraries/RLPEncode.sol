@@ -16,7 +16,13 @@ contract RLPEncode {
      * @param self The byte string to encode.
      * @return The RLP encoded string in bytes.
      */
-    function encodeBytes(bytes memory self) public pure returns (bytes memory) {
+    function encodeBytes(
+        bytes memory self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         bytes memory encoded;
         if (self.length == 1 && uint8(self[0]) < 128) {
             encoded = self;
@@ -31,7 +37,13 @@ contract RLPEncode {
      * @param self The list of RLP encoded byte strings.
      * @return The RLP encoded list of items in bytes.
      */
-    function encodeList(bytes[] memory self) public pure returns (bytes memory) {
+    function encodeList(
+        bytes[] memory self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         bytes memory list = flatten(self);
         return concat(encodeLength(list.length, 192), list);
     }
@@ -41,7 +53,13 @@ contract RLPEncode {
      * @param self The string to encode.
      * @return The RLP encoded string in bytes.
      */
-    function encodeString(string memory self) public pure returns (bytes memory) {
+    function encodeString(
+        string memory self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         return encodeBytes(bytes(self));
     }
 
@@ -50,7 +68,13 @@ contract RLPEncode {
      * @param self The address to encode.
      * @return The RLP encoded address in bytes.
      */
-    function encodeAddress(address self) public pure returns (bytes memory) {
+    function encodeAddress(
+        address self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         bytes memory inputBytes;
         assembly {
             let m := mload(0x40)
@@ -66,7 +90,13 @@ contract RLPEncode {
      * @param self The uint to encode.
      * @return The RLP encoded uint in bytes.
      */
-    function encodeUint(uint self) public pure returns (bytes memory) {
+    function encodeUint(
+        uint self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         return encodeBytes(toBinary(self));
     }
 
@@ -75,7 +105,13 @@ contract RLPEncode {
      * @param self The int to encode.
      * @return The RLP encoded int in bytes.
      */
-    function encodeInt(int self) public pure returns (bytes memory) {
+    function encodeInt(
+        int self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         return encodeUint(uint(self));
     }
 
@@ -84,7 +120,13 @@ contract RLPEncode {
      * @param self The bool to encode.
      * @return The RLP encoded bool in bytes.
      */
-    function encodeBool(bool self) public pure returns (bytes memory) {
+    function encodeBool(
+        bool self
+    )
+        public
+        pure
+        returns (bytes memory)
+    {
         bytes memory encoded = new bytes(1);
         encoded[0] = (self ? bytes1(0x01) : bytes1(0x80));
         return encoded;
@@ -101,7 +143,14 @@ contract RLPEncode {
      * @param offset 128 if item is string, 192 if item is list.
      * @return RLP encoded bytes.
      */
-    function encodeLength(uint len, uint offset) private pure returns (bytes memory) {
+    function encodeLength(
+        uint len,
+        uint offset
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         bytes memory encoded;
         if (len < 56) {
             encoded = new bytes(1);
@@ -129,7 +178,13 @@ contract RLPEncode {
      * @param _x The integer to encode.
      * @return RLP encoded bytes.
      */
-    function toBinary(uint _x) private pure returns (bytes memory) {
+    function toBinary(
+        uint _x
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         bytes memory b = new bytes(32);
         assembly {
             mstore(add(b, 32), _x)
@@ -154,7 +209,14 @@ contract RLPEncode {
      * @param _src Source location.
      * @param _len Length of memory to copy.
      */
-    function memcpy(uint _dest, uint _src, uint _len) private pure {
+    function memcpy(
+        uint _dest,
+        uint _src,
+        uint _len
+    )
+        private
+        pure
+    {
         uint dest = _dest;
         uint src = _src;
         uint len = _len;
@@ -181,7 +243,13 @@ contract RLPEncode {
      * @param _list List of byte strings to flatten.
      * @return The flattened byte string.
      */
-    function flatten(bytes[] memory _list) private pure returns (bytes memory) {
+    function flatten(
+        bytes[] memory _list
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         if (_list.length == 0) {
             return new bytes(0);
         }
@@ -216,7 +284,14 @@ contract RLPEncode {
      * @param _postBytes Second byte string.
      * @return Both byte string combined.
      */
-    function concat(bytes memory _preBytes, bytes memory _postBytes) private pure returns (bytes memory) {
+    function concat(
+        bytes memory _preBytes,
+        bytes memory _postBytes
+    )
+        private
+        pure
+        returns (bytes memory)
+    {
         bytes memory tempBytes;
 
         assembly {

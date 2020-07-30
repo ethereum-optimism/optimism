@@ -8,11 +8,11 @@ import { Contract, ContractFactory } from 'ethers'
 import { RLP_TEST_JSON } from '../../test-helpers'
 
 /* Tests */
-describe('RLP Encoder', () => {
+describe('RLPWriter', () => {
   let RlpWriter: ContractFactory
   let rlpWriter: Contract
   before(async () => {
-    RlpWriter = await ethers.getContractFactory('RLPEncode')
+    RlpWriter = await ethers.getContractFactory('MockRLPWriter')
     rlpWriter = await RlpWriter.deploy()
   })
 
