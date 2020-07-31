@@ -245,7 +245,7 @@ export class DefaultDataService implements DataService {
     const blockNumber = res[0]['block_number']
 
     return {
-      batchNumber: gethSubmissionNumber,
+      submissionNumber: gethSubmissionNumber,
       timestamp,
       blockNumber,
       rollupTransactions: res.map((row: Row, indexWithinSubmission: number) => {

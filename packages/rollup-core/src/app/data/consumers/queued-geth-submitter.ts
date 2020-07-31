@@ -54,12 +54,12 @@ export class QueuedGethSubmitter extends ScheduledTask {
 
     try {
       await this.l1DataService.markQueuedGethSubmissionSubmittedToGeth(
-        gethSubmission.batchNumber
+        gethSubmission.submissionNumber
       )
     } catch (e) {
       logError(
         log,
-        `Error marking Geth Submission submitted to Geth. L1 Batch Number: ${gethSubmission.batchNumber}`,
+        `Error marking Geth Submission submitted to Geth. L1 Batch Number: ${gethSubmission.submissionNumber}`,
         e
       )
       return

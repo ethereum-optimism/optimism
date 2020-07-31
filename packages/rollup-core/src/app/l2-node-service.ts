@@ -1,5 +1,10 @@
 /* External Imports */
-import { getLogger, Logger, numberToHexString } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  Logger,
+  numberToHexString,
+  strToHexStr,
+} from '@eth-optimism/core-utils'
 
 import { JsonRpcProvider } from 'ethers/providers'
 import { Wallet } from 'ethers'
@@ -50,10 +55,11 @@ export class DefaultL2NodeService implements L2NodeService {
       return v
     })
 
-    const signedPayload: string = await this.l2Wallet.signMessage(payload)
+    const hexPayload: string = strToHexStr(payload)
+    const signedPayload: string = await this.l2Wallet.signMessage(hexPayload)
+
     await this.l2Provider.send(DefaultL2NodeService.sendGethSubmission, [
-      payload,
-      signedPayload,
+      [hexPayload, signedPayload],
     ])
   }
 }

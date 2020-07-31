@@ -73,7 +73,7 @@ export interface LogHandlerContext {
 }
 
 export interface GethSubmission {
-  batchNumber: number
+  submissionNumber: number
   timestamp: number
   blockNumber: number
   rollupTransactions: RollupTransaction[]

@@ -64,7 +64,7 @@ describe('Optimistic Canonical Chain Batch Submitter', () => {
 
   it('should send a batch if a fitting one exists', async () => {
     const blockBatches: GethSubmission = {
-      batchNumber: 1,
+      submissionNumber: 1,
       timestamp: 1,
       blockNumber: 1,
       rollupTransactions: [

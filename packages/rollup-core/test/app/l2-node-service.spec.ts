@@ -124,7 +124,7 @@ describe('L2 Node Service', () => {
 
   it('should handle batch with undefined transactions properly', async () => {
     await l2NodeService.sendGethSubmission({
-      batchNumber,
+      submissionNumber: batchNumber,
       timestamp,
       blockNumber,
       rollupTransactions: undefined,
@@ -138,7 +138,7 @@ describe('L2 Node Service', () => {
 
   it('should handle batch with empty transactions properly', async () => {
     await l2NodeService.sendGethSubmission({
-      batchNumber,
+      submissionNumber: batchNumber,
       timestamp,
       blockNumber,
       rollupTransactions: [],
@@ -152,7 +152,7 @@ describe('L2 Node Service', () => {
 
   it('should send single-tx batch properly', async () => {
     await l2NodeService.sendGethSubmission({
-      batchNumber,
+      submissionNumber: batchNumber,
       timestamp,
       blockNumber,
       rollupTransactions: [rollupTx],
@@ -192,7 +192,7 @@ describe('L2 Node Service', () => {
 
   it('should send multi-tx batch properly', async () => {
     await l2NodeService.sendGethSubmission({
-      batchNumber,
+      submissionNumber: batchNumber,
       timestamp,
       blockNumber,
       rollupTransactions: [rollupTx, rollupTx2],
