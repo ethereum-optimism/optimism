@@ -24,7 +24,6 @@ import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
  */
 contract ExecutionManager is ContractResolver {
     /*
-<<<<<<< HEAD
      * Contract Constants
      */
 
@@ -62,8 +61,6 @@ contract ExecutionManager is ContractResolver {
     DataTypes.GasMeterConfig gasMeterConfig;
 
     /*
-=======
->>>>>>> master
      * Events
      */
 
@@ -143,14 +140,8 @@ contract ExecutionManager is ContractResolver {
         L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
-<<<<<<< HEAD
         stateManager.associateCodeContract(l1MsgSenderAddress, address(l1MessageSender));
         
-=======
-        stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
-
-        executionContext.gasLimit = _blockGasLimit;
->>>>>>> master
         executionContext.chainId = 108;
 
         // TODO start off the initial gas rate limit epoch once we configure a start time
@@ -333,7 +324,6 @@ contract ExecutionManager is ContractResolver {
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 
-<<<<<<< HEAD
             ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
             address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(
                 _fromAddress,
@@ -341,10 +331,6 @@ contract ExecutionManager is ContractResolver {
             );
 
             // Emit event that we are creating a contract with an EOA
-=======
-            // Emit event that we are creating a contract with an EOA
-            address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
->>>>>>> master
             emit EOACreatedContract(_newOvmContractAddress);
         } else {
             methodId = METHOD_ID_OVM_CALL;
@@ -458,15 +444,9 @@ contract ExecutionManager is ContractResolver {
         returns (address)
     {
         bytes[] memory message = new bytes[](9);
-<<<<<<< HEAD
         message[0] = rlp.encodeUint(_nonce); // Nonce
         message[1] = rlp.encodeUint(0); // Gas price
         message[2] = rlp.encodeUint(gasMeterConfig.OvmTxMaxGas); // Gas limit
-=======
-        message[0] = RLPWriter.encodeUint(_nonce); // Nonce
-        message[1] = RLPWriter.encodeUint(0); // Gas price
-        message[2] = RLPWriter.encodeUint(executionContext.gasLimit); // Gas limit
->>>>>>> master
 
         // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
         if (_to == ZERO_ADDRESS) {
@@ -612,16 +592,11 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the current gas limit.
      */
-<<<<<<< HEAD
-    function ovmGASLIMIT() public view {
-        uint g = executionContext.ovmTxGasLimit;
-=======
     function ovmGASLIMIT()
         public
         view
     {
-        uint g = executionContext.gasLimit;
->>>>>>> master
+        uint g = executionContext.ovmTxGasLimit;
 
         assembly {
             let gasLimitMemory := mload(0x40)
@@ -638,16 +613,11 @@ contract ExecutionManager is ContractResolver {
      * calldata: 4 bytes: [methodID (bytes4)]
      * returndata: uint256 representing the fraud proof gas limit.
      */
-<<<<<<< HEAD
-    function ovmBlockGasLimit() public view {
-        uint g = gasMeterConfig.OvmTxMaxGas;
-=======
     function ovmBlockGasLimit()
         public
         view
     {
-        uint g = executionContext.gasLimit;
->>>>>>> master
+        uint g = gasMeterConfig.OvmTxMaxGas;
 
         assembly {
             let gasLimitMemory := mload(0x40)
@@ -1230,20 +1200,10 @@ contract ExecutionManager is ContractResolver {
         }
     }
 
-<<<<<<< HEAD
      /*****************************
     * OVM (non-EVM-equivalent) State Access *
     *****************************/
 
-    /**
-     * @notice Getter for the execution context's L1MessageSender. Used by the
-     *         L1MessageSender precompile.
-     * @return The L1MessageSender in our current execution context.
-     */
-    function getL1MessageSender() public returns(address) {
-        require(
-            executionContext.ovmActiveContract == l1MsgSenderAddress,
-=======
     /**
      * Getter for the execution context's L1MessageSender. Used by the
      * L1MessageSender precompile.
@@ -1255,7 +1215,6 @@ contract ExecutionManager is ContractResolver {
     {
         require(
             executionContext.ovmActiveContract == L1_MESSAGE_SENDER,
->>>>>>> master
             "Only the L1MessageSender precompile is allowed to call getL1MessageSender(...)!"
         );
 
@@ -1271,7 +1230,6 @@ contract ExecutionManager is ContractResolver {
 
         return executionContext.l1MessageSender;
     }
-<<<<<<< HEAD
 
     function getCumulativeSequencedGas() public view returns(uint) {
         return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
@@ -1284,8 +1242,6 @@ contract ExecutionManager is ContractResolver {
     /*********
      * Utils *
      *********/
-=======
->>>>>>> master
 
     /**
      * Queries the address of the state manager.
@@ -1379,16 +1335,11 @@ contract ExecutionManager is ContractResolver {
         uint _timestamp,
         uint _queueOrigin,
         address _ovmTxOrigin,
-<<<<<<< HEAD
         address _l1MsgSender,
         uint _ovmTxgasLimit
-    ) internal {
-=======
-        address _l1MsgSender
-    )
+    ) 
         internal
     {
->>>>>>> master
         // First zero out the context for good measure (Note ZERO_ADDRESS is
         // reserved for the genesis contract & initial msgSender).
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
@@ -1446,7 +1397,6 @@ contract ExecutionManager is ContractResolver {
         executionContext.ovmMsgSender = _msgSender;
     }
 
-<<<<<<< HEAD
     function getStateManagerAddress() public view returns (address) {
         StateManager stateManager = resolveStateManager();
         return address(stateManager);
@@ -1507,8 +1457,6 @@ contract ExecutionManager is ContractResolver {
     function getCumulativeQueuedGasAtEpochStart() internal view returns (uint) {
         return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
-=======
->>>>>>> master
 
     /*
      * Contract Resolution
