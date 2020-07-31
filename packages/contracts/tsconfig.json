@@ -11,6 +11,7 @@
     "./buidler.config.ts",
     "./buidler-env.d.ts",
     "./node_modules/@nomiclabs/buidler-ethers/src/type-extensions.d.ts",
-    "./node_modules/@nomiclabs/buidler-waffle/src/type-extensions.d.ts"
+    "./node_modules/@nomiclabs/buidler-waffle/src/type-extensions.d.ts",
+    "./node_modules/@nomiclabs/buidler-solpp/src/type-extensions.d.ts"
   ]
 }

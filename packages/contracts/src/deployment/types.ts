@@ -30,9 +30,6 @@ export type ContractFactoryName =
   | 'ExecutionManager'
   | 'SafetyChecker'
   | 'FraudVerifier'
-  | 'ContractAddressGenerator'
-  | 'EthMerkleTrie'
-  | 'RLPEncode'
   | 'RollupMerkleUtils'
 
 export interface ContractDeployConfig {
@@ -44,9 +41,6 @@ export interface ContractDeployConfig {
   ExecutionManager: ContractDeployOptions
   SafetyChecker: ContractDeployOptions
   FraudVerifier: ContractDeployOptions
-  ContractAddressGenerator: ContractDeployOptions
-  EthMerkleTrie: ContractDeployOptions
-  RLPEncode: ContractDeployOptions
   RollupMerkleUtils: ContractDeployOptions
 }
 
@@ -59,9 +53,6 @@ interface ContractMapping {
   executionManager: Contract
   safetyChecker: Contract
   fraudVerifier: Contract
-  contractAddressGenerator: Contract
-  ethMerkleTrie: Contract
-  rlpEncode: Contract
   rollupMerkleUtils: Contract
 }
 
@@ -79,9 +70,6 @@ export const factoryToContractName = {
   ExecutionManager: 'executionManager',
   SafetyChecker: 'safetyChecker',
   FraudVerifier: 'fraudVerifier',
-  ContractAddressGenerator: 'contractAddressGenerator',
-  EthMerkleTrie: 'ethMerkleTrie',
-  RLPEncode: 'rlpEncode',
   RollupMerkleUtils: 'rollupMerkleUtils',
 }
 

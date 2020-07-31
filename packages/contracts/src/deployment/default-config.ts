@@ -72,22 +72,7 @@ export const getDefaultContractDeployConfig = async (
     },
     FraudVerifier: {
       factory: getContractFactory('FraudVerifier'),
-      params: [addressResolver.address, true],
-      signer: wallet,
-    },
-    ContractAddressGenerator: {
-      factory: getContractFactory('ContractAddressGenerator'),
-      params: [],
-      signer: wallet,
-    },
-    EthMerkleTrie: {
-      factory: getContractFactory('EthMerkleTrie'),
-      params: [],
-      signer: wallet,
-    },
-    RLPEncode: {
-      factory: getContractFactory('RLPEncode'),
-      params: [],
+      params: [addressResolver.address],
       signer: wallet,
     },
     RollupMerkleUtils: {

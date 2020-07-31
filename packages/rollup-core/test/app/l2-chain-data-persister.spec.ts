@@ -81,6 +81,7 @@ const getTransactionResponse = (
     value: undefined,
     chainId: CHAIN_ID,
     l1MessageSender: ZERO_ADDRESS,
+    l1RollupTxId: 1,
     wait: (confirmations) => {
       return undefined
     },

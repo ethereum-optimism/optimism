@@ -1,14 +1,26 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
-import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
-import { DataTypes } from "../utils/libraries/DataTypes.sol";
-import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
+/* Contract Imports */
 import { CanonicalTransactionChain } from "./CanonicalTransactionChain.sol";
 import { FraudVerifier } from "../ovm/FraudVerifier.sol";
 
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RollupMerkleUtils } from "../utils/libraries/RollupMerkleUtils.sol";
+
+/**
+ * @title StateCommitmentChain
+ */
 contract StateCommitmentChain is ContractResolver {
+    /*
+     * Events
+     */
+
+    event StateBatchAppended(bytes32 _batchHeaderHash);
+
+
     /*
     * Contract Variables
     */
@@ -16,29 +28,49 @@ contract StateCommitmentChain is ContractResolver {
     uint public cumulativeNumElements;
     bytes32[] public batches;
 
-    /*
-     * Events
-     */
-
-    event StateBatchAppended(bytes32 _batchHeaderHash);
 
     /*
     * Constructor
     */
 
-    constructor(address _addressResolver) public ContractResolver(_addressResolver) {}
+    /**
+     * @param _addressResolver Address of the AddressResolver contract.
+     */
+    constructor(
+        address _addressResolver
+    )
+        public
+        ContractResolver(_addressResolver)
+    {}
+
 
     /*
     * Public Functions
     */
 
-    function getBatchesLength() public view returns (uint) {
+    /**
+     * @return Total number of published state batches.
+     */
+    function getBatchesLength()
+        public
+        view
+        returns (uint)
+    {
         return batches.length;
     }
 
+    /**
+     * Computes the hash of a batch header.
+     * @param _batchHeader Header to hash.
+     * @return Hash of the provided header.
+     */
     function hashBatchHeader(
         DataTypes.StateChainBatchHeader memory _batchHeader
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encodePacked(
             _batchHeader.elementsMerkleRoot,
             _batchHeader.numElementsInBatch,
@@ -46,9 +78,15 @@ contract StateCommitmentChain is ContractResolver {
         ));
     }
 
+    /**
+     * Attempts to append a state batch.
+     * @param _stateBatch Batch to append.
+     */
     function appendStateBatch(
         bytes[] memory _stateBatch
-    ) public {
+    )
+        public
+    {
         CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
         RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
 
@@ -73,12 +111,21 @@ contract StateCommitmentChain is ContractResolver {
         emit StateBatchAppended(batchHeaderHash);
     }
 
-    // verifies an element is in the current list at the given position
+    /**
+     * Checks that an element is included within a published batch.
+     * @param _element Element to prove within the batch.
+     * @param _position Index of the element within the batch.
+     * @param _inclusionProof Inclusion proof for the element/batch.
+     */
     function verifyElement(
-        bytes memory _element, // the element of the list being proven
-        uint _position, // the position in the list of the element being proven
+        bytes memory _element,
+        uint _position,
         DataTypes.StateElementInclusionProof memory _inclusionProof
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         DataTypes.StateChainBatchHeader memory batchHeader = _inclusionProof.batchHeader;
         if (_position != _inclusionProof.indexInBatch +
             batchHeader.cumulativePrevElements) {
@@ -99,10 +146,18 @@ contract StateCommitmentChain is ContractResolver {
         return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
     }
 
+    /**
+     * Deletes all state batches after and including the given batch index.
+     * Can only be called by the FraudVerifier contract.
+     * @param _batchIndex Index of the batch to start deletion from.
+     * @param _batchHeader Header of batch at the given index.
+     */
     function deleteAfterInclusive(
         uint _batchIndex,
         DataTypes.StateChainBatchHeader memory _batchHeader
-    ) public {
+    )
+        public
+    {
         FraudVerifier fraudVerifier = resolveFraudVerifier();
 
         require(
@@ -130,15 +185,27 @@ contract StateCommitmentChain is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveCanonicalTransactionChain() internal view returns (CanonicalTransactionChain) {
+    function resolveCanonicalTransactionChain()
+        internal
+        view
+        returns (CanonicalTransactionChain)
+    {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
     }
 
-    function resolveFraudVerifier() internal view returns (FraudVerifier) {
+    function resolveFraudVerifier()
+        internal
+        view
+        returns (FraudVerifier)
+    {
         return FraudVerifier(resolveContract("FraudVerifier"));
     }
 
-    function resolveRollupMerkleUtils() internal view returns (RollupMerkleUtils) {
+    function resolveRollupMerkleUtils()
+        internal
+        view
+        returns (RollupMerkleUtils)
+    {
         return RollupMerkleUtils(resolveContract("RollupMerkleUtils"));
     }
 }

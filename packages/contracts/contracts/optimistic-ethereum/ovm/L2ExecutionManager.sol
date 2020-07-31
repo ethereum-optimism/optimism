@@ -1,23 +1,24 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
+/* Contract Imports */
 import { ExecutionManager } from "./ExecutionManager.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { StateManager } from "./StateManager.sol";
 
 /**
  * @title L2ExecutionManager
- * @notice This extension of ExecutionManager that should only run in L2 because it has optimistic execution details
- *         that are unnecessary and inefficient to run in L1.
+ * @notice This extension of ExecutionManager that should only run in L2 because it has optimistic
+ *         execution details that are unnecessary and inefficient to run in L1.
  */
 contract L2ExecutionManager is ExecutionManager {
     /*
      * Contract Variables
      */
 
-    mapping(bytes32 => bytes32) ovmHashToEvmHash;
-    mapping(bytes32 => bytes32) evmHashToOvmHash;
-    mapping(bytes32 => bytes) ovmHashToOvmTx;
+    mapping(bytes32 => bytes32) private ovmHashToEvmHash;
+    mapping(bytes32 => bytes32) private evmHashToOvmHash;
+    mapping(bytes32 => bytes) private ovmHashToOvmTx;
 
 
     /*
@@ -43,6 +44,20 @@ contract L2ExecutionManager is ExecutionManager {
      */
 
     /**
+     * Increments the provided address's nonce. This is only used by the
+     * sequencer to correct nonces when transactions fail.
+     * @param _addr The address of the nonce to increment.
+     */
+    function incrementNonce(
+        address _addr
+    )
+        public
+    {
+        StateManager stateManager = resolveStateManager();
+        stateManager.incrementOvmContractNonce(_addr);
+    }
+
+    /**
      * @notice Stores the provided OVM transaction, mapping its hash to its value and its hash to the EVM tx hash
             with which it's associated.
      * @param ovmTransactionHash The OVM transaction hash, used publicly as the reference to the transaction.
@@ -53,7 +68,9 @@ contract L2ExecutionManager is ExecutionManager {
         bytes32 ovmTransactionHash,
         bytes32 internalTransactionHash,
         bytes memory signedOvmTx
-    ) public {
+    )
+        public
+    {
         evmHashToOvmHash[internalTransactionHash] = ovmTransactionHash;
         ovmHashToEvmHash[ovmTransactionHash] = internalTransactionHash;
         ovmHashToOvmTx[ovmTransactionHash] = signedOvmTx;
@@ -66,7 +83,11 @@ contract L2ExecutionManager is ExecutionManager {
      */
     function getOvmTransactionHash(
         bytes32 evmTransactionHash
-    ) public view returns (bytes32) {
+    )
+        public
+        view
+        returns (bytes32)
+    {
         return evmHashToOvmHash[evmTransactionHash];
     }
 
@@ -77,7 +98,11 @@ contract L2ExecutionManager is ExecutionManager {
      */
     function getInternalTransactionHash(
         bytes32 ovmTransactionHash
-    ) public view returns (bytes32) {
+    )
+        public
+        view
+        returns (bytes32)
+    {
         return ovmHashToEvmHash[ovmTransactionHash];
     }
 
@@ -88,7 +113,11 @@ contract L2ExecutionManager is ExecutionManager {
      */
     function getOvmTransaction(
         bytes32 ovmTransactionHash
-    ) public view returns (bytes memory) {
+    )
+        public
+        view
+        returns (bytes memory)
+    {
         return ovmHashToOvmTx[ovmTransactionHash];
     }
 }

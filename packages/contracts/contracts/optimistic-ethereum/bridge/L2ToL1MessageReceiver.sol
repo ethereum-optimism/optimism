@@ -1,10 +1,23 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
+/* Library Imports */
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 
+/**
+ * @title L2ToL1MessageReceiver
+ */
 contract L2ToL1MessageReceiver {
+    /*
+     * Structs
+     */
+
+    struct EnqueuedL2ToL1Message {
+        DataTypes.L2ToL1Message message;
+        uint l1BlockEnqueued;
+    }
+
+
     /*
      * Events
      */
@@ -14,16 +27,6 @@ contract L2ToL1MessageReceiver {
         bytes callData,
         uint nonce
     );
-
-
-    /*
-     * Structs
-     */
-
-    struct EnqueuedL2ToL1Message {
-        DataTypes.L2ToL1Message message;
-        uint l1BlockEnqueued;
-    }
 
 
     /*
@@ -40,7 +43,16 @@ contract L2ToL1MessageReceiver {
      * Constructor
      */
 
-    constructor(address _sequencer, uint _blocksUntilFinal) public {
+    /**
+     * @param _sequencer Current sequencer address.
+     * @param _blocksUntilFinal Blocks until transactions are considered final.
+     */
+    constructor(
+        address _sequencer,
+        uint _blocksUntilFinal
+    )
+        public
+    {
         sequencer = _sequencer;
         blocksUntilFinal = _blocksUntilFinal;
     }
@@ -50,9 +62,15 @@ contract L2ToL1MessageReceiver {
      * Public Functions
      */
 
+    /**
+     * Adds a message to the queue.
+     * @param _message Message to add to the queue.
+     */
     function enqueueL2ToL1Message(
         DataTypes.L2ToL1Message memory _message
-    ) public {
+    )
+        public
+    {
         require(
             msg.sender == sequencer,
             "For now, only our trusted sequencer can enqueue messages."
@@ -75,10 +93,20 @@ contract L2ToL1MessageReceiver {
         messageNonce += 1;
     }
 
+    /**
+     * Verifies that a message was queued and finalized.
+     * @param _message Message to verify.
+     * @param _nonce Nonce for the given message.
+     * @return Whether or not the message is verified.
+     */
     function verifyL2ToL1Message(
         DataTypes.L2ToL1Message memory _message,
         uint _nonce
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         // The enqueued message for the given nonce must match the _message
         // being verified.
         bytes32 givenMessageHash = getMessageHash(_message);
@@ -98,9 +126,18 @@ contract L2ToL1MessageReceiver {
      * Internal Functions
      */
 
+    /**
+     * Calculates the hash of a given message.
+     * @param _message Message to hash.
+     * @return Hash of the provided message.
+     */
     function getMessageHash(
         DataTypes.L2ToL1Message memory _message
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(_message));
     }
 }

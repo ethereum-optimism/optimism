@@ -23,7 +23,7 @@ describe('EthMerkleTrie', () => {
   let Trie: ContractFactory
   let trie: Contract
   before(async () => {
-    Trie = await ethers.getContractFactory('EthMerkleTrie')
+    Trie = await ethers.getContractFactory('MockEthMerkleTrie')
     trie = await Trie.deploy()
   })
 

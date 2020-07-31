@@ -1,4 +1,4 @@
-import { BlockBatches } from './types'
+import { GethSubmission } from './types'
 
 export interface L2NodeService {
   /**
@@ -6,5 +6,5 @@ export interface L2NodeService {
    *
    * @param blockBatches The block batches to send to L2
    */
-  sendBlockBatches(blockBatches: BlockBatches): Promise<void>
+  sendGethSubmission(blockBatches: GethSubmission): Promise<void>
 }

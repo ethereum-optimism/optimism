@@ -21,12 +21,11 @@ describe('MerkleTrie', () => {
 
   let MerkleTrie: ContractFactory
   before(async () => {
-    MerkleTrie = await ethers.getContractFactory('MerkleTrie')
+    MerkleTrie = await ethers.getContractFactory('MockMerkleTrie')
   })
 
   let merkleTrie: Contract
   beforeEach(async () => {
-    MerkleTrie = await ethers.getContractFactory('MerkleTrie')
     merkleTrie = await MerkleTrie.deploy()
   })
 

@@ -1,24 +1,36 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { DataTypes } from "../utils/libraries/DataTypes.sol";
-import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
+/* Library Imports */
+import { DataTypes } from "./DataTypes.sol";
+import { RLPWriter } from "./RLPWriter.sol";
 
+/**
+ * @title TransactionParser
+ */
 library TransactionParser {
+    /*
+     * Internal Functions
+     */
+
     /**
-     * @notice Utility; computes the hash of a given transaction.
+     * Utility; computes the hash of a given transaction.
      * @param _transaction OVM transaction to hash.
      * @return Hash of the provided transaction.
      */
     function getTransactionHash(
         DataTypes.OVMTransactionData memory _transaction
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         bytes memory encodedTransaction = encodeTransactionData(_transaction);
         return keccak256(encodedTransaction);
     }
 
     /**
-     * @notice Utility; RLP encodes an OVMTransactionData struct.
+     * Utility; RLP encodes an OVMTransactionData struct.
      * @dev Likely to be changed (if not moved to another contract). Currently
      * remaining here as to avoid modifying CanonicalTransactionChain. Unclear
      * whether or not this is the correct transaction structure, but it should
@@ -28,7 +40,11 @@ library TransactionParser {
      */
     function encodeTransactionData(
         DataTypes.OVMTransactionData memory _transactionData
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes[] memory raw = new bytes[](7);
 
         raw[0] = RLPWriter.encodeUint(_transactionData.timestamp);
