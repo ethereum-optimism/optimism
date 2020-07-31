@@ -1,0 +1,1 @@
+export { AddressResolverMapping } from '../../../src'

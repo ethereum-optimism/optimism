@@ -1,13 +1,12 @@
 /* External Imports */
 import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
-
-/* Internal Imports */
 import {
   Opcode,
   DEFAULT_UNSAFE_OPCODES as UNSAFE_OPCODES,
 } from '@eth-optimism/rollup-core'
 
+/* Internal Imports */
 export { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
