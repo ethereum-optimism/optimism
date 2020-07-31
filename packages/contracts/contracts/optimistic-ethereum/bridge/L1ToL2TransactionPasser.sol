@@ -1,6 +1,9 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/**
+ * @title L1ToL2TransactionPasser
+ */
 contract L1ToL2TransactionPasser {
     /*
      * Events
@@ -18,17 +21,24 @@ contract L1ToL2TransactionPasser {
      * Contract Variables
      */
 
-    uint nonce;
+    uint private nonce;
 
 
     /*
      * Public Functions
      */
 
+    /**
+     * Pass an L1 transaction to the L2 rollup chain.
+     * @param _ovmEntrypoint Target address for the transaction.
+     * @param _ovmCalldata Calldata for the transaction.
+     */
     function passTransactionToL2(
         address _ovmEntrypoint,
         bytes memory _ovmCalldata
-    ) public {
+    )
+        public
+    {
         // TODO: Actually create/enqueue a rollup block with this message.
         // We are simply mocking this functionality for now.
 

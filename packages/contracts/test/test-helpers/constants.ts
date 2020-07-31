@@ -21,6 +21,7 @@ export const DEFAULT_UNSAFE_OPCODES: EVMOpcode[] = [
   Opcode.BLOCKHASH,
   Opcode.CALLCODE,
   Opcode.CALLER,
+  Opcode.CHAINID,
   Opcode.COINBASE,
   Opcode.CREATE,
   Opcode.CREATE2,
@@ -43,9 +44,11 @@ export const DEFAULT_UNSAFE_OPCODES: EVMOpcode[] = [
 
 export const GAS_LIMIT = 1_000_000_000
 export const DEFAULT_OPCODE_WHITELIST_MASK =
-  '0x600a0000000000000000001fffffffffffffffff0fcf004063f000013fff0fff'
+  '0x600a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
+
 export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
   '0x4200000000000000000000000000000000000000'
 
 export const CHAIN_ID = 108
 export const ZERO_UINT = '00'.repeat(32)
+export const DEFAULT_FORCE_INCLUSION_PERIOD = 600

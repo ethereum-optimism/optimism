@@ -3,7 +3,13 @@ import { BaseTrie } from 'merkle-patricia-tree'
 import * as rlp from 'rlp'
 
 /* Internal Imports */
-import { WorldState, FraudProofWitness, isAccountTrieWitness, StateTrieWitness, MerkleTrieWitness } from '../interfaces'
+import {
+  WorldState,
+  FraudProofWitness,
+  isAccountTrieWitness,
+  StateTrieWitness,
+  MerkleTrieWitness,
+} from '../interfaces'
 import { toHexString } from './encoding'
 
 /**
@@ -43,7 +49,7 @@ const makeTrieFromWitnesses = async (
     }
 
     if (!rootNode.equals(nodes[0])) {
-      throw new Error("All root nodes in provided proofs must match.")
+      throw new Error('All root nodes in provided proofs must match.')
     }
 
     nonRootNodes = nonRootNodes.concat(...nodes.slice(1))
@@ -81,7 +87,7 @@ export const makeWorldStateFromWitnesses = async (
     return map
   }, {})
 
-  let accountTries = {}
+  const accountTries = {}
   for (const address of Object.keys(accountTrieWitnessMap)) {
     const accountTrieWitnesses = accountTrieWitnessMap[address]
     accountTries[address] = await makeTrieFromWitnesses(accountTrieWitnesses)
@@ -89,6 +95,6 @@ export const makeWorldStateFromWitnesses = async (
 
   return {
     stateTrie,
-    accountTries
+    accountTries,
   }
 }

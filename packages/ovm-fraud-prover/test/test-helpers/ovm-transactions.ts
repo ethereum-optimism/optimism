@@ -1,11 +1,11 @@
 /* External Imports */
-import { Contract, Wallet } from "ethers";
+import { Contract, Wallet } from 'ethers'
 import * as rlp from 'rlp'
 
 /* Internal Imports */
-import { OVMTransactionData } from "../../src/interfaces";
-import { toHexString } from "../../src/utils"
-import { NULL_ADDRESS, GAS_LIMIT } from "./constants";
+import { OVMTransactionData } from '../../src/interfaces'
+import { toHexString } from '../../src/utils'
+import { NULL_ADDRESS, GAS_LIMIT } from './constants'
 
 /**
  * Generates an OVM transaction.
@@ -25,7 +25,10 @@ export const makeOvmTransaction = (
     timestamp: Math.floor(Date.now() / 1000),
     queueOrigin: 0,
     ovmEntrypoint: contract.address,
-    callBytes: contract.interface.encodeFunctionData(functionName, functionParams),
+    callBytes: contract.interface.encodeFunctionData(
+      functionName,
+      functionParams
+    ),
     fromAddress: wallet.address,
     l1MsgSenderAddress: NULL_ADDRESS,
     allowRevert: false,
@@ -45,7 +48,7 @@ export const signAndSendOvmTransaction = async (
     to: transaction.ovmEntrypoint,
     from: transaction.fromAddress,
     gasLimit: GAS_LIMIT,
-    data: transaction.callBytes
+    data: transaction.callBytes,
   })
 }
 

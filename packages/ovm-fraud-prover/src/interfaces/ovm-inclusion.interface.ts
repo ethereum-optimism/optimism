@@ -13,7 +13,8 @@ interface StateChainBatchHeader {
   cumulativePrevElements: number | BigNumber
 }
 
-export interface OVMStateElementInclusionProof extends OVMElementInclusionProof {
+export interface OVMStateElementInclusionProof
+  extends OVMElementInclusionProof {
   batchHeader: StateChainBatchHeader
 }
 
@@ -25,6 +26,7 @@ interface TransactionChainBatchHeader {
   cumulativePrevElements: number | BigNumber
 }
 
-export interface OVMTransactionElementInclusionProof extends OVMElementInclusionProof {
+export interface OVMTransactionElementInclusionProof
+  extends OVMElementInclusionProof {
   batchHeader: TransactionChainBatchHeader
 }

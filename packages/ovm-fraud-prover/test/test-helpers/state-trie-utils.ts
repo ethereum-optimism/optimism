@@ -41,10 +41,18 @@ const getStateCache = (stateManager: any): any => {
  * @param addressBuf Address to get a trie for, as a Buffer.
  * @param cb Callback for the returned value.
  */
-const getStorageTrieCb = (stateManager: any, addressBuf: Buffer, cb: any): void => {
+const getStorageTrieCb = (
+  stateManager: any,
+  addressBuf: Buffer,
+  cb: any
+): void => {
   const wrapped = stateManager['_wrapped' as any]
-  wrapped['_getStorageTrie' as any](addressBuf, function (err, trie) {
-    if (err) return cb(err)
+  // tslint:disable-next-line:only-arrow-functions
+  wrapped['_getStorageTrie' as any](addressBuf, function(err, trie) {
+    if (err) {
+      return cb(err)
+    }
+
     return cb(null, trie)
   })
 }
@@ -55,10 +63,16 @@ const getStorageTrieCb = (stateManager: any, addressBuf: Buffer, cb: any): void 
  * @param addressBuf Address to get a trie for, as a Buffer.
  * @returns Storage trie for the address.
  */
-const getStorageTrie = async (stateManager: any, addressBuf: Buffer): Promise<any> => {
+const getStorageTrie = async (
+  stateManager: any,
+  addressBuf: Buffer
+): Promise<any> => {
   return new Promise<any>((resolve, reject) => {
-    getStorageTrieCb(stateManager, addressBuf, function (err, trie) {
-      if (err) reject(err)
+    // tslint:disable-next-line:only-arrow-functions
+    getStorageTrieCb(stateManager, addressBuf, function(err, trie) {
+      if (err) {
+        reject(err)
+      }
 
       resolve(trie)
     })
@@ -74,19 +88,22 @@ const getStorageTrie = async (stateManager: any, addressBuf: Buffer): Promise<an
 const getTrieProofCb = (trie: any, key: Buffer, cb: any): void => {
   let nodes = []
 
-  trie.findPath(key, function (err, node, remaining, stack) {
-    if (err) return cb(err)
+  // tslint:disable-next-line:only-arrow-functions
+  trie.findPath(key, function(err, node, remaining, stack) {
+    if (err) {
+      return cb(err)
+    }
 
     if (remaining.length > 0) {
-      return cb(new Error("Node does not contain the key"))
+      return cb(new Error('Node does not contain the key'))
     }
 
     nodes = stack
-    let p = []
+    const p = []
     for (let i = 0; i < nodes.length; i++) {
-      let rlpNode = nodes[i].serialize()
+      const rlpNode = nodes[i].serialize()
 
-      if ((rlpNode.length >= 32) || (i === 0)) {
+      if (rlpNode.length >= 32 || i === 0) {
         p.push(rlpNode)
       }
     }
@@ -104,8 +121,11 @@ const getTrieProofCb = (trie: any, key: Buffer, cb: any): void => {
 const getTrieProof = async (trie: any, key: Buffer): Promise<any> => {
   key = toHexBuffer(keccak256('0x' + key.toString('hex')))
   return new Promise<any>((resolve, reject) => {
-    getTrieProofCb(trie, key, function (err, proof) {
-      if (err) reject(err)
+    // tslint:disable-next-line:only-arrow-functions
+    getTrieProofCb(trie, key, function(err, proof) {
+      if (err) {
+        reject(err)
+      }
 
       resolve(proof)
     })
@@ -119,8 +139,12 @@ const getTrieProof = async (trie: any, key: Buffer): Promise<any> => {
  * @param cb Callback for the returned value.
  */
 const getAccountCb = (cache: any, key: Buffer, cb: any): void => {
-  cache._lookupAccount(key, function (err, account) {
-    if (err) return cb(err)
+  // tslint:disable-next-line:only-arrow-functions
+  cache._lookupAccount(key, function(err, account) {
+    if (err) {
+      return cb(err)
+    }
+
     return cb(null, account)
   })
 }
@@ -133,8 +157,11 @@ const getAccountCb = (cache: any, key: Buffer, cb: any): void => {
  */
 const getAccount = async (cache: any, key: Buffer): Promise<any> => {
   return new Promise<any>((resolve, reject) => {
-    getAccountCb(cache, key, function (err, account) {
-      if (err) reject(err)
+    // tslint:disable-next-line:only-arrow-functions
+    getAccountCb(cache, key, function(err, account) {
+      if (err) {
+        reject(err)
+      }
 
       resolve(account)
     })
@@ -160,7 +187,7 @@ export const getStateTrieProof = async (address: string): Promise<any> => {
     account,
     address,
     root: stateTrie.root,
-    proof
+    proof,
   }
 }
 
@@ -170,7 +197,10 @@ export const getStateTrieProof = async (address: string): Promise<any> => {
  * @param slot Specific slot to prove.
  * @returns Merkle proof information for the given address/slot pair.
  */
-export const getStorageTrieProof = async (address: string, slot: string): Promise<any> => {
+export const getStorageTrieProof = async (
+  address: string,
+  slot: string
+): Promise<any> => {
   const addressBuf = toHexBuffer(address)
   const slotBuf = toHexBuffer(slot)
 

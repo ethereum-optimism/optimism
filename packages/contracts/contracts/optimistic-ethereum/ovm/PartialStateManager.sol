@@ -1,9 +1,15 @@
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
-import {StateManager} from "./StateManager.sol";
-import {StateTransitioner} from "./StateTransitioner.sol";
-import {ExecutionManager} from "./ExecutionManager.sol";
+/* Contract Imports */
+import { StateManager } from "./StateManager.sol";
+import { StateTransitioner } from "./StateTransitioner.sol";
+import { ExecutionManager } from "./ExecutionManager.sol";
+
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+
+/* Testing Imports */
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title PartialStateManager
@@ -11,27 +17,40 @@ import {ExecutionManager} from "./ExecutionManager.sol";
  *         It is supplied with only the state which is used to execute a single transaction. This
  *         is unlike the FullStateManager which has access to every storage slot.
  */
-contract PartialStateManager {
+contract PartialStateManager is ContractResolver {
+    /*
+     * Contract Constants
+     */
+
     address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
 
-    StateTransitioner stateTransitioner;
-    ExecutionManager executionManager;
 
-    mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
-    mapping(address=>uint) ovmContractNonces;
-    mapping(address=>address) ovmAddressToCodeContractAddress;
+    /*
+     * Contract Variables
+     */
+
+    StateTransitioner private stateTransitioner;
+
+    mapping(address => mapping(bytes32 => bytes32)) private ovmContractStorage;
+    mapping(address => uint) private ovmContractNonces;
+    mapping(address => address) private ovmAddressToCodeContractAddress;
 
     bool public existsInvalidStateAccessFlag;
 
-    mapping(address=>mapping(bytes32=>bool)) public isVerifiedStorage;
-    mapping(address=>bool) public isVerifiedContract;
-    mapping(uint=>bytes32) updatedStorageSlotContract;
-    mapping(uint=>bytes32) updatedStorageSlotKey;
-    mapping(address=>mapping(bytes32=>bool)) storageSlotTouched;
+    mapping(address => mapping(bytes32 => bool)) public isVerifiedStorage;
+    mapping(address => bool) public isVerifiedContract;
+    mapping(uint => bytes32) private updatedStorageSlotContract;
+    mapping(uint => bytes32) private updatedStorageSlotKey;
+    mapping(address => mapping(bytes32 => bool)) private storageSlotTouched;
     uint public updatedStorageSlotCounter;
-    mapping(uint=>address) updatedContracts;
-    mapping(address=>bool) contractTouched;
+    mapping(uint => address) private updatedContracts;
+    mapping(address => bool) private contractTouched;
     uint public updatedContractsCounter;
+
+
+    /*
+     * Modifiers
+     */
 
     modifier onlyStateTransitioner {
         require(msg.sender == address(stateTransitioner));
@@ -39,57 +58,103 @@ contract PartialStateManager {
     }
 
     modifier onlyExecutionManager {
+        ExecutionManager executionManager = resolveExecutionManager();
         require(msg.sender == address(executionManager));
         _;
     }
 
-    /**
-     * @notice Construct a new PartialStateManager
+
+    /*
+     * Constructor
      */
-    constructor(address _stateTransitionerAddress, address _executionManagerAddress) public {
-        stateTransitioner = StateTransitioner(_stateTransitionerAddress);
-        executionManager = ExecutionManager(_executionManagerAddress);
-    }
 
     /**
-     * @notice Initialize a new transaction execution
+     * @param _addressResolver Address of the AddressResolver contract.
+     * @param _stateTransitioner Address of the StateTransitioner attached to this contract.
      */
-    function initNewTransactionExecution() onlyStateTransitioner external {
+    constructor(
+        address _addressResolver,
+        address _stateTransitioner
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
+        stateTransitioner = StateTransitioner(_stateTransitioner);
+    }
+
+
+    /*
+     * Public Functions
+     */
+
+    /**
+     * Initialize a new transaction execution
+     */
+    function initNewTransactionExecution()
+        public
+        onlyStateTransitioner
+    {
+        // #if FLAG_IS_DEBUG
+        console.log("Initializing new transaction execution.");
+        // #endif
+
         existsInvalidStateAccessFlag = false;
         updatedStorageSlotCounter = 0;
         updatedContractsCounter = 0;
-    }
-
-    function flagIfNotVerifiedStorage(address _ovmContractAddress, bytes32 _slot) private {
-        if (!isVerifiedStorage[_ovmContractAddress][_slot]) {
-            existsInvalidStateAccessFlag = true;
-        }
-    }
-
-    function flagIfNotVerifiedContract(address _ovmContractAddress) private {
-        if (!isVerifiedContract[_ovmContractAddress]) {
-            existsInvalidStateAccessFlag = true;
-        }
     }
 
     /****************
     * Pre-Execution *
     ****************/
 
+    /**
+     * Inserts a verified storage slot.
+     * @param _ovmContractAddress Address to insert a slot for.
+     * @param _slot ID of the slot to insert.
+     * @param _value Value for the provided slot.
+     */
     function insertVerifiedStorage(
         address _ovmContractAddress,
         bytes32 _slot,
         bytes32 _value
-    ) external onlyStateTransitioner {
+    )
+        public
+        onlyStateTransitioner
+    {
+        // #if FLAG_IS_DEBUG
+        console.log("Inserting verified storage slot.");
+        console.log("Contract address: %s", _ovmContractAddress);
+        console.log("Slot ID:");
+        console.logBytes32(_slot);
+        console.log("Slot value:");
+        console.logBytes32(_value);
+        // #endif
+
         isVerifiedStorage[_ovmContractAddress][_slot] = true;
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
+    /**
+     * Inserts a verified contract address.
+     * @param _ovmContractAddress Address of the contract on the OVM.
+     * @param _codeContractAddress Address of the contract on the EVM.
+     * @param _nonce Nonce for the provided contract.
+     */
     function insertVerifiedContract(
         address _ovmContractAddress,
         address _codeContractAddress,
         uint _nonce
-    ) external onlyStateTransitioner {
+    )
+        public
+        onlyStateTransitioner
+    {
+        // #if FLAG_IS_DEBUG
+        console.log("Inserting verified contract.");
+        console.log("OVM contract address: %s", _ovmContractAddress);
+        console.log("Code contract address: %s", _codeContractAddress);
+        console.log("Contract nonce: %s", _nonce);
+        // #endif
+
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
@@ -99,11 +164,19 @@ contract PartialStateManager {
     * Post-Execution *
     *****************/
 
-    function peekUpdatedStorageSlot() public view returns (
-        address storageSlotContract,
-        bytes32 storageSlotKey,
-        bytes32 storageSlotValue
-    ) {
+    /**
+     * Peeks the next storage slot to update.
+     * @return Information about the next storage slot to update.
+     */
+    function peekUpdatedStorageSlot()
+        public
+        view
+        returns (
+            address storageSlotContract,
+            bytes32 storageSlotKey,
+            bytes32 storageSlotValue
+        )
+    {
         require(updatedStorageSlotCounter > 0, "No more elements to update.");
 
         storageSlotContract = address(bytes20(updatedStorageSlotContract[updatedStorageSlotCounter - 1]));
@@ -113,11 +186,19 @@ contract PartialStateManager {
         return (storageSlotContract, storageSlotKey, storageSlotValue);
     }
 
-    function popUpdatedStorageSlot() public onlyStateTransitioner returns (
-        address storageSlotContract,
-        bytes32 storageSlotKey,
-        bytes32 storageSlotValue
-    ) {
+    /**
+     * Pops the next storage slot to update.
+     * @return Information about the next storage slot to update.
+     */
+    function popUpdatedStorageSlot()
+        public
+        onlyStateTransitioner
+        returns (
+            address storageSlotContract,
+            bytes32 storageSlotKey,
+            bytes32 storageSlotValue
+        )
+    {
         (
             storageSlotContract,
             storageSlotKey,
@@ -132,11 +213,19 @@ contract PartialStateManager {
         return (storageSlotContract, storageSlotKey, storageSlotValue);
     }
 
-    function peekUpdatedContract() public view returns (
-        address ovmContractAddress,
-        uint contractNonce,
-        bytes32 codeHash
-    ) {
+    /**
+     * Peeks the next account state to update.
+     * @return Information about the next account state to update.
+     */
+    function peekUpdatedContract()
+        public
+        view
+        returns (
+            address ovmContractAddress,
+            uint contractNonce,
+            bytes32 codeHash
+        )
+    {
         require(updatedContractsCounter > 0, "No more elements to update.");
 
         ovmContractAddress = address(bytes20(updatedContracts[updatedContractsCounter - 1]));
@@ -150,11 +239,19 @@ contract PartialStateManager {
         return (ovmContractAddress, contractNonce, codeHash);
     }
 
-    function popUpdatedContract() public onlyStateTransitioner returns (
-        address ovmContractAddress,
-        uint contractNonce,
-        bytes32 codeHash
-    ) {
+    /**
+     * Pops the next account state to update.
+     * @return Information about the next account state to update.
+     */
+    function popUpdatedContract()
+        public
+        onlyStateTransitioner
+        returns (
+            address ovmContractAddress,
+            uint contractNonce,
+            bytes32 codeHash
+        )
+    {
         (
             ovmContractAddress,
             contractNonce,
@@ -171,7 +268,7 @@ contract PartialStateManager {
     **********/
 
     /**
-     * @notice Get storage for OVM contract at some slot.
+     * Get storage for OVM contract at some slot.
      * @param _ovmContractAddress The contract we're getting storage of.
      * @param _slot The slot we're querying.
      * @return The bytes32 value stored at the particular slot.
@@ -179,14 +276,35 @@ contract PartialStateManager {
     function getStorage(
         address _ovmContractAddress,
         bytes32 _slot
-    ) onlyExecutionManager public returns (bytes32) {
+    )
+        public
+        onlyExecutionManager
+        returns (bytes32)
+    {
         flagIfNotVerifiedStorage(_ovmContractAddress, _slot);
 
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
     /**
-     * @notice Set storage for OVM contract at some slot.
+     * Get a storage slot without changing state.
+     * @param _ovmContractAddress The contract we're getting storage of.
+     * @param _slot The slot we're querying.
+     * @return The bytes32 value stored at the particular slot.
+     */
+    function getStorageView(
+        address _ovmContractAddress,
+        bytes32 _slot
+    )
+        public
+        view
+        returns (bytes32)
+    {
+        return ovmContractStorage[_ovmContractAddress][_slot];
+    }
+
+    /**
+     * Set storage for OVM contract at some slot.
      * @param _ovmContractAddress The contract we're setting storage of.
      * @param _slot The slot we're setting.
      * @param _value The value we will set the storage to.
@@ -195,7 +313,10 @@ contract PartialStateManager {
         address _ovmContractAddress,
         bytes32 _slot,
         bytes32 _value
-    ) onlyExecutionManager public {
+    )
+        public
+        onlyExecutionManager
+    {
         if (!storageSlotTouched[_ovmContractAddress][_slot]) {
             updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
             updatedStorageSlotKey[updatedStorageSlotCounter] = _slot;
@@ -213,27 +334,49 @@ contract PartialStateManager {
     *********/
 
     /**
-     * @notice Get the nonce for a particular OVM contract
+     * Get the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're getting the nonce of.
      * @return The contract nonce used for contract creation.
      */
     function getOvmContractNonce(
         address _ovmContractAddress
-    ) onlyExecutionManager public returns (uint) {
+    )
+        public
+        onlyExecutionManager
+        returns (uint)
+    {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
         return ovmContractNonces[_ovmContractAddress];
     }
 
     /**
-     * @notice Set the nonce for a particular OVM contract
+     * Get a contract nonce without touching state.
+     * @param _ovmContractAddress The contract we're getting the nonce of.
+     * @return The contract nonce used for contract creation.
+     */
+    function getOvmContractNonceView(
+        address _ovmContractAddress
+    )
+        public
+        view
+        returns (uint)
+    {
+        return ovmContractNonces[_ovmContractAddress];
+    }
+
+    /**
+     * Set the nonce for a particular OVM contract
      * @param _ovmContractAddress The contract we're setting the nonce of.
      * @param _value The new nonce.
      */
     function setOvmContractNonce(
         address _ovmContractAddress,
         uint _value
-    ) onlyExecutionManager public {
+    )
+        public
+        onlyExecutionManager
+    {
         // TODO: Figure out if we actually need to verify contracts here.
         //flagIfNotVerifiedContract(_ovmContractAddress);
 
@@ -248,12 +391,15 @@ contract PartialStateManager {
     }
 
     /**
-     * @notice Increment the nonce for a particular OVM contract.
+     * Increment the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're incrementing by 1 the nonce of.
      */
     function incrementOvmContractNonce(
         address _ovmContractAddress
-    ) onlyExecutionManager public {
+    )
+        public
+        onlyExecutionManager
+    {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
         if (!contractTouched[_ovmContractAddress]) {
@@ -270,41 +416,50 @@ contract PartialStateManager {
     /*****************
     * Contract Codes *
     *****************/
-    // This is used when CALLing a contract
 
     /**
-     * @notice Attaches some code contract to the desired OVM contract. This allows the Execution Manager
-     *         to later on get the code contract address to perform calls for this OVM contract.
+     * Attaches some code contract to the desired OVM contract. This allows the Execution Manager
+     * to later on get the code contract address to perform calls for this OVM contract.
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
     function associateCodeContract(
         address _ovmContractAddress,
         address _codeContractAddress
-    ) onlyExecutionManager public {
+    )
+        public
+        onlyExecutionManager
+    {
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
     }
 
     /**
-     * @notice Marks an address as newly created via ovmCREATE. Sets its nonce to zero and automatically
+     * Marks an address as newly created via ovmCREATE. Sets its nonce to zero and automatically
      * marks the contract as verified.
      * @param _ovmContractAddress Address of the contract to mark as verified.
      */
-    function associateCreatedContract(
+    function registerCreatedContract(
         address _ovmContractAddress
-    ) onlyExecutionManager public {
+    )
+        public
+        onlyExecutionManager
+    {
         isVerifiedContract[_ovmContractAddress] = true;
         setOvmContractNonce(_ovmContractAddress, 0);
     }
 
     /**
-     * @notice Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
+     * Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
     function getCodeContractAddressView(
         address _ovmContractAddress
-    ) public view returns (address) {
+    )
+        public
+        view
+        returns (address)
+    {
         return ovmAddressToCodeContractAddress[_ovmContractAddress];
     }
 
@@ -315,21 +470,29 @@ contract PartialStateManager {
      */
     function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
-    ) onlyExecutionManager public returns(address) {
+    )
+        public
+        onlyExecutionManager
+        returns(address)
+    {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
         return ovmAddressToCodeContractAddress[_ovmContractAddress];
     }
 
     /**
-     * @notice Get the bytecode at some code  address. NOTE: This is code taken from Solidity docs here:
-     *         https://solidity.readthedocs.io/en/v0.5.0/assembly.html#example
+     * Get the bytecode at some code  address. NOTE: This is code taken from Solidity docs here:
+     * https://solidity.readthedocs.io/en/v0.5.0/assembly.html#example
      * @param _codeContractAddress The address of the code contract.
      * @return The bytecode at this address.
      */
     function getCodeContractBytecode(
         address _codeContractAddress
-    ) public view returns (bytes memory codeContractBytecode) {
+    )
+        public
+        view
+        returns (bytes memory codeContractBytecode)
+    {
         // NOTE: We don't need to verify that this is an authenticated contract
         // because this will always be proceeded by a call to
         // getCodeContractAddressFromOvmAddress(address _ovmContractAddress) in the EM which does this check.
@@ -350,13 +513,17 @@ contract PartialStateManager {
     }
 
     /**
-     * @notice Get the hash of the deployed bytecode of some code contract.
+     * Get the hash of the deployed bytecode of some code contract.
      * @param _codeContractAddress The address of the code contract.
      * @return The hash of the bytecode at this address.
      */
     function getCodeContractHash(
         address _codeContractAddress
-    ) public view returns (bytes32 _codeContractHash) {
+    )
+        public
+        view
+        returns (bytes32 _codeContractHash)
+    {
         // NOTE: We don't need to verify that this is an authenticated contract
         // because this will always be proceeded by a call to
         // getCodeContractAddressFromOvmAddress(address _ovmContractAddress) in the EM which does this check.
@@ -365,5 +532,64 @@ contract PartialStateManager {
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);
         return _codeContractHash;
+    }
+
+
+    /*
+     * Private Functions
+     */
+
+    /**
+     * Flags a storage slot if not verified.
+     * @param _ovmContractAddress OVM contract address to flag a slot for.
+     * @param _slot Slot ID to flag.
+     */
+    function flagIfNotVerifiedStorage(
+        address _ovmContractAddress,
+        bytes32 _slot
+    )
+        private
+    {
+        if (!isVerifiedStorage[_ovmContractAddress][_slot]) {
+            // #if FLAG_IS_DEBUG
+            console.log("Flagging as unverified because of a storage slot access.");
+            console.log("Contract address: %s", _ovmContractAddress);
+            console.log("Slot ID:");
+            console.logBytes32(_slot);
+            // #endif
+
+            existsInvalidStateAccessFlag = true;
+        }
+    }
+
+    /**
+     * Flags a contract if not verified.
+     * @param _ovmContractAddress OVM contract address to flag.
+     */
+    function flagIfNotVerifiedContract(
+        address _ovmContractAddress
+    )
+        private
+    {
+        if (!isVerifiedContract[_ovmContractAddress]) {
+            // #if FLAG_IS_DEBUG
+            console.log("Flagging as unverified because of a contract access.");
+            console.log("Contract address: %s", _ovmContractAddress);
+            // #endif
+
+            existsInvalidStateAccessFlag = true;
+        }
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveExecutionManager()
+        internal
+        view returns (ExecutionManager)
+    {
+        return ExecutionManager(resolveContract("ExecutionManager"));
     }
 }

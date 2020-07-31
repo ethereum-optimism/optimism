@@ -4,16 +4,17 @@ import { expect } from '../../setup'
 import * as rlp from 'rlp'
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, ContractFactory, Signer } from 'ethers'
+import { TestUtils } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  GAS_LIMIT,
   TxChainBatch,
   StateChainBatch,
   toHexString,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../test-helpers'
-import { TestUtils } from '@eth-optimism/core-utils'
 
 interface OVMTransactionData {
   timestamp: number
@@ -120,18 +121,19 @@ const DUMMY_STATE_BATCH = [
   '0x' + '04'.repeat(32),
 ]
 
-const DUMMY_TRANSACTION_BATCH = DUMMY_STATE_BATCH.map((element) => {
-  return makeDummyTransaction(element)
-})
-
-const ENCODED_DUMMY_TRANSACTION_BATCH = DUMMY_TRANSACTION_BATCH.map(
-  (transaction) => {
-    return encodeTransaction(transaction)
-  }
-)
-
 /* Tests */
 describe('FraudVerifier', () => {
+  // Must create these when the tests are executed or the timestamp will be
+  // invalid when we have a lot of tests to run.
+  const DUMMY_TRANSACTION_BATCH = DUMMY_STATE_BATCH.map((element) => {
+    return makeDummyTransaction(element)
+  })
+  const ENCODED_DUMMY_TRANSACTION_BATCH = DUMMY_TRANSACTION_BATCH.map(
+    (transaction) => {
+      return encodeTransaction(transaction)
+    }
+  )
+
   let wallet: Signer
   let sequencer: Signer
   let l1ToL2TransactionPasser: Signer
@@ -139,69 +141,73 @@ describe('FraudVerifier', () => {
     ;[wallet, sequencer, l1ToL2TransactionPasser] = await ethers.getSigners()
   })
 
-  let ExecutionManager: ContractFactory
-  let RollupMerkleUtils: ContractFactory
-  let StateCommitmentChain: ContractFactory
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let CanonicalTransactionChain: ContractFactory
+  let StateCommitmentChain: ContractFactory
   let FraudVerifier: ContractFactory
   let StubStateTransitioner: ContractFactory
-  let executionManager: Contract
-  let rollupMerkleUtils: Contract
   before(async () => {
-    ExecutionManager = await ethers.getContractFactory('ExecutionManager')
-    RollupMerkleUtils = await ethers.getContractFactory('RollupMerkleUtils')
-    StateCommitmentChain = await ethers.getContractFactory(
-      'StateCommitmentChain'
-    )
     CanonicalTransactionChain = await ethers.getContractFactory(
       'CanonicalTransactionChain'
+    )
+    StateCommitmentChain = await ethers.getContractFactory(
+      'StateCommitmentChain'
     )
     FraudVerifier = await ethers.getContractFactory('FraudVerifier')
     StubStateTransitioner = await ethers.getContractFactory(
       'StubStateTransitioner'
     )
-
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      NULL_ADDRESS,
-      GAS_LIMIT,
-      true
-    )
-
-    rollupMerkleUtils = await RollupMerkleUtils.deploy()
   })
 
-  let canonicalTransactonChain: Contract
+  let canonicalTransactionChain: Contract
   let stateCommitmentChain: Contract
   let fraudVerifier: Contract
   beforeEach(async () => {
-    canonicalTransactonChain = await CanonicalTransactionChain.deploy(
-      rollupMerkleUtils.address,
-      await sequencer.getAddress(),
-      await l1ToL2TransactionPasser.getAddress(),
-      FORCE_INCLUSION_PERIOD
+    canonicalTransactionChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'CanonicalTransactionChain',
+      {
+        factory: CanonicalTransactionChain,
+        params: [
+          resolver.addressResolver.address,
+          await sequencer.getAddress(),
+          await l1ToL2TransactionPasser.getAddress(),
+          100000,
+        ],
+      }
     )
 
-    stateCommitmentChain = await StateCommitmentChain.deploy(
-      rollupMerkleUtils.address,
-      canonicalTransactonChain.address
+    stateCommitmentChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'StateCommitmentChain',
+      {
+        factory: StateCommitmentChain,
+        params: [resolver.addressResolver.address],
+      }
     )
 
-    fraudVerifier = await FraudVerifier.deploy(
-      executionManager.address,
-      stateCommitmentChain.address,
-      canonicalTransactonChain.address,
-      true // Throw the verifier into testing mode.
+    fraudVerifier = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'FraudVerifier',
+      {
+        factory: FraudVerifier,
+        params: [resolver.addressResolver.address],
+      }
     )
-
-    await stateCommitmentChain.setFraudVerifier(fraudVerifier.address)
   })
 
   let transactionBatch: TxChainBatch
   let stateBatch: StateChainBatch
   beforeEach(async () => {
     transactionBatch = await appendAndGenerateTransactionBatch(
-      canonicalTransactonChain,
+      canonicalTransactionChain,
       sequencer,
       ENCODED_DUMMY_TRANSACTION_BATCH
     )
@@ -355,7 +361,9 @@ describe('FraudVerifier', () => {
       const stateTransitionerAddress = await fraudVerifier.stateTransitioners(
         transactionIndex
       )
-      stubStateTransitioner = StubStateTransitioner.attach(stateTransitionerAddress)
+      stubStateTransitioner = StubStateTransitioner.attach(
+        stateTransitionerAddress
+      )
     })
 
     it('should correctly finalize when the computed state root differs', async () => {

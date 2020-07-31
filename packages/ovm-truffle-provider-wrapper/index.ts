@@ -31,7 +31,7 @@ const startLocalNode = () => {
   })
 
   // TODO: This is hacky. If host / port become configurable, spawn a node process to ping it or something better.
-  execSync(`sleep 3`)
+  execSync(`sleep 30`)
 }
 
 /**

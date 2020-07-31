@@ -9,6 +9,7 @@ import {
   TestUtils,
   getCurrentTime,
   ZERO_ADDRESS,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
@@ -23,6 +24,9 @@ import {
   didCreateSucceed,
   encodeMethodId,
   encodeRawArguments,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -56,6 +60,11 @@ describe('Execution Manager -- Call opcodes', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let DummyContract: ContractFactory
   let dummyContract: Contract
   let SimpleCall: ContractFactory
@@ -69,19 +78,27 @@ describe('Execution Manager -- Call opcodes', () => {
   })
 
   let ExecutionManager: ContractFactory
+  before(async () => {
+    ExecutionManager = await ethers.getContractFactory('ExecutionManager')
+  })
+
   let executionManager: Contract
+  beforeEach(async () => {
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+      }
+    )
+  })
+
   let callContractAddress: Address
   let callContract2Address: Address
   let callContract3Address: Address
   beforeEach(async () => {
-    ExecutionManager = await ethers.getContractFactory('ExecutionManager')
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
-    )
-
     // Deploy SimpleCall with the ExecutionManager
     callContractAddress = await manuallyDeployOvmContract(
       wallet,

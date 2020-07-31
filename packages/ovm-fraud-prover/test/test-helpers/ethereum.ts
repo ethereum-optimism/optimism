@@ -30,23 +30,26 @@ export const compile = (
     contractSource = {
       [contractName]: {
         content: fs.readFileSync(file, 'utf8'),
-      }
+      },
     }
   } else {
-    const regexp = new RegExp('(?<=(?:^|\n|\n\r))(?:contract|library) (.*?) {', 'g')
+    const regexp = new RegExp(
+      '(?<=(?:^|\n|\n\r))(?:contract|library) (.*?) {',
+      'g'
+    )
     contractName = regexp.exec(file)[0] + '.sol'
 
     contractSource = {
       [contractName]: {
-        content: file
-      }
+        content: file,
+      },
     }
   }
 
   const input = {
     language: 'Solidity',
     sources: {
-      ...contractSource
+      ...contractSource,
     },
     settings: {
       outputSelection: {
@@ -58,7 +61,9 @@ export const compile = (
     },
   }
 
-  return JSON.parse(compiler.compile(JSON.stringify(input))).contracts[contractName]
+  return JSON.parse(compiler.compile(JSON.stringify(input))).contracts[
+    contractName
+  ]
 }
 
 /**
@@ -77,6 +82,6 @@ export const transpile = (
     ...settings,
     ...{
       executionManagerAddress,
-    }
+    },
   })
 }

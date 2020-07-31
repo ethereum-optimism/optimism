@@ -3,8 +3,9 @@ import './setup'
 /* External Imports */
 import * as path from 'path'
 import { ethers } from '@nomiclabs/buidler'
-import { Contract, ContractFactory, Signer, BigNumber, Wallet } from 'ethers'
+import { Contract, ContractFactory, Signer, Wallet } from 'ethers'
 import { keccak256 } from '@ethersproject/keccak256'
+import { deployAllContracts } from '@eth-optimism/rollup-contracts'
 
 /* Internal Imports */
 import { AutoFraudProver } from '../src/auto-fraud-prover'
@@ -15,21 +16,14 @@ import {
   TxChainBatch,
   StateChainBatch,
   getWallets,
-  DEFAULT_OPCODE_WHITELIST_MASK,
-  NULL_ADDRESS,
   FORCE_INCLUSION_PERIOD,
   GAS_LIMIT,
   encodeTransaction,
   signAndSendOvmTransaction,
   makeOvmTransaction,
   getStateTrieProof,
-  getStorageTrieProof
 } from './test-helpers'
-import {
-  OVMTransactionData, StateTrieWitness
-} from '../src/interfaces'
-import { BaseTrie, SecureTrie } from 'merkle-patricia-tree'
-import { toHexBuffer } from '../src/utils'
+import { OVMTransactionData } from '../src/interfaces'
 
 const appendTransactionBatch = async (
   canonicalTransactionChain: Contract,
@@ -40,11 +34,9 @@ const appendTransactionBatch = async (
 
   await canonicalTransactionChain
     .connect(sequencer)
-    .appendSequencerBatch(batch, timestamp, 
-      {
-        gasLimit: GAS_LIMIT
-      }
-    )
+    .appendSequencerBatch(batch, timestamp, {
+      gasLimit: GAS_LIMIT,
+    })
 
   return timestamp
 }
@@ -82,13 +74,13 @@ const appendAndGenerateTransactionBatch = async (
 
 const appendAndGenerateStateBatch = async (
   stateCommitmentChain: Contract,
-  batch: string[],
+  batch: string[]
 ): Promise<StateChainBatch> => {
   const batchIndex = await stateCommitmentChain.getBatchesLength()
   const cumulativePrevElements = await stateCommitmentChain.cumulativeNumElements()
 
   await stateCommitmentChain.appendStateBatch(batch, {
-    gasLimit: GAS_LIMIT
+    gasLimit: GAS_LIMIT,
   })
 
   const localBatch = new StateChainBatch(
@@ -104,15 +96,15 @@ const appendAndGenerateStateBatch = async (
 
 const getCurrentStateRoot = async (provider: any): Promise<string> => {
   const currentBlock = await provider.send('eth_getBlockByNumber', [
-    "latest",
-    false
+    'latest',
+    false,
   ])
   return currentBlock.stateRoot
 }
 
 describe('AutoFraudProver', () => {
   const provider = ethers.provider
-  
+
   let wallet: Wallet
   let sequencer: Wallet
   let l1ToL2TransactionPasser: Wallet
@@ -120,70 +112,57 @@ describe('AutoFraudProver', () => {
     ;[wallet, sequencer, l1ToL2TransactionPasser] = getWallets(provider)
   })
 
+  let resolver
+  before(async () => {
+    const config = {
+      signer: wallet as any,
+      rollupOptions: {
+        gasLimit: GAS_LIMIT,
+        forceInclusionPeriod: FORCE_INCLUSION_PERIOD,
+        owner: wallet as any,
+        sequencer: sequencer as any,
+        l1ToL2TransactionPasser: l1ToL2TransactionPasser as any,
+      },
+    }
+
+    resolver = await deployAllContracts(config)
+  })
+
   let ExecutionManager: ContractFactory
-  let RollupMerkleUtils: ContractFactory
   let CanonicalTransactionChain: ContractFactory
   let StateCommitmentChain: ContractFactory
   let FraudVerifier: ContractFactory
   before(async () => {
     ExecutionManager = getContractFactory('ExecutionManager', wallet)
-    RollupMerkleUtils = getContractFactory('RollupMerkleUtils', wallet)
     StateCommitmentChain = getContractFactory('StateCommitmentChain', wallet)
-    CanonicalTransactionChain = getContractFactory('CanonicalTransactionChain', wallet)
+    CanonicalTransactionChain = getContractFactory(
+      'CanonicalTransactionChain',
+      wallet
+    )
     FraudVerifier = getContractFactory('FraudVerifier', wallet)
   })
 
   let executionManager: Contract
-  let rollupMerkleUtils: Contract
-  before(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      NULL_ADDRESS,
-      GAS_LIMIT,
-      true
-    )
-    rollupMerkleUtils = await RollupMerkleUtils.deploy()
-  })
-
   let canonicalTransactionChain: Contract
   let stateCommitmentChain: Contract
   let fraudVerifier: Contract
   before(async () => {
-    canonicalTransactionChain = await CanonicalTransactionChain.deploy(
-      rollupMerkleUtils.address,
-      sequencer.address,
-      l1ToL2TransactionPasser.address,
-      FORCE_INCLUSION_PERIOD
-    )
-
-    stateCommitmentChain = await StateCommitmentChain.deploy(
-      rollupMerkleUtils.address,
-      canonicalTransactionChain.address
-    )
-
-    fraudVerifier = await FraudVerifier.deploy(
-      executionManager.address,
-      stateCommitmentChain.address,
-      canonicalTransactionChain.address,
-      false,
-      {
-        gasLimit: Math.floor(GAS_LIMIT * 2)
-      }
-    )
-
-    await stateCommitmentChain.setFraudVerifier(fraudVerifier.address)
+    executionManager = resolver.contracts.executionManager
+    canonicalTransactionChain = resolver.contracts.canonicalTransactionChain
+    stateCommitmentChain = resolver.contracts.stateCommitmentChain
+    fraudVerifier = resolver.contracts.fraudVerifier
   })
-    
+
   let FraudTester: ContractFactory
   before(async () => {
     const fraudTesterDefinition = transpile(
-      path.resolve(
-        __dirname,
-        './test-contracts/FraudTester.sol'
-      ),
+      path.resolve(__dirname, './test-contracts/FraudTester.sol'),
       executionManager.address
     ).FraudTester
-    FraudTester = getContractFactoryFromDefinition(fraudTesterDefinition, wallet)
+    FraudTester = getContractFactoryFromDefinition(
+      fraudTesterDefinition,
+      wallet
+    )
   })
 
   let fraudTester: Contract
@@ -196,18 +175,18 @@ describe('AutoFraudProver', () => {
     transactions = [
       makeOvmTransaction(fraudTester, wallet, 'setStorage', [
         keccak256('0x0123'),
-        keccak256('0x4567')
+        keccak256('0x4567'),
       ]),
       makeOvmTransaction(fraudTester, wallet, 'setStorage', [
         keccak256('0x0123'),
-        keccak256('0x4567')
-      ])
+        keccak256('0x4567'),
+      ]),
     ]
   })
 
-  let stateTrieProofs: any[] = []
-  let transactionBatches: TxChainBatch[] = []
-  let preStateBatches: StateChainBatch[] = []
+  const stateTrieProofs: any[] = []
+  const transactionBatches: TxChainBatch[] = []
+  const preStateBatches: StateChainBatch[] = []
   before(async () => {
     let preState = [await getCurrentStateRoot(provider)]
 
@@ -219,16 +198,17 @@ describe('AutoFraudProver', () => {
 
       const postState = [await getCurrentStateRoot(provider)]
 
-      transactionBatches.push(await appendAndGenerateTransactionBatch(
-        canonicalTransactionChain,
-        sequencer,
-        transactions
-      ))
+      transactionBatches.push(
+        await appendAndGenerateTransactionBatch(
+          canonicalTransactionChain,
+          sequencer,
+          transactions
+        )
+      )
 
-      preStateBatches.push(await appendAndGenerateStateBatch(
-        stateCommitmentChain,
-        preState
-      ))
+      preStateBatches.push(
+        await appendAndGenerateStateBatch(stateCommitmentChain, preState)
+      )
 
       preState = postState
     }
@@ -255,8 +235,8 @@ describe('AutoFraudProver', () => {
               nonce: stateTrieProof.account.nonce,
               balance: stateTrieProof.account.balance,
               codeHash: stateTrieProof.account.codeHash,
-              storageRoot: stateTrieProof.account.stateRoot
-            }
+              storageRoot: stateTrieProof.account.stateRoot,
+            },
           }
         }),
         wallet,

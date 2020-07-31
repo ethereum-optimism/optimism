@@ -19,7 +19,7 @@ describe('ContractAddressGenerator', () => {
   let ContractAddressGenerator: ContractFactory
   beforeEach(async () => {
     ContractAddressGenerator = await ethers.getContractFactory(
-      'ContractAddressGenerator'
+      'MockContractAddressGenerator'
     )
   })
 

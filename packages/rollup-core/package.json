@@ -12,7 +12,9 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "test:db": "mocha --require ts-node/register 'test/**/*.dbspec.ts' --timeout 5000 --exit",
+    "test:all": "yarn test && yarn test:db"
   },
   "keywords": [
     "plasma",
@@ -31,7 +33,6 @@
   "dependencies": {
     "@eth-optimism/core-db": "^0.0.1-alpha.26",
     "@eth-optimism/core-utils": "^0.0.1-alpha.26",
-    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.27",
     "ethereum-waffle": "2.1.0",
     "async-lock": "^1.2.2",
     "ethers": "^4.0.39"

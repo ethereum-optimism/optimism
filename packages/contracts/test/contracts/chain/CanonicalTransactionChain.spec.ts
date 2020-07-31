@@ -10,6 +10,9 @@ import {
   makeRandomBatchOfSize,
   TxQueueBatch,
   TxChainBatch,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../test-helpers'
 
 /* Logging */
@@ -36,7 +39,6 @@ describe('CanonicalTransactionChain', () => {
   })
 
   let canonicalTxChain: Contract
-  let rollupMerkleUtils: Contract
   let l1ToL2Queue: Contract
   let safetyQueue: Contract
 
@@ -112,34 +114,64 @@ describe('CanonicalTransactionChain', () => {
     return localBatch
   }
 
-  let RollupMerkleUtils: ContractFactory
-  let CanonicalTransactionChain: ContractFactory
-  let L1toL2Queue: ContractFactory
-  let SafetyQueue: ContractFactory
+  let resolver: AddressResolverMapping
   before(async () => {
-    RollupMerkleUtils = await ethers.getContractFactory('RollupMerkleUtils')
+    resolver = await makeAddressResolver(wallet)
+  })
+
+  let CanonicalTransactionChain: ContractFactory
+  let L1ToL2TransactionQueue: ContractFactory
+  let SafetyTransactionQueue: ContractFactory
+  before(async () => {
     CanonicalTransactionChain = await ethers.getContractFactory(
       'CanonicalTransactionChain'
     )
-    L1toL2Queue = await ethers.getContractFactory('L1ToL2TransactionQueue')
-    SafetyQueue = await ethers.getContractFactory('SafetyTransactionQueue')
-
-    rollupMerkleUtils = await RollupMerkleUtils.deploy()
+    L1ToL2TransactionQueue = await ethers.getContractFactory(
+      'L1ToL2TransactionQueue'
+    )
+    SafetyTransactionQueue = await ethers.getContractFactory(
+      'SafetyTransactionQueue'
+    )
   })
 
   beforeEach(async () => {
-    canonicalTxChain = await CanonicalTransactionChain.deploy(
-      rollupMerkleUtils.address,
-      await sequencer.getAddress(),
-      await l1ToL2TransactionPasser.getAddress(),
-      FORCE_INCLUSION_PERIOD
+    canonicalTxChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'CanonicalTransactionChain',
+      {
+        factory: CanonicalTransactionChain,
+        params: [
+          resolver.addressResolver.address,
+          await sequencer.getAddress(),
+          await l1ToL2TransactionPasser.getAddress(),
+          FORCE_INCLUSION_PERIOD,
+        ],
+      }
     )
 
-    const l1ToL2QueueAddress = await canonicalTxChain.l1ToL2Queue()
-    l1ToL2Queue = L1toL2Queue.attach(l1ToL2QueueAddress)
+    l1ToL2Queue = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'L1ToL2TransactionQueue',
+      {
+        factory: L1ToL2TransactionQueue,
+        params: [
+          resolver.addressResolver.address,
+          await l1ToL2TransactionPasser.getAddress(),
+        ],
+      }
+    )
 
-    const safetyQueueAddress = await canonicalTxChain.safetyQueue()
-    safetyQueue = SafetyQueue.attach(safetyQueueAddress)
+    safetyQueue = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'SafetyTransactionQueue',
+      {
+        factory: SafetyTransactionQueue,
+        params: [resolver.addressResolver.address],
+      }
+    )
   })
 
   describe('appendSequencerBatch()', async () => {

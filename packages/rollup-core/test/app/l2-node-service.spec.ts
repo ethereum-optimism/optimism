@@ -11,7 +11,7 @@ import { Wallet } from 'ethers'
 import { JsonRpcProvider } from 'ethers/providers'
 
 /* Internal Imports */
-import { BlockBatches, RollupTransaction } from '../../src/types'
+import { BlockBatches, QueueOrigin, RollupTransaction } from '../../src/types'
 import { DefaultL2NodeService } from '../../src/app'
 import { verifyMessage } from 'ethers/utils'
 
@@ -49,7 +49,7 @@ const sender: string = Wallet.createRandom().address
 const target: string = Wallet.createRandom().address
 const calldata: string = keccak256FromUtf8('calldata')
 const rollupTx: RollupTransaction = {
-  batchIndex: 1,
+  indexWithinSubmission: 1,
   gasLimit,
   nonce,
   sender,
@@ -58,7 +58,9 @@ const rollupTx: RollupTransaction = {
   l1Timestamp: timestamp,
   l1BlockNumber: blockNumber,
   l1TxHash,
-  queueOrigin: 1,
+  l1TxIndex: 0,
+  l1TxLogIndex: 0,
+  queueOrigin: QueueOrigin.SAFETY_QUEUE,
 }
 
 const nonce2: number = 1
@@ -67,7 +69,7 @@ const sender2: string = Wallet.createRandom().address
 const target2: string = Wallet.createRandom().address
 const calldata2: string = keccak256FromUtf8('calldata 2')
 const rollupTx2: RollupTransaction = {
-  batchIndex: 2,
+  indexWithinSubmission: 2,
   gasLimit: gasLimit2,
   nonce: nonce2,
   sender: sender2,
@@ -76,7 +78,9 @@ const rollupTx2: RollupTransaction = {
   l1Timestamp: timestamp,
   l1BlockNumber: blockNumber,
   l1TxHash,
-  queueOrigin: 1,
+  l1TxIndex: 0,
+  l1TxLogIndex: 1,
+  queueOrigin: QueueOrigin.SAFETY_QUEUE,
 }
 
 const deserializeBlockBatches = (serialized: string): BlockBatches => {
@@ -87,9 +91,13 @@ const deserializeBlockBatches = (serialized: string): BlockBatches => {
       case 'gasLimit':
       case 'nonce':
       case 'batchIndex':
+      case 'indexWithinSubmission':
+      case 'queueIndex':
       case 'l1BlockNumber':
       case 'l1Timestamp':
       case 'queueOrigin':
+      case 'l1TxIndex':
+      case 'l1TxLogIndex':
         return hexStrToNumber(v)
       default:
         return v

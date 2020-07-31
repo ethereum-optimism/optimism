@@ -13,12 +13,12 @@ const config: BuidlerConfig = {
     buidlerevm: {
       accounts: DEFAULT_ACCOUNTS_BUIDLER,
       blockGasLimit: GAS_LIMIT * 2,
-      allowUnlimitedContractSize: true
+      allowUnlimitedContractSize: true,
     },
   },
   paths: {
-    sources: './test/test-contracts'
-  }
+    sources: './test/test-contracts',
+  },
 }
 
 export default config

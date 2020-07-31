@@ -10,6 +10,7 @@ import {
   ZERO_ADDRESS,
   TestUtils,
   getCurrentTime,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
@@ -23,6 +24,9 @@ import {
   addressToBytes32Address,
   encodeRawArguments,
   encodeMethodId,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -38,6 +42,7 @@ const methodIds = fromPairs(
     'getGASLIMIT',
     'getQueueOrigin',
     'getTIMESTAMP',
+    'getCHAINID',
     'ovmADDRESS',
     'ovmCALLER',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
@@ -52,6 +57,11 @@ describe('Execution Manager -- Context opcodes', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
   let ContextContract: ContractFactory
   before(async () => {
@@ -60,18 +70,23 @@ describe('Execution Manager -- Context opcodes', () => {
   })
 
   let executionManager: Contract
+  beforeEach(async () => {
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+      }
+    )
+  })
+
   let contractAddress: Address
   let contract2Address: Address
   let contractAddress32: string
   let contract2Address32: string
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
-    )
-
     contractAddress = await manuallyDeployOvmContract(
       wallet,
       provider,
@@ -154,6 +169,22 @@ describe('Execution Manager -- Context opcodes', () => {
         timestamp,
         'Timestamps do not match.'
       )
+    })
+  })
+
+  describe('ovmCHAINID', async () => {
+    it('properly retrieves CHAINID', async () => {
+      const chainId: number = 108
+      const result = await executeTransaction(
+        contractAddress,
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getCHAINID]
+      )
+
+      log.debug(`CHAINID result: ${result}`)
+
+      should.exist(result, 'Result should exist!')
+      hexStrToNumber(result).should.be.equal(chainId, 'ChainIds do not match.')
     })
   })
 

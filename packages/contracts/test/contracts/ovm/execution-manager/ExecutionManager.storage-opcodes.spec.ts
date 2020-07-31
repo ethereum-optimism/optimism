@@ -2,7 +2,7 @@ import '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { abi, getLogger, add0x } from '@eth-optimism/core-utils'
+import { abi, getLogger, add0x, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -11,6 +11,9 @@ import {
   GAS_LIMIT,
   encodeMethodId,
   encodeRawArguments,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -27,6 +30,11 @@ describe('ExecutionManager -- Storage opcodes', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
   before(async () => {
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
@@ -34,11 +42,14 @@ describe('ExecutionManager -- Storage opcodes', () => {
 
   let executionManager: Contract
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+      }
     )
   })
 

@@ -33,7 +33,7 @@ contract('EIP20', (accounts) => {
     assert.strictEqual(totalSupply.toString(), '115792089237316195423570985008687907853269984665640564039457584007913129639935');
   });
 
-  // TRANSERS
+  // TRANSFERS
   // normal transfers without approvals
   it('transfers: ether transfer should be reversed.', async () => {
     const balanceBefore = await HST.balanceOf.call(accounts[0]);

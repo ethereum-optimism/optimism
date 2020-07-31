@@ -25,7 +25,7 @@
     "test:typescript": "buidler test --show-stack-traces",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
-    "fix": "prettier --config ../../prettier-config.json --write \"index.ts\" \"{src,test}/**/*.ts\"",
+    "fix": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
     "build": "yarn run build:typescript",
     "build:typescript": "tsc -p .",
     "clean": "rimraf build/"
@@ -51,15 +51,21 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
+    "@eth-optimism/core-db": "^0.0.1-alpha.27",
     "@eth-optimism/core-utils": "^0.0.1-alpha.25",
     "@eth-optimism/rollup-contracts": "^0.0.1-alpha.27",
     "@eth-optimism/solc-transpiler": "^0.0.1-alpha.27",
+    "@ethersproject/bignumber": "^5.0.5",
+    "@ethersproject/keccak256": "^5.0.2",
     "@nomiclabs/buidler": "^1.3.8",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",
+    "chai-as-promised": "^7.1.1",
+    "chai-bignumber": "^3.0.0",
     "ethereum-waffle": "3.0.0",
     "ethers": "5.0.0",
-    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree"
+    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
+    "rlp": "^2.2.6"
   },
   "gitHead": "ccce366645fca6bad46c5cf7f7ff2f407c6ba5fd"
 }

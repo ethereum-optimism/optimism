@@ -80,6 +80,9 @@ export const sleep = (ms: number): Promise<void> => {
  * @returns the string without "0x".
  */
 export const remove0x = (str: string): string => {
+  if (str === undefined) {
+    return str
+  }
   return str.startsWith('0x') ? str.slice(2) : str
 }
 
@@ -89,6 +92,9 @@ export const remove0x = (str: string): string => {
  * @returns the string with "0x".
  */
 export const add0x = (str: string): string => {
+  if (str === undefined) {
+    return str
+  }
   return str.startsWith('0x') ? str : '0x' + str
 }
 
@@ -162,12 +168,20 @@ export const bnToHexString = (bn: BigNumber): string => {
 }
 
 /**
- * Converts a JavaScript number to a hex string.
+ * Converts a JavaScript number to a big-endian hex string.
  * @param number the JavaScript number to be converted.
+ * @param padToBytes the number of numeric bytes the resulting string should be, -1 if no padding should be done.
  * @returns the JavaScript number as a string.
  */
-export const numberToHexString = (number: number): string => {
-  return add0x(number.toString(16))
+export const numberToHexString = (
+  number: number,
+  padToBytes: number = -1
+): string => {
+  let str = number.toString(16)
+  if (padToBytes > 0 || str.length < padToBytes * 2) {
+    str = `${'0'.repeat(padToBytes * 2 - str.length)}${str}`
+  }
+  return add0x(str)
 }
 
 /**
