@@ -2,7 +2,7 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { BlockBatches, RollupTransaction } from '../types'
+import { GethSubmission, RollupTransaction } from '../types'
 import { GethSubmissionRecord } from './types'
 
 export interface L1DataService {
@@ -88,7 +88,7 @@ export interface L1DataService {
    *
    * @returns The fetched Queued Geth Submission or undefined if one is not present in the DB.
    */
-  getNextQueuedGethSubmission(): Promise<BlockBatches>
+  getNextQueuedGethSubmission(): Promise<GethSubmission>
 
   /**
    * Marks the provided Queued Geth Submission as submitted to L2.

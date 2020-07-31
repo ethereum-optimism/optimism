@@ -7,7 +7,7 @@ import {
 
 /* Internal Imports */
 import { L1DataService } from '../../../types/data'
-import { BlockBatches, L2NodeService } from '../../../types'
+import { GethSubmission, L2NodeService } from '../../../types'
 
 const log = getLogger('l2-batch-submitter')
 
@@ -28,27 +28,25 @@ export class QueuedGethSubmitter extends ScheduledTask {
    * @inheritDoc
    */
   public async runTask(): Promise<void> {
-    let blockBatches: BlockBatches
+    let gethSubmission: GethSubmission
     try {
-      blockBatches = await this.l1DataService.getNextQueuedGethSubmission()
+      gethSubmission = await this.l1DataService.getNextQueuedGethSubmission()
     } catch (e) {
-      logError(log, `Error fetching next batch for L2 submission!`, e)
+      logError(log, `Error fetching next Geth Submission!`, e)
       return
     }
 
-    if (!blockBatches) {
-      log.debug(`No batches ready for submission to L2.`)
+    if (!gethSubmission) {
+      log.debug(`No Geth Submissions ready to be sent.`)
       return
     }
 
     try {
-      await this.l2NodeService.sendBlockBatches(blockBatches)
+      await this.l2NodeService.sendGethSubmission(gethSubmission)
     } catch (e) {
       logError(
         log,
-        `Error sending batch to BlockBatchSubmitter! Block Batches: ${JSON.stringify(
-          blockBatches
-        )}`,
+        `Error sending Geth Submission: ${JSON.stringify(gethSubmission)}`,
         e
       )
       return
@@ -56,12 +54,12 @@ export class QueuedGethSubmitter extends ScheduledTask {
 
     try {
       await this.l1DataService.markQueuedGethSubmissionSubmittedToGeth(
-        blockBatches.batchNumber
+        gethSubmission.submissionNumber
       )
     } catch (e) {
       logError(
         log,
-        `Error marking L1 Batch as Submitted to L2. L1 Batch Number: ${blockBatches.batchNumber}`,
+        `Error marking Geth Submission submitted to Geth. L1 Batch Number: ${gethSubmission.submissionNumber}`,
         e
       )
       return

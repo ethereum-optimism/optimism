@@ -131,6 +131,9 @@ export class L2ChainDataPersister extends ChainDataProcessor {
     if (!!response['l1MessageSender']) {
       res.l1MessageSender = response['l1MessageSender']
     }
+    if (!!response['l1RollupTxId']) {
+      res.l1RollupTransactionId = response['l1RollupTxId']
+    }
     if (!!response.r && !!response.s && response.v !== undefined) {
       res.signature = `${response.r}${remove0x(
         response.s
