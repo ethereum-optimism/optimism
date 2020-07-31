@@ -23,43 +23,7 @@ import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
  *         backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is ContractResolver {
-    /*
-     * Contract Constants
-     */
-
-    address constant ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-
-    // bitwise right shift 28 * 8 bits so the 4 method ID bytes are in the right-most bytes
-    bytes32 constant ovmCallMethodId = keccak256("ovmCALL()") >> 224;
-    bytes32 constant ovmCreateMethodId = keccak256("ovmCREATE()") >> 224;
-
-    // Precompile addresses
-    address constant l2ToL1MessagePasserOvmAddress = 0x4200000000000000000000000000000000000000;
-    address constant l1MsgSenderAddress = 0x4200000000000000000000000000000000000001;
-
-    // Gas rate limiting parameters
-    // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
-    address constant METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
-    // Storage keys which the EM will directly use to persist the different pieces of metadata:
-    // Storage slot where we will store the cumulative sequencer tx gas spent
-    bytes32 constant CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    // Storage slot where we will store the cumulative queued tx gas spent
-    bytes32 constant CUMULATIVE_QUEUED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000002;
-    // Storage slot where we will store the start of the current gas rate limit epoch
-    bytes32 constant GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000003;
-    // Storage slot where we will store what the cumulative sequencer gas was at the start of the last epoch
-    bytes32 constant CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000004;
-    // Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
-    bytes32 constant CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000005;
-
-
-    /*
-     * Contract Variables
-     */
-
-    DataTypes.ExecutionContext executionContext;
-    DataTypes.GasMeterConfig gasMeterConfig;
-
+    
     /*
      * Events
      */
@@ -103,13 +67,28 @@ contract ExecutionManager is ContractResolver {
     address constant private L2_TO_L1_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
 
+    // Gas rate limiting parameters
+    // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
+    address constant private METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
+    // Storage keys which the EM will directly use to persist the different pieces of metadata:
+    // Storage slot where we will store the cumulative sequencer tx gas spent
+    bytes32 constant private CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    // Storage slot where we will store the cumulative queued tx gas spent
+    bytes32 constant private CUMULATIVE_QUEUED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000002;
+    // Storage slot where we will store the start of the current gas rate limit epoch
+    bytes32 constant private GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000003;
+    // Storage slot where we will store what the cumulative sequencer gas was at the start of the last epoch
+    bytes32 constant private CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000004;
+    // Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
+    bytes32 constant private CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000005;
+
 
     /*
      * Contract Variables
      */
 
     DataTypes.ExecutionContext executionContext;
-
+    DataTypes.GasMeterConfig gasMeterConfig;
 
     /*
      * Constructor
@@ -118,7 +97,7 @@ contract ExecutionManager is ContractResolver {
     /**
      * @param _addressResolver Address of the AddressResolver contract.
      * @param _owner Address of the owner of this contract.
-     * @param _blockGasLimit Gas limit for OVM blocks.
+     * @param _gasMeterConfig Configuration parameters for gas metering.
      */
     constructor(
         address _addressResolver,
@@ -140,7 +119,7 @@ contract ExecutionManager is ContractResolver {
         L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
-        stateManager.associateCodeContract(l1MsgSenderAddress, address(l1MessageSender));
+        stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
         
         executionContext.chainId = 108;
 
@@ -324,8 +303,7 @@ contract ExecutionManager is ContractResolver {
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 
-            ContractAddressGenerator contractAddressGenerator = resolveContractAddressGenerator();
-            address _newOvmContractAddress = contractAddressGenerator.getAddressFromCREATE(
+            address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(
                 _fromAddress,
                 stateManager.getOvmContractNonce(_fromAddress)
             );
@@ -444,9 +422,9 @@ contract ExecutionManager is ContractResolver {
         returns (address)
     {
         bytes[] memory message = new bytes[](9);
-        message[0] = rlp.encodeUint(_nonce); // Nonce
-        message[1] = rlp.encodeUint(0); // Gas price
-        message[2] = rlp.encodeUint(gasMeterConfig.OvmTxMaxGas); // Gas limit
+        message[0] = RLPWriter.encodeUint(_nonce); // Nonce
+        message[1] = RLPWriter.encodeUint(0); // Gas price
+        message[2] = RLPWriter.encodeUint(gasMeterConfig.OvmTxMaxGas); // Gas limit
 
         // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
         if (_to == ZERO_ADDRESS) {
@@ -1238,24 +1216,6 @@ contract ExecutionManager is ContractResolver {
     function getCumulativeQueuedGas() public view returns(uint) {
         return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
     }
-
-    /*********
-     * Utils *
-     *********/
-
-    /**
-     * Queries the address of the state manager.
-     * @return State manager address.
-     */
-    function getStateManagerAddress()
-        public
-        view
-        returns (address)
-    {
-        StateManager stateManager = resolveStateManager();
-        return address(stateManager);
-    }
-
 
     /*
      * Internal Functions
