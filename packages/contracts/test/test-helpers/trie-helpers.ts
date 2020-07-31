@@ -1,7 +1,7 @@
 import * as rlp from 'rlp'
 import * as seedbytes from 'random-bytes-seed'
 import * as seedfloat from 'seedrandom'
-import { BaseTrie } from 'merkle-patricia-tree'
+import { SecureTrie } from 'merkle-patricia-tree'
 
 interface UpdateTest {
   proof: string
@@ -62,9 +62,9 @@ export interface StateTrieMap {
 }
 
 interface StateTrie {
-  trie: BaseTrie
+  trie: SecureTrie
   storage: {
-    [address: string]: BaseTrie
+    [address: string]: SecureTrie
   }
 }
 
@@ -104,8 +104,8 @@ const randomInt = (seed: string, min: number, max: number): number => {
  * @param nodes Nodes to seed the trie with.
  * @returns Trie corresponding to the given nodes.
  */
-const makeTrie = async (nodes: TrieNode[]): Promise<BaseTrie> => {
-  const trie = new BaseTrie()
+const makeTrie = async (nodes: TrieNode[]): Promise<SecureTrie> => {
+  const trie = new SecureTrie()
 
   for (const node of nodes) {
     await trie.put(toHexBuffer(node.key), toHexBuffer(node.val))
@@ -148,16 +148,16 @@ const makeRandomNodes = (
  * @returns Proof test parameters.
  */
 export const makeProofTest = async (
-  nodes: TrieNode[] | BaseTrie,
+  nodes: TrieNode[] | SecureTrie,
   key: string,
   val?: string
 ): Promise<ProofTest> => {
-  const trie = nodes instanceof BaseTrie ? nodes : await makeTrie(nodes)
+  const trie = nodes instanceof SecureTrie ? nodes : await makeTrie(nodes)
 
-  const proof = await BaseTrie.prove(trie, toHexBuffer(key))
+  const proof = await SecureTrie.prove(trie, toHexBuffer(key))
   const ret = val
     ? toHexBuffer(val)
-    : await BaseTrie.verifyProof(trie.root, toHexBuffer(key), proof)
+    : await SecureTrie.verifyProof(trie.root, toHexBuffer(key), proof)
 
   return {
     proof: toHexString(rlp.encode(proof)),
@@ -217,7 +217,7 @@ export const makeUpdateTest = async (
 ): Promise<UpdateTest> => {
   const trie = await makeTrie(nodes)
 
-  const proof = await BaseTrie.prove(trie, toHexBuffer(key))
+  const proof = await SecureTrie.prove(trie, toHexBuffer(key))
   const oldRoot = toHexBuffer(trie.root)
 
   await trie.put(toHexBuffer(key), toHexBuffer(val))
@@ -272,8 +272,8 @@ const decodeAccountState = (state: Buffer): StateTrieNode => {
 }
 
 const makeStateTrie = async (state: StateTrieMap): Promise<StateTrie> => {
-  const stateTrie = new BaseTrie()
-  const accountTries: { [address: string]: BaseTrie } = {}
+  const stateTrie = new SecureTrie()
+  const accountTries: { [address: string]: SecureTrie } = {}
 
   for (const address of Object.keys(state)) {
     const account = state[address]
@@ -297,16 +297,19 @@ export const makeAccountStorageProofTest = async (
   const stateTrie = await makeStateTrie(state)
 
   const storageTrie = stateTrie.storage[target]
-  const storageTrieWitness = await BaseTrie.prove(storageTrie, toHexBuffer(key))
+  const storageTrieWitness = await SecureTrie.prove(
+    storageTrie,
+    toHexBuffer(key)
+  )
   const ret =
     val ||
-    (await BaseTrie.verifyProof(
+    (await SecureTrie.verifyProof(
       storageTrie.root,
       toHexBuffer(key),
       storageTrieWitness
     ))
 
-  const stateTrieWitness = await BaseTrie.prove(
+  const stateTrieWitness = await SecureTrie.prove(
     stateTrie.trie,
     toHexBuffer(target)
   )
@@ -331,8 +334,11 @@ export const makeAccountStorageUpdateTest = async (
   const stateTrie = await makeStateTrie(state)
 
   const storageTrie = stateTrie.storage[target]
-  const storageTrieWitness = await BaseTrie.prove(storageTrie, toHexBuffer(key))
-  const stateTrieWitness = await BaseTrie.prove(
+  const storageTrieWitness = await SecureTrie.prove(
+    storageTrie,
+    toHexBuffer(key)
+  )
+  const stateTrieWitness = await SecureTrie.prove(
     stateTrie.trie,
     toHexBuffer(target)
   )
@@ -367,12 +373,12 @@ export const makeStateTrieProofTest = async (
 ): Promise<StateTrieProofTest> => {
   const stateTrie = await makeStateTrie(state)
 
-  const stateTrieWitness = await BaseTrie.prove(
+  const stateTrieWitness = await SecureTrie.prove(
     stateTrie.trie,
     toHexBuffer(address)
   )
 
-  const ret = await BaseTrie.verifyProof(
+  const ret = await SecureTrie.verifyProof(
     stateTrie.trie.root,
     toHexBuffer(address),
     stateTrieWitness
@@ -393,7 +399,7 @@ export const makeStateTrieUpdateTest = async (
 ): Promise<StateTrieUpdateTest> => {
   const stateTrie = await makeStateTrie(state)
 
-  const stateTrieWitness = await BaseTrie.prove(
+  const stateTrieWitness = await SecureTrie.prove(
     stateTrie.trie,
     toHexBuffer(address)
   )

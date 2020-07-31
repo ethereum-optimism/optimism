@@ -240,7 +240,6 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           ['address']
         )
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
         failed = true
       }
 
@@ -267,7 +266,6 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           ['address']
         )
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
         failed = true
       }
 
