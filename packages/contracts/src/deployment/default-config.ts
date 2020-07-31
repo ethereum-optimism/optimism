@@ -55,7 +55,13 @@ export const getDefaultContractDeployConfig = async (
       params: [
         addressResolver.address,
         await options.owner.getAddress(),
-        options.gasLimit,
+        [
+          options.gasMeterConfig.ovmTxFlatGasFee,
+          options.gasMeterConfig.ovmTxMaxGas,
+          options.gasMeterConfig.gasRateLimitEpochLength,
+          options.gasMeterConfig.maxSequencedGasPerEpoch,
+          options.gasMeterConfig.maxQueuedGasPerEpoch
+        ]
       ],
       signer: wallet,
     },

@@ -27,13 +27,13 @@ contract L2ExecutionManager is ExecutionManager {
     constructor(
         address _addressResolver,
         address _owner,
-        DataTypes.ChainParams memory _chainParams
+        DataTypes.GasMeterConfig memory _gasMeterConfig
     )
         public
         ExecutionManager(
             _addressResolver,
             _owner,
-            _chainParams
+            _gasMeterConfig
         )
     {}
 

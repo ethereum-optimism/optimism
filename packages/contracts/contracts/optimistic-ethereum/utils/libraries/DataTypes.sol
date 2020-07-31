@@ -34,7 +34,7 @@ contract DataTypes {
         uint ovmTxGasLimit;
     }
 
-    struct ChainParams {
+    struct GasMeterConfig {
         uint OvmTxFlatGasFee; // The flat gas fee imposed on all transactions
         uint OvmTxMaxGas; // Max gas a single transaction is allowed
         uint GasRateLimitEpochLength; // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp

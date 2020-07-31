@@ -8,11 +8,17 @@ export interface ContractDeployOptions {
 }
 
 export interface RollupOptions {
-  gasLimit: number
   forceInclusionPeriod: number
   owner: Signer
   sequencer: Signer
   l1ToL2TransactionPasser: Signer
+  gasMeterConfig: {
+    ovmTxFlatGasFee: number,
+    ovmTxMaxGas: number,
+    gasRateLimitEpochLength: number,
+    maxSequencedGasPerEpoch: number,
+    maxQueuedGasPerEpoch: number
+  }
 }
 
 export type ContractFactoryName =

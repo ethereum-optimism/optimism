@@ -5,7 +5,7 @@ import {
   getLogger,
   logError,
 } from '@eth-optimism/core-utils'
-import { deployContract, Environment } from '@eth-optimism/rollup-core'
+import { deployContract, Environment, DEFAULT_CHAIN_PARAMS } from '@eth-optimism/rollup-core'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Contract, Wallet } from 'ethers'
@@ -263,7 +263,7 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   const executionManager: Contract = await deployContract(
     wallet,
     L2ExecutionManagerContractDefinition,
-    [addressResolver.address, wallet.address, GAS_LIMIT],
+    [addressResolver.address, wallet.address, DEFAULT_CHAIN_PARAMS],
     { gasLimit: GAS_LIMIT }
   )
 

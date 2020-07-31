@@ -54,7 +54,7 @@ contract ExecutionManager is ContractResolver {
      */
 
     DataTypes.ExecutionContext executionContext;
-    DataTypes.ChainParams chainParams;
+    DataTypes.GasMeterConfig gasMeterConfig;
 
     /*
      * Events
@@ -90,7 +90,7 @@ contract ExecutionManager is ContractResolver {
     constructor(
         address _addressResolver,
         address _owner,
-        DataTypes.ChainParams memory _chainParams
+        DataTypes.GasMeterConfig memory _gasMeterConfig
     )
         public
         ContractResolver(_addressResolver)
@@ -112,7 +112,7 @@ contract ExecutionManager is ContractResolver {
         executionContext.chainId = 108;
 
         // TODO start off the initial gas rate limit epoch once we configure a start time
-        chainParams = _chainParams;
+        gasMeterConfig = _gasMeterConfig;
 
         // Set our owner
         // TODO
@@ -231,7 +231,7 @@ contract ExecutionManager is ContractResolver {
         switchActiveContract(_fromAddress);
 
         // Check for individual tx gas limit violation
-        if (_ovmTxGasLimit > chainParams.OvmTxMaxGas) {
+        if (_ovmTxGasLimit > gasMeterConfig.OvmTxMaxGas) {
             // todo handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
             emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit");
             assembly {
@@ -240,7 +240,7 @@ contract ExecutionManager is ContractResolver {
         }
 
         // If we are at the start of a new epoch, the current tiime is the new start and curent cumulative gas is the new cumulative gas at stat!
-        if (_timestamp >= chainParams.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {
+        if (_timestamp >= gasMeterConfig.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {
             setGasRateLimitEpochStart(_timestamp);
             setCumulativeSequencedGasAtEpochStart(
                 getCumulativeSequencedGas()
@@ -259,7 +259,7 @@ contract ExecutionManager is ContractResolver {
                 - getCumulativeSequencedGasAtEpochStart()
                 + _ovmTxGasLimit
                 >
-                chainParams.MaxSequencedGasPerEpoch
+                gasMeterConfig.MaxSequencedGasPerEpoch
             ) {
                 emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
                 assembly {
@@ -272,7 +272,7 @@ contract ExecutionManager is ContractResolver {
                 - getCumulativeQueuedGasAtEpochStart()
                 + _ovmTxGasLimit
                 >
-                chainParams.MaxQueuedGasPerEpoch
+                gasMeterConfig.MaxQueuedGasPerEpoch
             ) {
                 emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
                 assembly {
@@ -329,7 +329,7 @@ contract ExecutionManager is ContractResolver {
         uint gasConsumedByExecution = gasleft();
 
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
-        _ovmTxGasLimit -= chainParams.OvmTxFlatGasFee;
+        _ovmTxGasLimit -= gasMeterConfig.OvmTxFlatGasFee;
 
         bool success = false;
         bytes memory result;
@@ -356,13 +356,13 @@ contract ExecutionManager is ContractResolver {
         if (_queueOrigin == 0) {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
-                + chainParams.OvmTxFlatGasFee
+                + gasMeterConfig.OvmTxFlatGasFee
                 + gasConsumedByExecution
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
-                + chainParams.OvmTxFlatGasFee
+                + gasMeterConfig.OvmTxFlatGasFee
                 + gasConsumedByExecution
             );
         }
@@ -410,7 +410,7 @@ contract ExecutionManager is ContractResolver {
         bytes[] memory message = new bytes[](9);
         message[0] = rlp.encodeUint(_nonce); // Nonce
         message[1] = rlp.encodeUint(0); // Gas price
-        message[2] = rlp.encodeUint(chainParams.OvmTxMaxGas); // Gas limit
+        message[2] = rlp.encodeUint(gasMeterConfig.OvmTxMaxGas); // Gas limit
 
         // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
         if (_to == ZERO_ADDRESS) {
@@ -558,7 +558,7 @@ contract ExecutionManager is ContractResolver {
      * returndata: uint256 representing the fraud proof gas limit.
      */
     function ovmBlockGasLimit() public view {
-        uint g = chainParams.OvmTxMaxGas;
+        uint g = gasMeterConfig.OvmTxMaxGas;
 
         assembly {
             let gasLimitMemory := mload(0x40)
