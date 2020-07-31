@@ -34,7 +34,7 @@ const log = getLogger('execution-manager-calls', true)
 describe('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider
 
-  const [wallet] = getWallets()
+  const [wallet] = getWallets(provider)
 
   let resolver: AddressResolverMapping
   before(async () => {

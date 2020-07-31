@@ -4,9 +4,9 @@ import { ethers, Wallet } from 'ethers'
 /* Internal Imports */
 import { DEFAULT_ACCOUNTS } from './constants'
 
-export const getWallets = (): Wallet[] => {
+export const getWallets = (provider?: any): Wallet[] => {
   return DEFAULT_ACCOUNTS.map((account) => {
-    return new ethers.Wallet(account.secretKey)
+    return new ethers.Wallet(account.secretKey, provider)
   })
 }
 

@@ -22,7 +22,7 @@ const log = getLogger('execution-manager-recover-eoa-address', true)
 
 /* Tests */
 describe('Execution Manager -- Recover EOA Address', () => {
-  const [wallet] = getWallets()
+  const [wallet] = getWallets(ethers.provider)
 
   let resolver: AddressResolverMapping
   before(async () => {
