@@ -19,6 +19,9 @@ const config: BuidlerConfig = {
   paths: {
     sources: './test/test-contracts',
   },
+  mocha: {
+    timeout: 100000,
+  },
 }
 
 export default config
