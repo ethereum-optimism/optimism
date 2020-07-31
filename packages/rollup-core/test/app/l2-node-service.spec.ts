@@ -3,6 +3,7 @@ import '../setup'
 /* External Imports */
 import {
   hexStrToNumber,
+  hexStrToString,
   keccak256FromUtf8,
   TestUtils,
 } from '@eth-optimism/core-utils'
@@ -83,8 +84,8 @@ const rollupTx2: RollupTransaction = {
   queueOrigin: QueueOrigin.SAFETY_QUEUE,
 }
 
-const deserializeBlockBatches = (serialized: string): GethSubmission => {
-  return JSON.parse(serialized, (k, v) => {
+const deserializeRollupTransactions = (serialized: string): GethSubmission => {
+  return JSON.parse(hexStrToString(serialized), (k, v) => {
     switch (k) {
       case 'blockNumber':
       case 'timestamp':
@@ -168,18 +169,24 @@ describe('L2 Node Service', () => {
       'Incorrect params type!'
     )
     const paramsArray = mockedSendProvider.sent[0].params as string[]
-    paramsArray.length.should.equal(2, 'Incorrect params length')
-    const [payloadStr, signature] = paramsArray
+    paramsArray.length.should.equal(1, 'Incorrect params length')
+    paramsArray[0].length.should.equal(2, 'Incorrect params array length')
+    const [payloadStr, signature] = paramsArray[0]
 
-    const blockBatches: GethSubmission = deserializeBlockBatches(payloadStr)
+    const gethSubmission: GethSubmission = deserializeRollupTransactions(
+      payloadStr
+    )
 
-    blockBatches.timestamp.should.equal(timestamp, 'Incorrect timestamp!')
-    blockBatches.rollupTransactions.length.should.equal(
+    gethSubmission.timestamp.should.equal(timestamp, 'Incorrect timestamp!')
+    gethSubmission.rollupTransactions.length.should.equal(
       1,
       'Incorrect num batches!'
     )
-    blockBatches.rollupTransactions.length.should.equal(1, 'Incorrect num txs!')
-    blockBatches.rollupTransactions[0].should.deep.equal(
+    gethSubmission.rollupTransactions.length.should.equal(
+      1,
+      'Incorrect num txs!'
+    )
+    gethSubmission.rollupTransactions[0].should.deep.equal(
       rollupTx,
       'Incorrect transaction received!'
     )
@@ -208,22 +215,25 @@ describe('L2 Node Service', () => {
       'Incorrect params type!'
     )
     const paramsArray = mockedSendProvider.sent[0].params as string[]
-    paramsArray.length.should.equal(2, 'Incorrect params length')
-    const [payloadStr, signature] = paramsArray
+    paramsArray.length.should.equal(1, 'Incorrect params length')
+    paramsArray[0].length.should.equal(2, 'Incorrect params array length')
+    const [payloadStr, signature] = paramsArray[0]
 
-    const blockBatches: GethSubmission = deserializeBlockBatches(payloadStr)
+    const gethSubmission: GethSubmission = deserializeRollupTransactions(
+      payloadStr
+    )
 
-    blockBatches.timestamp.should.equal(timestamp, 'Incorrect timestamp!')
-    blockBatches.rollupTransactions.length.should.equal(
+    gethSubmission.timestamp.should.equal(timestamp, 'Incorrect timestamp!')
+    gethSubmission.rollupTransactions.length.should.equal(
       2,
       'Incorrect num transactions!'
     )
-    blockBatches.rollupTransactions[0].should.deep.equal(
+    gethSubmission.rollupTransactions[0].should.deep.equal(
       rollupTx,
       'Incorrect transaction received!'
     )
 
-    blockBatches.rollupTransactions[1].should.deep.equal(
+    gethSubmission.rollupTransactions[1].should.deep.equal(
       rollupTx2,
       'Incorrect transaction 2 received!'
     )
