@@ -11,6 +11,7 @@ import {
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -77,7 +78,7 @@ describe('ExecutionManager -- Create opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })

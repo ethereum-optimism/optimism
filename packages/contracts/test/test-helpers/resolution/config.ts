@@ -1,6 +1,7 @@
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { Contract } from 'ethers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
@@ -48,7 +49,7 @@ export const getDefaultDeployConfig = async (
     },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),
-      params: [addressResolver.address, await owner.getAddress(), GAS_LIMIT],
+      params: [addressResolver.address, await owner.getAddress(), DEFAULT_GAS_METER_PARAMS],
     },
     SafetyChecker: {
       factory: await ethers.getContractFactory('StubSafetyChecker'),

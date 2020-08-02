@@ -10,7 +10,8 @@ import {
   getCurrentTime,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory } from 'ethers'
+import { Contract, ContractFactory, Signer } from 'ethers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -33,10 +34,13 @@ const log = getLogger('execution-manager-calls', true)
 export const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
-describe('Execution Manager -- Call opcodes', () => {
+describe.only('Execution Manager -- Call opcodes', () => {
   const provider = ethers.provider
 
-  const [wallet] = getWallets()
+  let wallet: Signer
+  before(async () => {
+    ;[wallet] = await ethers.getSigners()
+  })
 
   let resolver: AddressResolverMapping
   before(async () => {
@@ -60,7 +64,7 @@ describe('Execution Manager -- Call opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })
@@ -291,6 +295,7 @@ describe('Execution Manager -- Call opcodes', () => {
         ]
       )
       const nonce = await provider.getTransactionCount(wallet.address)
+
 
       let failed = false
       try {

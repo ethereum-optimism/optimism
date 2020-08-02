@@ -1,6 +1,6 @@
 /* External Imports */
 import { ethers, Signer, Contract, ContractFactory } from 'ethers'
-import { Log, TransactionReceipt, JsonRpcProvider } from 'ethers/providers'
+import { Log, TransactionReceipt, JsonRpcProvider, Provider } from 'ethers/providers'
 import {
   abi,
   add0x,
@@ -212,7 +212,8 @@ export const manuallyDeployOvmContractReturnReceipt = async (
   provider: any,
   executionManager: Contract,
   contractDefinition: ContractFactory,
-  constructorArguments: any[]
+  constructorArguments: any[],
+  timestamp: number = getCurrentTime()
 ): Promise<any> => {
   const initCode = contractDefinition.getDeployTransaction(
     ...constructorArguments
@@ -223,7 +224,8 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     wallet,
     undefined,
     initCode,
-    false
+    false,
+    timestamp
   )
 
   return internalTxReceiptToOvmTxReceipt(receipt, executionManager.address)
@@ -237,14 +239,16 @@ export const manuallyDeployOvmContract = async (
   provider: any,
   executionManager: Contract,
   contractDefinition: any,
-  constructorArguments: any[]
+  constructorArguments: any[],
+  timestamp: number = getCurrentTime()
 ): Promise<Address> => {
   const receipt = await manuallyDeployOvmContractReturnReceipt(
     wallet,
     provider,
     executionManager,
     contractDefinition,
-    constructorArguments
+    constructorArguments,
+    timestamp
   )
   return receipt.contractAddress
 }
@@ -254,8 +258,15 @@ export const executeTransaction = async (
   wallet: Signer,
   to: Address,
   data: string,
-  allowRevert: boolean
+  allowRevert: boolean,
+  timestamp: number = getCurrentTime(),
+  provider: any = false
 ): Promise<any> => {
+  console.log(`lol`)
+  console.log(wallet.provider)
+  console.log(`lol2`)
+  console.log(provider)
+
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
     throw new Error('Sending to Zero Address disallowed')
@@ -263,6 +274,15 @@ export const executeTransaction = async (
 
   // Get the `to` field -- NOTE: We have to set `to` to equal ZERO_ADDRESS if this is a contract create
   const ovmTo = to === null || to === undefined ? ZERO_ADDRESS : to
+
+  // get the max gas limit allowed by this EM
+  const getMaxGasLimitCalldata =
+    executionManager.interface.encodeFunctionData('ovmBlockGasLimit')
+  const maxTxGasLimit = await wallet.provider.call({
+    to: executionManager.address,
+    data: getMaxGasLimitCalldata,
+    gasLimit: GAS_LIMIT,
+  })
 
   // Actually make the call
   const tx = await executionManager.executeTransaction(
@@ -272,10 +292,15 @@ export const executeTransaction = async (
     data,
     await wallet.getAddress(),
     ZERO_ADDRESS,
+    maxTxGasLimit,
     allowRevert
   )
   // Return the parsed transaction values
-  return executionManager.provider.waitForTransaction(tx.hash)
+  if (provider) {
+    return provider.waitForTransaction(tx.hash)
+  } else {
+    return executionManager.provider.waitForTransaction(tx.hash)
+  }
 }
 
 /**

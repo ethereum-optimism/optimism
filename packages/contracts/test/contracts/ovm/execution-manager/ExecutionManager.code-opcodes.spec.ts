@@ -11,6 +11,7 @@ import {
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -64,7 +65,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })

@@ -11,13 +11,12 @@ import {
   ZERO_ADDRESS,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
@@ -27,6 +26,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  GAS_LIMIT
 } from '../../../test-helpers'
 
 /* Logging */
@@ -90,7 +90,7 @@ describe('Execution Manager -- Call opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })
@@ -456,6 +456,7 @@ describe('Execution Manager -- Call opcodes', () => {
         callBytes,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
+        GAS_LIMIT,
         true,
       ]
     )
@@ -484,6 +485,7 @@ describe('Execution Manager -- Call opcodes', () => {
         callBytes,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
+        GAS_LIMIT,
         true,
       ]
     )
