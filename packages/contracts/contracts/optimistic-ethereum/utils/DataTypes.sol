@@ -91,7 +91,7 @@ contract DataTypes {
         bool allowRevert;
     }
 
-    struct ERC20Withdrawal {
+    struct Withdrawal {
         address withdrawTo;
         uint amount;
         address l1ERC20Address;
