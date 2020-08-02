@@ -29,8 +29,6 @@ contract DepositedERC20 is ERC20 {
         uint _amount
     ) public {
         _burn(msg.sender, _amount);
-        //l2ERC20Bridge.forwardWithdrawal(_withdrawTo, _amount);
+        //l2ERC20Bridge.forwardWithdrawalToL1(_withdrawTo, _amount);
     }
-
-
 }
