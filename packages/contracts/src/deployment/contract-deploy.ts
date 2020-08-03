@@ -1,4 +1,6 @@
 /* External Imports */
+import { getLogger } from '@eth-optimism/core-utils'
+
 import { Contract } from 'ethers'
 /* Internal Imports */
 import { getContractFactory } from '../contract-imports'
@@ -9,6 +11,8 @@ import {
   factoryToContractName,
   RollupDeployConfig,
 } from './types'
+
+const log = getLogger('contract-deploy')
 
 /**
  * Deploys a single contract.
@@ -35,7 +39,11 @@ export const deployAndRegister = async (
   deployConfig: ContractDeployOptions
 ): Promise<Contract> => {
   const deployedContract = await deployContract(deployConfig)
+  log.debug(`Deployed contract ${name} at address ${deployedContract.address}`)
   await addressResolver.setAddress(name, deployedContract.address)
+  log.debug(
+    `Registered ${name} with Address Resolver (${addressResolver.address})`
+  )
   return deployedContract
 }
 

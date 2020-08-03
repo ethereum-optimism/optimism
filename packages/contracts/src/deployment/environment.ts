@@ -1,5 +1,4 @@
 import { getLogger, logError } from '@eth-optimism/core-utils'
-import * as fs from 'fs'
 
 const log = getLogger('environment')
 
@@ -27,6 +26,10 @@ export class Environment {
       lowerName.indexOf('mnemonic') < 0
     ) {
       log.info(`Environment: ${fun.name} = ${res}`)
+    } else if (logValue) {
+      log.info(
+        `Environment: ${fun.name} is set (will not log value for security)`
+      )
     }
     return res
   }
