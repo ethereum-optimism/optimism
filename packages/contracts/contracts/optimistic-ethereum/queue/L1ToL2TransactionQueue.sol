@@ -13,28 +13,18 @@ import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
  */
 contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     /*
-     * Contract Variables
-     */
-
-    address public l1ToL2TransactionPasser;
-
-
-    /*
      * Constructor
      */
 
     /**
      * @param _addressResolver Address of the AddressResolver contract.
-     * @param _l1ToL2TransactionPasser Address of the L1-L2 transaction passer.
      */
     constructor(
-        address _addressResolver,
-        address _l1ToL2TransactionPasser
+        address _addressResolver
     )
         public
         ContractResolver(_addressResolver)
     {
-        l1ToL2TransactionPasser = _l1ToL2TransactionPasser;
     }
 
 
@@ -54,7 +44,9 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         view
         returns (bool)
     {
-        return _sender == l1ToL2TransactionPasser;
+        // TODO: figure out how we're going to authenticate this
+        return true;
+        // return _sender != tx.origin;
     }
 
     /**

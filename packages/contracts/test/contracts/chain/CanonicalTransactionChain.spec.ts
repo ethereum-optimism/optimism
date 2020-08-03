@@ -144,7 +144,6 @@ describe('CanonicalTransactionChain', () => {
         params: [
           resolver.addressResolver.address,
           await sequencer.getAddress(),
-          await l1ToL2TransactionPasser.getAddress(),
           FORCE_INCLUSION_PERIOD,
         ],
       }
@@ -158,7 +157,6 @@ describe('CanonicalTransactionChain', () => {
         factory: L1ToL2TransactionQueue,
         params: [
           resolver.addressResolver.address,
-          await l1ToL2TransactionPasser.getAddress(),
         ],
       }
     )

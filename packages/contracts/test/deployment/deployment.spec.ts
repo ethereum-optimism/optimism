@@ -10,7 +10,7 @@ import {
   factoryToContractName,
 } from '../../src/deployment/types'
 import { Signer } from 'ethers'
-import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD } from '../test-helpers'
+import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS } from '../test-helpers'
 
 describe('Contract Deployment', () => {
   let wallet: Signer
@@ -26,10 +26,9 @@ describe('Contract Deployment', () => {
         signer: wallet,
         rollupOptions: {
           gasLimit: GAS_LIMIT,
-          forceInclusionPeriod: DEFAULT_FORCE_INCLUSION_PERIOD,
-          owner: wallet,
-          sequencer,
-          l1ToL2TransactionPasser,
+          forceInclusionPeriodSeconds: DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
+          ownerAddress: await wallet.getAddress(),
+          sequencerAddress: await sequencer.getAddress(),
         },
       }
 

@@ -4,7 +4,7 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
-import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD } from '../constants'
+import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS } from '../constants'
 
 /**
  * Generates the default deployment configuration. Runs as an async function
@@ -35,7 +35,7 @@ export const getDefaultDeployConfig = async (
         addressResolver.address,
         await sequencer.getAddress(),
         await l1ToL2TransactionPasser.getAddress(),
-        DEFAULT_FORCE_INCLUSION_PERIOD,
+        DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
       ],
     },
     StateCommitmentChain: {

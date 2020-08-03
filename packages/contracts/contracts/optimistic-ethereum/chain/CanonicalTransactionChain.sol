@@ -28,7 +28,7 @@ contract CanonicalTransactionChain is ContractResolver {
      */
 
     address public sequencer;
-    uint public forceInclusionPeriod;
+    uint public forceInclusionPeriodSeconds;
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
@@ -41,20 +41,18 @@ contract CanonicalTransactionChain is ContractResolver {
     /**
      * @param _addressResolver Address of the AddressResolver contract.
      * @param _sequencer Address of the sequencer.
-     * @param _l1ToL2TransactionPasserAddress Address of the L1-L2 transaction passing contract.
-     * @param _forceInclusionPeriod Timeout in seconds when a transaction must be published.
+     * @param _forceInclusionPeriodSeconds Timeout in seconds when a transaction must be published.
      */
     constructor(
         address _addressResolver,
         address _sequencer,
-        address _l1ToL2TransactionPasserAddress,
-        uint _forceInclusionPeriod
+        uint _forceInclusionPeriodSeconds
     )
         public
         ContractResolver(_addressResolver)
     {
         sequencer = _sequencer;
-        forceInclusionPeriod = _forceInclusionPeriod;
+        forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
         lastOVMTimestamp = 0;
     }
 
@@ -175,7 +173,7 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         require(
-            _timestamp + forceInclusionPeriod > now,
+            _timestamp + forceInclusionPeriodSeconds > now,
             "Cannot submit a batch with a timestamp older than the sequencer inclusion period"
         );
 
@@ -274,7 +272,7 @@ contract CanonicalTransactionChain is ContractResolver {
         uint timestamp = _timestampedHash.timestamp;
 
         require(
-            timestamp + forceInclusionPeriod <= now || authenticateAppend(msg.sender),
+            timestamp + forceInclusionPeriodSeconds <= now || authenticateAppend(msg.sender),
             "Message sender does not have permission to append this batch"
         );
 

@@ -1,15 +1,9 @@
 /* External Imports */
-import { Contract } from 'ethers'
-
+import {Contract} from 'ethers'
 /* Internal Imports */
-import { getContractFactory } from '../contract-imports'
-import { mergeDefaultConfig } from './default-config'
-import {
-  ContractDeployOptions,
-  RollupDeployConfig,
-  factoryToContractName,
-  AddressResolverMapping,
-} from './types'
+import {getContractFactory} from '../contract-imports'
+import {mergeDefaultConfig} from './default-config'
+import {AddressResolverMapping, ContractDeployOptions, factoryToContractName, RollupDeployConfig} from './types'
 
 /**
  * Deploys a single contract.
@@ -20,14 +14,12 @@ const deployContract = async (
   config: ContractDeployOptions
 ): Promise<Contract> => {
   config.factory = config.factory.connect(config.signer)
-  const deployedContract = await config.factory.deploy(...config.params)
-  return deployedContract
+  return config.factory.deploy(...config.params)
 }
 
 /**
  * Deploys a contract and registers it with the address resolver.
  * @param addressResolver Address resolver to register to.
- * @param signer Wallet to deploy the contract from.
  * @param name Name of the contract within the resolver.
  * @param deployConfig Contract deployment configuration.
  * @returns Ethers Contract instance.
@@ -61,8 +53,8 @@ export const deployAllContracts = async (
   const addressResolver = await deployContract(config.addressResolverConfig)
 
   const deployConfig = await mergeDefaultConfig(
+    addressResolver.address,
     config.contractDeployConfig,
-    addressResolver,
     config.signer,
     config.rollupOptions
   )
