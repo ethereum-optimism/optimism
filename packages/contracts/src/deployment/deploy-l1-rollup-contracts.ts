@@ -1,16 +1,15 @@
-/* External Imports */
-import {
-  Environment,
-  GAS_LIMIT, getL1ContractOwnerAddress, getL1DeploymentSigner,
-  getL1SequencerAddress,
-} from '@eth-optimism/rollup-core'
-import {
-  AddressResolverMapping,
-  deployAllContracts,
-  RollupOptions,
-} from '@eth-optimism/rollup-contracts'
+/* Internal Imports */
 
-import {Signer} from 'ethers'
+import { Signer } from 'ethers'
+import { AddressResolverMapping, RollupOptions } from './types'
+import {
+  GAS_LIMIT,
+  getL1ContractOwnerAddress,
+  getL1DeploymentSigner,
+  getL1SequencerAddress,
+} from './config'
+import { Environment } from './environment'
+import { deployAllContracts } from './contract-deploy'
 
 export const deployContracts = async (): Promise<AddressResolverMapping> => {
   const signer: Signer = getL1DeploymentSigner()
@@ -23,10 +22,8 @@ export const deployContracts = async (): Promise<AddressResolverMapping> => {
     sequencerAddress,
   }
 
-  return deployAllContracts(
-    {
-      signer,
-      rollupOptions,
-    }
-  )
+  return deployAllContracts({
+    signer,
+    rollupOptions,
+  })
 }

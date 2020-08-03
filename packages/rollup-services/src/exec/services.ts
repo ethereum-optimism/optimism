@@ -28,7 +28,7 @@ import {
   getL1Provider,
   getL2Provider,
   getSequencerWallet,
-  getSubmitToL2GethWallet
+  getSubmitToL2GethWallet,
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers } from 'ethers'
@@ -323,7 +323,6 @@ const getDataService = (): DataService => {
   }
   return dataService
 }
-
 
 let l2NodeService: L2NodeService
 const getL2NodeService = (): L2NodeService => {

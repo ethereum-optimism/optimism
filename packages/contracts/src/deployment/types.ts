@@ -55,7 +55,6 @@ export interface AddressResolverMapping {
 }
 
 export const factoryToContractName = {
-  L1ToL2TransactionPasser: 'l1ToL2TransactionPasser',
   L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
   SafetyTransactionQueue: 'safetyTransactionQueue',
   CanonicalTransactionChain: 'canonicalTransactionChain',

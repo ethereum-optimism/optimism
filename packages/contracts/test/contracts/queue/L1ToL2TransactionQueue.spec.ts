@@ -48,10 +48,7 @@ describe('L1ToL2TransactionQueue', () => {
       'L1toL2TxQueue',
       {
         factory: L1toL2TxQueue,
-        params: [
-          resolver.addressResolver.address,
-          await l1ToL2TransactionPasser.getAddress(),
-        ],
+        params: [resolver.addressResolver.address],
       }
     )
 

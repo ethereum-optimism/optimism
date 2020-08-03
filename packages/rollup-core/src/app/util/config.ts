@@ -1,10 +1,9 @@
 /* External Imports */
-import {add0x} from '@eth-optimism/core-utils'
-import {Signer, Wallet} from 'ethers'
-import {InfuraProvider, JsonRpcProvider, Provider} from 'ethers/providers'
+import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
 
 /* Internal Imports */
-import {Environment} from './environment'
+import { Environment } from './environment'
+import { Wallet } from 'ethers'
 
 let l1Provider: JsonRpcProvider
 export const getL1Provider = (): JsonRpcProvider => {
@@ -56,27 +55,4 @@ export const getSequencerWallet = (): Wallet => {
     )
   }
   return sequencerWallet
-}
-
-export const getL1SequencerAddress = (): string => {
-  return add0x(Environment.sequencerAddress() || getSequencerWallet().address)
-}
-
-let l1DeploymentWallet: Signer
-export const getL1DeploymentSigner = (): Signer => {
-  getL1Provider().getSigner()
-  if (!l1DeploymentWallet) {
-    if (!!Environment.l1ContractDeploymentPrivateKey()) {
-      l1DeploymentWallet = new Wallet(Environment.l1ContractDeploymentPrivateKey(), getL1Provider())
-    } else if (!!Environment.l1ContractDeploymentMnemonic()) {
-      l1DeploymentWallet = Wallet.fromMnemonic(Environment.l1ContractDeploymentMnemonic()).connect(getL1Provider())
-    } else {
-      throw Error('L1 contract deployment private key or mnemonic must be set in order to get L1 Deployment Wallet.')
-    }
-  }
-  return l1DeploymentWallet
-}
-
-export const getL1ContractOwnerAddress = async (): Promise<string> => {
-  return add0x(Environment.getL1ContractOwnerAddress() || await getL1DeploymentSigner().getAddress())
 }

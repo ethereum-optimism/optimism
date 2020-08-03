@@ -155,9 +155,7 @@ describe('CanonicalTransactionChain', () => {
       'L1ToL2TransactionQueue',
       {
         factory: L1ToL2TransactionQueue,
-        params: [
-          resolver.addressResolver.address,
-        ],
+        params: [resolver.addressResolver.address],
       }
     )
 

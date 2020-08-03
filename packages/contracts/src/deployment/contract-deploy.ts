@@ -1,9 +1,14 @@
 /* External Imports */
-import {Contract} from 'ethers'
+import { Contract } from 'ethers'
 /* Internal Imports */
-import {getContractFactory} from '../contract-imports'
-import {mergeDefaultConfig} from './default-config'
-import {AddressResolverMapping, ContractDeployOptions, factoryToContractName, RollupDeployConfig} from './types'
+import { getContractFactory } from '../contract-imports'
+import { mergeDefaultConfig } from './default-config'
+import {
+  AddressResolverMapping,
+  ContractDeployOptions,
+  factoryToContractName,
+  RollupDeployConfig,
+} from './types'
 
 /**
  * Deploys a single contract.

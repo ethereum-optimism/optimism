@@ -21,9 +21,7 @@ export const getDefaultContractDeployConfig = async (
   return {
     L1ToL2TransactionQueue: {
       factory: getContractFactory('L1ToL2TransactionQueue'),
-      params: [
-        addressResolverAddress,
-      ],
+      params: [addressResolverAddress],
       signer: deployerWallet,
     },
     SafetyTransactionQueue: {
