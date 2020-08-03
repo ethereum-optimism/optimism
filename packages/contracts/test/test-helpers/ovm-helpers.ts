@@ -262,10 +262,6 @@ export const executeTransaction = async (
   timestamp: number = getCurrentTime(),
   provider: any = false
 ): Promise<any> => {
-  console.log(`lol`)
-  console.log(wallet.provider)
-  console.log(`lol2`)
-  console.log(provider)
 
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
