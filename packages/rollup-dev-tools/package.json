@@ -35,15 +35,13 @@
   "dependencies": {
     "@eth-optimism/core-utils": "^0.0.1-alpha.26",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.27",
-    "@nomiclabs/buidler": "^1.3.8",
-    "@nomiclabs/buidler-ethers": "^2.0.0",
     "async-lock": "^1.2.2",
     "bn.js": "^5.1.1",
     "dotenv": "^8.2.0",
     "ethereumjs-abi": "^0.6.8",
     "ethereumjs-tx": "^2.1.2",
     "ethereumjs-vm": "^4.1.3",
-    "ethers": "5.0.0"
+    "ethers": "^4.0.42"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",

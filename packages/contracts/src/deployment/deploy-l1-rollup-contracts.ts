@@ -15,6 +15,10 @@ import { deployAllContracts } from './contract-deploy'
 
 const log = getLogger('deploy-l1-rollup-contracts')
 
+/**
+ * Deploys all L1 contracts according to the environment variable configuration.
+ * Please see README for more info.
+ */
 export const deployContracts = async (): Promise<AddressResolverMapping> => {
   let res: AddressResolverMapping
   try {
