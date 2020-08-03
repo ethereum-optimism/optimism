@@ -21,12 +21,35 @@ yarn test
 ```
 So that Python and Vyper aren't requirements for our other components, we do include a `compiled-contracts` folder which contains JS exports of the bytecode and ABI. Compilation is done automatically before testing.
 
-### Deploying
-TODO: You can deploy by running:
+### Deployment
+#### Configuration
+The following environment variables must be configured to deploy contracts:
+
+*L1 Node:*
+
+Either:
+* `L1_NODE_INFURA_NETWORK` - The network to use for Infura deployments.
+* `L1_NODE_INFURA_PROJECT_ID` - The Project ID to use for Infura deployments.
+
+Or:
+* `L1_NODE_WEB3_URL` - The URL of the node through which the deployment will be done.
+
+*Deployment Wallet*
+
+Either:
+* `L1_CONTRACT_DEPLOYMENT_PRIVATE_KEY` - The private key to use for contract deployment.
+
+Or:
+* `L1_CONTRACT_DEPLOYMENT_MNEMONIC` - The mnemonic to use for contract deployment.
+
+*Contract / Deployment Variables*
+* `L1_CONTRACT_OWNER_ADDRESS` - The owner of the deployed contracts (where applicable). Defaults to deployer address if not provided.
+* `FORCE_INCLUSION_PERIOD_SECONDS` - The maximum time in seconds between when a tx may be executed in L2 and when it must be mined on-chain
+* `L1_SEQUENCER_ADDRESS` - The address of the sequencer that will be authorized to submit rollup blocks & roots.
+
+#### Deployment
+After proper configuration, you can deploy all contracts by running:
 
 ```sh
-yarn run deploy:<contract-specific-task-here> <environment>
+yarn run deploy:all
 ```
-
-The `environment` parameter tells the deployment script which config file to use (expected filename `.<environment>.env`).
-

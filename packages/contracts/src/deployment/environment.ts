@@ -37,6 +37,20 @@ export class Environment {
   public static l1ContractDeploymentMnemonic(defaultValue?: string): string {
     return process.env.L1_CONTRACT_DEPLOYMENT_MNEMONIC || defaultValue
   }
+
+  // L1 Node Config -- Infura
+  public static l1NodeInfuraNetwork(defaultValue?: string): string {
+    return process.env.L1_NODE_INFURA_NETWORK || defaultValue
+  }
+  public static l1NodeInfuraProjectId(defaultValue?: string): string {
+    return process.env.L1_NODE_INFURA_PROJECT_ID || defaultValue
+  }
+  // L1 Node Config -- URL
+  public static l1NodeWeb3Url(defaultValue?: string): string {
+    return process.env.L1_NODE_WEB3_URL || defaultValue
+  }
+
+  // Parameters / Config vars
   public static getL1ContractOwnerAddress(defaultValue?: string): string {
     return process.env.L1_CONTRACT_OWNER_ADDRESS || defaultValue
   }
@@ -44,19 +58,6 @@ export class Environment {
     return process.env.FORCE_INCLUSION_PERIOD_SECONDS
       ? parseInt(process.env.FORCE_INCLUSION_PERIOD_SECONDS, 10)
       : defaultValue
-  }
-
-  // L1 Infura
-  public static l1NodeInfuraNetwork(defaultValue?: string): string {
-    return process.env.L1_NODE_INFURA_NETWORK || defaultValue
-  }
-  public static l1NodeInfuraProjectId(defaultValue?: string): string {
-    return process.env.L1_NODE_INFURA_PROJECT_ID || defaultValue
-  }
-
-  // L1 Config
-  public static l1NodeWeb3Url(defaultValue?: string): string {
-    return process.env.L1_NODE_WEB3_URL || defaultValue
   }
   public static sequencerAddress(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_ADDRESS || defaultValue
