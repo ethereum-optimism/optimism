@@ -23,7 +23,8 @@ export class Environment {
     if (
       logValue &&
       lowerName.indexOf('password') < 0 &&
-      lowerName.indexOf('private') < 0
+      lowerName.indexOf('private') < 0 &&
+      lowerName.indexOf('mnemonic') < 0
     ) {
       log.info(`Environment: ${fun.name} = ${res}`)
     }

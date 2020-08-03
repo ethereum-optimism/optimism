@@ -36,7 +36,7 @@ export const getL1DeploymentSigner = (): Signer => {
   if (!l1DeploymentWallet) {
     if (!!Environment.l1ContractDeploymentPrivateKey()) {
       l1DeploymentWallet = new Wallet(
-        Environment.l1ContractDeploymentPrivateKey(),
+        add0x(Environment.l1ContractDeploymentPrivateKey()),
         getL1Provider()
       )
     } else if (!!Environment.l1ContractDeploymentMnemonic()) {
