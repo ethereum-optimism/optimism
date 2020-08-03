@@ -96,7 +96,7 @@ library DataTypes {
         bytes callBytes;
         address fromAddress;
         address l1MsgSenderAddress;
-        uint gasLimit;
+        uint256 gasLimit;
         bool allowRevert;
     }
 }

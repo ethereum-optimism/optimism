@@ -4,6 +4,7 @@ import '../../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { abi, getLogger, add0x, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -48,7 +49,7 @@ describe('ExecutionManager -- Storage opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })

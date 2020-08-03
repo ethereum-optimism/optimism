@@ -4,6 +4,7 @@ import '../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { add0x, getLogger } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -43,7 +44,7 @@ describe('L2 Execution Manager', () => {
     l2ExecutionManager = await L2ExecutionManager.deploy(
       resolver.addressResolver.address,
       '0x' + '00'.repeat(20),
-      GAS_LIMIT
+      DEFAULT_GAS_METER_PARAMS
     )
   })
 

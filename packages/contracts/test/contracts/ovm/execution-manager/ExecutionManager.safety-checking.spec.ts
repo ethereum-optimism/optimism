@@ -5,6 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import { TransactionReceipt } from 'ethers/providers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -69,7 +70,7 @@ describe('Execution Manager -- Safety Checking', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })

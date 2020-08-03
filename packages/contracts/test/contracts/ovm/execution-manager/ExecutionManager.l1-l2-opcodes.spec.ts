@@ -10,6 +10,7 @@ import {
   ZERO_ADDRESS,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { cloneDeep, fromPairs } from 'lodash'
@@ -121,7 +122,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })
@@ -160,6 +161,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           callBytes,
           ZERO_ADDRESS,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )
@@ -209,6 +211,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           getL1MessageSenderMethodId,
           ZERO_ADDRESS,
           testL1MsgSenderAddress,
+          GAS_LIMIT,
           true,
         ],
         ['address']

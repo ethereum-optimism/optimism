@@ -34,7 +34,7 @@ const log = getLogger('execution-manager-calls', true)
 export const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
-describe.only('Execution Manager -- TX/Call Execution Functions', () => {
+describe('Execution Manager -- TX/Call Execution Functions', () => {
   const provider = ethers.provider
 
   const [wallet] = getWallets()
@@ -117,6 +117,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
             transaction.nonce,
             transaction.to,
             transaction.data,
+            GAS_LIMIT,
             padToLength(v, 4),
             padToLength(r, 64),
             padToLength(s, 64)
@@ -154,6 +155,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.data,
         wallet.address,
         ZERO_ADDRESS,
+        GAS_LIMIT,
         true
       )
       await provider.waitForTransaction(tx.hash)
@@ -190,6 +192,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        GAS_LIMIT,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -226,6 +229,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        GAS_LIMIT,
         v,
         r,
         s
@@ -265,6 +269,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        GAS_LIMIT,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -288,6 +293,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )
@@ -328,6 +334,7 @@ describe.only('Execution Manager -- TX/Call Execution Functions', () => {
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )

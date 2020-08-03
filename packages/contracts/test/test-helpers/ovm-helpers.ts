@@ -260,7 +260,6 @@ export const executeTransaction = async (
   data: string,
   allowRevert: boolean,
   timestamp: number = getCurrentTime(),
-  provider: any = false
 ): Promise<any> => {
 
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
@@ -274,7 +273,7 @@ export const executeTransaction = async (
   // get the max gas limit allowed by this EM
   const getMaxGasLimitCalldata =
     executionManager.interface.encodeFunctionData('ovmBlockGasLimit')
-  const maxTxGasLimit = await wallet.provider.call({
+  const maxTxGasLimit = await executionManager.provider.call({
     to: executionManager.address,
     data: getMaxGasLimitCalldata,
     gasLimit: GAS_LIMIT,
@@ -282,7 +281,7 @@ export const executeTransaction = async (
 
   // Actually make the call
   const tx = await executionManager.executeTransaction(
-    getCurrentTime(),
+    timestamp,
     0,
     ovmTo,
     data,
@@ -292,11 +291,7 @@ export const executeTransaction = async (
     allowRevert
   )
   // Return the parsed transaction values
-  if (provider) {
-    return provider.waitForTransaction(tx.hash)
-  } else {
-    return executionManager.provider.waitForTransaction(tx.hash)
-  }
+  return executionManager.provider.waitForTransaction(tx.hash)
 }
 
 /**

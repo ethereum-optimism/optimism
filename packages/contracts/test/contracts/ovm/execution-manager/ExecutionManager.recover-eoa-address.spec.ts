@@ -4,6 +4,7 @@ import '../../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory } from 'ethers'
+import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -45,7 +46,7 @@ describe('Execution Manager -- Recover EOA Address', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
       }
     )
   })
