@@ -56,9 +56,9 @@ contract L2ERC20Bridge {
             l1ERC20Address: _l1ERC20Address,
             nonce: withdrawalNonce
         });
-        L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
-        l2ToL1MessagePasser.passMessageToL1(
-            abi.encode(withdrawal)
-        );
+        // L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
+        // l2ToL1MessagePasser.passMessageToL1(
+        //     abi.encode(withdrawal)
+        // );
     }
 }

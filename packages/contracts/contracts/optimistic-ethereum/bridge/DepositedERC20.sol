@@ -4,11 +4,10 @@ import { L2ERC20Bridge } from "./L2ERC20Bridge.sol";
 
 contract DepositedERC20 is ERC20 {
 
-
     L2ERC20Bridge public l2ERC20Bridge;
-    uint public _withdrawalNonce = 0; //like a reference ID for the wdrwl
+
+    //Todo: change jingle wingle
     constructor () public ERC20(10, "Jingle Wingle", 8, "JING") {
-        // store the factory address which is creating us
         l2ERC20Bridge = L2ERC20Bridge(msg.sender);
     }
 
@@ -29,6 +28,10 @@ contract DepositedERC20 is ERC20 {
         uint _amount
     ) public {
         _burn(msg.sender, _amount);
-        //l2ERC20Bridge.forwardWithdrawalToL1(_withdrawTo, _amount);
+        l2ERC20Bridge.forwardWithdrawal(_withdrawTo, _amount);
+    }
+
+    function returnMS() public view returns(address){
+        return msg.sender;
     }
 }
