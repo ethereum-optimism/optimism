@@ -40,7 +40,7 @@ Either:
 * `L1_CONTRACT_DEPLOYMENT_PRIVATE_KEY` - The private key to use for contract deployment.
 
 Or:
-* `L1_CONTRACT_DEPLOYMENT_MNEMONIC` - The mnemonic to use for contract deployment.
+* `L1_CONTRACT_DEPLOYMENT_MNEMONIC` - The BIP-39/BIP-44 wallet mnemonic to use for contract deployment.
 
 *Contract / Deployment Variables*
 * `L1_CONTRACT_OWNER_ADDRESS` - The owner of the deployed contracts (where applicable). Defaults to deployer address if not provided.
