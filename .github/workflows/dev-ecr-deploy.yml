@@ -38,14 +38,14 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: optimism/rollup-services
+          ECR_REPOSITORY: optimism/rollup-microservices
           IMAGE_TAG: latest
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
 # TODO: Add this when the DEV env is set up
-#      - name: Stop existing dev-rollup-services ECS task to auto-start task with new image
+#      - name: Stop existing dev-rollup-microservices ECS task to auto-start task with new image
 #        run: |
 #          ./.github/scripts/stop-ecs-task.sh dev-rollup-microservices rollup-microservices
 
