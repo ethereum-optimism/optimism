@@ -25,7 +25,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
-  DEFAULT_GAS_METER_PARAMS
+  DEFAULT_GAS_METER_PARAMS,
 } from '../../../test-helpers'
 
 /* Logging */

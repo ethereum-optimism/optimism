@@ -5,10 +5,7 @@ import {
   getLogger,
   logError,
 } from '@eth-optimism/core-utils'
-import {
-  deployContract,
-  Environment,
-} from '@eth-optimism/rollup-core'
+import { deployContract, Environment } from '@eth-optimism/rollup-core'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
 import { Contract, Wallet } from 'ethers'

@@ -4,7 +4,11 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
-import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS, DEFAULT_GAS_METER_PARAMS } from '../constants'
+import {
+  GAS_LIMIT,
+  DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
+  DEFAULT_GAS_METER_PARAMS,
+} from '../constants'
 
 /**
  * Generates the default deployment configuration. Runs as an async function
