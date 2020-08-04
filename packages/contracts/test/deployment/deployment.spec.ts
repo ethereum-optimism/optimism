@@ -64,7 +64,9 @@ describe('Contract Deployment', () => {
       const totalNumberOfBlocks = await wallet.provider.getBlockNumber()
       const transactions = []
       for (let i = 0; i < totalNumberOfBlocks; i++) {
-        const blockTransactions = (await wallet.provider.getBlockWithTransactions(i)).transactions
+        const blockTransactions = (
+          await wallet.provider.getBlockWithTransactions(i)
+        ).transactions
         blockTransactions.map((tx) => transactions.push(tx))
       }
 
@@ -84,11 +86,13 @@ describe('Contract Deployment', () => {
       const getSimplifiedTx = (tx: Transaction): SimplifiedTx => {
         return {
           from: tx.from,
-          to: (tx.to) ? tx.to : '0x' + '00'.repeat(20), // use ZERO_ADDRESS for null because that's the logic I wrote in geth
-          data: tx.data
+          to: tx.to ? tx.to : '0x' + '00'.repeat(20), // use ZERO_ADDRESS for null because that's the logic I wrote in geth
+          data: tx.data,
         }
       }
-      const simplifiedTxs: SimplifiedTx[] = transactions.map((tx) => getSimplifiedTx(tx))
+      const simplifiedTxs: SimplifiedTx[] = transactions.map((tx) =>
+        getSimplifiedTx(tx)
+      )
 
       const gethDumpInput: GethDumpInput = {
         simplifiedTxs,
