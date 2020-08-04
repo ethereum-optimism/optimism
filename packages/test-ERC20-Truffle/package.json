@@ -8,7 +8,7 @@
     "build": "truffle compile --config truffle-config-ovm.js",
     "build:regular": "truffle compile",
     "test:regular": "truffle test ./truffle-tests/test-erc20.js",
-    "test": "truffle test ./truffle-tests/test-erc20.js --config truffle-config-ovm.js",
+    "test": "truffle test ./truffle-tests/test-erc20.js --config truffle-config-ovm.js --timeout 5000",
     "all:regular": "yarn clean && yarn build:regular && yarn test:regular",
     "all": "yarn clean && yarn build && yarn test"
   },
