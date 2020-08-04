@@ -336,8 +336,11 @@ contract ExecutionManager is ContractResolver {
         }
 
         // record the current gas so we can measure how much execution took
-        // note that later we subtract the post-call gasLft(), would call this a different var but we're out of stack!
-        uint gasConsumedByExecution = gasleft();
+        // note that later we subtract the post-call gas left, would call this a different var but we're out of stack!
+        uint gasConsumedByExecution;
+        assembly {
+            gasConsumedByExecution := gas()
+        }
 
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= gasMeterConfig.OvmTxFlatGasFee;
@@ -1379,7 +1382,7 @@ contract ExecutionManager is ContractResolver {
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getGasRateLimitEpochStart() internal view returns (uint) {
+    function getGasRateLimitEpochStart() public view returns (uint) {
         return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
     }
 
