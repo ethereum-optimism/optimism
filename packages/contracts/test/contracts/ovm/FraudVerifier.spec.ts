@@ -5,7 +5,6 @@ import * as rlp from 'rlp'
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { TestUtils } from '@eth-optimism/core-utils'
-import { GAS_LIMIT } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -15,6 +14,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  GAS_LIMIT,
 } from '../../test-helpers'
 
 interface OVMTransactionData {

@@ -10,7 +10,6 @@ import {
   remove0x,
   numberToHexString,
 } from '@eth-optimism/core-utils'
-import { GAS_LIMIT } from '@eth-optimism/rollup-core'
 import * as solc from '@eth-optimism/solc-transpiler'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
@@ -31,6 +30,7 @@ import {
   toHexString,
   makeAddressResolver,
   AddressResolverMapping,
+  GAS_LIMIT,
 } from '../../test-helpers'
 
 /* Logging */
