@@ -121,7 +121,6 @@ describe('SequencerBatchSubmitter', () => {
         params: [
           resolver.addressResolver.address,
           sequencerBatchSubmitter.address,
-          await l1ToL2TransactionPasser.getAddress(),
           FORCE_INCLUSION_PERIOD,
         ],
       }

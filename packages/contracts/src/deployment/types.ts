@@ -9,10 +9,9 @@ export interface ContractDeployOptions {
 
 export interface RollupOptions {
   gasLimit: number
-  forceInclusionPeriod: number
-  owner: Signer
-  sequencer: Signer
-  l1ToL2TransactionPasser: Signer
+  forceInclusionPeriodSeconds: number
+  ownerAddress: string
+  sequencerAddress: string
 }
 
 export type ContractFactoryName =

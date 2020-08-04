@@ -176,7 +176,6 @@ describe('FraudVerifier', () => {
         params: [
           resolver.addressResolver.address,
           await sequencer.getAddress(),
-          await l1ToL2TransactionPasser.getAddress(),
           100000,
         ],
       }

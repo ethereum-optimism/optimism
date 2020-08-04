@@ -25,10 +25,13 @@ import {
   StateCommitmentChainBatchCreator,
   StateCommitmentChainBatchSubmitter,
   updateEnvironmentVariables,
+  getL1Provider,
+  getL2Provider,
+  getSequencerWallet,
+  getSubmitToL2GethWallet,
 } from '@eth-optimism/rollup-core'
 
-import { Contract, ethers, Wallet } from 'ethers'
-import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
+import { Contract, ethers } from 'ethers'
 
 const log = getLogger('service-entrypoint')
 
@@ -321,62 +324,10 @@ const getDataService = (): DataService => {
   return dataService
 }
 
-let l1Provider: Provider
-const getL1Provider = (): Provider => {
-  if (!l1Provider) {
-    if (
-      !!Environment.l1NodeInfuraNetwork() &&
-      !!Environment.l1NodeInfuraProjectId()
-    ) {
-      l1Provider = new InfuraProvider(
-        Environment.getOrThrow(Environment.l1NodeInfuraNetwork),
-        Environment.getOrThrow(Environment.l1NodeInfuraProjectId)
-      )
-    } else {
-      l1Provider = new JsonRpcProvider(
-        Environment.getOrThrow(Environment.l1NodeWeb3Url)
-      )
-    }
-  }
-  return l1Provider
-}
-
-let l2Provider: Provider
-const getL2Provider = (): Provider => {
-  if (!l2Provider) {
-    l2Provider = new JsonRpcProvider(
-      Environment.getOrThrow(Environment.l2NodeWeb3Url)
-    )
-  }
-  return l2Provider
-}
-
 let l2NodeService: L2NodeService
 const getL2NodeService = (): L2NodeService => {
   if (!l2NodeService) {
     l2NodeService = new DefaultL2NodeService(getSubmitToL2GethWallet())
   }
   return l2NodeService
-}
-
-let submitToL2GethWallet: Wallet
-const getSubmitToL2GethWallet = (): Wallet => {
-  if (!submitToL2GethWallet) {
-    submitToL2GethWallet = new Wallet(
-      Environment.getOrThrow(Environment.submitToL2GethPrivateKey),
-      getL2Provider()
-    )
-  }
-  return submitToL2GethWallet
-}
-
-let sequencerWallet: Wallet
-const getSequencerWallet = (): Wallet => {
-  if (!sequencerWallet) {
-    sequencerWallet = new Wallet(
-      Environment.getOrThrow(Environment.sequencerPrivateKey),
-      getL1Provider()
-    )
-  }
-  return sequencerWallet
 }
