@@ -176,7 +176,7 @@ describe('Execution Manager -- Gas Metering', () => {
     )
 
     return async () => {
-      return await wallet.sendTransaction({
+      return wallet.sendTransaction({
         to: executionManager.address,
         data: EMCallBytes,
         gasLimit: GAS_LIMIT,
