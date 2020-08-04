@@ -51,7 +51,7 @@ const abi = new ethers.utils.AbiCoder()
  * TESTS *
  *********/
 
-describe.only('Execution Manager -- Gas Metering', () => {
+describe('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -114,11 +114,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
         }
     )
 
-    const queuedBefore: number = await getCumulativeQueuedGas()
-    const sequencedBefore: number = await getCumulativeSequencedGas()
-    console.log(`before each consumed gas vals before manual ovm deploy are ${queuedBefore} ${sequencedBefore}`)
-
-    console.log(`beforeeach deployed em to addy ${executionManager.address}`)
     gasConsumerAddress = await manuallyDeployOvmContract(
         wallet,
         provider,
@@ -127,7 +122,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
         [],
         INITIAL_OVM_DEPLOY_TIMESTAMP
       )
-      console.log(`beforeeach deployed manual ovm gas consumer to ${gasConsumerAddress}`)
   })
 
   const assertOvmTxRevertedWithMessage = async (
@@ -172,7 +166,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
         const gasPad: number = 100_000
         const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
 
-        console.log(`gas consumer addy is ${gasConsumerAddress}`)
       const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
           'executeTransaction',
           [
@@ -188,7 +181,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
       )
 
     return async () => {
-        console.log(`em address from callback execution is ${executionManager.address}`)
         return await wallet.sendTransaction({
             to: executionManager.address,
             data: EMCallBytes,
@@ -249,7 +241,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
     const gasToConsume: number = 500_000
     const timestamp = 1
     it('Should properly track sequenced consumed gas', async () => {
-        console.log(`em address is ${executionManager.address}`)
       const consumeTx = getConsumeGasCallback(
         timestamp,
         SEQUENCER_ORIGIN,
@@ -262,8 +253,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
       change.sequenced.should.be.gt(gasToConsume)
     })
     it('Should properly track queued consumed gas', async () => {
-        console.log(`em address is ${executionManager.address}`)
-
       const consumeGas = getConsumeGasCallback(timestamp, QUEUED_ORIGIN, gasToConsume)
       const change = await getChangeInCumulativeGas(consumeGas)
 
@@ -336,9 +325,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
           await assertOvmTxDidNotRevert(successTx, wallet)
         }).timeout(30000)
         it('Should allow gas back in at the start of a new epoch', async () => {
-            const queuedBefore: number = await getCumulativeQueuedGas()
-            const sequencedBefore: number = await getCumulativeSequencedGas()
-            console.log(`right in the start of final test: ${queuedBefore}, ${sequencedBefore}`)
 
           // Get us close to the limit
           const firstTx = await getConsumeGasCallback(
@@ -348,11 +334,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
           )
           await firstTx()
           // TODO: assert gas was consumed here
-
-          const queuedaf: number = await getCumulativeQueuedGas()
-          const sequencedaf: number = await getCumulativeSequencedGas()
-          const epochStart: number = await executionManager.getGasRateLimitEpochStart()
-          console.log(`right in the middle of final test, we have epoch start:${epochStart} and cumulative vals ${queuedaf}, ${sequencedaf}`)
 
           // Now consume more than half gas again, but in the next epoch
           const nextEpochTimestamp =

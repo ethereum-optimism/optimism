@@ -10,7 +10,10 @@ import {
   factoryToContractName,
 } from '../../src/deployment/types'
 import { Signer } from 'ethers'
-import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD } from '../test-helpers'
+import {
+  GAS_LIMIT,
+  DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
+} from '../test-helpers'
 
 describe('Contract Deployment', () => {
   let wallet: Signer
@@ -25,10 +28,9 @@ describe('Contract Deployment', () => {
       const config: RollupDeployConfig = {
         signer: wallet,
         rollupOptions: {
-          forceInclusionPeriod: DEFAULT_FORCE_INCLUSION_PERIOD,
-          owner: wallet,
-          sequencer,
-          l1ToL2TransactionPasser,
+          forceInclusionPeriodSeconds: DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
+          ownerAddress: await wallet.getAddress(),
+          sequencerAddress: await sequencer.getAddress(),
           gasMeterConfig: {
             ovmTxFlatGasFee: 1000,
             ovmTxMaxGas: 1000,
@@ -41,11 +43,14 @@ describe('Contract Deployment', () => {
 
       const resolver = await deployAllContracts(config)
 
-      expect(
-        Object.values(factoryToContractName).every((contractName) => {
-          return contractName in resolver.contracts
-        })
-      ).to.be.true
+      let contractDeployed: boolean
+      Object.values(factoryToContractName).forEach((contractName) => {
+        contractDeployed = !!resolver.contracts[contractName]
+        contractDeployed.should.equal(
+          true,
+          `Contract ${contractName} was not deployed!`
+        )
+      })
     })
   })
 })

@@ -16,9 +16,6 @@ import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
 import { Address, L1NodeContext } from '../../types'
 import { GAS_LIMIT } from '../constants'
 
-const L1ToL2TransactionPasserContractDefinition = getContractDefinition(
-  'L1ToL2TransactionPasser'
-)
 const L2ToL1MessageReceiverContractDefinition = getContractDefinition(
   'L2ToL1MessageReceiver'
 )
@@ -45,17 +42,11 @@ export const initializeL1Node = async (
     sequencerWallet,
     0
   )
-  const l1ToL2TransactionPasser: Contract = await getL1ToL2TransactionPasserContract(
-    provider,
-    sequencerWallet,
-    1
-  )
 
   return {
     provider,
     sequencerWallet,
     l2ToL1MessageReceiver,
-    l1ToL2TransactionPasser,
   }
 }
 
@@ -220,78 +211,6 @@ const deployL2ToL1MessageReceiver = async (
 
   log.info(
     `L2ToL1MessageReceiver deployed to local L1 Node at address ${contract.address}`
-  )
-  return contract
-}
-
-/**
- * Gets the L1ToL2transactionPasser contract to use with the L1 node. This will automatically
- * deploy a new L1ToL2transactionPasser contract if one does not exist for the specified provider.
- *
- * @param provider The provider to use to determine if the contract has already been deployed.
- * @param wallet The wallet to use for the contract.
- * @param nonceWhenDeployed If the contract has already been deployed, this is the nonce for the deploy transaction.
- * @returns The L1ToL2transactionPasser contract.
- */
-const getL1ToL2TransactionPasserContract = async (
-  provider: Provider,
-  wallet: Wallet,
-  nonceWhenDeployed: number
-): Promise<Contract> => {
-  const l1ToL2transactionPasserAddress: Address =
-    Environment.l1ToL2TransactionPasserContractAddress() ||
-    (await getDeployedContractAddress(
-      nonceWhenDeployed,
-      provider,
-      wallet.address
-    ))
-
-  let l2ToL1transactionPasser: Contract
-  if (l1ToL2transactionPasserAddress) {
-    log.info(
-      `Using existing L1ToL2transactionPasser deployed at ${l1ToL2transactionPasserAddress}`
-    )
-    l2ToL1transactionPasser = new Contract(
-      l1ToL2transactionPasserAddress,
-      L1ToL2TransactionPasserContractDefinition.abi,
-      wallet
-    )
-  } else {
-    log.info(`Deploying L1ToL2transactionPasser!`)
-    l2ToL1transactionPasser = await deployL1ToL2transactionPasser(wallet)
-    log.info(
-      `L1ToL2transactionPasser deployed at address ${l2ToL1transactionPasser.address}`
-    )
-  }
-
-  return l2ToL1transactionPasser
-}
-
-/**
- * Deploys the L1ToL2transactionPasser contract using the provided Wallet.
- *
- * @param wallet The wallet to use for the deployment
- * @returns The resulting Contract.
- */
-const deployL1ToL2transactionPasser = async (
-  wallet: Wallet
-): Promise<Contract> => {
-  log.info(`Deploying L2ToL1MessageReceiver to local L1 Node`)
-
-  let contract: Contract
-  try {
-    contract = await deployContract(
-      wallet,
-      L1ToL2TransactionPasserContractDefinition,
-      []
-    )
-  } catch (e) {
-    logError(log, 'Error Deploying L1ToL2transactionPasser', e)
-    throw e
-  }
-
-  log.info(
-    `L1ToL2transactionPasser deployed to local L1 Node at address ${contract.address}`
   )
   return contract
 }
