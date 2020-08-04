@@ -16,9 +16,6 @@ import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
 import { Address, L1NodeContext } from '../../types'
 import { GAS_LIMIT } from '../constants'
 
-const L1ToL2TransactionPasserContractDefinition = getContractDefinition(
-  'L1ToL2TransactionPasser'
-)
 const L2ToL1MessageReceiverContractDefinition = getContractDefinition(
   'L2ToL1MessageReceiver'
 )
