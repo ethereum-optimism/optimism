@@ -8,7 +8,6 @@ import {
 import {
   deployContract,
   Environment,
-  DEFAULT_GAS_METER_PARAMS,
 } from '@eth-optimism/rollup-core'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
@@ -18,7 +17,7 @@ import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { Address, L2NodeContext } from '../../types'
-import { CHAIN_ID, GAS_LIMIT } from '../constants'
+import { CHAIN_ID, GAS_LIMIT, DEFAULT_GAS_METER_PARAMS } from '../constants'
 import * as fs from 'fs'
 
 const log = getLogger('l2-node')

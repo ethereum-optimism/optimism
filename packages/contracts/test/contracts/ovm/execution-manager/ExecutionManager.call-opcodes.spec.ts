@@ -11,7 +11,6 @@ import {
   ZERO_ADDRESS,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
 
@@ -27,6 +26,7 @@ import {
   deployAndRegister,
   AddressResolverMapping,
   GAS_LIMIT,
+  DEFAULT_GAS_METER_PARAMS,
 } from '../../../test-helpers'
 
 /* Logging */

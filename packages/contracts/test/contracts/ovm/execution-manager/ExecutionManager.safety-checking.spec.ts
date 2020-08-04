@@ -5,7 +5,6 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger, NULL_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import { TransactionReceipt } from 'ethers/providers'
-import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import {
@@ -16,6 +15,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  DEFAULT_GAS_METER_PARAMS,
 } from '../../../test-helpers'
 
 /* Logging */

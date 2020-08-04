@@ -1,11 +1,10 @@
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { Contract } from 'ethers'
-import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 
 /* Internal Imports */
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
-import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS } from '../constants'
+import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS, DEFAULT_GAS_METER_PARAMS } from '../constants'
 
 /**
  * Generates the default deployment configuration. Runs as an async function

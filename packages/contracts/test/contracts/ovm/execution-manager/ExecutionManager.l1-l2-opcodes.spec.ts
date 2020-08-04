@@ -10,7 +10,6 @@ import {
   ZERO_ADDRESS,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { DEFAULT_GAS_METER_PARAMS } from '@eth-optimism/rollup-core'
 import { Contract, Signer, ContractFactory } from 'ethers'
 import * as ethereumjsAbi from 'ethereumjs-abi'
 import { cloneDeep, fromPairs } from 'lodash'
@@ -28,6 +27,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  DEFAULT_GAS_METER_PARAMS
 } from '../../../test-helpers'
 
 /* Contract Imports */
