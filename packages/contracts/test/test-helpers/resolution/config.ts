@@ -45,7 +45,11 @@ export const getDefaultDeployConfig = async (
     },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),
-      params: [addressResolver.address, await owner.getAddress(), DEFAULT_GAS_METER_PARAMS],
+      params: [
+        addressResolver.address,
+        await owner.getAddress(),
+        DEFAULT_GAS_METER_PARAMS,
+      ],
     },
     SafetyChecker: {
       factory: await ethers.getContractFactory('StubSafetyChecker'),

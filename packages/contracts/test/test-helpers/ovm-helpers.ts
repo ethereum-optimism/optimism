@@ -1,6 +1,11 @@
 /* External Imports */
 import { ethers, Signer, Contract, ContractFactory } from 'ethers'
-import { Log, TransactionReceipt, JsonRpcProvider, Provider } from 'ethers/providers'
+import {
+  Log,
+  TransactionReceipt,
+  JsonRpcProvider,
+  Provider,
+} from 'ethers/providers'
 import {
   abi,
   add0x,
@@ -259,9 +264,8 @@ export const executeTransaction = async (
   to: Address,
   data: string,
   allowRevert: boolean,
-  timestamp: number = getCurrentTime(),
+  timestamp: number = getCurrentTime()
 ): Promise<any> => {
-
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
     throw new Error('Sending to Zero Address disallowed')
@@ -271,8 +275,9 @@ export const executeTransaction = async (
   const ovmTo = to === null || to === undefined ? ZERO_ADDRESS : to
 
   // get the max gas limit allowed by this EM
-  const getMaxGasLimitCalldata =
-    executionManager.interface.encodeFunctionData('ovmBlockGasLimit')
+  const getMaxGasLimitCalldata = executionManager.interface.encodeFunctionData(
+    'ovmBlockGasLimit'
+  )
   const maxTxGasLimit = await executionManager.provider.call({
     to: executionManager.address,
     data: getMaxGasLimitCalldata,

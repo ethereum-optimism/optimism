@@ -46,7 +46,11 @@ describe('Execution Manager -- Recover EOA Address', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          DEFAULT_GAS_METER_PARAMS,
+        ],
       }
     )
   })

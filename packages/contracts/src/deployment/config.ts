@@ -17,7 +17,7 @@ export const GAS_METER_PARAMS: GasMeterOptions = {
   ovmTxMaxGas: OVM_TX_MAX_GAS,
   gasRateLimitEpochLength: GAS_RATE_LIMIT_EPOCH_LENGTH,
   maxSequencedGasPerEpoch: MAX_SEQUENCED_GAS_PER_EPOCH,
-  maxQueuedGasPerEpoch: MAX_QUEUED_GAS_PER_EPOCH
+  maxQueuedGasPerEpoch: MAX_QUEUED_GAS_PER_EPOCH,
 }
 
 let l1Provider: ethers.providers.Provider

@@ -122,7 +122,11 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          DEFAULT_GAS_METER_PARAMS,
+        ],
       }
     )
   })

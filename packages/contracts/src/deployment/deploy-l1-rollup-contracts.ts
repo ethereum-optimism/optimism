@@ -29,7 +29,7 @@ export const deployContracts = async (): Promise<AddressResolverMapping> => {
       forceInclusionPeriodSeconds: Environment.forceInclusionPeriodSeconds(),
       ownerAddress,
       sequencerAddress,
-      gasMeterConfig: GAS_METER_PARAMS
+      gasMeterConfig: GAS_METER_PARAMS,
     }
 
     res = await deployAllContracts({

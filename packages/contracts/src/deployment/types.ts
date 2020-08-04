@@ -8,10 +8,10 @@ export interface ContractDeployOptions {
 }
 
 export interface GasMeterOptions {
-  ovmTxFlatGasFee: number,
-  ovmTxMaxGas: number,
-  gasRateLimitEpochLength: number,
-  maxSequencedGasPerEpoch: number,
+  ovmTxFlatGasFee: number
+  ovmTxMaxGas: number
+  gasRateLimitEpochLength: number
+  maxSequencedGasPerEpoch: number
   maxQueuedGasPerEpoch: number
 }
 

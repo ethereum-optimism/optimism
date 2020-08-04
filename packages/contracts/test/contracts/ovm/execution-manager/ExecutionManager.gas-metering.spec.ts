@@ -10,7 +10,7 @@ import {
   getCurrentTime,
   ZERO_ADDRESS,
   NULL_ADDRESS,
-  hexStrToNumber
+  hexStrToNumber,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
@@ -91,37 +91,32 @@ describe('Execution Manager -- Gas Metering', () => {
       {
         factory: ExecutionManager,
         params: [
-            resolver.addressResolver.address,
-            NULL_ADDRESS,
-            [
-                OVM_TX_FLAT_GAS_FEE,
-                OVM_TX_MAX_GAS,
-                GAS_RATE_LIMIT_EPOCH_LENGTH,
-                MAX_GAS_PER_EPOCH,
-                MAX_GAS_PER_EPOCH
-            ]
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          [
+            OVM_TX_FLAT_GAS_FEE,
+            OVM_TX_MAX_GAS,
+            GAS_RATE_LIMIT_EPOCH_LENGTH,
+            MAX_GAS_PER_EPOCH,
+            MAX_GAS_PER_EPOCH,
+          ],
         ],
       }
     )
 
-    await deployAndRegister(
-        resolver.addressResolver,
-        wallet,
-        'StateManager',
-        {
-            factory: StateManager,
-            params: []
-        }
-    )
+    await deployAndRegister(resolver.addressResolver, wallet, 'StateManager', {
+      factory: StateManager,
+      params: [],
+    })
 
     gasConsumerAddress = await manuallyDeployOvmContract(
-        wallet,
-        provider,
-        executionManager,
-        GasConsumer,
-        [],
-        INITIAL_OVM_DEPLOY_TIMESTAMP
-      )
+      wallet,
+      provider,
+      executionManager,
+      GasConsumer,
+      [],
+      INITIAL_OVM_DEPLOY_TIMESTAMP
+    )
   })
 
   const assertOvmTxRevertedWithMessage = async (
@@ -157,35 +152,35 @@ describe('Execution Manager -- Gas Metering', () => {
     queueOrigin: number,
     gasToConsume: number
   ) => {
-        const internalCallBytes = GasConsumer.interface.encodeFunctionData(
-          'consumeGasExceeding',
-          [gasToConsume]
-      )
+    const internalCallBytes = GasConsumer.interface.encodeFunctionData(
+      'consumeGasExceeding',
+      [gasToConsume]
+    )
 
-          // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-        const gasPad: number = 100_000
-        const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
+    // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
+    const gasPad: number = 100_000
+    const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
 
-      const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
-          'executeTransaction',
-          [
-            timestamp,
-            queueOrigin,
-            gasConsumerAddress,
-            internalCallBytes,
-            walletAddress,
-            ZERO_ADDRESS,
-            ovmTxGasLimit,
-            false
-          ]
-      )
+    const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
+      'executeTransaction',
+      [
+        timestamp,
+        queueOrigin,
+        gasConsumerAddress,
+        internalCallBytes,
+        walletAddress,
+        ZERO_ADDRESS,
+        ovmTxGasLimit,
+        false,
+      ]
+    )
 
     return async () => {
-        return await wallet.sendTransaction({
-            to: executionManager.address,
-            data: EMCallBytes,
-            gasLimit: GAS_LIMIT,
-        })
+      return await wallet.sendTransaction({
+        to: executionManager.address,
+        data: EMCallBytes,
+        gasLimit: GAS_LIMIT,
+      })
     }
   }
 
@@ -207,7 +202,9 @@ describe('Execution Manager -- Gas Metering', () => {
     // record value before
     const queuedBefore: number = await getCumulativeQueuedGas()
     const sequencedBefore: number = await getCumulativeSequencedGas()
-    log.debug(`calling the callback which should change gas, before is: ${queuedBefore}, ${sequencedBefore}`)
+    log.debug(
+      `calling the callback which should change gas, before is: ${queuedBefore}, ${sequencedBefore}`
+    )
     await callbackConsumingGas()
     log.debug(`finished calling the callback which should change gas`)
     const queuedAfter: number = await getCumulativeQueuedGas()
@@ -253,7 +250,11 @@ describe('Execution Manager -- Gas Metering', () => {
       change.sequenced.should.be.gt(gasToConsume)
     })
     it('Should properly track queued consumed gas', async () => {
-      const consumeGas = getConsumeGasCallback(timestamp, QUEUED_ORIGIN, gasToConsume)
+      const consumeGas = getConsumeGasCallback(
+        timestamp,
+        QUEUED_ORIGIN,
+        gasToConsume
+      )
       const change = await getChangeInCumulativeGas(consumeGas)
 
       change.sequenced.should.equal(0)
@@ -276,12 +277,10 @@ describe('Execution Manager -- Gas Metering', () => {
         sequencerGasToConsume
       )
 
-      const change = await getChangeInCumulativeGas(
-          async () => {
-              await consumeQueuedGas()
-              await consumeSequencedGas()
-          }
-      )
+      const change = await getChangeInCumulativeGas(async () => {
+        await consumeQueuedGas()
+        await consumeSequencedGas()
+      })
 
       // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
       change.sequenced.should.not.equal(0)
@@ -325,7 +324,6 @@ describe('Execution Manager -- Gas Metering', () => {
           await assertOvmTxDidNotRevert(successTx, wallet)
         }).timeout(30000)
         it('Should allow gas back in at the start of a new epoch', async () => {
-
           // Get us close to the limit
           const firstTx = await getConsumeGasCallback(
             startTimestamp,

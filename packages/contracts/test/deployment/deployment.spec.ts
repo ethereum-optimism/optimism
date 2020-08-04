@@ -36,8 +36,8 @@ describe('Contract Deployment', () => {
             ovmTxMaxGas: 1000,
             gasRateLimitEpochLength: 1000,
             maxSequencedGasPerEpoch: 1000,
-            maxQueuedGasPerEpoch: 1000
-          }
+            maxQueuedGasPerEpoch: 1000,
+          },
         },
       }
 

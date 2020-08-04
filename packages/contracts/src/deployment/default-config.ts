@@ -58,8 +58,8 @@ export const getDefaultContractDeployConfig = async (
           rollupOptions.gasMeterConfig.ovmTxMaxGas,
           rollupOptions.gasMeterConfig.gasRateLimitEpochLength,
           rollupOptions.gasMeterConfig.maxSequencedGasPerEpoch,
-          rollupOptions.gasMeterConfig.maxQueuedGasPerEpoch
-        ]
+          rollupOptions.gasMeterConfig.maxQueuedGasPerEpoch,
+        ],
       ],
       signer: deployerWallet,
     },

@@ -26,7 +26,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
-  GAS_LIMIT
+  GAS_LIMIT,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -90,7 +90,11 @@ describe('Execution Manager -- Call opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, DEFAULT_GAS_METER_PARAMS],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          DEFAULT_GAS_METER_PARAMS,
+        ],
       }
     )
   })
