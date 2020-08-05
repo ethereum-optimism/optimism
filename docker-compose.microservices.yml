@@ -9,7 +9,7 @@ services:
       - l2-node-data:/mnt/l2-node:rw
     build:
       context: .
-      dockerfile: Dockerfile.services
+      dockerfile: Dockerfile.microservices
     environment:
 # Logging
       - DEBUG=info*,error*,warn*,debug*     # The comma-separated logging patterns to match (common options are `error*`, `info*`, `warn*`, and `debug*`)
