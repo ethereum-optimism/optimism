@@ -31,7 +31,7 @@ describe('GasConsumer', () => {
 
     let txCalldataGas = 0
     for (const [index, byte] of expectedCalldata.entries()) {
-      if (byte == 0) {
+      if (byte === 0) {
         txCalldataGas += zeroBytecost
       } else {
         txCalldataGas += nonzeroByteCost
