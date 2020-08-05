@@ -57,7 +57,7 @@ export const DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS = 600
 const TX_FLAT_GAS_FEE = 30_000
 const MAX_SEQUENCED_GAS_PER_EPOCH = 2_000_000_000
 const MAX_QUEUED_GAS_PER_EPOCH = 2_000_000_000
-const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 600
+const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 0
 
 export const getDefaultGasMeterParams = (): number[] => {
   return [
