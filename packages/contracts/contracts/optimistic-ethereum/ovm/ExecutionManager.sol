@@ -242,17 +242,8 @@ contract ExecutionManager is ContractResolver {
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
 
-        // If we are at the start of a new epoch, the current time is the new start and curent cumulative gas is the new cumulative gas at stat!
-        if (_timestamp >= gasMeterConfig.GasRateLimitEpochSeconds + getGasRateLimitEpochStart()) {
-            setGasRateLimitEpochStart(_timestamp);
-            setCumulativeSequencedGasAtEpochStart(
-                getCumulativeSequencedGas()
-            );
-            setCumulativeQueuedGasAtEpochStart(
-                getCumulativeQueuedGas()
-            );
-        }
-
+        // Do pre-execution gas checks and updates
+        startNewGasEpochIfNecessary(_timestamp);
         validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
 
         // Set methodId based on whether we're creating a contract
@@ -323,25 +314,13 @@ contract ExecutionManager is ContractResolver {
             mstore(0x40, add(resultData, ovmCallReturnDataSize))
         }
 
-        // get the consumed by execution itself
+        // get the gas consumed by execution itself
         assembly {
             gasConsumedByExecution := sub(gasConsumedByExecution, gas())
         }
 
         // set the new cumulative gas
-        if (_queueOrigin == 0) {
-            setCumulativeSequencedGas(
-                getCumulativeSequencedGas()
-                + gasMeterConfig.OvmTxBaseGasFee
-                + gasConsumedByExecution
-            );
-        } else {
-            setCumulativeQueuedGas(
-                getCumulativeQueuedGas()
-                + gasMeterConfig.OvmTxBaseGasFee
-                + gasConsumedByExecution
-            );
-        }
+        updateCumulativeGas(gasConsumedByExecution);
 
         assembly {
             let resultData := add(result, 0x20)
@@ -1186,6 +1165,19 @@ contract ExecutionManager is ContractResolver {
      * Internal Functions
      */
 
+     function startNewGasEpochIfNecessary(uint _timestamp) internal {
+        // If we are at the start of a new epoch, the current time is the new start and curent cumulative gas is the new cumulative gas at stat!
+        if (_timestamp >= gasMeterConfig.GasRateLimitEpochSeconds + getGasRateLimitEpochStart()) {
+            setGasRateLimitEpochStart(_timestamp);
+            setCumulativeSequencedGasAtEpochStart(
+                getCumulativeSequencedGas()
+            );
+            setCumulativeQueuedGasAtEpochStart(
+                getCumulativeQueuedGas()
+            );
+        }
+     }
+
     /**
      * Checks that an OVM tx does not violate any gas metering requirements.
      * @param _txGasLimit The OVM transaction's gas limit.
@@ -1236,6 +1228,22 @@ contract ExecutionManager is ContractResolver {
                     return(0,0)
                 }
             }
+        }
+    }
+
+    function updateCumulativeGas(uint _gasConsumed) internal {
+        if (executionContext.queueOrigin == 0) {
+            setCumulativeSequencedGas(
+                getCumulativeSequencedGas()
+                + gasMeterConfig.OvmTxBaseGasFee
+                + _gasConsumed
+            );
+        } else {
+            setCumulativeQueuedGas(
+                getCumulativeQueuedGas()
+                + gasMeterConfig.OvmTxBaseGasFee
+                + _gasConsumed
+            );
         }
     }
 
