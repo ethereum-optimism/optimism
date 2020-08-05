@@ -4,7 +4,7 @@ import { defaultAccounts } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { EVMOpcode, Opcode } from './types'
-import { GasMeterOptions } from 'src'
+import { GasMeterOptions } from '../../src'
 
 export { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
