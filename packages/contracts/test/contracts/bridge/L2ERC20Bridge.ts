@@ -78,21 +78,10 @@ describe.only('L2ERC20Bridge', () => {
   describe('forwardWithdrawal', async () => {
     it('forwards withdrawal to L1 and increments withdrawal nonce', async () => {
       depositedERC20 = depositedERC20.connect(withdrawer)
-
-      // checking to see if the withdrawer and msg.sender are the same
-      console.log('withdrawer address: ', withdrawer.getAddress())
-      console.log('msg sender: ', await depositedERC20.returnMS())
-
       const initialNonce = await l2ERC20Bridge.withdrawalNonce()
       const withdrawTo = '0x' + '22'.repeat(20)
-
-      console.log('initial withdrawal nonce: ', initialNonce)
-
       await depositedERC20.initializeWithdrawal(withdrawTo, 0)
       const newNonce = await l2ERC20Bridge.withdrawalNonce()
-
-      console.log('new withdrawal nonce: ', newNonce)
-
       newNonce.should.equal(initialNonce + 1)
     })
   })
