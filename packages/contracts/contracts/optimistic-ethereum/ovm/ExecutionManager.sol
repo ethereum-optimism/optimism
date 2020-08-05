@@ -82,7 +82,6 @@ contract ExecutionManager is ContractResolver {
     // Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
     bytes32 constant private CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000005;
 
-
     /*
      * Contract Variables
      */
@@ -288,35 +287,30 @@ contract ExecutionManager is ContractResolver {
             mstore8(add(_callBytes, 3), methodId)
         }
 
-        // record the current gas so we can measure how much execution took
-        // note that later we subtract the post-call gas left, would call this a different var but we're out of stack!
-        uint gasConsumedByExecution;
-        assembly {
-            gasConsumedByExecution := gas()
-        }
-
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
 
         bool success = false;
         bytes memory result;
         uint ovmCallReturnDataSize;
+        // This uint records the current gas so we can measure how much execution took.
+        // note that later we subtract the post-call gas left, would call this a different var but we're out of stack!
+        uint gasConsumedByExecution;
         assembly {
+            gasConsumedByExecution := gas()
             success := call(
                 _ovmTxGasLimit,
                 address, 0, _callBytes, callSize, 0, 0
             )
+            // subtract initial gas to get the gas consumed by execution itself
+            gasConsumedByExecution := sub(gasConsumedByExecution, gas())
+            
             ovmCallReturnDataSize := returndatasize
             result := mload(0x40)
             let resultData := add(result, 0x20)
             returndatacopy(resultData, 0, ovmCallReturnDataSize)
             mstore(result, ovmCallReturnDataSize)
             mstore(0x40, add(resultData, ovmCallReturnDataSize))
-        }
-
-        // get the gas consumed by execution itself
-        assembly {
-            gasConsumedByExecution := sub(gasConsumedByExecution, gas())
         }
 
         // set the new cumulative gas

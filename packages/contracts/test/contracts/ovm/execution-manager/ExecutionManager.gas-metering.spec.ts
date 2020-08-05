@@ -47,6 +47,11 @@ const INITIAL_OVM_DEPLOY_TIMESTAMP = 1
 
 const abi = new ethers.utils.AbiCoder()
 
+// Empirically determined constant which is some extra gas the EM records due to running CALL and gasAfter - gasBefore.
+// This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
+// However, that size is constant for these tests, since we only call consumeGas() below.
+const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 43931
+
 /*********
  * TESTS *
  *********/
@@ -142,15 +147,15 @@ describe('Execution Manager -- Gas Metering', () => {
     gasLimit: any = false
   ) => {
     const internalCallBytes = GasConsumer.interface.encodeFunctionData(
-      'consumeGasExceeding',
+      'consumeGas',
       [gasToConsume]
     )
 
     // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-    const gasPad: number = 100_000
+    const gasLimitPad: number = 100_000
     const ovmTxGasLimit: number = gasLimit
       ? gasLimit
-      : gasToConsume + OVM_TX_BASE_GAS_FEE + gasPad
+      : gasToConsume + OVM_TX_BASE_GAS_FEE + gasLimitPad
 
     const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
       'executeTransaction',
@@ -238,9 +243,9 @@ describe('Execution Manager -- Gas Metering', () => {
     })
   })
   describe('Cumulative gas tracking', async () => {
-    const gasToConsume: number = 500_000
     const timestamp = 1
     it('Should properly track sequenced consumed gas', async () => {
+      const gasToConsume: number = 500_000
       const consumeTx = getConsumeGasCallback(
         timestamp,
         SEQUENCER_ORIGIN,
@@ -249,10 +254,14 @@ describe('Execution Manager -- Gas Metering', () => {
       const change = await getChangeInCumulativeGas(consumeTx)
 
       change.queued.should.equal(0)
-      // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
-      change.sequenced.should.be.gt(gasToConsume)
+      change.sequenced.should.equal(
+        gasToConsume +
+          OVM_TX_BASE_GAS_FEE +
+          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+      )
     })
     it('Should properly track queued consumed gas', async () => {
+      const gasToConsume: number = 700_000
       const consumeGas = getConsumeGasCallback(
         timestamp,
         QUEUED_ORIGIN,
@@ -261,8 +270,11 @@ describe('Execution Manager -- Gas Metering', () => {
       const change = await getChangeInCumulativeGas(consumeGas)
 
       change.sequenced.should.equal(0)
-      // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
-      change.queued.should.be.gt(gasToConsume)
+      change.queued.should.equal(
+        gasToConsume +
+          OVM_TX_BASE_GAS_FEE +
+          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+      )
     })
     it('Should properly track both queue and sequencer consumed gas', async () => {
       const sequencerGasToConsume = 100_000
@@ -285,69 +297,104 @@ describe('Execution Manager -- Gas Metering', () => {
         await consumeSequencedGas()
       })
 
-      // TODO get the SimpleGas consuming the exact gas amount input so we can check an equality
-      change.sequenced.should.not.equal(0)
-      change.queued.should.not.equal(0)
-      change.queued.should.be.gt(change.sequenced)
+      change.sequenced.should.equal(
+        sequencerGasToConsume +
+          OVM_TX_BASE_GAS_FEE +
+          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+      )
+      change.queued.should.equal(
+        queueGasToConsume +
+          OVM_TX_BASE_GAS_FEE +
+          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+      )
     })
-    describe('Gas rate limiting over multiple transactions', async () => {
-      // start in a new epoch since the deployment takes some gas
-      const startTimestamp = 1 + GAS_RATE_LIMIT_EPOCH_IN_SECONDS
-      const moreThanHalfGas: number = MAX_GAS_PER_EPOCH / 2 + 1000
-      for (const [queueToFill, otherQueue] of [
-        // [QUEUED_ORIGIN, SEQUENCER_ORIGIN],
-        [SEQUENCER_ORIGIN, QUEUED_ORIGIN],
-      ]) {
-        it('Should revert like-kind transactions in a full epoch, still allowing gas through the other queue', async () => {
-          // Get us close to the limit
-          const almostFillEpoch = getConsumeGasCallback(
-            startTimestamp,
-            queueToFill,
-            moreThanHalfGas
-          )
-          await almostFillEpoch()
-          // Now try a tx which goes over the limit
-          const overFillEpoch = getConsumeGasCallback(
-            startTimestamp,
-            queueToFill,
-            moreThanHalfGas
-          )
-          const failedTx = await overFillEpoch()
-          await assertOvmTxRevertedWithMessage(
-            failedTx,
-            'Transaction gas limit exceeds remaining gas for this epoch and queue origin.',
-            wallet
-          )
-          const useOtherQueue = getConsumeGasCallback(
-            startTimestamp,
-            otherQueue,
-            moreThanHalfGas
-          )
-          const successTx = await useOtherQueue()
-          await assertOvmTxDidNotRevert(successTx, wallet)
-        }).timeout(30000)
-        it('Should allow gas back in at the start of a new epoch', async () => {
-          // Get us close to the limit
-          const firstTx = await getConsumeGasCallback(
-            startTimestamp,
-            queueToFill,
-            moreThanHalfGas
-          )
-          await firstTx()
-          // TODO: assert gas was consumed here
+  })
+  describe('Gas rate limiting over multiple transactions', async () => {
+    it('Should properly track gas over multiple transactions', async () => {
+      const timestamp = 1
+      const gasToConsumeFirst = 100_000
+      const gasToConsumeSecond = 200_000
 
-          // Now consume more than half gas again, but in the next epoch
-          const nextEpochTimestamp =
-            startTimestamp + GAS_RATE_LIMIT_EPOCH_IN_SECONDS + 1
-          const secondEpochTx = await getConsumeGasCallback(
-            nextEpochTimestamp,
-            queueToFill,
-            moreThanHalfGas
-          )
-          const successTx = await secondEpochTx()
-          await assertOvmTxDidNotRevert(successTx, wallet)
-        }).timeout(30000)
-      }
+      const consumeQueuedGas = getConsumeGasCallback(
+        timestamp,
+        QUEUED_ORIGIN,
+        gasToConsumeFirst
+      )
+
+      const consumeSequencedGas = getConsumeGasCallback(
+        timestamp,
+        QUEUED_ORIGIN,
+        gasToConsumeSecond
+      )
+
+      const change = await getChangeInCumulativeGas(async () => {
+        await consumeQueuedGas()
+        await consumeSequencedGas()
+      })
+
+      change.sequenced.should.equal(0)
+      change.queued.should.equal(
+        gasToConsumeFirst +
+          gasToConsumeSecond +
+          2 * (OVM_TX_BASE_GAS_FEE + EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD)
+      )
     })
+    // start in a new epoch since the deployment takes some gas
+    const startTimestamp = 1 + GAS_RATE_LIMIT_EPOCH_IN_SECONDS
+    const moreThanHalfGas: number = MAX_GAS_PER_EPOCH / 2 + 1000
+    for (const [queueToFill, otherQueue] of [
+      // [QUEUED_ORIGIN, SEQUENCER_ORIGIN],
+      [SEQUENCER_ORIGIN, QUEUED_ORIGIN],
+    ]) {
+      it('Should revert like-kind transactions in a full epoch, still allowing gas through the other queue', async () => {
+        // Get us close to the limit
+        const almostFillEpoch = getConsumeGasCallback(
+          startTimestamp,
+          queueToFill,
+          moreThanHalfGas
+        )
+        await almostFillEpoch()
+        // Now try a tx which goes over the limit
+        const overFillEpoch = getConsumeGasCallback(
+          startTimestamp,
+          queueToFill,
+          moreThanHalfGas
+        )
+        const failedTx = await overFillEpoch()
+        await assertOvmTxRevertedWithMessage(
+          failedTx,
+          'Transaction gas limit exceeds remaining gas for this epoch and queue origin.',
+          wallet
+        )
+        const useOtherQueue = getConsumeGasCallback(
+          startTimestamp,
+          otherQueue,
+          moreThanHalfGas
+        )
+        const successTx = await useOtherQueue()
+        await assertOvmTxDidNotRevert(successTx, wallet)
+      }).timeout(30000)
+      it('Should allow gas back in at the start of a new epoch', async () => {
+        // Get us close to the limit
+        const firstTx = await getConsumeGasCallback(
+          startTimestamp,
+          queueToFill,
+          moreThanHalfGas
+        )
+        await firstTx()
+        // TODO: assert gas was consumed here
+
+        // Now consume more than half gas again, but in the next epoch
+        const nextEpochTimestamp =
+          startTimestamp + GAS_RATE_LIMIT_EPOCH_IN_SECONDS + 1
+        const secondEpochTx = await getConsumeGasCallback(
+          nextEpochTimestamp,
+          queueToFill,
+          moreThanHalfGas
+        )
+        const successTx = await secondEpochTx()
+        await assertOvmTxDidNotRevert(successTx, wallet)
+      }).timeout(30000)
+    }
   })
 })
