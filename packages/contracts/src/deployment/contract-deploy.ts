@@ -4,7 +4,6 @@ import { getLogger, remove0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 import { Contract, ethers } from 'ethers'
 /* Internal Imports */
 import {
-  getContractDefinition,
   getContractFactory,
   getContractInterface,
 } from '../contract-imports'
@@ -105,7 +104,7 @@ export const deployAllContracts = async (
     )
     addressResolver = new Contract(
       config.addressResolverContractAddress,
-      getContractDefinition('AddressResolver').abi,
+      getContractInterface('AddressResolver'),
       config.signer
     )
   }
