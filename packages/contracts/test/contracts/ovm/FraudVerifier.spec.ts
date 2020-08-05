@@ -240,9 +240,9 @@ describe('FraudVerifier', () => {
         transactionProof
       )
 
-      // expect(
-      //   await fraudVerifier.hasStateTransitioner(transactionIndex, preStateRoot)
-      // ).to.equal(true)
+      expect(
+        await fraudVerifier.hasStateTransitioner(transactionIndex, preStateRoot)
+      ).to.equal(true)
     })
 
     it('should return if initializing twice', async () => {

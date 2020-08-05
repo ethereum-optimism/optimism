@@ -242,17 +242,8 @@ contract ExecutionManager is ContractResolver {
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
 
-        // Check for individual tx gas limit violation
-        if (_ovmTxGasLimit > gasMeterConfig.OvmTxMaxGas) {
-            // todo handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
-            emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit");
-            assembly {
-                return(0,0)
-            }
-        }
-
-        // If we are at the start of a new epoch, the current tiime is the new start and curent cumulative gas is the new cumulative gas at stat!
-        if (_timestamp >= gasMeterConfig.GasRateLimitEpochLength + getGasRateLimitEpochStart()) {
+        // If we are at the start of a new epoch, the current time is the new start and curent cumulative gas is the new cumulative gas at stat!
+        if (_timestamp >= gasMeterConfig.GasRateLimitEpochSeconds + getGasRateLimitEpochStart()) {
             setGasRateLimitEpochStart(_timestamp);
             setCumulativeSequencedGasAtEpochStart(
                 getCumulativeSequencedGas()
@@ -262,36 +253,7 @@ contract ExecutionManager is ContractResolver {
             );
         }
 
-        // check for gas rate limit
-        // TODO: split up EM somehow?  We are at max stack depth so can't use vars here yet
-        // TODO: make queue origin an enum?  or just configure better?
-        if (_queueOrigin == 0) {
-            if (
-                getCumulativeSequencedGas()
-                - getCumulativeSequencedGasAtEpochStart()
-                + _ovmTxGasLimit
-                >
-                gasMeterConfig.MaxSequencedGasPerEpoch
-            ) {
-                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
-                assembly {
-                    return(0,0)
-                }
-            }
-        } else {
-            if (
-                getCumulativeQueuedGas()
-                - getCumulativeQueuedGasAtEpochStart()
-                + _ovmTxGasLimit
-                >
-                gasMeterConfig.MaxQueuedGasPerEpoch
-            ) {
-                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
-                assembly {
-                    return(0,0)
-                }
-            }
-        }
+        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -343,7 +305,7 @@ contract ExecutionManager is ContractResolver {
         }
 
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
-        _ovmTxGasLimit -= gasMeterConfig.OvmTxFlatGasFee;
+        _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
 
         bool success = false;
         bytes memory result;
@@ -370,13 +332,13 @@ contract ExecutionManager is ContractResolver {
         if (_queueOrigin == 0) {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
-                + gasMeterConfig.OvmTxFlatGasFee
+                + gasMeterConfig.OvmTxBaseGasFee
                 + gasConsumedByExecution
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
-                + gasMeterConfig.OvmTxFlatGasFee
+                + gasMeterConfig.OvmTxBaseGasFee
                 + gasConsumedByExecution
             );
         }
@@ -1223,6 +1185,59 @@ contract ExecutionManager is ContractResolver {
     /*
      * Internal Functions
      */
+
+    /**
+     * Checks that an OVM tx does not violate any gas metering requirements.
+     * @param _txGasLimit The OVM transaction's gas limit.
+     * @param _txGasLimit The OVM transaction's queue origin.
+     */
+    function validateTxGasLimit(uint _txGasLimit, uint _queueOrigin) internal {
+        // Check for individual tx gas limit violations
+        if (_txGasLimit > gasMeterConfig.OvmTxMaxGas) {
+            // TODO: handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
+            emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit.");
+            assembly {
+                return(0,0)
+            }
+        }
+        if (_txGasLimit < gasMeterConfig.OvmTxBaseGasFee) {
+            emit EOACallRevert("Transaction gas limit is less than the minimum (base fee) gas.");
+            assembly {
+                return(0,0)
+            }
+        }
+
+
+        // check for gas rate limit violations
+        // TODO: make queue origin an enum?  or just configure better?
+        if (_queueOrigin == 0) {
+            if (
+                getCumulativeSequencedGas()
+                - getCumulativeSequencedGasAtEpochStart()
+                + _txGasLimit
+                >
+                gasMeterConfig.MaxSequencedGasPerEpoch
+            ) {
+                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+                assembly {
+                    return(0,0)
+                }
+            }
+        } else {
+            if (
+                getCumulativeQueuedGas()
+                - getCumulativeQueuedGasAtEpochStart()
+                + _txGasLimit
+                >
+                gasMeterConfig.MaxQueuedGasPerEpoch
+            ) {
+                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+                assembly {
+                    return(0,0)
+                }
+            }
+        }
+    }
 
     /**
      * Create a new contract at some OVM contract address.

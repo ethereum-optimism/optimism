@@ -35,9 +35,9 @@ const log = getLogger('execution-manager-calls', true)
 
 /* Testing Constants */
 
-const OVM_TX_FLAT_GAS_FEE = 30_000
+const OVM_TX_BASE_GAS_FEE = 30_000
 const OVM_TX_MAX_GAS = 1_500_000
-const GAS_RATE_LIMIT_EPOCH_LENGTH = 60_000
+const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 60_000
 const MAX_GAS_PER_EPOCH = 2_000_000
 
 const SEQUENCER_ORIGIN = 0
@@ -51,33 +51,21 @@ const abi = new ethers.utils.AbiCoder()
  * TESTS *
  *********/
 
-describe('Execution Manager -- Gas Metering', () => {
+describe.only('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
 
   let wallet: Signer
   let walletAddress: string
+  let resolver: AddressResolverMapping
+  let GasConsumer: ContractFactory
+  let ExecutionManager: ContractFactory
+  let StateManager: ContractFactory
   before(async () => {
     ;[wallet] = await ethers.getSigners()
     walletAddress = await wallet.getAddress()
-  })
-
-  let resolver: AddressResolverMapping
-  before(async () => {
     resolver = await makeAddressResolver(wallet)
-  })
-
-  let GasConsumer: ContractFactory
-  before(async () => {
     GasConsumer = await ethers.getContractFactory('GasConsumer')
-  })
-
-  let ExecutionManager: ContractFactory
-  before(async () => {
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
-  })
-
-  let StateManager: ContractFactory
-  before(async () => {
     StateManager = await ethers.getContractFactory('FullStateManager')
   })
 
@@ -94,9 +82,9 @@ describe('Execution Manager -- Gas Metering', () => {
           resolver.addressResolver.address,
           NULL_ADDRESS,
           [
-            OVM_TX_FLAT_GAS_FEE,
+            OVM_TX_BASE_GAS_FEE,
             OVM_TX_MAX_GAS,
-            GAS_RATE_LIMIT_EPOCH_LENGTH,
+            GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
             MAX_GAS_PER_EPOCH,
             MAX_GAS_PER_EPOCH,
           ],
@@ -150,7 +138,8 @@ describe('Execution Manager -- Gas Metering', () => {
   const getConsumeGasCallback = (
     timestamp: number,
     queueOrigin: number,
-    gasToConsume: number
+    gasToConsume: number,
+    gasLimit: any = false
   ) => {
     const internalCallBytes = GasConsumer.interface.encodeFunctionData(
       'consumeGasExceeding',
@@ -159,7 +148,7 @@ describe('Execution Manager -- Gas Metering', () => {
 
     // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
     const gasPad: number = 100_000
-    const ovmTxGasLimit: number = gasToConsume + OVM_TX_FLAT_GAS_FEE + gasPad
+    const ovmTxGasLimit: number = gasLimit ? gasLimit : gasToConsume + OVM_TX_BASE_GAS_FEE + gasPad
 
     const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
       'executeTransaction',
@@ -216,20 +205,32 @@ describe('Execution Manager -- Gas Metering', () => {
     }
   }
 
-  describe('Per-transaction gas limit', async () => {
-    it('Should emit EOACallRevert event if the gas limit is higher than the max allowed', async () => {
+  describe('Per-transaction gas limit requirements', async () => {
+    const timestamp = 1
+    it('Should revert ovm TX if the gas limit is higher than the max allowed', async () => {
       const gasToConsume = OVM_TX_MAX_GAS + 1
-      const timestamp = 1
-
-      const doTx = await getConsumeGasCallback(
+      const doTx = getConsumeGasCallback(
         timestamp,
         SEQUENCER_ORIGIN,
         gasToConsume
       )
-      const txRes = await doTx()
       await assertOvmTxRevertedWithMessage(
-        txRes,
-        'Transaction gas limit exceeds max OVM tx gas limit',
+        await doTx(),
+        'Transaction gas limit exceeds max OVM tx gas limit.',
+        wallet
+      )
+    })
+    it('Should revert ovm TX if the gas limit is lower than the base gas fee', async () => {
+      const gasToConsume = OVM_TX_BASE_GAS_FEE
+      const doTx = getConsumeGasCallback(
+        timestamp,
+        SEQUENCER_ORIGIN,
+        gasToConsume,
+        OVM_TX_BASE_GAS_FEE - 1
+      )
+      await assertOvmTxRevertedWithMessage(
+        await doTx(),
+        'Transaction gas limit is less than the minimum (base fee) gas.',
         wallet
       )
     })
@@ -289,7 +290,7 @@ describe('Execution Manager -- Gas Metering', () => {
     })
     describe('Gas rate limiting over multiple transactions', async () => {
       // start in a new epoch since the deployment takes some gas
-      const startTimestamp = 1 + GAS_RATE_LIMIT_EPOCH_LENGTH
+      const startTimestamp = 1 + GAS_RATE_LIMIT_EPOCH_IN_SECONDS
       const moreThanHalfGas: number = MAX_GAS_PER_EPOCH / 2 + 1000
       for (const [queueToFill, otherQueue] of [
         // [QUEUED_ORIGIN, SEQUENCER_ORIGIN],
@@ -335,7 +336,7 @@ describe('Execution Manager -- Gas Metering', () => {
 
           // Now consume more than half gas again, but in the next epoch
           const nextEpochTimestamp =
-            startTimestamp + GAS_RATE_LIMIT_EPOCH_LENGTH + 1
+            startTimestamp + GAS_RATE_LIMIT_EPOCH_IN_SECONDS + 1
           const secondEpochTx = await getConsumeGasCallback(
             nextEpochTimestamp,
             queueToFill,

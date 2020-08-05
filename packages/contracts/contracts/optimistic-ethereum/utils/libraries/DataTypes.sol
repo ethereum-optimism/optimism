@@ -35,9 +35,9 @@ library DataTypes {
     }
 
     struct GasMeterConfig {
-        uint OvmTxFlatGasFee; // The flat gas fee imposed on all transactions
+        uint OvmTxBaseGasFee; // The flat gas overhead imposed on all transactions
         uint OvmTxMaxGas; // Max gas a single transaction is allowed
-        uint GasRateLimitEpochLength; // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
+        uint GasRateLimitEpochSeconds; // The frequency with which we reset the gas rate limit, expressed in same units as ETH timestamp
         uint MaxSequencedGasPerEpoch; // The max gas which sequenced tansactions consume per rate limit epoch
         uint MaxQueuedGasPerEpoch; // The max gas which queued tansactions consume per rate limit epoch
     }
