@@ -4,7 +4,7 @@ import { defaultAccounts } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { EVMOpcode, Opcode } from './types'
-import { GasMeterOptions } from 'src';
+import { GasMeterOptions } from 'src'
 
 export { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
@@ -75,6 +75,6 @@ export const getDefaultGasMeterOptions = (): GasMeterOptions => {
     ovmTxMaxGas: GAS_LIMIT,
     maxQueuedGasPerEpoch: MAX_QUEUED_GAS_PER_EPOCH,
     maxSequencedGasPerEpoch: MAX_SEQUENCED_GAS_PER_EPOCH,
-    gasRateLimitEpochLength: GAS_RATE_LIMIT_EPOCH_IN_SECONDS
+    gasRateLimitEpochLength: GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
   }
 }

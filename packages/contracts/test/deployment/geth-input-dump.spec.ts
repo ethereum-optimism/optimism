@@ -30,7 +30,7 @@ describe.skip('L2Geth Dumper Input Generator', () => {
         forceInclusionPeriodSeconds: DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
         ownerAddress: await wallet.getAddress(),
         sequencerAddress: await sequencer.getAddress(),
-        gasMeterConfig: getDefaultGasMeterOptions()
+        gasMeterConfig: getDefaultGasMeterOptions(),
       },
     }
 
