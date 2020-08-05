@@ -3,10 +3,7 @@ import { getLogger, remove0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 import { Contract, ethers } from 'ethers'
 /* Internal Imports */
-import {
-  getContractFactory,
-  getContractInterface,
-} from '../contract-imports'
+import { getContractFactory, getContractInterface } from '../contract-imports'
 import { mergeDefaultConfig } from './default-config'
 import {
   AddressResolverMapping,
