@@ -1,0 +1,11 @@
+version: "3"
+services:
+  db:
+    build:
+      context: .
+      dockerfile: db.dockerfile
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+    ports:
+      - 5432:5432

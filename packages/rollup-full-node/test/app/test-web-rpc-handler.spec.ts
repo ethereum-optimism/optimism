@@ -40,9 +40,10 @@ describe('TestHandler', () => {
         Web3RpcMethods.getBlockByNumber,
         ['latest', false]
       )
-      const timeAfter = secondsSinceEpoch()
 
+      const timeAfter = secondsSinceEpoch()
       const timestamp: number = hexStrToNumber(latestBlock['timestamp'])
+
       timestamp.should.be.lte(currentTime, 'Timestamp out of range')
       timestamp.should.be.lte(timeAfter, 'Timestamp out of range')
     })

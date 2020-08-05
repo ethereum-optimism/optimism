@@ -7,9 +7,25 @@ import {
 
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
+usePlugin('@nomiclabs/buidler-solpp')
 usePlugin('solidity-coverage')
 
 import './plugins/hijack-compiler'
+
+const parseSolppFlags = (): { [flag: string]: boolean } => {
+  const flags: { [flag: string]: boolean } = {}
+
+  const solppEnv = process.env.SOLPP_FLAGS
+  if (!solppEnv) {
+    return flags
+  }
+
+  for (const flag of solppEnv.split(',')) {
+    flags[flag] = true
+  }
+
+  return flags
+}
 
 const config: BuidlerConfig = {
   networks: {
@@ -21,6 +37,15 @@ const config: BuidlerConfig = {
     coverage: {
       url: 'http://localhost:8555',
     },
+  },
+  mocha: {
+    timeout: 50000,
+  },
+  solpp: {
+    defs: {
+      ...parseSolppFlags(),
+    },
+    collapseEmptyLines: true,
   },
 }
 

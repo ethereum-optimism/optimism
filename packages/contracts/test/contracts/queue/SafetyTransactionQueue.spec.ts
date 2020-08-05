@@ -5,6 +5,13 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
+/* Internal Imports */
+import {
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
+} from '../../test-helpers'
+
 /* Logging */
 const log = getLogger('safety-tx-queue', true)
 
@@ -23,6 +30,11 @@ describe('SafetyTransactionQueue', () => {
     ] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let SafetyTxQueue: ContractFactory
   beforeEach(async () => {
     SafetyTxQueue = await ethers.getContractFactory('SafetyTransactionQueue')
@@ -30,7 +42,18 @@ describe('SafetyTransactionQueue', () => {
 
   let safetyTxQueue: Contract
   beforeEach(async () => {
-    safetyTxQueue = await SafetyTxQueue.deploy(
+    safetyTxQueue = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'SafetyTxQueue',
+      {
+        factory: SafetyTxQueue,
+        params: [resolver.addressResolver.address],
+      }
+    )
+
+    await resolver.addressResolver.setAddress(
+      'CanonicalTransactionChain',
       await canonicalTransactionChain.getAddress()
     )
   })

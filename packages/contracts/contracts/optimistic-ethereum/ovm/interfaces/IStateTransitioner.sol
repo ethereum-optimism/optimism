@@ -1,14 +1,24 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-import { DataTypes } from "../../utils/DataTypes.sol";
+/* Library Imports */
+import { DataTypes } from "../../utils/libraries/DataTypes.sol";
 
 /**
  * @title IStateTransitioner
  */
 contract IStateTransitioner {
+    /*
+     * Contract Variables
+     */
+
     bytes32 public preStateRoot;
     bytes32 public stateRoot;
+
+
+    /*
+     * Public Functions
+     */
 
     function proveContractInclusion(
         address _ovmContractAddress,

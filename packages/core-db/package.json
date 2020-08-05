@@ -37,7 +37,9 @@
     "debug": "^4.1.1",
     "ethers": "^4.0.39",
     "level": "^6.0.0",
-    "memdown": "^4.0.0"
+    "memdown": "^4.0.0",
+    "pg": "^8.3.0",
+    "pg-pool": "^3.2.1"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",

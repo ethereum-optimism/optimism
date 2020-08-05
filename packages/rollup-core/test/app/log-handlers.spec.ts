@@ -96,12 +96,21 @@ class MockDataService extends DefaultDataService {
     super(undefined)
   }
 
-  public async createNextL1ToL2Batch(): Promise<number> {
-    return ++this.createdL1ToL2Batches
-  }
-
-  public async createNextSafetyQueueBatch(): Promise<number> {
-    return ++this.createdSafetyQueueBatches
+  public async queueNextGethSubmission(
+    queueOrigins: number[]
+  ): Promise<number> {
+    if (queueOrigins.length !== 1) {
+      throw Error(
+        `There should only be 1 queue origin in filter but received ${
+          queueOrigins.length
+        }: ${queueOrigins.join(',')}`
+      )
+    }
+    if (queueOrigins[0] === QueueOrigin.L1_TO_L2_QUEUE) {
+      return ++this.createdL1ToL2Batches
+    } else {
+      return ++this.createdSafetyQueueBatches
+    }
   }
 
   public async insertL1RollupTransactions(
@@ -189,7 +198,7 @@ describe('Log Handlers', () => {
       QueueOrigin.L1_TO_L2_QUEUE,
       'Queue Origin mismatch'
     )
-    received.batchIndex.should.equal(0, 'Batch index mismatch')
+    received.indexWithinSubmission.should.equal(0, 'Batch index mismatch')
     received.sender.should.equal(l.address, 'Sender mismatch')
     remove0x(received.l1MessageSender).should.equal(
       sender,
@@ -242,7 +251,7 @@ describe('Log Handlers', () => {
       QueueOrigin.SAFETY_QUEUE,
       'Queue Origin mismatch'
     )
-    received.batchIndex.should.equal(0, 'Batch index mismatch')
+    received.indexWithinSubmission.should.equal(0, 'Batch index mismatch')
     remove0x(received.sender).should.equal(
       remove0x(wallet.address),
       'Sender mismatch'
@@ -329,7 +338,7 @@ describe('Log Handlers', () => {
         QueueOrigin.SEQUENCER,
         'Queue Origin mismatch'
       )
-      received.batchIndex.should.equal(i, 'Batch index mismatch')
+      received.indexWithinSubmission.should.equal(i, 'Batch index mismatch')
       remove0x(received.sender).should.equal(
         remove0x(wallet.address),
         'Sender mismatch'

@@ -26,6 +26,7 @@ export interface Web3Handler {
   getTransactionCount(address: Address, defaultBlock: string): Promise<string>
   getTransactionReceipt(txHash: string): Promise<string>
   networkVersion(): Promise<string>
+  clientVersion(): Promise<string>
   sendRawTransaction(signedTx: string): Promise<string>
   chainId(): Promise<string>
 }
@@ -55,6 +56,7 @@ export enum Web3RpcMethods {
   getTransactionCount = 'eth_getTransactionCount',
   getTransactionReceipt = 'eth_getTransactionReceipt',
   networkVersion = 'net_version',
+  clientVersion = 'web3_clientVersion',
   sendRawTransaction = 'eth_sendRawTransaction',
   chainId = 'eth_chainId',
 

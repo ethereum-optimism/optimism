@@ -12,7 +12,7 @@
     "clean": "rimraf build/ && yarn clean-contracts",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "yarn build-contracts && mocha --require source-map-support/register --require ts-node/register 'test/**/*.spec.ts' --timeout 8000 --exit",
+    "test": "yarn build-contracts && mocha --require source-map-support/register --require ts-node/register \"test/**/web-rpc-handler.spec.ts\" --timeout 8000 --exit",
     "clean-contracts": "rimraf ./test/contracts/build && mkdir ./test/contracts/build && mkdir ./test/contracts/build/transpiled && mkdir ./test/contracts/build/untranspiled",
     "build-contracts": "yarn clean-contracts && waffle waffle-config-untranspiled.json && waffle waffle-config-transpiled.json",
     "server:aggregator": "env DEBUG=\"info:*,error:*\" node ./exec/aggregator.js",

@@ -1,15 +1,19 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/* Contract Imports */
 import { FraudVerifier } from "../FraudVerifier.sol";
 import { ExecutionManager } from "../ExecutionManager.sol";
-import { DataTypes } from "../../utils/DataTypes.sol";
 import { IStateTransitioner } from "../interfaces/IStateTransitioner.sol";
+
+/* Library Imports */
+import { ContractResolver } from "../../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../../utils/libraries/DataTypes.sol";
 
 /**
  * @title StubStateTransitioner
  */
-contract StubStateTransitioner is IStateTransitioner {
+contract StubStateTransitioner is IStateTransitioner, ContractResolver {
     /*
      * Data Structures
      */
@@ -38,29 +42,22 @@ contract StubStateTransitioner is IStateTransitioner {
     bytes32 public preStateRoot;
     bytes32 public stateRoot;
     bytes32 public ovmTransactionHash;
-
     FraudVerifier public fraudVerifier;
-    ExecutionManager executionManager;
 
 
     /*
      * Constructor
      */
 
-    /**
-     * @param _transitionIndex Position of the transaction suspected to be
-     * fraudulent within the canonical transaction chain.
-     * @param _preStateRoot Root of the state trie before the transaction was
-     * executed.
-     * @param _executionManagerAddress Address of the ExecutionManager to be
-     * used during transaction execution.
-     */
     constructor(
+        address _addressResolver,
         uint256 _transitionIndex,
         bytes32 _preStateRoot,
-        bytes32 _ovmTransactionHash,
-        address _executionManagerAddress
-    ) public {
+        bytes32 _ovmTransactionHash
+    )
+        public
+        ContractResolver(_addressResolver)
+    {
         transitionIndex = _transitionIndex;
         preStateRoot = _preStateRoot;
         stateRoot = _preStateRoot;
@@ -68,15 +65,21 @@ contract StubStateTransitioner is IStateTransitioner {
         currentTransitionPhase = TransitionPhases.PreExecution;
 
         fraudVerifier = FraudVerifier(msg.sender);
-        executionManager = ExecutionManager(_executionManagerAddress);
     }
+
+
+    /*
+     * Public Functions
+     */
 
     function proveContractInclusion(
         address _ovmContractAddress,
         address _codeContractAddress,
         uint256 _nonce,
         bytes memory _stateTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
@@ -86,38 +89,56 @@ contract StubStateTransitioner is IStateTransitioner {
         bytes32 _value,
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     function applyTransaction(
         DataTypes.OVMTransactionData memory _transactionData
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     function proveUpdatedStorageSlot(
         bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     function proveUpdatedContract(
         bytes memory _stateTrieWitness
-    ) public {
+    )
+        public
+    {
         return;
     }
 
-    function completeTransition() public {
+    function completeTransition()
+        public
+    {
         currentTransitionPhase = TransitionPhases.Complete;
     }
 
-    function isComplete() public view returns (bool) {
+    function isComplete()
+        public
+        view
+        returns (bool)
+    {
         return (currentTransitionPhase == TransitionPhases.Complete);
     }
 
-    function setStateRoot(bytes32 _stateRoot) public {
+    function setStateRoot(
+        bytes32 _stateRoot
+    )
+        public
+    {
         stateRoot = _stateRoot;
     }
 }

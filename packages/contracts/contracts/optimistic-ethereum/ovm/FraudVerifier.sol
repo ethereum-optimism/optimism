@@ -1,57 +1,47 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
-import { DataTypes } from "../utils/DataTypes.sol";
-import { RLPWriter } from "../utils/RLPWriter.sol";
+/* Contract Imports */
 import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
 import { CanonicalTransactionChain } from "../chain/CanonicalTransactionChain.sol";
-import { ExecutionManager } from "./ExecutionManager.sol";
 import { StateTransitioner } from "./StateTransitioner.sol";
 import { IStateTransitioner } from "./interfaces/IStateTransitioner.sol";
+
+/* Library Imports */
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
+import { TransactionParser } from "../utils/libraries/TransactionParser.sol";
+
+/* Testing Imports */
 import { StubStateTransitioner } from "./test-helpers/StubStateTransitioner.sol";
-import { TransactionParser } from "./TransactionParser.sol";
 
 /**
  * @title FraudVerifier
  * @notice Manages fraud proof verification and modifies the state commitment
  * chain in the case that a transaction is shown to be invalid.
  */
-contract FraudVerifier {
+contract FraudVerifier is ContractResolver {
     /*
      * Contract Variables
      */
 
-    ExecutionManager executionManager;
-    StateCommitmentChain stateCommitmentChain;
-    CanonicalTransactionChain canonicalTransactionChain;
     mapping (uint256 => IStateTransitioner) public stateTransitioners;
 
-    bool isTest;
 
     /*
      * Constructor
      */
 
     /**
-     * @param _executionManagerAddress Address of the ExecutionManager to use
-     * during the execution of transactions suspected to be fraudulent.
-     * @param _stateCommitmentChainAddress Address of the StateCommitmentChain
-     * to read state roots from and write to in the case that a fraud proof is
-     * successfully verified.
+     * @param _addressResolver Address of the AddressResolver contract.
      */
     constructor(
-        address _executionManagerAddress,
-        address _stateCommitmentChainAddress,
-        address _canonicalTransactionChainAddress,
-        bool _isTest
-    ) public {
-        executionManager = ExecutionManager(_executionManagerAddress);
-        stateCommitmentChain = StateCommitmentChain(_stateCommitmentChainAddress);
-        canonicalTransactionChain = CanonicalTransactionChain(_canonicalTransactionChainAddress);
-
-        isTest = _isTest;
-    }
+        address _addressResolver
+    )
+        public
+        ContractResolver(_addressResolver)
+    {}
 
 
     /*
@@ -59,7 +49,7 @@ contract FraudVerifier {
      */
 
     /**
-     * @notice Initializes the fraud proof verification process. Creates a new
+     * Initializes the fraud proof verification process. Creates a new
      * StateTransitioner instance if none already exists for the given state
      * transition index.
      * @param _preStateTransitionIndex Index of the state transition suspected
@@ -81,7 +71,9 @@ contract FraudVerifier {
         DataTypes.StateElementInclusionProof memory _preStateRootProof,
         DataTypes.OVMTransactionData memory _transactionData,
         DataTypes.TxElementInclusionProof memory _transactionProof
-    ) public {
+    )
+        public
+    {
         // For user convenience; no point in carrying out extra work here if a
         // StateTransitioner instance already exists for the given state
         // transition index. Return early to save the user some gas.
@@ -114,25 +106,26 @@ contract FraudVerifier {
         // this is handled by the hasStateTransitioner check above, which would
         // fail when the existing StateTransitioner's pre-state root does not
         // match the provided one.
-        if (isTest) {
-            stateTransitioners[_preStateTransitionIndex] = new StubStateTransitioner(
-                _preStateTransitionIndex,
-                _preStateRoot,
-                TransactionParser.getTransactionHash(_transactionData),
-                address(executionManager)
-            );
-        } else {
-            stateTransitioners[_preStateTransitionIndex] = new StateTransitioner(
-                _preStateTransitionIndex,
-                _preStateRoot,
-                TransactionParser.getTransactionHash(_transactionData),
-                address(executionManager)
-            );
-        }
+
+        // #if FLAG_IS_TEST
+        stateTransitioners[_preStateTransitionIndex] = new StubStateTransitioner(
+            address(addressResolver),
+            _preStateTransitionIndex,
+            _preStateRoot,
+            TransactionParser.getTransactionHash(_transactionData)
+        );
+        // #else
+        stateTransitioners[_preStateTransitionIndex] = new StateTransitioner(
+            address(addressResolver),
+            _preStateTransitionIndex,
+            _preStateRoot,
+            TransactionParser.getTransactionHash(_transactionData)
+        );
+        // #endif
     }
 
     /**
-     * @notice Finalizes the fraud verification process. Checks that the state
+     * Finalizes the fraud verification process. Checks that the state
      * transitioner has executed the transition to completion and that the
      * resulting state root differs from the one previous published.
      * @param _preStateTransitionIndex Index of the state transition suspected
@@ -150,7 +143,9 @@ contract FraudVerifier {
         DataTypes.StateElementInclusionProof memory _preStateRootProof,
         bytes32 _postStateRoot,
         DataTypes.StateElementInclusionProof memory _postStateRootProof
-    ) public {
+    )
+        public
+    {
         IStateTransitioner stateTransitioner = stateTransitioners[_preStateTransitionIndex];
 
         // Fraud cannot be verified until the StateTransitioner has fully
@@ -206,6 +201,7 @@ contract FraudVerifier {
         // However, since state roots are submitted in batches, we'll actually
         // need to remove all *batches* after (and including) the one in which
         // the fraudulent root was published.
+        StateCommitmentChain stateCommitmentChain = resolveStateCommitmentChain();
         stateCommitmentChain.deleteAfterInclusive(
             _postStateRootProof.batchIndex,
             _postStateRootProof.batchHeader
@@ -213,7 +209,7 @@ contract FraudVerifier {
     }
 
     /**
-     * @notice Utility; checks whether a StateTransitioner exists for a given
+     * Utility; checks whether a StateTransitioner exists for a given
      * state transition index. Can be used by clients to preemtively avoid
      * attempts to initialize the same StateTransitioner multiple times.
      * @param _stateTransitionIndex Index of the state transition suspected to
@@ -224,7 +220,11 @@ contract FraudVerifier {
     function hasStateTransitioner(
         uint256 _stateTransitionIndex,
         bytes32 _preStateRoot
-    ) public view returns (bool) {
+    )
+        public
+        view
+        returns (bool)
+    {
         IStateTransitioner stateTransitioner = stateTransitioners[_stateTransitionIndex];
 
         return (
@@ -239,7 +239,7 @@ contract FraudVerifier {
      */
 
     /**
-     * @notice Utility; verifies that a given state root is valid. Mostly just
+     * Utility; verifies that a given state root is valid. Mostly just
      * a convenience wrapper around the current verification method within
      * StateCommitmentChain.
      * @param _stateRoot State trie root to prove is included in the commitment
@@ -255,7 +255,12 @@ contract FraudVerifier {
         bytes32 _stateRoot,
         uint256 _stateRootIndex,
         DataTypes.StateElementInclusionProof memory _stateRootProof
-    ) internal view returns (bool) {
+    )
+        internal
+        view
+        returns (bool)
+    {
+        StateCommitmentChain stateCommitmentChain = resolveStateCommitmentChain();
         return stateCommitmentChain.verifyElement(
             abi.encodePacked(_stateRoot),
             _stateRootIndex,
@@ -264,7 +269,7 @@ contract FraudVerifier {
     }
 
     /**
-     * @notice Utility; verifies that a given transaction is valid. Mostly just
+     * Utility; verifies that a given transaction is valid. Mostly just
      * a convenience wrapper around the current verification method within
      * CanonicalTransactionChain.
      * @param _transaction OVM transaction data to verify.
@@ -279,11 +284,37 @@ contract FraudVerifier {
         DataTypes.OVMTransactionData memory _transaction,
         uint256 _transactionIndex,
         DataTypes.TxElementInclusionProof memory _transactionProof
-    ) internal view returns (bool) {
+    )
+        internal
+        view
+        returns (bool)
+    {
+        CanonicalTransactionChain canonicalTransactionChain = resolveCanonicalTransactionChain();
         return canonicalTransactionChain.verifyElement(
             TransactionParser.encodeTransactionData(_transaction),
             _transactionIndex,
             _transactionProof
         );
+    }
+
+
+    /*
+     * Contract Resolution
+     */
+
+    function resolveCanonicalTransactionChain()
+        internal
+        view
+        returns (CanonicalTransactionChain)
+    {
+        return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveStateCommitmentChain()
+        internal
+        view
+        returns (StateCommitmentChain)
+    {
+        return StateCommitmentChain(resolveContract("StateCommitmentChain"));
     }
 }

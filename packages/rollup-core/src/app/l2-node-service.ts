@@ -1,18 +1,24 @@
 /* External Imports */
-import { getLogger, Logger, numberToHexString } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  Logger,
+  numberToHexString,
+  strToHexStr,
+} from '@eth-optimism/core-utils'
 
 import { JsonRpcProvider } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { BlockBatches, L2NodeService } from '../types'
+import { GethSubmission, L2NodeService } from '../types'
 
 const log: Logger = getLogger('block-batch-submitter')
 
 export class DefaultL2NodeService implements L2NodeService {
-  // params: [blockBatchesJSONString, signedBlockBatchesJSONString]
+  // params: [gethSubmissionJSONString, signedGethSubmissionJSONString]
   // -- note all numbers are replaces with hex strings when serialized
-  public static readonly sendBlockBatchesMethod: string = 'eth_sendBlockBatches'
+  public static readonly sendGethSubmission: string =
+    'eth_sendRollupTransactions'
 
   private readonly l2Provider: JsonRpcProvider
 
@@ -23,29 +29,37 @@ export class DefaultL2NodeService implements L2NodeService {
   /**
    * @inheritDoc
    */
-  public async sendBlockBatches(blockBatches: BlockBatches): Promise<void> {
-    if (!blockBatches) {
-      const msg = `Received undefined Block Batch!.`
+  public async sendGethSubmission(
+    gethSubmission: GethSubmission
+  ): Promise<void> {
+    if (!gethSubmission) {
+      const msg = `Received undefined Geth Submission!.`
       log.error(msg)
       throw msg
     }
 
-    if (!blockBatches.batches || !blockBatches.batches.length) {
-      log.error(`Received empty block batch: ${JSON.stringify(blockBatches)}`)
+    if (
+      !gethSubmission.rollupTransactions ||
+      !gethSubmission.rollupTransactions.length
+    ) {
+      log.error(
+        `Received empty Geth Submission: ${JSON.stringify(gethSubmission)}`
+      )
       return
     }
 
-    const payload = JSON.stringify(blockBatches, (k, v) => {
+    const payload = JSON.stringify(gethSubmission, (k, v) => {
       if (typeof v === 'number') {
         return v >= 0 ? numberToHexString(v) : undefined
       }
       return v
     })
 
-    const signedPayload: string = await this.l2Wallet.signMessage(payload)
-    await this.l2Provider.send(DefaultL2NodeService.sendBlockBatchesMethod, [
-      payload,
-      signedPayload,
+    const hexPayload: string = strToHexStr(payload)
+    const signedPayload: string = await this.l2Wallet.signMessage(hexPayload)
+
+    await this.l2Provider.send(DefaultL2NodeService.sendGethSubmission, [
+      [hexPayload, signedPayload],
     ])
   }
 }

@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Internal Imports */
+/* Contract Imports */
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
 
@@ -12,15 +12,20 @@ import { SafetyChecker } from "./SafetyChecker.sol";
  */
 contract FullStateManager is StateManager {
     /*
+     * Contract Constants
+     */
+
+    address constant private ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
+
+
+    /*
      * Contract Variables
      */
 
-    address ZERO_ADDRESS = 0x0000000000000000000000000000000000000000;
-
-    mapping(address=>mapping(bytes32=>bytes32)) ovmContractStorage;
-    mapping(address=>uint) ovmContractNonces;
-    mapping(address=>address) ovmAddressToCodeContractAddress;
-    mapping(address=>address) codeContractAddressToOvmAddress;
+    mapping(address => mapping(bytes32 => bytes32)) private ovmContractStorage;
+    mapping(address => uint) private ovmContractNonces;
+    mapping(address => address) private ovmAddressToCodeContractAddress;
+    mapping(address => address) private codeContractAddressToOvmAddress;
 
 
     /*
@@ -33,7 +38,7 @@ contract FullStateManager is StateManager {
      ***********/
 
     /**
-     * @notice Get storage for OVM contract at some slot.
+     * Get storage for OVM contract at some slot.
      * @param _ovmContractAddress The contract we're getting storage of.
      * @param _slot The slot we're querying.
      * @return The bytes32 value stored at the particular slot.
@@ -41,19 +46,32 @@ contract FullStateManager is StateManager {
     function getStorage(
         address _ovmContractAddress,
         bytes32 _slot
-    ) public returns (bytes32) {
-        return ovmContractStorage[_ovmContractAddress][_slot];
-    }
-
-    function getStorageView(
-        address _ovmContractAddress,
-        bytes32 _slot
-    ) public view returns (bytes32) {
+    )
+        public
+        returns (bytes32)
+    {
         return ovmContractStorage[_ovmContractAddress][_slot];
     }
 
     /**
-     * @notice Set storage for OVM contract at some slot.
+     * Get storage without touching state.
+     * @param _ovmContractAddress The contract we're getting storage of.
+     * @param _slot The slot we're querying.
+     * @return The bytes32 value stored at the particular slot.
+     */
+    function getStorageView(
+        address _ovmContractAddress,
+        bytes32 _slot
+    )
+        public
+        view
+        returns (bytes32)
+    {
+        return ovmContractStorage[_ovmContractAddress][_slot];
+    }
+
+    /**
+     * Set storage for OVM contract at some slot.
      * @param _ovmContractAddress The contract we're setting storage of.
      * @param _slot The slot we're setting.
      * @param _value The value we will set the storage to.
@@ -62,7 +80,9 @@ contract FullStateManager is StateManager {
         address _ovmContractAddress,
         bytes32 _slot,
         bytes32 _value
-    ) public {
+    )
+        public
+    {
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
     }
 
@@ -72,41 +92,57 @@ contract FullStateManager is StateManager {
      **********/
 
     /**
-     * @notice Get the nonce for a particular OVM contract
+     * Get the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're getting the nonce of.
      * @return The contract nonce used for contract creation.
      */
     function getOvmContractNonce(
         address _ovmContractAddress
-    ) public returns (uint) {
-        return ovmContractNonces[_ovmContractAddress];
-    }
-
-    function getOvmContractNonceView(
-        address _ovmContractAddress
-    ) public view returns (uint) {
+    )
+        public
+        returns (uint)
+    {
         return ovmContractNonces[_ovmContractAddress];
     }
 
     /**
-     * @notice Set the nonce for a particular OVM contract
+     * Get a nonce without touching state.
+     * @param _ovmContractAddress The contract we're getting the nonce of.
+     * @return The contract nonce used for contract creation.
+     */
+    function getOvmContractNonceView(
+        address _ovmContractAddress
+    )
+        public
+        view
+        returns (uint)
+    {
+        return ovmContractNonces[_ovmContractAddress];
+    }
+
+    /**
+     * Set the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're setting the nonce of.
      * @param _value The new nonce.
      */
     function setOvmContractNonce(
         address _ovmContractAddress,
         uint _value
-    ) public {
+    )
+        public
+    {
         ovmContractNonces[_ovmContractAddress] = _value;
     }
 
     /**
-     * @notice Increment the nonce for a particular OVM contract.
+     * Increment the nonce for a particular OVM contract.
      * @param _ovmContractAddress The contract we're incrementing by 1 the nonce of.
      */
     function incrementOvmContractNonce(
         address _ovmContractAddress
-    ) public {
+    )
+        public
+    {
         ovmContractNonces[_ovmContractAddress] += 1;
     }
 
@@ -116,37 +152,45 @@ contract FullStateManager is StateManager {
      ******************/
 
     /**
-     * @notice Attaches some code contract to the desired OVM contract. This allows the Execution Manager
-     *         to later on get the code contract address to perform calls for this OVM contract.
+     * Attaches some code contract to the desired OVM contract. This allows the Execution Manager
+     * to later on get the code contract address to perform calls for this OVM contract.
      * @param _ovmContractAddress The address of the OVM contract we'd like to associate with some code.
      * @param _codeContractAddress The address of the code contract that's been deployed.
      */
     function associateCodeContract(
         address _ovmContractAddress,
         address _codeContractAddress
-    ) public {
+    )
+        public
+    {
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
         codeContractAddressToOvmAddress[_codeContractAddress] = _ovmContractAddress;
     }
 
     /**
-     * @notice Marks a contract as newly created. Unused within this implementation.
+     * Marks a contract as newly created. Unused within this implementation.
      * @param _ovmContractAddress Address to mark as newly created.
      */
-    function associateCreatedContract(
+    function registerCreatedContract(
         address _ovmContractAddress
-    ) public {
+    )
+        public
+    {
         return;
     }
 
     /**
-     * @notice Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
+     * Lookup the code contract for some OVM contract, allowing CALL opcodes to be performed.
      * @param _ovmContractAddress The address of the OVM contract.
      * @return The associated code contract address.
      */
     function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
-    ) public view returns (address) {
+    )
+        public
+        view
+        returns (address)
+    {
         return ovmAddressToCodeContractAddress[_ovmContractAddress];
     }
 
@@ -157,19 +201,27 @@ contract FullStateManager is StateManager {
      */
     function getOvmAddressFromCodeContractAddress(
         address _codeContractAddress
-    ) public view returns (address) {
+    )
+        public
+        view
+        returns (address)
+    {
         return codeContractAddressToOvmAddress[_codeContractAddress];
     }
 
     /**
-     * @notice Get the bytecode at some contract address. NOTE: This is code taken from Solidity docs here:
-     *         https://solidity.readthedocs.io/en/v0.5.0/assembly.html#example
+     * Get the bytecode at some contract address. NOTE: This is code taken from Solidity docs here:
+     * https://solidity.readthedocs.io/en/v0.5.0/assembly.html#example
      * @param _codeContractAddress The address of the code contract.
      * @return The bytecode at this address.
      */
     function getCodeContractBytecode(
         address _codeContractAddress
-    ) public view returns (bytes memory codeContractBytecode) {
+    )
+        public
+        view
+        returns (bytes memory codeContractBytecode)
+    {
         assembly {
             // retrieve the size of the code
             let size := extcodesize(_codeContractAddress)
@@ -186,13 +238,17 @@ contract FullStateManager is StateManager {
     }
 
     /**
-     * @notice Get the hash of the deployed bytecode of some code contract.
+     * Get the hash of the deployed bytecode of some code contract.
      * @param _codeContractAddress The address of the code contract.
      * @return The hash of the bytecode at this address.
      */
     function getCodeContractHash(
         address _codeContractAddress
-    ) public view returns (bytes32 _codeContractHash) {
+    )
+        public
+        view
+        returns (bytes32 _codeContractHash)
+    {
         // TODO: Look up cached hash values eventually to avoid having to load all of this bytecode
         bytes memory codeContractBytecode = getCodeContractBytecode(_codeContractAddress);
         _codeContractHash = keccak256(codeContractBytecode);

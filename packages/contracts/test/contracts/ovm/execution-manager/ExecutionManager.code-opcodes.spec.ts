@@ -8,6 +8,7 @@ import {
   hexStrToBuf,
   remove0x,
   keccak256,
+  NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
@@ -19,6 +20,9 @@ import {
   manuallyDeployOvmContract,
   executeOVMCall,
   addressToBytes32Address,
+  makeAddressResolver,
+  deployAndRegister,
+  AddressResolverMapping,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -35,6 +39,11 @@ describe('Execution Manager -- Code-related opcodes', () => {
     ;[wallet] = await ethers.getSigners()
   })
 
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+  })
+
   let ExecutionManager: ContractFactory
   let DummyContract: ContractFactory
   before(async () => {
@@ -48,16 +57,21 @@ describe('Execution Manager -- Code-related opcodes', () => {
   })
 
   let executionManager: Contract
+  beforeEach(async () => {
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+      }
+    )
+  })
+
   let dummyContractAddress: Address
   let dummyContractBytecode: Buffer
   beforeEach(async () => {
-    executionManager = await ExecutionManager.deploy(
-      DEFAULT_OPCODE_WHITELIST_MASK,
-      '0x' + '00'.repeat(20),
-      GAS_LIMIT,
-      true
-    )
-
     // Deploy SimpleCopier with the ExecutionManager
     dummyContractAddress = await manuallyDeployOvmContract(
       wallet,

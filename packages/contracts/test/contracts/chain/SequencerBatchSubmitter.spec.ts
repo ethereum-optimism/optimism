@@ -6,7 +6,13 @@ import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import { StateChainBatch, TxChainBatch } from '../../test-helpers'
+import {
+  StateChainBatch,
+  TxChainBatch,
+  makeAddressResolver,
+  AddressResolverMapping,
+  deployAndRegister,
+} from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('batch-submitter', true)
@@ -34,7 +40,6 @@ describe('SequencerBatchSubmitter', () => {
 
   let stateChain: Contract
   let canonicalTxChain: Contract
-  let rollupMerkleUtils: Contract
   let sequencerBatchSubmitter: Contract
 
   const generateStateBatch = async (
@@ -68,12 +73,20 @@ describe('SequencerBatchSubmitter', () => {
     return localBatch
   }
 
-  let RollupMerkleUtils: ContractFactory
+  let resolver: AddressResolverMapping
+  before(async () => {
+    resolver = await makeAddressResolver(wallet)
+
+    await resolver.addressResolver.setAddress(
+      'FraudVerifier',
+      await fraudVerifier.getAddress()
+    )
+  })
+
   let SequencerBatchSubmitter: ContractFactory
   let CanonicalTransactionChain: ContractFactory
   let StateCommitmentChain: ContractFactory
   before(async () => {
-    RollupMerkleUtils = await ethers.getContractFactory('RollupMerkleUtils')
     SequencerBatchSubmitter = await ethers.getContractFactory(
       'SequencerBatchSubmitter'
     )
@@ -83,32 +96,45 @@ describe('SequencerBatchSubmitter', () => {
     StateCommitmentChain = await ethers.getContractFactory(
       'StateCommitmentChain'
     )
-
-    rollupMerkleUtils = await RollupMerkleUtils.deploy()
   })
 
   beforeEach(async () => {
-    sequencerBatchSubmitter = await SequencerBatchSubmitter.deploy(
-      await sequencer.getAddress()
+    sequencerBatchSubmitter = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'SequencerBatchSubmitter',
+      {
+        factory: SequencerBatchSubmitter,
+        params: [
+          resolver.addressResolver.address,
+          await sequencer.getAddress(),
+        ],
+      }
     )
 
-    canonicalTxChain = await CanonicalTransactionChain.deploy(
-      rollupMerkleUtils.address,
-      sequencerBatchSubmitter.address,
-      await l1ToL2TransactionPasser.getAddress(),
-      FORCE_INCLUSION_PERIOD
+    canonicalTxChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'CanonicalTransactionChain',
+      {
+        factory: CanonicalTransactionChain,
+        params: [
+          resolver.addressResolver.address,
+          sequencerBatchSubmitter.address,
+          FORCE_INCLUSION_PERIOD,
+        ],
+      }
     )
 
-    stateChain = await StateCommitmentChain.deploy(
-      rollupMerkleUtils.address,
-      canonicalTxChain.address
+    stateChain = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'StateCommitmentChain',
+      {
+        factory: StateCommitmentChain,
+        params: [resolver.addressResolver.address],
+      }
     )
-
-    await stateChain.setFraudVerifier(await fraudVerifier.getAddress())
-
-    await sequencerBatchSubmitter
-      .connect(sequencer)
-      .initialize(canonicalTxChain.address, stateChain.address)
   })
 
   describe('appendTransitionBatch()', async () => {

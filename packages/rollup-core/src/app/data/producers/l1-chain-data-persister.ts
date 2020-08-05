@@ -99,7 +99,10 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       .sort((a, b) => a.logIndex - b.logIndex)
 
     if (!relevantLogs || !relevantLogs.length) {
-      log.debug(`No relevant logs found in block ${block.number}. Moving on.`)
+      log.debug(
+        `No relevant logs found in block ${block.number}. Storing block and moving on.`
+      )
+      await this.l1DataService.insertL1Block(block, true)
       await this.markProcessed(index)
       return
     }
