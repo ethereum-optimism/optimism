@@ -1,9 +1,13 @@
 /* External Imports */
-import {getLogger, remove0x, ZERO_ADDRESS} from '@eth-optimism/core-utils'
+import { getLogger, remove0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
-import {Contract, ethers} from 'ethers'
+import { Contract, ethers } from 'ethers'
 /* Internal Imports */
-import {getContractDefinition, getContractFactory, getContractInterface} from '../contract-imports'
+import {
+  getContractDefinition,
+  getContractFactory,
+  getContractInterface,
+} from '../contract-imports'
 import { mergeDefaultConfig } from './default-config'
 import {
   AddressResolverMapping,
@@ -33,10 +37,12 @@ const deployContract = async (
     gasLimit: 9_500_000,
     gasPrice: 2_000_000_000,
     value: 0,
-    nonce: await config.signer.getTransactionCount('pending')
+    nonce: await config.signer.getTransactionCount('pending'),
   })
 
-  const receipt: ethers.providers.TransactionReceipt = await config.signer.provider.waitForTransaction(res.hash)
+  const receipt: ethers.providers.TransactionReceipt = await config.signer.provider.waitForTransaction(
+    res.hash
+  )
 
   return new Contract(
     receipt.contractAddress,
@@ -62,7 +68,10 @@ export const deployAndRegister = async (
   log.info(`Deployed ${name} at address ${deployedContract.address}.`)
 
   log.debug(`Registering ${name} with AddressResolver`)
-  const res: ethers.providers.TransactionResponse = await addressResolver.setAddress(name, deployedContract.address)
+  const res: ethers.providers.TransactionResponse = await addressResolver.setAddress(
+    name,
+    deployedContract.address
+  )
   await addressResolver.provider.waitForTransaction(res.hash)
   log.debug(
     `Registered ${name} with AddressResolver (${addressResolver.address})`
@@ -78,7 +87,6 @@ export const deployAndRegister = async (
 export const deployAllContracts = async (
   config: RollupDeployConfig
 ): Promise<AddressResolverMapping> => {
-
   let addressResolver: Contract
   if (!config.addressResolverContractAddress) {
     if (!config.addressResolverConfig) {
@@ -92,7 +100,9 @@ export const deployAllContracts = async (
     addressResolver = await deployContract(config.addressResolverConfig)
     log.info(`Deployed AddressResolver to ${addressResolver.address}`)
   } else {
-    log.info(`Using deployed AddressResolver at address ${config.addressResolverContractAddress}`)
+    log.info(
+      `Using deployed AddressResolver at address ${config.addressResolverContractAddress}`
+    )
     addressResolver = new Contract(
       config.addressResolverContractAddress,
       getContractDefinition('AddressResolver').abi,
@@ -111,10 +121,12 @@ export const deployAllContracts = async (
   for (const name of Object.keys(deployConfig)) {
     if (!config.dependencies || config.dependencies.includes(name as any)) {
       const contractName = factoryToContractName[name]
-
       const deployedAddress = await addressResolver.getAddress(name)
-      if (!!deployedAddress && deployedAddress != ZERO_ADDRESS) {
-        log.info(`Using existing deployed and registered contract for ${name} at address ${deployedAddress}`)
+
+      if (!!deployedAddress && deployedAddress !== ZERO_ADDRESS) {
+        log.info(
+          `Using existing deployed and registered contract for ${name} at address ${deployedAddress}`
+        )
         contracts[contractName] = new Contract(
           deployedAddress,
           deployConfig[name].factory.interface,

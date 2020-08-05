@@ -37,7 +37,7 @@ export const deployContracts = async (): Promise<AddressResolverMapping> => {
     res = await deployAllContracts({
       signer,
       rollupOptions,
-      addressResolverContractAddress: Environment.addressResolverContractAddress()
+      addressResolverContractAddress: Environment.addressResolverContractAddress(),
     })
   } catch (e) {
     log.error(`Error deploying contracts: ${e.message}`)
