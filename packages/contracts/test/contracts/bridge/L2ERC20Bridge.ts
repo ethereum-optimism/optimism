@@ -16,20 +16,29 @@ describe.only('L2ERC20Bridge', () => {
   let depositer: Signer
   let withdrawer: Signer
   let L2ERC20Bridge: ContractFactory
-  const mockL1ERC20Address = '0x' + '00'.repeat(20)
-  const mockL1ERC20BridgeAddress = '0x' + '11'.repeat(20)
   let DepositedERC20: ContractFactory
+  let MockL2ToL1MessagePasser: ContractFactory
+  const mockL1ERC20Address = '0x' + '00'.repeat(20)
+  const mockL1ERC20BridgeAddress = '0x' + '11'.repeat(20) 
 
   before(async () => {
     ;[depositer, withdrawer] = await ethers.getSigners()
     L2ERC20Bridge = await ethers.getContractFactory('L2ERC20Bridge')
     DepositedERC20 = await ethers.getContractFactory('DepositedERC20')
+    MockL2ToL1MessagePasser = await ethers.getContractFactory(
+      'MockL2ToL1MessagePasser'
+    )
   })
 
   let l2ERC20Bridge: Contract
   let depositedERC20: Contract
+  let l2ToL1MessagePasser: Contract
   beforeEach(async () => {
-    l2ERC20Bridge = await L2ERC20Bridge.deploy(mockL1ERC20BridgeAddress) //some random addy to represent l1ERC20Bridge
+    l2ToL1MessagePasser = await MockL2ToL1MessagePasser.deploy()
+    l2ERC20Bridge = await L2ERC20Bridge.deploy(
+      mockL1ERC20BridgeAddress,
+      l2ToL1MessagePasser.address
+    ) //some random addy to represent l1ERC20Bridge
     await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address)
     depositedERC20 = DepositedERC20.attach(
       await l2ERC20Bridge.correspondingDepositedERC20(mockL1ERC20Address)
@@ -67,34 +76,24 @@ describe.only('L2ERC20Bridge', () => {
   })
 
   describe('forwardWithdrawal', async () => {
-    it('forwards withdrawal correctly and increments withdrawal nonce', async () => {
+    it('forwards withdrawal to L1 and increments withdrawal nonce', async () => {
       depositedERC20 = depositedERC20.connect(withdrawer)
-      // deposit some money before withdrawing
-      await l2ERC20Bridge.forwardDeposit(
-        withdrawer.getAddress(),
-        100,
-        mockL1ERC20Address
-      )
-      const preWithdrawalBalance = (
-        await depositedERC20.balanceOf(withdrawer.getAddress())
-      ).toNumber()
+
       // checking to see if the withdrawer and msg.sender are the same
-      console.log(preWithdrawalBalance)
       console.log('withdrawer address: ', withdrawer.getAddress())
       console.log('msg sender: ', await depositedERC20.returnMS())
 
       const initialNonce = await l2ERC20Bridge.withdrawalNonce()
       const withdrawTo = '0x' + '22'.repeat(20)
-      const withdrawalAmount = 10
+
+      console.log('initial withdrawal nonce: ', initialNonce)
+
       await depositedERC20.initializeWithdrawal(withdrawTo, 0)
-      // const postWithdrawalBalance = (
-      //   await depositedERC20.balanceOf(withdrawer.getAddress())
-      // ).toNumber()
-      // //const newNonce = await l2ERC20Bridge.withdrawalNonce()
-      // postWithdrawalBalance.should.equal(
-      //   preWithdrawalBalance - withdrawalAmount
-      // )
-      //newNonce.should.equal(initialNonce + 1)
+      const newNonce = await l2ERC20Bridge.withdrawalNonce()
+
+      console.log('new withdrawal nonce: ', newNonce)
+
+      newNonce.should.equal(initialNonce + 1)
     })
   })
 })

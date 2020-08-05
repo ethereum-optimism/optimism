@@ -2,19 +2,21 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 import { ERC20 } from "./ERC20.sol";
 import { DataTypes } from "../utils/DataTypes.sol";
-import { L2ToL1MessagePasser } from "../ovm/precompiles/L2ToL1MessagePasser.sol";
+import { IL2ToL1MessagePasser } from "./IL2ToL1MessagePasser.sol";
 import { DepositedERC20 } from "./DepositedERC20.sol";
 
 
 contract L2ERC20Bridge {
 
     address l1ERC20Bridge;
+    address l2ToL1MessagePasser;
     uint public withdrawalNonce = 0;
     mapping (address => address) public correspondingL1ERC20;
     mapping (address => address) public correspondingDepositedERC20;
 
-    constructor (address _l1ERC20Bridge) public {
+    constructor (address _l1ERC20Bridge, address _l2ToL1MessagePasser) public {
         l1ERC20Bridge = _l1ERC20Bridge;
+        l2ToL1MessagePasser = _l2ToL1MessagePasser;
     }
 
     /*
@@ -29,7 +31,10 @@ contract L2ERC20Bridge {
     function deployNewDepositedERC20(
         address l1ERC20Address
     ) public {
-        require(correspondingDepositedERC20[l1ERC20Address] == address(0),"L2 ERC20 Contract for this asset already exists.");
+        require(
+            correspondingDepositedERC20[l1ERC20Address] == address(0),
+            "L2 ERC20 Contract for this asset already exists."
+        );
         address newDepositedERC20 = address(new DepositedERC20());
         // Set the mappings
         correspondingDepositedERC20[l1ERC20Address] = newDepositedERC20;
@@ -56,9 +61,9 @@ contract L2ERC20Bridge {
             l1ERC20Address: _l1ERC20Address,
             nonce: withdrawalNonce
         });
-        // L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
-        // l2ToL1MessagePasser.passMessageToL1(
-        //     abi.encode(withdrawal)
-        // );
+        IL2ToL1MessagePasser(l2ToL1MessagePasser).passMessageToL1(
+            abi.encode(withdrawal)
+        );
+        withdrawalNonce++;
     }
 }
