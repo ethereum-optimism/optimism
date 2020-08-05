@@ -29,7 +29,7 @@ const deployContract = async (
   config.factory = config.factory.connect(config.signer)
   const rawTx = config.factory.getDeployTransaction(...config.params)
 
-  // Can't use this because it fails on FraudVerifier
+  // Can't use this because it fails on ExecutionManager & FraudVerifier
   // return config.factory.deploy(...config.params)
 
   const res = await config.signer.sendTransaction({
