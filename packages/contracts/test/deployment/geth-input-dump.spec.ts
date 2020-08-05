@@ -27,7 +27,7 @@ describe.skip('L2Geth Dumper Input Generator', () => {
     const config: RollupDeployConfig = {
       signer: wallet,
       rollupOptions: {
-        gasLimit: GAS_LIMIT,
+        blockGasLimit: GAS_LIMIT,
         forceInclusionPeriodSeconds: DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
         ownerAddress: await wallet.getAddress(),
         sequencerAddress: await sequencer.getAddress(),
