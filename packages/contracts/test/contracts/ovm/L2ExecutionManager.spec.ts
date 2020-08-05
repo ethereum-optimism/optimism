@@ -12,7 +12,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
-  DEFAULT_GAS_METER_PARAMS,
+  getDefaultGasMeterParams,
 } from '../../test-helpers'
 
 /* Logging */
@@ -44,7 +44,7 @@ describe('L2 Execution Manager', () => {
     l2ExecutionManager = await L2ExecutionManager.deploy(
       resolver.addressResolver.address,
       '0x' + '00'.repeat(20),
-      DEFAULT_GAS_METER_PARAMS
+      getDefaultGasMeterParams()
     )
   })
 

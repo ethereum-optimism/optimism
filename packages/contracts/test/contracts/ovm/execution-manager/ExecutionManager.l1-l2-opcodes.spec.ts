@@ -27,7 +27,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
-  DEFAULT_GAS_METER_PARAMS,
+  getDefaultGasMeterParams,
 } from '../../../test-helpers'
 
 /* Contract Imports */
@@ -125,7 +125,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         params: [
           resolver.addressResolver.address,
           NULL_ADDRESS,
-          DEFAULT_GAS_METER_PARAMS,
+          getDefaultGasMeterParams(),
         ],
       }
     )

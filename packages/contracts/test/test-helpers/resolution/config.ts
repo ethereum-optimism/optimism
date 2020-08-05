@@ -7,7 +7,7 @@ import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
 import {
   GAS_LIMIT,
   DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
-  DEFAULT_GAS_METER_PARAMS,
+  getDefaultGasMeterParams,
 } from '../constants'
 
 /**
@@ -51,7 +51,7 @@ export const getDefaultDeployConfig = async (
       params: [
         addressResolver.address,
         await owner.getAddress(),
-        DEFAULT_GAS_METER_PARAMS,
+        getDefaultGasMeterParams(),
       ],
     },
     SafetyChecker: {

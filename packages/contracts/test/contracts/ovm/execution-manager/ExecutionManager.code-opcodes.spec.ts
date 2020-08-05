@@ -23,7 +23,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
-  DEFAULT_GAS_METER_PARAMS,
+  getDefaultGasMeterParams,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -68,7 +68,7 @@ describe('Execution Manager -- Code-related opcodes', () => {
         params: [
           resolver.addressResolver.address,
           NULL_ADDRESS,
-          DEFAULT_GAS_METER_PARAMS,
+          getDefaultGasMeterParams(),
         ],
       }
     )
