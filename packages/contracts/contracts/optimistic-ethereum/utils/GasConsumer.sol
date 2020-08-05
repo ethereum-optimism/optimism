@@ -2,11 +2,11 @@ pragma solidity ^0.5.0;
 
 contract GasConsumer {
 
-    // default fallback should consume all allotted gas
+    // default fallback consumes all allotted gas
     function() external {
         uint i;
         while (true) {
-            i++;
+            i += 420;
         }
     }
 
@@ -24,7 +24,7 @@ contract GasConsumer {
     uint constant constantOverhead = 969;
     function consumeGasExact(uint _amount) external {
         uint gasToAlloc = _amount - constantOverhead;
-        // call our fallback which consumes all allocated gas
+        // call this contract's fallback which consumes all allocated gas
         assembly {
             pop(call(gasToAlloc, address, 0, 0, 0, 0, 0))
         }
