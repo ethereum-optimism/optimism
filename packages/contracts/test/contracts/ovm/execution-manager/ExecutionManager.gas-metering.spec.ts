@@ -51,7 +51,7 @@ const abi = new ethers.utils.AbiCoder()
  * TESTS *
  *********/
 
-describe.only('Execution Manager -- Gas Metering', () => {
+describe('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -148,7 +148,9 @@ describe.only('Execution Manager -- Gas Metering', () => {
 
     // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
     const gasPad: number = 100_000
-    const ovmTxGasLimit: number = gasLimit ? gasLimit : gasToConsume + OVM_TX_BASE_GAS_FEE + gasPad
+    const ovmTxGasLimit: number = gasLimit
+      ? gasLimit
+      : gasToConsume + OVM_TX_BASE_GAS_FEE + gasPad
 
     const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
       'executeTransaction',
