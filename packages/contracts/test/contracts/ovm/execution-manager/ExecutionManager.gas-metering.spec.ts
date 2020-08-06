@@ -56,27 +56,32 @@ const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 43953
  * TESTS *
  *********/
 
-describe('Execution Manager -- Gas Metering', () => {
+describe.only('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
+
+  let SimpleStorage: ContractFactory
+  let simpleStorageOVMAddress: Address
+
+  let fullStateManager: Contract
 
   let wallet: Signer
   let walletAddress: string
   let resolver: AddressResolverMapping
   let GasConsumer: ContractFactory
   let ExecutionManager: ContractFactory
-  let StateManager: ContractFactory
+  let FullStateManager: ContractFactory
+  let PartialStateManager: ContractFactory
   before(async () => {
     ;[wallet] = await ethers.getSigners()
     walletAddress = await wallet.getAddress()
     resolver = await makeAddressResolver(wallet)
     GasConsumer = await ethers.getContractFactory('GasConsumer')
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
-    StateManager = await ethers.getContractFactory('FullStateManager')
-  })
+    FullStateManager = await ethers.getContractFactory('FullStateManager')
+    PartialStateManager = await ethers.getContractFactory('PartialStateManager')
 
-  let executionManager: Contract
-  let gasConsumerAddress: Address
-  beforeEach(async () => {
+    SimpleStorage = await ethers.getContractFactory('SimpleStorage')
+
     executionManager = await deployAndRegister(
       resolver.addressResolver,
       wallet,
@@ -96,21 +101,9 @@ describe('Execution Manager -- Gas Metering', () => {
         ],
       }
     )
-
-    await deployAndRegister(resolver.addressResolver, wallet, 'StateManager', {
-      factory: StateManager,
-      params: [],
-    })
-
-    gasConsumerAddress = await manuallyDeployOvmContract(
-      wallet,
-      provider,
-      executionManager,
-      GasConsumer,
-      [],
-      INITIAL_OVM_DEPLOY_TIMESTAMP
-    )
   })
+
+  let executionManager: Contract
 
   const assertOvmTxRevertedWithMessage = async (
     tx: any,
@@ -140,33 +133,22 @@ describe('Execution Manager -- Gas Metering', () => {
     didNotRevert.should.eq(true, msg)
   }
 
-  const getConsumeGasCallback = (
-    timestamp: number,
-    queueOrigin: number,
-    gasToConsume: number,
-    gasLimit: any = false
-  ) => {
-    const internalCallBytes = GasConsumer.interface.encodeFunctionData(
-      'consumeGas',
-      [gasToConsume]
+  const getSimpleStorageCallCallback = (methodName: string, params: any[]) => {
+    const internalCallBytes = SimpleStorage.interface.encodeFunctionData(
+      methodName,
+      params
     )
-
-    // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-    const gasLimitPad: number = 100_000
-    const ovmTxGasLimit: number = gasLimit
-      ? gasLimit
-      : gasToConsume + OVM_TX_BASE_GAS_FEE + gasLimitPad
 
     const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
       'executeTransaction',
       [
-        timestamp,
-        queueOrigin,
-        gasConsumerAddress,
+        1_000_000,
+        0,
+        simpleStorageOVMAddress,
         internalCallBytes,
         walletAddress,
         ZERO_ADDRESS,
-        ovmTxGasLimit,
+        OVM_TX_MAX_GAS,
         false,
       ]
     )
@@ -194,207 +176,115 @@ describe('Execution Manager -- Gas Metering', () => {
 
   const getChangeInCumulativeGas = async (
     callbackConsumingGas: () => Promise<any>
-  ): Promise<{ sequenced: number; queued: number }> => {
+  ): Promise<{ internalToOVM: number; usedByEVMTopLevelCall: number }> => {
     // record value before
     const queuedBefore: number = await getCumulativeQueuedGas()
     const sequencedBefore: number = await getCumulativeSequencedGas()
     log.debug(
       `calling the callback which should change gas, before is: ${queuedBefore}, ${sequencedBefore}`
     )
-    await callbackConsumingGas()
+    const tx = await callbackConsumingGas()
     log.debug(`finished calling the callback which should change gas`)
     const queuedAfter: number = await getCumulativeQueuedGas()
     const sequencedAfter: number = await getCumulativeSequencedGas()
 
+    const receipt = await executionManager.provider.getTransactionReceipt(
+      tx.hash
+    )
+
     return {
-      sequenced: sequencedAfter - sequencedBefore,
-      queued: queuedAfter - queuedBefore,
+      internalToOVM: sequencedAfter - sequencedBefore,
+      usedByEVMTopLevelCall: hexStrToNumber(receipt.gasUsed._hex),
     }
   }
 
-  describe('Per-transaction gas limit requirements', async () => {
-    const timestamp = 1
-    it('Should revert ovm TX if the gas limit is higher than the max allowed', async () => {
-      const gasToConsume = OVM_TX_MAX_GAS + 1
-      const doTx = getConsumeGasCallback(
-        timestamp,
-        SEQUENCER_ORIGIN,
-        gasToConsume
-      )
-      await assertOvmTxRevertedWithMessage(
-        await doTx(),
-        'Transaction gas limit exceeds max OVM tx gas limit.',
-        wallet
+  describe('Simplestorage gas meter -- OVM vs EVM -- full state manager', async () => {
+    before(async () => {
+      fullStateManager = await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'StateManager',
+        {
+          factory: FullStateManager,
+          params: [],
+        }
       )
     })
-    it('Should revert ovm TX if the gas limit is lower than the base gas fee', async () => {
-      const gasToConsume = OVM_TX_BASE_GAS_FEE
-      const doTx = getConsumeGasCallback(
-        timestamp,
-        SEQUENCER_ORIGIN,
-        gasToConsume,
-        OVM_TX_BASE_GAS_FEE - 1
-      )
-      await assertOvmTxRevertedWithMessage(
-        await doTx(),
-        'Transaction gas limit is less than the minimum (base fee) gas.',
-        wallet
+    beforeEach(async () => {
+      simpleStorageOVMAddress = await manuallyDeployOvmContract(
+        wallet,
+        provider,
+        executionManager,
+        SimpleStorage,
+        [],
+        INITIAL_OVM_DEPLOY_TIMESTAMP
       )
     })
-  })
-  describe('Cumulative gas tracking', async () => {
-    const timestamp = 1
-    it('Should properly track sequenced consumed gas', async () => {
-      const gasToConsume: number = 500_000
-      const consumeTx = getConsumeGasCallback(
-        timestamp,
-        SEQUENCER_ORIGIN,
-        gasToConsume
-      )
-      const change = await getChangeInCumulativeGas(consumeTx)
-
-      change.queued.should.equal(0)
-      change.sequenced.should.equal(
-        gasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
-      )
+    const key = '0x' + '12'.repeat(32)
+    const val = '0x' + '23'.repeat(32)
+    it('setStorage', async () => {
+      let doCall = getSimpleStorageCallCallback('setStorage', [key, val])
+      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
     })
-    it('Should properly track queued consumed gas', async () => {
-      const gasToConsume: number = 700_000
-      const consumeGas = getConsumeGasCallback(
-        timestamp,
-        QUEUED_ORIGIN,
-        gasToConsume
-      )
-      const change = await getChangeInCumulativeGas(consumeGas)
-
-      change.sequenced.should.equal(0)
-      change.queued.should.equal(
-        gasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
-      )
-    })
-    it('Should properly track both queue and sequencer consumed gas', async () => {
-      const sequencerGasToConsume = 100_000
-      const queueGasToConsume = 200_000
-
-      const consumeQueuedGas = getConsumeGasCallback(
-        timestamp,
-        QUEUED_ORIGIN,
-        queueGasToConsume
-      )
-
-      const consumeSequencedGas = getConsumeGasCallback(
-        timestamp,
-        SEQUENCER_ORIGIN,
-        sequencerGasToConsume
-      )
-
-      const change = await getChangeInCumulativeGas(async () => {
-        await consumeQueuedGas()
-        await consumeSequencedGas()
-      })
-
-      change.sequenced.should.equal(
-        sequencerGasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
-      )
-      change.queued.should.equal(
-        queueGasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
-      )
+    it('getStorage', async () => {
+      let doCall = getSimpleStorageCallCallback('getStorage', [key])
+      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
     })
   })
-  describe('Gas rate limiting over multiple transactions', async () => {
-    it('Should properly track gas over multiple transactions', async () => {
-      const timestamp = 1
-      const gasToConsumeFirst = 100_000
-      const gasToConsumeSecond = 200_000
+  describe('Simplestorage gas meter -- OVM vs EVM -- partial state manager', async () => {
+    const key = '0x' + '12'.repeat(32)
+    const val = '0x' + '23'.repeat(32)
 
-      const consumeQueuedGas = getConsumeGasCallback(
-        timestamp,
-        QUEUED_ORIGIN,
-        gasToConsumeFirst
+    let stateManager: Contract
+
+    let simpleStorageNative: Contract
+    before(async () => {
+      simpleStorageOVMAddress = '0x' + '45'.repeat(20)
+      stateManager = (
+        await deployAndRegister(
+          resolver.addressResolver,
+          wallet,
+          'StateManager',
+          {
+            factory: PartialStateManager,
+            params: [resolver.addressResolver.address, walletAddress],
+          }
+        )
+      ).connect(wallet)
+
+      simpleStorageNative = await SimpleStorage.deploy()
+
+      await stateManager.insertVerifiedContract(walletAddress, walletAddress, 0)
+
+      await stateManager.insertVerifiedContract(
+        simpleStorageOVMAddress,
+        simpleStorageNative.address,
+        0
       )
 
-      const consumeSequencedGas = getConsumeGasCallback(
-        timestamp,
-        QUEUED_ORIGIN,
-        gasToConsumeSecond
-      )
-
-      const change = await getChangeInCumulativeGas(async () => {
-        await consumeQueuedGas()
-        await consumeSequencedGas()
-      })
-
-      change.sequenced.should.equal(0)
-      change.queued.should.equal(
-        gasToConsumeFirst +
-          gasToConsumeSecond +
-          2 * (OVM_TX_BASE_GAS_FEE + EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD)
+      await stateManager.insertVerifiedStorage(
+        simpleStorageOVMAddress,
+        key,
+        val
       )
     })
-    // start in a new epoch since the deployment takes some gas
-    const startTimestamp = 1 + GAS_RATE_LIMIT_EPOCH_IN_SECONDS
-    const moreThanHalfGas: number = MAX_GAS_PER_EPOCH / 2 + 1000
-    for (const [queueToFill, otherQueue] of [
-      // [QUEUED_ORIGIN, SEQUENCER_ORIGIN],
-      [SEQUENCER_ORIGIN, QUEUED_ORIGIN],
-    ]) {
-      it('Should revert like-kind transactions in a full epoch, still allowing gas through the other queue', async () => {
-        // Get us close to the limit
-        const almostFillEpoch = getConsumeGasCallback(
-          startTimestamp,
-          queueToFill,
-          moreThanHalfGas
-        )
-        await almostFillEpoch()
-        // Now try a tx which goes over the limit
-        const overFillEpoch = getConsumeGasCallback(
-          startTimestamp,
-          queueToFill,
-          moreThanHalfGas
-        )
-        const failedTx = await overFillEpoch()
-        await assertOvmTxRevertedWithMessage(
-          failedTx,
-          'Transaction gas limit exceeds remaining gas for this epoch and queue origin.',
-          wallet
-        )
-        const useOtherQueue = getConsumeGasCallback(
-          startTimestamp,
-          otherQueue,
-          moreThanHalfGas
-        )
-        const successTx = await useOtherQueue()
-        await assertOvmTxDidNotRevert(successTx, wallet)
-      }).timeout(30000)
-      it('Should allow gas back in at the start of a new epoch', async () => {
-        // Get us close to the limit
-        const firstTx = await getConsumeGasCallback(
-          startTimestamp,
-          queueToFill,
-          moreThanHalfGas
-        )
-        await firstTx()
-        // TODO: assert gas was consumed here
 
-        // Now consume more than half gas again, but in the next epoch
-        const nextEpochTimestamp =
-          startTimestamp + GAS_RATE_LIMIT_EPOCH_IN_SECONDS + 1
-        const secondEpochTx = await getConsumeGasCallback(
-          nextEpochTimestamp,
-          queueToFill,
-          moreThanHalfGas
-        )
-        const successTx = await secondEpochTx()
-        await assertOvmTxDidNotRevert(successTx, wallet)
-      }).timeout(30000)
-    }
+    it('setStorage', async () => {
+      let doCall = getSimpleStorageCallCallback('setStorage', [key, val])
+      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
+    it('getstorage', async () => {
+      let doCall = getSimpleStorageCallCallback('getStorage', [key])
+      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
+
+    it('setStorages', async () => {
+      let doCall = getSimpleStorageCallCallback('setStorages', [key, val])
+      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
+    it('getstorages', async () => {
+      let doCall = getSimpleStorageCallCallback('getStorages', [key])
+      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
   })
 })
