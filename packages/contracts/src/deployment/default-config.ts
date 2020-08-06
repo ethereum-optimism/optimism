@@ -53,7 +53,7 @@ export const getDefaultContractDeployConfig = async (
       params: [
         addressResolverAddress,
         rollupOptions.ownerAddress,
-        rollupOptions.gasLimit,
+        rollupOptions.blockGasLimit,
       ],
       signer: deployerWallet,
     },

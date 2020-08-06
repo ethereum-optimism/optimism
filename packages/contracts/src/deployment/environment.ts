@@ -66,4 +66,7 @@ export class Environment {
   public static sequencerAddress(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_ADDRESS || defaultValue
   }
+  public static addressResolverContractAddress(defaultValue?: string): string {
+    return process.env.L1_ADDRESS_RESOLVER_CONTRACT_ADDRESS || defaultValue
+  }
 }

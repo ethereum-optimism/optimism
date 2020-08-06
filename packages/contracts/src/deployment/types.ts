@@ -8,7 +8,7 @@ export interface ContractDeployOptions {
 }
 
 export interface RollupOptions {
-  gasLimit: number
+  blockGasLimit: number
   forceInclusionPeriodSeconds: number
   ownerAddress: string
   sequencerAddress: string
@@ -69,6 +69,7 @@ export const factoryToContractName = {
 export interface RollupDeployConfig {
   signer: Signer
   rollupOptions: RollupOptions
+  addressResolverContractAddress?: string
   addressResolverConfig?: ContractDeployOptions
   contractDeployConfig?: Partial<ContractDeployConfig>
   dependencies?: ContractFactoryName[]

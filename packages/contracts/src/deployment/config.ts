@@ -6,7 +6,6 @@ import { ethers, Signer, Wallet } from 'ethers'
 import { Environment } from './environment'
 
 export const GAS_LIMIT = 1_000_000_000
-
 let l1Provider: ethers.providers.Provider
 export const getL1Provider = (): ethers.providers.Provider => {
   if (!l1Provider) {
