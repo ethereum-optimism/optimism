@@ -12,7 +12,7 @@ import {
 /* Internal Imports */
 
 /* Tests */
-describe.only('GasConsumer', () => {
+describe('GasConsumer', () => {
   let GasConsumer: ContractFactory
   let gasConsumer: Contract
   let GasConsumerCaller: ContractFactory
