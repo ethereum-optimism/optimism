@@ -1,0 +1,25 @@
+version: 1
+task_definition:
+  services:
+    rollup-full-node:
+      cpu_shares: 25
+      mem_limit: 524288000
+    geth_l2:
+      cpu_shares: 75
+      mem_limit: 1523288000
+  # This is all local for now -- eventually will change
+  ecs_network_mode: host
+  docker_volumes:
+      - name: l1-node-data
+        scope: shared
+        autoprovision: true
+        driver: 'local'
+      - name: l2-node-data
+        scope: shared
+        autoprovision: true       
+        driver: 'local'
+      - name: full-node-data
+        scope: shared
+        autoprovision: true       
+        driver: 'local'
+
