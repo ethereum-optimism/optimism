@@ -47,6 +47,9 @@ const config: BuidlerConfig = {
     },
     collapseEmptyLines: true,
   },
+  solc: {
+    optimizer: { enabled: true, runs: 200 },
+  },
 }
 
 export default config

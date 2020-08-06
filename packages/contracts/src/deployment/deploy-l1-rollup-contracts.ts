@@ -23,6 +23,8 @@ export const deployContracts = async (): Promise<AddressResolverMapping> => {
   let res: AddressResolverMapping
   try {
     const signer: Signer = getL1DeploymentSigner()
+    log.info(`Read deployer wallet info. Address: ${await signer.getAddress()}`)
+
     const ownerAddress: string = await getL1ContractOwnerAddress()
     const sequencerAddress: string = getL1SequencerAddress()
     const rollupOptions: RollupOptions = {
@@ -35,6 +37,7 @@ export const deployContracts = async (): Promise<AddressResolverMapping> => {
     res = await deployAllContracts({
       signer,
       rollupOptions,
+      addressResolverContractAddress: Environment.addressResolverContractAddress(),
     })
   } catch (e) {
     log.error(`Error deploying contracts: ${e.message}`)
