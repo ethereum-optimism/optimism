@@ -43,20 +43,20 @@ contract SimpleStorage {
         return bytesToBytes32(response);
     }
 
-    function setSequentialSlots(uint startKey, bytes32 value) public {
-        for (uint i = 0; i < 20; i++) {
+    function setSequentialSlots(uint startKey, bytes32 value, uint numIterations) public {
+        for (uint i = 0; i < numIterations; i++) {
             setStorage(bytes32(startKey + i), value);
         }
     }
 
-    function setSameSlotRepeated(bytes32 key, bytes32 value) public {
-        for (uint i = 0; i < 20; i++) {
+    function setSameSlotRepeated(bytes32 key, bytes32 value, uint numIterations) public {
+        for (uint i = 0; i < numIterations; i++) {
             setStorage(key, value);
         }
     }
 
-    function getStorages(bytes32 key) public {
-        for (uint i = 0; i < 20; i++) {
+    function getStorages(bytes32 key, uint numIterations) public {
+        for (uint i = 0; i < numIterations; i++) {
             getStorage(key);
         }
     }
