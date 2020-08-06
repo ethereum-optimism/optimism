@@ -261,11 +261,14 @@ describe.only('Execution Manager -- Gas Metering', () => {
         simpleStorageNative.address,
         0
       )
+    })
 
+    beforeEach(async () => {
+      // reset value so that sstore costs are the same between tests
       await stateManager.insertVerifiedStorage(
         simpleStorageOVMAddress,
         key,
-        val
+        '0x' + '00'.repeat(32)
       )
     })
 
