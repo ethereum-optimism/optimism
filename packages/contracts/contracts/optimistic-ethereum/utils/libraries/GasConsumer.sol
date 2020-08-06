@@ -11,7 +11,7 @@ contract GasConsumer {
     }
 
     // Overhead for checking methodId etc in this function before the actual call()--This was figured out empirically during testing.
-    uint constant constantOverhead = 947;
+    uint constant constantOverhead = 902;
     function consumeGas(uint _amount) external {
         uint gasToAlloc = _amount - constantOverhead;
         // call this contract's fallback which consumes all allocated gas
