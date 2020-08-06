@@ -269,6 +269,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       txObject['data'],
       txObject['from'],
       ZERO_ADDRESS,
+      numberToHexString(GAS_LIMIT),
       true
     )
 
@@ -326,6 +327,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       txObject['data'],
       txObject['from'],
       ZERO_ADDRESS,
+      numberToHexString(GAS_LIMIT),
       true
     )
 
@@ -1066,6 +1068,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       ovmTx.data,
       ovmFrom,
       ZERO_ADDRESS,
+      ovmTx.gasLimit,
       true
     )
 
@@ -1109,6 +1112,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
     callBytes: string,
     fromAddress: string,
     l1TxSenderAddress: string,
+    gasLimit: string,
     allowRevert: boolean
   ): string {
     // Update the ovmEntrypoint to be the ZERO_ADDRESS if this is a contract creation
@@ -1124,6 +1128,7 @@ export class DefaultWeb3Handler implements Web3Handler, FullnodeHandler {
       callBytes,
       fromAddress,
       l1TxSenderAddress,
+      gasLimit,
       allowRevert,
     ])
   }

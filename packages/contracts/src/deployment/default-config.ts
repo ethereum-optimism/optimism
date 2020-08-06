@@ -53,7 +53,13 @@ export const getDefaultContractDeployConfig = async (
       params: [
         addressResolverAddress,
         rollupOptions.ownerAddress,
-        rollupOptions.blockGasLimit,
+        [
+          rollupOptions.gasMeterConfig.ovmTxFlatGasFee,
+          rollupOptions.gasMeterConfig.ovmTxMaxGas,
+          rollupOptions.gasMeterConfig.gasRateLimitEpochLength,
+          rollupOptions.gasMeterConfig.maxSequencedGasPerEpoch,
+          rollupOptions.gasMeterConfig.maxQueuedGasPerEpoch,
+        ],
       ],
       signer: deployerWallet,
     },

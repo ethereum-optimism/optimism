@@ -4,7 +4,11 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
-import { GAS_LIMIT, DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS } from '../constants'
+import {
+  GAS_LIMIT,
+  DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
+  getDefaultGasMeterParams,
+} from '../constants'
 
 /**
  * Generates the default deployment configuration. Runs as an async function
@@ -44,7 +48,11 @@ export const getDefaultDeployConfig = async (
     },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),
-      params: [addressResolver.address, await owner.getAddress(), GAS_LIMIT],
+      params: [
+        addressResolver.address,
+        await owner.getAddress(),
+        getDefaultGasMeterParams(),
+      ],
     },
     SafetyChecker: {
       factory: await ethers.getContractFactory('StubSafetyChecker'),

@@ -4,8 +4,22 @@ import { ethers, Signer, Wallet } from 'ethers'
 
 /* Internal Imports */
 import { Environment } from './environment'
+import { GasMeterOptions } from './types'
 
-export const GAS_LIMIT = 1_000_000_000
+const TX_FLAT_GAS_FEE = 30_000
+const OVM_TX_MAX_GAS = 12_000_000
+const MAX_SEQUENCED_GAS_PER_EPOCH = 2_000_000_000
+const MAX_QUEUED_GAS_PER_EPOCH = 2_000_000_000
+const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 60000
+
+export const GAS_METER_PARAMS: GasMeterOptions = {
+  ovmTxFlatGasFee: TX_FLAT_GAS_FEE,
+  ovmTxMaxGas: OVM_TX_MAX_GAS,
+  gasRateLimitEpochLength: GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
+  maxSequencedGasPerEpoch: MAX_SEQUENCED_GAS_PER_EPOCH,
+  maxQueuedGasPerEpoch: MAX_QUEUED_GAS_PER_EPOCH,
+}
+
 let l1Provider: ethers.providers.Provider
 export const getL1Provider = (): ethers.providers.Provider => {
   if (!l1Provider) {

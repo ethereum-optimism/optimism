@@ -3,6 +3,7 @@ pragma experimental ABIEncoderV2;
 
 /* Contract Imports */
 import { ExecutionManager } from "./ExecutionManager.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { StateManager } from "./StateManager.sol";
 
 /**
@@ -27,13 +28,13 @@ contract L2ExecutionManager is ExecutionManager {
     constructor(
         address _addressResolver,
         address _owner,
-        uint _blockGasLimit
+        DataTypes.GasMeterConfig memory _gasMeterConfig
     )
         public
         ExecutionManager(
             _addressResolver,
             _owner,
-            _blockGasLimit
+            _gasMeterConfig
         )
     {}
 

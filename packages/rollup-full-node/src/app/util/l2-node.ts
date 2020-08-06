@@ -14,7 +14,7 @@ import { createMockProvider, getWallets } from 'ethereum-waffle'
 
 /* Internal Imports */
 import { Address, L2NodeContext } from '../../types'
-import { CHAIN_ID, GAS_LIMIT } from '../constants'
+import { CHAIN_ID, GAS_LIMIT, DEFAULT_GAS_METER_PARAMS } from '../constants'
 import * as fs from 'fs'
 
 const log = getLogger('l2-node')
@@ -263,7 +263,7 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   const executionManager: Contract = await deployContract(
     wallet,
     L2ExecutionManagerContractDefinition,
-    [addressResolver.address, wallet.address, GAS_LIMIT],
+    [addressResolver.address, wallet.address, DEFAULT_GAS_METER_PARAMS],
     { gasLimit: GAS_LIMIT }
   )
 

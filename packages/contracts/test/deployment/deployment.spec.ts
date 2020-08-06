@@ -28,10 +28,16 @@ describe('Contract Deployment', () => {
       const config: RollupDeployConfig = {
         signer: wallet,
         rollupOptions: {
-          blockGasLimit: GAS_LIMIT,
           forceInclusionPeriodSeconds: DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
           ownerAddress: await wallet.getAddress(),
           sequencerAddress: await sequencer.getAddress(),
+          gasMeterConfig: {
+            ovmTxFlatGasFee: 1000,
+            ovmTxMaxGas: 1000,
+            gasRateLimitEpochLength: 1000,
+            maxSequencedGasPerEpoch: 1000,
+            maxQueuedGasPerEpoch: 1000,
+          },
         },
       }
 

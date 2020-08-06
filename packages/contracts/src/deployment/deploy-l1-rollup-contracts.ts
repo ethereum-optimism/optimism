@@ -5,7 +5,7 @@ import { Signer } from 'ethers'
 /* Internal Imports */
 import { AddressResolverMapping, RollupOptions } from './types'
 import {
-  GAS_LIMIT,
+  GAS_METER_PARAMS,
   getL1ContractOwnerAddress,
   getL1DeploymentSigner,
   getL1SequencerAddress,
@@ -28,10 +28,10 @@ export const deployContracts = async (): Promise<AddressResolverMapping> => {
     const ownerAddress: string = await getL1ContractOwnerAddress()
     const sequencerAddress: string = getL1SequencerAddress()
     const rollupOptions: RollupOptions = {
-      blockGasLimit: GAS_LIMIT,
       forceInclusionPeriodSeconds: Environment.forceInclusionPeriodSeconds(),
       ownerAddress,
       sequencerAddress,
+      gasMeterConfig: GAS_METER_PARAMS,
     }
 
     res = await deployAllContracts({

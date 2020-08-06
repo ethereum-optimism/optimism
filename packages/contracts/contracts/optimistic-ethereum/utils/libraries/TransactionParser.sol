@@ -45,7 +45,7 @@ library TransactionParser {
         pure
         returns (bytes memory)
     {
-        bytes[] memory raw = new bytes[](7);
+        bytes[] memory raw = new bytes[](8);
 
         raw[0] = RLPWriter.encodeUint(_transactionData.timestamp);
         raw[1] = RLPWriter.encodeUint(_transactionData.queueOrigin);
@@ -53,7 +53,8 @@ library TransactionParser {
         raw[3] = RLPWriter.encodeBytes(_transactionData.callBytes);
         raw[4] = RLPWriter.encodeAddress(_transactionData.fromAddress);
         raw[5] = RLPWriter.encodeAddress(_transactionData.l1MsgSenderAddress);
-        raw[6] = RLPWriter.encodeBool(_transactionData.allowRevert);
+        raw[6] = RLPWriter.encodeUint(_transactionData.gasLimit);
+        raw[7] = RLPWriter.encodeBool(_transactionData.allowRevert);
 
         return RLPWriter.encodeList(raw);
     }

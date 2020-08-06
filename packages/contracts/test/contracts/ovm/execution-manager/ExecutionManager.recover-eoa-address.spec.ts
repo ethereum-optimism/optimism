@@ -16,6 +16,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getDefaultGasMeterParams,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -45,7 +46,11 @@ describe('Execution Manager -- Recover EOA Address', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          getDefaultGasMeterParams(),
+        ],
       }
     )
   })

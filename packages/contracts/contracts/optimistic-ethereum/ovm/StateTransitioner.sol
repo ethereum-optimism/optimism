@@ -237,6 +237,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
             _transactionData.callBytes,
             _transactionData.fromAddress,
             _transactionData.l1MsgSenderAddress,
+            _transactionData.gasLimit,
             _transactionData.allowRevert
         );
 

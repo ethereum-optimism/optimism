@@ -4,7 +4,12 @@ import { expect } from '../../setup'
 import * as path from 'path'
 import * as rlp from 'rlp'
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils, remove0x } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  TestUtils,
+  remove0x,
+  numberToHexString,
+} from '@eth-optimism/core-utils'
 import * as solc from '@eth-optimism/solc-transpiler'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
@@ -25,6 +30,7 @@ import {
   toHexString,
   makeAddressResolver,
   AddressResolverMapping,
+  GAS_LIMIT,
 } from '../../test-helpers'
 
 /* Logging */
@@ -38,6 +44,9 @@ const DUMMY_ACCOUNT_ADDRESSES = [
   '0x808E5eCe9a8EA2cdce515764139Ee24bEF7098b4',
 ]
 
+// gas metering always causes some storage slots to be updated
+const DEFAULT_TX_NUM_STORAGE_UPDATES: number = 4
+
 interface OVMTransactionData {
   timestamp: number
   queueOrigin: number
@@ -45,6 +54,7 @@ interface OVMTransactionData {
   callBytes: string
   fromAddress: string
   l1MsgSenderAddress: string
+  gasLimit: number
   allowRevert: boolean
 }
 
@@ -56,6 +66,7 @@ const makeDummyTransaction = (calldata: string): OVMTransactionData => {
     callBytes: calldata,
     fromAddress: NULL_ADDRESS,
     l1MsgSenderAddress: NULL_ADDRESS,
+    gasLimit: GAS_LIMIT,
     allowRevert: false,
   }
 }
@@ -92,7 +103,58 @@ const DUMMY_ACCOUNT_STORAGE = (): TrieNode[] => {
   ])
 }
 
-const DUMMY_STATE_TRIE = {
+// OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
+const METADATA_STORAGE_ADDRESS = NULL_ADDRESS
+// Storage keys which the EM will directly use to persist the different pieces of metadata:
+// Storage slot where we will store the cumulative sequencer tx gas spent
+const CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000001'
+// Storage slot where we will store the cumulative queued tx gas spent
+const CUMULATIVE_QUEUED_GAS_STORAGE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000002'
+// Storage slot where we will store the start of the current gas rate limit epoch
+const GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000003'
+// Storage slot where we will store what the cumulative sequencer gas was at the start of the last epoch
+const CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000004'
+// Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
+const CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000005'
+
+const initialCumulativeSequencedGas = 0
+const initialCumulativeQueuedGas = 0
+const initialGasRateLimitEpochStart = 0
+const initialCumulativeSequencedGasAtEpochStart = 0
+const initialCumulativeQueuedGasAtEpochStart = 0
+
+const INITIAL_OVM_GAS_STORAGE = (): any => {
+  return cloneDeep([
+    {
+      key: CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY,
+      val: numberToHexString(initialCumulativeSequencedGas, 32),
+    },
+    {
+      key: CUMULATIVE_QUEUED_GAS_STORAGE_KEY,
+      val: numberToHexString(initialCumulativeQueuedGas, 32),
+    },
+    {
+      key: GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY,
+      val: numberToHexString(initialGasRateLimitEpochStart, 32),
+    },
+    {
+      key: CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY,
+      val: numberToHexString(initialCumulativeSequencedGasAtEpochStart, 32),
+    },
+    {
+      key: CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY,
+      val: numberToHexString(initialCumulativeQueuedGasAtEpochStart, 32),
+    },
+  ])
+}
+
+// A populated state trie layout, with OVM gas metering state pre-populated
+const DUMMY_INITIAL_STATE_TRIE = {
   [DUMMY_ACCOUNT_ADDRESSES[0]]: {
     state: EMPTY_ACCOUNT_STATE(),
     storage: DUMMY_ACCOUNT_STORAGE(),
@@ -105,6 +167,10 @@ const DUMMY_STATE_TRIE = {
     state: EMPTY_ACCOUNT_STATE(),
     storage: DUMMY_ACCOUNT_STORAGE(),
   },
+  [METADATA_STORAGE_ADDRESS]: {
+    state: EMPTY_ACCOUNT_STATE(),
+    storage: INITIAL_OVM_GAS_STORAGE(),
+  },
 }
 
 const encodeTransaction = (transaction: OVMTransactionData): string => {
@@ -116,18 +182,23 @@ const encodeTransaction = (transaction: OVMTransactionData): string => {
       transaction.callBytes,
       transaction.fromAddress,
       transaction.l1MsgSenderAddress,
+      transaction.gasLimit,
       transaction.allowRevert ? 1 : 0,
     ])
   )
 }
 
-const makeStateTrie = (account: string, state: any, storage: any[]): any => {
+const makeInitialStateTrie = (
+  account: string,
+  state: any,
+  storage: any[]
+): any => {
   return {
     [account]: {
       state,
       storage,
     },
-    ...DUMMY_STATE_TRIE,
+    ...DUMMY_INITIAL_STATE_TRIE,
   }
 }
 
@@ -154,6 +225,7 @@ const makeTransactionData = async (
     callBytes: calldata,
     fromAddress: target.address,
     l1MsgSenderAddress: await wallet.getAddress(),
+    gasLimit: GAS_LIMIT,
     allowRevert: false,
   }
 }
@@ -388,7 +460,7 @@ describe('StateTransitioner', () => {
   let stateTrie: any
   let test: AccountStorageProofTest
   before(async () => {
-    stateTrie = makeStateTrie(
+    stateTrie = makeInitialStateTrie(
       fraudTester.address,
       {
         nonce: 0,
@@ -742,7 +814,9 @@ describe('StateTransitioner', () => {
 
         await stateTransitioner.applyTransaction(transactionData)
 
-        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(
+          DEFAULT_TX_NUM_STORAGE_UPDATES + 1
+        )
 
         const newStateTrieRoot = await proveAllStorageUpdates(
           stateTransitioner,
@@ -786,7 +860,9 @@ describe('StateTransitioner', () => {
 
         await stateTransitioner.applyTransaction(transactionData)
 
-        expect(await stateManager.updatedStorageSlotCounter()).to.equal(3)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(
+          DEFAULT_TX_NUM_STORAGE_UPDATES + 3
+        )
 
         const newStateTrieRoot = await proveAllStorageUpdates(
           stateTransitioner,
@@ -830,7 +906,9 @@ describe('StateTransitioner', () => {
 
         await stateTransitioner.applyTransaction(transactionData)
 
-        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(
+          DEFAULT_TX_NUM_STORAGE_UPDATES + 1
+        )
 
         const newStateTrieRoot = await proveAllStorageUpdates(
           stateTransitioner,
@@ -946,6 +1024,10 @@ describe('StateTransitioner', () => {
               },
             ],
           },
+          {
+            address: METADATA_STORAGE_ADDRESS,
+            storage: INITIAL_OVM_GAS_STORAGE(),
+          },
         ])
 
         const accessTest = await makeAccountStorageProofTest(
@@ -987,7 +1069,11 @@ describe('StateTransitioner', () => {
         )
 
         await stateTransitioner.applyTransaction(transactionData)
-        expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(
+          DEFAULT_TX_NUM_STORAGE_UPDATES + 0
+        )
+
+        await proveAllStorageUpdates(stateTransitioner, stateManager, trie)
 
         await stateTransitioner.completeTransition()
         expect(await stateTransitioner.currentTransitionPhase()).to.equal(
@@ -1022,7 +1108,9 @@ describe('StateTransitioner', () => {
         )
 
         await stateTransitioner.applyTransaction(transactionData)
-        expect(await stateManager.updatedStorageSlotCounter()).to.equal(1)
+        expect(await stateManager.updatedStorageSlotCounter()).to.equal(
+          DEFAULT_TX_NUM_STORAGE_UPDATES + 1
+        )
 
         await proveAllStorageUpdates(stateTransitioner, stateManager, stateTrie)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
