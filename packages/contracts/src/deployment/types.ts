@@ -77,6 +77,7 @@ export const factoryToContractName = {
 export interface RollupDeployConfig {
   signer: Signer
   rollupOptions: RollupOptions
+  addressResolverContractAddress?: string
   addressResolverConfig?: ContractDeployOptions
   contractDeployConfig?: Partial<ContractDeployConfig>
   dependencies?: ContractFactoryName[]

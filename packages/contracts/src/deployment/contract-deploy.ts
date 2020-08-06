@@ -1,9 +1,9 @@
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, remove0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
-import { Contract } from 'ethers'
+import { Contract, ethers } from 'ethers'
 /* Internal Imports */
-import { getContractFactory } from '../contract-imports'
+import { getContractFactory, getContractInterface } from '../contract-imports'
 import { mergeDefaultConfig } from './default-config'
 import {
   AddressResolverMapping,
@@ -23,7 +23,28 @@ const deployContract = async (
   config: ContractDeployOptions
 ): Promise<Contract> => {
   config.factory = config.factory.connect(config.signer)
-  return config.factory.deploy(...config.params)
+  const rawTx = config.factory.getDeployTransaction(...config.params)
+
+  // Can't use this because it fails on ExecutionManager & FraudVerifier
+  // return config.factory.deploy(...config.params)
+
+  const res = await config.signer.sendTransaction({
+    data: rawTx.data,
+    gasLimit: 9_500_000,
+    gasPrice: 2_000_000_000,
+    value: 0,
+    nonce: await config.signer.getTransactionCount('pending'),
+  })
+
+  const receipt: ethers.providers.TransactionReceipt = await config.signer.provider.waitForTransaction(
+    res.hash
+  )
+
+  return new Contract(
+    receipt.contractAddress,
+    config.factory.interface,
+    config.signer
+  )
 }
 
 /**
@@ -38,11 +59,18 @@ export const deployAndRegister = async (
   name: string,
   deployConfig: ContractDeployOptions
 ): Promise<Contract> => {
+  log.debug(`Deploying ${name}...`)
   const deployedContract = await deployContract(deployConfig)
-  log.debug(`Deployed contract ${name} at address ${deployedContract.address}`)
-  await addressResolver.setAddress(name, deployedContract.address)
+  log.info(`Deployed ${name} at address ${deployedContract.address}.`)
+
+  log.debug(`Registering ${name} with AddressResolver`)
+  const res: ethers.providers.TransactionResponse = await addressResolver.setAddress(
+    name,
+    deployedContract.address
+  )
+  await addressResolver.provider.waitForTransaction(res.hash)
   log.debug(
-    `Registered ${name} with Address Resolver (${addressResolver.address})`
+    `Registered ${name} with AddressResolver (${addressResolver.address})`
   )
   return deployedContract
 }
@@ -55,15 +83,28 @@ export const deployAndRegister = async (
 export const deployAllContracts = async (
   config: RollupDeployConfig
 ): Promise<AddressResolverMapping> => {
-  if (!config.addressResolverConfig) {
-    config.addressResolverConfig = {
-      factory: getContractFactory('AddressResolver'),
-      params: [],
-      signer: config.signer,
+  let addressResolver: Contract
+  if (!config.addressResolverContractAddress) {
+    if (!config.addressResolverConfig) {
+      config.addressResolverConfig = {
+        factory: getContractFactory('AddressResolver'),
+        params: [],
+        signer: config.signer,
+      }
     }
+    log.debug(`No deployed AddressResolver found. Deploying...`)
+    addressResolver = await deployContract(config.addressResolverConfig)
+    log.info(`Deployed AddressResolver to ${addressResolver.address}`)
+  } else {
+    log.info(
+      `Using deployed AddressResolver at address ${config.addressResolverContractAddress}`
+    )
+    addressResolver = new Contract(
+      config.addressResolverContractAddress,
+      getContractInterface('AddressResolver'),
+      config.signer
+    )
   }
-
-  const addressResolver = await deployContract(config.addressResolverConfig)
 
   const deployConfig = await mergeDefaultConfig(
     addressResolver.address,
@@ -76,6 +117,20 @@ export const deployAllContracts = async (
   for (const name of Object.keys(deployConfig)) {
     if (!config.dependencies || config.dependencies.includes(name as any)) {
       const contractName = factoryToContractName[name]
+      const deployedAddress = await addressResolver.getAddress(name)
+
+      if (!!deployedAddress && deployedAddress !== ZERO_ADDRESS) {
+        log.info(
+          `Using existing deployed and registered contract for ${name} at address ${deployedAddress}`
+        )
+        contracts[contractName] = new Contract(
+          deployedAddress,
+          deployConfig[name].factory.interface,
+          config.signer
+        )
+        continue
+      }
+
       contracts[contractName] = await deployAndRegister(
         addressResolver,
         name,

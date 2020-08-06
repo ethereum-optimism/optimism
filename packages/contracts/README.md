@@ -46,6 +46,7 @@ Or:
 * `L1_CONTRACT_OWNER_ADDRESS` - The owner of the deployed contracts (where applicable). Defaults to deployer address if not provided.
 * `FORCE_INCLUSION_PERIOD_SECONDS` - The maximum time in seconds between when a tx may be executed in L2 and when it must be mined on-chain
 * `L1_SEQUENCER_ADDRESS` - The address of the sequencer that will be authorized to submit rollup blocks & roots.
+* `L1_ADDRESS_RESOLVER_CONTRACT_ADDRESS` - (optional) The Address Resolver contract to use to determine which contracts actually need to be deployed. Contracts registered with this AddressResolver will not be re-deployed.
 
 #### Deployment
 After proper configuration, you can deploy all contracts by running:
