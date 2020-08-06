@@ -1,4 +1,4 @@
-import '../../../setup'
+import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
@@ -11,6 +11,7 @@ import {
   ZERO_ADDRESS,
   NULL_ADDRESS,
   hexStrToNumber,
+  numberToHexString,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 import { fromPairs } from 'lodash'
@@ -28,17 +29,17 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
-} from '../../../test-helpers'
+} from '../../test-helpers'
 
 /* Logging */
-const log = getLogger('execution-manager-calls', true)
+const log = getLogger('partial-state-manager-gas-metering', true)
 
 /* Testing Constants */
 
 const OVM_TX_BASE_GAS_FEE = 30_000
 const OVM_TX_MAX_GAS = 1_500_000
 const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 60_000
-const MAX_GAS_PER_EPOCH = 2_000_000
+const MAX_GAS_PER_EPOCH = 10_000_000
 
 const SEQUENCER_ORIGIN = 0
 const QUEUED_ORIGIN = 1
@@ -56,7 +57,7 @@ const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 43953
  * TESTS *
  *********/
 
-describe.only('Execution Manager -- Gas Metering', () => {
+describe.only('Partial State Manager -- Gas Metering Script', () => {
   const provider = ethers.provider
 
   let SimpleStorage: ContractFactory
@@ -176,25 +177,21 @@ describe.only('Execution Manager -- Gas Metering', () => {
 
   const getChangeInCumulativeGas = async (
     callbackConsumingGas: () => Promise<any>
-  ): Promise<{ internalToOVM: number; usedByEVMTopLevelCall: number }> => {
+  ): Promise<{ internalToOVM: number; additionalExecuteTransactionOverhead: number }> => {
     // record value before
-    const queuedBefore: number = await getCumulativeQueuedGas()
     const sequencedBefore: number = await getCumulativeSequencedGas()
-    log.debug(
-      `calling the callback which should change gas, before is: ${queuedBefore}, ${sequencedBefore}`
-    )
     const tx = await callbackConsumingGas()
-    log.debug(`finished calling the callback which should change gas`)
-    const queuedAfter: number = await getCumulativeQueuedGas()
     const sequencedAfter: number = await getCumulativeSequencedGas()
 
     const receipt = await executionManager.provider.getTransactionReceipt(
       tx.hash
     )
 
+    const change = sequencedAfter - sequencedBefore
+
     return {
-      internalToOVM: sequencedAfter - sequencedBefore,
-      usedByEVMTopLevelCall: hexStrToNumber(receipt.gasUsed._hex),
+      internalToOVM: change,
+      additionalExecuteTransactionOverhead: hexStrToNumber(receipt.gasUsed._hex) - change,
     }
   }
 
@@ -224,15 +221,19 @@ describe.only('Execution Manager -- Gas Metering', () => {
     const val = '0x' + '23'.repeat(32)
     it('setStorage', async () => {
       let doCall = getSimpleStorageCallCallback('setStorage', [key, val])
-      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
     })
     it('getStorage', async () => {
       let doCall = getSimpleStorageCallCallback('getStorage', [key])
-      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
     })
   })
-  describe('Simplestorage gas meter -- OVM vs EVM -- partial state manager', async () => {
+  describe.only('Simplestorage gas meter -- OVM vs EVM -- partial state manager', async () => {
     const key = '0x' + '12'.repeat(32)
+    const startIndexForMultipleKeys = 1
+    const multipleSequentialKeys = (new Array<string>(20)).fill('lol').map((val, i) => {
+      return numberToHexString(startIndexForMultipleKeys + i, 32)
+    })
     const val = '0x' + '23'.repeat(32)
 
     let stateManager: Contract
@@ -264,30 +265,43 @@ describe.only('Execution Manager -- Gas Metering', () => {
     })
 
     beforeEach(async () => {
-      // reset value so that sstore costs are the same between tests
+      // reset the single key value so that sstore costs are the same between tests
       await stateManager.insertVerifiedStorage(
         simpleStorageOVMAddress,
         key,
         '0x' + '00'.repeat(32)
       )
+      // reset the sequential keys we set so sstore costs are the same between tests (new set vs update)
+      for (let aKey of multipleSequentialKeys) {
+        await stateManager.insertVerifiedStorage(
+          simpleStorageOVMAddress,
+          aKey,
+          '0x' + '00'.repeat(32)
+        )
+      }
     })
 
     it('setStorage', async () => {
       let doCall = getSimpleStorageCallCallback('setStorage', [key, val])
-      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
     })
     it('getstorage', async () => {
       let doCall = getSimpleStorageCallCallback('getStorage', [key])
-      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
+    it('getstorages (20x)', async () => {
+      let doCall = getSimpleStorageCallCallback('getStorages', [key])
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
+    
+    it('setSameSlotRepeated (20x sstore, same key)', async () => {
+      let doCall = getSimpleStorageCallCallback('setSameSlotRepeated', [key, val])
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
+    })
+    it('setStorages (20x sequential unset keys)', async () => {
+      let doCall = getSimpleStorageCallCallback('setSequentialSlots', [startIndexForMultipleKeys, val])
+      log.debug(JSON.stringify(await getChangeInCumulativeGas(doCall)))
     })
 
-    it('setStorages', async () => {
-      let doCall = getSimpleStorageCallCallback('setStorages', [key, val])
-      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
-    })
-    it('getstorages', async () => {
-      let doCall = getSimpleStorageCallCallback('getStorages', [key])
-      console.log(JSON.stringify(await getChangeInCumulativeGas(doCall)))
-    })
   })
 })

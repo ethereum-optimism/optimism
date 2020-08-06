@@ -121,14 +121,14 @@ contract PartialStateManager is ContractResolver {
         public
         onlyStateTransitioner
     {
-        // #if FLAG_IS_DEBUG
-        console.log("Inserting verified storage slot.");
-        console.log("Contract address: %s", _ovmContractAddress);
-        console.log("Slot ID:");
-        console.logBytes32(_slot);
-        console.log("Slot value:");
-        console.logBytes32(_value);
-        // #endif
+        // // #if FLAG_IS_DEBUG
+        // console.log("Inserting verified storage slot.");
+        // console.log("Contract address: %s", _ovmContractAddress);
+        // console.log("Slot ID:");
+        // console.logBytes32(_slot);
+        // console.log("Slot value:");
+        // console.logBytes32(_value);
+        // // #endif
 
         isVerifiedStorage[_ovmContractAddress][_slot] = true;
         ovmContractStorage[_ovmContractAddress][_slot] = _value;
@@ -148,12 +148,12 @@ contract PartialStateManager is ContractResolver {
         public
         onlyStateTransitioner
     {
-        // #if FLAG_IS_DEBUG
-        console.log("Inserting verified contract.");
-        console.log("OVM contract address: %s", _ovmContractAddress);
-        console.log("Code contract address: %s", _codeContractAddress);
-        console.log("Contract nonce: %s", _nonce);
-        // #endif
+        // // #if FLAG_IS_DEBUG
+        // console.log("Inserting verified contract.");
+        // console.log("OVM contract address: %s", _ovmContractAddress);
+        // console.log("Code contract address: %s", _codeContractAddress);
+        // console.log("Contract nonce: %s", _nonce);
+        // // #endif
 
         isVerifiedContract[_ovmContractAddress] = true;
         ovmContractNonces[_ovmContractAddress] = _nonce;
