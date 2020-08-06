@@ -20,7 +20,7 @@ ORDER BY
 CREATE OR REPLACE VIEW next_queued_geth_submission
 AS
 
-SELECT r.*, b.block_timestamp
+SELECT r.*, b.block_timestamp, b.block_number
 FROM l1_rollup_tx r
   INNER JOIN l1_tx t ON r.l1_tx_hash = t.tx_hash
   INNER JOIN l1_block b ON b.block_number = t.block_number
