@@ -1,11 +1,18 @@
 /* External Imports */
-import { bufToHexString, isObject, remove0x } from '@eth-optimism/core-utils'
+import {
+  bufToHexString,
+  isObject,
+  remove0x,
+  getLogger,
+} from '@eth-optimism/core-utils'
 
 import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
 import { Address, EVMBytecode, EVMOpcodeAndBytes, Opcode } from '../types'
 import { BaseProvider, TransactionResponse } from 'ethers/providers'
+
+const log = getLogger('rollup-core-utils')
 
 /**
  * Creates an unsigned transaction and returns its calldata.
@@ -199,8 +206,13 @@ export const monkeyPatchL2Provider = (baseProvider) => {
   const checkTransactionResponse = BaseProvider.checkTransactionResponse
   BaseProvider.checkTransactionResponse = (tx): TransactionResponse => {
     const res = checkTransactionResponse(tx)
-    if (isObject(tx) && !!tx['l1MessageSender']) {
-      res['l1MessageSender'] = tx['l1MessageSender']
+    if (isObject(tx)) {
+      if (!!tx['l1MessageSender']) {
+        res['l1MessageSender'] = tx['l1MessageSender']
+      }
+      if (!!tx['l1RollupTxId']) {
+        res['l1RollupTxId'] = tx['l1RollupTxId']
+      }
     }
     return res
   }
@@ -255,6 +267,14 @@ export const monkeyPatchL2Provider = (baseProvider) => {
         block.transactions[i]['l1MessageSender'] =
           rawBlock.transactions[i]['l1MessageSender']
       }
+      if (!!rawBlock.transactions[i]['l1RollupTxId']) {
+        block.transactions[i]['l1RollupTxId'] =
+          rawBlock.transactions[i]['l1RollupTxId']
+      }
+    }
+
+    if (!!rawBlock['stateRoot']) {
+      block.stateRoot = rawBlock['stateRoot']
     }
 
     this.fetchedBlocks.delete(block.hash)

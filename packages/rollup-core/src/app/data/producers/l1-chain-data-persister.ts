@@ -29,6 +29,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
    * @param l1Provider The provider to use to connect to L1 to subscribe & fetch block / tx / log data.
    * @param logHandlerContexts The collection of LogHandlerContexts that uniquely identify the log events
    *        to be handled and the function that processes their data and inserts them into the RDB.
+   * @param earliestBlock The earliest block to sync.
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
@@ -36,6 +37,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
     dataService: L1DataService,
     l1Provider: Provider,
     logHandlerContexts: LogHandlerContext[],
+    earliestBlock: number = 0,
     persistenceKey: string = L1ChainDataPersister.persistenceKey
   ): Promise<L1ChainDataPersister> {
     const processor = new L1ChainDataPersister(
@@ -43,6 +45,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       dataService,
       l1Provider,
       logHandlerContexts,
+      earliestBlock,
       persistenceKey
     )
     await processor.init()
@@ -54,18 +57,19 @@ export class L1ChainDataPersister extends ChainDataProcessor {
     private readonly l1DataService: L1DataService,
     private readonly l1Provider: Provider,
     private readonly logHandlerContexts: LogHandlerContext[],
+    private earliestBlock: number,
     persistenceKey: string
   ) {
-    super(db, persistenceKey)
+    super(db, persistenceKey, earliestBlock)
     this.topicMap = new Map<string, LogHandlerContext>(
       this.logHandlerContexts.map((x) => [x.topic, x])
     )
 
-    if (this.topicMap.size !== logHandlerContexts.length) {
+    if (this.topicMap.size !== this.logHandlerContexts.length) {
       throw Error('There must be exactly one log context for each log topic')
     }
     this.topics = Array.from(this.topicMap.keys())
-    log.debug(`topics: ${JSON.stringify(this.topicMap)}`)
+    log.debug(`topics: ${JSON.stringify(this.topics)}`)
   }
 
   /**
@@ -76,10 +80,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       `handling block ${block.number}. Searching for any relevant logs.`
     )
 
-    const logs: Log[] = await this.l1Provider.getLogs({
-      blockHash: block.hash,
-      topics: this.topics,
-    })
+    const logs: Log[] = await this.getLogsForBlock(block.hash)
 
     log.debug(
       `Got ${logs.length} logs from block ${block.number}: ${JSON.stringify(
@@ -136,5 +137,35 @@ export class L1ChainDataPersister extends ChainDataProcessor {
     await this.l1DataService.updateBlockToProcessed(block.hash)
 
     return this.markProcessed(index)
+  }
+
+  /**
+   * Gets the logs for a given block that match our topics, taking into account the fact that
+   * we may have more than 4 topics and ethers doesn't support more than 4 topics in a single filter.
+   *
+   * @param blockHash The block hash for the block in which we're searching for logs.
+   */
+  private async getLogsForBlock(blockHash: string): Promise<Log[]> {
+    if (!this.topics.length) {
+      return []
+    }
+
+    const logsArrays: Log[][] = await Promise.all(
+      this.topics.map((topic) =>
+        this.l1Provider.getLogs({
+          blockHash,
+          topics: [topic],
+        })
+      )
+    )
+
+    const flattened: Log[] = [].concat(...logsArrays)
+    log.info(
+      `Logs Arrays: ${JSON.stringify(logsArrays)}.\nFlattened: ${JSON.stringify(
+        flattened
+      )}`
+    )
+
+    return flattened
   }
 }

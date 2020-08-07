@@ -20,8 +20,6 @@ wait_for_server_to_be_reachable()
       COUNT=$(($COUNT+1))
     done
   fi
-
-
 }
 
 wait_for_server_to_be_reachable $L1_NODE_WEB3_URL

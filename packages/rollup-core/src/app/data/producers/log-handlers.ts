@@ -311,7 +311,7 @@ export const SequencerBatchAppendedLogHandler = async (
         l1Timestamp: timestamp.toNumber(),
         l1TxHash: l.transactionHash,
         l1TxIndex: l.transactionIndex,
-        l1TxLogIndex: l.transactionLogIndex,
+        l1TxLogIndex: l.transactionLogIndex || 0,
         queueOrigin: QueueOrigin.SEQUENCER,
         indexWithinSubmission: i,
         sender,

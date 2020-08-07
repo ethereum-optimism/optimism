@@ -10,11 +10,7 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import {
-  L2DataService,
-  LogHandlerContext,
-  TransactionOutput,
-} from '../../../types'
+import { L2DataService, TransactionOutput } from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 import { monkeyPatchL2Provider } from '../../utils'
 import { BigNumber, remove0x } from '@eth-optimism/core-utils/build'
@@ -35,18 +31,21 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    * @param db The DB to use to persist the queue of Block objects.
    * @param dataService The L2 Data Service handling persistence of relevant data.
    * @param l2Provider The provider to use to connect to L2 to subscribe & fetch block / tx data.
+   * @param earliestBlock The earliest block to sync.
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
     db: DB,
     dataService: L2DataService,
     l2Provider: Provider,
+    earliestBlock: number = 0,
     persistenceKey: string = L2ChainDataPersister.persistenceKey
   ): Promise<L2ChainDataPersister> {
     const processor = new L2ChainDataPersister(
       db,
       dataService,
       monkeyPatchL2Provider(l2Provider),
+      earliestBlock,
       persistenceKey
     )
     await processor.init()
@@ -57,9 +56,10 @@ export class L2ChainDataPersister extends ChainDataProcessor {
     db: DB,
     private readonly l2DataService: L2DataService,
     private readonly l2Provider: Provider,
+    private earliestBlock: number,
     persistenceKey: string
   ) {
-    super(db, persistenceKey)
+    super(db, persistenceKey, earliestBlock)
   }
 
   /**
@@ -116,6 +116,8 @@ export class L2ChainDataPersister extends ChainDataProcessor {
     response: TransactionResponse,
     receipt: TransactionReceipt
   ): TransactionOutput {
+    log.debug(`Block data: ${JSON.stringify(block)}`)
+
     const res: TransactionOutput = {
       timestamp: block.timestamp,
       blockNumber: receipt.blockNumber,
@@ -125,7 +127,9 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       nonce: response.nonce,
       calldata: response.data,
       from: response.from || receipt.from,
-      stateRoot: receipt.root,
+      stateRoot: block['stateRoot'], // should be added by rollup-core/app/utils.ts: monkeyPatchL2Provider
+      gasLimit: L2ChainDataPersister.parseBigNumber(response.gasLimit),
+      gasPrice: L2ChainDataPersister.parseBigNumber(response.gasPrice),
     }
 
     if (!!response['l1MessageSender']) {
@@ -140,6 +144,23 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       )}${response.v.toString(16)}`
     }
 
+    log.debug(
+      `L2 Tx Output for block ${receipt.blockNumber}: ${JSON.stringify(res)}`
+    )
+
     return res
+  }
+
+  private static parseBigNumber(data: any): BigNumber {
+    if (!data) {
+      return undefined
+    }
+    if (typeof data === 'string') {
+      return new BigNumber(remove0x(data))
+    }
+    if (typeof data.toHexString === 'function') {
+      return new BigNumber(data.toHexString())
+    }
+    return new BigNumber(data.toString('hex'))
   }
 }

@@ -222,7 +222,11 @@ export abstract class BaseQueuedPersistedProcessor<T>
     ) {
       await this.setNextToProcess(index + 1)
       this.log(`Handling index ${index}.`)
-      return this.handleNextItem(index, item)
+      await this.handleNextItem(index, item)
+    } else {
+      this.log(
+        `Cannot handle ${index} yet. last processed: ${this.lastIndexProcessed}. Next to process: ${this.nextIndexToProcess}`
+      )
     }
   }
 
@@ -235,7 +239,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
   private async persistItem(index: number, item: T): Promise<void> {
     const serializedItem: Buffer = await this.serializeItem(item)
     await this.db.put(this.getStorageKeyForIndex(index), serializedItem)
-    this.log(`Persisted item with index ${index}`)
+    this.log(`Persisted item with index ${index}: ${serializedItem}`)
   }
 
   /**

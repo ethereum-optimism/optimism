@@ -1,9 +1,9 @@
 /* External Imports */
 import { InfuraProvider, JsonRpcProvider, Provider } from 'ethers/providers'
+import { Wallet } from 'ethers'
 
 /* Internal Imports */
 import { Environment } from './environment'
-import { Wallet } from 'ethers'
 
 let l1Provider: JsonRpcProvider
 export const getL1Provider = (): JsonRpcProvider => {
@@ -55,4 +55,15 @@ export const getSequencerWallet = (): Wallet => {
     )
   }
   return sequencerWallet
+}
+
+let stateRootSubmissionWallet: Wallet
+export const getStateRootSubmissionWallet = (): Wallet => {
+  if (!stateRootSubmissionWallet) {
+    stateRootSubmissionWallet = new Wallet(
+      Environment.getOrThrow(Environment.stateRootSubmissionWallet),
+      getL1Provider()
+    )
+  }
+  return stateRootSubmissionWallet
 }

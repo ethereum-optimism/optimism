@@ -12,9 +12,11 @@ export const getL1BlockInsertValue = (
 ): string => {
   return `${stringOrNull(block.hash)}, ${stringOrNull(
     block.parentHash
-  )}, ${numOrNull(block.number)}, ${numOrNull(block.timestamp)}, ${bigNumOrNull(
-    block.gasLimit
-  )}, ${bigNumOrNull(block.gasUsed)}, ${bool(processed)}`
+  )}, ${numOrNull(block.number)}, ${numOrNull(
+    block.timestamp
+  )}, ${bigNumberOrNull(block.gasLimit)}, ${bigNumberOrNull(
+    block.gasUsed
+  )}, ${bool(processed)}`
 }
 
 export const l1TxInsertStatement = `INSERT INTO l1_tx(block_number, tx_index, tx_hash, from_address, to_address, nonce, gas_limit, gas_price, calldata, signature) `
@@ -26,7 +28,7 @@ export const getL1TransactionInsertValue = (
     tx.hash
   )}, ${stringOrNull(tx.from)}, ${stringOrNull(tx.to)}, ${numOrNull(
     tx.nonce
-  )}, ${bigNumOrNull(tx.gasLimit)}, ${bigNumOrNull(
+  )}, ${bigNumberOrNull(tx.gasLimit)}, ${bigNumberOrNull(
     tx.gasPrice
   )}, ${stringOrNull(tx.data)}, '${rsvToSignature(tx.r, tx.s, tx.v)}'`
 }
@@ -78,12 +80,8 @@ export const getL2TransactionOutputInsertValue = (
   )}, ${stringOrNull(tx.stateRoot)}, ${numOrNull(tx.l1RollupTransactionId)}`
 }
 
-export const bigNumberOrNull = (bigNumber: BigNumber): string => {
+export const bigNumberOrNull = (bigNumber: any): string => {
   return !!bigNumber ? `'${bigNumber.toString(10)}'` : 'NULL'
-}
-
-export const bigNumOrNull = (bn: any): string => {
-  return !!bn ? `'${bn.toString()}'` : 'NULL'
 }
 
 export const numOrNull = (num: any): any => {

@@ -1,0 +1,13 @@
+{
+  "sourcesPath": "./contracts",
+  "targetPath": "./build",
+  "npmPath": "../../node_modules",
+  "solcVersion": "../../node_modules/solc",
+  "compilerOptions": {
+    "outputSelection": {
+      "*": {
+        "*": ["*"]
+      }
+    }
+  }
+}

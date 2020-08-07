@@ -1,6 +1,11 @@
 /* External Imports */
 import { RDB, Row } from '@eth-optimism/core-db'
-import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  logError,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 
 import { Block, TransactionResponse } from 'ethers/providers'
 
@@ -510,8 +515,7 @@ export class DefaultDataService implements DataService {
   ): Promise<number> {
     const availableRootsRes = await this.rdb.select(
       `SELECT COUNT(*) as available
-      FROM l2_tx_output
-      WHERE state_commitment_chain_batch_number IS NULL`
+      FROM batchable_l2_only_tx_states`
     )
 
     if (
@@ -543,9 +547,8 @@ export class DefaultDataService implements DataService {
             state_commitment_chain_batch_number = ${batchNumber},
             state_commitment_chain_batch_index = t.row_number
         FROM (
-          SELECT id, row_number() over (ORDER BY id ASC) -1 AS row_number
-          FROM l2_tx_output
-          WHERE state_commitment_chain_batch_number IS NULL 
+          SELECT id, row_number
+          FROM batchable_l2_only_tx_states
           ORDER BY block_number ASC, tx_index ASC
           LIMIT ${maxBatchSize}
         ) t
@@ -596,14 +599,14 @@ export class DefaultDataService implements DataService {
         blockNumber: row['block_number'],
         transactionIndex: row['tx_index'],
         transactionHash: row['tx_hash'],
-        to: row['target'],
+        to: row['target'] || ZERO_ADDRESS,
         from: row['sender'],
         nonce: parseInt(row['nonce'], 10),
         calldata: row['calldata'],
         stateRoot: row['state_root'],
         gasPrice: row['gas_price'],
         gasLimit: row['gas_limit'],
-        l1MessageSender: row['l1_message_sender'], // should never be present in this case
+        l1MessageSender: row['l1_message_sender'] || undefined, // should never be present in this case
         signature: row['signature'],
       })
     }
@@ -798,13 +801,15 @@ export class DefaultDataService implements DataService {
             VALUES ('${l1TxHash}', ${batchNumber})`,
           txContext
         )
-        break
+        return batchNumber
       } catch (e) {
         retries--
+        if (retries === 0) {
+          logError(log, `Error inserting new L1 State Root Batch`, e)
+          throw e
+        }
       }
     }
-
-    return batchNumber
   }
 
   /**
@@ -829,13 +834,15 @@ export class DefaultDataService implements DataService {
             VALUES (${batchNumber})`,
           txContext
         )
-        break
+        return batchNumber
       } catch (e) {
         retries--
+        if (retries === 0) {
+          logError(log, `Error inserting new canonical chain batch`, e)
+          throw e
+        }
       }
     }
-
-    return batchNumber
   }
 
   /**
@@ -892,13 +899,15 @@ export class DefaultDataService implements DataService {
           }')`,
           txContext
         )
-        break
+        return batchNumber
       } catch (e) {
         retries--
+        if (retries === 0) {
+          logError(log, `Error inserting new state commitment chain batch`, e)
+          throw e
+        }
       }
     }
-
-    return batchNumber
   }
 
   /**

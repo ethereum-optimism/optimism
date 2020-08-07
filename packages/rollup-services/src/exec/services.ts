@@ -1,6 +1,12 @@
 /* External Imports */
-import { getLogger, ScheduledTask } from '@eth-optimism/core-utils'
-import { BaseDB, getLevelInstance, PostgresDB } from '@eth-optimism/core-db'
+import { getLogger } from '@eth-optimism/core-utils'
+import {
+  BaseDB,
+  DB,
+  EthereumBlockProcessor,
+  getLevelInstance,
+  PostgresDB,
+} from '@eth-optimism/core-db'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 import {
   CalldataTxEnqueuedLogHandler,
@@ -29,6 +35,7 @@ import {
   getL2Provider,
   getSequencerWallet,
   getSubmitToL2GethWallet,
+  getStateRootSubmissionWallet,
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers } from 'ethers'
@@ -43,57 +50,80 @@ const log = getLogger('service-entrypoint')
 export const runServices = async (): Promise<any[]> => {
   log.info(`Running services!`)
   const services: any[] = []
-  const scheduledTasks: ScheduledTask[] = []
+  let l1ChainDataPersister: L1ChainDataPersister
+  let l2ChainDataPersister: L2ChainDataPersister
 
   if (Environment.runL1ChainDataPersister()) {
     log.info(`Running L1 Chain Data Persister`)
-    services.push(await createL1ChainDataPersister())
+    l1ChainDataPersister = await createL1ChainDataPersister()
   }
   if (Environment.runL2ChainDataPersister()) {
     log.info(`Running L2 Chain Data Persister`)
-    services.push(await createL2ChainDataPersister())
+    l2ChainDataPersister = await createL2ChainDataPersister()
   }
   if (Environment.runGethSubmissionQueuer()) {
     log.info(`Running Geth Submission Queuer`)
-    scheduledTasks.push(await createGethSubmissionQueuer())
+    services.push(await createGethSubmissionQueuer())
   }
   if (Environment.runQueuedGethSubmitter()) {
     log.info(`Running Queued Geth Submitter`)
-    scheduledTasks.push(await createQueuedGethSubmitter())
+    services.push(await createQueuedGethSubmitter())
   }
   if (Environment.runCanonicalChainBatchCreator()) {
     log.info(`Running Canonical Chain Batch Creator`)
-    scheduledTasks.push(await createCanonicalChainBatchCreator())
+    services.push(await createCanonicalChainBatchCreator())
   }
   if (Environment.runCanonicalChainBatchSubmitter()) {
     log.info(`Running Canonical Chain Batch Submitter`)
-    scheduledTasks.push(await createCanonicalChainBatchSubmitter())
+    services.push(await createCanonicalChainBatchSubmitter())
   }
   if (Environment.runStateCommitmentChainBatchCreator()) {
     log.info(`Running State Commitment Chain Batch Creator`)
-    scheduledTasks.push(await createStateCommitmentChainBatchCreator())
+    services.push(await createStateCommitmentChainBatchCreator())
   }
   if (Environment.runStateCommitmentChainBatchSubmitter()) {
     log.info(`Running State Commitment Chain Batch Submitter`)
-    scheduledTasks.push(await createStateCommitmentChainBatchSubmitter())
+    services.push(await createStateCommitmentChainBatchSubmitter())
   }
   if (Environment.runFraudDetector()) {
     log.info(`Running Fraud Detector`)
-    scheduledTasks.push(await createFraudDetector())
+    services.push(await createFraudDetector())
   }
-
-  services.push(...scheduledTasks)
 
   if (!services.length) {
     log.error(`No services configured! Exiting =|`)
     process.exit(1)
   }
 
-  await Promise.all(scheduledTasks.map((x) => x.start()))
+  await Promise.all(services.map((x) => x.start()))
+
+  const subscriptions: Array<Promise<any>> = []
+  if (!!l1ChainDataPersister) {
+    services.push(l1ChainDataPersister)
+    const l1Processor: EthereumBlockProcessor = createL1BlockSubscriber()
+    log.info(`Starting to sync L1 chain`)
+    subscriptions.push(
+      l1Processor.subscribe(getL1Provider(), l1ChainDataPersister)
+    )
+  }
+  if (!!l2ChainDataPersister) {
+    services.push(l2ChainDataPersister)
+    const l2Processor: EthereumBlockProcessor = createL2BlockSubscriber()
+    log.info(`Starting to sync L2 chain`)
+    subscriptions.push(
+      l2Processor.subscribe(getL2Provider(), l2ChainDataPersister)
+    )
+  }
 
   setInterval(() => {
     updateEnvironmentVariables()
   }, 179_000)
+
+  if (!!subscriptions.length) {
+    log.debug(`Awaiting chain subscriptions to sync`)
+    await Promise.all(subscriptions)
+    log.debug(`Awaiting chain subscriptions are synced!`)
+  }
 
   return services
 }
@@ -109,12 +139,7 @@ export const runServices = async (): Promise<any[]> => {
  */
 const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
   return L1ChainDataPersister.create(
-    new BaseDB(
-      getLevelInstance(
-        Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
-      ),
-      256
-    ),
+    getL1BlockProcessorDB(),
     getDataService(),
     getL1Provider(),
     [
@@ -126,7 +151,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
         handleLog: L1ToL2TxEnqueuedLogHandler,
       },
       {
-        topic: ethers.utils.id('event CalldataTxEnqueued()'),
+        topic: ethers.utils.id('CalldataTxEnqueued()'),
         contractAddress: Environment.getOrThrow(
           Environment.safetyTransactionQueueContractAddress
         ),
@@ -160,7 +185,8 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
         ),
         handleLog: StateBatchAppendedLogHandler,
       },
-    ]
+    ],
+    Environment.l1EarliestBlock()
   )
 }
 
@@ -171,11 +197,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
  */
 const createL2ChainDataPersister = async (): Promise<L2ChainDataPersister> => {
   return L2ChainDataPersister.create(
-    new BaseDB(
-      getLevelInstance(
-        Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
-      )
-    ),
+    getL2Db(),
     getDataService(),
     getL2Provider()
   )
@@ -277,7 +299,7 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
     new Contract(
       Environment.getOrThrow(Environment.stateCommitmentChainContractAddress),
       getContractDefinition('StateCommitmentChain').abi,
-      getSequencerWallet()
+      getStateRootSubmissionWallet()
     ),
     Environment.getOrThrow(Environment.finalityDelayInBlocks),
     Environment.getOrThrow(
@@ -302,9 +324,47 @@ const createFraudDetector = (): FraudDetector => {
   )
 }
 
+const createL1BlockSubscriber = (): EthereumBlockProcessor => {
+  return new EthereumBlockProcessor(
+    getL1BlockProcessorDB(),
+    Environment.getOrThrow(Environment.l1EarliestBlock),
+    Environment.getOrThrow(Environment.finalityDelayInBlocks)
+  )
+}
+
+const createL2BlockSubscriber = (): EthereumBlockProcessor => {
+  return new EthereumBlockProcessor(getL2Db(), 0, 1)
+}
+
 /*********************
  * HELPER SINGLETONS *
  *********************/
+
+let l1BlockProcessorDb: DB
+const getL1BlockProcessorDB = (): DB => {
+  if (!l1BlockProcessorDb) {
+    l1BlockProcessorDb = new BaseDB(
+      getLevelInstance(
+        Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
+      ),
+      256
+    )
+  }
+  return l1BlockProcessorDb
+}
+
+let l2Db: DB
+const getL2Db = (): DB => {
+  if (!l2Db) {
+    l2Db = new BaseDB(
+      getLevelInstance(
+        Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
+      ),
+      256
+    )
+  }
+  return l2Db
+}
 
 let dataService: DataService
 const getDataService = (): DataService => {

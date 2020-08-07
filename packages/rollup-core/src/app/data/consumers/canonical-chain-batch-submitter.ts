@@ -5,6 +5,7 @@ import {
   numberToHexString,
   remove0x,
   ScheduledTask,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 
@@ -96,11 +97,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
 
       const timestamp = l2Batch.transactions[0].timestamp
       log.debug(
-        `Submitting tx batch ${
-          l2Batch.batchNumber
-        } to canonical chain. Batch: ${JSON.stringify(
-          l2Batch
-        )}, txs bytes: ${JSON.stringify(txsCalldata)}, timestamp: ${timestamp}`
+        `Submitting tx batch ${l2Batch.batchNumber} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
       const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
         txsCalldata,

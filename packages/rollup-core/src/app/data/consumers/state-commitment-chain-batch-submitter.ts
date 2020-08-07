@@ -92,6 +92,10 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     try {
       const stateRoots: string[] = stateRootBatch.stateRoots
 
+      log.debug(
+        `Appending state root batch number: ${stateRootBatch.batchNumber} with ${stateRoots.length} state roots.`
+      )
+
       const txRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(
         stateRoots
       )
