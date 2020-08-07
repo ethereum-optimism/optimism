@@ -6,6 +6,7 @@ import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
+import { StateManagerGasProxy } from "./StateManagerGasProxy.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -244,6 +245,7 @@ contract ExecutionManager is ContractResolver {
         // Do pre-execution gas checks and updates
         startNewGasEpochIfNecessary(_timestamp);
         validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
+        StateManagerGasProxy(address(resolveStateManager())).inializeGasConsumedValues();
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -1231,12 +1233,16 @@ contract ExecutionManager is ContractResolver {
                 getCumulativeSequencedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
+                - StateManagerGasProxy(address(resolveStateManager())).getStateManagerExternalGasConsumed()
+                + StateManagerGasProxy(address(resolveStateManager())).getStateManagerVirtualGasConsumed()
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
+                - StateManagerGasProxy(address(resolveStateManager())).getStateManagerExternalGasConsumed()
+                + StateManagerGasProxy(address(resolveStateManager())).getStateManagerVirtualGasConsumed()
             );
         }
     }
@@ -1455,6 +1461,6 @@ contract ExecutionManager is ContractResolver {
         view
         returns (StateManager)
     {
-        return StateManager(resolveContract("StateManager"));
+        return StateManager(resolveContract("StateManagerGasProxy"));
     }
 }

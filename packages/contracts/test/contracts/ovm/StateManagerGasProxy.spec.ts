@@ -24,7 +24,7 @@ const GET_STORAGE_PROXY_GAS_COST = 7217
 const SET_STORAGE_PROXY_GAS_COST = 7220
 
 /* Begin tests */
-describe.only('StateManagerGasProxy', () => {
+describe('StateManagerGasProxy', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -121,7 +121,6 @@ describe.only('StateManagerGasProxy', () => {
         'StateManager',
         IDENTITY_PRECOMPILE_ADDRESS
       )
-      // The identity precompile returns exactly what it's sent, so we will get and return the same value.
       const data: string = stateManagerGasProxy.interface.encodeFunctionData(
         'setStorage',
         [
@@ -136,6 +135,7 @@ describe.only('StateManagerGasProxy', () => {
           data
         }
       )
+      // The identity precompile returns exactly what it's sent, so we should just get the same value we passed in.
       res.should.equal(data)
     })
   })

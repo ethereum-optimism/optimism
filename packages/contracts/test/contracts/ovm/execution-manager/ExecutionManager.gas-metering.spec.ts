@@ -56,7 +56,7 @@ const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 40238
  * TESTS *
  *********/
 
-describe('Execution Manager -- Gas Metering', () => {
+describe.only('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -65,18 +65,37 @@ describe('Execution Manager -- Gas Metering', () => {
   let GasConsumer: ContractFactory
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
+  let StateManagerGasProxy: ContractFactory
   before(async () => {
+    console.log(`updated`)
     ;[wallet] = await ethers.getSigners()
     walletAddress = await wallet.getAddress()
     resolver = await makeAddressResolver(wallet)
     GasConsumer = await ethers.getContractFactory('GasConsumer')
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
     StateManager = await ethers.getContractFactory('FullStateManager')
+    StateManagerGasProxy = await ethers.getContractFactory('StateManagerGasProxy')
+    console.log(`all this work`)
   })
 
   let executionManager: Contract
   let gasConsumerAddress: Address
   beforeEach(async () => {
+    console.log(`updated2`)
+    await deployAndRegister(resolver.addressResolver, wallet, 'StateManagerGasProxy', {
+      factory: StateManagerGasProxy,
+      params: [resolver.addressResolver.address],
+    })
+
+    await deployAndRegister(resolver.addressResolver, wallet, 'StateManager', {
+      factory: StateManager,
+      params: [],
+    })
+
+    const SM = await resolver.addressResolver.resolveContract('StateManager')
+    const SMGP = await resolver.addressResolver.resolveContract('StateManagerGasProxy')
+    console.log(`SM is: ${SM}, SMGP is ${SMGP}`)
+
     executionManager = await deployAndRegister(
       resolver.addressResolver,
       wallet,
@@ -96,11 +115,6 @@ describe('Execution Manager -- Gas Metering', () => {
         ],
       }
     )
-
-    await deployAndRegister(resolver.addressResolver, wallet, 'StateManager', {
-      factory: StateManager,
-      params: [],
-    })
 
     gasConsumerAddress = await manuallyDeployOvmContract(
       wallet,
