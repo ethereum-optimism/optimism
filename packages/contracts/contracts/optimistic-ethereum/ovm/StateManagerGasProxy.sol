@@ -1,9 +1,10 @@
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.5.0;
 
 /* Contract Imports */
 import { IStateManager } from "./interfaces/IStateManager.sol";
 import { StateTransitioner } from "./StateTransitioner.sol";
 import { ExecutionManager } from "./ExecutionManager.sol";
+import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -19,7 +20,9 @@ import { console } from "@nomiclabs/buidler/console.sol";
  *
  *         This allows for OVM gas metering to be independent of the actual consumption of the SM, so that different SM implementations use the same gas.
  */
-contract StateManagerGasProxy is IStateManager {
+
+ // TODO: cannot inerit IStateManager here due to visibility changes. How to resolve?
+contract StateManagerGasProxy is ContractResolver {
     /*
      * Virtual (i.e. Charged by OVM) Gas Cost Constants
      */
@@ -58,43 +61,59 @@ contract StateManagerGasProxy is IStateManager {
 
     /**
      * @param _addressResolver Address of the AddressResolver contract.
-     * @param _stateTransitioner Address of the StateTransitioner attached to this contract.
      */
     constructor(
-        address _addressResolver,
-        address _stateTransitioner
+        address _addressResolver
     )
         public
         ContractResolver(_addressResolver)
-    {
-        stateTransitioner = StateTransitioner(_stateTransitioner);
-    }
+    {}
 
     /*
-     * Gas Virtualization Logic
+     * Gas Virtualization and Storage
      */
+
+    // External Initialization and Retrieval Logic
+    function inializeGasConsumedValues() external {
+        externalStateManagerGasConsumed = 0;
+        virtualStateManagerGasConsumed = 0;
+    }
+
+    function getStateManagerExternalGasConsumed() external returns(uint) {
+        return externalStateManagerGasConsumed;
+    }
+
+    function getStateManagerVirtualGasConsumed() external returns(uint) {
+        return virtualStateManagerGasConsumed;
+    }
+
+    // Internal Logic
 
     function recordExternalGasConsumed(uint _externalGasConsumed) internal {
         externalStateManagerGasConsumed += _externalGasConsumed;
     }
 
-    function recordVirtualGasConsumed(uint _virtualGasConsumed) interal {
+    function recordVirtualGasConsumed(uint _virtualGasConsumed) internal {
         virtualStateManagerGasConsumed += _virtualGasConsumed;
     }
 
+    /**
+     * Forwards a call to this proxy along to the actual state manager, and records the consumned external gas.
+     * Reverts if the forwarded call reverts, but currently does not forward revert message, as an SM should never revert.
+     */
     function forwardCallAndRecordExternalConsumption() internal {
         uint initialGas = gasleft();
         address stateManager = resolveStateManager();
         assembly {
-            initialFreeMemStart := mload(0x40)
-            callSize := calldatasize()
+            let initialFreeMemStart := mload(0x40)
+            let callSize := calldatasize()
             mstore(0x40, add(initialFreeMemStart, callSize))
             calldatacopy(
                 initialFreeMemStart,
                 0,
                 callSize
             )
-            success := call(
+            let success := call(
                 gas(), // all remaining gas, leaving enough for this to execute
                 stateManager,
                 0,
@@ -113,12 +132,16 @@ contract StateManagerGasProxy is IStateManager {
         );
     }
 
+    /**
+    * Returns the result of a forwarded SM call to back to the execution manager.
+    * Uses RETURNDATACOPY, so that virtualization logic can be implemented in between here and the forwarded call.
+    */
     function returnProxiedReturnData() internal {
         assembly {
-            freememory := mload(0x40)
-            returnSize := returndatasize()
+            let freememory := mload(0x40)
+            let returnSize := returndatasize()
             returndatacopy(
-                freemeory,
+                freememory,
                 0,
                 returnSize
             )
@@ -128,7 +151,7 @@ contract StateManagerGasProxy is IStateManager {
 
     function executeProxyRecordingVirtualizedGas(
         uint _virtualGasToConsume
-    ) {
+    ) internal {
         forwardCallAndRecordExternalConsumption();
         recordVirtualGasConsumed(_virtualGasToConsume);
         returnProxiedReturnData();
@@ -152,7 +175,7 @@ contract StateManagerGasProxy is IStateManager {
     function getStorageView(
         address _ovmContractAddress,
         bytes32 _slot
-    ) public view returns (bytes32) {
+    ) public returns (bytes32) {
         executeProxyRecordingVirtualizedGas(GET_STORAGE_VIRTUAL_GAS_COST);
     }
 
@@ -176,7 +199,7 @@ contract StateManagerGasProxy is IStateManager {
 
     function getOvmContractNonceView(
         address _ovmContractAddress
-    ) public view returns (uint) {
+    ) public returns (uint) {
         executeProxyRecordingVirtualizedGas(GET_CONTRACT_NONCE_VIRTUAL_GAS_COST);
     }
 
@@ -212,7 +235,7 @@ contract StateManagerGasProxy is IStateManager {
 
     function getCodeContractAddressView(
         address _ovmContractAddress
-    ) public view returns (address) {
+    ) public returns (address) {
         executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_ADDRESS_VIRTUAL_GAS_COST);
     }
 
@@ -224,7 +247,7 @@ contract StateManagerGasProxy is IStateManager {
     
     function getCodeContractBytecode(
         address _codeContractAddress
-    ) public view returns (bytes memory codeContractBytecode) {
+    ) public returns (bytes memory codeContractBytecode) {
         forwardCallAndRecordExternalConsumption();
 
         uint returnedCodeSize;
@@ -240,7 +263,7 @@ contract StateManagerGasProxy is IStateManager {
 
     function getCodeContractHash(
         address _codeContractAddress
-    ) public view returns (bytes32 _codeContractHash) {
+    ) public returns (bytes32 _codeContractHash) {
         executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_HASH_VIRTUAL_GAS_COST);
     }
 
