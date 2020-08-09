@@ -78,7 +78,30 @@ describe.only('Execution Manager -- Gas Metering', () => {
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
     StateManager = await ethers.getContractFactory('FullStateManager')
     StateManagerGasProxy = await ethers.getContractFactory('StateManagerGasProxy')
+
+    // redeploy EM with our gas metering params
+    executionManager = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'ExecutionManager',
+      {
+        factory: ExecutionManager,
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          [
+            OVM_TX_BASE_GAS_FEE,
+            OVM_TX_MAX_GAS,
+            GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
+            MAX_GAS_PER_EPOCH,
+            MAX_GAS_PER_EPOCH,
+          ],
+        ],
+      }
+    )
+
     console.log(`all this work`)
+
 
     // executionManager = resolver.contracts.executionManager
 
@@ -110,25 +133,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
   })
   beforeEach(async () => {
 
-    executionManager = await deployAndRegister(
-      resolver.addressResolver,
-      wallet,
-      'ExecutionManager',
-      {
-        factory: ExecutionManager,
-        params: [
-          resolver.addressResolver.address,
-          NULL_ADDRESS,
-          [
-            OVM_TX_BASE_GAS_FEE,
-            OVM_TX_MAX_GAS,
-            GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
-            MAX_GAS_PER_EPOCH,
-            MAX_GAS_PER_EPOCH,
-          ],
-        ],
-      }
-    )
+
 
     await deployAndRegister(resolver.addressResolver, wallet, 
       'StateManager',
@@ -459,5 +464,64 @@ describe.only('Execution Manager -- Gas Metering', () => {
         await assertOvmTxDidNotRevert(successTx, wallet)
       }).timeout(30000)
     }
+  })
+  describe('StateManagerGasProxy - OVM Gas virtualization', async () => {
+    const timestamp = 1
+    const gasToConsume = 100_000
+    const SM_IMPLEMENTATION = 'StateManagerImplementation'
+    
+    let GasConsumingProxy: ContractFactory
+    before(async () => {
+      GasConsumingProxy = await ethers.getContractFactory('GasConsumingProxy')
+    })
+
+    it.only('Should record OVM transactions with different state manager gas consumption consuming the same EM gas', async () => {
+      // get normal OVM gas change with normal full state manager
+      const fullSateManagerTx = await getConsumeGasCallback(
+        timestamp,
+        SEQUENCER_ORIGIN,
+        gasToConsume
+      )
+      let fullStateManagerResult
+      const fullStateManagerChange = await getChangeInCumulativeGas(async () =>{
+        fullStateManagerResult = await fullSateManagerTx()
+      })
+
+      console.log(`original change:`)
+      console.log(fullStateManagerChange)
+
+      await deployAndRegister(resolver.addressResolver, wallet,
+        'StateManager',
+        {
+          factory: GasConsumingProxy,
+          params: [
+            resolver.addressResolver.address,
+            SM_IMPLEMENTATION
+          ]
+        }  
+      )
+
+      await deployAndRegister(resolver.addressResolver, wallet,
+        SM_IMPLEMENTATION,
+        {
+          factory: StateManager,
+          params: []
+        }
+      )
+
+      // get normal OVM gas change with normal full state manager
+      const proxiedFullStateManagerTx = await getConsumeGasCallback(
+        timestamp,
+        SEQUENCER_ORIGIN,
+        gasToConsume
+      )
+      let proxiedFullStateManagerResult
+      const proxiedFullStateManagerChange = await getChangeInCumulativeGas(async () =>{
+        proxiedFullStateManagerResult = await proxiedFullStateManagerTx()
+      })
+      
+      console.log(`proxied change:`)
+      console.log(proxiedFullStateManagerChange) 
+    })
   })
 })
