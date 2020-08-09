@@ -22,6 +22,7 @@ export interface AddressResolverDeployConfig {
   CanonicalTransactionChain: ContractDeployConfig
   StateCommitmentChain: ContractDeployConfig
   StateManager: ContractDeployConfig
+  StateManagerGasProxy: ContractDeployConfig
   ExecutionManager: ContractDeployConfig
   SafetyChecker: ContractDeployConfig
   FraudVerifier: ContractDeployConfig
@@ -54,6 +55,7 @@ export const factoryToContractName = {
   CanonicalTransactionChain: 'canonicalTransactionChain',
   StateCommitmentChain: 'stateCommitmentChain',
   StateManager: 'stateManager',
+  StateManagerGasProxy: 'StateManagerGasProxy',
   ExecutionManager: 'executionManager',
   SafetyChecker: 'safetyChecker',
   FraudVerifier: 'fraudVerifier',

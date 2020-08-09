@@ -20,8 +20,8 @@ const GET_STORAGE_VIRTUAL_GAS_COST = 10000
 const SET_STORAGE_VIRTUAL_GAS_COST = 30000
 
 // Hardcoded gas overhead that the gas proxy functions take
-const GET_STORAGE_PROXY_GAS_COST = 7217
-const SET_STORAGE_PROXY_GAS_COST = 7220
+const GET_STORAGE_PROXY_GAS_COST = 9075
+const SET_STORAGE_PROXY_GAS_COST = 9082
 
 /* Begin tests */
 describe('StateManagerGasProxy', () => {

@@ -16,6 +16,7 @@ import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 
 /* Testing Imports */
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title ExecutionManager
@@ -107,19 +108,19 @@ contract ExecutionManager is ContractResolver {
         public
         ContractResolver(_addressResolver)
     {
-        // Deploy a default state manager
-        StateManager stateManager = resolveStateManager();
+        // // Deploy a default state manager
+        // StateManager stateManager = resolveStateManager();
+        
+        // // Associate all Ethereum precompiles
+        // for (uint160 i = 1; i < 20; i++) {
+        //     stateManager.associateCodeContract(address(i), address(i));
+        // }
 
-        // Associate all Ethereum precompiles
-        for (uint160 i = 1; i < 20; i++) {
-            stateManager.associateCodeContract(address(i), address(i));
-        }
-
-        // Deploy custom precompiles
-        L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
-        stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
-        L1MessageSender l1MessageSender = new L1MessageSender(address(this));
-        stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
+        // // Deploy custom precompiles
+        // L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
+        // stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
+        // L1MessageSender l1MessageSender = new L1MessageSender(address(this));
+        // stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
         
         executionContext.chainId = 108;
 
@@ -1024,7 +1025,6 @@ contract ExecutionManager is ContractResolver {
      */
     function ovmEXTCODESIZE()
         public
-        view
     {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
@@ -1055,7 +1055,6 @@ contract ExecutionManager is ContractResolver {
      */
     function ovmEXTCODEHASH()
         public
-        view
     {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
@@ -1091,7 +1090,6 @@ contract ExecutionManager is ContractResolver {
      */
     function ovmEXTCODECOPY()
         public
-        view
     {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
@@ -1149,12 +1147,12 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
-    function getCumulativeSequencedGas() public view returns(uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
+    function getCumulativeSequencedGas() public returns(uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
     }
 
-    function getCumulativeQueuedGas() public view returns(uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
+    function getCumulativeQueuedGas() public returns(uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
     }
 
     /*
@@ -1405,8 +1403,8 @@ contract ExecutionManager is ContractResolver {
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getGasRateLimitEpochStart() public view returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
+    function getGasRateLimitEpochStart() public returns (uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
@@ -1426,8 +1424,8 @@ contract ExecutionManager is ContractResolver {
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getCumulativeSequencedGasAtEpochStart() internal view returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    function getCumulativeSequencedGasAtEpochStart() internal returns (uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
@@ -1440,8 +1438,8 @@ contract ExecutionManager is ContractResolver {
     /**
      * @notice Gets the cumulative queued gas was at the start of this gas rate limit epoch.
      */
-    function getCumulativeQueuedGasAtEpochStart() internal view returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    function getCumulativeQueuedGasAtEpochStart() internal returns (uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 
     /*

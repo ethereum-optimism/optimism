@@ -46,6 +46,10 @@ export const getDefaultDeployConfig = async (
       factory: await ethers.getContractFactory('FullStateManager'),
       params: [],
     },
+    StateManagerGasProxy: {
+      factory: await ethers.getContractFactory('StateManagerGasProxy'),
+      params: [addressResolver.address],
+    },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),
       params: [

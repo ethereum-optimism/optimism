@@ -46,9 +46,9 @@ contract StateManagerGasProxy is ContractResolver {
      * Contract Variables
      */
 
-    uint private externalStateManagerGasConsumed;
+    uint externalStateManagerGasConsumed;
 
-    uint private virtualStateManagerGasConsumed;
+    uint virtualStateManagerGasConsumed;
 
     /*
      * Modifiers
@@ -91,19 +91,24 @@ contract StateManagerGasProxy is ContractResolver {
 
     function recordExternalGasConsumed(uint _externalGasConsumed) internal {
         externalStateManagerGasConsumed += _externalGasConsumed;
+        return;
     }
 
     function recordVirtualGasConsumed(uint _virtualGasConsumed) internal {
         virtualStateManagerGasConsumed += _virtualGasConsumed;
+        return;
     }
 
     /**
      * Forwards a call to this proxy along to the actual state manager, and records the consumned external gas.
      * Reverts if the forwarded call reverts, but currently does not forward revert message, as an SM should never revert.
      */
-    function forwardCallAndRecordExternalConsumption() internal {
+    function proxyCallAndRecordExternalConsumption() internal {
         uint initialGas = gasleft();
         address stateManager = resolveStateManager();
+        bool success;
+        uint returnedSize;
+        uint returnDataStart;
         assembly {
             let initialFreeMemStart := mload(0x40)
             let callSize := calldatasize()
@@ -113,7 +118,7 @@ contract StateManagerGasProxy is ContractResolver {
                 0,
                 callSize
             )
-            let success := call(
+            success := call(
                 gas(), // all remaining gas, leaving enough for this to execute
                 stateManager,
                 0,
@@ -122,39 +127,71 @@ contract StateManagerGasProxy is ContractResolver {
                 0, // we will RETURNDATACOPY the return data later, no need to use now
                 0
             )
+            returnedSize := returndatasize()
             if eq(success, 0) {
                 revert(0,0) // surface revert up to the EM
             }
+
+            // write the returndata to memory
+            returnDataStart := mload(0x40)
+            mstore(0x40, add(returnDataStart, returnedSize))
+            returndatacopy(
+                returnDataStart,
+                0,
+                returnedSize
+            )
         }
+
+        // #if FLAG_IS_DEBUG
+        console.log("In call forwarder. success is", success, ", returnedSize is", returnedSize);
+        // #endif
+
         // increment the external gas by the amount consumed
         recordExternalGasConsumed(
             initialGas - gasleft()
         );
-    }
 
-    /**
-    * Returns the result of a forwarded SM call to back to the execution manager.
-    * Uses RETURNDATACOPY, so that virtualization logic can be implemented in between here and the forwarded call.
-    */
-    function returnProxiedReturnData() internal {
+        // #if FLAG_IS_DEBUG
+        console.log("recorded external gas consumed");
+        // #endif
+
         assembly {
-            let freememory := mload(0x40)
-            let returnSize := returndatasize()
-            returndatacopy(
-                freememory,
-                0,
-                returnSize
-            )
-            return(freememory, returnSize)
+            return(returnDataStart, returnedSize)
         }
     }
+
+//     /**
+//     * Returns the result of a forwarded SM call to back to the execution manager.
+//     * Uses RETURNDATACOPY, so that virtualization logic can be implemented in between here and the forwarded call.
+//     */
+//     function returnProxiedReturnData() internal {
+//                 uint returnedDataSize;
+// assembly {
+//                 returnedDataSize := returndatasize()
+
+// }
+
+//         // #if FLAG_IS_DEBUG
+//         console.log("returning data size of", returnedDataSize);
+//         // #endif
+
+//         assembly {
+//             let freememory := mload(0x40)
+//             let returnSize := returndatasize()
+//             returndatacopy(
+//                 freememory,
+//                 0,
+//                 returnSize
+//             )
+//             return(freememory, returnSize)
+//         }
+//     }
 
     function executeProxyRecordingVirtualizedGas(
         uint _virtualGasToConsume
     ) internal {
-        forwardCallAndRecordExternalConsumption();
         recordVirtualGasConsumed(_virtualGasToConsume);
-        returnProxiedReturnData();
+        proxyCallAndRecordExternalConsumption();
     }
     
     /*
@@ -176,6 +213,9 @@ contract StateManagerGasProxy is ContractResolver {
         address _ovmContractAddress,
         bytes32 _slot
     ) public returns (bytes32) {
+        // #if FLAG_IS_DEBUG
+        console.log("in getStorageView");
+        // #endif
         executeProxyRecordingVirtualizedGas(GET_STORAGE_VIRTUAL_GAS_COST);
     }
 
@@ -248,17 +288,8 @@ contract StateManagerGasProxy is ContractResolver {
     function getCodeContractBytecode(
         address _codeContractAddress
     ) public returns (bytes memory codeContractBytecode) {
-        forwardCallAndRecordExternalConsumption();
-
-        uint returnedCodeSize;
-        assembly {
-            returnedCodeSize := returndatasize()
-        }
-        recordVirtualGasConsumed(
-            returnedCodeSize * GET_CODE_CONTRACT_BYTECODE_VIRUAL_GAS_COST_PER_BYTE
-        );
-
-        returnProxiedReturnData();
+        // TODO: make this a multiplier
+        executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_BYTECODE_VIRUAL_GAS_COST_PER_BYTE);
     }
 
     function getCodeContractHash(

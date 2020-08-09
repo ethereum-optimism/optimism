@@ -50,7 +50,7 @@ const abi = new ethers.utils.AbiCoder()
 // Empirically determined constant which is some extra gas the EM records due to running CALL and gasAfter - gasBefore.
 // This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
 // However, that size is constant for these tests, since we only call consumeGas() below.
-const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 40238
+const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 65841 - 17
 
 /*********
  * TESTS *
@@ -66,6 +66,9 @@ describe.only('Execution Manager -- Gas Metering', () => {
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
   let StateManagerGasProxy: ContractFactory
+
+  let executionManager: Contract
+  let gasConsumerAddress: Address
   before(async () => {
     console.log(`updated`)
     ;[wallet] = await ethers.getSigners()
@@ -76,25 +79,36 @@ describe.only('Execution Manager -- Gas Metering', () => {
     StateManager = await ethers.getContractFactory('FullStateManager')
     StateManagerGasProxy = await ethers.getContractFactory('StateManagerGasProxy')
     console.log(`all this work`)
+
+    // executionManager = resolver.contracts.executionManager
+
+    // console.log(executionManager)
+
+
   })
 
-  let executionManager: Contract
-  let gasConsumerAddress: Address
+
   beforeEach(async () => {
-    console.log(`updated2`)
-    await deployAndRegister(resolver.addressResolver, wallet, 'StateManagerGasProxy', {
-      factory: StateManagerGasProxy,
-      params: [resolver.addressResolver.address],
-    })
+    // console.log(`updated2`)
+    // await deployAndRegister(resolver.addressResolver, wallet, 'StateManagerGasProxy', {
+    //   factory: StateManagerGasProxy,
+    //   params: [resolver.addressResolver.address],
+    // })
 
-    await deployAndRegister(resolver.addressResolver, wallet, 'StateManager', {
-      factory: StateManager,
-      params: [],
-    })
+  })
+  beforeEach(async () => {
 
-    const SM = await resolver.addressResolver.resolveContract('StateManager')
-    const SMGP = await resolver.addressResolver.resolveContract('StateManagerGasProxy')
-    console.log(`SM is: ${SM}, SMGP is ${SMGP}`)
+    // // deploy a new state manageer every time so gas tracking is reset
+    // await deployAndRegister(resolver.addressResolver, wallet, 'StateManager', {
+    //   factory: StateManager,
+    //   params: [],
+    // })
+
+    const SM = await resolver.addressResolver.getAddress('StateManager')
+    const SMGP = await resolver.addressResolver.getAddress('StateManagerGasProxy')
+    console.log(`SM is: ${SM}, SMGP is ${SMGP}, consumer is: ${gasConsumerAddress}`)
+  })
+  beforeEach(async () => {
 
     executionManager = await deployAndRegister(
       resolver.addressResolver,
@@ -116,6 +130,14 @@ describe.only('Execution Manager -- Gas Metering', () => {
       }
     )
 
+    await deployAndRegister(resolver.addressResolver, wallet, 
+      'StateManager',
+      {
+        factory: StateManager,
+        params: []
+      }  
+    )
+
     gasConsumerAddress = await manuallyDeployOvmContract(
       wallet,
       provider,
@@ -124,6 +146,14 @@ describe.only('Execution Manager -- Gas Metering', () => {
       [],
       INITIAL_OVM_DEPLOY_TIMESTAMP
     )
+    console.log(`manual in before work`)
+
+    log.debug(`cumulative sequenced gas at start of test is ${await getCumulativeSequencedGas()}`)
+    log.debug(`cumulative queued gas at start of test is ${await getCumulativeQueuedGas()}`)
+
+    // console.log('em deployed')
+
+
   })
 
   const assertOvmTxRevertedWithMessage = async (
@@ -171,6 +201,8 @@ describe.only('Execution Manager -- Gas Metering', () => {
       ? gasLimit
       : gasToConsume + OVM_TX_BASE_GAS_FEE + gasLimitPad
 
+      console.log(`gasconsumeraddr ${gasConsumerAddress}`)
+
     const EMCallBytes = ExecutionManager.interface.encodeFunctionData(
       'executeTransaction',
       [
@@ -195,15 +227,29 @@ describe.only('Execution Manager -- Gas Metering', () => {
   }
 
   const getCumulativeQueuedGas = async (): Promise<number> => {
-    return hexStrToNumber(
-      (await executionManager.getCumulativeQueuedGas())._hex
+    const data: string = executionManager.interface.encodeFunctionData(
+      'getCumulativeQueuedGas', []
     )
+    const res = await executionManager.provider.call(
+      {
+        to: executionManager.address,
+        data
+      }
+    )
+    return hexStrToNumber(res)
   }
 
   const getCumulativeSequencedGas = async (): Promise<number> => {
-    return hexStrToNumber(
-      (await executionManager.getCumulativeSequencedGas())._hex
+    const data: string = executionManager.interface.encodeFunctionData(
+      'getCumulativeSequencedGas', []
     )
+    const res = await executionManager.provider.call(
+      {
+        to: executionManager.address,
+        data
+      }
+    )
+    return hexStrToNumber(res)
   }
 
   const getChangeInCumulativeGas = async (
@@ -219,7 +265,9 @@ describe.only('Execution Manager -- Gas Metering', () => {
     log.debug(`finished calling the callback which should change gas`)
     const queuedAfter: number = await getCumulativeQueuedGas()
     const sequencedAfter: number = await getCumulativeSequencedGas()
-
+    log.debug(
+      `values after callback are: ${queuedAfter}, ${sequencedAfter}`
+    )
     return {
       sequenced: sequencedAfter - sequencedBefore,
       queued: queuedAfter - queuedBefore,
@@ -291,6 +339,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
       )
     })
     it('Should properly track both queue and sequencer consumed gas', async () => {
+
       const sequencerGasToConsume = 100_000
       const queueGasToConsume = 200_000
 
