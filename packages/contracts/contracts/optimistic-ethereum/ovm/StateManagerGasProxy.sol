@@ -8,6 +8,7 @@ import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { GasConsumer } from "../utils/libraries/GasConsumer.sol";
 
 /* Testing Imports */
 import { console } from "@nomiclabs/buidler/console.sol";
@@ -22,6 +23,7 @@ import { console } from "@nomiclabs/buidler/console.sol";
  */
 
  // TODO: cannot inerit IStateManager here due to visibility changes. How to resolve?
+ // TODO: rename.  Gas sanitizer?
 contract StateManagerGasProxy is ContractResolver {
     /*
      * Virtual (i.e. Charged by OVM) Gas Cost Constants
@@ -40,15 +42,35 @@ contract StateManagerGasProxy is ContractResolver {
     uint constant GET_CODE_CONTRACT_ADDRESS_VIRTUAL_GAS_COST = 1000;
     uint constant GET_CODE_CONTRACT_HASH_VIRTUAL_GAS_COST = 1000;
     // Code copy retrieval, linear in code size
-    uint constant GET_CODE_CONTRACT_BYTECODE_VIRUAL_GAS_COST_PER_BYTE = 10;
+    uint constant GET_CODE_CONTRACT_BYTECODE_VIRTUAL_GAS_COST_PER_BYTE = 10;
+
+    /*
+     * Constant/Upper-bounded Fixed Gas Cost Constants
+     */
+
+// todo parameterize
+
+    // Storage
+    uint constant GET_STORAGE_GAS_COST_UPPER_BOUND = 200000;
+    uint constant SET_STORAGE_GAS_COST_UPPER_BOUND = 200000;
+    // Nonces
+    uint constant GET_CONTRACT_NONCE_GAS_COST_UPPER_BOUND = 200000;
+    uint constant SET_CONTRACT_NONCE_GAS_COST_UPPER_BOUND = 200000;
+    uint constant INCREMENT_CONTRACT_NONCE_GAS_COST_UPPER_BOUND = 200000;
+    // Code
+    uint constant ASSOCIATE_CODE_CONTRACT_GAS_COST_UPPER_BOUND = 200000;
+    uint constant REGISTER_CREATED_CONTRACT_GAS_COST_UPPER_BOUND = 200000;
+    uint constant GET_CODE_CONTRACT_ADDRESS_GAS_COST_UPPER_BOUND = 200000;
+    uint constant GET_CODE_CONTRACT_HASH_GAS_COST_UPPER_BOUND = 200000;
+    // Code copy retrieval, linear in code size
+    uint constant GET_CODE_CONTRACT_BYTECODE_GAS_COST_UPPER_BOUND = 200000;
+
 
     /*
      * Contract Variables
      */
 
-    uint externalStateManagerGasConsumed;
-
-    uint virtualStateManagerGasConsumed;
+    uint OVMRefund;
 
     /*
      * Modifiers
@@ -74,44 +96,39 @@ contract StateManagerGasProxy is ContractResolver {
      */
 
     // External Initialization and Retrieval Logic
-    function inializeGasConsumedValues() external {
-        externalStateManagerGasConsumed = 0;
-        virtualStateManagerGasConsumed = 0;
+    function resetOVMRefund() external {
+        OVMRefund = 0;
     }
 
-    function getStateManagerExternalGasConsumed() external returns(uint) {
-        // #if FLAG_IS_DEBUG
-        console.log("SM gas proxy asked for total exteernal gas consumed, it is:", externalStateManagerGasConsumed);
-        // #endif
-        return externalStateManagerGasConsumed;
-    }
-
-    function getStateManagerVirtualGasConsumed() external returns(uint) {
-        // #if FLAG_IS_DEBUG
-        console.log("SM gas proxy asked for total virtual gas consumed, it is:", virtualStateManagerGasConsumed);
-        // #endif
-        return virtualStateManagerGasConsumed;
+    function getOVMRefund() external returns(uint) {
+        return OVMRefund;
     }
 
     // Internal Logic
 
-    function recordExternalGasConsumed(uint _externalGasConsumed) internal {
-        externalStateManagerGasConsumed += _externalGasConsumed;
+    function addToOVMRefund(uint _refund) internal {
+        OVMRefund += _refund;
         return;
     }
 
-    function recordVirtualGasConsumed(uint _virtualGasConsumed) internal {
-        virtualStateManagerGasConsumed += _virtualGasConsumed;
-        return;
-    }
-
-    /**
+    /** TODO UPDATE THIS DOCSTR
      * Forwards a call to this proxy along to the actual state manager, and records the consumned external gas.
      * Reverts if the forwarded call reverts, but currently does not forward revert message, as an SM should never revert.
      */
-    function proxyCallAndRecordExternalConsumption() internal {
+    function performSanitizedProxyAndRecordRefund(
+        uint _sanitizedGasCost,
+        uint _virtualGasCost
+    ) internal {
         uint initialGas = gasleft();
+
+        uint refund = _sanitizedGasCost - _virtualGasCost;
+        addToOVMRefund(refund);
+
         address stateManager = resolveStateManager();
+        // #if FLAG_IS_DEBUG
+        console.log("calling SM at", stateManager);
+        // #endif
+
         bool success;
         uint returnedSize;
         uint returnDataStart;
@@ -145,18 +162,15 @@ contract StateManagerGasProxy is ContractResolver {
             )
         }
 
-        uint externalGasConsumed = initialGas - gasleft();
+        // todo safemath negatives
+        GasConsumer gasConsumer = GasConsumer(resolveGasConsumer());
+        uint gasAlreadyConsumed = initialGas - gasleft();
+        uint gasLeftToConsume = _sanitizedGasCost - gasAlreadyConsumed;
         // #if FLAG_IS_DEBUG
-        // console.log("SM gas proxy recorded external gas of: ", externalGasConsumed, "with success val of: ", success);
+        console.log("calling CG at", address(gasConsumer), "with amount of gas left to consume", gasLeftToConsume);
+        console.log( "success is", success, "returned size is", returnedSize);
         // #endif
-        // increment the external gas by the amount consumed
-        recordExternalGasConsumed(
-            externalGasConsumed
-        );
-
-        // #if FLAG_IS_DEBUG
-        // console.log("recorded external gas consumed");
-        // #endif
+        gasConsumer.consumeGasInternalCall(gasLeftToConsume);
 
         assembly {
             if eq(success, 0) {
@@ -193,12 +207,12 @@ contract StateManagerGasProxy is ContractResolver {
 //         }
 //     }
 
-    function executeProxyRecordingVirtualizedGas(
-        uint _virtualGasToConsume
-    ) internal {
-        recordVirtualGasConsumed(_virtualGasToConsume);
-        proxyCallAndRecordExternalConsumption();
-    }
+    // function executeProxyRecordingVirtualizedGas(
+    //     uint _virtualGasToConsume
+    // ) internal {
+    //     recordVirtualGasConsumed(_virtualGasToConsume);
+    //     proxyCallAndRecordExternalConsumption();
+    // }
     
     /*
      * Public Functions
@@ -212,7 +226,10 @@ contract StateManagerGasProxy is ContractResolver {
         address _ovmContractAddress,
         bytes32 _slot
     ) public returns (bytes32) {
-        executeProxyRecordingVirtualizedGas(GET_STORAGE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            GET_STORAGE_GAS_COST_UPPER_BOUND,
+            GET_STORAGE_VIRTUAL_GAS_COST
+        );
     }
 
     function getStorageView(
@@ -222,7 +239,10 @@ contract StateManagerGasProxy is ContractResolver {
         // #if FLAG_IS_DEBUG
         console.log("in getStorageView");
         // #endif
-        executeProxyRecordingVirtualizedGas(GET_STORAGE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            SET_STORAGE_GAS_COST_UPPER_BOUND,
+            GET_STORAGE_VIRTUAL_GAS_COST
+        );
     }
 
     function setStorage(
@@ -230,7 +250,10 @@ contract StateManagerGasProxy is ContractResolver {
         bytes32 _slot,
         bytes32 _value
     ) public {
-        executeProxyRecordingVirtualizedGas(SET_STORAGE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            SET_STORAGE_GAS_COST_UPPER_BOUND,
+            SET_STORAGE_VIRTUAL_GAS_COST
+        );
     }
 
     /**********
@@ -240,26 +263,38 @@ contract StateManagerGasProxy is ContractResolver {
     function getOvmContractNonce(
         address _ovmContractAddress
     ) public returns (uint) {
-        executeProxyRecordingVirtualizedGas(GET_CONTRACT_NONCE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            GET_CONTRACT_NONCE_GAS_COST_UPPER_BOUND,
+            GET_CONTRACT_NONCE_VIRTUAL_GAS_COST
+        );
     }
 
     function getOvmContractNonceView(
         address _ovmContractAddress
     ) public returns (uint) {
-        executeProxyRecordingVirtualizedGas(GET_CONTRACT_NONCE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            GET_CONTRACT_NONCE_GAS_COST_UPPER_BOUND,
+            GET_CONTRACT_NONCE_VIRTUAL_GAS_COST
+        );
     }
 
     function setOvmContractNonce(
         address _ovmContractAddress,
         uint _value
     ) public {
-        executeProxyRecordingVirtualizedGas(SET_CONTRACT_NONCE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            SET_CONTRACT_NONCE_GAS_COST_UPPER_BOUND,
+            SET_CONTRACT_NONCE_VIRTUAL_GAS_COST
+        );
     }
 
     function incrementOvmContractNonce(
         address _ovmContractAddress
     ) public {
-        executeProxyRecordingVirtualizedGas(INCREMENT_CONTRACT_NONCE_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            INCREMENT_CONTRACT_NONCE_GAS_COST_UPPER_BOUND,
+            INCREMENT_CONTRACT_NONCE_VIRTUAL_GAS_COST
+        );
     }
     
     /**********
@@ -270,38 +305,55 @@ contract StateManagerGasProxy is ContractResolver {
         address _ovmContractAddress,
         address _codeContractAddress
     ) public {
-        executeProxyRecordingVirtualizedGas(ASSOCIATE_CODE_CONTRACT_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            ASSOCIATE_CODE_CONTRACT_GAS_COST_UPPER_BOUND,
+            ASSOCIATE_CODE_CONTRACT_VIRTUAL_GAS_COST
+        );
     }
 
     function registerCreatedContract(
         address _ovmContractAddress
     ) public {
-        executeProxyRecordingVirtualizedGas(REGISTER_CREATED_CONTRACT_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            REGISTER_CREATED_CONTRACT_GAS_COST_UPPER_BOUND,
+            REGISTER_CREATED_CONTRACT_VIRTUAL_GAS_COST
+        );
     }
 
     function getCodeContractAddressView(
         address _ovmContractAddress
     ) public returns (address) {
-        executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_ADDRESS_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            GET_CODE_CONTRACT_ADDRESS_GAS_COST_UPPER_BOUND,
+            GET_CODE_CONTRACT_ADDRESS_VIRTUAL_GAS_COST
+        );
     }
 
     function getCodeContractAddressFromOvmAddress(
         address _ovmContractAddress
     ) public returns(address) {
-        executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_ADDRESS_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            GET_CODE_CONTRACT_ADDRESS_GAS_COST_UPPER_BOUND,
+            GET_CODE_CONTRACT_ADDRESS_VIRTUAL_GAS_COST);
     }
     
     function getCodeContractBytecode(
         address _codeContractAddress
     ) public returns (bytes memory codeContractBytecode) {
         // TODO: make this a multiplier
-        executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_BYTECODE_VIRUAL_GAS_COST_PER_BYTE);
+        performSanitizedProxyAndRecordRefund(
+            GET_CODE_CONTRACT_BYTECODE_GAS_COST_UPPER_BOUND,
+            GET_CODE_CONTRACT_BYTECODE_VIRTUAL_GAS_COST_PER_BYTE
+        );
     }
 
     function getCodeContractHash(
         address _codeContractAddress
     ) public returns (bytes32 _codeContractHash) {
-        executeProxyRecordingVirtualizedGas(GET_CODE_CONTRACT_HASH_VIRTUAL_GAS_COST);
+        performSanitizedProxyAndRecordRefund(
+            GET_CODE_CONTRACT_HASH_GAS_COST_UPPER_BOUND,
+            GET_CODE_CONTRACT_HASH_VIRTUAL_GAS_COST
+        );
     }
 
     /*
@@ -313,5 +365,12 @@ contract StateManagerGasProxy is ContractResolver {
         view returns (address)
     {
         return resolveContract("StateManager");
+    }
+
+    function resolveGasConsumer()
+        internal
+        view returns(address)
+    {
+        return resolveContract("GasConsumer");
     }
 }

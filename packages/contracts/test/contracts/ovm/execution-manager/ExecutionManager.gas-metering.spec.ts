@@ -56,7 +56,7 @@ const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 65841 - 17
  * TESTS *
  *********/
 
-describe.only('Execution Manager -- Gas Metering', () => {
+describe('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -99,7 +99,6 @@ describe.only('Execution Manager -- Gas Metering', () => {
         ],
       }
     )
-
     console.log(`all this work`)
 
 
@@ -478,7 +477,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
       GasConsumingProxy = await ethers.getContractFactory('GasConsumingProxy')
     })
 
-    it.only('Should record OVM transactions with different state manager gas consumption consuming the same EM gas', async () => {
+    it('Should record OVM transactions with different state manager gas consumption consuming the same EM gas', async () => {
       executionManager = await deployAndRegister(
         resolver.addressResolver,
         wallet,

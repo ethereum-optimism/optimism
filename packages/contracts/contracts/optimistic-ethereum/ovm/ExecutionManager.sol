@@ -246,7 +246,7 @@ contract ExecutionManager is ContractResolver {
         // Do pre-execution gas checks and updates
         startNewGasEpochIfNecessary(_timestamp);
         validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
-        StateManagerGasProxy(address(resolveStateManager())).inializeGasConsumedValues();
+        StateManagerGasProxy(address(resolveStateManager())).resetOVMRefund();
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -1231,16 +1231,14 @@ contract ExecutionManager is ContractResolver {
                 getCumulativeSequencedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
-                - StateManagerGasProxy(address(resolveStateManager())).getStateManagerExternalGasConsumed()
-                + StateManagerGasProxy(address(resolveStateManager())).getStateManagerVirtualGasConsumed()
+                - StateManagerGasProxy(address(resolveStateManager())).getOVMRefund()
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
-                - StateManagerGasProxy(address(resolveStateManager())).getStateManagerExternalGasConsumed()
-                + StateManagerGasProxy(address(resolveStateManager())).getStateManagerVirtualGasConsumed()
+                - StateManagerGasProxy(address(resolveStateManager())).getOVMRefund()
             );
         }
     }
