@@ -1,7 +1,7 @@
 import * as rlp from 'rlp'
 import * as seedbytes from 'random-bytes-seed'
 import * as seedfloat from 'seedrandom'
-import { SecureTrie } from 'merkle-patricia-tree'
+import { SecureTrie, BaseTrie } from 'merkle-patricia-tree'
 
 interface UpdateTest {
   proof: string
@@ -64,8 +64,12 @@ export interface StateTrieMap {
 interface StateTrie {
   trie: SecureTrie
   storage: {
-    [address: string]: SecureTrie
+    [address: string]: SecureTrie | BaseTrie
   }
+}
+
+const getTrieType = (secure: boolean): any => {
+  return secure ? SecureTrie : BaseTrie
 }
 
 /**
@@ -77,7 +81,12 @@ export const toHexString = (buf: Buffer | string | null): string => {
   return '0x' + toHexBuffer(buf).toString('hex')
 }
 
-const toHexBuffer = (buf: Buffer | string): Buffer => {
+/**
+ * Utility; converts a buffer or string into a non '0x' prefixed buffer.
+ * @param buf Element to convert.
+ * @returns Converted element.
+ */
+export const toHexBuffer = (buf: Buffer | string): Buffer => {
   if (typeof buf === 'string' && buf.startsWith('0x')) {
     return Buffer.from(buf.slice(2), 'hex')
   }
@@ -104,8 +113,9 @@ const randomInt = (seed: string, min: number, max: number): number => {
  * @param nodes Nodes to seed the trie with.
  * @returns Trie corresponding to the given nodes.
  */
-const makeTrie = async (nodes: TrieNode[]): Promise<SecureTrie> => {
-  const trie = new SecureTrie()
+const makeTrie = async (nodes: TrieNode[], secure: boolean): Promise<BaseTrie | SecureTrie> => {
+  const TrieType = getTrieType(secure)
+  const trie = new TrieType()
 
   for (const node of nodes) {
     await trie.put(toHexBuffer(node.key), toHexBuffer(node.val))
@@ -148,16 +158,18 @@ const makeRandomNodes = (
  * @returns Proof test parameters.
  */
 export const makeProofTest = async (
-  nodes: TrieNode[] | SecureTrie,
+  nodes: TrieNode[] | BaseTrie | SecureTrie,
   key: string,
-  val?: string
+  val?: string,
+  secure = true
 ): Promise<ProofTest> => {
-  const trie = nodes instanceof SecureTrie ? nodes : await makeTrie(nodes)
+  const TrieType = getTrieType(secure)
+  const trie = (nodes instanceof SecureTrie || nodes instanceof BaseTrie) ? nodes : await makeTrie(nodes, secure)
 
-  const proof = await SecureTrie.prove(trie, toHexBuffer(key))
+  const proof = await TrieType.prove(trie, toHexBuffer(key))
   const ret = val
     ? toHexBuffer(val)
-    : await SecureTrie.verifyProof(trie.root, toHexBuffer(key), proof)
+    : await TrieType.verifyProof(trie.root, toHexBuffer(key), proof)
 
   return {
     proof: toHexString(rlp.encode(proof)),
@@ -173,13 +185,14 @@ export const makeProofTest = async (
  * @returns All leaf node tests for the given nodes.
  */
 export const makeAllProofTests = async (
-  nodes: TrieNode[]
+  nodes: TrieNode[],
+  secure = true
 ): Promise<ProofTest[]> => {
-  const trie = await makeTrie(nodes)
+  const trie = await makeTrie(nodes, secure)
   const tests: ProofTest[] = []
 
   for (const node of nodes) {
-    tests.push(await makeProofTest(trie, node.key))
+    tests.push(await makeProofTest(trie, node.key, undefined, secure))
   }
 
   return tests
@@ -197,10 +210,11 @@ export const makeRandomProofTest = async (
   germ: string,
   count: number,
   keySize: number = 32,
-  valSize: number = 32
+  valSize: number = 32,
+  secure = true
 ): Promise<ProofTest> => {
   const nodes = makeRandomNodes(germ, count, keySize, valSize)
-  return makeProofTest(nodes, nodes[randomInt(germ, 0, count)].key)
+  return makeProofTest(nodes, nodes[randomInt(germ, 0, count)].key, undefined, secure)
 }
 
 /**
@@ -213,11 +227,13 @@ export const makeRandomProofTest = async (
 export const makeUpdateTest = async (
   nodes: TrieNode[],
   key: string,
-  val: string
+  val: string,
+  secure = true
 ): Promise<UpdateTest> => {
-  const trie = await makeTrie(nodes)
+  const TrieType = getTrieType(secure)
+  const trie = await makeTrie(nodes, secure)
 
-  const proof = await SecureTrie.prove(trie, toHexBuffer(key))
+  const proof = await TrieType.prove(trie, toHexBuffer(key))
   const oldRoot = toHexBuffer(trie.root)
 
   await trie.put(toHexBuffer(key), toHexBuffer(val))
@@ -243,13 +259,14 @@ export const makeRandomUpdateTest = async (
   germ: string,
   count: number,
   keySize: number = 32,
-  valSize: number = 32
+  valSize: number = 32,
+  secure = true
 ): Promise<UpdateTest> => {
   const nodes = makeRandomNodes(germ, count, keySize, valSize)
   const randomBytes = seedbytes(germ)
   const newKey = randomBytes(keySize).toString('hex')
   const newVal = randomBytes(valSize).toString('hex')
-  return makeUpdateTest(nodes, newKey, newVal)
+  return makeUpdateTest(nodes, newKey, newVal, secure)
 }
 
 const encodeAccountState = (state: StateTrieNode): Buffer => {
@@ -271,13 +288,14 @@ const decodeAccountState = (state: Buffer): StateTrieNode => {
   }
 }
 
-const makeStateTrie = async (state: StateTrieMap): Promise<StateTrie> => {
-  const stateTrie = new SecureTrie()
-  const accountTries: { [address: string]: SecureTrie } = {}
+const makeStateTrie = async (state: StateTrieMap, secure = true): Promise<StateTrie> => {
+  const TrieType = getTrieType(secure)
+  const stateTrie = new TrieType()
+  const accountTries: { [address: string]: SecureTrie | BaseTrie } = {}
 
   for (const address of Object.keys(state)) {
     const account = state[address]
-    accountTries[address] = await makeTrie(account.storage)
+    accountTries[address] = await makeTrie(account.storage, secure)
     account.state.storageRoot = toHexString(accountTries[address].root)
     await stateTrie.put(toHexBuffer(address), encodeAccountState(account.state))
   }
@@ -292,12 +310,14 @@ export const makeAccountStorageProofTest = async (
   state: StateTrieMap,
   target: string,
   key: string,
-  val?: string
+  val?: string,
+  secure = true
 ): Promise<AccountStorageProofTest> => {
-  const stateTrie = await makeStateTrie(state)
+  const TrieType = getTrieType(secure)
+  const stateTrie = await makeStateTrie(state, secure)
 
   const storageTrie = stateTrie.storage[target]
-  const storageTrieWitness = await SecureTrie.prove(
+  const storageTrieWitness = await TrieType.prove(
     storageTrie,
     toHexBuffer(key)
   )
@@ -329,16 +349,18 @@ export const makeAccountStorageUpdateTest = async (
   target: string,
   key: string,
   val: string,
-  accountState?: StateTrieNode
+  accountState?: StateTrieNode,
+  secure = true
 ): Promise<AccountStorageUpdateTest> => {
-  const stateTrie = await makeStateTrie(state)
+  const TrieType = getTrieType(secure)
+  const stateTrie = await makeStateTrie(state, secure)
 
   const storageTrie = stateTrie.storage[target]
-  const storageTrieWitness = await SecureTrie.prove(
+  const storageTrieWitness = await TrieType.prove(
     storageTrie,
     toHexBuffer(key)
   )
-  const stateTrieWitness = await SecureTrie.prove(
+  const stateTrieWitness = await TrieType.prove(
     stateTrie.trie,
     toHexBuffer(target)
   )
@@ -369,16 +391,18 @@ export const makeAccountStorageUpdateTest = async (
 
 export const makeStateTrieProofTest = async (
   state: StateTrieMap,
-  address: string
+  address: string,
+  secure = true
 ): Promise<StateTrieProofTest> => {
-  const stateTrie = await makeStateTrie(state)
+  const TrieType = getTrieType(secure)
+  const stateTrie = await makeStateTrie(state, secure)
 
-  const stateTrieWitness = await SecureTrie.prove(
+  const stateTrieWitness = await TrieType.prove(
     stateTrie.trie,
     toHexBuffer(address)
   )
 
-  const ret = await SecureTrie.verifyProof(
+  const ret = await TrieType.verifyProof(
     stateTrie.trie.root,
     toHexBuffer(address),
     stateTrieWitness
@@ -395,11 +419,13 @@ export const makeStateTrieProofTest = async (
 export const makeStateTrieUpdateTest = async (
   state: StateTrieMap,
   address: string,
-  accountState: StateTrieNode
+  accountState: StateTrieNode,
+  secure = true
 ): Promise<StateTrieUpdateTest> => {
-  const stateTrie = await makeStateTrie(state)
+  const TrieType = getTrieType(secure)
+  const stateTrie = await makeStateTrie(state, secure)
 
-  const stateTrieWitness = await SecureTrie.prove(
+  const stateTrieWitness = await TrieType.prove(
     stateTrie.trie,
     toHexBuffer(address)
   )

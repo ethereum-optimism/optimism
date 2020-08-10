@@ -47,7 +47,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key1aa',
-        'some new value'
+        'some new value',
+        false
       )
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
@@ -71,7 +72,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key4dd',
-        'some new value'
+        'some new value',
+        false
       )
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
@@ -95,7 +97,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key1ab',
-        'some new value'
+        'some new value',
+        false
       )
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
@@ -119,7 +122,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key1aaa',
-        'some new value'
+        'some new value',
+        false
       )
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
@@ -143,7 +147,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key1a',
-        'some new value'
+        'some new value',
+        false
       )
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
@@ -151,35 +156,35 @@ describe('MerkleTrie', () => {
     })
 
     it('should support random updates (128 nodes)', async () => {
-      const test = await makeRandomUpdateTest('seed.update.128', 128)
+      const test = await makeRandomUpdateTest('seed.update.128', 128, 32, 32, false)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
     it('should support random updates (256 nodes)', async () => {
-      const test = await makeRandomUpdateTest('seed.update.256', 256)
+      const test = await makeRandomUpdateTest('seed.update.256', 256, 32, 32, false)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
     it('should support random updates (512 nodes)', async () => {
-      const test = await makeRandomUpdateTest('seed.update.512', 512)
+      const test = await makeRandomUpdateTest('seed.update.512', 512, 32, 32, false)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
     it('should support random updates (1024 nodes)', async () => {
-      const test = await makeRandomUpdateTest('seed.update.1024', 1024)
+      const test = await makeRandomUpdateTest('seed.update.1024', 1024, 32, 32, false)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
     })
 
     it('should support random updates (2048 nodes)', async () => {
-      const test = await makeRandomUpdateTest('seed.update.2048', 2048)
+      const test = await makeRandomUpdateTest('seed.update.2048', 2048, 32, 32, false)
       expect(
         await merkleTrie.update(test.key, test.val, test.proof, test.oldRoot)
       ).to.equal(test.newRoot)
@@ -201,7 +206,7 @@ describe('MerkleTrie', () => {
           key: 'key3cc',
           val: 'aval3',
         },
-      ])
+      ], false)
       for (const test of tests) {
         expect(
           await merkleTrie.verifyInclusionProof(
@@ -220,7 +225,7 @@ describe('MerkleTrie', () => {
           key: 'key1aa',
           val: '0123456789012345678901234567890123456789xx',
         },
-      ])
+      ], false)
       for (const test of tests) {
         expect(
           await merkleTrie.verifyInclusionProof(
@@ -239,7 +244,7 @@ describe('MerkleTrie', () => {
           key: 'key1aa',
           val: '01234',
         },
-      ])
+      ], false)
       for (const test of tests) {
         expect(
           await merkleTrie.verifyInclusionProof(
@@ -278,7 +283,7 @@ describe('MerkleTrie', () => {
           key: 'key3',
           val: '1234567890123456789012345678901',
         },
-      ])
+      ], false)
       for (const test of tests) {
         expect(
           await merkleTrie.verifyInclusionProof(
@@ -305,7 +310,7 @@ describe('MerkleTrie', () => {
           key: 'c',
           val: 'c',
         },
-      ])
+      ], false)
       for (const test of tests) {
         expect(
           await merkleTrie.verifyInclusionProof(
@@ -319,7 +324,7 @@ describe('MerkleTrie', () => {
     })
 
     it('should verify random data (128 nodes)', async () => {
-      const test = await makeRandomProofTest('seed.inclusion.128', 128)
+      const test = await makeRandomProofTest('seed.inclusion.128', 128, 32, 32, false)
       expect(
         await merkleTrie.verifyInclusionProof(
           test.key,
@@ -331,7 +336,7 @@ describe('MerkleTrie', () => {
     })
 
     it('should verify random data (256 nodes)', async () => {
-      const test = await makeRandomProofTest('seed.inclusion.256', 256)
+      const test = await makeRandomProofTest('seed.inclusion.256', 256, 32, 32, false)
       expect(
         await merkleTrie.verifyInclusionProof(
           test.key,
@@ -343,7 +348,7 @@ describe('MerkleTrie', () => {
     })
 
     it('should verify random data (512 nodes)', async () => {
-      const test = await makeRandomProofTest('seed.inclusion.512', 512)
+      const test = await makeRandomProofTest('seed.inclusion.512', 512, 32, 32, false)
       expect(
         await merkleTrie.verifyInclusionProof(
           test.key,
@@ -355,7 +360,7 @@ describe('MerkleTrie', () => {
     })
 
     it('should verify random data (1024 nodes)', async () => {
-      const test = await makeRandomProofTest('seed.inclusion.1024', 1024)
+      const test = await makeRandomProofTest('seed.inclusion.1024', 1024, 32, 32, false)
       expect(
         await merkleTrie.verifyInclusionProof(
           test.key,
@@ -367,7 +372,7 @@ describe('MerkleTrie', () => {
     })
 
     it('should verify random data (2048 nodes)', async () => {
-      const test = await makeRandomProofTest('seed.inclusion.2048', 2048)
+      const test = await makeRandomProofTest('seed.inclusion.2048', 2048, 32, 32, false)
       expect(
         await merkleTrie.verifyInclusionProof(
           test.key,
@@ -397,7 +402,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key1aa',
-        'not the correct value'
+        'not the correct value',
+        false
       )
 
       expect(
@@ -427,7 +433,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key1aab',
-        'some arbitrary value'
+        'some arbitrary value',
+        false
       )
 
       expect(
@@ -457,7 +464,8 @@ describe('MerkleTrie', () => {
           },
         ],
         'key4dd',
-        'some arbitrary value'
+        'some arbitrary value',
+        false
       )
 
       expect(
