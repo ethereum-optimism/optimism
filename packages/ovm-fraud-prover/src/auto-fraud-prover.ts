@@ -88,25 +88,32 @@ export class AutoFraudProver {
    */
   public async prove(): Promise<void> {
     // Set up our tries.
+    console.log('Making tries')
     await this._makeStateTrie()
     await this._makeAccountTries()
 
     // Prepare to run our proof.
+    console.log('Initializing contracts')
     await this._initializeContracts()
 
     // Publish all witness data to the state transitioner.
+    console.log('Proving witness inclusion')
     await this._proveAllWitnessInclusion()
 
     // Execute the fraudulent transaction.
+    console.log('Applying transaction')
     await this._applyTransaction()
 
     // Have the state manager compute the correct root given our updates.
+    console.log('Popping trie updates')
     await this._popAllTrieUpdates()
 
     // Finalize the transition with the state manager.
+    console.log('Completing transition')
     await this._completeTransition()
 
     // Have the fraud verifier confirm that the state roots do not match.
+    console.log('Verifying fraud')
     await this._verifyFraud()
   }
 
@@ -313,6 +320,11 @@ export class AutoFraudProver {
       updatedSlotKey,
       updatedSlotValue,
     ] = await this._stateManagerContract.peekUpdatedStorageSlot()
+
+    // Gas metering metadata address shouldn't need to be updated.
+    if (ovmContractAddress === '0x' + '00'.repeat(20)) {
+      return
+    }
 
     if (!this._accountTries[ovmContractAddress]) {
       this._accountTries[ovmContractAddress] = new BaseTrie()

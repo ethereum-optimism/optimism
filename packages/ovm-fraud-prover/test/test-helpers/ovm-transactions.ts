@@ -31,6 +31,7 @@ export const makeOvmTransaction = (
     ),
     fromAddress: wallet.address,
     l1MsgSenderAddress: NULL_ADDRESS,
+    gasLimit: GAS_LIMIT / 2,
     allowRevert: false,
   }
 }
@@ -66,6 +67,7 @@ export const encodeTransaction = (transaction: OVMTransactionData): string => {
       transaction.callBytes,
       transaction.fromAddress,
       transaction.l1MsgSenderAddress,
+      transaction.gasLimit,
       transaction.allowRevert ? 1 : 0,
     ])
   )

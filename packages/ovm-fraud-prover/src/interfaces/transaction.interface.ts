@@ -5,5 +5,6 @@ export interface OVMTransactionData {
   callBytes: string
   fromAddress: string
   l1MsgSenderAddress: string
+  gasLimit: number
   allowRevert: boolean
 }

@@ -69,7 +69,7 @@ contract ExecutionManager is ContractResolver {
 
     // Gas rate limiting parameters
     // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
-    address constant private METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
+    address constant public METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
     // Storage keys which the EM will directly use to persist the different pieces of metadata:
     // Storage slot where we will store the cumulative sequencer tx gas spent
     bytes32 constant private CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;

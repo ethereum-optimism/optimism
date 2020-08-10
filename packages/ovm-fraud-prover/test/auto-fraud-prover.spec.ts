@@ -118,10 +118,16 @@ describe('AutoFraudProver', () => {
       signer: wallet as any,
       rollupOptions: {
         gasLimit: GAS_LIMIT,
-        forceInclusionPeriod: FORCE_INCLUSION_PERIOD,
-        owner: wallet as any,
-        sequencer: sequencer as any,
-        l1ToL2TransactionPasser: l1ToL2TransactionPasser as any,
+        forceInclusionPeriodSeconds: FORCE_INCLUSION_PERIOD,
+        ownerAddress: wallet.address,
+        sequencerAddress: sequencer.address,
+        gasMeterConfig: {
+          ovmTxFlatGasFee: 1000,
+          ovmTxMaxGas: 1000,
+          gasRateLimitEpochLength: 1000,
+          maxSequencedGasPerEpoch: 1000,
+          maxQueuedGasPerEpoch: 1000,
+        },
       },
     }
 

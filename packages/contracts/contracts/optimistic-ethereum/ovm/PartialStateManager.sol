@@ -317,7 +317,12 @@ contract PartialStateManager is ContractResolver {
         public
         onlyExecutionManager
     {
-        if (!storageSlotTouched[_ovmContractAddress][_slot]) {
+        ExecutionManager executionManager = resolveExecutionManager();
+
+        if (
+            !storageSlotTouched[_ovmContractAddress][_slot]
+            && _ovmContractAddress != executionManager.METADATA_STORAGE_ADDRESS()
+        ) {
             updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
             updatedStorageSlotKey[updatedStorageSlotCounter] = _slot;
             updatedStorageSlotCounter += 1;
