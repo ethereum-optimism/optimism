@@ -466,6 +466,9 @@ describe.only('Execution Manager -- Gas Metering', () => {
     }
   })
   describe('StateManagerGasProxy - OVM Gas virtualization', async () => {
+    beforeEach(async () => {
+      
+    })
     const timestamp = 1
     const gasToConsume = 100_000
     const SM_IMPLEMENTATION = 'StateManagerImplementation'
@@ -476,6 +479,43 @@ describe.only('Execution Manager -- Gas Metering', () => {
     })
 
     it.only('Should record OVM transactions with different state manager gas consumption consuming the same EM gas', async () => {
+      executionManager = await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'ExecutionManager',
+        {
+          factory: ExecutionManager,
+          params: [
+            resolver.addressResolver.address,
+            NULL_ADDRESS,
+            [
+              OVM_TX_BASE_GAS_FEE,
+              OVM_TX_MAX_GAS,
+              GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
+              MAX_GAS_PER_EPOCH,
+              MAX_GAS_PER_EPOCH,
+            ],
+          ],
+        }
+      )
+
+    await deployAndRegister(resolver.addressResolver, wallet, 
+      'StateManager',
+      {
+        factory: StateManager,
+        params: []
+      }  
+    )
+
+    gasConsumerAddress = await manuallyDeployOvmContract(
+      wallet,
+      provider,
+      executionManager,
+      GasConsumer,
+      [],
+      INITIAL_OVM_DEPLOY_TIMESTAMP
+    )
+
       // get normal OVM gas change with normal full state manager
       const fullSateManagerTx = await getConsumeGasCallback(
         timestamp,
@@ -484,11 +524,33 @@ describe.only('Execution Manager -- Gas Metering', () => {
       )
       let fullStateManagerResult
       const fullStateManagerChange = await getChangeInCumulativeGas(async () =>{
+        console.log(`consuming non proxied gas`)
         fullStateManagerResult = await fullSateManagerTx()
+        console.log(`finished consuming non proxied gas`)
       })
 
       console.log(`original change:`)
       console.log(fullStateManagerChange)
+
+      executionManager = await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'ExecutionManager',
+        {
+          factory: ExecutionManager,
+          params: [
+            resolver.addressResolver.address,
+            NULL_ADDRESS,
+            [
+              OVM_TX_BASE_GAS_FEE,
+              OVM_TX_MAX_GAS,
+              GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
+              MAX_GAS_PER_EPOCH,
+              MAX_GAS_PER_EPOCH,
+            ],
+          ],
+        }
+      )
 
       await deployAndRegister(resolver.addressResolver, wallet,
         'StateManager',
@@ -501,13 +563,24 @@ describe.only('Execution Manager -- Gas Metering', () => {
         }  
       )
 
-      await deployAndRegister(resolver.addressResolver, wallet,
+      const stateManagerImplementation = await deployAndRegister(resolver.addressResolver, wallet,
         SM_IMPLEMENTATION,
         {
           factory: StateManager,
           params: []
         }
       )
+
+      gasConsumerAddress = await manuallyDeployOvmContract(
+        wallet,
+        provider,
+        executionManager,
+        GasConsumer,
+        [],
+        INITIAL_OVM_DEPLOY_TIMESTAMP
+      )
+
+      console.log(`SM impl is ${stateManagerImplementation.address}`)
 
       // get normal OVM gas change with normal full state manager
       const proxiedFullStateManagerTx = await getConsumeGasCallback(
@@ -517,7 +590,9 @@ describe.only('Execution Manager -- Gas Metering', () => {
       )
       let proxiedFullStateManagerResult
       const proxiedFullStateManagerChange = await getChangeInCumulativeGas(async () =>{
+        console.log(`consuming proxied gas`)
         proxiedFullStateManagerResult = await proxiedFullStateManagerTx()
+        console.log(`finished consuming proxied gas`)
       })
       
       console.log(`proxied change:`)

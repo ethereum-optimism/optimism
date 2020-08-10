@@ -80,10 +80,16 @@ contract StateManagerGasProxy is ContractResolver {
     }
 
     function getStateManagerExternalGasConsumed() external returns(uint) {
+        // #if FLAG_IS_DEBUG
+        console.log("SM gas proxy asked for total exteernal gas consumed, it is:", externalStateManagerGasConsumed);
+        // #endif
         return externalStateManagerGasConsumed;
     }
 
     function getStateManagerVirtualGasConsumed() external returns(uint) {
+        // #if FLAG_IS_DEBUG
+        console.log("SM gas proxy asked for total virtual gas consumed, it is:", virtualStateManagerGasConsumed);
+        // #endif
         return virtualStateManagerGasConsumed;
     }
 
@@ -128,9 +134,6 @@ contract StateManagerGasProxy is ContractResolver {
                 0
             )
             returnedSize := returndatasize()
-            if eq(success, 0) {
-                revert(0,0) // surface revert up to the EM
-            }
 
             // write the returndata to memory
             returnDataStart := mload(0x40)
@@ -142,20 +145,23 @@ contract StateManagerGasProxy is ContractResolver {
             )
         }
 
+        uint externalGasConsumed = initialGas - gasleft();
         // #if FLAG_IS_DEBUG
-        console.log("In call forwarder. success is", success, ", returnedSize is", returnedSize);
+        // console.log("SM gas proxy recorded external gas of: ", externalGasConsumed, "with success val of: ", success);
         // #endif
-
         // increment the external gas by the amount consumed
         recordExternalGasConsumed(
-            initialGas - gasleft()
+            externalGasConsumed
         );
 
         // #if FLAG_IS_DEBUG
-        console.log("recorded external gas consumed");
+        // console.log("recorded external gas consumed");
         // #endif
 
         assembly {
+            if eq(success, 0) {
+                revert(0,0) // surface revert up to the EM
+            }
             return(returnDataStart, returnedSize)
         }
     }
