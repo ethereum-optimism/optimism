@@ -23,6 +23,7 @@ import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
  *         backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is ContractResolver {
+    
     /*
      * Events
      */
@@ -66,13 +67,27 @@ contract ExecutionManager is ContractResolver {
     address constant private L2_TO_L1_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
 
+    // Gas rate limiting parameters
+    // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
+    address constant private METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
+    // Storage keys which the EM will directly use to persist the different pieces of metadata:
+    // Storage slot where we will store the cumulative sequencer tx gas spent
+    bytes32 constant private CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    // Storage slot where we will store the cumulative queued tx gas spent
+    bytes32 constant private CUMULATIVE_QUEUED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000002;
+    // Storage slot where we will store the start of the current gas rate limit epoch
+    bytes32 constant private GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000003;
+    // Storage slot where we will store what the cumulative sequencer gas was at the start of the last epoch
+    bytes32 constant private CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000004;
+    // Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
+    bytes32 constant private CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000005;
 
     /*
      * Contract Variables
      */
 
     DataTypes.ExecutionContext executionContext;
-
+    DataTypes.GasMeterConfig gasMeterConfig;
 
     /*
      * Constructor
@@ -81,12 +96,12 @@ contract ExecutionManager is ContractResolver {
     /**
      * @param _addressResolver Address of the AddressResolver contract.
      * @param _owner Address of the owner of this contract.
-     * @param _blockGasLimit Gas limit for OVM blocks.
+     * @param _gasMeterConfig Configuration parameters for gas metering.
      */
     constructor(
         address _addressResolver,
         address _owner,
-        uint _blockGasLimit
+        DataTypes.GasMeterConfig memory _gasMeterConfig
     )
         public
         ContractResolver(_addressResolver)
@@ -104,9 +119,11 @@ contract ExecutionManager is ContractResolver {
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
-
-        executionContext.gasLimit = _blockGasLimit;
+        
         executionContext.chainId = 108;
+
+        // TODO start off the initial gas rate limit epoch once we configure a start time
+        gasMeterConfig = _gasMeterConfig;
 
         // Set our owner
         // TODO
@@ -155,6 +172,7 @@ contract ExecutionManager is ContractResolver {
         uint _nonce,
         address _ovmEntrypoint,
         bytes memory _callBytes,
+        uint _ovmTxGasLimit,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
@@ -185,6 +203,7 @@ contract ExecutionManager is ContractResolver {
             _callBytes,
             eoaAddress,
             ZERO_ADDRESS,
+            _ovmTxGasLimit,
             false
         );
     }
@@ -197,6 +216,7 @@ contract ExecutionManager is ContractResolver {
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
      * @param _fromAddress The address which this call should originate from--the msg.sender.
+     * @param _ovmTxGasLimit The max gas this OVM transaction has been allotted.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
     function executeTransaction(
@@ -206,6 +226,7 @@ contract ExecutionManager is ContractResolver {
         bytes memory _callBytes,
         address _fromAddress,
         address _l1MsgSenderAddress,
+        uint _ovmTxGasLimit,
         bool _allowRevert
     )
         public
@@ -213,13 +234,16 @@ contract ExecutionManager is ContractResolver {
         StateManager stateManager = resolveStateManager();
 
         require(_timestamp > 0, "Timestamp must be greater than 0");
-        uint _nonce = stateManager.getOvmContractNonce(_fromAddress);
 
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress);
+        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
+
+        // Do pre-execution gas checks and updates
+        startNewGasEpochIfNecessary(_timestamp);
+        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -231,8 +255,12 @@ contract ExecutionManager is ContractResolver {
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 
+            address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(
+                _fromAddress,
+                stateManager.getOvmContractNonce(_fromAddress)
+            );
+
             // Emit event that we are creating a contract with an EOA
-            address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(_fromAddress, _nonce);
             emit EOACreatedContract(_newOvmContractAddress);
         } else {
             methodId = METHOD_ID_OVM_CALL;
@@ -259,25 +287,43 @@ contract ExecutionManager is ContractResolver {
             mstore8(add(_callBytes, 3), methodId)
         }
 
+        // subtract the flat gas fee off the tx gas limit which we will pass as gas
+        _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
+
         bool success = false;
-        address addr = address(this);
         bytes memory result;
+        uint ovmCallReturnDataSize;
+        // This uint records the current gas so we can measure how much execution took.
+        // note that later we subtract the post-call gas left, would call this a different var but we're out of stack!
+        uint gasConsumedByExecution;
         assembly {
-            success := call(gas, addr, 0, _callBytes, callSize, 0, 0)
+            gasConsumedByExecution := gas()
+            success := call(
+                _ovmTxGasLimit,
+                address, 0, _callBytes, callSize, 0, 0
+            )
+            // subtract initial gas to get the gas consumed by execution itself
+            gasConsumedByExecution := sub(gasConsumedByExecution, gas())
+            
+            ovmCallReturnDataSize := returndatasize
             result := mload(0x40)
             let resultData := add(result, 0x20)
-            returndatacopy(resultData, 0, returndatasize)
+            returndatacopy(resultData, 0, ovmCallReturnDataSize)
+            mstore(result, ovmCallReturnDataSize)
+            mstore(0x40, add(resultData, ovmCallReturnDataSize))
+        }
 
+        // set the new cumulative gas
+        updateCumulativeGas(gasConsumedByExecution);
+
+        assembly {
+            let resultData := add(result, 0x20)
             if eq(success, 1) {
-                return(resultData, returndatasize)
+                return(resultData, ovmCallReturnDataSize)
             }
-
             if eq(_allowRevert, 1) {
-                revert(resultData, returndatasize)
+                revert(resultData, ovmCallReturnDataSize)
             }
-
-            mstore(result, returndatasize)
-            mstore(0x40, add(resultData, returndatasize))
         }
 
         if (!success) {
@@ -316,7 +362,7 @@ contract ExecutionManager is ContractResolver {
         bytes[] memory message = new bytes[](9);
         message[0] = RLPWriter.encodeUint(_nonce); // Nonce
         message[1] = RLPWriter.encodeUint(0); // Gas price
-        message[2] = RLPWriter.encodeUint(executionContext.gasLimit); // Gas limit
+        message[2] = RLPWriter.encodeUint(gasMeterConfig.OvmTxMaxGas); // Gas limit
 
         // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
         if (_to == ZERO_ADDRESS) {
@@ -466,7 +512,7 @@ contract ExecutionManager is ContractResolver {
         public
         view
     {
-        uint g = executionContext.gasLimit;
+        uint g = executionContext.ovmTxGasLimit;
 
         assembly {
             let gasLimitMemory := mload(0x40)
@@ -487,7 +533,7 @@ contract ExecutionManager is ContractResolver {
         public
         view
     {
-        uint g = executionContext.gasLimit;
+        uint g = gasMeterConfig.OvmTxMaxGas;
 
         assembly {
             let gasLimitMemory := mload(0x40)
@@ -1070,6 +1116,10 @@ contract ExecutionManager is ContractResolver {
         }
     }
 
+     /*****************************
+    * OVM (non-EVM-equivalent) State Access *
+    *****************************/
+
     /**
      * Getter for the execution context's L1MessageSender. Used by the
      * L1MessageSender precompile.
@@ -1097,23 +1147,99 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
-    /**
-     * Queries the address of the state manager.
-     * @return State manager address.
-     */
-    function getStateManagerAddress()
-        public
-        view
-        returns (address)
-    {
-        StateManager stateManager = resolveStateManager();
-        return address(stateManager);
+    function getCumulativeSequencedGas() public view returns(uint) {
+        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
     }
 
+    function getCumulativeQueuedGas() public view returns(uint) {
+        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
+    }
 
     /*
      * Internal Functions
      */
+
+     function startNewGasEpochIfNecessary(uint _timestamp) internal {
+        // If we are at the start of a new epoch, the current time is the new start and curent cumulative gas is the new cumulative gas at stat!
+        if (_timestamp >= gasMeterConfig.GasRateLimitEpochSeconds + getGasRateLimitEpochStart()) {
+            setGasRateLimitEpochStart(_timestamp);
+            setCumulativeSequencedGasAtEpochStart(
+                getCumulativeSequencedGas()
+            );
+            setCumulativeQueuedGasAtEpochStart(
+                getCumulativeQueuedGas()
+            );
+        }
+     }
+
+    /**
+     * Checks that an OVM tx does not violate any gas metering requirements.
+     * @param _txGasLimit The OVM transaction's gas limit.
+     * @param _txGasLimit The OVM transaction's queue origin.
+     */
+    function validateTxGasLimit(uint _txGasLimit, uint _queueOrigin) internal {
+        // Check for individual tx gas limit violations
+        if (_txGasLimit > gasMeterConfig.OvmTxMaxGas) {
+            // TODO: handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
+            emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit.");
+            assembly {
+                return(0,0)
+            }
+        }
+        if (_txGasLimit < gasMeterConfig.OvmTxBaseGasFee) {
+            emit EOACallRevert("Transaction gas limit is less than the minimum (base fee) gas.");
+            assembly {
+                return(0,0)
+            }
+        }
+
+
+        // check for gas rate limit violations
+        // TODO: make queue origin an enum?  or just configure better?
+        if (_queueOrigin == 0) {
+            if (
+                getCumulativeSequencedGas()
+                - getCumulativeSequencedGasAtEpochStart()
+                + _txGasLimit
+                >
+                gasMeterConfig.MaxSequencedGasPerEpoch
+            ) {
+                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+                assembly {
+                    return(0,0)
+                }
+            }
+        } else {
+            if (
+                getCumulativeQueuedGas()
+                - getCumulativeQueuedGasAtEpochStart()
+                + _txGasLimit
+                >
+                gasMeterConfig.MaxQueuedGasPerEpoch
+            ) {
+                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
+                assembly {
+                    return(0,0)
+                }
+            }
+        }
+    }
+
+    function updateCumulativeGas(uint _gasConsumed) internal {
+        if (executionContext.queueOrigin == 0) {
+            setCumulativeSequencedGas(
+                getCumulativeSequencedGas()
+                + gasMeterConfig.OvmTxBaseGasFee
+                + _gasConsumed
+            );
+        } else {
+            setCumulativeQueuedGas(
+                getCumulativeQueuedGas()
+                + gasMeterConfig.OvmTxBaseGasFee
+                + _gasConsumed
+            );
+        }
+    }
 
     /**
      * Create a new contract at some OVM contract address.
@@ -1189,8 +1315,9 @@ contract ExecutionManager is ContractResolver {
         uint _timestamp,
         uint _queueOrigin,
         address _ovmTxOrigin,
-        address _l1MsgSender
-    )
+        address _l1MsgSender,
+        uint _ovmTxgasLimit
+    ) 
         internal
     {
         // First zero out the context for good measure (Note ZERO_ADDRESS is
@@ -1203,6 +1330,7 @@ contract ExecutionManager is ContractResolver {
         executionContext.queueOrigin = _queueOrigin;
         executionContext.ovmTxOrigin = _ovmTxOrigin;
         executionContext.l1MessageSender = _l1MsgSender;
+        executionContext.ovmTxGasLimit = _ovmTxgasLimit;
     }
 
     /**
@@ -1249,6 +1377,66 @@ contract ExecutionManager is ContractResolver {
         executionContext.ovmMsgSender = _msgSender;
     }
 
+    function getStateManagerAddress() public view returns (address) {
+        StateManager stateManager = resolveStateManager();
+        return address(stateManager);
+    }
+
+    /**
+     * @notice Sets the new cumulative sequenced gas as a result of tx execution.
+     */
+    function setCumulativeSequencedGas(uint _value) internal {
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Sets the new cumulative queued gas as a result of this new tx.
+     */
+    function setCumulativeQueuedGas(uint _value) internal {
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
+     */
+    function getGasRateLimitEpochStart() public view returns (uint) {
+        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
+    }
+
+    /**
+     * @notice Used to store the current time at the start of a new gas rate limit epoch.
+     */
+    function setGasRateLimitEpochStart(uint _value) internal {
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Sets the cumulative sequenced gas at the start of a new gas rate limit epoch.
+     */
+    function setCumulativeSequencedGasAtEpochStart(uint _value) internal {
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
+     */
+    function getCumulativeSequencedGasAtEpochStart() internal view returns (uint) {
+        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    }
+
+    /**
+     * @notice Sets what the cumulative queued gas is at the start of a new gas rate limit epoch.
+     */
+    function setCumulativeQueuedGasAtEpochStart(uint _value) internal {
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+    }
+
+    /**
+     * @notice Gets the cumulative queued gas was at the start of this gas rate limit epoch.
+     */
+    function getCumulativeQueuedGasAtEpochStart() internal view returns (uint) {
+        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    }
 
     /*
      * Contract Resolution

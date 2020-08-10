@@ -18,6 +18,7 @@ export interface L2ToL1Message {
 }
 
 export interface RollupTransaction {
+  l1RollupTxId?: number
   indexWithinSubmission: number
   target: Address
   calldata: string
@@ -71,23 +72,11 @@ export interface LogHandlerContext {
   handleLog: LogHandler
 }
 
-export type L1Batch = RollupTransaction[]
-export interface BlockBatches {
-  batchNumber: number
+export interface GethSubmission {
+  submissionNumber: number
   timestamp: number
   blockNumber: number
-  batches: L1Batch[]
-}
-
-export type L1BatchParser = (
-  l: Log,
-  transaction: TransactionResponse
-) => Promise<L1Batch>
-
-export interface BatchLogParserContext {
-  topic: string
-  contractAddress: Address
-  parseL1Batch: L1BatchParser
+  rollupTransactions: RollupTransaction[]
 }
 
 /* Types */

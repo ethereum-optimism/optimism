@@ -27,9 +27,14 @@ export class Environment {
     if (
       logValue &&
       lowerName.indexOf('password') < 0 &&
-      lowerName.indexOf('private') < 0
+      lowerName.indexOf('private') < 0 &&
+      lowerName.indexOf('mnemonic') < 0
     ) {
       log.info(`Environment: ${fun.name} = ${res}`)
+    } else if (logValue) {
+      log.info(
+        `Environment: ${fun.name} is set (will not log value for security)`
+      )
     }
     return res
   }
@@ -87,6 +92,25 @@ export class Environment {
   }
   public static runFraudDetector(defaultValue: boolean = false): boolean {
     return !!process.env.RUN_FRAUD_DETECTOR || defaultValue
+  }
+
+  // L1 Contract Params / Config
+  public static l1ContractDeploymentPrivateKey(defaultValue?: string): string {
+    return process.env.L1_CONTRACT_DEPLOYMENT_PRIVATE_KEY || defaultValue
+  }
+  public static l1ContractDeploymentMnemonic(defaultValue?: string): string {
+    return process.env.L1_CONTRACT_DEPLOYMENT_MNEMONIC || defaultValue
+  }
+  public static getL1ContractOwnerAddress(defaultValue?: string): string {
+    return process.env.L1_CONTRACT_OWNER_ADDRESS || defaultValue
+  }
+  public static addressResolverAddress(defaultValue?: string): string {
+    return process.env.ADDRESS_RESOLVER_ADDRESS || defaultValue
+  }
+  public static forceInclusionPeriodSeconds(defaultValue?: number): number {
+    return process.env.FORCE_INCLUSION_PERIOD_SECONDS
+      ? parseInt(process.env.FORCE_INCLUSION_PERIOD_SECONDS, 10)
+      : defaultValue
   }
 
   // L1 Contract Addresses
@@ -251,6 +275,9 @@ export class Environment {
   }
   public static sequencerPrivateKey(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_PRIVATE_KEY || defaultValue
+  }
+  public static sequencerAddress(defaultValue?: string): string {
+    return process.env.L1_SEQUENCER_ADDRESS || defaultValue
   }
   public static finalityDelayInBlocks(defaultValue?: number): number {
     return process.env.FINALITY_DELAY_IN_BLOCKS

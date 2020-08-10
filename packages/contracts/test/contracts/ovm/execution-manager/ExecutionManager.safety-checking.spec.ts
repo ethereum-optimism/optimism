@@ -15,6 +15,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getDefaultGasMeterParams,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -69,7 +70,11 @@ describe('Execution Manager -- Safety Checking', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          getDefaultGasMeterParams(),
+        ],
       }
     )
   })

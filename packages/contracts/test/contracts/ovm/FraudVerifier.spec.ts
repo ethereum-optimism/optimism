@@ -14,6 +14,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  GAS_LIMIT,
 } from '../../test-helpers'
 
 interface OVMTransactionData {
@@ -23,6 +24,7 @@ interface OVMTransactionData {
   callBytes: string
   fromAddress: string
   l1MsgSenderAddress: string
+  gasLimit: number
   allowRevert: boolean
 }
 
@@ -37,6 +39,7 @@ const makeDummyTransaction = (calldata: string): OVMTransactionData => {
     callBytes: calldata,
     fromAddress: NULL_ADDRESS,
     l1MsgSenderAddress: NULL_ADDRESS,
+    gasLimit: GAS_LIMIT,
     allowRevert: false,
   }
 }
@@ -50,6 +53,7 @@ const encodeTransaction = (transaction: OVMTransactionData): string => {
       transaction.callBytes,
       transaction.fromAddress,
       transaction.l1MsgSenderAddress,
+      transaction.gasLimit,
       transaction.allowRevert ? 1 : 0,
     ])
   )
@@ -176,7 +180,6 @@ describe('FraudVerifier', () => {
         params: [
           resolver.addressResolver.address,
           await sequencer.getAddress(),
-          await l1ToL2TransactionPasser.getAddress(),
           100000,
         ],
       }

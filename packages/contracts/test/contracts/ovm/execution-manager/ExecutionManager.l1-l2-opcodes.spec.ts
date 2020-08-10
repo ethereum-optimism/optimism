@@ -27,6 +27,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getDefaultGasMeterParams,
 } from '../../../test-helpers'
 
 /* Contract Imports */
@@ -121,7 +122,11 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          getDefaultGasMeterParams(),
+        ],
       }
     )
   })
@@ -160,6 +165,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           callBytes,
           ZERO_ADDRESS,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )
@@ -209,6 +215,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           getL1MessageSenderMethodId,
           ZERO_ADDRESS,
           testL1MsgSenderAddress,
+          GAS_LIMIT,
           true,
         ],
         ['address']

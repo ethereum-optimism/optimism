@@ -1,2 +1,3 @@
 export * from './contract-deploy'
-export { RollupDeployConfig, AddressResolverMapping } from './types'
+export * from './default-config'
+export * from './types'

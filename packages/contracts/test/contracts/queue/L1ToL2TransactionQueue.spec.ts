@@ -48,10 +48,7 @@ describe('L1ToL2TransactionQueue', () => {
       'L1toL2TxQueue',
       {
         factory: L1toL2TxQueue,
-        params: [
-          resolver.addressResolver.address,
-          await l1ToL2TransactionPasser.getAddress(),
-        ],
+        params: [resolver.addressResolver.address],
       }
     )
 
@@ -68,14 +65,15 @@ describe('L1ToL2TransactionQueue', () => {
       batchesLength.should.equal(1)
     })
 
-    it('should not allow enqueue from other address', async () => {
-      await TestUtils.assertRevertsAsync(
-        'Message sender does not have permission to enqueue',
-        async () => {
-          await l1ToL2TxQueue.enqueueTx(defaultTx)
-        }
-      )
-    })
+    // TODO: Uncomment and implement when authentication mechanism is sorted out
+    // it('should not allow enqueue from other address', async () => {
+    //   await TestUtils.assertRevertsAsync(
+    //     'Message sender does not have permission to enqueue',
+    //     async () => {
+    //       await l1ToL2TxQueue.enqueueTx(defaultTx)
+    //     }
+    //   )
+    // })
   })
 
   describe('dequeue() ', async () => {

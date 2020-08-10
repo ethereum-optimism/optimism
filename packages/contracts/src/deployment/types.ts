@@ -7,12 +7,19 @@ export interface ContractDeployOptions {
   signer: Signer
 }
 
+export interface GasMeterOptions {
+  ovmTxFlatGasFee: number
+  ovmTxMaxGas: number
+  gasRateLimitEpochLength: number
+  maxSequencedGasPerEpoch: number
+  maxQueuedGasPerEpoch: number
+}
+
 export interface RollupOptions {
-  gasLimit: number
-  forceInclusionPeriod: number
-  owner: Signer
-  sequencer: Signer
-  l1ToL2TransactionPasser: Signer
+  forceInclusionPeriodSeconds: number
+  ownerAddress: string
+  sequencerAddress: string
+  gasMeterConfig: GasMeterOptions
 }
 
 export type ContractFactoryName =
@@ -70,6 +77,7 @@ export const factoryToContractName = {
 export interface RollupDeployConfig {
   signer: Signer
   rollupOptions: RollupOptions
+  addressResolverContractAddress?: string
   addressResolverConfig?: ContractDeployOptions
   contractDeployConfig?: Partial<ContractDeployConfig>
   dependencies?: ContractFactoryName[]

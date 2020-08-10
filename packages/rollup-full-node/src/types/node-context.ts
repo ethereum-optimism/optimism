@@ -5,7 +5,6 @@ export interface L1NodeContext {
   provider: Provider
   sequencerWallet: Wallet
   l2ToL1MessageReceiver: Contract
-  l1ToL2TransactionPasser: Contract
 }
 
 export interface L2NodeContext {

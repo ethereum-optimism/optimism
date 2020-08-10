@@ -25,6 +25,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getDefaultGasMeterParams,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -33,7 +34,7 @@ const log = getLogger('execution-manager-calls', true)
 export const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
-describe('Execution Manager -- Call opcodes', () => {
+describe('Execution Manager -- TX/Call Execution Functions', () => {
   const provider = ethers.provider
 
   const [wallet] = getWallets()
@@ -60,7 +61,11 @@ describe('Execution Manager -- Call opcodes', () => {
       'ExecutionManager',
       {
         factory: ExecutionManager,
-        params: [resolver.addressResolver.address, NULL_ADDRESS, GAS_LIMIT],
+        params: [
+          resolver.addressResolver.address,
+          NULL_ADDRESS,
+          getDefaultGasMeterParams(),
+        ],
       }
     )
   })
@@ -116,6 +121,7 @@ describe('Execution Manager -- Call opcodes', () => {
             transaction.nonce,
             transaction.to,
             transaction.data,
+            GAS_LIMIT,
             padToLength(v, 4),
             padToLength(r, 64),
             padToLength(s, 64)
@@ -153,6 +159,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.data,
         wallet.address,
         ZERO_ADDRESS,
+        GAS_LIMIT,
         true
       )
       await provider.waitForTransaction(tx.hash)
@@ -189,6 +196,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        GAS_LIMIT,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -225,6 +233,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        GAS_LIMIT,
         v,
         r,
         s
@@ -264,6 +273,7 @@ describe('Execution Manager -- Call opcodes', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
+        GAS_LIMIT,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -287,6 +297,7 @@ describe('Execution Manager -- Call opcodes', () => {
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )
@@ -327,6 +338,7 @@ describe('Execution Manager -- Call opcodes', () => {
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
+          GAS_LIMIT,
           true,
         ]
       )
