@@ -113,7 +113,10 @@ const randomInt = (seed: string, min: number, max: number): number => {
  * @param nodes Nodes to seed the trie with.
  * @returns Trie corresponding to the given nodes.
  */
-const makeTrie = async (nodes: TrieNode[], secure: boolean): Promise<BaseTrie | SecureTrie> => {
+const makeTrie = async (
+  nodes: TrieNode[],
+  secure: boolean
+): Promise<BaseTrie | SecureTrie> => {
   const TrieType = getTrieType(secure)
   const trie = new TrieType()
 
@@ -164,7 +167,10 @@ export const makeProofTest = async (
   secure = true
 ): Promise<ProofTest> => {
   const TrieType = getTrieType(secure)
-  const trie = (nodes instanceof SecureTrie || nodes instanceof BaseTrie) ? nodes : await makeTrie(nodes, secure)
+  const trie =
+    nodes instanceof SecureTrie || nodes instanceof BaseTrie
+      ? nodes
+      : await makeTrie(nodes, secure)
 
   const proof = await TrieType.prove(trie, toHexBuffer(key))
   const ret = val
@@ -214,7 +220,12 @@ export const makeRandomProofTest = async (
   secure = true
 ): Promise<ProofTest> => {
   const nodes = makeRandomNodes(germ, count, keySize, valSize)
-  return makeProofTest(nodes, nodes[randomInt(germ, 0, count)].key, undefined, secure)
+  return makeProofTest(
+    nodes,
+    nodes[randomInt(germ, 0, count)].key,
+    undefined,
+    secure
+  )
 }
 
 /**
@@ -288,7 +299,10 @@ const decodeAccountState = (state: Buffer): StateTrieNode => {
   }
 }
 
-const makeStateTrie = async (state: StateTrieMap, secure = true): Promise<StateTrie> => {
+const makeStateTrie = async (
+  state: StateTrieMap,
+  secure = true
+): Promise<StateTrie> => {
   const TrieType = getTrieType(secure)
   const stateTrie = new TrieType()
   const accountTries: { [address: string]: SecureTrie | BaseTrie } = {}
@@ -317,10 +331,7 @@ export const makeAccountStorageProofTest = async (
   const stateTrie = await makeStateTrie(state, secure)
 
   const storageTrie = stateTrie.storage[target]
-  const storageTrieWitness = await TrieType.prove(
-    storageTrie,
-    toHexBuffer(key)
-  )
+  const storageTrieWitness = await TrieType.prove(storageTrie, toHexBuffer(key))
   const ret =
     val ||
     (await SecureTrie.verifyProof(
@@ -356,10 +367,7 @@ export const makeAccountStorageUpdateTest = async (
   const stateTrie = await makeStateTrie(state, secure)
 
   const storageTrie = stateTrie.storage[target]
-  const storageTrieWitness = await TrieType.prove(
-    storageTrie,
-    toHexBuffer(key)
-  )
+  const storageTrieWitness = await TrieType.prove(storageTrie, toHexBuffer(key))
   const stateTrieWitness = await TrieType.prove(
     stateTrie.trie,
     toHexBuffer(target)
