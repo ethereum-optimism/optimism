@@ -34,7 +34,7 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
 )
 
 /* Tests */
-describe('Safety Checker', () => {
+describe.only('Safety Checker', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -206,26 +206,6 @@ describe('Safety Checker', () => {
         }
       })
 
-      it('parses opcodes after a reachable JUMPDEST', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
-            let bytecode: string = '0x'
-            bytecode += jump.code.toString('hex')
-            bytecode += Opcode.JUMPDEST.code.toString('hex') // JUMPDEST here so that the haltingOp is reachable
-            bytecode += haltingOp.code.toString('hex')
-            bytecode += Opcode.JUMPDEST.code.toString('hex')
-            for (const opcode of DEFAULT_UNSAFE_OPCODES) {
-              bytecode += opcode.code.toString('hex')
-            }
-            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
-            res.should.eq(
-              false,
-              `Bytecode containing invalid opcodes after a JUMPDEST preceded by a ${haltingOp.name} and reachable by ${jump.name} should have failed!`
-            )
-          }
-        }
-      })
-
       it('parses opcodes after first JUMP and JUMPDEST', async () => {
         let bytecode: string = '0x'
         bytecode += Opcode.JUMP.code.toString('hex')
@@ -255,29 +235,27 @@ describe('Safety Checker', () => {
 
       it('should correctly handle alternating reachable/uncreachable code ending in reachable, valid code', async () => {
         for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
-            let bytecode: string = '0x'
-            bytecode += jump.code.toString('hex')
-            // JUMPDEST here so that the haltingOp is reachable
-            bytecode += Opcode.JUMPDEST.code.toString('hex')
-            for (let i = 0; i < 3; i++) {
-              bytecode += haltingOp.code.toString('hex')
-              // Unreachable, invalid code
-              for (const opcode of DEFAULT_UNSAFE_OPCODES) {
-                bytecode += opcode.code.toString('hex')
-              }
-              bytecode += Opcode.JUMPDEST.code.toString('hex')
-              // Reachable, valid code
-              for (const opcode of whitelistedNotHaltingOrCALL) {
-                bytecode += opcode.code.toString('hex')
-              }
+          let bytecode: string = '0x'
+          bytecode += Opcode.JUMP.code.toString('hex')
+          // JUMPDEST here so that the haltingOp is reachable
+          bytecode += Opcode.JUMPDEST.code.toString('hex')
+          for (let i = 0; i < 3; i++) {
+            bytecode += haltingOp.code.toString('hex')
+            // Unreachable, invalid code
+            for (const opcode of DEFAULT_UNSAFE_OPCODES) {
+              bytecode += opcode.code.toString('hex')
             }
-            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
-            res.should.eq(
-              true,
-              `Long bytecode containing alternating valid reachable and invalid unreachable code failed!`
-            )
+            bytecode += Opcode.JUMPDEST.code.toString('hex')
+            // Reachable, valid code
+            for (const opcode of whitelistedNotHaltingOrCALL) {
+              bytecode += opcode.code.toString('hex')
+            }
           }
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
+          res.should.eq(
+            true,
+            `Long bytecode containing alternating valid reachable and invalid unreachable code failed!`
+          )
         }
       }).timeout(30_000)
 
@@ -377,7 +355,7 @@ describe('Safety Checker', () => {
           )
         }
       }).timeout(20_000)
-      it(`rejects invalid CALLs using opcodes other than PUSH20 to set address`, async () => {
+      it(`rejects invalid CALLs using opcodes other than CALLER to set address`, async () => {
         const invalidAddressSetters: EVMOpcode[] = whitelistedNotHaltingOrCALL.filter(
           (x) => x.name !== 'CALLER'
         )

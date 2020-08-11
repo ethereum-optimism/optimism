@@ -110,7 +110,6 @@ contract SafetyChecker is ContractResolver {
                         ) {
                             return false;
                         }
-                        // pc +=2;
                     }
                 }
                 prevOp = op;
