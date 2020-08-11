@@ -243,11 +243,6 @@ contract ExecutionManager is ContractResolver {
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
 
-        // Do pre-execution gas checks and updates
-        startNewGasEpochIfNecessary(_timestamp);
-        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
-        StateManagerGasProxy(address(resolveStateManager())).resetOVMRefund();
-
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
         uint256 callSize;
@@ -290,6 +285,10 @@ contract ExecutionManager is ContractResolver {
             mstore8(add(_callBytes, 3), methodId)
         }
 
+        // Do pre-execution gas checks and updates
+        startNewGasEpochIfNecessary(_timestamp);
+        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
+        StateManagerGasProxy(address(resolveStateManager())).resetOVMRefund();
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
 
@@ -1226,19 +1225,20 @@ contract ExecutionManager is ContractResolver {
     }
 
     function updateCumulativeGas(uint _gasConsumed) internal {
+        uint refund = StateManagerGasProxy(address(resolveStateManager())).getOVMRefund();
         if (executionContext.queueOrigin == 0) {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
-                - StateManagerGasProxy(address(resolveStateManager())).getOVMRefund()
+                - refund
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
-                - StateManagerGasProxy(address(resolveStateManager())).getOVMRefund()
+                - refund
             );
         }
     }

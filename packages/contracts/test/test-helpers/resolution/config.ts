@@ -79,6 +79,10 @@ export const getLibraryDeployConfig = async (): Promise<any> => {
       factory: await ethers.getContractFactory('RollupMerkleUtils'),
       params: [],
     },
+    GasConsumer: {
+      factory: await ethers.getContractFactory('GasConsumer'),
+      params: [],
+    }
   }
 }
 

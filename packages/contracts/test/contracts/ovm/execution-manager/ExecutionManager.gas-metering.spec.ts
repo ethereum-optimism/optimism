@@ -56,7 +56,7 @@ const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 65841 - 17
  * TESTS *
  *********/
 
-describe('Execution Manager -- Gas Metering', () => {
+describe.only('Execution Manager -- Gas Metering', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -310,7 +310,7 @@ describe('Execution Manager -- Gas Metering', () => {
   })
   describe('Cumulative gas tracking', async () => {
     const timestamp = 1
-    it('Should properly track sequenced consumed gas', async () => {
+    it.only('Should properly track sequenced consumed gas', async () => {
       const gasToConsume: number = 500_000
       const consumeTx = getConsumeGasCallback(
         timestamp,
