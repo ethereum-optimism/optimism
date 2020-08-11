@@ -97,21 +97,14 @@ contract StateManagerGasProxy is ContractResolver {
 
     // External Initialization and Retrieval Logic
     function resetOVMRefund() external {
-        // #if FLAG_IS_DEBUG
-        console.log("resetting ovm gas refund");
-        // #endif
         OVMRefund = 0;
     }
 
     function getOVMRefund() external view returns(uint) {
-        // #if FLAG_IS_DEBUG
-        console.log("asked for OVM refund");
-        // #endif
         return OVMRefund;
     }
 
     // Internal Logic
-
     function addToOVMRefund(uint _refund) internal {
         OVMRefund += _refund;
         return;
@@ -126,14 +119,10 @@ contract StateManagerGasProxy is ContractResolver {
         uint _virtualGasCost
     ) internal {
         uint initialGas = gasleft();
+        address stateManager = resolveStateManager();
 
         uint refund = _sanitizedGasCost - _virtualGasCost;
         addToOVMRefund(refund);
-
-        address stateManager = resolveStateManager();
-        // #if FLAG_IS_DEBUG
-        console.log("calling SM at", stateManager);
-        // #endif
 
         bool success;
         uint returnedSize;
@@ -148,12 +137,12 @@ contract StateManagerGasProxy is ContractResolver {
                 callSize
             )
             success := call(
-                gas(), // all remaining gas, leaving enough for this to execute
+                gas(),
                 stateManager,
                 0,
                 initialFreeMemStart,
                 callSize,
-                0, // we will RETURNDATACOPY the return data later, no need to use now
+                0,
                 0
             )
             returnedSize := returndatasize()
@@ -172,10 +161,6 @@ contract StateManagerGasProxy is ContractResolver {
         GasConsumer gasConsumer = GasConsumer(resolveGasConsumer());
         uint gasAlreadyConsumed = initialGas - gasleft();
         uint gasLeftToConsume = _sanitizedGasCost - gasAlreadyConsumed;
-        // #if FLAG_IS_DEBUG
-        console.log("calling CG at", address(gasConsumer), "with amount of gas left to consume", gasLeftToConsume);
-        console.log( "success is", success, "returned size is", returnedSize);
-        // #endif
         gasConsumer.consumeGasInternalCall(gasLeftToConsume);
 
         assembly {
@@ -186,40 +171,6 @@ contract StateManagerGasProxy is ContractResolver {
         }
     }
 
-//     /**
-//     * Returns the result of a forwarded SM call to back to the execution manager.
-//     * Uses RETURNDATACOPY, so that virtualization logic can be implemented in between here and the forwarded call.
-//     */
-//     function returnProxiedReturnData() internal {
-//                 uint returnedDataSize;
-// assembly {
-//                 returnedDataSize := returndatasize()
-
-// }
-
-//         // #if FLAG_IS_DEBUG
-//         console.log("returning data size of", returnedDataSize);
-//         // #endif
-
-//         assembly {
-//             let freememory := mload(0x40)
-//             let returnSize := returndatasize()
-//             returndatacopy(
-//                 freememory,
-//                 0,
-//                 returnSize
-//             )
-//             return(freememory, returnSize)
-//         }
-//     }
-
-    // function executeProxyRecordingVirtualizedGas(
-    //     uint _virtualGasToConsume
-    // ) internal {
-    //     recordVirtualGasConsumed(_virtualGasToConsume);
-    //     proxyCallAndRecordExternalConsumption();
-    // }
-    
     /*
      * Public Functions
      */
@@ -242,9 +193,6 @@ contract StateManagerGasProxy is ContractResolver {
         address _ovmContractAddress,
         bytes32 _slot
     ) public returns (bytes32) {
-        // #if FLAG_IS_DEBUG
-        console.log("in getStorageView");
-        // #endif
         performSanitizedProxyAndRecordRefund(
             SET_STORAGE_GAS_COST_UPPER_BOUND,
             GET_STORAGE_VIRTUAL_GAS_COST
