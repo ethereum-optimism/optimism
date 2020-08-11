@@ -14,6 +14,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  SYNTHETIX_BYTECODE,
 } from '../../test-helpers'
 
 /* Logging */
@@ -34,7 +35,7 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
 )
 
 /* Tests */
-describe.only('Safety Checker', () => {
+describe('Safety Checker', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -433,6 +434,61 @@ describe.only('Safety Checker', () => {
           `Bytecode containing invalid CALL with only two preceding opcodes should have failed!`
         )
       })
+    })
+    describe.skip('Synthetix contracts', async () => {
+      for (const [name, json] of Object.entries(SYNTHETIX_BYTECODE)) {
+        if (name === 'Synthetix.json') {
+          it(`${name}: gas cost for init code safety check`, async () => {
+            const data = await safetyChecker.interface.encodeFunctionData(
+              'isBytecodeSafe',
+              [json.bytecode]
+            )
+            const tx = {
+              to: safetyChecker.address,
+              data,
+            }
+
+            console.log(
+              `${name}: initcode is ${json.bytecode.length / 2} bytes long`
+            )
+
+            // THIS IS THE NUMBER WE WANT TO GO DOWN--average per-byte cost of a safety check should go down.
+            const res = await safetyChecker.provider.estimateGas(tx)
+            console.log(`${name}: estimate gas result for initcode: ${res}`)
+
+            const isSafe: boolean = await safetyChecker.isBytecodeSafe(
+              json.bytecode
+            )
+            console.log(`${name}: and is it safe? ${isSafe}`)
+
+            // console.log(`expected calldata cost is ${getTxCalldataGasCostForConsumeGas(json.bytecode)}`)
+          })
+          it(`${name}: gas cost for deployed bytecode safety check`, async () => {
+            const data = await safetyChecker.interface.encodeFunctionData(
+              'isBytecodeSafe',
+              [json.deployedBytecode]
+            )
+            const tx = {
+              to: safetyChecker.address,
+              data,
+            }
+            console.log(
+              `${name}: deployed bytecode is ${json.bytecode.length /
+                2} bytes long`
+            )
+
+            const res = await safetyChecker.provider.estimateGas(tx)
+            console.log(
+              `${name}: estimate gas result for deployed bytecode: ${res}`
+            )
+
+            const isSafe: boolean = await safetyChecker.isBytecodeSafe(
+              json.deployedBytecode
+            )
+            console.log(`${name}: and is it safe? ${isSafe}`)
+          })
+        }
+      }
     })
   })
 })
