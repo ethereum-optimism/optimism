@@ -64,7 +64,7 @@ contract SafetyChecker is ContractResolver {
         returns (bool)
     {
         bool insideUnreachableCode = false;
-        uint256 ops = 0;
+        uint256 prevOp = 0;
         for (uint256 pc = 0; pc < _bytecode.length; pc++) {
             // current opcode: 0x00...0xff
             uint256 op = uint8(_bytecode[pc]);
@@ -89,53 +89,31 @@ contract SafetyChecker is ContractResolver {
                     return false;
                 }
                 // append this opcode to a list of ops
-                ops <<= 8;
-                ops |= op;
-                // [0x56, 0x00, 0xfd, 0xfe, 0xf3, 0xf1] all have handlers
-                if (opBit & 0x600a00000000000000000000000000000000000000c000000000000000000001 != 0) {
-                    // STOP or JUMP or REVERT or INVALID or RETURN (see safety checker docs in wiki for more info)
-                    if (op == 0x00 || op == 0x56 || op == 0xfd || op == 0xfe || op == 0xf3) {
+                // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] all have handlers
+                if (opBit & 0x6008000000000000000000000000000000000000004000000008000000000001 != 0) {
+                    // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
+                    if (opBit & 0x6008000000000000000000000000000000000000004000000000000000000001 != 0) {
                         // We are now inside unreachable code until we hit a JUMPDEST!
                         insideUnreachableCode = true;
                     // CALL
-                    } else if (op == 0xf1) {
-                        // Minimum 4 total ops:
-                        // 1. PUSH1 Value (must be 0x00)
-                        // 2. CALLER (execution manager address)
-                        // 3. GAS
+                    } else if (op == 0x33) {
+                        // Sequence around CALLER must be:
+                        // 1. PUSH1 0x00 (value)
+                        // 2. CALLER (execution manager address) <-- We are here
+                        // 3. GAS (gas for call)
                         // 4. CALL
-
-                        // if opIndex < 3, there would be 0s here, so we don't need the check
-                        uint256 gasOp = (ops >> 8) & 0xFF;
-                        uint256 addressOp = (ops >> 16) & 0xFF;
-                        uint256 valueOp = (ops >> 24) & 0xFF;
                         if (
-                            gasOp < 0x60 || // PUSHes are 0x60...0x7f
-                            gasOp > 0x8f || // DUPs are 0x80...0x8f
-                            addressOp != 0x73 || // address must be set with a PUSH20
-                            valueOp != 0x60 // value must be set with a PUSH1
+                            prevOp != 0x60 || // value must be set with a PUSH1
+                            _bytecode[pc - 1] != 0 || // ensure PUSH1ed value is 0x00
+                            _bytecode[++pc] != 0x5a || // gas must be set with GAS
+                            _bytecode[++pc] != 0xf1 // last op must be CALL
                         ) {
                             return false;
-                        } else {
-                            uint256 pushedBytes;
-                            // gas is set with a PUSH##
-                            if (gasOp >= 0x60 && gasOp <= 0x7f) {
-                                pushedBytes = gasOp - 0x5f;
-                            }
-
-                            // 23 is from 1 + PUSH20 + 20 bytes of address + PUSH or DUP gas
-                            byte callValue = _bytecode[pc - (23 + pushedBytes)];
-
-                            // 21 is from 1 + 19 bytes of address + PUSH or DUP gas
-                            address callAddress = toAddress(_bytecode, (pc - (21 + pushedBytes)));
-
-                            // CALL is made to the execution manager with msg.value of 0 ETH
-                            if (callAddress != address(resolveExecutionManager()) || callValue != 0 ) {
-                                return false;
-                            }
                         }
+                        // pc +=2;
                     }
                 }
+                prevOp = op;
             }
         }
         return true;

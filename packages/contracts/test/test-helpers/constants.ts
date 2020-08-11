@@ -5,13 +5,14 @@ import { defaultAccounts } from 'ethereum-waffle'
 /* Internal Imports */
 import { EVMOpcode, Opcode } from './types'
 import { GasMeterOptions } from '../../src'
+import { ZERO, BigNumber } from '@eth-optimism/core-utils'
 
 export { ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
   return {
-    balance: ethers.BigNumber.from(account.balance).toHexString(),
+    balance: new BigNumber(account.balance).toString('hex'),
     privateKey: account.secretKey,
   }
 })
@@ -20,8 +21,8 @@ export const DEFAULT_UNSAFE_OPCODES: EVMOpcode[] = [
   Opcode.ADDRESS,
   Opcode.BALANCE,
   Opcode.BLOCKHASH,
+  Opcode.CALL,
   Opcode.CALLCODE,
-  Opcode.CALLER,
   Opcode.CHAINID,
   Opcode.COINBASE,
   Opcode.CREATE,
@@ -43,9 +44,30 @@ export const DEFAULT_UNSAFE_OPCODES: EVMOpcode[] = [
   Opcode.TIMESTAMP,
 ]
 
+export const DEFAULT_SAFE_OPCODES: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
+  (x) => DEFAULT_UNSAFE_OPCODES.indexOf(x) < 0
+)
+
+const calculateMask = (opcodes) => {
+  // console.log(
+  //   `Generating mask for opcodes: ${opcodes.map((x) => x.name).join(',')}`
+  // )
+  let maskHex: string = opcodes
+    .map((x) => new BigNumber(2).pow(new BigNumber(x.code)))
+    .reduce((prev: BigNumber, cur: BigNumber) => prev.add(cur), ZERO)
+    .toString('hex')
+  if (maskHex.length !== 64) {
+    maskHex = '0'.repeat(64 - maskHex.length) + maskHex
+  }
+  // console.log(`mask: 0x${maskHex}`)
+  return '0x' + maskHex
+}
+
+// const GATED_OPCODES = Opcode.HALTING_OP_CODES.push(Opcode.CALLER)
+// calculateMask(GATED_OPCODES) //Calculate gated opcode mask
+
 export const GAS_LIMIT = 1_000_000_000
-export const DEFAULT_OPCODE_WHITELIST_MASK =
-  '0x600a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'
+export const DEFAULT_OPCODE_WHITELIST_MASK = calculateMask(DEFAULT_SAFE_OPCODES)
 
 export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
   '0x4200000000000000000000000000000000000000'
