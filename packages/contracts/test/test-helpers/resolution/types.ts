@@ -7,6 +7,7 @@ export interface ContractDeployConfig {
 }
 
 type ContractFactoryName =
+  | 'GasConsumer'
   | 'L1ToL2TransactionQueue'
   | 'SafetyTransactionQueue'
   | 'CanonicalTransactionChain'
@@ -18,6 +19,7 @@ type ContractFactoryName =
   | 'StateManagerGasProxy'
 
 export interface AddressResolverDeployConfig {
+  GasConsumer: ContractDeployConfig
   L1ToL2TransactionQueue: ContractDeployConfig
   SafetyTransactionQueue: ContractDeployConfig
   CanonicalTransactionChain: ContractDeployConfig
@@ -35,6 +37,7 @@ export interface AddressResolverConfig {
 }
 
 interface ContractMapping {
+  gasConsumer: Contract
   l1ToL2TransactionQueue: Contract
   safetyTransactionQueue: Contract
   canonicalTransactionChain: Contract
@@ -52,6 +55,7 @@ export interface AddressResolverMapping {
 }
 
 export const factoryToContractName = {
+  GasConsumer: 'gasConsumer',
   L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
   SafetyTransactionQueue: 'safetyTransactionQueue',
   CanonicalTransactionChain: 'canonicalTransactionChain',

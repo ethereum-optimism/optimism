@@ -23,22 +23,26 @@ export interface RollupOptions {
 }
 
 export type ContractFactoryName =
+  | 'GasConsumer'
   | 'L1ToL2TransactionQueue'
   | 'SafetyTransactionQueue'
   | 'CanonicalTransactionChain'
   | 'StateCommitmentChain'
   | 'StateManager'
+  | 'StateManagerGasProxy'
   | 'ExecutionManager'
   | 'SafetyChecker'
   | 'FraudVerifier'
   | 'RollupMerkleUtils'
 
 export interface ContractDeployConfig {
+  GasConsumer: ContractDeployOptions
   L1ToL2TransactionQueue: ContractDeployOptions
   SafetyTransactionQueue: ContractDeployOptions
   CanonicalTransactionChain: ContractDeployOptions
   StateCommitmentChain: ContractDeployOptions
   StateManager: ContractDeployOptions
+  StateManagerGasProxy: ContractDeployOptions
   ExecutionManager: ContractDeployOptions
   SafetyChecker: ContractDeployOptions
   FraudVerifier: ContractDeployOptions
@@ -46,11 +50,13 @@ export interface ContractDeployConfig {
 }
 
 interface ContractMapping {
+  gasConsumer: Contract
   l1ToL2TransactionQueue: Contract
   safetyTransactionQueue: Contract
   canonicalTransactionChain: Contract
   stateCommitmentChain: Contract
   stateManager: Contract
+  stateManagerGasProxy: Contract
   executionManager: Contract
   safetyChecker: Contract
   fraudVerifier: Contract
@@ -63,11 +69,13 @@ export interface AddressResolverMapping {
 }
 
 export const factoryToContractName = {
+  GasConsumer: 'gasConsumer',
   L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
   SafetyTransactionQueue: 'safetyTransactionQueue',
   CanonicalTransactionChain: 'canonicalTransactionChain',
   StateCommitmentChain: 'stateCommitmentChain',
   StateManager: 'stateManager',
+  StateManagerGasProxy: 'stateManagerGasProxy',
   ExecutionManager: 'executionManager',
   SafetyChecker: 'safetyChecker',
   FraudVerifier: 'fraudVerifier',

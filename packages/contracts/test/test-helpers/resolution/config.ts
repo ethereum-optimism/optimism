@@ -22,6 +22,10 @@ export const getDefaultDeployConfig = async (
   const [owner, sequencer, l1ToL2TransactionPasser] = await ethers.getSigners()
 
   return {
+    GasConsumer: {
+      factory: await ethers.getContractFactory('GasConsumer'),
+      params: [],
+    },
     L1ToL2TransactionQueue: {
       factory: await ethers.getContractFactory('L1ToL2TransactionQueue'),
       params: [addressResolver.address],
@@ -77,10 +81,6 @@ export const getLibraryDeployConfig = async (): Promise<any> => {
   return {
     RollupMerkleUtils: {
       factory: await ethers.getContractFactory('RollupMerkleUtils'),
-      params: [],
-    },
-    GasConsumer: {
-      factory: await ethers.getContractFactory('GasConsumer'),
       params: [],
     },
   }

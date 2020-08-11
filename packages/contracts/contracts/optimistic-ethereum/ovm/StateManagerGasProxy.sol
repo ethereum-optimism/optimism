@@ -31,8 +31,8 @@ contract StateManagerGasProxy is ContractResolver {
      */
 
     // Storage
-    uint constant GET_STORAGE_VIRTUAL_GAS_COST = 10000;
-    uint constant SET_STORAGE_VIRTUAL_GAS_COST = 30000;
+    uint constant GET_STORAGE_VIRTUAL_GAS_COST = 5000;
+    uint constant SET_STORAGE_VIRTUAL_GAS_COST = 20000;
     // Nonces
     uint constant GET_CONTRACT_NONCE_VIRTUAL_GAS_COST = 10000;
     uint constant SET_CONTRACT_NONCE_VIRTUAL_GAS_COST = 30000;
@@ -161,9 +161,13 @@ contract StateManagerGasProxy is ContractResolver {
         uint gasLeftToConsume = _sanitizedGasCost - gasAlreadyConsumed;
         gasConsumer.consumeGasInternalCall(gasLeftToConsume);
 
+        // #if FLAG_IS_DEBUG
+        console.log("successfully consumed internal gas., success is: ", success);
+        // #endif
+
         assembly {
             if eq(success, 0) {
-                revert(0,0) // surface revert up to the EM
+                revert(returnDataStart, returnedSize) // surface revert up to the EM
             }
             return(returnDataStart, returnedSize)
         }

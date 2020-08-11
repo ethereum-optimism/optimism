@@ -27,7 +27,7 @@ const log = getLogger('partial-state-manager', true)
 
 // Hardcoded constants in the proxy contract
 const GET_STORAGE_VIRTUAL_GAS_COST = 10000
-const SET_STORAGE_VIRTUAL_GAS_COST = 30000
+const SET_STORAGE_VIRTUAL_GAS_COST = 20000
 
 // Hardcoded gas overhead that the gas proxy functions take
 const GET_STORAGE_GAS_COST_UPPER_BOUND = 50000

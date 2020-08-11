@@ -11,7 +11,6 @@ import {
 } from '../../src/deployment/types'
 import { Signer } from 'ethers'
 import {
-  GAS_LIMIT,
   DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
 } from '../test-helpers'
 

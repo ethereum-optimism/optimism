@@ -108,19 +108,19 @@ contract ExecutionManager is ContractResolver {
         public
         ContractResolver(_addressResolver)
     {
-        // // Deploy a default state manager
-        // StateManager stateManager = resolveStateManager();
+        // Deploy a default state manager
+        StateManager stateManager = resolveStateManager();
         
         // // Associate all Ethereum precompiles
         // for (uint160 i = 1; i < 20; i++) {
         //     stateManager.associateCodeContract(address(i), address(i));
         // }
 
-        // // Deploy custom precompiles
-        // L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
-        // stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
-        // L1MessageSender l1MessageSender = new L1MessageSender(address(this));
-        // stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
+        // Deploy custom precompiles
+        L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
+        stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
+        L1MessageSender l1MessageSender = new L1MessageSender(address(this));
+        stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
         
         executionContext.chainId = 108;
 

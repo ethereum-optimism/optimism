@@ -3,9 +3,8 @@ pragma solidity ^0.5.0;
 contract GasConsumer {
     // default fallback--consumes all allotted gas
     function() external {
-        uint i;
-        while (true) {
-            i += 420;
+        assembly {
+            invalid()
         }
     }
 

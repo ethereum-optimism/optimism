@@ -19,6 +19,11 @@ export const getDefaultContractDeployConfig = async (
   rollupOptions: RollupOptions
 ): Promise<ContractDeployConfig> => {
   return {
+    GasConsumer: {
+      factory: await getContractFactory('GasConsumer'),
+      params: [],
+      signer: deployerWallet,
+    },
     L1ToL2TransactionQueue: {
       factory: getContractFactory('L1ToL2TransactionQueue'),
       params: [addressResolverAddress],
@@ -46,6 +51,11 @@ export const getDefaultContractDeployConfig = async (
     StateManager: {
       factory: getContractFactory('FullStateManager'),
       params: [],
+      signer: deployerWallet,
+    },
+    StateManagerGasProxy: {
+      factory: getContractFactory('StateManagerGasProxy'),
+      params: [addressResolverAddress],
       signer: deployerWallet,
     },
     ExecutionManager: {
