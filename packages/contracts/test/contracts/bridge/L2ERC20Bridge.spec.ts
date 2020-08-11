@@ -10,7 +10,7 @@ import { MessageChannel } from 'worker_threads'
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe.only('L2ERC20Bridge', () => {
+describe('L2ERC20Bridge', () => {
   const provider = ethers.provider
 
   let depositer: Signer

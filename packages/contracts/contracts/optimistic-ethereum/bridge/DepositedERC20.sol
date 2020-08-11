@@ -17,6 +17,7 @@ contract DepositedERC20 is ERC20 {
     function processDeposit(
         address _depositer,
         uint _amount
+        //uint _depositNonce
     ) public {
         //Only the creator of this contract can authenticate deposits
         require(msg.sender == address(l2ERC20Bridge), "Get outta here. L2 factory bridge address ONLY.");

@@ -7,26 +7,26 @@ import { MockL1ToL2MessagePasser } from "../ovm/test-helpers/MockL1ToL2MessagePa
 //contract L1ERC20Bridge is ContractResolver {
 contract L1ERC20Bridge {
 
-    //mapping (address => address) public correspondingDepositedERC20;
-    uint depositNonce = 0;
-    address l2ERC20BridgeAddress;
-    address l1ToL2MessagePasser;
+    address public l2ERC20BridgeAddress;
+    address public l1ToL2MessagePasser;
+    //uint public depositNonce;
 
     constructor(
-        address _l2ERC20BridgeAddress,
         address _l1ToL2MessagePasser
     ) public {
-        l2ERC20BridgeAddress = _l2ERC20BridgeAddress;
         l1ToL2MessagePasser = _l1ToL2MessagePasser;
     }
 
-    // constructor(
-    //     address _addressResolver
-    // ) public
-    // ContractResolver(_addressResolver){
-    //     ROLLUP_CONTRACT = resolveContract("ROLLUP_CONTRACT");
-    // }
-
+    function setCorrespondingL2BridgeAddress(
+        address _l2ERC20BridgeAddress
+    ) public {
+        // Make sure the address has not been set yet, so this can only be done once
+        require(
+            l2ERC20BridgeAddress==address(0),
+            "This address has already been set."
+        );
+        l2ERC20BridgeAddress = _l2ERC20BridgeAddress;
+    }
 
     function initializeDeposit(
         address _L1ERC20Address,
@@ -39,22 +39,12 @@ contract L1ERC20Bridge {
             address(this),
             _amount
         );
-
         bytes memory messageData = abi.encodeWithSignature(
             "processDeposit(address,uint,uint)",
             _depositer,
-            _amount,
-            depositNonce
+            _amount
         );
-
-                // Tell L2 to mint corresponding coins
+        // Tell L2 to mint corresponding coins
         MockL1ToL2MessagePasser(l1ToL2MessagePasser).passMessageToL2(messageData);
-
-        // ROLLUP_CONTRACT.sendL1ToL2Message(
-        //     messageData,
-        //     _L2ERC20BridgeAddress
-        // );
-
     }
-
 }

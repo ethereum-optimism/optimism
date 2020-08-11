@@ -5337,7 +5337,7 @@ ethers@5.0.0:
     "@ethersproject/web" "^5.0.0"
     "@ethersproject/wordlists" "^5.0.0"
 
-ethers@^4.0.0, ethers@^4.0.32, ethers@^4.0.37, ethers@^4.0.39, ethers@^4.0.45:
+ethers@^4.0.0, ethers@^4.0.32, ethers@^4.0.37, ethers@^4.0.39, ethers@^4.0.42, ethers@^4.0.45:
   version "4.0.47"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-4.0.47.tgz#91b9cd80473b1136dd547095ff9171bd1fc68c85"
   integrity sha512-hssRYhngV4hiDNeZmVU/k5/E8xmLG8UpcNUzg6mb7lqhgpFPH/t7nuv20RjRrEf0gblzvi2XwR5Te+V3ZFc9pQ==

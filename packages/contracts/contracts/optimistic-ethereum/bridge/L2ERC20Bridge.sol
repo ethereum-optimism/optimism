@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 import { ERC20 } from "./ERC20.sol";
-import { DataTypes } from "../utils/DataTypes.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { IL2ToL1MessagePasser } from "./IL2ToL1MessagePasser.sol";
 import { DepositedERC20 } from "./DepositedERC20.sol";
 

@@ -5,84 +5,83 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 import { MessageChannel } from 'worker_threads'
+import { deployAndRegister } from 'src'
 
 /* Logging */
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe.only('L2ERC20Bridge', () => {
+describe.only('L1ERC20Bridge', () => {
   const provider = ethers.provider
-
   let depositer: Signer
   let withdrawer: Signer
+  let L1ERC20Bridge: ContractFactory
   let L2ERC20Bridge: ContractFactory
-  let DepositedERC20: ContractFactory
   let MockL2ToL1MessagePasser: ContractFactory
-  const mockL1ERC20Address = '0x' + '00'.repeat(20)
-  const mockL1ERC20BridgeAddress = '0x' + '11'.repeat(20) 
+  let MockL1ToL2MessagePasser: ContractFactory
+  let ERC20: ContractFactory
 
   before(async () => {
     ;[depositer, withdrawer] = await ethers.getSigners()
+    L1ERC20Bridge = await ethers.getContractFactory('L1ERC20Bridge')
     L2ERC20Bridge = await ethers.getContractFactory('L2ERC20Bridge')
-    DepositedERC20 = await ethers.getContractFactory('DepositedERC20')
     MockL2ToL1MessagePasser = await ethers.getContractFactory(
       'MockL2ToL1MessagePasser'
     )
-  })
-
-  let l2ERC20Bridge: Contract
-  let depositedERC20: Contract
-  let l2ToL1MessagePasser: Contract
-  beforeEach(async () => {
-    l2ToL1MessagePasser = await MockL2ToL1MessagePasser.deploy()
-    l2ERC20Bridge = await L2ERC20Bridge.deploy(
-      mockL1ERC20BridgeAddress,
-      l2ToL1MessagePasser.address
-    ) //some random addy to represent l1ERC20Bridge
-    await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address)
-    depositedERC20 = DepositedERC20.attach(
-      await l2ERC20Bridge.correspondingDepositedERC20(mockL1ERC20Address)
+    MockL1ToL2MessagePasser = await ethers.getContractFactory(
+      'MockL1ToL2MessagePasser'
     )
+    ERC20 = await (await ethers.getContractFactory('ERC20')).connect(depositer)
   })
 
-  describe('deployNewDepositedERC20()', async () => {
-    it('throws on attempted redeployment for the same ERC20', async () => {
-      //TODO: Add integration test to query address of new DepositedERC20 in mapping
+  let l1ERC20Bridge: Contract
+  let l2ERC20Bridge: Contract
+  let l2ToL1MessagePasser: Contract
+  let l1ToL2MessagePasser: Contract
+  let wrappedSNX: Contract
+  beforeEach(async () => {
+    l1ToL2MessagePasser = await MockL1ToL2MessagePasser.deploy()
+    l2ToL1MessagePasser = await MockL2ToL1MessagePasser.deploy()
+    /*This is just the mocked L1 to L2 message passing. Should replace in 
+    the future with address resolver pattern.*/
+    l1ERC20Bridge = await L1ERC20Bridge.deploy(l1ToL2MessagePasser.address)
+    l2ERC20Bridge = await L2ERC20Bridge.deploy(
+      l1ERC20Bridge.address,
+      l2ToL1MessagePasser.address
+    )
+    //Deploy an ERC20 contract to test deposits and withdrawals
+    wrappedSNX = await ERC20.deploy(100, "Wrapped SNX", 10, "wSNX")
+  })
+
+  describe('setCorrespondingL2BridgeAddress()', async () => {
+    it('Sets address correctly, and throws if address has already been set', async () => {
+      await l1ERC20Bridge.setCorrespondingL2BridgeAddress(l2ERC20Bridge.address)
+      const l2BridgeAddress = await l1ERC20Bridge.l2ERC20BridgeAddress()
+      // Try to set it again
       await TestUtils.assertRevertsAsync(
-        'L2 ERC20 Contract for this asset already exists.',
+        'This address has already been set.',
         async () => {
-          await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address)
+          await l1ERC20Bridge.setCorrespondingL2BridgeAddress(
+            '0x' + '00'.repeat(20)
+          )
         }
       )
     })
   })
 
-  describe('forwardDeposit', async () => {
-    it('forwards deposit correctly', async () => {
-      const preDepositBalance = (
-        await depositedERC20.balanceOf(depositer.getAddress())
-      ).toNumber()
-      const depositAmount = 10
-      await l2ERC20Bridge.forwardDeposit(
+  describe('initializeDeposit()', async () => {
+    it('Transfers funds this contract', async () => {
+      const initialBalance = await wrappedSNX.balanceOf(l1ERC20Bridge.address)
+      const depositAmount = 5
+      await wrappedSNX.approve(l1ERC20Bridge.address, depositAmount)
+      await l1ERC20Bridge.initializeDeposit(
+        wrappedSNX.address,
         depositer.getAddress(),
-        depositAmount,
-        mockL1ERC20Address
+        depositAmount
       )
-      const postDepositBalance = (
-        await depositedERC20.balanceOf(depositer.getAddress())
-      ).toNumber()
-      postDepositBalance.should.equal(preDepositBalance + depositAmount)
-    })
-  })
-
-  describe('forwardWithdrawal', async () => {
-    it('forwards withdrawal to L1 and increments withdrawal nonce', async () => {
-      depositedERC20 = depositedERC20.connect(withdrawer)
-      const initialNonce = await l2ERC20Bridge.withdrawalNonce()
-      const withdrawTo = '0x' + '22'.repeat(20)
-      await depositedERC20.initializeWithdrawal(withdrawTo, 0)
-      const newNonce = await l2ERC20Bridge.withdrawalNonce()
-      newNonce.should.equal(initialNonce + 1)
+      //Check to see if this contract has tokens
+      const newBalance = await wrappedSNX.balanceOf(l1ERC20Bridge.address)
+      newBalance.should.equal(initialBalance + depositAmount)
     })
   })
 })
