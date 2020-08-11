@@ -2,7 +2,13 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, numberToHexString, hexStrToNumber, ZERO_ADDRESS, hexStrToBuf } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  numberToHexString,
+  hexStrToNumber,
+  ZERO_ADDRESS,
+  hexStrToBuf,
+} from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
@@ -12,7 +18,7 @@ import {
   AddressResolverMapping,
   manuallyDeployOvmContract,
   Address,
-  executeTransaction
+  executeTransaction,
 } from '../../test-helpers'
 import { Interface } from 'ethers/lib/utils'
 
@@ -24,8 +30,8 @@ const GET_STORAGE_VIRTUAL_GAS_COST = 10000
 const SET_STORAGE_VIRTUAL_GAS_COST = 30000
 
 // Hardcoded gas overhead that the gas proxy functions take
-const GET_STORAGE_GAS_COST_UPPER_BOUND = 50000;
-const SET_STORAGE_GAS_COST_UPPER_BOUND = 200000;
+const GET_STORAGE_GAS_COST_UPPER_BOUND = 50000
+const SET_STORAGE_GAS_COST_UPPER_BOUND = 200000
 
 const SM_GAS_TO_CONSUME = 30_000
 
@@ -49,11 +55,12 @@ describe('StateManagerGasProxy', () => {
   let SimpleStorage: ContractFactory
   let simpleStorageAddress: Address
   before(async () => {
-    
     resolver = await makeAddressResolver(wallet)
     GasConsumer = await ethers.getContractFactory('GasConsumer')
     StateManager = await ethers.getContractFactory('FullStateManager')
-    StateManagerGasProxy = await ethers.getContractFactory('StateManagerGasProxy')
+    StateManagerGasProxy = await ethers.getContractFactory(
+      'StateManagerGasProxy'
+    )
 
     stateManager = await deployAndRegister(
       resolver.addressResolver,
@@ -64,29 +71,29 @@ describe('StateManagerGasProxy', () => {
         params: [],
       }
     )
-    
 
     console.log(`eployed dummy gas consumer as SM`)
-    
+
     // deploy GC (TODO: mmove to library deployment process)
-    await deployAndRegister(
-      resolver.addressResolver,
-      wallet,
-      'GasConsumer',
-      {
-        factory: GasConsumer,
-        params: []
-      }
-    )
-    
+    await deployAndRegister(resolver.addressResolver, wallet, 'GasConsumer', {
+      factory: GasConsumer,
+      params: [],
+    })
 
     const SM = await resolver.addressResolver.getAddress('StateManager')
-    const SMGP = await resolver.addressResolver.getAddress('StateManagerGasProxy')
+    const SMGP = await resolver.addressResolver.getAddress(
+      'StateManagerGasProxy'
+    )
     console.log(`SM is: ${SM}, SMGP is ${SMGP}`)
 
-    stateManagerGasProxy = new Contract(SMGP, StateManagerGasProxy.interface).connect(wallet)
+    stateManagerGasProxy = new Contract(
+      SMGP,
+      StateManagerGasProxy.interface
+    ).connect(wallet)
 
-    SimpleStorage = await ethers.getContractFactory('SimpleStorageArgsFromCalldata')
+    SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorageArgsFromCalldata'
+    )
     simpleStorageAddress = await manuallyDeployOvmContract(
       wallet,
       resolver.contracts.executionManager.provider,
@@ -104,25 +111,21 @@ describe('StateManagerGasProxy', () => {
 
   const getOVMGasRefund = async (): Promise<number> => {
     const data = stateManagerGasProxy.interface.encodeFunctionData(
-      'getOVMRefund', []
+      'getOVMRefund',
+      []
     )
-    const res = await stateManagerGasProxy.provider.call(
-      {
-        to: stateManagerGasProxy.address,
-        data
-      }
-    )
+    const res = await stateManagerGasProxy.provider.call({
+      to: stateManagerGasProxy.address,
+      data,
+    })
     return hexStrToNumber(res)
   }
 
   const key = numberToHexString(1234, 32)
   const val = numberToHexString(5678, 32)
 
-  const getStorage = async(): Promise<void> => {
-    const data = SimpleStorage.interface.encodeFunctionData(
-      'getStorage',
-      [key]
-    )
+  const getStorage = async (): Promise<void> => {
+    const data = SimpleStorage.interface.encodeFunctionData('getStorage', [key])
     await executeTransaction(
       resolver.contracts.executionManager,
       wallet,
@@ -133,11 +136,11 @@ describe('StateManagerGasProxy', () => {
     )
   }
 
-  const setStorage = async(): Promise<any> => {
-    const data = SimpleStorage.interface.encodeFunctionData(
-      'setStorage',
-      [key, val]
-    )
+  const setStorage = async (): Promise<any> => {
+    const data = SimpleStorage.interface.encodeFunctionData('setStorage', [
+      key,
+      val,
+    ])
     return await executeTransaction(
       resolver.contracts.executionManager,
       wallet,
@@ -149,7 +152,11 @@ describe('StateManagerGasProxy', () => {
   }
 
   // todo: throw in utils and us in GasConsumer.spec.ts
-  const estimateTxCalldataCost = (contractInterface: Interface, methodName: string, args: any[]): number => {
+  const estimateTxCalldataCost = (
+    contractInterface: Interface,
+    methodName: string,
+    args: any[]
+  ): number => {
     const expectedCalldata: Buffer = hexStrToBuf(
       contractInterface.encodeFunctionData(methodName, args)
     )
@@ -169,7 +176,13 @@ describe('StateManagerGasProxy', () => {
 
   // todo break out helper?
   const getGasConsumed = async (txRes: any): Promise<number> => {
-    return hexStrToNumber(await (await resolver.contracts.executionManager.provider.getTransactionReceipt(txRes.hash)).gasUsed._hex)
+    return hexStrToNumber(
+      await (
+        await resolver.contracts.executionManager.provider.getTransactionReceipt(
+          txRes.hash
+        )
+      ).gasUsed._hex
+    )
   }
 
   const PROXY_GET_STORAGE_OVERHEAD = 25631
@@ -187,11 +200,12 @@ describe('StateManagerGasProxy', () => {
       const refund = await getOVMGasRefund()
 
       txGas.should.be.greaterThan(SET_STORAGE_GAS_COST_UPPER_BOUND)
-      refund.should.equal(SET_STORAGE_GAS_COST_UPPER_BOUND - SET_STORAGE_VIRTUAL_GAS_COST)
+      refund.should.equal(
+        SET_STORAGE_GAS_COST_UPPER_BOUND - SET_STORAGE_VIRTUAL_GAS_COST
+      )
 
       // const txCalldataCost = estimateTxCalldataCost(stateManagerGasProxy.interface, 'setStorage', setStorageParams)
       // console.log(`tx gas: ${txGas}, ovm refund: ${refund}, tx calldata cost: ${txCalldataCost}`)
-
 
       // const externalGasConsumed = await getStateManagerExternalGasConsumed()
       // externalGasConsumed.should.equal(gasToConsume + GET_STORAGE_PROXY_GAS_COST)
@@ -202,32 +216,38 @@ describe('StateManagerGasProxy', () => {
       const firstTxGas = await getGasConsumed(firstTx)
 
       // Deploy a proxy which forwards all calls to the SM, resolving that address at 'SMImpl'
-      await deployAndRegister(resolver.addressResolver, wallet,
+      await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
         'StateManager',
         {
           factory: GasConsumingProxy,
           params: [
             resolver.addressResolver.address,
-            'StateManagerImplementation'
-          ]
-        }  
+            'StateManagerImplementation',
+          ],
+        }
       )
 
       // Deploy the SM implementation which is used by the proxy
-      await deployAndRegister(resolver.addressResolver, wallet,
+      await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
         'StateManagerImplementation',
         {
           factory: StateManager,
-          params: []
+          params: [],
         }
       )
 
       // reset the OVM refund variable so that SSTORE cost is the same as it was above
       await stateManagerGasProxy.resetOVMRefund()
 
-      const secondTx = await stateManagerGasProxy.setStorage(...setStorageParams)
+      const secondTx = await stateManagerGasProxy.setStorage(
+        ...setStorageParams
+      )
       const secondTxGas = await getGasConsumed(secondTx)
-      
+
       firstTxGas.should.equal(secondTxGas)
     })
   })
@@ -240,18 +260,12 @@ describe('StateManagerGasProxy', () => {
       )
       const data: string = stateManagerGasProxy.interface.encodeFunctionData(
         'setStorage',
-        [
-          ZERO_ADDRESS,
-          key,
-          val
-        ]
+        [ZERO_ADDRESS, key, val]
       )
-      const res = await stateManagerGasProxy.provider.call(
-        {
-          to: stateManagerGasProxy.address,
-          data
-        }
-      )
+      const res = await stateManagerGasProxy.provider.call({
+        to: stateManagerGasProxy.address,
+        data,
+      })
       // The identity precompile returns exactly what it's sent, so we should just get the same value we passed in.
       res.should.equal(data)
     })

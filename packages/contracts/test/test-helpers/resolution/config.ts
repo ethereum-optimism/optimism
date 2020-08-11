@@ -82,7 +82,7 @@ export const getLibraryDeployConfig = async (): Promise<any> => {
     GasConsumer: {
       factory: await ethers.getContractFactory('GasConsumer'),
       params: [],
-    }
+    },
   }
 }
 

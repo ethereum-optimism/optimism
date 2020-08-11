@@ -15,14 +15,13 @@ import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title StateManagerGasProxy
- * @notice The StateManagerGasProxy is used to virtualize all calls to the state manager.
- *         It serves as a proxy between an EM and SM implementation, recording all consumed SM gas ("external gas consumed"),
- *         as well as a "virtual gas" which should be charged on L2.  The EM will subtract the external gas, and add the virtual gas, at the end of execution.
+ * @notice The StateManagerGasProxy is used to hardcode the gas cost of calls to the state manager.
+ *         It serves as a proxy between an EM and SM implementation, consuming a fixed amount of gas based on the UPPER_BOUND constants.
  *
- *         This allows for OVM gas metering to be independent of the actual consumption of the SM, so that different SM implementations use the same gas.
+ *         This allows for OVM gas metering to be independent of the actual consumption of the SM, so that different SM implementations do not change OVM behavior.
  */
 
- // TODO: cannot inerit IStateManager here due to visibility changes. How to resolve?
+ // TODO: inerit IStateManager after visibility changes
  // TODO: rename.  Gas sanitizer?
  // TODO: parammeterize
 contract StateManagerGasProxy is ContractResolver {
@@ -111,8 +110,7 @@ contract StateManagerGasProxy is ContractResolver {
     }
 
     /** TODO UPDATE THIS DOCSTR
-     * Forwards a call to this proxy along to the actual state manager, and records the consumned external gas.
-     * Reverts if the forwarded call reverts, but currently does not forward revert message, as an SM should never revert.
+     * Forwards a call to this proxy along to the actual state manager, and consumes any leftover gas up to _virtualGasCost.
      */
     function performSanitizedProxyAndRecordRefund(
         uint _sanitizedGasCost,

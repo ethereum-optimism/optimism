@@ -65,14 +65,11 @@ describe('GasConsumer', () => {
       it(`Should properly consume ${toConsume} gas`, async () => {
         const data = gasConsumerCaller.interface.encodeFunctionData(
           'getGasConsumedByGasConsumer',
-          [
-            gasConsumer.address,
-            toConsume
-          ]
+          [gasConsumer.address, toConsume]
         )
         const tx = {
           to: gasConsumerCaller.address,
-          data
+          data,
         }
         const returnedGasChange = await gasConsumerCaller.provider.call(tx)
 
