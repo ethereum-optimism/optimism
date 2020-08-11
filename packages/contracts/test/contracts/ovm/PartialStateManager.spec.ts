@@ -27,7 +27,7 @@ describe('PartialStateManager', () => {
     resolver = await makeAddressResolver(wallet)
 
     await resolver.addressResolver.setAddress(
-      'StateManagerGasProxy',
+      'StateManagerGasSanitizer',
       await wallet.getAddress()
     )
   })

@@ -6,7 +6,7 @@ import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
-import { StateManagerGasProxy } from "./StateManagerGasProxy.sol";
+import { StateManagerGasSanitizer } from "./StateManagerGasSanitizer.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -288,7 +288,7 @@ contract ExecutionManager is ContractResolver {
         // Do pre-execution gas checks and updates
         startNewGasEpochIfNecessary(_timestamp);
         validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
-        StateManagerGasProxy(address(resolveStateManager())).resetOVMRefund();
+        StateManagerGasSanitizer(address(resolveStateManager())).resetOVMRefund();
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
 
@@ -1225,7 +1225,7 @@ contract ExecutionManager is ContractResolver {
     }
 
     function updateCumulativeGas(uint _gasConsumed) internal {
-        uint refund = StateManagerGasProxy(address(resolveStateManager())).getOVMRefund();
+        uint refund = StateManagerGasSanitizer(address(resolveStateManager())).getOVMRefund();
         if (executionContext.queueOrigin == 0) {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
@@ -1457,6 +1457,6 @@ contract ExecutionManager is ContractResolver {
         view
         returns (StateManager)
     {
-        return StateManager(resolveContract("StateManagerGasProxy"));
+        return StateManager(resolveContract("StateManagerGasSanitizer"));
     }
 }

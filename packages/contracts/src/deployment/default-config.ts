@@ -53,8 +53,8 @@ export const getDefaultContractDeployConfig = async (
       params: [],
       signer: deployerWallet,
     },
-    StateManagerGasProxy: {
-      factory: getContractFactory('StateManagerGasProxy'),
+    StateManagerGasSanitizer: {
+      factory: getContractFactory('StateManagerGasSanitizer'),
       params: [addressResolverAddress],
       signer: deployerWallet,
     },

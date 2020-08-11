@@ -29,7 +29,7 @@ export type ContractFactoryName =
   | 'CanonicalTransactionChain'
   | 'StateCommitmentChain'
   | 'StateManager'
-  | 'StateManagerGasProxy'
+  | 'StateManagerGasSanitizer'
   | 'ExecutionManager'
   | 'SafetyChecker'
   | 'FraudVerifier'
@@ -42,7 +42,7 @@ export interface ContractDeployConfig {
   CanonicalTransactionChain: ContractDeployOptions
   StateCommitmentChain: ContractDeployOptions
   StateManager: ContractDeployOptions
-  StateManagerGasProxy: ContractDeployOptions
+  StateManagerGasSanitizer: ContractDeployOptions
   ExecutionManager: ContractDeployOptions
   SafetyChecker: ContractDeployOptions
   FraudVerifier: ContractDeployOptions
@@ -56,7 +56,7 @@ interface ContractMapping {
   canonicalTransactionChain: Contract
   stateCommitmentChain: Contract
   stateManager: Contract
-  stateManagerGasProxy: Contract
+  stateManagerGasSanitizer: Contract
   executionManager: Contract
   safetyChecker: Contract
   fraudVerifier: Contract
@@ -75,7 +75,7 @@ export const factoryToContractName = {
   CanonicalTransactionChain: 'canonicalTransactionChain',
   StateCommitmentChain: 'stateCommitmentChain',
   StateManager: 'stateManager',
-  StateManagerGasProxy: 'stateManagerGasProxy',
+  StateManagerGasSanitizer: 'stateManagerGasSanitizer',
   ExecutionManager: 'executionManager',
   SafetyChecker: 'safetyChecker',
   FraudVerifier: 'fraudVerifier',

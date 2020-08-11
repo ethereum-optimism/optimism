@@ -42,7 +42,7 @@ const abi = new ethers.utils.AbiCoder()
 // Empirically determined constant which is some extra gas the EM records due to running CALL, gasAfter - gasBefore, etc.
 // This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
 // However, that size is constant for these tests, since we only call consumeGas() below.
-const CONSUME_GAS_EXECUTION_OVERHEAD = 39995
+const CONSUME_GAS_EXECUTION_OVERHEAD = 39989
 
 /*********
  * TESTS *
@@ -57,8 +57,8 @@ describe('Execution Manager -- Gas Metering', () => {
   let GasConsumer: ContractFactory
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
-  let StateManagerGasProxy: ContractFactory
-  let stateManagerGasProxy: Contract
+  let StateManagerGasSanitizer: ContractFactory
+  let stateManagerGasSanitizer: Contract
 
   let executionManager: Contract
   let gasConsumerAddress: Address
@@ -69,8 +69,8 @@ describe('Execution Manager -- Gas Metering', () => {
     GasConsumer = await ethers.getContractFactory('GasConsumer')
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
     StateManager = await ethers.getContractFactory('FullStateManager')
-    StateManagerGasProxy = await ethers.getContractFactory(
-      'StateManagerGasProxy'
+    StateManagerGasSanitizer = await ethers.getContractFactory(
+      'StateManagerGasSanitizer'
     )
 
     // redeploy EM with our gas metering params
@@ -96,12 +96,12 @@ describe('Execution Manager -- Gas Metering', () => {
   })
 
   beforeEach(async () => {
-    stateManagerGasProxy = await deployAndRegister(
+    stateManagerGasSanitizer = await deployAndRegister(
       resolver.addressResolver,
       wallet,
-      'StateManagerGasProxy',
+      'StateManagerGasSanitizer',
       {
-        factory: StateManagerGasProxy,
+        factory: StateManagerGasSanitizer,
         params: [resolver.addressResolver.address],
       }
     )
@@ -412,7 +412,7 @@ describe('Execution Manager -- Gas Metering', () => {
       }).timeout(30000)
     }
   })
-  describe('StateManagerGasProxy - OVM Gas virtualization', async () => {
+  describe('StateManagerGasSanitizer - OVM Gas virtualization', async () => {
     const timestamp = 1
     const gasToConsume = 100_000
     const SM_IMPLEMENTATION = 'StateManagerImplementation'

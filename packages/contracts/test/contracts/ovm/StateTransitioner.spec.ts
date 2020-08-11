@@ -410,7 +410,7 @@ const makeModifiedTrie = (
 }
 
 /* Begin tests */
-describe.only('StateTransitioner', () => {
+describe.skip('StateTransitioner', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -587,7 +587,7 @@ describe.only('StateTransitioner', () => {
   })
 
   describe('applyTransaction(...)', async () => {
-    it.only('should succeed if no state is accessed', async () => {
+    it('should succeed if no state is accessed', async () => {
       ;[
         stateTransitioner,
         stateManager,

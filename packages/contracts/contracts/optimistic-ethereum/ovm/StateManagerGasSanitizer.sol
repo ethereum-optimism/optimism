@@ -14,8 +14,8 @@ import { GasConsumer } from "../utils/libraries/GasConsumer.sol";
 import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
- * @title StateManagerGasProxy
- * @notice The StateManagerGasProxy is used to hardcode the gas cost of calls to the state manager.
+ * @title StateManagerGasSanitizer
+ * @notice The StateManagerGasSanitizer is used to hardcode the gas cost of calls to the state manager.
  *         It serves as a proxy between an EM and SM implementation, consuming a fixed amount of gas based on the UPPER_BOUND constants.
  *
  *         This allows for OVM gas metering to be independent of the actual consumption of the SM, so that different SM implementations do not change OVM behavior.
@@ -24,7 +24,7 @@ import { console } from "@nomiclabs/buidler/console.sol";
  // TODO: inerit IStateManager after visibility changes
  // TODO: rename.  Gas sanitizer?
  // TODO: parammeterize
-contract StateManagerGasProxy is ContractResolver {
+contract StateManagerGasSanitizer is ContractResolver {
 
     /*
      * Virtual (i.e. Charged by OVM) Gas Cost Constants
@@ -160,10 +160,6 @@ contract StateManagerGasProxy is ContractResolver {
         uint gasAlreadyConsumed = initialGas - gasleft();
         uint gasLeftToConsume = _sanitizedGasCost - gasAlreadyConsumed;
         gasConsumer.consumeGasInternalCall(gasLeftToConsume);
-
-        // #if FLAG_IS_DEBUG
-        console.log("successfully consumed internal gas., success is: ", success);
-        // #endif
 
         assembly {
             if eq(success, 0) {

@@ -177,14 +177,12 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
       })
 
       const receipt = await provider.getTransactionReceipt(txResult.hash)
-      console.log(receipt)
       const txLogs = receipt.logs
 
       const l2ToL1EventTopic = ethers.utils.id(
         'L2ToL1Message(uint256,address,bytes)'
       )
       const crossChainMessageEvent = txLogs.find((logged) => {
-        console.log(logged)
         return logged.topics.includes(l2ToL1EventTopic)
       })
 
