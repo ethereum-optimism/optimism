@@ -24,7 +24,9 @@ import { console } from "@nomiclabs/buidler/console.sol";
 
  // TODO: cannot inerit IStateManager here due to visibility changes. How to resolve?
  // TODO: rename.  Gas sanitizer?
+ // TODO: parammeterize
 contract StateManagerGasProxy is ContractResolver {
+
     /*
      * Virtual (i.e. Charged by OVM) Gas Cost Constants
      */
@@ -47,8 +49,6 @@ contract StateManagerGasProxy is ContractResolver {
     /*
      * Constant/Upper-bounded Fixed Gas Cost Constants
      */
-
-// todo parameterize
 
     // Storage
     uint constant GET_STORAGE_GAS_COST_UPPER_BOUND = 200000;
@@ -97,10 +97,16 @@ contract StateManagerGasProxy is ContractResolver {
 
     // External Initialization and Retrieval Logic
     function resetOVMRefund() external {
+        // #if FLAG_IS_DEBUG
+        console.log("resetting ovm gas refund");
+        // #endif
         OVMRefund = 0;
     }
 
-    function getOVMRefund() external returns(uint) {
+    function getOVMRefund() external view returns(uint) {
+        // #if FLAG_IS_DEBUG
+        console.log("asked for OVM refund");
+        // #endif
         return OVMRefund;
     }
 

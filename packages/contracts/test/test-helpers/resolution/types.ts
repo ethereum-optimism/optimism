@@ -15,6 +15,7 @@ type ContractFactoryName =
   | 'ExecutionManager'
   | 'SafetyChecker'
   | 'FraudVerifier'
+  | 'StateManagerGasProxy'
 
 export interface AddressResolverDeployConfig {
   L1ToL2TransactionQueue: ContractDeployConfig
@@ -39,6 +40,7 @@ interface ContractMapping {
   canonicalTransactionChain: Contract
   stateCommitmentChain: Contract
   stateManager: Contract
+  stateManagerGasProxy: Contract
   executionManager: Contract
   safetyChecker: Contract
   fraudVerifier: Contract

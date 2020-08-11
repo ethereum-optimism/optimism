@@ -36,7 +36,7 @@ const log = getLogger('execution-manager-calls', true)
 /* Testing Constants */
 
 const OVM_TX_BASE_GAS_FEE = 30_000
-const OVM_TX_MAX_GAS = 1_500_000
+const OVM_TX_MAX_GAS = 2_000_000
 const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 60_000
 const MAX_GAS_PER_EPOCH = 2_000_000
 
@@ -47,10 +47,10 @@ const INITIAL_OVM_DEPLOY_TIMESTAMP = 1
 
 const abi = new ethers.utils.AbiCoder()
 
-// Empirically determined constant which is some extra gas the EM records due to running CALL and gasAfter - gasBefore.
+// Empirically determined constant which is some extra gas the EM records due to running CALL, gasAfter - gasBefore, etc.
 // This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
 // However, that size is constant for these tests, since we only call consumeGas() below.
-const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 65841 - 17
+const CONSUME_GAS_EXECUTION_OVERHEAD = 65841 - 17 - 22079
 
 /*********
  * TESTS *
@@ -66,6 +66,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
   let StateManagerGasProxy: ContractFactory
+  let stateManagerGasProxy: Contract
 
   let executionManager: Contract
   let gasConsumerAddress: Address
@@ -112,10 +113,10 @@ describe.only('Execution Manager -- Gas Metering', () => {
 
   beforeEach(async () => {
     // console.log(`updated2`)
-    // await deployAndRegister(resolver.addressResolver, wallet, 'StateManagerGasProxy', {
-    //   factory: StateManagerGasProxy,
-    //   params: [resolver.addressResolver.address],
-    // })
+    stateManagerGasProxy = await deployAndRegister(resolver.addressResolver, wallet, 'StateManagerGasProxy', {
+      factory: StateManagerGasProxy,
+      params: [resolver.addressResolver.address],
+    })
 
   })
   beforeEach(async () => {
@@ -200,7 +201,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
     )
 
     // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-    const gasLimitPad: number = 100_000
+    const gasLimitPad: number = 500_000
     const ovmTxGasLimit: number = gasLimit
       ? gasLimit
       : gasToConsume + OVM_TX_BASE_GAS_FEE + gasLimitPad
@@ -310,20 +311,26 @@ describe.only('Execution Manager -- Gas Metering', () => {
   })
   describe('Cumulative gas tracking', async () => {
     const timestamp = 1
-    it.only('Should properly track sequenced consumed gas', async () => {
+    it('Should properly track sequenced consumed gas', async () => {
       const gasToConsume: number = 500_000
       const consumeTx = getConsumeGasCallback(
         timestamp,
         SEQUENCER_ORIGIN,
         gasToConsume
       )
+      console.log(`executing consume gas`)
       const change = await getChangeInCumulativeGas(consumeTx)
+
+      console.log(`refund was:`)
+      console.log(
+        hexStrToNumber((await stateManagerGasProxy.getOVMRefund())._hex)
+      )
 
       change.queued.should.equal(0)
       change.sequenced.should.equal(
         gasToConsume +
           OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+          CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
     it('Should properly track queued consumed gas', async () => {
@@ -339,7 +346,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
       change.queued.should.equal(
         gasToConsume +
           OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+          CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
     it('Should properly track both queue and sequencer consumed gas', async () => {
@@ -367,12 +374,12 @@ describe.only('Execution Manager -- Gas Metering', () => {
       change.sequenced.should.equal(
         sequencerGasToConsume +
           OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+          CONSUME_GAS_EXECUTION_OVERHEAD
       )
       change.queued.should.equal(
         queueGasToConsume +
           OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+          CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
   })
@@ -403,7 +410,7 @@ describe.only('Execution Manager -- Gas Metering', () => {
       change.queued.should.equal(
         gasToConsumeFirst +
           gasToConsumeSecond +
-          2 * (OVM_TX_BASE_GAS_FEE + EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD)
+          2 * (OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD)
       )
     })
     // start in a new epoch since the deployment takes some gas

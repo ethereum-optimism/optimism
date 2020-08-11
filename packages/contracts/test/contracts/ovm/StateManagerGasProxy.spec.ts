@@ -30,7 +30,7 @@ const SET_STORAGE_GAS_COST_UPPER_BOUND = 200000;
 const SM_GAS_TO_CONSUME = 30_000
 
 /* Begin tests */
-describe('StateManagerGasProxy', () => {
+describe.only('StateManagerGasProxy', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()

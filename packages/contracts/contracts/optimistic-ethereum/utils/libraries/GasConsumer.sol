@@ -10,7 +10,7 @@ contract GasConsumer {
     }
 
     // Overhead for checking methodId etc in this function before the actual call()
-    // This was figured out empirically during testing.
+    // This was figured out empirically during testing--adding methods or changing compiler settings will require recalibration.
     uint constant constantOverheadEOA = 947;
 
     /**
@@ -28,7 +28,7 @@ contract GasConsumer {
     }
 
     // Overhead for checking methodId, etc. in this function before the actual call()
-    // This was figured out empirically during testing.
+    // This was figured out empirically during testing--adding methods or changing compiler settings will require recalibration.
     uint constant constantOverheadInternal = 2514;
 
     /**
