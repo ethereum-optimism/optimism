@@ -63,7 +63,6 @@ contract SafetyChecker is ContractResolver {
         view
         returns (bool)
     {
-        bool seenJUMP = false;
         bool insideUnreachableCode = false;
         uint256 ops = 0;
         for (uint256 pc = 0; pc < _bytecode.length; pc++) {
@@ -92,32 +91,18 @@ contract SafetyChecker is ContractResolver {
                 // append this opcode to a list of ops
                 ops <<= 8;
                 ops |= op;
-                // [0x57, 0x56, 0x00, 0xfd, 0xfe, 0xf3, 0xf1] all have handlers
+                // [0x56, 0x00, 0xfd, 0xfe, 0xf3, 0xf1] all have handlers
                 if (opBit & 0x600a00000000000000000000000000000000000000c000000000000000000001 != 0) {
-                    // JUMPI
-                    if (op == 0x57) {
-                        // We can now reach all JUMPDESTs
-                        seenJUMP = true;
-                    // JUMP
-                    } else if (op == 0x56) {
-                        // We can now reach all JUMPDESTs
-                        seenJUMP = true;
-                        // we are now inside unreachable code until we hit a JUMPDEST!
-                        insideUnreachableCode = true;
-                    // STOP or REVERT or INVALID or RETURN (see safety checker docs in wiki for more info)
-                    } else if (op == 0x00 || op == 0xfd || op == 0xfe || op == 0xf3) {
-                        // If we can't jump to JUMPDESTs, then all remaining bytecode is unreachable
-                        if (!seenJUMP) {
-                            return true;
-                        }
+                    // STOP or JUMP or REVERT or INVALID or RETURN (see safety checker docs in wiki for more info)
+                    if (op == 0x00 || op == 0x56 || op == 0xfd || op == 0xfe || op == 0xf3) {
                         // We are now inside unreachable code until we hit a JUMPDEST!
                         insideUnreachableCode = true;
                     // CALL
                     } else if (op == 0xf1) {
                         // Minimum 4 total ops:
-                        // 1. PUSH1 value
-                        // 2. PUSH20 execution manager address
-                        // 3. PUSH or DUP gas
+                        // 1. PUSH1 Value (must be 0x00)
+                        // 2. CALLER (execution manager address)
+                        // 3. GAS
                         // 4. CALL
 
                         // if opIndex < 3, there would be 0s here, so we don't need the check
