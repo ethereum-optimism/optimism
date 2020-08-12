@@ -29,13 +29,17 @@ contract L2ERC20Bridge {
     * the mappings of respective L1 and L2 ERC20 contracts for the same asset
     */
     function deployNewDepositedERC20(
-        address l1ERC20Address
+        address l1ERC20Address,
+        string memory _tokenName,
+        uint8 _decimalUnits,
+        string memory _tokenSymbol
     ) public {
         require(
             correspondingDepositedERC20[l1ERC20Address] == address(0),
             "L2 ERC20 Contract for this asset already exists."
         );
-        address newDepositedERC20 = address(new DepositedERC20());
+        // Create a new deposited ERC20 with no balance
+        address newDepositedERC20 = address(new DepositedERC20(0, _tokenName, _decimalUnits, _tokenSymbol));
         // Set the mappings
         correspondingDepositedERC20[l1ERC20Address] = newDepositedERC20;
         correspondingL1ERC20[newDepositedERC20] = l1ERC20Address;

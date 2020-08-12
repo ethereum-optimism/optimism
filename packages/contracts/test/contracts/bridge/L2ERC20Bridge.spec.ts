@@ -39,7 +39,7 @@ describe('L2ERC20Bridge', () => {
       mockL1ERC20BridgeAddress,
       l2ToL1MessagePasser.address
     ) //some random addy to represent l1ERC20Bridge
-    await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address)
+    await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address, 'Token Name', 10, 'Token Symbol')
     depositedERC20 = DepositedERC20.attach(
       await l2ERC20Bridge.correspondingDepositedERC20(mockL1ERC20Address)
     )
@@ -51,7 +51,7 @@ describe('L2ERC20Bridge', () => {
       await TestUtils.assertRevertsAsync(
         'L2 ERC20 Contract for this asset already exists.',
         async () => {
-          await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address)
+          await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address, 'Token Name', 10, 'Token Symbol')
         }
       )
     })
