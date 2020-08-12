@@ -437,7 +437,7 @@ describe.only('Safety Checker', () => {
     })
     describe('Synthetix contracts', async () => {
       for (const [name, json] of Object.entries(SYNTHETIX_BYTECODE)) {
-        if (name === 'Synthetix.json') {
+        // if (name === 'Synthetix.json') {
           it(`${name}: gas cost for init code safety check`, async () => {
             const data = await safetyChecker.interface.encodeFunctionData(
               'isBytecodeSafe',
@@ -459,9 +459,7 @@ describe.only('Safety Checker', () => {
             const isSafe: boolean = await safetyChecker.isBytecodeSafe(
               json.bytecode
             )
-            console.log(`${name}: and is it safe? ${isSafe}`)
-
-            // console.log(`expected calldata cost is ${getTxCalldataGasCostForConsumeGas(json.bytecode)}`)
+            isSafe.should.eq(true, `Initcode for ${name} should be safe!`)
           })
           it(`${name}: gas cost for deployed bytecode safety check`, async () => {
             const data = await safetyChecker.interface.encodeFunctionData(
@@ -485,10 +483,10 @@ describe.only('Safety Checker', () => {
             const isSafe: boolean = await safetyChecker.isBytecodeSafe(
               json.deployedBytecode
             )
-            console.log(`${name}: and is it safe? ${isSafe}`)
+            isSafe.should.eq(true, `Deployed bytecode for ${name} should be safe!`)
           })
         }
-      }
+      // }
     })
   })
 })
