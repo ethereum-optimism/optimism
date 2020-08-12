@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
-import { console } from "@nomiclabs/buidler/console.sol";
+//import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title SafetyChecker
@@ -62,32 +62,33 @@ contract SafetyChecker is ContractResolver {
         view
         returns (bool)
     {
-        uint256 codeLength = _bytecode.length;
-        uint256 _opcodeBlacklistMask = ~opcodeWhitelistMask;
-        uint256 _opcodePushMask = 0xffffffff000000000000000000000000;
-        uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001 | _opcodeBlacklistMask | _opcodePushMask;
-        uint256 _bytecode32;
+        uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
+        uint256 _opcodePushMask = ~uint256(0xffffffff000000000000000000000000);
+        uint256 _opcodeProcessMask = ~uint256(0x6008000000000000000000000000000000000000004000000008000000000001) &
+                                     _opcodeWhitelistMask &
+                                     _opcodePushMask;
+        uint256 _pc;
         assembly {
-            _bytecode32 := add(_bytecode, 0x20)
+            _pc := add(_bytecode, 0x20)
         }
-        uint256 _pc = 0;
-        uint256 _ops = 0;
-        while (_pc < codeLength) {
+        uint256 codeLength = _pc + _bytecode.length;
+        //uint256 _ops = 0;
+        do {
             // current opcode: 0x00...0xff
-            uint256 op; // = uint8(_bytecode[_pc]);
+            uint256 op;
 
             // inline assembly removes the extra add + bounds check
             assembly {
-                op := byte(0, mload(add(_bytecode32, _pc)))
+                op := byte(0, mload(_pc))
             }
-            _ops = (_ops << 8) | op;
+            //_ops = (_ops << 8) | op;
 
             // check that opcode is whitelisted (using the whitelist bit mask)
             uint256 opBit = 1 << op;
 
             // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] + blacklisted opcodes + push opcodes all have handlers
-            if (opBit & _opcodeProcessMask != 0) {
-                if (opBit & _opcodePushMask != 0) {
+            if (opBit & _opcodeProcessMask == 0) {
+                if (opBit & _opcodePushMask == 0) {
                     // subsequent bytes are not opcodes. Skip them.
                     _pc += (op - 0x5e);
                     // all pushes are valid opcodes
@@ -98,7 +99,7 @@ contract SafetyChecker is ContractResolver {
                     // 2. CALLER (execution manager address) <-- We are here
                     // 3. GAS (gas for call)
                     // 4. CALL
-                    if (_ops & 0xFFFF == 0x6033 &&
+                    /*if (_ops & 0xFFFF == 0x6033 &&
                         _bytecode[_pc - 1] == 0 && // ensure PUSH1ed value is 0x00
                         _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
                         _bytecode[_pc + 2] == 0xf1 // last op must be CALL
@@ -112,31 +113,30 @@ contract SafetyChecker is ContractResolver {
                     ) {
                         // allowed = PUSH1 0x0 DUP2 PUSH1 0x44 DUP2 DUP4 CALLER GAS CALL
                     } else {
-                        console.log('Encountered a bad call');
+                        //console.log('Encountered a bad call');
                         return false;
-                    }
+                    }*/
                     _pc += 3;
                     continue;
-                } else if (opBit & _opcodeBlacklistMask != 0) {
+                } else if (opBit & _opcodeWhitelistMask == 0) {
                     // encountered a non-whitelisted opcode!
-                    console.log('Encountered a non-whitelisted opcode (in decimal):', op);
+                    //console.log('Encountered a non-whitelisted opcode (in decimal):', op);
                     return false;
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
-                    while (true) {
+                    do {
                         _pc++;
                         assembly {
-                            op := byte(0, mload(add(_bytecode32, _pc)))
+                            op := byte(0, mload(_pc))
                         }
                         if (op == 0x5b) break;
-                        if ((1 << op) & _opcodePushMask != 0) _pc += (op - 0x5f);
-                        if (_pc >= codeLength) break;
-                    }
+                        if ((1 << op) & _opcodePushMask == 0) _pc += (op - 0x5f);
+                    } while (_pc < codeLength);
                 }
             }
             _pc++;
-        }
+        } while (_pc < codeLength);
         return true;
     }
 }
