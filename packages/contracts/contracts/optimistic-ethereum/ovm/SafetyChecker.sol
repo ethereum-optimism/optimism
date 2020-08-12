@@ -63,7 +63,7 @@ contract SafetyChecker is ContractResolver {
         bool insideUnreachableCode = false;
         uint256 codeLength = _bytecode.length;
         uint256 _opcodeBlacklistMask = ~opcodeWhitelistMask;
-        uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001;
+        uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001 | _opcodeBlacklistMask;
         uint256 _bytecode32;
         assembly {
           _bytecode32 := add(_bytecode, 0x20)
@@ -95,12 +95,7 @@ contract SafetyChecker is ContractResolver {
 
             // check that opcode is whitelisted (using the whitelist bit mask)
             uint256 opBit = 1 << op;
-            if (opBit & _opcodeBlacklistMask != 0) {
-                // encountered a non-whitelisted opcode!
-                return false;
-            }
-            // append this opcode to a list of ops
-            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] all have handlers
+            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] + blacklisted opcodes all have handlers
             if (opBit & _opcodeProcessMask != 0) {
                 // CALLER (how CALL must be used)
                 if (op == 0x33) {
@@ -118,6 +113,9 @@ contract SafetyChecker is ContractResolver {
                     ) {
                         return false;
                     }
+                } else if (opBit & _opcodeBlacklistMask != 0) {
+                  // encountered a non-whitelisted opcode!
+                  return false;
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
