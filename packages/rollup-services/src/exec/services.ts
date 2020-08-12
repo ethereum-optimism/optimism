@@ -238,7 +238,7 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
     Environment.getOrThrow(
       Environment.canonicalTransactionChainContractAddress
     ),
-    getContractDefinition('CanonicalTransactionChain'),
+    getContractDefinition('CanonicalTransactionChain').abi,
     getSequencerWallet()
   )
 
@@ -276,7 +276,7 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
     getDataService(),
     new Contract(
       Environment.getOrThrow(Environment.stateCommitmentChainContractAddress),
-      getContractDefinition('StateCommitmentChain'),
+      getContractDefinition('StateCommitmentChain').abi,
       getSequencerWallet()
     ),
     Environment.getOrThrow(Environment.finalityDelayInBlocks),
