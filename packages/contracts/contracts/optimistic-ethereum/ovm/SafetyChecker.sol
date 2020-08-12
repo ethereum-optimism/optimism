@@ -63,14 +63,24 @@ contract SafetyChecker is ContractResolver {
         bool insideUnreachableCode = false;
         uint256 codeLength = _bytecode.length;
         uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
-        for (uint256 pc = 0; pc < codeLength; pc++) {
+        uint256 _bytecode32;
+        assembly {
+          _bytecode32 := add(_bytecode, 0x20)
+        }
+        for (uint256 _pc = 0; _pc < codeLength; _pc++) {
             // current opcode: 0x00...0xff
-            uint256 op = uint8(_bytecode[pc]);
+            uint256 op; // = uint8(_bytecode[_pc]);
+
+            // inline assembly removes the extra add + bounds check
+            assembly {
+              op := mload(add(_bytecode32, _pc))
+            }
+            op >>= 0xf8;
 
             // PUSH##
             if ((op - 0x60) <= 0x1f) {
                 // subsequent bytes are not opcodes. Skip them.
-                pc += (op - 0x5f);
+                _pc += (op - 0x5f);
                 // all pushes are valid opcodes
                 continue;
             }
@@ -100,11 +110,11 @@ contract SafetyChecker is ContractResolver {
                     // 3. GAS (gas for call)
                     // 4. CALL
                     if (
-                        pc < 2 ||
-                        _bytecode[pc - 2] != 0x60 || // value must be set with a PUSH1
-                        _bytecode[pc - 1] != 0 || // ensure PUSH1ed value is 0x00
-                        _bytecode[++pc] != 0x5a || // gas must be set with GAS
-                        _bytecode[++pc] != 0xf1 // last op must be CALL
+                        _pc < 2 ||
+                        _bytecode[_pc - 2] != 0x60 || // value must be set with a PUSH1
+                        _bytecode[_pc - 1] != 0 || // ensure PUSH1ed value is 0x00
+                        _bytecode[++_pc] != 0x5a || // gas must be set with GAS
+                        _bytecode[++_pc] != 0xf1 // last op must be CALL
                     ) {
                         return false;
                     }
