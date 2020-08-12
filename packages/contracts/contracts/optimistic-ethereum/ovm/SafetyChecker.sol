@@ -62,7 +62,8 @@ contract SafetyChecker is ContractResolver {
     {
         bool insideUnreachableCode = false;
         uint256 codeLength = _bytecode.length;
-        uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
+        uint256 _opcodeBlacklistMask = ~opcodeWhitelistMask;
+        uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001;
         uint256 _bytecode32;
         assembly {
           _bytecode32 := add(_bytecode, 0x20)
@@ -73,9 +74,8 @@ contract SafetyChecker is ContractResolver {
 
             // inline assembly removes the extra add + bounds check
             assembly {
-              op := mload(add(_bytecode32, _pc))
+              op := shr(0xf8, mload(add(_bytecode32, _pc)))
             }
-            op >>= 0xf8;
 
             // PUSH##
             if ((op - 0x60) <= 0x1f) {
@@ -95,13 +95,13 @@ contract SafetyChecker is ContractResolver {
 
             // check that opcode is whitelisted (using the whitelist bit mask)
             uint256 opBit = 1 << op;
-            if (_opcodeWhitelistMask & opBit != opBit) {
+            if (opBit & _opcodeBlacklistMask != 0) {
                 // encountered a non-whitelisted opcode!
                 return false;
             }
             // append this opcode to a list of ops
             // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] all have handlers
-            if (opBit & 0x6008000000000000000000000000000000000000004000000008000000000001 != 0) {
+            if (opBit & _opcodeProcessMask != 0) {
                 // CALLER (how CALL must be used)
                 if (op == 0x33) {
                     // Sequence around CALLER must be:
