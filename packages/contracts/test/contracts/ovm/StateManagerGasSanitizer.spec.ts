@@ -43,8 +43,6 @@ describe('StateManagerGasSanitizer', () => {
   })
 
   let resolver: AddressResolverMapping
-  let DummyGasConsumer: ContractFactory
-  let dummyGasConsumer: Contract
   let StateManagerGasSanitizer: ContractFactory
   let stateManagerGasSanitizer: Contract
   let GasConsumer: ContractFactory
@@ -123,56 +121,6 @@ describe('StateManagerGasSanitizer', () => {
 
   const key = numberToHexString(1234, 32)
   const val = numberToHexString(5678, 32)
-
-  const getStorage = async (): Promise<void> => {
-    const data = SimpleStorage.interface.encodeFunctionData('getStorage', [key])
-    await executeTransaction(
-      resolver.contracts.executionManager,
-      wallet,
-      simpleStorageAddress,
-      data,
-      false,
-      1
-    )
-  }
-
-  const setStorage = async (): Promise<any> => {
-    const data = SimpleStorage.interface.encodeFunctionData('setStorage', [
-      key,
-      val,
-    ])
-    return await executeTransaction(
-      resolver.contracts.executionManager,
-      wallet,
-      simpleStorageAddress,
-      data,
-      false,
-      1
-    )
-  }
-
-  // todo: throw in utils and us in GasConsumer.spec.ts
-  const estimateTxCalldataCost = (
-    contractInterface: Interface,
-    methodName: string,
-    args: any[]
-  ): number => {
-    const expectedCalldata: Buffer = hexStrToBuf(
-      contractInterface.encodeFunctionData(methodName, args)
-    )
-    const nonzeroByteCost = 16
-    const zeroBytecost = 4
-
-    let txCalldataGas = 0
-    for (const [index, byte] of expectedCalldata.entries()) {
-      if (byte === 0) {
-        txCalldataGas += zeroBytecost
-      } else {
-        txCalldataGas += nonzeroByteCost
-      }
-    }
-    return txCalldataGas
-  }
 
   // todo break out helper?
   const getGasConsumed = async (txRes: any): Promise<number> => {

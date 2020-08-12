@@ -434,7 +434,7 @@ describe('Execution Manager -- Gas Metering', () => {
         key,
         val,
       ])
-      return await executeTransaction(
+      return executeTransaction(
         executionManager,
         wallet,
         simpleStorageAddress,
