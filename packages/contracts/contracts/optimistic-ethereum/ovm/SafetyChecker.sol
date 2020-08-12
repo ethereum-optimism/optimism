@@ -66,21 +66,22 @@ contract SafetyChecker is ContractResolver {
         uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001 | _opcodeBlacklistMask;
         uint256 _bytecode32;
         assembly {
-          _bytecode32 := add(_bytecode, 0x20)
+            _bytecode32 := add(_bytecode, 0x20)
         }
-        for (uint256 _pc = 0; _pc < codeLength; _pc++) {
+        uint256 _pc = 0;
+        while (_pc < codeLength) {
             // current opcode: 0x00...0xff
             uint256 op; // = uint8(_bytecode[_pc]);
 
             // inline assembly removes the extra add + bounds check
             assembly {
-              op := shr(0xf8, mload(add(_bytecode32, _pc)))
+                op := shr(0xf8, mload(add(_bytecode32, _pc)))
             }
 
             // PUSH##
             if ((op - 0x60) <= 0x1f) {
                 // subsequent bytes are not opcodes. Skip them.
-                _pc += (op - 0x5f);
+                _pc += (op - 0x5e);
                 // all pushes are valid opcodes
                 continue;
             }
@@ -90,6 +91,7 @@ contract SafetyChecker is ContractResolver {
                 // JUMPDEST
                 insideUnreachableCode = (op != 0x5b);
                 // exit unreachable code on the next go around
+                _pc++;
                 continue;
             } 
 
@@ -108,20 +110,22 @@ contract SafetyChecker is ContractResolver {
                         _pc < 2 ||
                         _bytecode[_pc - 2] != 0x60 || // value must be set with a PUSH1
                         _bytecode[_pc - 1] != 0 || // ensure PUSH1ed value is 0x00
-                        _bytecode[++_pc] != 0x5a || // gas must be set with GAS
-                        _bytecode[++_pc] != 0xf1 // last op must be CALL
+                        _bytecode[_pc + 1] != 0x5a || // gas must be set with GAS
+                        _bytecode[_pc + 2] != 0xf1 // last op must be CALL
                     ) {
                         return false;
                     }
+                    _pc += 2;
                 } else if (opBit & _opcodeBlacklistMask != 0) {
-                  // encountered a non-whitelisted opcode!
-                  return false;
+                    // encountered a non-whitelisted opcode!
+                    return false;
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
                     insideUnreachableCode = true;
                 }
             }
+            _pc++;
         }
         return true;
     }
