@@ -120,6 +120,7 @@ contract SafetyChecker is ContractResolver {
                           op := byte(0, mload(add(_bytecode32, _pc)))
                       }
                       if (op == 0x5b) break;
+                      if ((1 << op) & _opcodePushMask != 0) _pc += (op - 0x5f);
                       if (_pc >= codeLength) break;
                     }
                 }
