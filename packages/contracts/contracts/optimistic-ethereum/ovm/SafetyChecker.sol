@@ -61,7 +61,6 @@ contract SafetyChecker is ContractResolver {
         returns (bool)
     {
         bool insideUnreachableCode = false;
-        uint256 prevOp = 0;
         uint256 codeLength = _bytecode.length;
         uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
         for (uint256 pc = 0; pc < codeLength; pc++) {
@@ -72,6 +71,7 @@ contract SafetyChecker is ContractResolver {
             if (op >= 0x60 && op <= 0x7f) {
                 // subsequent bytes are not opcodes. Skip them.
                 pc += (op - 0x5f);
+                continue;
             }
             // If we're in between a STOP or REVERT or JUMP and a JUMPDEST
             if (insideUnreachableCode) {
@@ -98,7 +98,8 @@ contract SafetyChecker is ContractResolver {
                         // 3. GAS (gas for call)
                         // 4. CALL
                         if (
-                            prevOp != 0x60 || // value must be set with a PUSH1
+                            pc < 2 ||
+                            _bytecode[pc - 2] != 0x60 || // value must be set with a PUSH1
                             _bytecode[pc - 1] != 0 || // ensure PUSH1ed value is 0x00
                             _bytecode[++pc] != 0x5a || // gas must be set with GAS
                             _bytecode[++pc] != 0xf1 // last op must be CALL
@@ -111,7 +112,6 @@ contract SafetyChecker is ContractResolver {
                         insideUnreachableCode = true;
                     }
                 }
-                prevOp = op;
             }
         }
         return true;
