@@ -11,7 +11,7 @@ import { ecsign } from 'ethereumjs-util'
 /* Contract Imports */
 import * as Precompiles from '../build/Precompiles.json'
 
-describe('Precompiles', () => {
+describe.skip('Precompiles', () => {
   let wallet
   let precompiles: Contract
   let provider

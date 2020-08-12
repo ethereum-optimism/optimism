@@ -21,7 +21,7 @@ const getCreate2Address = (
   return getAddress(`0x${keccak256(sanitizedInputs).slice(-40)}`)
 }
 
-describe('Create2', () => {
+describe.skip('Create2', () => {
   let wallet
   let simpleCreate2: Contract
   let provider

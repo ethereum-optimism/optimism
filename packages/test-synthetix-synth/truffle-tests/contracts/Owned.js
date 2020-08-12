@@ -3,7 +3,7 @@ require('.'); // import common test scaffolding
 const Owned = artifacts.require('Owned');
 const { ZERO_ADDRESS } = require('../utils/testUtils');
 
-contract('Owned - Test contract deployment', accounts => {
+contract.skip('Owned - Test contract deployment', accounts => {
 	const [deployerAccount, account1] = accounts;
 
 	it.skip('should revert when owner parameter is passed the zero address', async () => {
@@ -18,7 +18,7 @@ contract('Owned - Test contract deployment', accounts => {
 	});
 });
 
-contract('Owned - Pre deployed contract', async accounts => {
+contract.skip('Owned - Pre deployed contract', async accounts => {
 	const [account1, account2, account3, account4] = accounts.slice(1); // The first account is the deployerAccount above
 
 	it.skip('should not nominate new owner when not invoked by current contract owner', async () => {
