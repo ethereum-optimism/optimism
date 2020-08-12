@@ -115,13 +115,13 @@ contract SafetyChecker is ContractResolver {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
                     while (true) {
-                      _pc++;
-                      assembly {
-                          op := byte(0, mload(add(_bytecode32, _pc)))
-                      }
-                      if (op == 0x5b) break;
-                      if ((1 << op) & _opcodePushMask != 0) _pc += (op - 0x5f);
-                      if (_pc >= codeLength) break;
+                        _pc++;
+                        assembly {
+                            op := byte(0, mload(add(_bytecode32, _pc)))
+                        }
+                        if (op == 0x5b) break;
+                        if ((1 << op) & _opcodePushMask != 0) _pc += (op - 0x5f);
+                        if (_pc >= codeLength) break;
                     }
                 }
             }
