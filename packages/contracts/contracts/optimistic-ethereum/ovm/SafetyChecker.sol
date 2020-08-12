@@ -96,13 +96,27 @@ contract SafetyChecker is ContractResolver {
                     // 2. CALLER (execution manager address) <-- We are here
                     // 3. GAS (gas for call)
                     // 4. CALL
-                    if (
-                        _pc < 2 ||
-                        _bytecode[_pc - 2] != 0x60 || // value must be set with a PUSH1
-                        _bytecode[_pc - 1] != 0 || // ensure PUSH1ed value is 0x00
-                        _bytecode[_pc + 1] != 0x5a || // gas must be set with GAS
-                        _bytecode[_pc + 2] != 0xf1 // last op must be CALL
+                    if (_pc >= 2 && 
+                        _bytecode[_pc - 2] == 0x60 && // value must be set with a PUSH1
+                        _bytecode[_pc - 1] == 0 && // ensure PUSH1ed value is 0x00
+                        _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
+                        _bytecode[_pc + 2] == 0xf1 // last op must be CALL
                     ) {
+                        // allowed
+                    } else if (_pc >= 7 && 
+                        _bytecode[_pc - 7] == 0x60 && // value must be set with a PUSH1
+                        _bytecode[_pc - 6] == 0 && // ensure PUSH1ed value is 0x00
+                        _bytecode[_pc - 5] == 0x81 && // DUP2
+                        _bytecode[_pc - 4] == 0x60 && // PUSH1
+                        _bytecode[_pc - 3] == 0x44 && // 0x44
+                        _bytecode[_pc - 2] == 0x81 && // DUP2
+                        _bytecode[_pc - 1] == 0x83 && // DUP4
+                        _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
+                        _bytecode[_pc + 2] == 0xf1 // last op must be CALL
+                    ) {
+                        // allowed
+                    } else {
+                        console.log('Encountered a bad call');
                         return false;
                     }
                     _pc += 3;
