@@ -1388,56 +1388,67 @@ contract ExecutionManager is ContractResolver {
      * @notice Sets the new cumulative sequenced gas as a result of tx execution.
      */
     function setCumulativeSequencedGas(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Sets the new cumulative queued gas as a result of this new tx.
      */
     function setCumulativeQueuedGas(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
     function getGasRateLimitEpochStart() public returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
+        return uint(getMetadataStorageSlot(GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
      * @notice Used to store the current time at the start of a new gas rate limit epoch.
      */
     function setGasRateLimitEpochStart(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Sets the cumulative sequenced gas at the start of a new gas rate limit epoch.
      */
     function setCumulativeSequencedGasAtEpochStart(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
     function getCumulativeSequencedGasAtEpochStart() internal returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
+        return uint(getMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
      * @notice Sets what the cumulative queued gas is at the start of a new gas rate limit epoch.
      */
     function setCumulativeQueuedGasAtEpochStart(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Gets the cumulative queued gas was at the start of this gas rate limit epoch.
      */
     function getCumulativeQueuedGasAtEpochStart() internal returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
+        return uint(getMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    }
+
+    /**
+     * @notice Gets the OVM slot value for the given key at the METADATA_STORAGE_ADDRESS.
+     */
+    function getMetadataStorageSlot(bytes32 _key) internal returns (bytes32) {
+        return IStateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, _key);
+    }
+
+    function setMetadataStorageSlot(bytes32 _key, bytes32 _value) internal {
+        IStateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, _key, _value);
     }
 
     /*
