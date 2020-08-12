@@ -60,10 +60,10 @@ contract SafetyChecker is ContractResolver {
         view
         returns (bool)
     {
-        bool insideUnreachableCode = false;
         uint256 codeLength = _bytecode.length;
         uint256 _opcodeBlacklistMask = ~opcodeWhitelistMask;
-        uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001 | _opcodeBlacklistMask;
+        uint256 _opcodePushMask = 0xffffffff000000000000000000000000;
+        uint256 _opcodeProcessMask = 0x6008000000000000000000000000000000000000004000000008000000000001 | _opcodeBlacklistMask | _opcodePushMask;
         uint256 _bytecode32;
         assembly {
             _bytecode32 := add(_bytecode, 0x20)
@@ -78,29 +78,18 @@ contract SafetyChecker is ContractResolver {
                 op := shr(0xf8, mload(add(_bytecode32, _pc)))
             }
 
-            // PUSH##
-            if ((op - 0x60) <= 0x1f) {
-                // subsequent bytes are not opcodes. Skip them.
-                _pc += (op - 0x5e);
-                // all pushes are valid opcodes
-                continue;
-            }
-
-            // If we're in between a STOP or REVERT or JUMP and a JUMPDEST
-            if (insideUnreachableCode) {
-                // JUMPDEST
-                insideUnreachableCode = (op != 0x5b);
-                // exit unreachable code on the next go around
-                _pc++;
-                continue;
-            } 
-
             // check that opcode is whitelisted (using the whitelist bit mask)
             uint256 opBit = 1 << op;
-            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] + blacklisted opcodes all have handlers
+
+            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] + blacklisted opcodes + push opcodes all have handlers
             if (opBit & _opcodeProcessMask != 0) {
                 // CALLER (how CALL must be used)
-                if (op == 0x33) {
+                if (opBit & _opcodePushMask != 0) {
+                  // subsequent bytes are not opcodes. Skip them.
+                  _pc += (op - 0x5e);
+                  // all pushes are valid opcodes
+                  continue;
+                } else if (op == 0x33) {
                     // Sequence around CALLER must be:
                     // 1. PUSH1 0x00 (value)
                     // 2. CALLER (execution manager address) <-- We are here
@@ -122,7 +111,12 @@ contract SafetyChecker is ContractResolver {
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
-                    insideUnreachableCode = true;
+                    while (_pc < codeLength && op != 0x5b) {
+                      _pc++;
+                      assembly {
+                          op := shr(0xf8, mload(add(_bytecode32, _pc)))
+                      }
+                    }
                 }
             }
             _pc++;
