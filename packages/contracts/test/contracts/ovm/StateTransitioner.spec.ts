@@ -158,8 +158,14 @@ const INITIAL_OVM_GAS_STORAGE = (): any => {
   ])
 }
 
-const proveOVMGasMetadataStorage = async (stateTransitioner: any, stateTrie: any) => {
-  const stateTrieWitness = await BaseTrie.prove(stateTrie.trie, hexStrToBuf(METADATA_STORAGE_ADDRESS))
+const proveOVMGasMetadataStorage = async (
+  stateTransitioner: any,
+  stateTrie: any
+) => {
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    hexStrToBuf(METADATA_STORAGE_ADDRESS)
+  )
   await stateTransitioner.proveContractInclusion(
     METADATA_STORAGE_ADDRESS,
     METADATA_STORAGE_ADDRESS,
@@ -167,8 +173,8 @@ const proveOVMGasMetadataStorage = async (stateTransitioner: any, stateTrie: any
     rlp.encode(stateTrieWitness)
   )
   const storageTrie = stateTrie.storage[METADATA_STORAGE_ADDRESS]
-  
-  for (const {key, val} of INITIAL_OVM_GAS_STORAGE()) {
+
+  for (const { key, val } of INITIAL_OVM_GAS_STORAGE()) {
     const storageWitness = await BaseTrie.prove(storageTrie, hexStrToBuf(key))
     await stateTransitioner.proveStorageSlotInclusion(
       METADATA_STORAGE_ADDRESS,
@@ -374,10 +380,7 @@ const initStateTransitioner = async (
     await stateTransitioner.stateManager()
   )
 
-  await proveOVMGasMetadataStorage(
-    stateTransitioner,
-    stateTrie
-  )
+  await proveOVMGasMetadataStorage(stateTransitioner, stateTrie)
 
   return [stateTransitioner, stateManager, transactionData]
 }
