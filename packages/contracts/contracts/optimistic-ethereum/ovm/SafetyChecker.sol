@@ -1,9 +1,6 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
-/* Contract Imports */
-import { ExecutionManager } from "./ExecutionManager.sol";
-
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
@@ -65,7 +62,8 @@ contract SafetyChecker is ContractResolver {
     {
         bool insideUnreachableCode = false;
         uint256 prevOp = 0;
-        for (uint256 pc = 0; pc < _bytecode.length; pc++) {
+        uint256 codeLength = _bytecode.length;
+        for (uint256 pc = 0; pc < codeLength; pc++) {
             // current opcode: 0x00...0xff
             uint256 op = uint8(_bytecode[pc]);
 
@@ -116,45 +114,5 @@ contract SafetyChecker is ContractResolver {
             }
         }
         return true;
-    }
-
-
-    /*
-     * Internal Functions
-     */
-
-    /**
-     * Converts the 20 bytes at _start of _bytes into an address.
-     * @param _bytes The bytes to extract the address from.
-     * @param _start The start index from which to extract the address from
-     *               (e.g. 0 if _bytes starts with the address).
-     * @return Bytes converted to an address.
-     */
-    function toAddress(
-        bytes memory _bytes,
-        uint256 _start
-    )
-        internal
-        pure
-        returns (address addr)
-    {
-        require(_bytes.length >= (_start + 20), "Addresses must be at least 20 bytes");
-
-        assembly {
-            addr := mload(add(add(_bytes, 20), _start))
-        }
-    }
-
-
-    /*
-     * Contract Resolution
-     */
-
-    function resolveExecutionManager()
-        internal
-        view
-        returns (ExecutionManager)
-    {
-        return ExecutionManager(resolveContract("ExecutionManager"));
     }
 }
