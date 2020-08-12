@@ -6,7 +6,7 @@ import { ExecutionManager } from "./ExecutionManager.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
-
+import { console } from "@nomiclabs/buidler/console.sol";
 /**
  * @title SafetyChecker
  * @notice Safety Checker contract used to check whether or not bytecode is
@@ -86,6 +86,7 @@ contract SafetyChecker is ContractResolver {
                 uint256 opBit = 1 << op;
                 if (opcodeWhitelistMask & opBit != opBit) {
                     // encountered a non-whitelisted opcode!
+                    console.log('Encountered a non-whitelisted opcode (in decimal):', op);
                     return false;
                 }
                 // append this opcode to a list of ops
