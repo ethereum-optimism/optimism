@@ -23,9 +23,7 @@ const log = getLogger('l2-node')
 const L2ExecutionManagerContractDefinition = getContractDefinition(
   'L2ExecutionManager'
 )
-const GasConsumerContractDefinition = getContractDefinition(
-  'GasConsumer'
-)
+const GasConsumerContractDefinition = getContractDefinition('GasConsumer')
 const StateManagerGasSanitizerContractDefinition = getContractDefinition(
   'StateManagerGasSanitizer'
 )
@@ -241,7 +239,7 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   const gasConsumer: Contract = await deployContract(
     wallet,
     GasConsumerContractDefinition,
-    [],
+    []
   )
 
   const stateManagerGasSanitizer: Contract = await deployContract(
@@ -273,7 +271,10 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   )
 
   await addressResolver.setAddress('StateManager', stateManager.address)
-  await addressResolver.setAddress('StateManagerGasSanitizer', stateManagerGasSanitizer.address)
+  await addressResolver.setAddress(
+    'StateManagerGasSanitizer',
+    stateManagerGasSanitizer.address
+  )
   await addressResolver.setAddress('GasConsumer', gasConsumer.address)
   await addressResolver.setAddress('SafetyChecker', stubSafetyChecker.address)
   await addressResolver.setAddress('RLPEncode', rlpEncode.address)

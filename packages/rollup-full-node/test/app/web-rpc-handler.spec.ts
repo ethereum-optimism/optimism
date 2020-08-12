@@ -70,7 +70,6 @@ const setAndGetStorage = async (
   executionManagerAddress
 ): Promise<void> => {
   await setStorage(simpleStorage, httpProvider, executionManagerAddress)
-  console.log(`set storrage muh dude`)
   await getAndVerifyStorage(
     simpleStorage,
     httpProvider,
@@ -98,17 +97,13 @@ const getAndVerifyStorage = async (
   executionManagerAddress
 ): Promise<void> => {
   // Get the storage
-  const data = getUnsignedTransactionCalldata(
-    simpleStorage,
-    'getStorage',
-    [
-      executionManagerAddress,
-      storageKey
-    ]
-  )
+  const data = getUnsignedTransactionCalldata(simpleStorage, 'getStorage', [
+    executionManagerAddress,
+    storageKey,
+  ])
   const res = await simpleStorage.provider.call({
     to: simpleStorage.address,
-    data
+    data,
   })
   // Verify we got the value!
   res.should.equal(storageValue)
@@ -290,7 +285,6 @@ describe('Web3Handler', () => {
         const { timestamp } = await httpProvider.getBlock('latest')
         const wallet = getWallet(httpProvider)
         const simpleStorage = await deploySimpleStorage(wallet)
-        console.log(`deployed`)
         await setAndGetStorage(
           simpleStorage,
           httpProvider,

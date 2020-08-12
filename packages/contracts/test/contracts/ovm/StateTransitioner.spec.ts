@@ -909,7 +909,7 @@ describe('StateTransitioner', () => {
 
         expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
-      })
+      }).timeout(80000)
 
       it('should correctly update when the same slot has changed multiple times', async () => {
         ;[
