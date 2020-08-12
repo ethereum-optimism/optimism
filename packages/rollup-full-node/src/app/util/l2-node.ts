@@ -4,6 +4,7 @@ import {
   getDeployedContractAddress,
   getLogger,
   logError,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { deployContract, Environment } from '@eth-optimism/rollup-core'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
@@ -21,6 +22,12 @@ const log = getLogger('l2-node')
 
 const L2ExecutionManagerContractDefinition = getContractDefinition(
   'L2ExecutionManager'
+)
+const GasConsumerContractDefinition = getContractDefinition(
+  'GasConsumer'
+)
+const StateManagerGasSanitizerContractDefinition = getContractDefinition(
+  'StateManagerGasSanitizer'
 )
 const FullStateManagerContractDefinition = getContractDefinition(
   'FullStateManager'
@@ -231,6 +238,19 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
     { gasLimit: GAS_LIMIT }
   )
 
+  const gasConsumer: Contract = await deployContract(
+    wallet,
+    GasConsumerContractDefinition,
+    [],
+  )
+
+  const stateManagerGasSanitizer: Contract = await deployContract(
+    wallet,
+    StateManagerGasSanitizerContractDefinition,
+    [addressResolver.address],
+    { gasLimit: GAS_LIMIT }
+  )
+
   const stubSafetyChecker: Contract = await deployContract(
     wallet,
     StubSafetyCheckerContractDefinition,
@@ -253,6 +273,8 @@ async function deployExecutionManager(wallet: Wallet): Promise<Contract> {
   )
 
   await addressResolver.setAddress('StateManager', stateManager.address)
+  await addressResolver.setAddress('StateManagerGasSanitizer', stateManagerGasSanitizer.address)
+  await addressResolver.setAddress('GasConsumer', gasConsumer.address)
   await addressResolver.setAddress('SafetyChecker', stubSafetyChecker.address)
   await addressResolver.setAddress('RLPEncode', rlpEncode.address)
   await addressResolver.setAddress(

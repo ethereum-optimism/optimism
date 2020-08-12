@@ -24,7 +24,7 @@ contract SimpleStorage {
         }
     }
 
-    function getStorage(address exeMgrAddr, bytes32 key) public view returns (bytes32) {
+    function getStorage(address exeMgrAddr, bytes32 key) public returns (bytes32) {
         // Make the low level ovmSLOAD() call
         bytes4 methodId = bytes4(keccak256("ovmSLOAD()") >> 224);
         assembly {
@@ -41,7 +41,7 @@ contract SimpleStorage {
             // overwrite call params
             let result := mload(0x40)
             // callBytes should be 4 bytes of method ID and key
-            let success := staticcall(gas, exeMgrAddr, callBytes, 36, result, 500000)
+            let success := call(gas, exeMgrAddr, 0, callBytes, 36, result, 500000)
 
             if eq(success, 0) {
                 revert(0, 0)
