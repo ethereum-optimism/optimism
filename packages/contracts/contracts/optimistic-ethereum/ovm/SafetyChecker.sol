@@ -63,6 +63,7 @@ contract SafetyChecker is ContractResolver {
         bool insideUnreachableCode = false;
         uint256 prevOp = 0;
         uint256 codeLength = _bytecode.length;
+        uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
         for (uint256 pc = 0; pc < codeLength; pc++) {
             // current opcode: 0x00...0xff
             uint256 op = uint8(_bytecode[pc]);
@@ -82,7 +83,7 @@ contract SafetyChecker is ContractResolver {
             } else {
                 // check that opcode is whitelisted (using the whitelist bit mask)
                 uint256 opBit = 1 << op;
-                if (opcodeWhitelistMask & opBit != opBit) {
+                if (_opcodeWhitelistMask & opBit != opBit) {
                     // encountered a non-whitelisted opcode!
                     return false;
                 }
