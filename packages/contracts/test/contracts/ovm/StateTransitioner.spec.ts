@@ -9,6 +9,7 @@ import {
   TestUtils,
   remove0x,
   numberToHexString,
+  hexStrToBuf,
 } from '@eth-optimism/core-utils'
 import * as solc from '@eth-optimism/solc-transpiler'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
@@ -31,7 +32,9 @@ import {
   makeAddressResolver,
   AddressResolverMapping,
   GAS_LIMIT,
+  makeStateTrie,
 } from '../../test-helpers'
+import { BaseTrie } from 'merkle-patricia-tree'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
@@ -151,6 +154,29 @@ const INITIAL_OVM_GAS_STORAGE = (): any => {
       val: numberToHexString(initialCumulativeQueuedGasAtEpochStart, 32),
     },
   ])
+}
+
+const proveOVMGasMetadataStorage = async (stateTransitioner: any, trieMapping: any) => {
+  const fullTrie = await makeStateTrie(trieMapping)
+  const stateTrieWitness = await BaseTrie.prove(fullTrie.trie, hexStrToBuf(METADATA_STORAGE_ADDRESS))
+  await stateTransitioner.proveContractInclusion(
+    METADATA_STORAGE_ADDRESS,
+    METADATA_STORAGE_ADDRESS,
+    0,
+    rlp.encode(stateTrieWitness)
+  )
+  const storageTrie = fullTrie.storage[METADATA_STORAGE_ADDRESS]
+  
+  for (const {key, val} of INITIAL_OVM_GAS_STORAGE()) {
+    const storageWitness = await BaseTrie.prove(storageTrie, hexStrToBuf(key))
+    await stateTransitioner.proveStorageSlotInclusion(
+      METADATA_STORAGE_ADDRESS,
+      key,
+      val,
+      rlp.encode(stateTrieWitness),
+      rlp.encode(storageWitness)
+    )
+  }
 }
 
 // A populated state trie layout, with OVM gas metering state pre-populated
@@ -410,7 +436,7 @@ const makeModifiedTrie = (
 }
 
 /* Begin tests */
-describe.skip('StateTransitioner', () => {
+describe.only('StateTransitioner', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()

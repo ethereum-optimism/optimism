@@ -271,7 +271,7 @@ const decodeAccountState = (state: Buffer): StateTrieNode => {
   }
 }
 
-const makeStateTrie = async (state: StateTrieMap): Promise<StateTrie> => {
+export const makeStateTrie = async (state: StateTrieMap): Promise<StateTrie> => {
   const stateTrie = new BaseTrie()
   const accountTries: { [address: string]: BaseTrie } = {}
 
