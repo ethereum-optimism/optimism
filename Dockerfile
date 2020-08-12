@@ -7,6 +7,7 @@ FROM golang:1.14-alpine as build
 RUN apk add --update alpine-sdk
 RUN apk update && apk add git openssh gcc musl-dev linux-headers
 
+
 WORKDIR /app
 
 COPY go.mod .
