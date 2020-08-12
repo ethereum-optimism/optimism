@@ -4,6 +4,8 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title SafetyChecker
  * @notice Safety Checker contract used to check whether or not bytecode is
@@ -107,6 +109,7 @@ contract SafetyChecker is ContractResolver {
                     continue;
                 } else if (opBit & _opcodeBlacklistMask != 0) {
                     // encountered a non-whitelisted opcode!
+                    console.log('Encountered a non-whitelisted opcode (in decimal):', op);
                     return false;
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
