@@ -85,10 +85,10 @@ contract SafetyChecker is ContractResolver {
             if (opBit & _opcodeProcessMask != 0) {
                 // CALLER (how CALL must be used)
                 if (opBit & _opcodePushMask != 0) {
-                  // subsequent bytes are not opcodes. Skip them.
-                  _pc += (op - 0x5e);
-                  // all pushes are valid opcodes
-                  continue;
+                    // subsequent bytes are not opcodes. Skip them.
+                    _pc += (op - 0x5e);
+                    // all pushes are valid opcodes
+                    continue;
                 } else if (op == 0x33) {
                     // Sequence around CALLER must be:
                     // 1. PUSH1 0x00 (value)
@@ -104,18 +104,21 @@ contract SafetyChecker is ContractResolver {
                     ) {
                         return false;
                     }
-                    _pc += 2;
+                    _pc += 3;
+                    continue;
                 } else if (opBit & _opcodeBlacklistMask != 0) {
                     // encountered a non-whitelisted opcode!
                     return false;
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
-                    while (_pc < codeLength && op != 0x5b) {
+                    bool cond = true;
+                    while (cond) {
                       _pc++;
                       assembly {
                           op := shr(0xf8, mload(add(_bytecode32, _pc)))
                       }
+                      cond = (_pc < codeLength) && (op != 0x5b);
                     }
                 }
             }
