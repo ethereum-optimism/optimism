@@ -83,7 +83,6 @@ contract SafetyChecker is ContractResolver {
 
             // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] + blacklisted opcodes + push opcodes all have handlers
             if (opBit & _opcodeProcessMask != 0) {
-                // CALLER (how CALL must be used)
                 if (opBit & _opcodePushMask != 0) {
                     // subsequent bytes are not opcodes. Skip them.
                     _pc += (op - 0x5e);
@@ -118,7 +117,7 @@ contract SafetyChecker is ContractResolver {
                           op := byte(0, mload(add(_bytecode32, _pc)))
                       }
                       if (op == 0x5b) break;
-                      if (_pc == codeLength) break;
+                      if (_pc >= codeLength) break;
                     }
                 }
             }
