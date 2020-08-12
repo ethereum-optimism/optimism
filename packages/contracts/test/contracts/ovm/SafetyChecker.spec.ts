@@ -35,7 +35,7 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
 )
 
 /* Tests */
-describe('Safety Checker', () => {
+describe.only('Safety Checker', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -435,7 +435,7 @@ describe('Safety Checker', () => {
         )
       })
     })
-    describe.skip('Synthetix contracts', async () => {
+    describe('Synthetix contracts', async () => {
       for (const [name, json] of Object.entries(SYNTHETIX_BYTECODE)) {
         if (name === 'Synthetix.json') {
           it(`${name}: gas cost for init code safety check`, async () => {

@@ -11,7 +11,7 @@ const createSynthetixJSON = () => {
       .split('$__')
       .join('000')
   }
-  const dir = __dirname + '/synthetix/build/'
+  const dir = __dirname + '/synthetix/unoptimized/'
   console.log(dir)
   fs.readdirSync(dir).forEach((fileName) => {
     if (fileName.endsWith('.json')) {
