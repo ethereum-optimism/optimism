@@ -71,6 +71,7 @@ contract SafetyChecker is ContractResolver {
             _bytecode32 := add(_bytecode, 0x20)
         }
         uint256 _pc = 0;
+        uint256 _ops = 0;
         while (_pc < codeLength) {
             // current opcode: 0x00...0xff
             uint256 op; // = uint8(_bytecode[_pc]);
@@ -79,6 +80,7 @@ contract SafetyChecker is ContractResolver {
             assembly {
                 op := byte(0, mload(add(_bytecode32, _pc)))
             }
+            _ops = (_ops << 8) | op;
 
             // check that opcode is whitelisted (using the whitelist bit mask)
             uint256 opBit = 1 << op;
@@ -96,25 +98,19 @@ contract SafetyChecker is ContractResolver {
                     // 2. CALLER (execution manager address) <-- We are here
                     // 3. GAS (gas for call)
                     // 4. CALL
-                    if (_pc >= 2 && 
-                        _bytecode[_pc - 2] == 0x60 && // value must be set with a PUSH1
+                    if (_ops & 0xFFFF == 0x6033 &&
                         _bytecode[_pc - 1] == 0 && // ensure PUSH1ed value is 0x00
                         _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
                         _bytecode[_pc + 2] == 0xf1 // last op must be CALL
                     ) {
-                        // allowed
-                    } else if (_pc >= 7 && 
-                        _bytecode[_pc - 7] == 0x60 && // value must be set with a PUSH1
+                        // allowed = PUSH1 0x0 CALLER GAS CALL
+                    } else if (_ops & 0xFFFFFFFFFFFF == 0x608160818333 &&
                         _bytecode[_pc - 6] == 0 && // ensure PUSH1ed value is 0x00
-                        _bytecode[_pc - 5] == 0x81 && // DUP2
-                        _bytecode[_pc - 4] == 0x60 && // PUSH1
                         _bytecode[_pc - 3] == 0x44 && // 0x44
-                        _bytecode[_pc - 2] == 0x81 && // DUP2
-                        _bytecode[_pc - 1] == 0x83 && // DUP4
                         _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
                         _bytecode[_pc + 2] == 0xf1 // last op must be CALL
                     ) {
-                        // allowed
+                        // allowed = PUSH1 0x0 DUP2 PUSH1 0x44 DUP2 DUP4 CALLER GAS CALL
                     } else {
                         console.log('Encountered a bad call');
                         return false;
