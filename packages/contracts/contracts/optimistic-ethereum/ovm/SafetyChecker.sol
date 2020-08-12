@@ -75,7 +75,7 @@ contract SafetyChecker is ContractResolver {
 
             // inline assembly removes the extra add + bounds check
             assembly {
-                op := shr(0xf8, mload(add(_bytecode32, _pc)))
+                op := byte(0, mload(add(_bytecode32, _pc)))
             }
 
             // check that opcode is whitelisted (using the whitelist bit mask)
@@ -112,13 +112,13 @@ contract SafetyChecker is ContractResolver {
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
                     // We are now inside unreachable code until we hit a JUMPDEST!
-                    bool cond = true;
-                    while (cond) {
+                    while (true) {
                       _pc++;
                       assembly {
-                          op := shr(0xf8, mload(add(_bytecode32, _pc)))
+                          op := byte(0, mload(add(_bytecode32, _pc)))
                       }
-                      cond = (_pc < codeLength) && (op != 0x5b);
+                      if (op == 0x5b) break;
+                      if (_pc == codeLength) break;
                     }
                 }
             }
