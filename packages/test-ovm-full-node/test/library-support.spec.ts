@@ -51,7 +51,7 @@ const config = {
 
 process.env.EXECUTION_MANAGER_ADDRESS = EXECUTION_MANAGER_ADDRESS
 
-describe.skip('Library usage tests', () => {
+describe('Library usage tests', () => {
   let provider
   let wallet
   let deployedLibUser

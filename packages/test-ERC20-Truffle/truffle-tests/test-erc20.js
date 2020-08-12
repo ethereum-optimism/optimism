@@ -1,7 +1,7 @@
 const EIP20Abstraction = artifacts.require('EIP20');
 let HST;
 
-contract.skip('EIP20', (accounts) => {
+contract('EIP20', (accounts) => {
   const tokenName = 'Optipus Coins'
   const tokenSymbol = 'OPT'
   const tokenDecimals = 1

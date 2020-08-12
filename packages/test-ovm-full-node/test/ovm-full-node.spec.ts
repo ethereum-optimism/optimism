@@ -19,7 +19,7 @@ const secondsSinceEopch = (): number => {
   return Math.round(Date.now() / 1000)
 }
 
-describe.skip('Timestamp Checker', () => {
+describe('Timestamp Checker', () => {
   let wallet: Wallet
   let timestampChecker: Contract
   let provider: JsonRpcProvider
