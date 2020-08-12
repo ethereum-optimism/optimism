@@ -447,7 +447,7 @@ const makeModifiedTrie = (
 }
 
 /* Begin tests */
-describe.only('StateTransitioner', () => {
+describe('StateTransitioner', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
