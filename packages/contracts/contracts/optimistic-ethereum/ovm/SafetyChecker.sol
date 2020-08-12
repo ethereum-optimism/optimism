@@ -68,49 +68,50 @@ contract SafetyChecker is ContractResolver {
             uint256 op = uint8(_bytecode[pc]);
 
             // PUSH##
-            if (op >= 0x60 && op <= 0x7f) {
+            if ((op - 0x60) <= 0x1f) {
                 // subsequent bytes are not opcodes. Skip them.
                 pc += (op - 0x5f);
+                // all pushes are valid opcodes
                 continue;
             }
+
             // If we're in between a STOP or REVERT or JUMP and a JUMPDEST
             if (insideUnreachableCode) {
                 // JUMPDEST
-                if (op == 0x5b) {
-                    // this bytecode is now reachable via JUMP or JUMPI
-                    insideUnreachableCode = false;
-                }
-            } else {
-                // check that opcode is whitelisted (using the whitelist bit mask)
-                uint256 opBit = 1 << op;
-                if (_opcodeWhitelistMask & opBit != opBit) {
-                    // encountered a non-whitelisted opcode!
-                    return false;
-                }
-                // append this opcode to a list of ops
-                // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] all have handlers
-                if (opBit & 0x6008000000000000000000000000000000000000004000000008000000000001 != 0) {
-                    // CALLER (how CALL must be used)
-                    if (op == 0x33) {
-                        // Sequence around CALLER must be:
-                        // 1. PUSH1 0x00 (value)
-                        // 2. CALLER (execution manager address) <-- We are here
-                        // 3. GAS (gas for call)
-                        // 4. CALL
-                        if (
-                            pc < 2 ||
-                            _bytecode[pc - 2] != 0x60 || // value must be set with a PUSH1
-                            _bytecode[pc - 1] != 0 || // ensure PUSH1ed value is 0x00
-                            _bytecode[++pc] != 0x5a || // gas must be set with GAS
-                            _bytecode[++pc] != 0xf1 // last op must be CALL
-                        ) {
-                            return false;
-                        }
-                    } else {
-                        // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
-                        // We are now inside unreachable code until we hit a JUMPDEST!
-                        insideUnreachableCode = true;
+                insideUnreachableCode = (op != 0x5b);
+                // exit unreachable code on the next go around
+                continue;
+            } 
+
+            // check that opcode is whitelisted (using the whitelist bit mask)
+            uint256 opBit = 1 << op;
+            if (_opcodeWhitelistMask & opBit != opBit) {
+                // encountered a non-whitelisted opcode!
+                return false;
+            }
+            // append this opcode to a list of ops
+            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] all have handlers
+            if (opBit & 0x6008000000000000000000000000000000000000004000000008000000000001 != 0) {
+                // CALLER (how CALL must be used)
+                if (op == 0x33) {
+                    // Sequence around CALLER must be:
+                    // 1. PUSH1 0x00 (value)
+                    // 2. CALLER (execution manager address) <-- We are here
+                    // 3. GAS (gas for call)
+                    // 4. CALL
+                    if (
+                        pc < 2 ||
+                        _bytecode[pc - 2] != 0x60 || // value must be set with a PUSH1
+                        _bytecode[pc - 1] != 0 || // ensure PUSH1ed value is 0x00
+                        _bytecode[++pc] != 0x5a || // gas must be set with GAS
+                        _bytecode[++pc] != 0xf1 // last op must be CALL
+                    ) {
+                        return false;
                     }
+                } else {
+                    // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
+                    // We are now inside unreachable code until we hit a JUMPDEST!
+                    insideUnreachableCode = true;
                 }
             }
         }
