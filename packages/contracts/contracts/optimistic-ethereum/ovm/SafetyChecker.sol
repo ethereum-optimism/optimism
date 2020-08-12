@@ -89,12 +89,8 @@ contract SafetyChecker is ContractResolver {
                 // append this opcode to a list of ops
                 // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] all have handlers
                 if (opBit & 0x6008000000000000000000000000000000000000004000000008000000000001 != 0) {
-                    // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
-                    if (opBit & 0x6008000000000000000000000000000000000000004000000000000000000001 != 0) {
-                        // We are now inside unreachable code until we hit a JUMPDEST!
-                        insideUnreachableCode = true;
-                    // CALL
-                    } else if (op == 0x33) {
+                    // CALLER (how CALL must be used)
+                    if (op == 0x33) {
                         // Sequence around CALLER must be:
                         // 1. PUSH1 0x00 (value)
                         // 2. CALLER (execution manager address) <-- We are here
@@ -108,6 +104,10 @@ contract SafetyChecker is ContractResolver {
                         ) {
                             return false;
                         }
+                    } else {
+                        // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
+                        // We are now inside unreachable code until we hit a JUMPDEST!
+                        insideUnreachableCode = true;
                     }
                 }
                 prevOp = op;
