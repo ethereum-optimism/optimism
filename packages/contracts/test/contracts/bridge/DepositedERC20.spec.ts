@@ -5,12 +5,13 @@ import { ethers } from '@nomiclabs/buidler'
 import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 import { MessageChannel } from 'worker_threads'
+import { initial } from 'lodash'
 
 /* Logging */
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe('DepositedERC20', () => {
+describe.only('DepositedERC20', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -24,7 +25,7 @@ describe('DepositedERC20', () => {
 
   let depositedERC20: Contract
   beforeEach(async () => {
-    depositedERC20 = await DepositedERC20.deploy()
+    depositedERC20 = await DepositedERC20.deploy(0, '_tokenName', 10, '_tokenSymbol')
   })
 
   describe('constructor()', async () => {
@@ -82,9 +83,7 @@ describe('DepositedERC20', () => {
         await depositedERC20.balanceOf(userWallet.getAddress())
       ).toNumber()
       const withdrawalAmount = 5
-      await depositedERC20
-        .connect(userWallet)
-        .initializeWithdrawal('0x' + '00'.repeat(20), withdrawalAmount)
+      await depositedERC20.connect(userWallet).initializeWithdrawal('0x' + '00'.repeat(20), withdrawalAmount)
       const newSupply = (await depositedERC20.totalSupply()).toNumber()
       const newBalance = (
         await depositedERC20.balanceOf(userWallet.getAddress())

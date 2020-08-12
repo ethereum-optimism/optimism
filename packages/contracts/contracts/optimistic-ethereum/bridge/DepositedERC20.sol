@@ -7,7 +7,12 @@ contract DepositedERC20 is ERC20 {
     L2ERC20Bridge public l2ERC20Bridge;
 
     //Todo: change jingle wingle
-    constructor () public ERC20(10, "Jingle Wingle", 8, "JING") {
+    constructor (
+        uint256 _initialAmount,
+        string memory _tokenName,
+        uint8 _decimalUnits,
+        string memory _tokenSymbol
+    ) public ERC20(_initialAmount, _tokenName, _decimalUnits, _tokenSymbol) {
         l2ERC20Bridge = L2ERC20Bridge(msg.sender);
     }
 
@@ -29,7 +34,7 @@ contract DepositedERC20 is ERC20 {
         uint _amount
     ) public {
         _burn(msg.sender, _amount);
-        l2ERC20Bridge.forwardWithdrawal(_withdrawTo, _amount);
+        // l2ERC20Bridge.forwardWithdrawal(_withdrawTo, _amount);
     }
 
     function returnMS() public view returns(address){
