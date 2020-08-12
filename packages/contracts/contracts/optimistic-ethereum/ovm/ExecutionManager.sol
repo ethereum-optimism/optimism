@@ -111,10 +111,10 @@ contract ExecutionManager is ContractResolver {
         // Deploy a default state manager
         StateManager stateManager = resolveStateManager();
         
-        // // Associate all Ethereum precompiles
-        // for (uint160 i = 1; i < 20; i++) {
-        //     stateManager.associateCodeContract(address(i), address(i));
-        // }
+        // Associate all Ethereum precompiles
+        for (uint160 i = 1; i < 20; i++) {
+            stateManager.associateCodeContract(address(i), address(i));
+        }
 
         // Deploy custom precompiles
         L2ToL1MessagePasser l2ToL1MessagePasser = new L2ToL1MessagePasser(address(this));
