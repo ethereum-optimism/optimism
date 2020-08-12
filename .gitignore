@@ -21,3 +21,4 @@ terraform.tfvars
 *.b64
 *.hcl
 unsealer/backup.snap
+.vscode

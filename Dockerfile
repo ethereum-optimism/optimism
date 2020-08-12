@@ -6,6 +6,7 @@ FROM vault:latest as build
 RUN apk add --update alpine-sdk
 RUN apk update && apk add go git openssh gcc musl-dev linux-headers
 
+
 WORKDIR /app
 
 COPY go.mod .
@@ -16,8 +17,8 @@ RUN go mod download
 
 COPY  / .
 RUN mkdir -p /app/bin \
-	&& GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build -a -i -o /app/bin/immutability-eth-plugin . \
-	&& sha256sum -b /app/bin/immutability-eth-plugin > /app/bin/SHA256SUMS
+    && GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build -a -i -o /app/bin/immutability-eth-plugin . \
+    && sha256sum -b /app/bin/immutability-eth-plugin > /app/bin/SHA256SUMS
 
 # ***********************************************************
 # ********** This is our actual released container **********
@@ -26,6 +27,7 @@ FROM vault:latest
 # we pass epoch time so it always upgrades
 ARG always_upgrade
 RUN echo ${always_upgrade} > /dev/null && apk update && apk upgrade
+RUN apk add bash openssl jq
 USER vault
 WORKDIR /app
 RUN mkdir -p /home/vault/ca \
