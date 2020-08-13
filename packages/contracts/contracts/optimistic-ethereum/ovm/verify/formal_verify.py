@@ -3,6 +3,8 @@ import binascii
 import unittest
 from manticore.ethereum import ManticoreEVM
 
+from gen_safety_checker_constants import whitelist_opcodes, push_opcodes, stop_opcodes
+
 def get_contract_src():
   # remove ContractResolver and replace console.log with assert(false);
   with open("../SafetyChecker.sol") as f:
@@ -21,6 +23,15 @@ def prepare_evm():
     owner=user_account, balance=0, args=[0])
   return contract_account, m
 
+def print_and_get_solves(m, value):
+  all_solves = []
+  for state in m.ready_states:
+    print(binascii.hexlify(state.solve_one(value)))
+    solves = state.solve_n(value, 256)
+    all_solves += solves
+    print("    ", list(map(binascii.hexlify, solves)))
+  return all_solves
+
 class VerifySafetyChecker(unittest.TestCase):
   def test_all_one_byte_contracts_are_whitelisted(self):
     contract_account, m = prepare_evm()
@@ -32,9 +43,16 @@ class VerifySafetyChecker(unittest.TestCase):
     contract_account.isBytecodeSafe(value)
     print("done", m.count_ready_states(), m.count_terminated_states())
 
-    for state in m.ready_states:
-      print(binascii.hexlify(state.solve_one(value)))
-      print("    ", list(map(binascii.hexlify, state.solve_n(value, 256))))
+    all_solves = print_and_get_solves(m, value)
+
+    # all single bytes are whitelisted opcodes
+    for x in all_solves:
+      assert(x[0] in whitelist_opcodes)
+
+    # all whitelisted opcodes should be allowed as a single byte too
+    valid_ops = [x[0] for x in all_solves]
+    for x in whitelist_opcodes:
+      assert(x in valid_ops)
 
   def test_all_bare_calls_follow_push_or_stop(self):
     contract_account, m = prepare_evm()
@@ -47,10 +65,11 @@ class VerifySafetyChecker(unittest.TestCase):
     contract_account.isBytecodeSafe(value)
     print("done", m.count_ready_states(), m.count_terminated_states())
 
-    for state in m.ready_states:
-      print(binascii.hexlify(state.solve_one(value)))
-      print("    ", list(map(binascii.hexlify, state.solve_n(value, 256))))
+    all_solves = print_and_get_solves(m, value)
 
+    # all first bytes are pushes or stops
+    for x in all_solves:
+      assert(x[0] in push_opcodes or x[0] in stop_opcodes)
 
 if __name__ == '__main__':
   unittest.main()
