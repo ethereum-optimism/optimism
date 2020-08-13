@@ -78,8 +78,20 @@ class VerifySafetyChecker(unittest.TestCase):
     contract_account.isBytecodeSafe(value)
     all_solves = print_and_get_solves(m, value)
 
+    assert(len(all_solves) > 0)
     for x in all_solves:
       assert(x[0:6] == b"\x33\x60\x00\x90\x5a\xf1")
+
+  def test_all_caller_followers_must_be_the_allowed_string(self):
+    contract_account, m = prepare_evm()
+    value = m.make_symbolic_buffer(7)
+    m.constrain(value[0] == 0x33)
+
+    # TODO: How do I do an or here?
+    m.constrain(value[1] != 0x60)
+    contract_account.isBytecodeSafe(value)
+    all_solves = print_and_get_solves(m, value)
+
 
 if __name__ == '__main__':
   unittest.main()
