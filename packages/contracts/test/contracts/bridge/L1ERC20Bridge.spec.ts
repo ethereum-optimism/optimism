@@ -20,6 +20,7 @@ describe.only('L1ERC20Bridge', () => {
   let MockL2ToL1MessagePasser: ContractFactory
   let MockL1ToL2MessagePasser: ContractFactory
   let ERC20: ContractFactory
+  let DepositedERC20: ContractFactory
 
   before(async () => {
     ;[depositer, withdrawer] = await ethers.getSigners()
@@ -32,6 +33,7 @@ describe.only('L1ERC20Bridge', () => {
       'MockL1ToL2MessagePasser'
     )
     ERC20 = await (await ethers.getContractFactory('ERC20')).connect(depositer)
+    DepositedERC20 = await ethers.getContractFactory('DepositedERC20')
   })
 
   let l1ERC20Bridge: Contract
@@ -39,6 +41,7 @@ describe.only('L1ERC20Bridge', () => {
   let l2ToL1MessagePasser: Contract
   let l1ToL2MessagePasser: Contract
   let wrappedSNX: Contract
+  let l2WrappedSNX: Contract
   beforeEach(async () => {
     l1ToL2MessagePasser = await MockL1ToL2MessagePasser.deploy()
     l2ToL1MessagePasser = await MockL2ToL1MessagePasser.deploy()
@@ -50,7 +53,16 @@ describe.only('L1ERC20Bridge', () => {
       l2ToL1MessagePasser.address
     )
     //Deploy an ERC20 contract to test deposits and withdrawals
-    wrappedSNX = await ERC20.deploy(100, "Wrapped SNX", 10, "wSNX")
+    wrappedSNX = await ERC20.deploy(100, 'Wrapped SNX', 10, 'wSNX')
+    await l2ERC20Bridge.deployNewDepositedERC20(
+      wrappedSNX.address,
+      'Wrapped SNX',
+      10,
+      'wSNX'
+    )
+    l2WrappedSNX = DepositedERC20.attach(
+      await l2ERC20Bridge.correspondingDepositedERC20(wrappedSNX.address)
+    )
   })
 
   describe('setCorrespondingL2BridgeAddress()', async () => {
@@ -70,18 +82,25 @@ describe.only('L1ERC20Bridge', () => {
   })
 
   describe('initializeDeposit()', async () => {
-    it('Transfers funds this contract', async () => {
+    it('transfers funds to this contract and mints corresponding coins on L2', async () => {
       const initialBalance = await wrappedSNX.balanceOf(l1ERC20Bridge.address)
       const depositAmount = 5
+      // Transfer deposit to this contract
       await wrappedSNX.approve(l1ERC20Bridge.address, depositAmount)
       await l1ERC20Bridge.initializeDeposit(
         wrappedSNX.address,
         depositer.getAddress(),
         depositAmount
       )
-      //Check to see if this contract has tokens
       const newBalance = await wrappedSNX.balanceOf(l1ERC20Bridge.address)
       newBalance.should.equal(initialBalance + depositAmount)
+      // // Check that funds are created on L2
+      const l2Balance = await l2WrappedSNX.balanceOf(depositer.getAddress())
+      console.log('layer 2 balance is', l2Balance)
+      l2Balance.should.equal(depositAmount)
+      l2ERC20Bridge.correspondingDepositedERC20[wrappedSNX.address]
+        .balanceOf(depositer.getAddress())
+        .should.equal(depositAmount)
     })
   })
 })
