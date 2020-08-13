@@ -9,10 +9,9 @@ def asm(x):
 
 push_opcodes = asm(["PUSH%d" % i for i in range(1,33)])
 stop_opcodes = asm(["STOP", "JUMP", "RETURN", "REVERT", "INVALID"])
-caller_opcodes = asm(["CALLER"])
 blacklist_ops = set([
   "ADDRESS", "BALANCE", "BLOCKHASH",
-  "CALL", "CALLCODE", "CHAINID", "COINBASE",
+  "CALL", "CALLCODE", "CALLER", "CHAINID", "COINBASE",
   "CREATE", "CREATE2", "DELEGATECALL", "DIFFICULTY",
   "EXTCODESIZE", "EXTCODECOPY", "EXTCODEHASH",
   "GASLIMIT", "GASPRICE", "NUMBER",
@@ -36,8 +35,7 @@ procmask = 0
 for i in range(256):
   if i in whitelist_opcodes and \
       i not in push_opcodes and \
-      i not in stop_opcodes and \
-      i not in caller_opcodes:
+      i not in stop_opcodes:
     # can skip this opcode
     stoplist[i] = 1
   else:
@@ -46,17 +44,18 @@ for i in range(256):
 # PUSH1 through PUSH4, can't skip in slow
 for i in range(0x60, 0x64):
   stoplist[i] = i-0x5e
-rr = "uint256[8] memory skip = [\n"
-for i in range(0, 0x100, 0x20):
-  ret = "uint256(0x"
-  for j in range(i, i+0x20, 1):
-    ret += ("%02X" % stoplist[j])
-  rr += ret+"),\n"
-  
-rr = rr[:-2] + "];"
 
-print(rr)
-print("uint256 _opcodeProcMask = ~uint256(0x%x);" % procmask)
-print("uint256 _opcodeStopMask = ~uint256(0x%x);" % stopmask)
-print("uint256 _opcodePushMask = ~uint256(0x%x);" % pushmask)
+if __name__ == "__main__":
+  rr = "uint256[8] memory skip = [\n"
+  for i in range(0, 0x100, 0x20):
+    ret = "uint256(0x"
+    for j in range(i, i+0x20, 1):
+      ret += ("%02X" % stoplist[j])
+    rr += ret+"),\n"
+    
+  rr = rr[:-2] + "];"
+  print(rr)
+  print("uint256 _opcodeProcMask = ~uint256(0x%x);" % procmask)
+  print("uint256 _opcodeStopMask = ~uint256(0x%x);" % stopmask)
+  print("uint256 _opcodePushMask = ~uint256(0x%x);" % pushmask)
 

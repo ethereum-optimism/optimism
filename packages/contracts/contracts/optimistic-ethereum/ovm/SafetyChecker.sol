@@ -98,7 +98,7 @@ contract SafetyChecker is ContractResolver {
 
             // + push opcodes
             // + stop opcodes [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe)]
-            // + caller opcode CALLER(0x33)
+            // + caller opcode CALLER(0x33) (which is technically on the blacklist)
             // + blacklisted opcodes
             uint256 opBit = 1 << op;
             if (opBit & _opcodeProcMask == 0) {
