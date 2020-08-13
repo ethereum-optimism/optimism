@@ -119,27 +119,21 @@ contract SafetyChecker is ContractResolver {
                     continue;
                 } else if (op == 0x33) {
                     // Sequence around CALLER must be:
-                    // 1. PUSH1 0x00 (value)
-                    // 2. CALLER (execution manager address) <-- We are here
-                    // 3. GAS (gas for call)
-                    // 4. CALL
-                    /*if (_ops & 0xFFFF == 0x6033 &&
-                        _bytecode[_pc - 1] == 0 && // ensure PUSH1ed value is 0x00
-                        _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
-                        _bytecode[_pc + 2] == 0xf1 // last op must be CALL
-                    ) {
-                        // allowed = PUSH1 0x0 CALLER GAS CALL
-                    } else if (_ops & 0xFFFFFFFFFFFF == 0x608160818333 &&
-                        _bytecode[_pc - 6] == 0 && // ensure PUSH1ed value is 0x00
-                        _bytecode[_pc - 3] == 0x44 && // 0x44
-                        _bytecode[_pc + 1] == 0x5a && // gas must be set with GAS
-                        _bytecode[_pc + 2] == 0xf1 // last op must be CALL
-                    ) {
-                        // allowed = PUSH1 0x0 DUP2 PUSH1 0x44 DUP2 DUP4 CALLER GAS CALL
-                    } else {
+                    // 1. CALLER (execution manager address) <-- We are here
+                    // 2. GAS (gas for call)
+                    // 3. CALL
+
+                    uint256 ops;
+                    assembly {
+                        ops := shr(232, mload(_pc))
+                    }
+
+                    // allowed = CALLER GAS CALL
+                    if (ops != 0x335af1) {
                         //console.log('Encountered a bad call');
                         return false;
-                    }*/
+                    }
+
                     _pc += 3;
                     continue;
                 } else if (opBit & _opcodeWhitelistMask == 0) {
