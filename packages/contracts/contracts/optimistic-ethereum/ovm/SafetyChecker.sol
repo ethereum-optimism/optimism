@@ -106,6 +106,17 @@ contract SafetyChecker is ContractResolver {
                     _pc += (op - 0x5e);
                     // all pushes are valid opcodes
                     continue;
+                } else if (opBit & _opcodeStopMask == 0) {
+                    // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
+                    // We are now inside unreachable code until we hit a JUMPDEST!
+                    do {
+                        _pc++;
+                        assembly {
+                            op := byte(0, mload(_pc))
+                        }
+                        if (op == 0x5b) break;
+                        if ((1 << op) & _opcodePushMask == 0) _pc += (op - 0x5f);
+                    } while (_pc < codeLength);
                 } else if (op == 0x33) {
                     // Sequence around CALLER must be:
                     // 1. CALLER (execution manager address) <-- We are here
@@ -127,17 +138,6 @@ contract SafetyChecker is ContractResolver {
 
                     _pc += 6;
                     continue;
-                } else if (opBit & _opcodeStopMask == 0) {
-                    // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
-                    // We are now inside unreachable code until we hit a JUMPDEST!
-                    do {
-                        _pc++;
-                        assembly {
-                            op := byte(0, mload(_pc))
-                        }
-                        if (op == 0x5b) break;
-                        if ((1 << op) & _opcodePushMask == 0) _pc += (op - 0x5f);
-                    } while (_pc < codeLength);
                 } else {
                     // encountered a non-whitelisted opcode!
                     console.log('Encountered a non-whitelisted opcode (in decimal):', op, "at location", _pc);
