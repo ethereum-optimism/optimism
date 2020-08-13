@@ -94,7 +94,7 @@ class VerifySafetyChecker(unittest.TestCase):
     m.constrain(value[0] == 0x33)
 
     m.constrain(BoolOr(BoolOr(value[1] != 0x60, value[2] != 0x00),
-                BoolOr(BoolOr(value[3] == 0x90, value[4] != 0x5a),
+                BoolOr(BoolOr(value[3] != 0x90, value[4] != 0x5a),
                 value[5] != 0xf1)))
     contract_account.isBytecodeSafe(value)
     all_solves = print_and_get_solves(m, value)
