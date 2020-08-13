@@ -1,0 +1,4 @@
+.git/
+.vscode/
+
+.DS_Store

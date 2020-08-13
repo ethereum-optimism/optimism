@@ -28,7 +28,7 @@ func PlasmaPaths(b *PluginBackend) []*framework.Path {
 
 		&framework.Path{
 			Pattern:      ContractPath(plasmaContract, "submitBlock"),
-			HelpSynopsis: "Allows the authority to submit the Merkle root of a Plasma block",
+			HelpSynopsis: "Submits the Merkle root of a Plasma block",
 			HelpDescription: `
 
 Allows the authority to submit the Merkle root of a Plasma block.
@@ -40,6 +40,11 @@ Allows the authority to submit the Merkle root of a Plasma block.
 				"contract": &framework.FieldSchema{
 					Type:        framework.TypeString,
 					Description: "The address of the Block Controller.",
+				},
+				"gas_price": &framework.FieldSchema{
+					Type:        framework.TypeString,
+					Description: "The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price.",
+					Default:     "0",
 				},
 				"block_root": &framework.FieldSchema{
 					Type:        framework.TypeString,
@@ -68,6 +73,11 @@ Can only be called once by the authority.
 					Type:        framework.TypeString,
 					Description: "The address of the Block Controller.",
 				},
+				"gas_price": &framework.FieldSchema{
+					Type:        framework.TypeString,
+					Description: "The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price.",
+					Default:     "0",
+				},
 			},
 			ExistenceCheck: pathExistenceCheck,
 			Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -89,6 +99,11 @@ Submits a block for deposit.
 				"contract": &framework.FieldSchema{
 					Type:        framework.TypeString,
 					Description: "The address of the Block Controller.",
+				},
+				"gas_price": &framework.FieldSchema{
+					Type:        framework.TypeString,
+					Description: "The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price.",
+					Default:     "0",
 				},
 				"block_root": &framework.FieldSchema{
 					Type:        framework.TypeString,
@@ -156,8 +171,13 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 	if err != nil {
 		return nil, err
 	}
+	//transactOpts needs gas etc. Use supplied gas_price if > 0
+	gasPriceRaw := data.Get("gas_price").(string)
 
-	//transactOpts needs gas etc.
+	if gasPriceRaw != "0" {
+		transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+	}
+
 	plasmaSession := &plasma.PlasmaSession{
 		Contract:     instance,  // Generic contract caller binding to set the session for
 		CallOpts:     *callOpts, // Call options to use throughout this session
@@ -227,8 +247,13 @@ func (b *PluginBackend) pathActivateChildChain(ctx context.Context, req *logical
 	if err != nil {
 		return nil, err
 	}
+	//transactOpts needs gas etc. Use supplied gas_price if > 0
+	gasPriceRaw := data.Get("gas_price").(string)
 
-	//transactOpts needs gas etc.
+	if gasPriceRaw != "0" {
+		transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+	}
+
 	plasmaSession := &plasma.PlasmaSession{
 		Contract:     instance,  // Generic contract caller binding to set the session for
 		CallOpts:     *callOpts, // Call options to use throughout this session
@@ -308,7 +333,12 @@ func (b *PluginBackend) pathPlasmaSubmitDepositBlock(ctx context.Context, req *l
 		return nil, err
 	}
 
-	//transactOpts needs gas etc.
+	//transactOpts needs gas etc. Use supplied gas_price if > 0
+	gasPriceRaw := data.Get("gas_price").(string)
+
+	if gasPriceRaw != "0" {
+		transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+	}
 	plasmaSession := &plasma.PlasmaSession{
 		Contract:     instance,  // Generic contract caller binding to set the session for
 		CallOpts:     *callOpts, // Call options to use throughout this session

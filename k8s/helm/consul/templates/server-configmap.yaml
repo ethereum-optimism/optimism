@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-server-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: |-
+    {
+      "ca_file": "/etc/tls/ca/tls.crt",
+      "cert_file": "/etc/tls/service/tls.crt",
+      "key_file": "/etc/tls/service/tls.key",
+      "verify_incoming_rpc": true,
+      "verify_outgoing": true,
+      "verify_server_hostname": true,
+      "auto_encrypt": {
+        "allow_tls": true
+      },
+      "data_dir": "/consul/data",
+      "ports": {
+        "http": -1,
+        "https": 8501
+      },
+      "primary_datacenter":"{{ .Values.global.datacenter }}",
+      "acl": {
+          "enabled": true,
+          "default_policy": "deny",
+          "down_policy": "extend-cache",
+          "enable_token_persistence": true
+      }
+    }
+  vault.hcl: |-
+    service "vault" {
+      policy = "write"
+    }
+
+    key_prefix "vault/" {
+      policy = "write"
+    }
+
+    agent_prefix "" {
+      policy = "write"
+    }
+
+    node_prefix "" {
+      policy = "write"
+    }
+    
+    session_prefix "" {
+      policy = "write"
+    }
