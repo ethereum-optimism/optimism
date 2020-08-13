@@ -100,6 +100,19 @@ class VerifySafetyChecker(unittest.TestCase):
     all_solves = print_and_get_solves(m, value)
     assert(len(all_solves) == 0)
 
+  @unittest.skip("very slow (150s)")
+  def test_push1(self):
+    contract_account, m = prepare_evm()
+    value = m.make_symbolic_buffer(3)
+    m.constrain(value[0] == 0x60)
+    m.constrain(value[1] == 0)
+
+    contract_account.isBytecodeSafe(value)
+    all_solves = print_and_get_solves(m, value)
+
+    for x in all_solves:
+      assert(x[-1] in whitelist_opcodes)
+
   @unittest.skip("very slow (100s)")
   def test_push32(self):
     contract_account, m = prepare_evm()
@@ -112,7 +125,7 @@ class VerifySafetyChecker(unittest.TestCase):
     all_solves = print_and_get_solves(m, value, max_solves=4)
 
     for x in all_solves:
-      assert(x[-1] in whitelisted_opcodes)
+      assert(x[-1] in whitelist_opcodes)
 
 
 if __name__ == '__main__':
