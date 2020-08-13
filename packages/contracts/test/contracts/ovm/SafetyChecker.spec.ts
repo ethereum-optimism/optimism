@@ -61,7 +61,6 @@ describe.only('Safety Checker', () => {
         factory: SafetyChecker,
         params: [
           resolver.addressResolver.address,
-          DEFAULT_OPCODE_WHITELIST_MASK,
         ],
       }
     )
