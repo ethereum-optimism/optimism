@@ -67,11 +67,12 @@ contract SafetyChecker is ContractResolver {
         uint256 _opcodeProcessMask = ~uint256(0x6008000000000000000000000000000000000000004000000008000000000001) &
                                      _opcodeWhitelistMask &
                                      _opcodePushMask;
+        uint256 codeLength;
         uint256 _pc;
         assembly {
             _pc := add(_bytecode, 0x20)
         }
-        uint256 codeLength = _pc + _bytecode.length;
+        codeLength = _pc + _bytecode.length;
         //uint256 _ops = 0;
         do {
             // current opcode: 0x00...0xff
