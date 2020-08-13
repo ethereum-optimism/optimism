@@ -43,10 +43,9 @@ describe('StateManagerGasSanitizer', () => {
   })
 
   let resolver: AddressResolverMapping
-  let stateManagerGasSanitizer: Contract
 
   let StateManagerGasSanitizer: ContractFactory
-  let stateManagrGasSanitizer: Contract
+  let stateManagerGasSanitizer: Contract
 
   let StateManager: ContractFactory
   let stateManager: Contract
