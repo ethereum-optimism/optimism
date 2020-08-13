@@ -117,21 +117,23 @@ contract SafetyChecker is ContractResolver {
                 } else if (op == 0x33) {
                     // Sequence around CALLER must be:
                     // 1. CALLER (execution manager address) <-- We are here
-                    // 2. GAS (gas for call)
-                    // 3. CALL
+                    // 2. PUSH1 0x0
+                    // 3. SWAP1
+                    // 4. GAS (gas for call)
+                    // 5. CALL
 
                     uint256 ops;
                     assembly {
-                        ops := shr(232, mload(_pc))
+                        ops := shr(208, mload(_pc))
                     }
 
-                    // allowed = CALLER GAS CALL
-                    if (ops != 0x335af1) {
+                    // allowed = CALLER PUSH1 0x0 SWAP1 GAS CALL
+                    if (ops != 0x336000905af1) {
                         //console.log('Encountered a bad call');
                         return false;
                     }
 
-                    _pc += 3;
+                    _pc += 6;
                     continue;
                 } else if (opBit & _opcodeWhitelistMask == 0) {
                     // encountered a non-whitelisted opcode!

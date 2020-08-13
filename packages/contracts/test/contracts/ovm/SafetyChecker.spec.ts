@@ -292,11 +292,13 @@ describe.only('Safety Checker', () => {
     describe('handles CALLs', async () => {
       it(`accepts valid call`, async () => {
         let bytecode: string = '0x'
+        // set address
+        bytecode += Opcode.CALLER.code.toString('hex')
         // set value
         bytecode += Opcode.PUSH1.code.toString('hex')
         bytecode += '00' //PUSH1 0x00
-        // set address
-        bytecode += Opcode.CALLER.code.toString('hex')
+        // swap1
+        bytecode += Opcode.SWAP1.code.toString('hex')
         // set gas
         bytecode += Opcode.GAS.code.toString('hex')
         // CALL
