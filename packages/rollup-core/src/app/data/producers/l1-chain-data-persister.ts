@@ -141,9 +141,10 @@ export class L1ChainDataPersister extends ChainDataProcessor {
 
   /**
    * Gets the logs for a given block that match our topics, taking into account the fact that
-   * we may have more than 4 topics and ethers doesn't support more than 4 topics in a single filter.
+   * we have to do a separate fetch for each topic.
    *
    * @param blockHash The block hash for the block in which we're searching for logs.
+   * @returns The combined array of Logs that we care about based on our topics.
    */
   private async getLogsForBlock(blockHash: string): Promise<Log[]> {
     if (!this.topics.length) {
