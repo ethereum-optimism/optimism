@@ -13,6 +13,12 @@ import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
  */
 contract SafetyTransactionQueue is ContractResolver, RollupQueue {
     /*
+     * Events
+     */
+     
+    event CalldataTxEnqueued();
+
+    /*
      * Constructor
      */
 
@@ -32,20 +38,29 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
      */
 
     /**
-     * Checks that a sender is authenticated to dequeue.
-     * @param _sender Address to check.
-     * @return Whether or not the sender can dequeue.
+     * Checks that that a dequeue is authenticated, and dequques if authenticated.
      */
-    function authenticateDequeue(
-        address _sender
-    )
+    function dequeue()
         public
-        view
-        returns (bool)
     {
-        return _sender == address(resolveCanonicalTransactionChain());
+        require(msg.sender == address(resolveCanonicalTransactionChain()), "Only the canonical transaction chain can dequeue safety queue transactions.");
+        _dequeue();
     }
 
+    /**
+     * Makes a gas payment to 
+     */
+    function enqueueTx(
+        bytes memory _tx
+        // todo add gasLimit here (and eventually decode from _tx)
+    )
+        public
+    {
+        require(msg.sender == tx.origin, "Only EOAs can enqueue rollup transactions to the safety queue.");
+        // todo burn gas proportional to limit here
+        emit CalldataTxEnqueued();
+        _enqueue(_tx);
+    }
 
     /*
      * Contract Resolution

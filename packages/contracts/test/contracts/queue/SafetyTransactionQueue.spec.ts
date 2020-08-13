@@ -35,6 +35,11 @@ describe('SafetyTransactionQueue', () => {
     resolver = await makeAddressResolver(wallet)
   })
 
+  let SimpleProxy: ContractFactory
+  before(async () => {
+    SimpleProxy = await ethers.getContractFactory('SimpleProxy')
+  })
+
   let SafetyTxQueue: ContractFactory
   beforeEach(async () => {
     SafetyTxQueue = await ethers.getContractFactory('SafetyTransactionQueue')
@@ -59,10 +64,39 @@ describe('SafetyTransactionQueue', () => {
   })
 
   describe('enqueueBatch() ', async () => {
-    it('should allow enqueue from any address', async () => {
+    it('should allow enqueue from a random EOA ', async () => {
       await safetyTxQueue.connect(randomWallet).enqueueTx(defaultTx)
       const batchesLength = await safetyTxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
+    })
+
+    it('Should disallow calls from non-EOAs', async () => {
+      const simpleProxy = await SimpleProxy.deploy()
+
+      const data = safetyTxQueue.interface.encodeFunctionData(
+        'enqueueTx',
+        ['0x1234123412341234']
+      )
+
+      TestUtils.assertRevertsAsync(
+        'Only EOAs can enqueue rollup transactions to the safety queue.',
+        async () => {
+          await simpleProxy.callContractWithData(
+            safetyTxQueue.address,
+            data
+          )
+        }
+      )
+    })
+
+    it('should emit the right event on enqueue', async () => {
+      const tx = await safetyTxQueue.connect(randomWallet).enqueueTx(defaultTx)
+      const receipt = await safetyTxQueue.provider.getTransactionReceipt(tx.hash)
+      const topic = receipt.logs[0].topics[0]
+
+      const expectedTopic = safetyTxQueue.filters['CalldataTxEnqueued()']().topics[0]
+
+      topic.should.equal(expectedTopic, `Did not receive expected event!`)
     })
   })
 
@@ -84,7 +118,7 @@ describe('SafetyTransactionQueue', () => {
     it('should not allow dequeue from other address', async () => {
       await safetyTxQueue.enqueueTx(defaultTx)
       await TestUtils.assertRevertsAsync(
-        'Message sender does not have permission to dequeue',
+        'Only the canonical transaction chain can dequeue safety queue transactions.',
         async () => {
           await safetyTxQueue.dequeue()
         }

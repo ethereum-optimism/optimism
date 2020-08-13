@@ -20,12 +20,12 @@ describe('L1ToL2TransactionQueue', () => {
   const defaultTx = '0x1234'
 
   let wallet: Signer
-  let l1ToL2TransactionPasser: Signer
+  let otherWallet: Signer
   let canonicalTransactionChain: Signer
   before(async () => {
     ;[
       wallet,
-      l1ToL2TransactionPasser,
+      otherWallet,
       canonicalTransactionChain,
     ] = await ethers.getSigners()
   })
@@ -59,26 +59,26 @@ describe('L1ToL2TransactionQueue', () => {
   })
 
   describe('enqueueBatch() ', async () => {
-    it('should allow enqueue from l1ToL2TransactionPasser', async () => {
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx) // Did not throw... success!
+    it('should allow enqueue from a random address', async () => {
+      await l1ToL2TxQueue.connect(otherWallet).enqueueTx(defaultTx) // Did not throw... success!
       const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
     })
 
-    // TODO: Uncomment and implement when authentication mechanism is sorted out
-    // it('should not allow enqueue from other address', async () => {
-    //   await TestUtils.assertRevertsAsync(
-    //     'Message sender does not have permission to enqueue',
-    //     async () => {
-    //       await l1ToL2TxQueue.enqueueTx(defaultTx)
-    //     }
-    //   )
-    // })
+    it('should emit the right event on enqueue', async () => {
+      const tx = await l1ToL2TxQueue.connect(wallet).enqueueTx(defaultTx)
+      const receipt = await l1ToL2TxQueue.provider.getTransactionReceipt(tx.hash)
+      const topic = receipt.logs[0].topics[0]
+      
+      const expectedTopic = l1ToL2TxQueue.filters['L1ToL2TxEnqueued(bytes)']().topics[0]
+
+      topic.should.equal(expectedTopic, `Did not receive expected event!`)
+    })
   })
 
   describe('dequeue() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
+      await l1ToL2TxQueue.connect(otherWallet).enqueueTx(defaultTx)
       await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeue()
       const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
@@ -92,9 +92,9 @@ describe('L1ToL2TransactionQueue', () => {
     })
 
     it('should not allow dequeue from other address', async () => {
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
+      await l1ToL2TxQueue.connect(otherWallet).enqueueTx(defaultTx)
       await TestUtils.assertRevertsAsync(
-        'Message sender does not have permission to dequeue',
+        'Only the canonical transaction chain can dequeue L1->L2 queue transactions.',
         async () => {
           await l1ToL2TxQueue.dequeue()
         }

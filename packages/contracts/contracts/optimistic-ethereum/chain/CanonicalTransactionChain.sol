@@ -86,7 +86,7 @@ contract CanonicalTransactionChain is ContractResolver {
     {
         return keccak256(abi.encodePacked(
             _batchHeader.timestamp,
-            _batchHeader.isL1ToL2Tx,
+            _batchHeader.isL1ToL2Tx, // TODO REPLACE WITH QUEUE ORIGIN (if you are a PR reviewer please lmk!)
             _batchHeader.elementsMerkleRoot,
             _batchHeader.numElementsInBatch,
             _batchHeader.cumulativePrevElements

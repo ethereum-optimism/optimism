@@ -13,6 +13,12 @@ import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
  */
 contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     /*
+     * Events
+     */
+
+    event L1ToL2TxEnqueued(bytes _tx);
+
+    /*
      * Constructor
      */
 
@@ -27,53 +33,81 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     {
     }
 
-
     /*
      * Public Functions
      */
 
     /**
-     * Checks whether a sender is allowed to enqueue.
-     * @param _sender Sender address to check.
-     * @return Whether or not the sender can enqueue.
+     * Checks that that a dequeue is authenticated, and dequques if authenticated.
      */
-    function authenticateEnqueue(
-        address _sender
-    )
+    function dequeue()
         public
-        view
-        returns (bool)
     {
-        // TODO: figure out how we're going to authenticate this
-        return true;
-        // return _sender != tx.origin;
+        require(msg.sender == address(resolveCanonicalTransactionChain()), "Only the canonical transaction chain can dequeue L1->L2 queue transactions.");
+        _dequeue();
     }
 
     /**
-     * Checks whether a sender is allowed to dequeue.
-     * @param _sender Sender address to check.
-     * @return Whether or not the sender can dequeue.
+     * Makes a gas payment to 
      */
-    function authenticateDequeue(
-        address _sender
+    function enqueueTx(
+        bytes memory _tx
+        // todo add gasLimit here
     )
         public
-        view
-        returns (bool)
     {
-        return _sender == address(resolveCanonicalTransactionChain());
+        // todo burn gas proportional to limit here
+        // todo record L1MessageSender here
+        emit L1ToL2TxEnqueued(_tx);
+        _enqueue(_tx);
     }
 
-    /**
-     * Checks whether this is a calldata transaction queue.
-     * @return Whether or not this is a calldata tx queue.
-     */
-    function isCalldataTxQueue()
-        public
-        returns (bool)
-    {
-        return false;
-    }
+    // /*
+    //  * Public Functions
+    //  */
+
+    // /**
+    //  * Checks whether a sender is allowed to enqueue.
+    //  * @param _sender Sender address to check.
+    //  * @return Whether or not the sender can enqueue.
+    //  */
+    // function authenticateEnqueue(
+    //     address _sender
+    // )
+    //     public
+    //     view
+    //     returns (bool)
+    // {
+    //     // TODO: figure out how we're going to authenticate this
+    //     return true;
+    //     // return _sender != tx.origin;
+    // }
+
+    // /**
+    //  * Checks whether a sender is allowed to dequeue.
+    //  * @param _sender Sender address to check.
+    //  * @return Whether or not the sender can dequeue.
+    //  */
+    // function authenticateDequeue(
+    //     address _sender
+    // )
+    //     public
+    //     view
+    //     returns (bool)
+    // {
+    //     return _sender == address(resolveCanonicalTransactionChain());
+    // }
+
+    // /**
+    //  * Checks whether this is a calldata transaction queue.
+    //  * @return Whether or not this is a calldata tx queue.
+    //  */
+    // function isCalldataTxQueue()
+    //     public
+    //     returns (bool)
+    // {
+    //     return false;
+    // }
 
 
     /*

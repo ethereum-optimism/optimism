@@ -2,7 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
+import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -25,7 +25,7 @@ describe('RollupQueue', () => {
 
   let RollupQueue: ContractFactory
   before(async () => {
-    RollupQueue = await ethers.getContractFactory('RollupQueue')
+    RollupQueue = await ethers.getContractFactory('RollupQueueImplementation')
   })
 
   let rollupQueue: Contract
@@ -73,18 +73,6 @@ describe('RollupQueue', () => {
       batchesLength.toNumber().should.equal(numBatches)
     })
 
-    it('should emit event on enqueue', async () => {
-      let receivedEvent: boolean = false
-      rollupQueue.on(rollupQueue.filters['CalldataTxEnqueued'](), () => {
-        receivedEvent = true
-      })
-
-      await enqueueAndGenerateBatch(DEFAULT_TX)
-
-      await sleep(5_000)
-
-      receivedEvent.should.equal(true, `Did not receive expected event!`)
-    })
   })
 
   describe('dequeue()', async () => {
