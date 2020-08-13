@@ -42,7 +42,7 @@ const abi = new ethers.utils.AbiCoder()
 // Empirically determined constant which is some extra gas the EM records due to running CALL, gasAfter - gasBefore, etc.
 // This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
 // However, that size is constant for these tests, since we only call consumeGas() below.
-const CONSUME_GAS_EXECUTION_OVERHEAD = 39989
+const CONSUME_GAS_EXECUTION_OVERHEAD = 39967
 
 /*********
  * TESTS *

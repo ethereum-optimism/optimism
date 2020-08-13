@@ -288,7 +288,7 @@ contract ExecutionManager is ContractResolver {
         // Do pre-execution gas checks and updates
         startNewGasEpochIfNecessary(_timestamp);
         validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
-        StateManagerGasSanitizer(address(resolveStateManager())).resetOVMRefund();
+        StateManagerGasSanitizer(address(resolveStateManager())).resetOVMGasRefund();
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
 
@@ -1225,7 +1225,7 @@ contract ExecutionManager is ContractResolver {
     }
 
     function updateCumulativeGas(uint _gasConsumed) internal {
-        uint refund = StateManagerGasSanitizer(address(resolveStateManager())).getOVMRefund();
+        uint refund = StateManagerGasSanitizer(address(resolveStateManager())).getOVMGasRefund();
         if (executionContext.queueOrigin == 0) {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
@@ -1444,11 +1444,11 @@ contract ExecutionManager is ContractResolver {
      * @notice Gets the OVM slot value for the given key at the METADATA_STORAGE_ADDRESS.
      */
     function getMetadataStorageSlot(bytes32 _key) internal returns (bytes32) {
-        return IStateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, _key);
+        return StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, _key);
     }
 
     function setMetadataStorageSlot(bytes32 _key, bytes32 _value) internal {
-        IStateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, _key, _value);
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, _key, _value);
     }
 
     /*

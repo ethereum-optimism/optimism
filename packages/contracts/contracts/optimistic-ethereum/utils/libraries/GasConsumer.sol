@@ -10,7 +10,7 @@ contract GasConsumer {
 
     // Overhead for checking methodId etc in this function before the actual call()
     // This was figured out empirically during testing--adding methods or changing compiler settings will require recalibration.
-    uint constant constantOverheadEOA = 947;
+    uint constant gasOverheadOfEOACall = 947;
 
     /**
      * Consumes the exact amount of gas specified by the input.
@@ -18,8 +18,8 @@ contract GasConsumer {
      * @param _amount Amount of gas to consume.
      */
     function consumeGasEOA(uint _amount) external {
-        require(_amount > constantOverheadEOA, "Unable to consume an amount of gas this small.");
-        uint gasToAlloc = _amount - constantOverheadEOA;
+        require(_amount > gasOverheadOfEOACall, "Unable to consume an amount of gas this small.");
+        uint gasToAlloc = _amount - gasOverheadOfEOACall;
         // call this contract's fallback which consumes all allocated gas
         assembly {
             pop(call(gasToAlloc, address, 0, 0, 0, 0, 0))
@@ -28,7 +28,7 @@ contract GasConsumer {
 
     // Overhead for checking methodId, etc. in this function before the actual call()
     // This was figured out empirically during testing--adding methods or changing compiler settings will require recalibration.
-    uint constant constantOverheadInternal = 2514;
+    uint constant gasOverheadOfInternalCall = 2514;
 
     /**
      * Consumes the exact amount of gas specified by the input.
@@ -36,8 +36,8 @@ contract GasConsumer {
      * @param _amount Amount of gas to consume.
      */
     function consumeGasInternalCall(uint _amount) external {
-        require(_amount > constantOverheadInternal, "Unable to consume an amount of gas this small.");
-        uint gasToAlloc = _amount - constantOverheadInternal;
+        require(_amount > gasOverheadOfInternalCall, "Unable to consume an amount of gas this small.");
+        uint gasToAlloc = _amount - gasOverheadOfInternalCall;
         // call this contract's fallback which consumes all allocated gas
         assembly {
             pop(call(gasToAlloc, address, 0, 0, 0, 0, 0))

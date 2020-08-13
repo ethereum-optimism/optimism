@@ -95,22 +95,23 @@ contract StateManagerGasSanitizer is ContractResolver {
      */
 
     // External Initialization and Retrieval Logic
-    function resetOVMRefund() external {
+    function resetOVMGasRefund() external {
         OVMRefund = 0;
     }
 
-    function getOVMRefund() external view returns(uint) {
+    function getOVMGasRefund() external view returns(uint) {
         return OVMRefund;
     }
 
     // Internal Logic
-    function addToOVMRefund(uint _refund) internal {
+    function addToOVMGasRefund(uint _refund) internal {
         OVMRefund += _refund;
         return;
     }
 
-    /** TODO UPDATE THIS DOCSTR
+    /**
      * Forwards a call to this proxy along to the actual state manager, and consumes any leftover gas up to _virtualGasCost.
+     * Adds _sanitizedGasCost - _virtualGasCost to the OVM gas refund
      */
     function performSanitizedProxyAndRecordRefund(
         uint _sanitizedGasCost,
@@ -120,17 +121,17 @@ contract StateManagerGasSanitizer is ContractResolver {
         address stateManager = resolveStateManager();
 
         uint refund = _sanitizedGasCost - _virtualGasCost;
-        addToOVMRefund(refund);
+        addToOVMGasRefund(refund);
 
         bool success;
         uint returnedSize;
         uint returnDataStart;
         assembly {
-            let initialFreeMemStart := mload(0x40)
+            let callBytesPointer := mload(0x40)
             let callSize := calldatasize()
-            mstore(0x40, add(initialFreeMemStart, callSize))
+            mstore(0x40, add(callBytesPointer, callSize))
             calldatacopy(
-                initialFreeMemStart,
+                callBytesPointer,
                 0,
                 callSize
             )
@@ -138,7 +139,7 @@ contract StateManagerGasSanitizer is ContractResolver {
                 gas(),
                 stateManager,
                 0,
-                initialFreeMemStart,
+                callBytesPointer,
                 callSize,
                 0,
                 0

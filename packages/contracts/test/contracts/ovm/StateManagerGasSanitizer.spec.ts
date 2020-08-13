@@ -43,9 +43,10 @@ describe('StateManagerGasSanitizer', () => {
   })
 
   let resolver: AddressResolverMapping
-  let StateManagerGasSanitizer: ContractFactory
   let stateManagerGasSanitizer: Contract
-  let GasConsumer: ContractFactory
+
+  let StateManagerGasSanitizer: ContractFactory
+  let stateManagrGasSanitizer: Contract
 
   let StateManager: ContractFactory
   let stateManager: Contract
@@ -54,7 +55,6 @@ describe('StateManagerGasSanitizer', () => {
   let simpleStorageAddress: Address
   before(async () => {
     resolver = await makeAddressResolver(wallet)
-    GasConsumer = await ethers.getContractFactory('GasConsumer')
     StateManager = await ethers.getContractFactory('FullStateManager')
     StateManagerGasSanitizer = await ethers.getContractFactory(
       'StateManagerGasSanitizer'
@@ -70,22 +70,11 @@ describe('StateManagerGasSanitizer', () => {
       }
     )
 
-    console.log(`eployed dummy gas consumer as SM`)
-
-    // deploy GC (TODO: mmove to library deployment process)
-    await deployAndRegister(resolver.addressResolver, wallet, 'GasConsumer', {
-      factory: GasConsumer,
-      params: [],
-    })
-
-    const SM = await resolver.addressResolver.getAddress('StateManager')
-    const SMGP = await resolver.addressResolver.getAddress(
+    const sanitizerAddress = await resolver.addressResolver.getAddress(
       'StateManagerGasSanitizer'
     )
-    console.log(`SM is: ${SM}, SMGP is ${SMGP}`)
-
     stateManagerGasSanitizer = new Contract(
-      SMGP,
+      sanitizerAddress,
       StateManagerGasSanitizer.interface
     ).connect(wallet)
 
@@ -104,12 +93,12 @@ describe('StateManagerGasSanitizer', () => {
 
   beforeEach(async () => {
     // reset so EM costs are same before each test
-    await stateManagerGasSanitizer.resetOVMRefund()
+    await stateManagerGasSanitizer.resetOVMGasRefund()
   })
 
   const getOVMGasRefund = async (): Promise<number> => {
     const data = stateManagerGasSanitizer.interface.encodeFunctionData(
-      'getOVMRefund',
+      'getOVMGasRefund',
       []
     )
     const res = await stateManagerGasSanitizer.provider.call({
@@ -191,7 +180,7 @@ describe('StateManagerGasSanitizer', () => {
       )
 
       // reset the OVM refund variable so that SSTORE cost is the same as it was above
-      await stateManagerGasSanitizer.resetOVMRefund()
+      await stateManagerGasSanitizer.resetOVMGasRefund()
 
       const secondTx = await stateManagerGasSanitizer.setStorage(
         ...setStorageParams
