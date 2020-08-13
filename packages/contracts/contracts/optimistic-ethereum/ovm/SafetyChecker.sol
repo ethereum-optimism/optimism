@@ -96,9 +96,10 @@ contract SafetyChecker is ContractResolver {
                 op := byte(mpc, tmp)
             }
 
-            // stop opcodes [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)]
+            // + push opcodes
+            // + stop opcodes [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe)]
+            // + caller opcode CALLER(0x33)
             // + blacklisted opcodes
-            // + push opcodes all have handlers
             if ((1 << op) & _opcodeProcMask == 0) {
                 uint256 opBit = 1 << op;
                 if (opBit & _opcodePushMask == 0) {
@@ -117,6 +118,7 @@ contract SafetyChecker is ContractResolver {
                         if (op == 0x5b) break;
                         if ((1 << op) & _opcodePushMask == 0) _pc += (op - 0x5f);
                     } while (_pc < codeLength);
+                    // op is 0x5b, so we don't continue here since the _pc++ is fine
                 } else if (op == 0x33) {
                     // Sequence around CALLER must be:
                     // 1. CALLER (execution manager address) <-- We are here
