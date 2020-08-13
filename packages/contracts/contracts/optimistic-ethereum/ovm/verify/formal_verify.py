@@ -71,6 +71,18 @@ class VerifySafetyChecker(unittest.TestCase):
     for x in all_solves:
       assert(x[0] in push_opcodes or x[0] in stop_opcodes)
 
+  def test_all_caller_followers_are_the_allowed_string(self):
+    contract_account, m = prepare_evm()
+    value = m.make_symbolic_buffer(7)
+    m.constrain(value[0] == 0x33)
+    contract_account.isBytecodeSafe(value)
+    all_solves = print_and_get_solves(m, value)
+
+    for x in all_solves:
+      assert(x[0:6] == b"\x33\x60\x00\x90\x5a\xf1")
+
 if __name__ == '__main__':
   unittest.main()
+
+
 
