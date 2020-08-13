@@ -1,1 +1,3 @@
 mcore_*
+__pycache__
+*.pyc
