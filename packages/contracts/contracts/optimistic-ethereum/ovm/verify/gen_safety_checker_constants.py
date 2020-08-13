@@ -17,6 +17,7 @@ blacklist_ops = set([
   "GASLIMIT", "GASPRICE", "NUMBER",
   "ORIGIN", "SELFBALANCE", "SELFDESTRUCT",
   "SLOAD", "SSTORE", "STATICCALL", "TIMESTAMP"])
+blacklist_opcodes = asm(list(blacklist_ops))
 whitelist_opcodes = []
 for x in instruction_tables['istanbul']:
   if x.name not in blacklist_ops:

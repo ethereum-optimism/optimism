@@ -2,8 +2,9 @@
 import binascii
 import unittest
 from manticore.ethereum import ManticoreEVM
+from manticore.core.smtlib.expression import BoolOr
 
-from gen_safety_checker_constants import whitelist_opcodes, push_opcodes, stop_opcodes
+from gen_safety_checker_constants import whitelist_opcodes, blacklist_opcodes, push_opcodes, stop_opcodes
 
 def get_contract_src():
   # remove ContractResolver and replace console.log with assert(false);
@@ -54,12 +55,17 @@ class VerifySafetyChecker(unittest.TestCase):
     for x in whitelist_opcodes:
       assert(x in valid_ops)
 
-  def test_all_bare_calls_follow_push_or_stop(self):
+  def test_all_blacklisted_ops_follow_push_or_stop(self):
     contract_account, m = prepare_evm()
 
     # confirm that the only way call can be second byte is with push or stop
     value = m.make_symbolic_buffer(2)
-    m.constrain(value[1] == 0xf1)
+
+    # all blacklisted op
+    cc = value[1] == blacklist_opcodes[0]
+    for bop in blacklist_opcodes[1:]:
+      cc = BoolOr(cc, value[1] == bop)
+    m.constrain(cc)
 
     print("running")
     contract_account.isBytecodeSafe(value)
@@ -87,11 +93,12 @@ class VerifySafetyChecker(unittest.TestCase):
     value = m.make_symbolic_buffer(7)
     m.constrain(value[0] == 0x33)
 
-    # TODO: How do I do an or here?
-    m.constrain(value[1] != 0x60)
+    m.constrain(BoolOr(BoolOr(value[1] != 0x60, value[2] != 0x00),
+                BoolOr(BoolOr(value[3] == 0x90, value[4] != 0x5a),
+                value[5] != 0xf1)))
     contract_account.isBytecodeSafe(value)
     all_solves = print_and_get_solves(m, value)
-
+    assert(len(all_solves) == 0)
 
 if __name__ == '__main__':
   unittest.main()
