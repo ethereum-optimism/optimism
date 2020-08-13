@@ -24,11 +24,11 @@ def prepare_evm():
     owner=user_account, balance=0, args=[0])
   return contract_account, m
 
-def print_and_get_solves(m, value):
+def print_and_get_solves(m, value, max_solves=256):
   all_solves = []
   for state in m.ready_states:
     print(binascii.hexlify(state.solve_one(value)))
-    solves = state.solve_n(value, 256)
+    solves = state.solve_n(value, max_solves)
     all_solves += solves
     print("    ", list(map(binascii.hexlify, solves)))
   return all_solves
@@ -100,8 +100,24 @@ class VerifySafetyChecker(unittest.TestCase):
     all_solves = print_and_get_solves(m, value)
     assert(len(all_solves) == 0)
 
+  @unittest.skip("very slow (100s)")
+  def test_push32(self):
+    contract_account, m = prepare_evm()
+    value = m.make_symbolic_buffer(0x22)
+    m.constrain(value[0] == 0x7f)
+    for i in range(1, 0x20):
+      m.constrain(value[i] == 0)
+
+    contract_account.isBytecodeSafe(value)
+    all_solves = print_and_get_solves(m, value, max_solves=4)
+
+    for x in all_solves:
+      assert(x[-1] in whitelisted_opcodes)
+
+
 if __name__ == '__main__':
   unittest.main()
+
 
 
 
