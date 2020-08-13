@@ -63,7 +63,8 @@ contract SafetyChecker is ContractResolver {
         returns (bool)
     {
         // TODO: Set this dynamicly or remove support for opcodeWhitelistMask
-        uint256[8] memory skip = [
+        // Commented out speed code until this is done
+        /*uint256[8] memory skip = [
           uint256(0x0001010101010101010101010000000001010101010101010101010101010000),
           uint256(0x0100000000000000000000000000000000000000010101010101000000010100),
           uint256(0x0000000000000000000000000000000001010101000000010101010100000000),
@@ -71,7 +72,7 @@ contract SafetyChecker is ContractResolver {
           uint256(0x0101010101010101010101010101010101010101010101010101010101010101),
           uint256(0x0101010101000000000000000000000000000000000000000000000000000000),
           uint256(0x0000000000000000000000000000000000000000000000000000000000000000),
-          uint256(0x0000000000000000000000000000000000000000000000000000000000000000)];
+          uint256(0x0000000000000000000000000000000000000000000000000000000000000000)];*/
         uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
         uint256 _opcodePushMask = ~uint256(0xffffffff000000000000000000000000);
         uint256 _opcodeSkipMask = ~uint256(0x6008000000000000000000000000000000000000004000000008000000000001) &
@@ -91,17 +92,17 @@ contract SafetyChecker is ContractResolver {
             assembly {
                 let tmp := mload(_pc)
 
-                let mpc := byte(0, mload(add(skip, byte(0, tmp))))
+                /*let mpc := byte(0, mload(add(skip, byte(0, tmp))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
                 _pc := add(_pc, mpc)
-                op := byte(mpc, tmp)
+                op := byte(mpc, tmp)*/
 
                 // this works, it just isn't fast
-                //op := byte(0, tmp)
+                op := byte(0, tmp)
             }
 
             // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)]
