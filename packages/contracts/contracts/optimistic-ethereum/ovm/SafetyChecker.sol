@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
-//import { console } from "@nomiclabs/buidler/console.sol";
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title SafetyChecker
@@ -129,7 +129,7 @@ contract SafetyChecker is ContractResolver {
 
                     // allowed = CALLER PUSH1 0x0 SWAP1 GAS CALL
                     if (ops != 0x336000905af1) {
-                        //console.log('Encountered a bad call');
+                        console.log('Encountered a bad call');
                         return false;
                     }
 
@@ -137,7 +137,7 @@ contract SafetyChecker is ContractResolver {
                     continue;
                 } else if (opBit & _opcodeWhitelistMask == 0) {
                     // encountered a non-whitelisted opcode!
-                    //console.log('Encountered a non-whitelisted opcode (in decimal):', op);
+                    console.log('Encountered a non-whitelisted opcode (in decimal):', op, "at location", _pc);
                     return false;
                 } else {
                     // STOP or JUMP or RETURN or REVERT or INVALID (see safety checker docs in wiki for more info)
