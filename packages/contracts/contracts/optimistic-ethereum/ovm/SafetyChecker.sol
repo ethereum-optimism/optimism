@@ -64,9 +64,9 @@ contract SafetyChecker is ContractResolver {
     {
         uint256 _opcodeWhitelistMask = opcodeWhitelistMask;
         uint256 _opcodePushMask = ~uint256(0xffffffff000000000000000000000000);
-        uint256 _opcodeProcessMask = ~uint256(0x6008000000000000000000000000000000000000004000000008000000000001) &
-                                     _opcodeWhitelistMask &
-                                     _opcodePushMask;
+        uint256 _opcodeSkipMask = ~uint256(0x6008000000000000000000000000000000000000004000000008000000000001) &
+                                  _opcodeWhitelistMask &
+                                  _opcodePushMask;
         uint256 codeLength;
         uint256 _pc;
         assembly {
@@ -74,14 +74,34 @@ contract SafetyChecker is ContractResolver {
         }
         codeLength = _pc + _bytecode.length;
         //uint256 _ops = 0;
+        uint256[8] memory skip = [
+          uint256(0x0001010101010101010101010000000001010101010101010101010101010000),
+          uint256(0x0100000000000000000000000000000000000000010101010101000000010100),
+          uint256(0x0000000000000000000000000000000001010101000000010101010100000000),
+          uint256(0x0203000000000000000000000000000000000000000000000000000000000000),
+          uint256(0x0101010101010101010101010101010101010101010101010101010101010101),
+          uint256(0x0101010101000000000000000000000000000000000000000000000000000000),
+          uint256(0x0000000000000000000000000000000000000000000000000000000000000000),
+          uint256(0x0000000000000000000000000000000000000000000000000000000000000000)];
         do {
             // current opcode: 0x00...0xff
             uint256 op;
 
             // inline assembly removes the extra add + bounds check
             assembly {
-                op := byte(0, mload(_pc))
+                let tmp := mload(_pc)
+
+                let mpc := byte(0, mload(add(skip, byte(0, tmp))))
+                mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
+                mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
+                mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
+                mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
+                _pc := add(_pc, mpc)
+                op := byte(mpc, tmp)
+
+                //op := byte(0, tmp)
             }
+
             //_ops = (_ops << 8) | op;
 
             // check that opcode is whitelisted (using the whitelist bit mask)
@@ -89,7 +109,7 @@ contract SafetyChecker is ContractResolver {
             // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)]
             // + blacklisted opcodes
             // + push opcodes all have handlers
-            if ((1 << op) & _opcodeProcessMask == 0) {
+            if ((1 << op) & _opcodeSkipMask == 0) {
                 uint256 opBit = 1 << op;
                 if (opBit & _opcodePushMask == 0) {
                     // subsequent bytes are not opcodes. Skip them.
