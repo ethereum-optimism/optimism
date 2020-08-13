@@ -84,10 +84,12 @@ contract SafetyChecker is ContractResolver {
             //_ops = (_ops << 8) | op;
 
             // check that opcode is whitelisted (using the whitelist bit mask)
-            uint256 opBit = 1 << op;
 
-            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)] + blacklisted opcodes + push opcodes all have handlers
-            if (opBit & _opcodeProcessMask == 0) {
+            // [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe),CALLER(0x33)]
+            // + blacklisted opcodes
+            // + push opcodes all have handlers
+            if ((1 << op) & _opcodeProcessMask == 0) {
+                uint256 opBit = 1 << op;
                 if (opBit & _opcodePushMask == 0) {
                     // subsequent bytes are not opcodes. Skip them.
                     _pc += (op - 0x5e);
