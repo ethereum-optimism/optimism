@@ -75,7 +75,6 @@ contract SafetyChecker is ContractResolver {
         do {
             // current opcode: 0x00...0xff
             uint256 op;
-            uint256 opskip;
 
             // inline assembly removes the extra add + bounds check
             assembly {
