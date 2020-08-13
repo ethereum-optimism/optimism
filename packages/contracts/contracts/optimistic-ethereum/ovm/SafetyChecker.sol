@@ -100,8 +100,8 @@ contract SafetyChecker is ContractResolver {
             // + stop opcodes [STOP(0x00),JUMP(0x56),RETURN(0xf3),REVERT(0xfd),INVALID(0xfe)]
             // + caller opcode CALLER(0x33)
             // + blacklisted opcodes
-            if ((1 << op) & _opcodeProcMask == 0) {
-                uint256 opBit = 1 << op;
+            uint256 opBit = 1 << op;
+            if (opBit & _opcodeProcMask == 0) {
                 if (opBit & _opcodePushMask == 0) {
                     // subsequent bytes are not opcodes. Skip them.
                     _pc += (op - 0x5e);
