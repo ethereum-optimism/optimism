@@ -54,17 +54,9 @@ export class EthereumBlockProcessor {
 
       await this.fetchAndDisseminateBlock(provider, blockNumber)
       this.currentBlockNumber = blockNumber
-      try {
-        await this.db.put(
-          blockKey,
-          Buffer.from(this.currentBlockNumber.toString())
-        )
-      } catch (e) {
-        logError(
-          log,
-          `Error storing most recent block received [${blockNumber}]!`,
-          e
-        )
+
+      if (!syncPastBlocks || this.syncCompleted) {
+        await this.storeLastProcessedBlockNumber(this.currentBlockNumber)
       }
     })
 
@@ -144,24 +136,21 @@ export class EthereumBlockProcessor {
    */
   private async syncBlocks(provider: Provider): Promise<void> {
     log.debug(`Syncing blocks`)
+    const lastSyncedBlockNumber = await this.getLastSyncedBlockNumber()
     const blockNumber = await this.getBlockNumber(provider)
 
-    const lastSyncedBlockBuffer: Buffer = await this.db.get(blockKey)
-    const lastSyncedNumber: number = !!lastSyncedBlockBuffer
-      ? parseInt(lastSyncedBlockBuffer.toString(), 10)
-      : this.earliestBlock - 1
-
-    if (blockNumber === lastSyncedNumber) {
+    if (blockNumber === lastSyncedBlockNumber) {
       log.debug(`Up to date, not syncing.`)
       this.finishSync(blockNumber, blockNumber)
       return
     }
 
-    for (let i = lastSyncedNumber + 1; i <= blockNumber; i++) {
+    for (let i = lastSyncedBlockNumber + 1; i <= blockNumber; i++) {
       await this.fetchAndDisseminateBlock(provider, i)
+      await this.storeLastProcessedBlockNumber(i)
     }
 
-    this.finishSync(lastSyncedNumber + 1, blockNumber)
+    this.finishSync(lastSyncedBlockNumber + 1, blockNumber)
   }
 
   private finishSync(syncStart: number, currentBlock: number): void {
@@ -190,5 +179,36 @@ export class EthereumBlockProcessor {
 
     log.debug(`Current block number: ${this.currentBlockNumber}`)
     return this.currentBlockNumber
+  }
+
+  /**
+   * Gets the last synced block number stored in the DB or earliest block -1 if there is not one.
+   *
+   * @returns The last synced block number.
+   */
+  private async getLastSyncedBlockNumber(): Promise<number> {
+    const lastSyncedBlockBuffer: Buffer = await this.db.get(blockKey)
+    return !!lastSyncedBlockBuffer
+      ? parseInt(lastSyncedBlockBuffer.toString(), 10)
+      : this.earliestBlock - 1
+  }
+
+  /**
+   * Stores the provided block number as the last processed block number
+   *
+   * @param blockNumber The block number to store.
+   */
+  private async storeLastProcessedBlockNumber(
+    blockNumber: number
+  ): Promise<void> {
+    try {
+      await this.db.put(blockKey, Buffer.from(blockNumber.toString()))
+    } catch (e) {
+      logError(
+        log,
+        `Error storing most recent block received [${blockNumber}]!`,
+        e
+      )
+    }
   }
 }

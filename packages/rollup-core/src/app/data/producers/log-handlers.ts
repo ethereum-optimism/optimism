@@ -372,5 +372,7 @@ export const StateBatchAppendedLogHandler = async (
     return
   }
 
+  log.debug(`Inserting state roots: ${JSON.stringify(stateRoots)}`)
+
   await ds.insertL1RollupStateRoots(l.transactionHash, stateRoots)
 }

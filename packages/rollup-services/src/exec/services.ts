@@ -144,42 +144,42 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
     getL1Provider(),
     [
       {
-        topic: ethers.utils.id('L1ToL2TxEnqueued(bytes)'),
+        topic: ethers.utils.id('L1ToL2TxEnqueued(bytes)'), // 0x2a9dd32a4056f7419a3a05b09f30cf775204afed73c0981470da34d97ca5e5cd
         contractAddress: Environment.getOrThrow(
           Environment.l1ToL2TransactionQueueContractAddress
         ),
         handleLog: L1ToL2TxEnqueuedLogHandler,
       },
       {
-        topic: ethers.utils.id('CalldataTxEnqueued()'),
+        topic: ethers.utils.id('CalldataTxEnqueued()'), // 0x3bfa105e8848abd2ed7abb76aee8a24f81bfe56a1c72823d073797f56508dd9e
         contractAddress: Environment.getOrThrow(
           Environment.safetyTransactionQueueContractAddress
         ),
         handleLog: CalldataTxEnqueuedLogHandler,
       },
       {
-        topic: ethers.utils.id('L1ToL2BatchAppended(bytes32)'),
+        topic: ethers.utils.id('L1ToL2BatchAppended(bytes32)'), // 0xe2708ee9d6a896e5f32f6edc61bc83143a1b8e3fbdf2a038c350369d251afb19
         contractAddress: Environment.getOrThrow(
           Environment.canonicalTransactionChainContractAddress
         ),
         handleLog: L1ToL2BatchAppendedLogHandler,
       },
       {
-        topic: ethers.utils.id('SafetyQueueBatchAppended(bytes32)'),
+        topic: ethers.utils.id('SafetyQueueBatchAppended(bytes32)'), // 0x23764fe059fb5258ab47583dab9717481569b4f9631b4bcc7cb8cf2c79d1d5c2
         contractAddress: Environment.getOrThrow(
           Environment.canonicalTransactionChainContractAddress
         ),
         handleLog: SafetyQueueBatchAppendedLogHandler,
       },
       {
-        topic: ethers.utils.id('SequencerBatchAppended(bytes32)'),
+        topic: ethers.utils.id('SequencerBatchAppended(bytes32)'), // 0x256fdb5de9be2f545c62f9b8c453a7f8246978d0e1dd70970cc538b3203ef5ae
         contractAddress: Environment.getOrThrow(
           Environment.canonicalTransactionChainContractAddress
         ),
         handleLog: SequencerBatchAppendedLogHandler,
       },
       {
-        topic: ethers.utils.id('StateBatchAppended(bytes32)'),
+        topic: ethers.utils.id('StateBatchAppended(bytes32)'), // 0x800e6b30fb1a01e9038f324a049522a0231964e8de0aa9e815b35fc0029e8d52
         contractAddress: Environment.getOrThrow(
           Environment.stateCommitmentChainContractAddress
         ),

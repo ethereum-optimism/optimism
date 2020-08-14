@@ -71,9 +71,10 @@ CREATE TABLE l1_rollup_state_root (
   removed BOOLEAN NOT NULL DEFAULT FALSE,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
-  UNIQUE (state_root),
   FOREIGN KEY (batch_number) REFERENCES l1_rollup_state_root_batch (batch_number)
 );
+CREATE INDEX l1_rollup_state_root_state_root_idx ON l1_rollup_state_root USING btree (state_root);
+
 
 
 

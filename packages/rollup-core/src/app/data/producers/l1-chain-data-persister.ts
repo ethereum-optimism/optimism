@@ -118,23 +118,30 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       relevantLogs.map((l) => this.l1Provider.getTransaction(l.transactionHash))
     )
 
-    await this.l1DataService.insertL1BlockAndTransactions(block, txs, false)
+    try {
+      log.debug(`Inserting block ${block.number} and ${txs.length} transactions.`)
+      await this.l1DataService.insertL1BlockAndTransactions(block, txs, false)
 
-    for (let i = 0; i < relevantLogs.length; i++) {
-      const current_log = relevantLogs[i]
-      const topics = current_log.topics.filter(
-        (x) =>
-          !!this.topicMap.get(x) &&
-          this.topicMap.get(x).contractAddress === current_log.address
-      )
-      for (const topic of topics) {
-        await this.topicMap
-          .get(topic)
-          .handleLog(this.l1DataService, current_log, txs[i])
+      log.debug(`Looping through ${relevantLogs.length} logs from block ${block.number} to insert rollup transactions & state roots`)
+      for (let i = 0; i < relevantLogs.length; i++) {
+        const current_log = relevantLogs[i]
+        const topics = current_log.topics.filter(
+          (x) =>
+            !!this.topicMap.get(x) &&
+            this.topicMap.get(x).contractAddress === current_log.address
+        )
+        for (const topic of topics) {
+          await this.topicMap
+            .get(topic)
+            .handleLog(this.l1DataService, current_log, txs[i])
+        }
       }
-    }
 
-    await this.l1DataService.updateBlockToProcessed(block.hash)
+      await this.l1DataService.updateBlockToProcessed(block.hash)
+    } catch (e) {
+      this.logError(`Error inserting block & tx data for block ${block.number}`, e)
+      throw e
+    }
 
     return this.markProcessed(index)
   }
