@@ -14,6 +14,8 @@ services:
     environment:
       # LOCAL ONLY!
       - LOG_NEW_LINES=1   # Logs new lines instead of <\n>
+      # DATA CLEARING
+      - CLEAR_DATA_KEY=123                                                              # Change this if you want to delete filesystem data on startup.
       # Container
       - STARTUP_WAIT_TIMEOUT=30                                                         # The amount of times to attempt to connect to L2 geth before failing (set to -1 if not to wait for L2 geth).
       # Logging

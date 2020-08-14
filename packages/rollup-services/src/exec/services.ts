@@ -39,6 +39,9 @@ import {
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers } from 'ethers'
+import * as fs from "fs"
+import * as rimraf from 'rimraf'
+
 
 const log = getLogger('service-entrypoint')
 
@@ -343,6 +346,7 @@ const createL2BlockSubscriber = (): EthereumBlockProcessor => {
 let l1BlockProcessorDb: DB
 const getL1BlockProcessorDB = (): DB => {
   if (!l1BlockProcessorDb) {
+    clearDataIfNecessary(Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath))
     l1BlockProcessorDb = new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
@@ -356,6 +360,7 @@ const getL1BlockProcessorDB = (): DB => {
 let l2Db: DB
 const getL2Db = (): DB => {
   if (!l2Db) {
+    clearDataIfNecessary(Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath))
     l2Db = new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
@@ -390,4 +395,43 @@ const getL2NodeService = (): L2NodeService => {
     l2NodeService = new DefaultL2NodeService(getSubmitToL2GethWallet())
   }
   return l2NodeService
+}
+
+/**
+ * Clears filesystem data at provided path if the Clear Data Key is set and changed
+ * since the last startup.
+ *
+ * @param basePath The path to the data directory.
+ */
+const clearDataIfNecessary = (basePath: string): void => {
+  if (Environment.clearDataKey() && !fs.existsSync(getClearDataFilePath(basePath))) {
+    log.info(`Detected change in CLEAR_DATA_KEY. Purging data from ${basePath}`)
+    rimraf.sync(`${basePath}/{*,.*}`)
+    log.info(
+      `Data purged from '${basePath}/{*,.*}'`
+    )
+    makeDataDirectory(basePath)
+  }
+}
+
+/**
+ * Makes a data directory at the provided base path.
+ *
+ * @param basePath The path at which a data directory should be created.
+ */
+const makeDataDirectory = (basePath: string) => {
+  fs.mkdirSync(basePath, { recursive: true })
+  if (Environment.clearDataKey()) {
+    fs.writeFileSync(getClearDataFilePath(basePath), '')
+  }
+}
+
+/**
+ * Gets the path of the Clear Data file for the provided base path.
+ *
+ * @param basePath The path to the data directory.
+ * @returns The full path to the clearData file.
+ */
+const getClearDataFilePath = (basePath: string): string => {
+  return `${basePath}/.clear_data_key_${Environment.clearDataKey()}`
 }

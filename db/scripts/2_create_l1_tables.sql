@@ -97,7 +97,7 @@ CREATE TABLE l1_rollup_tx (
   PRIMARY KEY (id),
   FOREIGN KEY (l1_tx_hash) REFERENCES l1_tx (tx_hash),
   FOREIGN KEY (geth_submission_queue_index) REFERENCES geth_submission_queue(queue_index)
-)
+);
 
 /* ROLLBACK SCRIPT
    DROP TABLE l1_rollup_tx;
