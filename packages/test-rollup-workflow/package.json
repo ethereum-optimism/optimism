@@ -33,7 +33,7 @@
   "dependencies": {
     "@eth-optimism/core-utils": "^0.0.1-alpha.26",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.27",
-    "@eth-optimism/solc-transpiler": "^0.0.1-alpha.27",
+    "@eth-optimism/solc": "^0.5.16-alpha.0",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "2.1.0",

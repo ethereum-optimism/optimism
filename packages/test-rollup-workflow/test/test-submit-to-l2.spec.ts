@@ -1,25 +1,22 @@
 import './setup'
 
 /* External Imports */
-import {
-  getLogger,
-  keccak256FromUtf8,
-  ZERO_ADDRESS,
-} from '@eth-optimism/core-utils'
-
-import { Contract, ContractFactory, Wallet } from 'ethers'
-import { JsonRpcProvider, Provider, TransactionReceipt } from 'ethers/providers'
-
-import * as SimpleStorageContract from '../build/SimpleStorage.json'
-import { UnsignedTransaction } from 'ethers/utils'
+import { getLogger, keccak256FromUtf8 } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
+  GAS_LIMIT,
   DefaultL2NodeService,
   GethSubmission,
   L2NodeService,
-} from '@eth-optimism/rollup-core/build/src'
+} from '@eth-optimism/rollup-core'
 
-const log = getLogger('rollup-workflow-test', true)
+import { Contract, ContractFactory, Wallet } from 'ethers'
+import { UnsignedTransaction } from 'ethers/utils'
+import { JsonRpcProvider, Provider, TransactionReceipt } from 'ethers/providers'
+
+import * as SimpleStorageContract from '../build/SimpleStorage.json'
+
+const log = getLogger('rollup-workflow-test')
 
 const getDeployTx = (wallet: Wallet): UnsignedTransaction => {
   const factory = new ContractFactory(
@@ -39,25 +36,25 @@ describe('Test Sending Transactions Directly To L2', () => {
   let simpleStorage: Contract
   const gethNodeUrl: string = 'http://0.0.0.0:8545'
 
-  describe('Sending transactions to L2 Geth', () => {
+  describe.skip('Sending transactions to L2 Geth', () => {
     before(async () => {
       provider = new JsonRpcProvider(gethNodeUrl)
       wallet = Wallet.createRandom().connect(provider)
 
-      log.debug(`connected to provider at ${gethNodeUrl}`)
-      const deployTx = getDeployTx(wallet)
-
-      const res = await wallet.sendTransaction(deployTx)
-      log.debug(`Deploy tx sent. Hash: ${res.hash}`)
-      const receipt: TransactionReceipt = await provider.waitForTransaction(
-        res.hash
-      )
-      receipt.status.should.equal(1, `Deploy transaction failed`)
-
-      log.debug(`Contract deployed. Address: ${receipt.contractAddress}`)
+      // log.debug(`connected to provider at ${gethNodeUrl}`)
+      // const deployTx = getDeployTx(wallet)
+      //
+      // const res = await wallet.sendTransaction(deployTx)
+      // log.debug(`Deploy tx sent. Hash: ${res.hash}`)
+      // const receipt: TransactionReceipt = await provider.waitForTransaction(
+      //   res.hash
+      // )
+      // receipt.status.should.equal(1, `Deploy transaction failed`)
+      //
+      // log.debug(`Contract deployed. Address: ${receipt.contractAddress}`)
 
       simpleStorage = new Contract(
-        receipt.contractAddress, // '0x97673537F19b51289E1279288734D981e7527CA4',
+        '0x6151c37e5F46349B405fEF2839D1B8183ff517C0',
         SimpleStorageContract.abi,
         wallet
       )
@@ -65,7 +62,7 @@ describe('Test Sending Transactions Directly To L2', () => {
 
     it('Sets storage N times', async () => {
       const key: string = 'test'
-      for (let i = 0; i < 501; i++) {
+      for (let i = 0; i < 10; i++) {
         log.debug(`Sending tx to set storage key ${key}`)
         const res = await simpleStorage.setStorage(key, `${key}${i}`)
         const receipt: TransactionReceipt = await provider.waitForTransaction(
@@ -106,7 +103,7 @@ describe('Test Sending Transactions Directly To L2', () => {
           {
             l1RollupTxId: 1,
             indexWithinSubmission: 1,
-            gasLimit: 0,
+            gasLimit: GAS_LIMIT,
             nonce: await wallet.getTransactionCount(),
             sender: Wallet.createRandom().address,
             target: deployTx.to,
