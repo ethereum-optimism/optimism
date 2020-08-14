@@ -7,7 +7,6 @@ import { Wallet } from 'ethers'
 import { CHAIN_ID, DefaultL2NodeService } from '../../src/app'
 import { GethSubmission, L2NodeService } from '../../src/types'
 
-
 // TODO: Can be used to submit Rollup Transactions to geth.
 describe.skip('Optimistic Canonical Chain Batch Submitter', () => {
   let l2NodeService: L2NodeService
