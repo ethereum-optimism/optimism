@@ -37,7 +37,7 @@ services:
       - L2_NODE_WEB3_URL=http://geth_l2:8545                                            # The URL of the L2 node
       # L1 Submitters
       - L1_SEQUENCER_PRIVATE_KEY=<TODO: Add this>                                                   # (Required) The private key to use to submit Sequencer Transaction Batches
-      - L1_STATE_ROOT_PRIVATE_KEY=<TODO: Add this>                                                  # (Required) The private key to use to submit State Root Batches (will cause nonce issues if the same as the above key)
+      - L1_STATE_ROOT_SUBMITTER_PRIVATE_KEY=<TODO: Add this>                                        # (Required) The private key to use to submit State Root Batches (will cause nonce issues if the same as the above key)
       # Shared Contracts
       - CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS=<TODO: Add this>                               # (Required) The address of the CanonicalTransactionChain contract
       - STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS=<TODO: Add this>                                    # (Required) The address of the StateCommitmentChain contract

@@ -1,12 +1,12 @@
 /* External Imports */
+import { keccak256FromUtf8 } from '@eth-optimism/core-utils'
+import { JsonRpcProvider } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
 /* Internal Imports */
-import { DefaultDataService, QueuedGethSubmitter } from '../../src/app/data'
 import { CHAIN_ID, DefaultL2NodeService } from '../../src/app'
 import { GethSubmission, L2NodeService } from '../../src/types'
-import { keccak256FromUtf8 } from '@eth-optimism/core-utils/build'
-import { JsonRpcProvider } from 'ethers/providers'
+
 
 // TODO: Can be used to submit Rollup Transactions to geth.
 describe.skip('Optimistic Canonical Chain Batch Submitter', () => {
