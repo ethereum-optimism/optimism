@@ -129,8 +129,9 @@ class VerifySafetyChecker(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  #unittest.main()
+  unittest.main()
 
+  """
   contract_account, m = prepare_evm()
   value = m.make_symbolic_buffer(3)
   m.constrain(value[1] == 0xf1)
@@ -139,8 +140,6 @@ if __name__ == '__main__':
   print("getting values %d" % (m.count_ready_states()))
   for state in m.ready_states:
     print(binascii.hexlify(state.solve_one(value)))
-
-
-  #print_and_get_solves(m, value)
+  """
 
 
