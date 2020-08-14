@@ -23,7 +23,6 @@ provider "google-beta" {
  *  Used to retrieve Datadog's IP addresses in order to configure egreess firewall rules
  *  The provider requires the DATADOG_API_KEY and DATADOG_APP_KEY environment variables
  */
-
 provider "datadog" {
   api_key = var.datadog_api_key
   app_key = var.datadog_app_key
