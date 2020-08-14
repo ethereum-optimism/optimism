@@ -127,17 +127,16 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       log.debug(
         `Looping through ${relevantLogs.length} logs from block ${block.number} to insert rollup transactions & state roots`
       )
-      for (let i = 0; i < relevantLogs.length; i++) {
-        const current_log = relevantLogs[i]
-        const topics = current_log.topics.filter(
+      for (const [i, currentLog] of relevantLogs.entries()) {
+        const topics = currentLog.topics.filter(
           (x) =>
             !!this.topicMap.get(x) &&
-            this.topicMap.get(x).contractAddress === current_log.address
+            this.topicMap.get(x).contractAddress === currentLog.address
         )
         for (const topic of topics) {
           await this.topicMap
             .get(topic)
-            .handleLog(this.l1DataService, current_log, txs[i])
+            .handleLog(this.l1DataService, currentLog, txs[i])
         }
       }
 

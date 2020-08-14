@@ -156,11 +156,11 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       return undefined
     }
     if (typeof data === 'string') {
-      return new BigNumber(remove0x(data))
+      return new BigNumber(remove0x(data), 'hex')
     }
     if (typeof data.toHexString === 'function') {
-      return new BigNumber(data.toHexString())
+      return new BigNumber(data.toHexString(), 'hex')
     }
-    return new BigNumber(data.toString('hex'))
+    return new BigNumber(data.toString('hex'), 'hex')
   }
 }
