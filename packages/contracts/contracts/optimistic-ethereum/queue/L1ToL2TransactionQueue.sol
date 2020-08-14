@@ -7,6 +7,7 @@ import { RollupQueue } from "./RollupQueue.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { GasConsumer } from "../utils/libraries/GasConsumer.sol";
 
 /**
  * @title L1ToL2TransactionQueue
@@ -17,6 +18,12 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
      */
 
     event L1ToL2TxEnqueued(bytes _tx);
+
+    /*
+     * Constants
+     */
+
+    uint constant public L2_GAS_DISCOUNT_DIVISOR = 10;
 
     /*
      * Constructor
@@ -48,67 +55,44 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     }
 
     /**
-     * Makes a gas payment to 
+     * Enqueues an L1->L2 message.
      */
-    function enqueueTx(
-        bytes memory _tx
-        // todo add gasLimit here
+    function enqueueL1ToL2Message(
+        address _ovmTarget,
+        uint32 _ovmGasLimit,
+        bytes calldata _data
     )
-        public
+        external
     {
-        // todo burn gas proportional to limit here
-        // todo record L1MessageSender here
-        emit L1ToL2TxEnqueued(_tx);
-        _enqueue(_tx);
+        uint gasToBurn = _ovmGasLimit / L2_GAS_DISCOUNT_DIVISOR;
+        resolveGasConsumer().consumeGasInternalCall(gasToBurn);
+
+        bytes memory tx = encodeL1ToL2Tx(
+            msg.sender,
+            _ovmTarget,
+            _ovmGasLimit,
+            _data
+        );
+        emit L1ToL2TxEnqueued(tx);
+        _enqueue(tx);
     }
 
-    // /*
-    //  * Public Functions
-    //  */
+    /*
+     * Internal Functions
+     */
 
-    // /**
-    //  * Checks whether a sender is allowed to enqueue.
-    //  * @param _sender Sender address to check.
-    //  * @return Whether or not the sender can enqueue.
-    //  */
-    // function authenticateEnqueue(
-    //     address _sender
-    // )
-    //     public
-    //     view
-    //     returns (bool)
-    // {
-    //     // TODO: figure out how we're going to authenticate this
-    //     return true;
-    //     // return _sender != tx.origin;
-    // }
-
-    // /**
-    //  * Checks whether a sender is allowed to dequeue.
-    //  * @param _sender Sender address to check.
-    //  * @return Whether or not the sender can dequeue.
-    //  */
-    // function authenticateDequeue(
-    //     address _sender
-    // )
-    //     public
-    //     view
-    //     returns (bool)
-    // {
-    //     return _sender == address(resolveCanonicalTransactionChain());
-    // }
-
-    // /**
-    //  * Checks whether this is a calldata transaction queue.
-    //  * @return Whether or not this is a calldata tx queue.
-    //  */
-    // function isCalldataTxQueue()
-    //     public
-    //     returns (bool)
-    // {
-    //     return false;
-    // }
-
+    function encodeL1ToL2Tx(
+        address _sender,
+        address _target,
+        uint32 _gasLimit,
+        bytes memory _data
+    ) 
+        internal
+        returns(bytes memory)
+    {
+        // TODO: replace with finalized encoding when ready
+        return abi.encode(_sender, _target, _gasLimit, _data);
+    }
 
     /*
      * Contract Resolution
@@ -120,5 +104,13 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         returns (CanonicalTransactionChain)
     {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveGasConsumer()
+        internal
+        view
+        returns (GasConsumer)
+    {
+        return GasConsumer(resolveContract("GasConsumer"));
     }
 }
