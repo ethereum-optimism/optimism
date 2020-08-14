@@ -1,0 +1,17 @@
+{
+  "src": {
+    "specification": "src/specification.act.md",
+    "smt_prelude": "src/prelude.smt2.md",
+    "rules": [
+      "src/lemmas.k.md"
+    ]
+  },
+  "implementations": {
+    "SafetyChecker": {
+      "src": "src/SafetyChecker.sol"
+    }
+  },
+  "dapp_root": "dapp"
+}
+
+
