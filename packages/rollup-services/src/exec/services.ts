@@ -39,9 +39,8 @@ import {
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers } from 'ethers'
-import * as fs from "fs"
+import * as fs from 'fs'
 import * as rimraf from 'rimraf'
-
 
 const log = getLogger('service-entrypoint')
 
@@ -346,7 +345,9 @@ const createL2BlockSubscriber = (): EthereumBlockProcessor => {
 let l1BlockProcessorDb: DB
 const getL1BlockProcessorDB = (): DB => {
   if (!l1BlockProcessorDb) {
-    clearDataIfNecessary(Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath))
+    clearDataIfNecessary(
+      Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
+    )
     l1BlockProcessorDb = new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
@@ -360,7 +361,9 @@ const getL1BlockProcessorDB = (): DB => {
 let l2Db: DB
 const getL2Db = (): DB => {
   if (!l2Db) {
-    clearDataIfNecessary(Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath))
+    clearDataIfNecessary(
+      Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
+    )
     l2Db = new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
@@ -404,12 +407,13 @@ const getL2NodeService = (): L2NodeService => {
  * @param basePath The path to the data directory.
  */
 const clearDataIfNecessary = (basePath: string): void => {
-  if (Environment.clearDataKey() && !fs.existsSync(getClearDataFilePath(basePath))) {
+  if (
+    Environment.clearDataKey() &&
+    !fs.existsSync(getClearDataFilePath(basePath))
+  ) {
     log.info(`Detected change in CLEAR_DATA_KEY. Purging data from ${basePath}`)
     rimraf.sync(`${basePath}/{*,.*}`)
-    log.info(
-      `Data purged from '${basePath}/{*,.*}'`
-    )
+    log.info(`Data purged from '${basePath}/{*,.*}'`)
     makeDataDirectory(basePath)
   }
 }
