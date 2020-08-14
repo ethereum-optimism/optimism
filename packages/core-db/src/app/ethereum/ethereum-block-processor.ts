@@ -157,7 +157,13 @@ export class EthereumBlockProcessor {
     this.syncCompleted = true
     this.syncInProgress = false
 
-    log.debug(`Synced from block [${syncStart}] to [${currentBlock}]!`)
+    if (syncStart !== currentBlock) {
+      log.debug(`Synced from block [${syncStart}] to [${currentBlock}]!`)
+    } else {
+      log.debug(
+        `No sync necessary. Last processed and current block are the same block number: ${currentBlock}`
+      )
+    }
 
     for (const callback of this.subscriptions) {
       callback.onSyncCompleted().catch((e) => {

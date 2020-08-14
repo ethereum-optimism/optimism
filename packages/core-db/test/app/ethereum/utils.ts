@@ -1,10 +1,11 @@
 /* External Imports */
+import { getLogger, sleep, objectsEqual } from '@eth-optimism/core-utils'
+
 import * as assert from 'assert'
 import { ethers } from 'ethers'
 
 /* Internal Imports */
 import { EthereumListener } from '../../../src/types/ethereum'
-import { getLogger, sleep } from '@eth-optimism/core-utils/build/src/app'
 
 const log = getLogger('ethereum-test-utils', true)
 
@@ -23,10 +24,9 @@ export class TestListener<T> implements EthereumListener<T> {
 
   public async handle(t: T): Promise<void> {
     log.debug(`Received ${JSON.stringify(t)}`)
-    if (
-      this.received.length === 0 ||
-      t !== this.received[this.received.length - 1]
-    ) {
+    if (this.received.length === 0) {
+      this.received.push(t)
+    } else if (this.received.filter((x) => objectsEqual(x, t)).length === 0) {
       this.received.push(t)
     }
   }
