@@ -1,3 +1,4 @@
+# TODO: COPY THIS OVER TO docker-compose.microservices.mine.yml FOR YOUR OWN LOCAL CONFIG
 version: "3"
 
 services:

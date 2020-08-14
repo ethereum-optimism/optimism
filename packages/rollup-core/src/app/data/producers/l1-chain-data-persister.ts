@@ -119,10 +119,14 @@ export class L1ChainDataPersister extends ChainDataProcessor {
     )
 
     try {
-      log.debug(`Inserting block ${block.number} and ${txs.length} transactions.`)
+      log.debug(
+        `Inserting block ${block.number} and ${txs.length} transactions.`
+      )
       await this.l1DataService.insertL1BlockAndTransactions(block, txs, false)
 
-      log.debug(`Looping through ${relevantLogs.length} logs from block ${block.number} to insert rollup transactions & state roots`)
+      log.debug(
+        `Looping through ${relevantLogs.length} logs from block ${block.number} to insert rollup transactions & state roots`
+      )
       for (let i = 0; i < relevantLogs.length; i++) {
         const current_log = relevantLogs[i]
         const topics = current_log.topics.filter(
@@ -139,7 +143,10 @@ export class L1ChainDataPersister extends ChainDataProcessor {
 
       await this.l1DataService.updateBlockToProcessed(block.hash)
     } catch (e) {
-      this.logError(`Error inserting block & tx data for block ${block.number}`, e)
+      this.logError(
+        `Error inserting block & tx data for block ${block.number}`,
+        e
+      )
       throw e
     }
 
