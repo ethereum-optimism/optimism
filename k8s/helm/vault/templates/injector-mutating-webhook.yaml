@@ -1,0 +1,27 @@
+{{- if and (eq (.Values.injector.enabled | toString) "true" ) (eq (.Values.global.enabled | toString) "true") }}
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ template "vault.fullname" . }}-agent-injector-cfg
+  labels:
+    app.kubernetes.io/name: {{ include "vault.name" . }}-agent-injector
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+webhooks:
+  - name: vault.hashicorp.com
+    clientConfig:
+      service:
+        name: {{ template "vault.fullname" . }}-agent-injector-svc
+        namespace: {{ .Release.Namespace }}
+        path: "/mutate"
+      caBundle: {{ .Values.injector.certs.caBundle | quote }}
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+{{- if .Values.injector.namespaceSelector }}
+    namespaceSelector:
+{{ toYaml .Values.injector.namespaceSelector | indent 6}}
+{{ end }}
+{{ end }}

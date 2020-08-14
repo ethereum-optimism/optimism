@@ -1,0 +1,47 @@
+{{ template "vault.mode" . }}
+{{- if ne .mode "external" }}
+{{- if and (ne .mode "") (eq (.Values.global.enabled | toString) "true") }}
+{{- if eq (.Values.ui.enabled | toString) "true" }}
+# Headless service for Vault server DNS entries. This service should only
+# point to Vault servers. For access to an agent, one should assume that
+# the agent is installed locally on the node and the NODE_IP should be used.
+# If the node can't run a Vault agent, then this service can be used to
+# communicate directly to a server agent.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "vault.fullname" . }}-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ include "vault.chart" . }}
+    app.kubernetes.io/name: {{ include "vault.name" . }}-ui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  {{- template "vault.ui.annotations" . }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "vault.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    component: server
+  publishNotReadyAddresses: true
+  ports:
+    - name: {{ include "vault.scheme" . }}
+      port: {{ .Values.ui.externalPort }}
+      targetPort: 8200
+      {{- if .Values.ui.serviceNodePort }}
+      nodePort: {{ .Values.ui.serviceNodePort }}
+      {{- end }}
+  type: {{ .Values.ui.serviceType }}
+  {{- if and (eq (.Values.ui.serviceType | toString) "LoadBalancer") (.Values.ui.loadBalancerSourceRanges) }}
+  loadBalancerSourceRanges:
+    {{- range $cidr := .Values.ui.loadBalancerSourceRanges }}
+      - {{ $cidr }}
+    {{- end }}
+  {{- end }}
+  {{- if and (eq (.Values.ui.serviceType | toString) "LoadBalancer") (.Values.ui.loadBalancerIP) }}
+  loadBalancerIP: {{ .Values.ui.loadBalancerIP }}
+  {{- end }}
+{{- end -}}
+
+{{ end }}
+{{ end }}

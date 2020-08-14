@@ -1,11 +1,11 @@
 {{ template "vault.mode" . }}
 {{- if ne .mode "external" }}
-{{- if and (eq (.Values.server.service.enabled | toString) "true" ) (eq (.Values.global.enabled | toString) "true") }}
-# Service for Vault cluster
+{{- if and (eq .mode "ha" ) (and (eq (.Values.server.service.enabled | toString) "true" ) (eq (.Values.global.enabled | toString) "true")) }}
+# Service for standby Vault pod
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "vault.fullname" . }}
+  name: {{ template "vault.fullname" . }}-standby
   namespace: {{ .Release.Namespace }}
   labels:
     helm.sh/chart: {{ include "vault.chart" . }}
@@ -21,8 +21,6 @@ spec:
   {{- if .Values.server.service.clusterIP }}
   clusterIP: {{ .Values.server.service.clusterIP }}
   {{- end }}
-  # We want the servers to become available even if they're not ready
-  # since this DNS is also used for join operations.
   publishNotReadyAddresses: true
   ports:
     - name: {{ include "vault.scheme" . }}
@@ -38,5 +36,6 @@ spec:
     app.kubernetes.io/name: {{ include "vault.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     component: server
+    vault-active: "false"
 {{- end }}
 {{- end }}

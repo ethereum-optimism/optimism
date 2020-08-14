@@ -1,0 +1,53 @@
+{{- if not .Values.global.openshift }}
+{{ template "vault.mode" . }}
+{{- if ne .mode "external" }}
+{{- if .Values.server.ingress.enabled -}}
+{{- $serviceName := include "vault.fullname" . -}}
+{{- if and (eq .mode "ha" ) (and (eq (.Values.server.service.enabled | toString) "true" ) (eq (.Values.global.enabled | toString) "true")) }}
+{{- $serviceName = printf "%s-%s" $serviceName "active" -}}
+{{- end }}
+{{- $servicePort := .Values.server.service.port -}}
+{{ if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1" }}
+apiVersion: networking.k8s.io/v1beta1
+{{ else }}
+apiVersion: extensions/v1beta1
+{{ end }}
+kind: Ingress
+metadata:
+  name: {{ template "vault.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ include "vault.chart" . }}
+    app.kubernetes.io/name: {{ include "vault.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- with .Values.server.ingress.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- template "vault.ingress.annotations" . }}
+spec:
+{{- if .Values.server.ingress.tls }}
+  tls:
+  {{- range .Values.server.ingress.tls }}
+    - hosts:
+      {{- range .hosts }}
+        - {{ . | quote }}
+      {{- end }}
+      secretName: {{ .secretName }}
+  {{- end }}
+{{- end }}
+  rules:
+  {{- range .Values.server.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+        {{- range (.paths | default (list "/")) }}
+          - path: {{ . }}
+            backend:
+              serviceName: {{ $serviceName }}
+              servicePort: {{ $servicePort }}
+        {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

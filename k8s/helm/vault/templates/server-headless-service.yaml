@@ -5,7 +5,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "vault.fullname" . }}
+  name: {{ template "vault.fullname" . }}-internal
   namespace: {{ .Release.Namespace }}
   labels:
     helm.sh/chart: {{ include "vault.chart" . }}
@@ -15,22 +15,12 @@ metadata:
   annotations:
 {{ template "vault.service.annotations" .}}
 spec:
-  {{- if .Values.server.service.type}}
-  type: {{ .Values.server.service.type }}
-  {{- end}}
-  {{- if .Values.server.service.clusterIP }}
-  clusterIP: {{ .Values.server.service.clusterIP }}
-  {{- end }}
-  # We want the servers to become available even if they're not ready
-  # since this DNS is also used for join operations.
+  clusterIP: None
   publishNotReadyAddresses: true
   ports:
-    - name: {{ include "vault.scheme" . }}
+    - name: "{{ include "vault.scheme" . }}"
       port: {{ .Values.server.service.port }}
       targetPort: {{ .Values.server.service.targetPort }}
-      {{- if and (.Values.server.service.nodePort) (eq (.Values.server.service.type | toString) "NodePort") }}
-      nodePort: {{ .Values.server.service.nodePort }}
-      {{- end }}
     - name: https-internal
       port: 8201
       targetPort: 8201
