@@ -19,7 +19,6 @@ terraform.tfvars
 .variables
 *.ovpn
 *.b64
-*.hcl
 unsealer/backup.snap
 .vscode
 docker/config/data
