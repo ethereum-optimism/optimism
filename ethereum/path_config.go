@@ -9,7 +9,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/omisego/immutability-eth-plugin/util"
+	"github.com/omgnetwork/immutability-eth-plugin/util"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/hashicorp/errwrap"
@@ -71,7 +71,7 @@ func (config *ConfigJSON) BlackListed(toAddress *common.Address) error {
 // ConfigPaths implements the Ethereum config paths
 func ConfigPaths(b *PluginBackend) []*framework.Path {
 	return []*framework.Path{
-		&framework.Path{
+		{
 			Pattern: QualifiedPath("config"),
 			Callbacks: map[logical.Operation]framework.OperationFunc{
 				logical.CreateOperation: b.pathWriteConfig,
@@ -83,7 +83,7 @@ func ConfigPaths(b *PluginBackend) []*framework.Path {
 			Configure the Vault Ethereum plugin.
 			`,
 			Fields: map[string]*framework.FieldSchema{
-				"chain_id": &framework.FieldSchema{
+				"chain_id": {
 					Type: framework.TypeString,
 					Description: `Ethereum network - can be one of the following values:
 
@@ -99,20 +99,20 @@ func ConfigPaths(b *PluginBackend) []*framework.Path {
 					1337 - Geth private chains (default)`,
 					Default: Rinkeby,
 				},
-				"rpc_url": &framework.FieldSchema{
+				"rpc_url": {
 					Type:        framework.TypeString,
 					Default:     InfuraRinkeby,
 					Description: `The RPC address of the Ethereum network.`,
 				},
-				"whitelist": &framework.FieldSchema{
+				"whitelist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can send ETH to.",
 				},
-				"blacklist": &framework.FieldSchema{
+				"blacklist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can't send ETH to.",
 				},
-				"bound_cidr_list": &framework.FieldSchema{
+				"bound_cidr_list": {
 					Type: framework.TypeCommaStringSlice,
 					Description: `Comma separated string or list of CIDR blocks. If set, specifies the blocks of
 IPs which can perform the login operation.`,

@@ -22,3 +22,5 @@ terraform.tfvars
 *.hcl
 unsealer/backup.snap
 .vscode
+docker/config/data
+docker/config/unseal.json

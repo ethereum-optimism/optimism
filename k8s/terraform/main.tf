@@ -41,5 +41,5 @@ locals {
   image_registry = "${trimsuffix(var.docker_registry_host, "/")}/${var.gcp_project}"
   consul_img     = "${local.image_registry}/consul:1.7.1"
   consul_k8s_img = "${local.image_registry}/hashicorp/consul-k8s:0.12.0"
-  vault_img      = "${local.image_registry}/omisego/immutability-vault-ethereum:1.0.0"
+  vault_img      = "${local.image_registry}/omgnetwork/vault:1.0.0"
 }

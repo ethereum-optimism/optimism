@@ -1,11 +1,11 @@
 # ****************************************************************************************
 # ******** Create a dev environment to build alpine vault plugins and build them *********
 # ****************************************************************************************
-FROM vault:latest as build
+
+FROM golang:1.14-alpine as build
 # Setup the alpine build environment for golang
 RUN apk add --update alpine-sdk
-RUN apk update && apk add go git openssh gcc musl-dev linux-headers
-
+RUN apk update && apk add git openssh gcc musl-dev linux-headers
 
 WORKDIR /app
 
@@ -13,11 +13,12 @@ COPY go.mod .
 COPY go.sum .
 
 # Get deps - will also be cached if we won't change mod/sum
+RUN go version
 RUN go mod download
 
 COPY  / .
 RUN mkdir -p /app/bin \
-    && GO111MODULE=on CGO_ENABLED=1 GOOS=linux go build -a -i -o /app/bin/immutability-eth-plugin . \
+    && CGO_ENABLED=1 GOOS=linux go build -a -i -o /app/bin/immutability-eth-plugin . \
     && sha256sum -b /app/bin/immutability-eth-plugin > /app/bin/SHA256SUMS
 
 # ***********************************************************

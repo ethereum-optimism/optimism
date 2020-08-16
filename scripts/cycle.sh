@@ -4,7 +4,7 @@ vault secrets disable immutability-eth-plugin
 vault delete sys/plugins/catalog/secret/immutability-eth-plugin
 cd ..
 go clean && go build
-mv omisego $HOME/etc/vault.d/vault_plugins/immutability-eth-plugin
+mv immutability-eth-plugin $HOME/etc/vault.d/vault_plugins/immutability-eth-plugin
 export SHA256=$(shasum -a 256 "$HOME/etc/vault.d/vault_plugins/immutability-eth-plugin" | cut -d' ' -f1)
 vault write sys/plugins/catalog/secret/immutability-eth-plugin \
       sha_256="${SHA256}" \

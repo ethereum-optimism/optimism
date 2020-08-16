@@ -42,7 +42,7 @@ services:
         cat /truffleshuffle/plasma_framework_addr.out
       "
   vault_server:
-    image: omisego/immutability-vault-ethereum:latest
+    image: omgnetwork/vault:latest
     networks:
       - testnet
     ports:

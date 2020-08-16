@@ -28,7 +28,7 @@ The installation does not require anything more than a MacAir (this https://www.
 A script to install the HashiCorp tools, along with the HashiCorp PGP key is provided. To install Vault, Terraform and Consul using this script, run:
 
 ```sh
-$ cd $GOPATH/src/github.com/omisego/immutability-eth-plugin/unsealer
+$ cd $GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/unsealer
 $ ./install.sh vault 1.3.2
 $ ./install.sh terraform 0.12.21
 $ ./install.sh consul 1.7.1

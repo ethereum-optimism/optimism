@@ -1,3 +1,23 @@
+## 0.0.6 (August 15, 2020)
+
+NEW FEATURES:
+
+N/A
+
+REFACTOR:
+
+* Update to github.com/ethereum/go-ethereum v1.9.16
+* Removed redundant types from array, slice or map composite literals.
+  - [x] `&framework.Path`
+  - [x] `&framework.FieldSchema`
+* Remove `activateChildChain`
+* Wallet Smoke Test 
+  - [x] Remove test of `activateChildChain`.
+* Re-generate Plasma bindings using v1.9.16 `abigen`
+
+BUG FIXES:
+
+N/A
 ## 0.0.5 (January 18, 2020)
 
 NEW FEATURES:
