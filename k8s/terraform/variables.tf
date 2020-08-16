@@ -1,21 +1,3 @@
-variable "consul_bootstrap_expect" {
-  type        = number
-  default     = 3
-  description = "Number of Consul nodes to expect for bootstrapping the cluster"
-}
-
-variable "consul_datacenter" {
-  type        = string
-  default     = "dc1"
-  description = "The datacenter to create in the Consul cluster"
-}
-
-variable "consul_replicas" {
-  type        = number
-  default     = 5
-  description = "The number of Consul servers to create in the cluster"
-}
-
 variable "docker_registry_host" {
   type        = string
   default     = "gcr.io"
@@ -47,24 +29,6 @@ variable "k8s_config_path" {
   type        = string
   default     = "~/.kube/config"
   description = "Path to the local Kubernetes configuration file"
-}
-
-variable "k8s_consul_bootstrap_acl_token_name" {
-  type        = string
-  default     = "omisego-consul-bootstrap-acl-token"
-  description = "The name of the Kubernetes secret for storing the bootstrap ACL token"
-}
-
-variable "k8s_consul_client_acl_token_name" {
-  type        = string
-  default     = "omisego-consul-client-acl-token"
-  description = "The name of the Kubernetes secret that will have the Consul client ACL token to clean"
-}
-
-variable "k8s_consul_vault_acl_token_name" {
-  type        = string
-  default     = "omisego-consul-vault-acl-token"
-  description = "The name of the Kubernetes secret that will have the Consul Vault ACL token to clean"
 }
 
 variable "k8s_namespace" {
