@@ -2,7 +2,7 @@
 
 set -e
 
-SERVICES=("compute.googleapis.com")
+SERVICES=("compute.googleapis.com" "containerregistry.googleapis.com")
 MODE="enable"
 GCP_PROJECT=""
 
@@ -22,7 +22,11 @@ while getopts "hdp:" opt; do
 done
 shift "$(($OPTIND -2))"
 
-echo "Enabling GCP services..."
+if [ "$MODE" == "enable" ]; then
+  echo "Enabling GCP services. This may take some time..."
+else
+  echo "Disabling GCP services. This may take some time..."
+fi
 
 for svc in "${SERVICES[@]}"; do
   gcloud services $MODE $svc

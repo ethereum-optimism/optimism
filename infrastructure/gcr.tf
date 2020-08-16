@@ -17,25 +17,36 @@ resource "google_service_account" "gcr" {
 }
 
 /*
- * Google IAM Policy: https://www.terraform.io/docs/providers/google/d/iam_policy.html
- * Policy to allow read and write access to GCR
+ * Google Custom IAM Role: https://www.terraform.io/docs/providers/google/r/google_project_iam_custom_role.html
+ * Create a customized role for GCR access with a service account
  */
-data "google_iam_policy" "gcr" {
-  binding {
-    role = "roles/storage.objectAdmin"
-    members = [
-      "serviceAccount:${google_service_account.gcr.email}"
-    ]
-  }
+resource "google_project_iam_custom_role" "gcr_admin" {
+  role_id     = "gcrAdminRole"
+  title       = "GCR Admin Role"
+  description = "A custom role to provide custom read/write access for GCR management"
+  permissions = [
+    "storage.buckets.create",
+    "storage.buckets.delete",
+    "storage.buckets.get",
+    "storage.buckets.list",
+    "storage.buckets.update",
+    "storage.objects.create",
+    "storage.objects.delete",
+    "storage.objects.get",
+    "storage.objects.list",
+    "storage.objects.update"
+  ]
 }
 
 /*
- * Google Service Account Policy: https://www.terraform.io/docs/providers/google/r/google_service_account_iam.html
- * Binds the GCR read/write IAM policy to the appropriate service account
+ * Google IAM Binding: https://www.terraform.io/docs/providers/google/r/google_project_iam.html
+ * Assign the custom IAM role to the GCR service account
  */
-resource "google_service_account_iam_policy" "gcr" {
-  service_account_id = google_service_account.gcr.name
-  policy_data        = data.google_iam_policy.gcr.policy_data
+resource "google_project_iam_binding" "gcr" {
+  role = google_project_iam_custom_role.gcr_admin.id
+  members = [
+    "serviceAccount:${google_service_account.gcr.email}"
+  ]
 }
 
 /*
@@ -52,5 +63,5 @@ resource "google_service_account_key" "gcr" {
  */
 resource "local_file" "gcr_svcacc_key" {
   content  = base64decode(google_service_account_key.gcr.private_key)
-  filename = "${path.module}/gcr_account_key.json"
+  filename = "${path.module}/gcr_account.key.json"
 }
