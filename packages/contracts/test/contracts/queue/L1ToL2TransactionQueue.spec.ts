@@ -17,18 +17,17 @@ import {
   AddressResolverMapping,
   getGasConsumed,
 } from '../../test-helpers'
-import { expect } from 'chai'
 
 /* Logging */
 const log = getLogger('l1-to-l2-tx-queue', true)
 
 /* Tests */
-describe.only('L1ToL2TransactionQueue', () => {
+describe('L1ToL2TransactionQueue', () => {
   const L2_GAS_DISCOUNT_DIVISOR = 10
   const GET_DUMMY_L1_L2_ARGS = (ovmGasLimit: number) => {
     return [ZERO_ADDRESS, ovmGasLimit, '0x1234123412341234']
   }
-  const defaultTx = GET_DUMMY_L1_L2_ARGS(30_000)
+  const defaultL1ToL2Params = GET_DUMMY_L1_L2_ARGS(30_000)
 
   let wallet: Signer
   let otherWallet: Signer
@@ -73,15 +72,15 @@ describe.only('L1ToL2TransactionQueue', () => {
     it('should allow enqueue from a random address', async () => {
       await l1ToL2TxQueue
         .connect(otherWallet)
-        .enqueueL1ToL2Message(...defaultTx) // Did not throw... success!
+        .enqueueL1ToL2Message(...defaultL1ToL2Params) // Did not throw... success!
       const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
     })
 
-    it.only('should emit the right event on enqueue', async () => {
+    it('should emit the right event on enqueue', async () => {
       const tx = await l1ToL2TxQueue
         .connect(wallet)
-        .enqueueL1ToL2Message(...defaultTx)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params)
       const receipt = await l1ToL2TxQueue.provider.getTransactionReceipt(
         tx.hash
       )
@@ -95,7 +94,7 @@ describe.only('L1ToL2TransactionQueue', () => {
 
     it('Should charge/burn _ovmGasLimit/L2_GAS_DISCOUNT_DIVISOR gas to enqueue', async () => {
       // do an initial enqueue to make subsequent SSTORES equivalently priced
-      await l1ToL2TxQueue.enqueueL1ToL2Message(...defaultTx)
+      await l1ToL2TxQueue.enqueueL1ToL2Message(...defaultL1ToL2Params)
       // specify as hex string to ensure EOA calldata cost is the same
       const gasLimits: number[] = ['0x22000', '0x33000'].map((num) => {
         return hexStrToNumber(num)
@@ -131,7 +130,7 @@ describe.only('L1ToL2TransactionQueue', () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
       await l1ToL2TxQueue
         .connect(otherWallet)
-        .enqueueL1ToL2Message(...defaultTx)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params)
       await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeue()
       const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
@@ -147,7 +146,7 @@ describe.only('L1ToL2TransactionQueue', () => {
     it('should not allow dequeue from other address', async () => {
       await l1ToL2TxQueue
         .connect(otherWallet)
-        .enqueueL1ToL2Message(...defaultTx)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params)
       await TestUtils.assertRevertsAsync(
         'Only the canonical transaction chain can dequeue L1->L2 queue transactions.',
         async () => {
