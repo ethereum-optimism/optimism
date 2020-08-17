@@ -17,6 +17,7 @@ import {
   deployAndRegister,
   AddressResolverMapping,
   getGasConsumed,
+  GET_DUMMY_TX_WITH_OVM_GAS_LIMIT,
 } from '../../test-helpers'
 
 /* Logging */
@@ -24,16 +25,8 @@ const log = getLogger('safety-tx-queue', true)
 
 /* Tests */
 describe('SafetyTransactionQueue', () => {
-  const GET_TX_WITH_OVM_GAS_LIMIT = (gasLimit: number) => {
-    return (
-      '0x' +
-      '00'.repeat(40) +
-      remove0x(numberToHexString(gasLimit, 32)) +
-      '12'.repeat(40)
-    )
-  }
   const defaultGasLimit = 30_000
-  const defaultTx = GET_TX_WITH_OVM_GAS_LIMIT(defaultGasLimit)
+  const defaultTx = GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(defaultGasLimit)
 
   let wallet: Signer
   let canonicalTransactionChain: Signer
@@ -122,7 +115,7 @@ describe('SafetyTransactionQueue', () => {
         return hexStrToNumber(num)
       })
       const [lowerGasLimitTx, higherGasLimitTx] = gasLimits.map((num) => {
-        return GET_TX_WITH_OVM_GAS_LIMIT(num)
+        return GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(num)
       })
 
       const lowerLimitEnqueue = await safetyTxQueue.enqueueTx(lowerGasLimitTx)

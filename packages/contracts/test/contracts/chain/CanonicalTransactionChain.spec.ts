@@ -2,7 +2,12 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  sleep,
+  TestUtils,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -13,17 +18,25 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  GET_DUMMY_TX_WITH_OVM_GAS_LIMIT,
+  getL1ToL2MessageTxData,
 } from '../../test-helpers'
 
 /* Logging */
 const log = getLogger('canonical-tx-chain', true)
 
+const abi = new ethers.utils.AbiCoder()
+
 /* Tests */
 describe('CanonicalTransactionChain', () => {
   const provider = ethers.provider
   const FORCE_INCLUSION_PERIOD = 600 //600 seconds = 10 minutes
-  const DEFAULT_BATCH = ['0x1234', '0x5678']
-  const DEFAULT_TX = '0x1234'
+  const DEFAULT_BATCH = [
+    GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(30_000),
+    GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(35_000),
+  ]
+  const DEFAULT_TX = GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(30_000)
+  const DEFAULT_L1_L2_MESSAGE_PARAMS = [ZERO_ADDRESS, 30_000, '0x12341234']
 
   let wallet: Signer
   let sequencer: Signer
@@ -85,15 +98,33 @@ describe('CanonicalTransactionChain', () => {
   }
 
   const enqueueAndGenerateL1ToL2Batch = async (
-    _tx: string
+    l1ToL2Params: any[]
   ): Promise<TxQueueBatch> => {
     // Submit the rollup batch on-chain
     const enqueueTx = await l1ToL2Queue
       .connect(l1ToL2TransactionPasser)
-      .enqueueTx(_tx)
-    const localBatch = await generateQueueBatch(_tx, enqueueTx.hash)
+      .enqueueL1ToL2Message(...l1ToL2Params)
+    const localBatch = await generateL1ToL2Batch(l1ToL2Params, enqueueTx.hash)
     return localBatch
   }
+
+  const generateL1ToL2Batch = async (
+    _l1ToL2Params: any[],
+    _enqueueTxHash: string
+  ): Promise<TxQueueBatch> => {
+    const txReceipt = await provider.getTransactionReceipt(_enqueueTxHash)
+    const sender = txReceipt.from
+    const rolledupData = abi.encode(
+      ['address', 'address', 'uint32', 'bytes'],
+      [sender, ..._l1ToL2Params]
+    )
+    // Generate a local version of the rollup batch
+    const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
+    const localBatch = new TxQueueBatch(rolledupData, timestamp)
+    await localBatch.generateTree()
+    return localBatch
+  }
+
   const enqueueAndGenerateSafetyBatch = async (
     _tx: string
   ): Promise<TxQueueBatch> => {
@@ -288,7 +319,9 @@ describe('CanonicalTransactionChain', () => {
     describe('when there is a batch in the L1toL2Queue', async () => {
       let localBatch
       beforeEach(async () => {
-        localBatch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        localBatch = await enqueueAndGenerateL1ToL2Batch(
+          DEFAULT_L1_L2_MESSAGE_PARAMS
+        )
       })
 
       it('should successfully append a batch with an older timestamp', async () => {
@@ -363,7 +396,9 @@ describe('CanonicalTransactionChain', () => {
         safetyTimestamp = localSafetyBatch.timestamp
         snapshotID = await provider.send('evm_snapshot', [])
         await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 2])
-        const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(
+          DEFAULT_L1_L2_MESSAGE_PARAMS
+        )
         l1ToL2Timestamp = localL1ToL2Batch.timestamp
       })
       afterEach(async () => {
@@ -414,7 +449,9 @@ describe('CanonicalTransactionChain', () => {
       let safetyTimestamp
       let snapshotID
       beforeEach(async () => {
-        const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        const localL1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(
+          DEFAULT_L1_L2_MESSAGE_PARAMS
+        )
         l1ToL2Timestamp = localL1ToL2Batch.timestamp
         snapshotID = await provider.send('evm_snapshot', [])
         await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 2])
@@ -468,7 +505,7 @@ describe('CanonicalTransactionChain', () => {
   describe('appendL1ToL2Batch()', async () => {
     describe('when there is a batch in the L1toL2Queue', async () => {
       beforeEach(async () => {
-        await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        await enqueueAndGenerateL1ToL2Batch(DEFAULT_L1_L2_MESSAGE_PARAMS)
       })
 
       it('should successfully dequeue a L1ToL2Batch', async () => {
@@ -489,7 +526,8 @@ describe('CanonicalTransactionChain', () => {
           true, // isL1ToL2Tx
           0, //batchIndex
           0, // cumulativePrevElements
-          [DEFAULT_TX] // elements
+          [DEFAULT_L1_L2_MESSAGE_PARAMS], // elements
+          await l1ToL2TransactionPasser.getAddress()
         )
         await localBatch.generateTree()
         const localBatchHeaderHash = await localBatch.hashBatchHeader()
@@ -520,7 +558,7 @@ describe('CanonicalTransactionChain', () => {
         const snapshotID = await provider.send('evm_snapshot', [])
         await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
         await provider.send('evm_increaseTime', [10])
-        await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        await enqueueAndGenerateL1ToL2Batch(DEFAULT_L1_L2_MESSAGE_PARAMS)
         await TestUtils.assertRevertsAsync(
           'Must process older SafetyQueue batches first to enforce timestamp monotonicity',
           async () => {
@@ -532,7 +570,7 @@ describe('CanonicalTransactionChain', () => {
 
       it('should succeed when the L1ToL2Queue batch is older', async () => {
         const snapshotID = await provider.send('evm_snapshot', [])
-        await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+        await enqueueAndGenerateL1ToL2Batch(DEFAULT_L1_L2_MESSAGE_PARAMS)
         await provider.send('evm_increaseTime', [10])
         await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
         await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
@@ -602,7 +640,7 @@ describe('CanonicalTransactionChain', () => {
 
     it('should revert when trying to appendSafetyBatch when there is an older batch in the L1ToL2Queue ', async () => {
       const snapshotID = await provider.send('evm_snapshot', [])
-      await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      await enqueueAndGenerateL1ToL2Batch(DEFAULT_L1_L2_MESSAGE_PARAMS)
       await provider.send('evm_increaseTime', [10])
       await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
       await TestUtils.assertRevertsAsync(
@@ -618,7 +656,7 @@ describe('CanonicalTransactionChain', () => {
       const snapshotID = await provider.send('evm_snapshot', [])
       await enqueueAndGenerateSafetyBatch(DEFAULT_TX)
       await provider.send('evm_increaseTime', [10])
-      await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      await enqueueAndGenerateL1ToL2Batch(DEFAULT_L1_L2_MESSAGE_PARAMS)
       await canonicalTxChain.connect(sequencer).appendSafetyBatch()
       await provider.send('evm_revert', [snapshotID])
     })
@@ -667,14 +705,18 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should return true for valid element from a l1ToL2Batch', async () => {
-      const l1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(DEFAULT_TX)
+      const senderAddress = await l1ToL2TransactionPasser.getAddress()
+      const l1ToL2Batch = await enqueueAndGenerateL1ToL2Batch(
+        DEFAULT_L1_L2_MESSAGE_PARAMS
+      )
       await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
       const localBatch = new TxChainBatch(
         l1ToL2Batch.timestamp, //timestamp
         true, //isL1ToL2Tx
         0, //batchIndex
         0, //cumulativePrevElements
-        [DEFAULT_TX] //batch
+        [DEFAULT_L1_L2_MESSAGE_PARAMS], //batch
+        senderAddress
       )
       await localBatch.generateTree()
       const elementIndex = 0
@@ -683,7 +725,12 @@ describe('CanonicalTransactionChain', () => {
         elementIndex
       )
       const isIncluded = await canonicalTxChain.verifyElement(
-        DEFAULT_TX, // element
+        getL1ToL2MessageTxData(
+          senderAddress,
+          DEFAULT_L1_L2_MESSAGE_PARAMS[0],
+          DEFAULT_L1_L2_MESSAGE_PARAMS[1],
+          DEFAULT_L1_L2_MESSAGE_PARAMS[2]
+        ), // element
         position,
         elementInclusionProof
       )
@@ -799,7 +846,7 @@ describe('CanonicalTransactionChain', () => {
       })
 
       const localBatch: TxQueueBatch = await enqueueAndGenerateL1ToL2Batch(
-        DEFAULT_TX
+        DEFAULT_L1_L2_MESSAGE_PARAMS
       )
 
       await sleep(5_000)
@@ -823,7 +870,7 @@ describe('CanonicalTransactionChain', () => {
       )
 
       const localBatch: TxQueueBatch = await enqueueAndGenerateL1ToL2Batch(
-        DEFAULT_TX
+        DEFAULT_L1_L2_MESSAGE_PARAMS
       )
       await canonicalTxChain.connect(sequencer).appendL1ToL2Batch()
       const front = await l1ToL2Queue.front()
