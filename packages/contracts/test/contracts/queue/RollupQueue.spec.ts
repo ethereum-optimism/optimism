@@ -72,7 +72,6 @@ describe('RollupQueue', () => {
       const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(numBatches)
     })
-
   })
 
   describe('dequeue()', async () => {

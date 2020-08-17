@@ -7,6 +7,10 @@ import { RollupQueue } from "./RollupQueue.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { GasConsumer } from "../utils/libraries/GasConsumer.sol";
+
+/* Testing Imports */
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title SafetyTransactionQueue
@@ -15,8 +19,14 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
     /*
      * Events
      */
-     
+
     event CalldataTxEnqueued();
+    
+    /*
+     * Constants
+     */
+
+    uint constant public L2_GAS_DISCOUNT_DIVISOR = 10;
 
     /*
      * Constructor
@@ -31,7 +41,6 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
         public
         ContractResolver(_addressResolver)
     {}
-
 
     /*
      * Public Functions
@@ -57,9 +66,30 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
         public
     {
         require(msg.sender == tx.origin, "Only EOAs can enqueue rollup transactions to the safety queue.");
-        // todo burn gas proportional to limit here
+
+        uint gasToConsume = decodeL2TxGasLimit(_tx)/L2_GAS_DISCOUNT_DIVISOR;
+        resolveGasConsumer().consumeGasInternalCall(gasToConsume);
+
         emit CalldataTxEnqueued();
         _enqueue(_tx);
+    }
+
+    /*
+     * Internal Functions
+     */
+
+    function decodeL2TxGasLimit(
+        bytes memory _l2Tx
+    ) 
+        internal
+        returns(uint)
+    {
+        uint gasLimit;
+        assembly {
+            let a := _l2Tx
+            gasLimit := mload(add(_l2Tx, 72)) // 40 (start of gasLimit in tx encoding) + 32 (abi prefix)
+        }
+        return gasLimit;
     }
 
     /*
@@ -72,5 +102,13 @@ contract SafetyTransactionQueue is ContractResolver, RollupQueue {
         returns (CanonicalTransactionChain)
     {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveGasConsumer()
+        internal
+        view
+        returns (GasConsumer)
+    {
+        return GasConsumer(resolveContract("GasConsumer"));
     }
 }

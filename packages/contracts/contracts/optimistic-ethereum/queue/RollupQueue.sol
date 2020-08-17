@@ -69,36 +69,6 @@ contract RollupQueue {
         return frontBatch.timestamp;
     }
 
-    // /**
-    //  * Checks whether a sender is allowed to enqueue.
-    //  * @param _sender Sender address to check.
-    //  * @return Whether or not the sender can enqueue.
-    //  */
-    // function authenticateEnqueue(
-    //     address _sender
-    // )
-    //     public
-    //     view
-    //     returns (bool)
-    // {
-    //     return true;
-    // }
-
-    // /**
-    //  * Checks whether a sender is allowed to dequeue.
-    //  * @param _sender Sender address to check.
-    //  * @return Whether or not the sender can dequeue.
-    //  */
-    // function authenticateDequeue(
-    //     address _sender
-    // )
-    //     public
-    //     view
-    //     returns (bool)
-    // {
-    //     return true;
-    // }
-
     /**
      * Checks if this is a calldata transaction queue.
      * @return Whether or not this is a calldata tx queue.
@@ -129,12 +99,6 @@ contract RollupQueue {
             timestamp: now,
             txHash: txHash
         }));
-
-        // if (isCalldataTxQueue()) {
-        //     emit CalldataTxEnqueued();
-        // } else {
-        //     emit L1ToL2TxEnqueued(_tx);
-        // }
     }
 
     /**

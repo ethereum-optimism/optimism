@@ -2,7 +2,13 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  TestUtils,
+  numberToHexString,
+  remove0x,
+  hexStrToNumber,
+} from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -10,6 +16,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getGasConsumed,
 } from '../../test-helpers'
 
 /* Logging */
@@ -17,7 +24,16 @@ const log = getLogger('safety-tx-queue', true)
 
 /* Tests */
 describe('SafetyTransactionQueue', () => {
-  const defaultTx = '0x1234'
+  const GET_TX_WITH_OVM_GAS_LIMIT = (gasLimit: number) => {
+    return (
+      '0x' +
+      '00'.repeat(40) +
+      remove0x(numberToHexString(gasLimit, 32)) +
+      '12'.repeat(40)
+    )
+  }
+  const defaultGasLimit = 30_000
+  const defaultTx = GET_TX_WITH_OVM_GAS_LIMIT(defaultGasLimit)
 
   let wallet: Signer
   let canonicalTransactionChain: Signer
@@ -73,30 +89,58 @@ describe('SafetyTransactionQueue', () => {
     it('Should disallow calls from non-EOAs', async () => {
       const simpleProxy = await SimpleProxy.deploy()
 
-      const data = safetyTxQueue.interface.encodeFunctionData(
-        'enqueueTx',
-        ['0x1234123412341234']
-      )
+      const data = safetyTxQueue.interface.encodeFunctionData('enqueueTx', [
+        '0x1234123412341234',
+      ])
 
       TestUtils.assertRevertsAsync(
         'Only EOAs can enqueue rollup transactions to the safety queue.',
         async () => {
-          await simpleProxy.callContractWithData(
-            safetyTxQueue.address,
-            data
-          )
+          await simpleProxy.callContractWithData(safetyTxQueue.address, data)
         }
       )
     })
 
     it('should emit the right event on enqueue', async () => {
       const tx = await safetyTxQueue.connect(randomWallet).enqueueTx(defaultTx)
-      const receipt = await safetyTxQueue.provider.getTransactionReceipt(tx.hash)
+      const receipt = await safetyTxQueue.provider.getTransactionReceipt(
+        tx.hash
+      )
       const topic = receipt.logs[0].topics[0]
 
-      const expectedTopic = safetyTxQueue.filters['CalldataTxEnqueued()']().topics[0]
+      const expectedTopic = safetyTxQueue.filters['CalldataTxEnqueued()']()
+        .topics[0]
 
       topic.should.equal(expectedTopic, `Did not receive expected event!`)
+    })
+
+    it('Should burn _ovmGasLimit/L2_GAS_DISCOUNT_DIVISOR gas to enqueue', async () => {
+      // do an initial enqueue to make subsequent SSTORES equivalently priced
+      await safetyTxQueue.enqueueTx(defaultTx)
+      // specify as hex string to ensure EOA calldata cost is the same
+      const gasLimits: number[] = ['0x22000', '0x33000'].map((num) => {
+        return hexStrToNumber(num)
+      })
+      const [lowerGasLimitTx, higherGasLimitTx] = gasLimits.map((num) => {
+        return GET_TX_WITH_OVM_GAS_LIMIT(num)
+      })
+
+      const lowerLimitEnqueue = await safetyTxQueue.enqueueTx(lowerGasLimitTx)
+      const higherLimitEnqueue = await safetyTxQueue.enqueueTx(higherGasLimitTx)
+
+      const lowerLimitL1GasConsumed = await getGasConsumed(
+        lowerLimitEnqueue,
+        safetyTxQueue.provider
+      )
+      const higherLimitL1GasConsumed = await getGasConsumed(
+        higherLimitEnqueue,
+        safetyTxQueue.provider
+      )
+      const l1GasDiff = higherLimitL1GasConsumed - lowerLimitL1GasConsumed
+
+      const expectedDiff = Math.floor((gasLimits[1] - gasLimits[0]) / 10)
+
+      l1GasDiff.should.equal(expectedDiff)
     })
   })
 
