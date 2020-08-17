@@ -85,7 +85,7 @@ export class EthereumBlockProcessor {
   ): Promise<void> {
     log.debug(`Fetching block [${blockNumber}].`)
     let block: Block = await provider.getBlock(blockNumber, true)
-    log.debug(`Received block: [${JSON.stringify(block)}].`)
+    log.debug(`Received block: ${block.number}.`)
 
     if (
       this.confirmsUntilFinal > 1 &&
