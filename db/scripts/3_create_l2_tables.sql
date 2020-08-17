@@ -32,7 +32,7 @@ CREATE TABLE l2_tx_output (
   tx_hash CHARACTER(66) NOT NULL,
   sender CHARACTER(42) DEFAULT NULL,
   l1_message_sender CHARACTER(42) DEFAULT NULL,
-  target CHARACTER(42) NOT NULL,
+  target CHARACTER(42) DEFAULT NULL,
   nonce NUMERIC(78) NOT NULL,
   gas_limit NUMERIC(78) NOT NULL,
   gas_price NUMERIC(78) NOT NULL,

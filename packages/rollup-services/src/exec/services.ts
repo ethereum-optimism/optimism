@@ -1,6 +1,12 @@
 /* External Imports */
-import { getLogger, ScheduledTask } from '@eth-optimism/core-utils'
-import { BaseDB, getLevelInstance, PostgresDB } from '@eth-optimism/core-db'
+import { getLogger } from '@eth-optimism/core-utils'
+import {
+  BaseDB,
+  DB,
+  EthereumBlockProcessor,
+  getLevelInstance,
+  PostgresDB,
+} from '@eth-optimism/core-db'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 import {
   CalldataTxEnqueuedLogHandler,
@@ -29,9 +35,12 @@ import {
   getL2Provider,
   getSequencerWallet,
   getSubmitToL2GethWallet,
+  getStateRootSubmissionWallet,
 } from '@eth-optimism/rollup-core'
 
 import { Contract, ethers } from 'ethers'
+import * as fs from 'fs'
+import * as rimraf from 'rimraf'
 
 const log = getLogger('service-entrypoint')
 
@@ -43,57 +52,80 @@ const log = getLogger('service-entrypoint')
 export const runServices = async (): Promise<any[]> => {
   log.info(`Running services!`)
   const services: any[] = []
-  const scheduledTasks: ScheduledTask[] = []
+  let l1ChainDataPersister: L1ChainDataPersister
+  let l2ChainDataPersister: L2ChainDataPersister
 
   if (Environment.runL1ChainDataPersister()) {
     log.info(`Running L1 Chain Data Persister`)
-    services.push(await createL1ChainDataPersister())
+    l1ChainDataPersister = await createL1ChainDataPersister()
   }
   if (Environment.runL2ChainDataPersister()) {
     log.info(`Running L2 Chain Data Persister`)
-    services.push(await createL2ChainDataPersister())
+    l2ChainDataPersister = await createL2ChainDataPersister()
   }
   if (Environment.runGethSubmissionQueuer()) {
     log.info(`Running Geth Submission Queuer`)
-    scheduledTasks.push(await createGethSubmissionQueuer())
+    services.push(await createGethSubmissionQueuer())
   }
   if (Environment.runQueuedGethSubmitter()) {
     log.info(`Running Queued Geth Submitter`)
-    scheduledTasks.push(await createQueuedGethSubmitter())
+    services.push(await createQueuedGethSubmitter())
   }
   if (Environment.runCanonicalChainBatchCreator()) {
     log.info(`Running Canonical Chain Batch Creator`)
-    scheduledTasks.push(await createCanonicalChainBatchCreator())
+    services.push(await createCanonicalChainBatchCreator())
   }
   if (Environment.runCanonicalChainBatchSubmitter()) {
     log.info(`Running Canonical Chain Batch Submitter`)
-    scheduledTasks.push(await createCanonicalChainBatchSubmitter())
+    services.push(await createCanonicalChainBatchSubmitter())
   }
   if (Environment.runStateCommitmentChainBatchCreator()) {
     log.info(`Running State Commitment Chain Batch Creator`)
-    scheduledTasks.push(await createStateCommitmentChainBatchCreator())
+    services.push(await createStateCommitmentChainBatchCreator())
   }
   if (Environment.runStateCommitmentChainBatchSubmitter()) {
     log.info(`Running State Commitment Chain Batch Submitter`)
-    scheduledTasks.push(await createStateCommitmentChainBatchSubmitter())
+    services.push(await createStateCommitmentChainBatchSubmitter())
   }
   if (Environment.runFraudDetector()) {
     log.info(`Running Fraud Detector`)
-    scheduledTasks.push(await createFraudDetector())
+    services.push(await createFraudDetector())
   }
-
-  services.push(...scheduledTasks)
 
   if (!services.length) {
     log.error(`No services configured! Exiting =|`)
     process.exit(1)
   }
 
-  await Promise.all(scheduledTasks.map((x) => x.start()))
+  await Promise.all(services.map((x) => x.start()))
+
+  const subscriptions: Array<Promise<any>> = []
+  if (!!l1ChainDataPersister) {
+    services.push(l1ChainDataPersister)
+    const l1Processor: EthereumBlockProcessor = createL1BlockSubscriber()
+    log.info(`Starting to sync L1 chain`)
+    subscriptions.push(
+      l1Processor.subscribe(getL1Provider(), l1ChainDataPersister)
+    )
+  }
+  if (!!l2ChainDataPersister) {
+    services.push(l2ChainDataPersister)
+    const l2Processor: EthereumBlockProcessor = createL2BlockSubscriber()
+    log.info(`Starting to sync L2 chain`)
+    subscriptions.push(
+      l2Processor.subscribe(getL2Provider(), l2ChainDataPersister)
+    )
+  }
 
   setInterval(() => {
     updateEnvironmentVariables()
   }, 179_000)
+
+  if (!!subscriptions.length) {
+    log.debug(`Awaiting chain subscriptions to sync`)
+    await Promise.all(subscriptions)
+    log.debug(`Awaiting chain subscriptions are synced!`)
+  }
 
   return services
 }
@@ -108,59 +140,58 @@ export const runServices = async (): Promise<any[]> => {
  * @returns The L1ChainDataPersister.
  */
 const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
+  log.info(
+    `Creating L1 Chain Data Persister with earliest block ${Environment.l1EarliestBlock()}`
+  )
   return L1ChainDataPersister.create(
-    new BaseDB(
-      getLevelInstance(
-        Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
-      ),
-      256
-    ),
+    getL1BlockProcessorDB(),
     getDataService(),
     getL1Provider(),
     [
       {
-        topic: ethers.utils.id('L1ToL2TxEnqueued(bytes)'),
+        topic: ethers.utils.id('L1ToL2TxEnqueued(bytes)'), // 0x2a9dd32a4056f7419a3a05b09f30cf775204afed73c0981470da34d97ca5e5cd
         contractAddress: Environment.getOrThrow(
           Environment.l1ToL2TransactionQueueContractAddress
         ),
         handleLog: L1ToL2TxEnqueuedLogHandler,
       },
       {
-        topic: ethers.utils.id('event CalldataTxEnqueued()'),
+        topic: ethers.utils.id('CalldataTxEnqueued()'), // 0x3bfa105e8848abd2ed7abb76aee8a24f81bfe56a1c72823d073797f56508dd9e
         contractAddress: Environment.getOrThrow(
           Environment.safetyTransactionQueueContractAddress
         ),
         handleLog: CalldataTxEnqueuedLogHandler,
       },
       {
-        topic: ethers.utils.id('L1ToL2BatchAppended(bytes32)'),
+        topic: ethers.utils.id('L1ToL2BatchAppended(bytes32)'), // 0xe2708ee9d6a896e5f32f6edc61bc83143a1b8e3fbdf2a038c350369d251afb19
         contractAddress: Environment.getOrThrow(
           Environment.canonicalTransactionChainContractAddress
         ),
         handleLog: L1ToL2BatchAppendedLogHandler,
       },
       {
-        topic: ethers.utils.id('SafetyQueueBatchAppended(bytes32)'),
+        topic: ethers.utils.id('SafetyQueueBatchAppended(bytes32)'), // 0x23764fe059fb5258ab47583dab9717481569b4f9631b4bcc7cb8cf2c79d1d5c2
         contractAddress: Environment.getOrThrow(
           Environment.canonicalTransactionChainContractAddress
         ),
         handleLog: SafetyQueueBatchAppendedLogHandler,
       },
       {
-        topic: ethers.utils.id('SequencerBatchAppended(bytes32)'),
+        topic: ethers.utils.id('SequencerBatchAppended(bytes32)'), // 0x256fdb5de9be2f545c62f9b8c453a7f8246978d0e1dd70970cc538b3203ef5ae
         contractAddress: Environment.getOrThrow(
           Environment.canonicalTransactionChainContractAddress
         ),
         handleLog: SequencerBatchAppendedLogHandler,
       },
       {
-        topic: ethers.utils.id('StateBatchAppended(bytes32)'),
+        topic: ethers.utils.id('StateBatchAppended(bytes32)'), // 0x800e6b30fb1a01e9038f324a049522a0231964e8de0aa9e815b35fc0029e8d52
         contractAddress: Environment.getOrThrow(
           Environment.stateCommitmentChainContractAddress
         ),
         handleLog: StateBatchAppendedLogHandler,
       },
-    ]
+    ],
+    Environment.l1EarliestBlock()
   )
 }
 
@@ -171,11 +202,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
  */
 const createL2ChainDataPersister = async (): Promise<L2ChainDataPersister> => {
   return L2ChainDataPersister.create(
-    new BaseDB(
-      getLevelInstance(
-        Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
-      )
-    ),
+    getL2Db(),
     getDataService(),
     getL2Provider()
   )
@@ -194,6 +221,12 @@ const createGethSubmissionQueuer = async (): Promise<GethSubmissionQueuer> => {
   if (!Environment.isSequencerStack()) {
     queueOriginsToSendToGeth.push(QueueOrigin.SEQUENCER)
   }
+  log.info(
+    `Creating GethSubmissionQueuer with queue origins to queue: ${JSON.stringify(
+      queueOriginsToSendToGeth
+    )} and a period of ${Environment.gethSubmissionQueuerPeriodMillis()} millis`
+  )
+
   return new GethSubmissionQueuer(
     getDataService(),
     queueOriginsToSendToGeth,
@@ -207,6 +240,10 @@ const createGethSubmissionQueuer = async (): Promise<GethSubmissionQueuer> => {
  * @returns The QueuedGethSubmitter.
  */
 const createQueuedGethSubmitter = async (): Promise<QueuedGethSubmitter> => {
+  log.info(
+    `Creating QueuedGethSubmitter with a period of ${Environment.queuedGethSubmitterPeriodMillis()} millis`
+  )
+
   return new QueuedGethSubmitter(
     getDataService(),
     getL2NodeService(),
@@ -220,11 +257,20 @@ const createQueuedGethSubmitter = async (): Promise<QueuedGethSubmitter> => {
  * @returns The CanonicalChainBatchCreator.
  */
 const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
+  const minSize: number = Environment.canonicalChainMinBatchSize(10)
+  const maxSize: number = Environment.canonicalChainMaxBatchSize(100)
+  const period: number = Environment.getOrThrow(
+    Environment.canonicalChainBatchCreatorPeriodMillis
+  )
+  log.info(
+    `Creating CanonicalChainBatchCreator with a min/max batch size of [${minSize}/${maxSize}] and period of ${period} millis`
+  )
+
   return new CanonicalChainBatchCreator(
     getDataService(),
-    Environment.canonicalChainMinBatchSize(10),
-    Environment.canonicalChainMaxBatchSize(100),
-    Environment.getOrThrow(Environment.canonicalChainBatchCreatorPeriodMillis)
+    minSize,
+    maxSize,
+    period
   )
 }
 
@@ -234,10 +280,21 @@ const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
  * @returns The CanonicalChainBatchSubmitter.
  */
 const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
+  const contractAddress: string = Environment.getOrThrow(
+    Environment.canonicalTransactionChainContractAddress
+  )
+  const finalityDelay: number = Environment.getOrThrow(
+    Environment.finalityDelayInBlocks
+  )
+  const period: number = Environment.getOrThrow(
+    Environment.canonicalChainBatchSubmitterPeriodMillis
+  )
+  log.info(
+    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+  )
+
   const contract: Contract = new Contract(
-    Environment.getOrThrow(
-      Environment.canonicalTransactionChainContractAddress
-    ),
+    contractAddress,
     getContractDefinition('CanonicalTransactionChain').abi,
     getSequencerWallet()
   )
@@ -245,8 +302,8 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
   return new CanonicalChainBatchSubmitter(
     getDataService(),
     contract,
-    Environment.getOrThrow(Environment.finalityDelayInBlocks),
-    Environment.getOrThrow(Environment.canonicalChainBatchSubmitterPeriodMillis)
+    finalityDelay,
+    period
   )
 }
 
@@ -256,13 +313,20 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
  * @returns The StateCommitmentChainBatchCreator.
  */
 const createStateCommitmentChainBatchCreator = (): StateCommitmentChainBatchCreator => {
+  const minSize: number = Environment.stateCommitmentChainMinBatchSize(10)
+  const maxSize: number = Environment.stateCommitmentChainMaxBatchSize(100)
+  const period: number = Environment.getOrThrow(
+    Environment.stateCommitmentChainBatchCreatorPeriodMillis
+  )
+  log.info(
+    `Creating StateCommitmentChainBatchCreator with a min/max batch size of [${minSize}/${maxSize}] and period of ${period} millis`
+  )
+
   return new StateCommitmentChainBatchCreator(
     getDataService(),
-    Environment.stateCommitmentChainMinBatchSize(10),
-    Environment.stateCommitmentChainMaxBatchSize(100),
-    Environment.getOrThrow(
-      Environment.stateCommitmentChainBatchCreatorPeriodMillis
-    )
+    minSize,
+    maxSize,
+    period
   )
 }
 
@@ -272,17 +336,28 @@ const createStateCommitmentChainBatchCreator = (): StateCommitmentChainBatchCrea
  * @returns The StateCommitmentChainBatchSubmitter.
  */
 const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSubmitter => {
+  const contractAddress: string = Environment.getOrThrow(
+    Environment.stateCommitmentChainContractAddress
+  )
+  const finalityDelay: number = Environment.getOrThrow(
+    Environment.finalityDelayInBlocks
+  )
+  const period: number = Environment.getOrThrow(
+    Environment.stateCommitmentChainBatchSubmitterPeriodMillis
+  )
+  log.info(
+    `Creating StateCommitmentChainBatchSubmitter with the state commitment chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+  )
+
   return new StateCommitmentChainBatchSubmitter(
     getDataService(),
     new Contract(
-      Environment.getOrThrow(Environment.stateCommitmentChainContractAddress),
+      contractAddress,
       getContractDefinition('StateCommitmentChain').abi,
-      getSequencerWallet()
+      getStateRootSubmissionWallet()
     ),
-    Environment.getOrThrow(Environment.finalityDelayInBlocks),
-    Environment.getOrThrow(
-      Environment.stateCommitmentChainBatchSubmitterPeriodMillis
-    )
+    finalityDelay,
+    period
   )
 }
 
@@ -292,19 +367,71 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
  * @returns The FraudDetector.
  */
 const createFraudDetector = (): FraudDetector => {
+  const period: number = Environment.getOrThrow(
+    Environment.fraudDetectorPeriodMillis
+  )
+  const realertEvery: number = Environment.getOrThrow(
+    Environment.reAlertOnUnresolvedFraudEveryNFraudDetectorRuns
+  )
+  log.info(
+    `Creating FraudDetector with a period of ${period} millis and a re-alert threshold of ${realertEvery} runs.`
+  )
+
   return new FraudDetector(
     getDataService(),
     undefined, // TODO: ADD FRAUD PROVER HERE WHEN THERE IS ONE
-    Environment.getOrThrow(Environment.fraudDetectorPeriodMillis),
-    Environment.getOrThrow(
-      Environment.reAlertOnUnresolvedFraudEveryNFraudDetectorRuns
-    )
+    period,
+    realertEvery
   )
+}
+
+const createL1BlockSubscriber = (): EthereumBlockProcessor => {
+  return new EthereumBlockProcessor(
+    getL1BlockProcessorDB(),
+    Environment.getOrThrow(Environment.l1EarliestBlock),
+    Environment.getOrThrow(Environment.finalityDelayInBlocks)
+  )
+}
+
+const createL2BlockSubscriber = (): EthereumBlockProcessor => {
+  return new EthereumBlockProcessor(getL2Db(), 0, 1)
 }
 
 /*********************
  * HELPER SINGLETONS *
  *********************/
+
+let l1BlockProcessorDb: DB
+const getL1BlockProcessorDB = (): DB => {
+  if (!l1BlockProcessorDb) {
+    clearDataIfNecessary(
+      Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
+    )
+    l1BlockProcessorDb = new BaseDB(
+      getLevelInstance(
+        Environment.getOrThrow(Environment.l1ChainDataPersisterLevelDbPath)
+      ),
+      256
+    )
+  }
+  return l1BlockProcessorDb
+}
+
+let l2Db: DB
+const getL2Db = (): DB => {
+  if (!l2Db) {
+    clearDataIfNecessary(
+      Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
+    )
+    l2Db = new BaseDB(
+      getLevelInstance(
+        Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
+      ),
+      256
+    )
+  }
+  return l2Db
+}
 
 let dataService: DataService
 const getDataService = (): DataService => {
@@ -330,4 +457,44 @@ const getL2NodeService = (): L2NodeService => {
     l2NodeService = new DefaultL2NodeService(getSubmitToL2GethWallet())
   }
   return l2NodeService
+}
+
+/**
+ * Clears filesystem data at provided path if the Clear Data Key is set and changed
+ * since the last startup.
+ *
+ * @param basePath The path to the data directory.
+ */
+const clearDataIfNecessary = (basePath: string): void => {
+  if (
+    Environment.clearDataKey() &&
+    !fs.existsSync(getClearDataFilePath(basePath))
+  ) {
+    log.info(`Detected change in CLEAR_DATA_KEY. Purging data from ${basePath}`)
+    rimraf.sync(`${basePath}/{*,.*}`)
+    log.info(`Data purged from '${basePath}/{*,.*}'`)
+    makeDataDirectory(basePath)
+  }
+}
+
+/**
+ * Makes a data directory at the provided base path.
+ *
+ * @param basePath The path at which a data directory should be created.
+ */
+const makeDataDirectory = (basePath: string) => {
+  fs.mkdirSync(basePath, { recursive: true })
+  if (Environment.clearDataKey()) {
+    fs.writeFileSync(getClearDataFilePath(basePath), '')
+  }
+}
+
+/**
+ * Gets the path of the Clear Data file for the provided base path.
+ *
+ * @param basePath The path to the data directory.
+ * @returns The full path to the clearData file.
+ */
+const getClearDataFilePath = (basePath: string): string => {
+  return `${basePath}/.clear_data_key_${Environment.clearDataKey()}`
 }

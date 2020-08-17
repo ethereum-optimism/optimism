@@ -13,4 +13,4 @@ WORKDIR /server/packages/rollup-services
 RUN apt-get update
 RUN apt-get install -y postgresql-client
 
-ENTRYPOINT [ "bash", "./exec/wait_for_postgres.sh", "yarn", "run", "services" ]
+ENTRYPOINT [ "bash", "./exec/wait_for_postgres_and_geth.sh", "yarn", "run", "services" ]

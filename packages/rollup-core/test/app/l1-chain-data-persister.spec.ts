@@ -161,16 +161,16 @@ const getBlock = (hash: string, number: number = 0, timestamp: number = 1) => {
 }
 
 class MockProvider extends JsonRpcProvider {
-  public logsToReturn: Log[]
+  public topicToLogsToReturn: Map<string, Log[]>
   public txsToReturn: Map<string, TransactionResponse>
   constructor() {
     super()
-    this.logsToReturn = []
+    this.topicToLogsToReturn = new Map<string, Log[]>()
     this.txsToReturn = new Map<string, TransactionResponse>()
   }
 
   public async getLogs(filter): Promise<Log[]> {
-    return this.logsToReturn
+    return this.topicToLogsToReturn.get(filter.topics[0]) || []
   }
 
   public async getTransaction(hash): Promise<TransactionResponse> {
@@ -234,7 +234,7 @@ describe('L1 Chain Data Persister', () => {
         []
       )
 
-      provider.logsToReturn.push(getLog(['derp'], ZERO_ADDRESS))
+      provider.topicToLogsToReturn.set('derp', [getLog(['derp'], ZERO_ADDRESS)])
 
       const block = getBlock(keccak256FromUtf8('derp'))
       await chainDataPersister.handle(block)
@@ -267,7 +267,7 @@ describe('L1 Chain Data Persister', () => {
         [logHandlerContext]
       )
 
-      provider.logsToReturn.push(getLog(['derp'], ZERO_ADDRESS))
+      provider.topicToLogsToReturn.set('derp', [getLog(['derp'], ZERO_ADDRESS)])
 
       const block = getBlock(keccak256FromUtf8('derp'))
       await chainDataPersister.handle(block)
@@ -293,7 +293,7 @@ describe('L1 Chain Data Persister', () => {
         [errorLogHandlerContext]
       )
 
-      provider.logsToReturn.push(getLog([topic], ZERO_ADDRESS))
+      provider.topicToLogsToReturn.set(topic, [getLog([topic], ZERO_ADDRESS)])
 
       await chainDataPersister.handle(defaultBlock)
 
@@ -332,7 +332,9 @@ describe('L1 Chain Data Persister', () => {
 
       const tx: TransactionResponse = getTransactionResponse()
       provider.txsToReturn.set(tx.hash, tx)
-      provider.logsToReturn.push(getLog([topic], contractAddress, tx.hash))
+      provider.topicToLogsToReturn.set(topic, [
+        getLog([topic], contractAddress, tx.hash),
+      ])
 
       await chainDataPersister.handle(defaultBlock)
 
@@ -387,7 +389,9 @@ describe('L1 Chain Data Persister', () => {
 
       const tx: TransactionResponse = getTransactionResponse()
       provider.txsToReturn.set(tx.hash, tx)
-      provider.logsToReturn.push(getLog([topic], contractAddress, tx.hash))
+      provider.topicToLogsToReturn.set(topic, [
+        getLog([topic], contractAddress, tx.hash),
+      ])
 
       await chainDataPersister.handle(defaultBlock)
 
@@ -457,9 +461,9 @@ describe('L1 Chain Data Persister', () => {
 
       const tx: TransactionResponse = getTransactionResponse()
       provider.txsToReturn.set(tx.hash, tx)
-      provider.logsToReturn.push(
-        getLog([topic, topic2], contractAddress, tx.hash)
-      )
+      provider.topicToLogsToReturn.set(topic2, [
+        getLog([topic, topic2], contractAddress, tx.hash),
+      ])
 
       await chainDataPersister.handle(defaultBlock)
 
@@ -547,10 +551,12 @@ describe('L1 Chain Data Persister', () => {
       )
       provider.txsToReturn.set(tx.hash, tx)
       provider.txsToReturn.set(tx2.hash, tx2)
-      provider.logsToReturn.push(
+      provider.topicToLogsToReturn.set(topic, [
         getLog([topic], contractAddress, tx.hash),
-        getLog([topic2], contractAddress, tx2.hash)
-      )
+      ])
+      provider.topicToLogsToReturn.set(topic2, [
+        getLog([topic2], contractAddress, tx2.hash),
+      ])
 
       await chainDataPersister.handle(defaultBlock)
 
@@ -628,7 +634,9 @@ describe('L1 Chain Data Persister', () => {
 
         await sleep(1_000)
 
-        provider.logsToReturn.push(getLog([topic], contractAddress, tx.hash))
+        provider.topicToLogsToReturn.set(topic, [
+          getLog([topic], contractAddress, tx.hash),
+        ])
 
         const blockTwo = { ...defaultBlock }
         blockTwo.number = 1

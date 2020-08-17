@@ -58,8 +58,15 @@ export class DefaultL2NodeService implements L2NodeService {
     const hexPayload: string = strToHexStr(payload)
     const signedPayload: string = await this.l2Wallet.signMessage(hexPayload)
 
-    await this.l2Provider.send(DefaultL2NodeService.sendGethSubmission, [
-      [hexPayload, signedPayload],
-    ])
+    log.debug(
+      `Sending Geth Submission #${gethSubmission.submissionNumber}: ${hexPayload}`
+    )
+
+    const res = await this.l2Provider.send(
+      DefaultL2NodeService.sendGethSubmission,
+      [[hexPayload, signedPayload]]
+    )
+
+    log.debug(`Got response from geth: ${JSON.stringify(res)}`)
   }
 }
