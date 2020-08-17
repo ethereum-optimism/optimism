@@ -62,8 +62,10 @@ describe('Block Subscription', () => {
 
     const blocks: Block[] = await blockListener.waitForSyncToComplete()
 
-    blocks[0].number.should.equal(0)
-    blocks[1].number.should.equal(1)
+    blocks
+      .map((x) => x.number)
+      .sort()
+      .should.deep.equal([0, 1], `Incorrect blocks received!`)
   }).timeout(timeout)
 
   it('processes old blocks starting at 1', async () => {
