@@ -1,0 +1,10 @@
+{
+  "extends": "./../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./build",
+    "baseUrl": "./",
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "include": ["*.ts", "**/*.ts"]
+}

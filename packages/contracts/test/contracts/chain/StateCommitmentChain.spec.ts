@@ -2,7 +2,12 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  padToLength,
+  sleep,
+  TestUtils,
+} from '@eth-optimism/core-utils'
 import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
@@ -19,7 +24,10 @@ const log = getLogger('state-commitment-chain', true)
 
 /* Tests */
 describe('StateCommitmentChain', () => {
-  const DEFAULT_STATE_BATCH = ['0x1234', '0x5678']
+  const DEFAULT_STATE_BATCH = [
+    padToLength('0x1234', 64),
+    padToLength('0x5678', 64),
+  ]
   const DEFAULT_TX_BATCH = [
     '0x1234',
     '0x5678',
@@ -235,7 +243,14 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should return false for wrong position with wrong indexInBatch', async () => {
-      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const batch = [
+        padToLength('0x1234', 64),
+        padToLength('0x4567', 64),
+        padToLength('0x890a', 64),
+        padToLength('0x4567', 64),
+        padToLength('0x890a', 64),
+        padToLength('0xabcd', 64),
+      ]
       const localBatch = await appendAndGenerateStateBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]
@@ -254,7 +269,14 @@ describe('StateCommitmentChain', () => {
     })
 
     it('should return false for wrong position and matching indexInBatch', async () => {
-      const batch = ['0x1234', '0x4567', '0x890a', '0x4567', '0x890a', '0xabcd']
+      const batch = [
+        padToLength('0x1234', 64),
+        padToLength('0x4567', 64),
+        padToLength('0x890a', 64),
+        padToLength('0x4567', 64),
+        padToLength('0x890a', 64),
+        padToLength('0xabcd', 64),
+      ]
       const localBatch = await appendAndGenerateStateBatch(batch)
       const elementIndex = 1
       const element = batch[elementIndex]

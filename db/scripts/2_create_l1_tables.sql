@@ -71,9 +71,10 @@ CREATE TABLE l1_rollup_state_root (
   removed BOOLEAN NOT NULL DEFAULT FALSE,
   created TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (id),
-  UNIQUE (state_root),
   FOREIGN KEY (batch_number) REFERENCES l1_rollup_state_root_batch (batch_number)
 );
+CREATE INDEX l1_rollup_state_root_state_root_idx ON l1_rollup_state_root USING btree (state_root);
+
 
 
 
@@ -96,7 +97,7 @@ CREATE TABLE l1_rollup_tx (
   PRIMARY KEY (id),
   FOREIGN KEY (l1_tx_hash) REFERENCES l1_tx (tx_hash),
   FOREIGN KEY (geth_submission_queue_index) REFERENCES geth_submission_queue(queue_index)
-)
+);
 
 /* ROLLBACK SCRIPT
    DROP TABLE l1_rollup_tx;

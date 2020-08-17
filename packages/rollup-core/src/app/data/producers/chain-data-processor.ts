@@ -4,7 +4,13 @@ import {
   DB,
   EthereumListener,
 } from '@eth-optimism/core-db'
-import { BigNumber, getLogger, Logger } from '@eth-optimism/core-utils'
+import {
+  BigNumber,
+  getLogger,
+  hexStrToString,
+  Logger,
+  strToHexStr,
+} from '@eth-optimism/core-utils'
 
 import { Block } from 'ethers/providers'
 
@@ -16,8 +22,8 @@ const log: Logger = getLogger('chain-data-persister')
 export abstract class ChainDataProcessor
   extends BaseQueuedPersistedProcessor<Block>
   implements EthereumListener<Block> {
-  protected constructor(db: DB, persistenceKey: string) {
-    super(db, persistenceKey)
+  protected constructor(db: DB, persistenceKey: string, startIndex: number) {
+    super(db, persistenceKey, startIndex)
   }
 
   /**
@@ -40,6 +46,11 @@ export abstract class ChainDataProcessor
    * @inheritDoc
    */
   protected async deserializeItem(itemBuffer: Buffer): Promise<Block> {
+    if (!itemBuffer || itemBuffer.length === 0) {
+      log.error(`Deserialized empty block ${itemBuffer}. Returning undefined.`)
+      return undefined
+    }
+
     return JSON.parse(itemBuffer.toString('utf-8'), (key, val) => {
       if (key === 'gasLimit' || key === 'gasUsed') {
         return !!val ? new BigNumber(val, 'hex') : undefined
@@ -58,13 +69,14 @@ export abstract class ChainDataProcessor
           try {
             return val.toHexString()
           } catch (e) {
+            log.debug(`Error converting key ${key} to hex. Val: ${val}.`)
             // need to use null because undefined will omit the value.
             return null
           }
         }
         return val
       }),
-      'hex'
+      'utf-8'
     )
   }
 }

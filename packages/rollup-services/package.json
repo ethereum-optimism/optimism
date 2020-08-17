@@ -33,12 +33,12 @@
     "@eth-optimism/core-utils": "^0.0.1-alpha.26",
     "@eth-optimism/rollup-core": "^0.0.1-alpha.27",
     "@eth-optimism/rollup-contracts": "^0.0.1-alpha.27",
-    "ethers": "^4.0.39"
+    "ethers": "^4.0.39",
+    "rimraf": "^2.6.3"
   },
   "devDependencies": {
     "@types/abstract-leveldown": "^5.0.1",
     "@types/node": "^12.0.7",
-    "rimraf": "^2.6.3",
     "ts-node": "^8.2.0",
     "typescript": "^3.5.1"
   },

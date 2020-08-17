@@ -42,6 +42,7 @@ export class QueuedGethSubmitter extends ScheduledTask {
     }
 
     try {
+      log.debug(`Submitting Geth Submission ${gethSubmission.submissionNumber}`)
       await this.l2NodeService.sendGethSubmission(gethSubmission)
     } catch (e) {
       logError(

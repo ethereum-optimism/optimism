@@ -9,6 +9,7 @@ import { FraudDetector } from '../../src/app'
 class MockVerifierDataService implements VerifierDataService {
   public readonly verificationCandidates: VerificationCandidate[] = []
   public readonly batchesVerified: number[] = []
+  public readonly fraudulentBatches: number[] = []
 
   public async getNextVerificationCandidate(): Promise<VerificationCandidate> {
     return this.verificationCandidates.shift()
@@ -16,6 +17,12 @@ class MockVerifierDataService implements VerifierDataService {
 
   public async verifyStateRootBatch(batchNumber): Promise<void> {
     this.batchesVerified.push(batchNumber)
+  }
+
+  public async markVerificationCandidateFraudulent(
+    batchNumber: number
+  ): Promise<void> {
+    this.fraudulentBatches.push(batchNumber)
   }
 }
 
@@ -66,6 +73,10 @@ describe('Fraud Detector', () => {
       1,
       `Batch 1 should be verified!`
     )
+    dataService.fraudulentBatches.length.should.equal(
+      0,
+      'There should be no fraudulent batches!'
+    )
 
     fraudProver.provenFraud.length.should.equal(
       0,
@@ -79,6 +90,10 @@ describe('Fraud Detector', () => {
     dataService.batchesVerified.length.should.equal(
       0,
       `Batch should not be verified!`
+    )
+    dataService.fraudulentBatches.length.should.equal(
+      0,
+      'There should be no fraudulent batches!'
     )
     fraudProver.provenFraud.length.should.equal(
       0,
@@ -100,6 +115,10 @@ describe('Fraud Detector', () => {
       0,
       `Batch should not be verified!`
     )
+    dataService.fraudulentBatches.length.should.equal(
+      0,
+      'There should be no fraudulent batches!'
+    )
     fraudProver.provenFraud.length.should.equal(
       0,
       `No fraud should have been proven!`
@@ -119,6 +138,10 @@ describe('Fraud Detector', () => {
     dataService.batchesVerified.length.should.equal(
       0,
       `Batch should not be verified!`
+    )
+    dataService.fraudulentBatches.length.should.equal(
+      0,
+      'There should be no fraudulent batches!'
     )
     fraudProver.provenFraud.length.should.equal(
       0,
@@ -147,6 +170,14 @@ describe('Fraud Detector', () => {
     fraudProver.provenFraud.length.should.equal(
       1,
       `Fraud should have been proven!`
+    )
+    dataService.fraudulentBatches.length.should.equal(
+      1,
+      'There should be a fraudulent batch!'
+    )
+    dataService.fraudulentBatches[0].should.equal(
+      1,
+      'Incorrect fraudulent batch number!'
     )
     fraudProver.provenFraud[0].batchNumber.should.equal(
       1,
@@ -180,6 +211,14 @@ describe('Fraud Detector', () => {
       1,
       `Fraud should have been proven!`
     )
+    dataService.fraudulentBatches.length.should.equal(
+      1,
+      'There should be a fraudulent batch!'
+    )
+    dataService.fraudulentBatches[0].should.equal(
+      1,
+      'Incorrect fraudulent batch number!'
+    )
     fraudProver.provenFraud[0].batchNumber.should.equal(
       1,
       `Incorrect fraud batch number!`
@@ -208,6 +247,14 @@ describe('Fraud Detector', () => {
     dataService.batchesVerified.length.should.equal(
       0,
       `Batch should not be verified!`
+    )
+    dataService.fraudulentBatches.length.should.equal(
+      1,
+      'There should be a fraudulent batch!'
+    )
+    dataService.fraudulentBatches[0].should.equal(
+      1,
+      'Incorrect fraudulent batch number!'
     )
     fraudProver.provenFraud.length.should.equal(
       1,
@@ -246,6 +293,14 @@ describe('Fraud Detector', () => {
     dataService.batchesVerified.length.should.equal(
       0,
       `Batch should not be verified!`
+    )
+    dataService.fraudulentBatches.length.should.equal(
+      1,
+      'There should be a fraudulent batch!'
+    )
+    dataService.fraudulentBatches[0].should.equal(
+      1,
+      'Incorrect fraudulent batch number!'
     )
     fraudProver.provenFraud.length.should.equal(
       1,

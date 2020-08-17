@@ -39,3 +39,6 @@ npm-debug.log
 /packages/docs/src/core/_build/
 /packages/docs/src/core/bin/
 /packages/docs/src/core/env/
+
+# Local Dockerfiles
+docker-compose.*.mine.yml

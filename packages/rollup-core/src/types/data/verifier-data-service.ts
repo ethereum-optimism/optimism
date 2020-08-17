@@ -14,4 +14,11 @@ export interface VerifierDataService {
    * @param batchNumber The batch number in question
    */
   verifyStateRootBatch(batchNumber): Promise<void>
+
+  /**
+   * Marks the Verification Candidate with the provided batch number as fraudulent.
+   *
+   * @param batchNumber The batch number in question
+   */
+  markVerificationCandidateFraudulent(batchNumber: number): Promise<void>
 }

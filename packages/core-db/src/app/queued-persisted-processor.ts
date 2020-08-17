@@ -6,6 +6,7 @@ import {
   hexStrToBuf,
   logError,
   Logger,
+  sleep,
 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -220,9 +221,19 @@ export abstract class BaseQueuedPersistedProcessor<T>
       (index === this.nextIndexToProcess ||
         (allowRetries && index === this.nextIndexToProcess - 1))
     ) {
-      await this.setNextToProcess(index + 1)
-      this.log(`Handling index ${index}.`)
-      return this.handleNextItem(index, item)
+      try {
+        await this.setNextToProcess(index + 1)
+        this.log(`Handling index ${index}.`)
+        await this.handleNextItem(index, item)
+      } catch (e) {
+        logError(log, `Error handling item ${index}. Going to retry.`, e)
+        await sleep(1000)
+        return this.handleIfReady(index, item, allowRetries)
+      }
+    } else {
+      this.log(
+        `Cannot handle ${index} yet. last processed: ${this.lastIndexProcessed}. Next to process: ${this.nextIndexToProcess}`
+      )
     }
   }
 
@@ -235,7 +246,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
   private async persistItem(index: number, item: T): Promise<void> {
     const serializedItem: Buffer = await this.serializeItem(item)
     await this.db.put(this.getStorageKeyForIndex(index), serializedItem)
-    this.log(`Persisted item with index ${index}`)
+    this.log(`Persisted item with index ${index}: ${serializedItem}`)
   }
 
   /**

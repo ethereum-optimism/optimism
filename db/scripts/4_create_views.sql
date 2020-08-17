@@ -52,7 +52,22 @@ WHERE
 ORDER BY l1.batch_index ASC
 ;
 
+
+CREATE OR REPLACE VIEW batchable_l2_only_tx_states
+AS
+
+SELECT tx.*, row_number() over (ORDER BY tx.id ASC) -1 AS row_number
+FROM l2_tx_output tx
+  INNER JOIN canonical_chain_batch cc
+    ON tx.canonical_chain_batch_number = cc.batch_number
+WHERE
+  tx.state_commitment_chain_batch_number IS NULL
+  AND cc.status = 'FINALIZED'
+ORDER BY tx.block_number ASC, tx.tx_index ASC
+;
+
 /** Rollback script:
+  DROP VIEW batchable_l2_only_tx_states;
   DROP VIEW next_verification_batch;
   DROP VIEW next_queued_geth_submission;
   DROP VIEW unqueued_rollup_tx;
