@@ -86,8 +86,9 @@ describe('L1ToL2TransactionQueue', () => {
       )
       const topic = receipt.logs[0].topics[0]
 
-      const expectedTopic = l1ToL2TxQueue.filters['L1ToL2TxEnqueued(address,address,uint32,bytes)']()
-        .topics[0]
+      const expectedTopic = l1ToL2TxQueue.filters[
+        'L1ToL2TxEnqueued(address,address,uint32,bytes)'
+      ]().topics[0]
 
       topic.should.equal(expectedTopic, `Did not receive expected event!`)
     })

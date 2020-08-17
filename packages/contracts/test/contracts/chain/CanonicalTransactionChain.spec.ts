@@ -841,9 +841,12 @@ describe('CanonicalTransactionChain', () => {
 
     it('should emit L1ToL2TxEnqueued event when enqueuing L1 To L2 batch', async () => {
       let enqueuedTx: any[]
-      l1ToL2Queue.on(l1ToL2Queue.filters['L1ToL2TxEnqueued(address,address,uint32,bytes)'](), (...data) => {
-        enqueuedTx = [data[0], data[1], data[2], data[3]]
-      })
+      l1ToL2Queue.on(
+        l1ToL2Queue.filters['L1ToL2TxEnqueued(address,address,uint32,bytes)'](),
+        (...data) => {
+          enqueuedTx = [data[0], data[1], data[2], data[3]]
+        }
+      )
 
       const localBatch: TxQueueBatch = await enqueueAndGenerateL1ToL2Batch(
         DEFAULT_L1_L2_MESSAGE_PARAMS
@@ -855,7 +858,7 @@ describe('CanonicalTransactionChain', () => {
       receivedTx.should.equal(true, `Did not receive expected event!`)
 
       const encodedEnqueuedTx = abi.encode(
-        ['address','address','uint32','bytes'],
+        ['address', 'address', 'uint32', 'bytes'],
         enqueuedTx
       )
 
