@@ -80,43 +80,53 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       `handling block ${block.number}. Searching for any relevant logs.`
     )
 
-    const logs: Log[] = await this.getLogsForBlock(block.hash)
+    let relevantLogs: Log[]
+    let txs: TransactionResponse[]
 
-    log.debug(
-      `Got ${logs.length} logs from block ${block.number}: ${JSON.stringify(
-        logs
-      )}`
-    )
+    try {
+      const logs: Log[] = await this.getLogsForBlock(block.hash)
 
-    const relevantLogs = logs
-      .filter(
-        (x) =>
-          x.topics.filter(
-            (y) =>
-              !!this.topicMap.get(y) &&
-              this.topicMap.get(y).contractAddress === x.address
-          ).length > 0
-      )
-      .sort((a, b) => a.logIndex - b.logIndex)
-
-    if (!relevantLogs || !relevantLogs.length) {
       log.debug(
-        `No relevant logs found in block ${block.number}. Storing block and moving on.`
+        `Got ${logs.length} logs from block ${block.number}: ${JSON.stringify(
+          logs
+        )}`
       )
-      await this.l1DataService.insertL1Block(block, true)
-      await this.markProcessed(index)
-      return
+
+      relevantLogs = logs
+        .filter(
+          (x) =>
+            x.topics.filter(
+              (y) =>
+                !!this.topicMap.get(y) &&
+                this.topicMap.get(y).contractAddress === x.address
+            ).length > 0
+        )
+        .sort((a, b) => a.logIndex - b.logIndex)
+
+      if (!relevantLogs || !relevantLogs.length) {
+        log.debug(
+          `No relevant logs found in block ${block.number}. Storing block and moving on.`
+        )
+        await this.l1DataService.insertL1Block(block, true)
+        await this.markProcessed(index)
+        return
+      }
+
+      log.debug(
+        `Handling ${relevantLogs.length} relevant logs from block ${
+          block.number
+        }: ${JSON.stringify(relevantLogs)}`
+      )
+
+      txs = await Promise.all(
+        relevantLogs.map((l) =>
+          this.l1Provider.getTransaction(l.transactionHash)
+        )
+      )
+    } catch (e) {
+      this.logError(`Error parsing block ${block.number}`, e)
+      throw e
     }
-
-    log.debug(
-      `Handling ${relevantLogs.length} relevant logs from block ${
-        block.number
-      }: ${JSON.stringify(relevantLogs)}`
-    )
-
-    const txs: TransactionResponse[] = await Promise.all(
-      relevantLogs.map((l) => this.l1Provider.getTransaction(l.transactionHash))
-    )
 
     try {
       log.debug(

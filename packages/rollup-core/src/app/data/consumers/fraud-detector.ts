@@ -54,6 +54,11 @@ export class FraudDetector extends ScheduledTask {
           log.error(
             `Batch #${verifierCandidate.batchNumber} state roots differ at index ${i}! L1 root: ${root.l1Root}, Geth root: ${root.gethRoot}`
           )
+          if (this.fraudCount === 0) {
+            await this.dataService.markVerificationCandidateFraudulent(
+              verifierCandidate.batchNumber
+            )
+          }
           if (!!this.fraudProver) {
             await this.fraudProver.proveFraud(verifierCandidate.batchNumber, i)
           } else {

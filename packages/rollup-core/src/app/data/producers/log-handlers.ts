@@ -24,6 +24,7 @@ import {
   RollupTransaction,
 } from '../../../types'
 import { CHAIN_ID } from '../../constants'
+import { Environment } from '../../util'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger('log-handler')
@@ -335,7 +336,7 @@ export const SequencerBatchAppendedLogHandler = async (
   const batchNumber = await ds.insertL1RollupTransactions(
     l.transactionHash,
     rollupTransactions,
-    true
+    !Environment.isSequencerStack()
   )
   log.debug(`Sequencer batch number ${batchNumber} successfully created!`)
 }

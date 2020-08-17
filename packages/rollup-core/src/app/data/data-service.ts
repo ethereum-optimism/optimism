@@ -160,6 +160,7 @@ export class DefaultDataService implements DataService {
     if (!txHashRes || !txHashRes.length || !txHashRes[0]['l1_tx_hash']) {
       return -1
     }
+    log.debug(`Next Geth Submission res: ${JSON.stringify(txHashRes)}`)
 
     const txHash = txHashRes[0]['l1_tx_hash']
     const txLogIndex = txHashRes[0]['l1_tx_log_index']
@@ -733,10 +734,24 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async verifyStateRootBatch(batchNumber): Promise<void> {
+  public async verifyStateRootBatch(batchNumber: number): Promise<void> {
     await this.rdb.execute(
       `UPDATE l1_rollup_state_root_batch
       SET status = '${VerificationStatus.VERIFIED}'
+      WHERE batch_number = ${batchNumber}
+        AND status = '${VerificationStatus.UNVERIFIED}'`
+    )
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markVerificationCandidateFraudulent(
+    batchNumber: number
+  ): Promise<void> {
+    await this.rdb.execute(
+      `UPDATE l1_rollup_state_root_batch
+      SET status = '${VerificationStatus.FRAUDULENT}'
       WHERE batch_number = ${batchNumber}
         AND status = '${VerificationStatus.UNVERIFIED}'`
     )

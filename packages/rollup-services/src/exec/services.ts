@@ -140,6 +140,9 @@ export const runServices = async (): Promise<any[]> => {
  * @returns The L1ChainDataPersister.
  */
 const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
+  log.info(
+    `Creating L1 Chain Data Persister with earliest block ${Environment.l1EarliestBlock()}`
+  )
   return L1ChainDataPersister.create(
     getL1BlockProcessorDB(),
     getDataService(),
@@ -218,6 +221,12 @@ const createGethSubmissionQueuer = async (): Promise<GethSubmissionQueuer> => {
   if (!Environment.isSequencerStack()) {
     queueOriginsToSendToGeth.push(QueueOrigin.SEQUENCER)
   }
+  log.info(
+    `Creating GethSubmissionQueuer with queue origins to queue: ${JSON.stringify(
+      queueOriginsToSendToGeth
+    )} and a period of ${Environment.gethSubmissionQueuerPeriodMillis()} millis`
+  )
+
   return new GethSubmissionQueuer(
     getDataService(),
     queueOriginsToSendToGeth,
@@ -231,6 +240,10 @@ const createGethSubmissionQueuer = async (): Promise<GethSubmissionQueuer> => {
  * @returns The QueuedGethSubmitter.
  */
 const createQueuedGethSubmitter = async (): Promise<QueuedGethSubmitter> => {
+  log.info(
+    `Creating QueuedGethSubmitter with a period of ${Environment.queuedGethSubmitterPeriodMillis()} millis`
+  )
+
   return new QueuedGethSubmitter(
     getDataService(),
     getL2NodeService(),
@@ -244,11 +257,20 @@ const createQueuedGethSubmitter = async (): Promise<QueuedGethSubmitter> => {
  * @returns The CanonicalChainBatchCreator.
  */
 const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
+  const minSize: number = Environment.canonicalChainMinBatchSize(10)
+  const maxSize: number = Environment.canonicalChainMaxBatchSize(100)
+  const period: number = Environment.getOrThrow(
+    Environment.canonicalChainBatchCreatorPeriodMillis
+  )
+  log.info(
+    `Creating CanonicalChainBatchCreator with a min/max batch size of [${minSize}/${maxSize}] and period of ${period} millis`
+  )
+
   return new CanonicalChainBatchCreator(
     getDataService(),
-    Environment.canonicalChainMinBatchSize(10),
-    Environment.canonicalChainMaxBatchSize(100),
-    Environment.getOrThrow(Environment.canonicalChainBatchCreatorPeriodMillis)
+    minSize,
+    maxSize,
+    period
   )
 }
 
@@ -258,10 +280,21 @@ const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
  * @returns The CanonicalChainBatchSubmitter.
  */
 const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
+  const contractAddress: string = Environment.getOrThrow(
+    Environment.canonicalTransactionChainContractAddress
+  )
+  const finalityDelay: number = Environment.getOrThrow(
+    Environment.finalityDelayInBlocks
+  )
+  const period: number = Environment.getOrThrow(
+    Environment.canonicalChainBatchSubmitterPeriodMillis
+  )
+  log.info(
+    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+  )
+
   const contract: Contract = new Contract(
-    Environment.getOrThrow(
-      Environment.canonicalTransactionChainContractAddress
-    ),
+    contractAddress,
     getContractDefinition('CanonicalTransactionChain').abi,
     getSequencerWallet()
   )
@@ -269,8 +302,8 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
   return new CanonicalChainBatchSubmitter(
     getDataService(),
     contract,
-    Environment.getOrThrow(Environment.finalityDelayInBlocks),
-    Environment.getOrThrow(Environment.canonicalChainBatchSubmitterPeriodMillis)
+    finalityDelay,
+    period
   )
 }
 
@@ -280,13 +313,20 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
  * @returns The StateCommitmentChainBatchCreator.
  */
 const createStateCommitmentChainBatchCreator = (): StateCommitmentChainBatchCreator => {
+  const minSize: number = Environment.stateCommitmentChainMinBatchSize(10)
+  const maxSize: number = Environment.stateCommitmentChainMaxBatchSize(100)
+  const period: number = Environment.getOrThrow(
+    Environment.stateCommitmentChainBatchCreatorPeriodMillis
+  )
+  log.info(
+    `Creating StateCommitmentChainBatchCreator with a min/max batch size of [${minSize}/${maxSize}] and period of ${period} millis`
+  )
+
   return new StateCommitmentChainBatchCreator(
     getDataService(),
-    Environment.stateCommitmentChainMinBatchSize(10),
-    Environment.stateCommitmentChainMaxBatchSize(100),
-    Environment.getOrThrow(
-      Environment.stateCommitmentChainBatchCreatorPeriodMillis
-    )
+    minSize,
+    maxSize,
+    period
   )
 }
 
@@ -296,17 +336,28 @@ const createStateCommitmentChainBatchCreator = (): StateCommitmentChainBatchCrea
  * @returns The StateCommitmentChainBatchSubmitter.
  */
 const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSubmitter => {
+  const contractAddress: string = Environment.getOrThrow(
+    Environment.stateCommitmentChainContractAddress
+  )
+  const finalityDelay: number = Environment.getOrThrow(
+    Environment.finalityDelayInBlocks
+  )
+  const period: number = Environment.getOrThrow(
+    Environment.stateCommitmentChainBatchSubmitterPeriodMillis
+  )
+  log.info(
+    `Creating StateCommitmentChainBatchSubmitter with the state commitment chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+  )
+
   return new StateCommitmentChainBatchSubmitter(
     getDataService(),
     new Contract(
-      Environment.getOrThrow(Environment.stateCommitmentChainContractAddress),
+      contractAddress,
       getContractDefinition('StateCommitmentChain').abi,
       getStateRootSubmissionWallet()
     ),
-    Environment.getOrThrow(Environment.finalityDelayInBlocks),
-    Environment.getOrThrow(
-      Environment.stateCommitmentChainBatchSubmitterPeriodMillis
-    )
+    finalityDelay,
+    period
   )
 }
 
@@ -316,13 +367,21 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
  * @returns The FraudDetector.
  */
 const createFraudDetector = (): FraudDetector => {
+  const period: number = Environment.getOrThrow(
+    Environment.fraudDetectorPeriodMillis
+  )
+  const realertEvery: number = Environment.getOrThrow(
+    Environment.reAlertOnUnresolvedFraudEveryNFraudDetectorRuns
+  )
+  log.info(
+    `Creating FraudDetector with a period of ${period} millis and a re-alert threshold of ${realertEvery} runs.`
+  )
+
   return new FraudDetector(
     getDataService(),
     undefined, // TODO: ADD FRAUD PROVER HERE WHEN THERE IS ONE
-    Environment.getOrThrow(Environment.fraudDetectorPeriodMillis),
-    Environment.getOrThrow(
-      Environment.reAlertOnUnresolvedFraudEveryNFraudDetectorRuns
-    )
+    period,
+    realertEvery
   )
 }
 

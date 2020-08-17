@@ -36,25 +36,25 @@ describe('Test Sending Transactions Directly To L2', () => {
   let simpleStorage: Contract
   const gethNodeUrl: string = 'http://0.0.0.0:8545'
 
-  describe.skip('Sending transactions to L2 Geth', () => {
+  describe('Sending transactions to L2 Geth', () => {
     before(async () => {
       provider = new JsonRpcProvider(gethNodeUrl)
       wallet = Wallet.createRandom().connect(provider)
 
-      // log.debug(`connected to provider at ${gethNodeUrl}`)
-      // const deployTx = getDeployTx(wallet)
-      //
-      // const res = await wallet.sendTransaction(deployTx)
-      // log.debug(`Deploy tx sent. Hash: ${res.hash}`)
-      // const receipt: TransactionReceipt = await provider.waitForTransaction(
-      //   res.hash
-      // )
-      // receipt.status.should.equal(1, `Deploy transaction failed`)
-      //
-      // log.debug(`Contract deployed. Address: ${receipt.contractAddress}`)
+      log.debug(`connected to provider at ${gethNodeUrl}`)
+      const deployTx = getDeployTx(wallet)
+
+      const res = await wallet.sendTransaction(deployTx)
+      log.debug(`Deploy tx sent. Hash: ${res.hash}`)
+      const receipt: TransactionReceipt = await provider.waitForTransaction(
+        res.hash
+      )
+      receipt.status.should.equal(1, `Deploy transaction failed`)
+
+      log.debug(`Contract deployed. Address: ${receipt.contractAddress}`)
 
       simpleStorage = new Contract(
-        '0x6151c37e5F46349B405fEF2839D1B8183ff517C0',
+        receipt.contractAddress, //'0x6151c37e5F46349B405fEF2839D1B8183ff517C0',
         SimpleStorageContract.abi,
         wallet
       )
@@ -62,7 +62,7 @@ describe('Test Sending Transactions Directly To L2', () => {
 
     it('Sets storage N times', async () => {
       const key: string = 'test'
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 5; i++) {
         log.debug(`Sending tx to set storage key ${key}`)
         const res = await simpleStorage.setStorage(key, `${key}${i}`)
         const receipt: TransactionReceipt = await provider.waitForTransaction(

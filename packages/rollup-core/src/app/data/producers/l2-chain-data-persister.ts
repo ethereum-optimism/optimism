@@ -66,40 +66,45 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    * @inheritDoc
    */
   protected async handleNextItem(index: number, block: Block): Promise<void> {
-    log.debug(`handling block ${block.number}.`)
+    try {
+      log.debug(`handling block ${block.number}.`)
 
-    if (!block.transactions || !block.transactions.length) {
-      log.error(`Received L2 block #${index} with 0 transactions!`)
+      if (!block.transactions || !block.transactions.length) {
+        log.error(`Received L2 block #${index} with 0 transactions!`)
+        return this.markProcessed(index)
+      }
+
+      if (block.transactions.length > 1) {
+        log.error(
+          `Received ${block.transactions.length} transactions for block #${block.number}`
+        )
+      }
+
+      const txHashes: string[] = block.transactions.map((x) =>
+        typeof x !== 'string' ? x['hash'] : x
+      )
+
+      const txs: any[] = await Promise.all([
+        ...txHashes.map(
+          (hash) => this.l2Provider.getTransaction(hash) as Promise<any>
+        ),
+        ...txHashes.map((hash) => this.l2Provider.getTransactionReceipt(hash)),
+      ])
+
+      for (let i = 0; i < block.transactions.length; i++) {
+        const txAndRoot: TransactionOutput = L2ChainDataPersister.getTransactionAndRoot(
+          block,
+          txs[i],
+          txs[i + block.transactions.length]
+        )
+        await this.l2DataService.insertL2TransactionOutput(txAndRoot)
+      }
+
       return this.markProcessed(index)
+    } catch (e) {
+      this.logError(`Error processing block ${block.number}`, e)
+      throw e
     }
-
-    if (block.transactions.length > 1) {
-      log.error(
-        `Received ${block.transactions.length} transactions for block #${block.number}`
-      )
-    }
-
-    const txHashes: string[] = block.transactions.map((x) =>
-      typeof x !== 'string' ? x['hash'] : x
-    )
-
-    const txs: any[] = await Promise.all([
-      ...txHashes.map(
-        (hash) => this.l2Provider.getTransaction(hash) as Promise<any>
-      ),
-      ...txHashes.map((hash) => this.l2Provider.getTransactionReceipt(hash)),
-    ])
-
-    for (let i = 0; i < block.transactions.length; i++) {
-      const txAndRoot: TransactionOutput = L2ChainDataPersister.getTransactionAndRoot(
-        block,
-        txs[i],
-        txs[i + block.transactions.length]
-      )
-      await this.l2DataService.insertL2TransactionOutput(txAndRoot)
-    }
-
-    return this.markProcessed(index)
   }
 
   /**
