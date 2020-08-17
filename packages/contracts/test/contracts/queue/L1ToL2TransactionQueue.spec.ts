@@ -23,7 +23,7 @@ import { expect } from 'chai'
 const log = getLogger('l1-to-l2-tx-queue', true)
 
 /* Tests */
-describe('L1ToL2TransactionQueue', () => {
+describe.only('L1ToL2TransactionQueue', () => {
   const L2_GAS_DISCOUNT_DIVISOR = 10
   const GET_DUMMY_L1_L2_ARGS = (ovmGasLimit: number) => {
     return [ZERO_ADDRESS, ovmGasLimit, '0x1234123412341234']
@@ -78,7 +78,7 @@ describe('L1ToL2TransactionQueue', () => {
       batchesLength.should.equal(1)
     })
 
-    it('should emit the right event on enqueue', async () => {
+    it.only('should emit the right event on enqueue', async () => {
       const tx = await l1ToL2TxQueue
         .connect(wallet)
         .enqueueL1ToL2Message(...defaultTx)
@@ -87,7 +87,7 @@ describe('L1ToL2TransactionQueue', () => {
       )
       const topic = receipt.logs[0].topics[0]
 
-      const expectedTopic = l1ToL2TxQueue.filters['L1ToL2TxEnqueued(bytes)']()
+      const expectedTopic = l1ToL2TxQueue.filters['L1ToL2TxEnqueued(address,address,uint32,bytes)']()
         .topics[0]
 
       topic.should.equal(expectedTopic, `Did not receive expected event!`)

@@ -171,9 +171,10 @@ describe('Log Handlers', () => {
     const gasLimit: string = '00'.repeat(32)
     const calldata: string = 'abcd'.repeat(40)
 
-    const data = `0x${sender}${target}${gasLimit}${calldata}`
-
-    const l = createLog(data)
+    const l = createLog(abi.encode(
+      ['address','address','uint32','bytes'],
+      [sender, target, gasLimit, calldata].map((el) => {return add0x(el)})
+    ))
     const tx = createTx('00'.repeat(64))
 
     await L1ToL2TxEnqueuedLogHandler(dataService, l, tx)
@@ -200,11 +201,11 @@ describe('Log Handlers', () => {
     )
     received.indexWithinSubmission.should.equal(0, 'Batch index mismatch')
     received.sender.should.equal(l.address, 'Sender mismatch')
-    remove0x(received.l1MessageSender).should.equal(
+    remove0x(received.l1MessageSender).toLowerCase().should.equal(
       sender,
       'L1 Message Sender mismatch'
     )
-    remove0x(received.target).should.equal(target, 'Target mismatch')
+    remove0x(received.target).toLowerCase().should.equal(target, 'Target mismatch')
     received.gasLimit.should.equal(0, 'Gas Limit mismatch')
     remove0x(received.calldata).should.equal(calldata, 'Calldata mismatch')
 

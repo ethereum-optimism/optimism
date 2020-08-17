@@ -17,7 +17,12 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
      * Events
      */
 
-    event L1ToL2TxEnqueued(bytes _tx);
+    event L1ToL2TxEnqueued(
+        address sender,
+        address target,
+        uint32 gasLimit,
+        bytes data
+    );
 
     /*
      * Constants
@@ -67,13 +72,19 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         uint gasToBurn = _ovmGasLimit / L2_GAS_DISCOUNT_DIVISOR;
         resolveGasConsumer().consumeGasInternalCall(gasToBurn);
 
+        address sender = msg.sender;
         bytes memory tx = encodeL1ToL2Tx(
-            msg.sender,
+            sender,
             _ovmTarget,
             _ovmGasLimit,
             _data
         );
-        emit L1ToL2TxEnqueued(tx);
+        emit L1ToL2TxEnqueued(
+            sender,
+            _ovmTarget,
+            _ovmGasLimit,
+            _data
+        );
         _enqueue(tx);
     }
 
@@ -90,7 +101,6 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         internal
         returns(bytes memory)
     {
-        // TODO: replace with finalized encoding when ready
         return abi.encode(_sender, _target, _gasLimit, _data);
     }
 
