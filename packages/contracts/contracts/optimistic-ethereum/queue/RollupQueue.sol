@@ -58,7 +58,7 @@ contract RollupQueue {
 
     /**
      * Peeks the timestamp of the front element on the queue.
-     * @return Front queue element timestamp.
+     * @return Front queue element timestamp (lowest in queue).
      */
     function peekTimestamp()
         public
@@ -67,6 +67,19 @@ contract RollupQueue {
     {
         DataTypes.TimestampedHash memory frontBatch = peek();
         return frontBatch.timestamp;
+    }
+
+    /**
+     * Peeks the blocknumber of the front element on the queue.
+     * @return Front queue element blocknumber (lowest in queue).
+     */
+    function peekBlocknumber()
+        public
+        view
+        returns (uint)
+    {
+        DataTypes.TimestampedHash memory frontBatch = peek();
+        return frontBatch.blocknumber;
     }
 
     /**
