@@ -2,12 +2,11 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
+import { getLogger, add0x } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
@@ -283,7 +282,7 @@ describe('Safety Checker', () => {
         // set value
         bytecode += Opcode.PUSH1.code.toString('hex')
         bytecode += '00' //PUSH1 0x00
-        // swap1
+        // swap the address and value
         bytecode += Opcode.SWAP1.code.toString('hex')
         // set gas
         bytecode += Opcode.GAS.code.toString('hex')
@@ -300,13 +299,18 @@ describe('Safety Checker', () => {
         // test for whitelisted, non-halting opcodes (excluding PUSHes or DUPs)
         for (const opcode of invalidGasSetters) {
           let bytecode: string = '0x'
+          // set address
+          bytecode += Opcode.CALLER.code.toString('hex')
           // set value
           bytecode += Opcode.PUSH1.code.toString('hex')
           bytecode += '00' //PUSH1 0x00
-          // set address
-          bytecode += Opcode.CALLER.code.toString('hex')
+          // swap the address and value
+          bytecode += Opcode.SWAP1.code.toString('hex')
           // set gas with invalid opcode
           bytecode += opcode.code.toString('hex')
+          if (opcode.programBytesConsumed > 0) {
+            bytecode += '00'.repeat(opcode.programBytesConsumed) //PUSHX X_zero_bytes
+          }
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -326,13 +330,15 @@ describe('Safety Checker', () => {
         // test for whitelisted, non-halting opcodes (excluding PUSH1)
         for (const opcode of invalidValueSetters) {
           let bytecode: string = '0x'
-          // set value with invalid opcode
+          // set address
+          bytecode += Opcode.CALLER.code.toString('hex')
+          // set value using invalid opcode
           bytecode += opcode.code.toString('hex')
           if (opcode.programBytesConsumed > 0) {
             bytecode += '00'.repeat(opcode.programBytesConsumed) //PUSHX X_zero_bytes
           }
-          // set address
-          bytecode += Opcode.CALLER.code.toString('hex')
+          // swap the address and value
+          bytecode += Opcode.SWAP1.code.toString('hex')
           // set gas
           bytecode += Opcode.GAS.code.toString('hex')
           // CALL
@@ -354,14 +360,16 @@ describe('Safety Checker', () => {
         // test for whitelisted, non-halting opcodes (excluding PUSH20)
         for (const opcode of invalidAddressSetters) {
           let bytecode: string = '0x'
-          // set value
-          bytecode += Opcode.PUSH1.code.toString('hex')
-          bytecode += '00' //PUSH1 0x00
           // set address with invalid opcode
           bytecode += opcode.code.toString('hex')
           if (opcode.programBytesConsumed > 0) {
             bytecode += '00'.repeat(opcode.programBytesConsumed) //PUSHX X_zero_bytes
           }
+          // set value
+          bytecode += Opcode.PUSH1.code.toString('hex')
+          bytecode += '00' //PUSH1 0x00
+          // swap the address and value
+          bytecode += Opcode.SWAP1.code.toString('hex')
           // set gas
           bytecode += Opcode.GAS.code.toString('hex')
           // CALL
@@ -375,11 +383,13 @@ describe('Safety Checker', () => {
       }).timeout(20_000)
       it(`rejects invalid CALL with a non-zero value`, async () => {
         let bytecode: string = '0x'
-        // set a non-zero value
-        bytecode += Opcode.PUSH1.code.toString('hex')
-        bytecode += '01' //PUSH1 0x01
         // set address
         bytecode += Opcode.CALLER.code.toString('hex')
+        // set value to non-zero value
+        bytecode += Opcode.PUSH1.code.toString('hex')
+        bytecode += '01' //PUSH1 0x01
+        // swap the address and value
+        bytecode += Opcode.SWAP1.code.toString('hex')
         // set gas
         bytecode += Opcode.GAS.code.toString('hex')
         // CALL
@@ -392,12 +402,14 @@ describe('Safety Checker', () => {
       })
       it(`rejects invalid CALL to a non-Execution Manager address`, async () => {
         let bytecode: string = '0x'
-        // set value
-        bytecode += Opcode.PUSH1.code.toString('hex')
-        bytecode += '00' //PUSH1 0x00
         // set a non-Execution Manager address
         bytecode += Opcode.PUSH20.code.toString('hex')
         bytecode += 'ff'.repeat(20) //PUSH20 invalid address
+        // set value
+        bytecode += Opcode.PUSH1.code.toString('hex')
+        bytecode += '00' //PUSH1 0x00
+        // swap the address and value
+        bytecode += Opcode.SWAP1.code.toString('hex')
         // set gas
         bytecode += Opcode.GAS.code.toString('hex')
         // CALL
@@ -408,9 +420,12 @@ describe('Safety Checker', () => {
           `Bytecode containing invalid CALL PUSH20ing non-Execution Manager address should have failed!`
         )
       })
-      it(`rejects invalid CALL with only 2 preceding opcodes`, async () => {
+      it(`rejects invalid CALL without SWAP1`, async () => {
         let bytecode: string = '0x'
-        // set addr
+        // set value
+        bytecode += Opcode.PUSH1.code.toString('hex')
+        bytecode += '00' //PUSH1 0x00
+        // set address
         bytecode += Opcode.CALLER.code.toString('hex')
         // set gas
         bytecode += Opcode.GAS.code.toString('hex')
@@ -419,14 +434,13 @@ describe('Safety Checker', () => {
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
-          `Bytecode containing invalid CALL with only two preceding opcodes should have failed!`
+          `Bytecode containing invalid CALL with value set before CALLER is pushed to stack should have failed!`
         )
       })
     })
     describe.skip('Synthetix contracts', async () => {
       for (const [name, json] of Object.entries(SYNTHETIX_BYTECODE)) {
-        // if (name === 'Synthetix.json') {
-        it(`${name}: gas cost for init code safety check`, async () => {
+        it(`${name}: init code safety check`, async () => {
           const data = await safetyChecker.interface.encodeFunctionData(
             'isBytecodeSafe',
             [json.bytecode]
@@ -443,13 +457,14 @@ describe('Safety Checker', () => {
           // THIS IS THE NUMBER WE WANT TO GO DOWN--average per-byte cost of a safety check should go down.
           const res = await safetyChecker.provider.estimateGas(tx)
           console.log(`${name}: estimate gas result for initcode: ${res}`)
+          res.toNumber().should.be.lessThan(1550000)
 
           const isSafe: boolean = await safetyChecker.isBytecodeSafe(
             json.bytecode
           )
           isSafe.should.eq(true, `Initcode for ${name} should be safe!`)
         })
-        it(`${name}: gas cost for deployed bytecode safety check`, async () => {
+        it(`${name}: deployed bytecode safety check`, async () => {
           const data = await safetyChecker.interface.encodeFunctionData(
             'isBytecodeSafe',
             [json.deployedBytecode]
@@ -467,6 +482,7 @@ describe('Safety Checker', () => {
           console.log(
             `${name}: estimate gas result for deployed bytecode: ${res}`
           )
+          res.toNumber().should.be.lessThan(1500000)
 
           const isSafe: boolean = await safetyChecker.isBytecodeSafe(
             json.deployedBytecode
@@ -476,7 +492,6 @@ describe('Safety Checker', () => {
             `Deployed bytecode for ${name} should be safe!`
           )
         })
-        // }
       }
     })
   })

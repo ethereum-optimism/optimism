@@ -48,26 +48,7 @@ export const DEFAULT_SAFE_OPCODES: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
   (x) => DEFAULT_UNSAFE_OPCODES.indexOf(x) < 0
 )
 
-const calculateMask = (opcodes) => {
-  // console.log(
-  //   `Generating mask for opcodes: ${opcodes.map((x) => x.name).join(',')}`
-  // )
-  let maskHex: string = opcodes
-    .map((x) => new BigNumber(2).pow(new BigNumber(x.code)))
-    .reduce((prev: BigNumber, cur: BigNumber) => prev.add(cur), ZERO)
-    .toString('hex')
-  if (maskHex.length !== 64) {
-    maskHex = '0'.repeat(64 - maskHex.length) + maskHex
-  }
-  // console.log(`mask: 0x${maskHex}`)
-  return '0x' + maskHex
-}
-
-// const GATED_OPCODES = Opcode.HALTING_OP_CODES.push(Opcode.CALLER)
-// calculateMask(GATED_OPCODES) //Calculate gated opcode mask
-
 export const GAS_LIMIT = 1_000_000_000
-export const DEFAULT_OPCODE_WHITELIST_MASK = calculateMask(DEFAULT_SAFE_OPCODES)
 
 export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
   '0x4200000000000000000000000000000000000000'

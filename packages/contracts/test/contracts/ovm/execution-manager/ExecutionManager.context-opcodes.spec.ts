@@ -18,7 +18,6 @@ import { fromPairs } from 'lodash'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,

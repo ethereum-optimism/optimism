@@ -14,10 +14,6 @@ import { console } from "@nomiclabs/buidler/console.sol";
  *              2. All CALLs are to the Execution Manager and have no value.
  */
 contract SafetyChecker is ContractResolver {
-    /*
-     * Constructor
-     */
-
     /**
      * @param _addressResolver Address of the AddressResolver contract.
      */
@@ -29,20 +25,9 @@ contract SafetyChecker is ContractResolver {
     {
     }
 
-
-    /*
-     * Public Functions
-     */
-
     /**
      * Returns whether or not all of the provided bytecode is safe.
-     * @dev More info on creation vs. runtime bytecode:
-     * https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904.
-     * @param _bytecode The bytecode to safety check. This can be either
-     *                  creation bytecode (aka initcode) or runtime bytecode
-     *                  (aka cont
-     * More info on creation vs. runtime bytecode:
-     * https://medium.com/authereum/bytecode-and-init-code-and-runtime-code-oh-my-7bcd89065904ract code).
+     * @param _bytecode The bytecode to safety check.
      * @return `true` if the bytecode is safe, `false` otherwise.
      */
     function isBytecodeSafe(
@@ -84,10 +69,6 @@ contract SafetyChecker is ContractResolver {
             assembly {
                 let tmp := mload(_pc)
 
-                // this works, it just isn't fast
-                //let mpc := 0
-
-                // this is fast
                 let mpc := byte(0, mload(add(skip, byte(0, tmp))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
                 mpc := add(mpc, byte(0, mload(add(skip, byte(mpc, tmp)))))
@@ -127,8 +108,8 @@ contract SafetyChecker is ContractResolver {
                 } else if (op == 0x33) {
                     // Sequence around CALLER must be:
                     // 1. CALLER (execution manager address) <-- We are here
-                    // 2. PUSH1 0x0
-                    // 3. SWAP1
+                    // 2. PUSH1 0x0 (value)
+                    // 3. SWAP1 (swap value and addres)
                     // 4. GAS (gas for call)
                     // 5. CALL
 
@@ -140,7 +121,7 @@ contract SafetyChecker is ContractResolver {
 
                     // allowed = CALLER PUSH1 0x00 SWAP1 GAS CALL
                     if (ops != 0x336000905af1) {
-                        console.log('Encountered a bad call');
+                        // console.log('Encountered a bad call');
                         return false;
                     }
 
@@ -148,7 +129,7 @@ contract SafetyChecker is ContractResolver {
                     continue;
                 } else {
                     // encountered a non-whitelisted opcode!
-                    console.log('Encountered a non-whitelisted opcode (in decimal):', op, "at location", _pc);
+                    // console.log('Encountered a non-whitelisted opcode (in decimal):', op, "at location", _pc);
                     return false;
                 }
             }
