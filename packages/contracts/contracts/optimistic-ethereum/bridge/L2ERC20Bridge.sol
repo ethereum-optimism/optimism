@@ -66,7 +66,8 @@ contract L2ERC20Bridge {
             nonce: withdrawalNonce
         });
         IL2ToL1MessagePasser(l2ToL1MessagePasser).passMessageToL1(
-            abi.encode(withdrawal)
+            abi.encode(withdrawal),
+            l1ERC20Bridge
         );
         withdrawalNonce++;
     }

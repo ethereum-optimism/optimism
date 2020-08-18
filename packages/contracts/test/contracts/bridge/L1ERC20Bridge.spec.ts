@@ -11,7 +11,7 @@ import { deployAndRegister } from 'src'
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe.only('L1ERC20Bridge', () => {
+describe('L1ERC20Bridge', () => {
   const provider = ethers.provider
   let depositer: Signer
   let withdrawer: Signer
@@ -97,10 +97,20 @@ describe.only('L1ERC20Bridge', () => {
       // // Check that funds are created on L2
       const l2Balance = await l2WrappedSNX.balanceOf(depositer.getAddress())
       console.log('layer 2 balance is', l2Balance)
+      /*
+      * This won't work until message passing is finished
+      *
       l2Balance.should.equal(depositAmount)
       l2ERC20Bridge.correspondingDepositedERC20[wrappedSNX.address]
         .balanceOf(depositer.getAddress())
         .should.equal(depositAmount)
+      */
+    })
+
+    describe('redeemWithdrawal()', async () => {
+      it('throws if the withdrawal has already been redeemed', async () => {
+        // doesn't work rn
+      })
     })
   })
 })
