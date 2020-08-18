@@ -63,14 +63,15 @@ const appendTransactionBatch = async (
   canonicalTransactionChain: Contract,
   sequencer: Signer,
   batch: string[]
-): Promise<number> => {
+): Promise<number[]> => {
   const timestamp = Math.floor(Date.now() / 1000)
+  const blocknumber = Math.floor(timestamp / 15)
 
   await canonicalTransactionChain
     .connect(sequencer)
     .appendSequencerBatch(batch, timestamp)
 
-  return timestamp
+  return [timestamp, blocknumber]
 }
 
 const appendAndGenerateTransactionBatch = async (
@@ -80,7 +81,7 @@ const appendAndGenerateTransactionBatch = async (
   batchIndex: number = 0,
   cumulativePrevElements: number = 0
 ): Promise<TxChainBatch> => {
-  const timestamp = await appendTransactionBatch(
+  const [timestamp, blocknumber] = await appendTransactionBatch(
     canonicalTransactionChain,
     sequencer,
     batch
@@ -88,6 +89,7 @@ const appendAndGenerateTransactionBatch = async (
 
   const localBatch = new TxChainBatch(
     timestamp,
+    blocknumber,
     false,
     batchIndex,
     cumulativePrevElements,

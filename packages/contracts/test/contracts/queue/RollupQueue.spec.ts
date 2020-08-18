@@ -15,7 +15,7 @@ const log = getLogger('rollup-queue', true)
 const DEFAULT_TX = '0x1234'
 
 /* Tests */
-describe.only('RollupQueue', () => {
+describe('RollupQueue', () => {
   const provider = ethers.provider
 
   let wallet: Signer

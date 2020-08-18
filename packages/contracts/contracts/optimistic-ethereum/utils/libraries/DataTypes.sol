@@ -64,6 +64,7 @@ library DataTypes {
 
     struct TxChainBatchHeader {
        uint timestamp;
+       uint blocknumber;
        bool isL1ToL2Tx;
        bytes32 elementsMerkleRoot;
        uint numElementsInBatch;

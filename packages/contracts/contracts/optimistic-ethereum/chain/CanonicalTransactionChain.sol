@@ -32,6 +32,7 @@ contract CanonicalTransactionChain is ContractResolver {
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
+    uint public lastOVMBlocknumber;
 
 
     /*
@@ -86,6 +87,7 @@ contract CanonicalTransactionChain is ContractResolver {
     {
         return keccak256(abi.encodePacked(
             _batchHeader.timestamp,
+            _batchHeader.blocknumber,
             _batchHeader.isL1ToL2Tx, // TODO REPLACE WITH QUEUE ORIGIN (if you are a PR reviewer please lmk!)
             _batchHeader.elementsMerkleRoot,
             _batchHeader.numElementsInBatch,
@@ -155,7 +157,8 @@ contract CanonicalTransactionChain is ContractResolver {
      */
     function appendSequencerBatch(
         bytes[] memory _txBatch,
-        uint _timestamp
+        uint _timestamp,
+        uint _blocknumber
     )
         public
     {
@@ -197,11 +200,16 @@ contract CanonicalTransactionChain is ContractResolver {
             "Timestamps must monotonically increase"
         );
 
+// TODO: add all requires for the queuing
+
         lastOVMTimestamp = _timestamp;
+        lastOVMBlocknumber = _blocknumber;
+
 
         RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
+            _blocknumber,
             false, // isL1ToL2Tx
             merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
             _txBatch.length, // numElementsInBatch
@@ -270,6 +278,7 @@ contract CanonicalTransactionChain is ContractResolver {
         internal
     {
         uint timestamp = _timestampedHash.timestamp;
+        uint blocknumber = _timestampedHash.blocknumber;
 
         require(
             timestamp + forceInclusionPeriodSeconds <= now || authenticateAppend(msg.sender),
@@ -277,11 +286,13 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         lastOVMTimestamp = timestamp;
+        lastOVMBlocknumber = blocknumber;
         bytes32 elementsMerkleRoot = _timestampedHash.txHash;
         uint numElementsInBatch = 1;
 
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             timestamp,
+            blocknumber,
             _isL1ToL2Tx,
             elementsMerkleRoot,
             numElementsInBatch,
