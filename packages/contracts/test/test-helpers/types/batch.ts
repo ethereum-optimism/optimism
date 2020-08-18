@@ -236,10 +236,13 @@ export class TxQueueBatch {
   public elements: string[]
   public elementsMerkleTree: SparseMerkleTreeImpl
   public timestamp: number
+  public blocknumber: number
 
-  constructor(tx: string, timestamp: number) {
+  // TODO remove blocknumber optionality, just here for testing
+  constructor(tx: string, timestamp: number, blocknumber?: number) {
     this.elements = [tx]
     this.timestamp = timestamp
+    this.blocknumber = blocknumber
   }
   /*
    * Generate the elements merkle tree from this.elements

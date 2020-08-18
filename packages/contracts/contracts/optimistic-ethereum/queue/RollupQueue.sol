@@ -96,8 +96,9 @@ contract RollupQueue {
         bytes32 txHash = keccak256(_data);
 
         batchHeaders.push(DataTypes.TimestampedHash({
+            txHash: txHash,
             timestamp: now,
-            txHash: txHash
+            blocknumber: block.number
         }));
     }
 

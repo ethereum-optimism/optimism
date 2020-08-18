@@ -71,8 +71,9 @@ library DataTypes {
     }
 
     struct TimestampedHash {
-       uint timestamp;
        bytes32 txHash;
+       uint timestamp;
+       uint blocknumber;
     }
 
     struct AccountState {

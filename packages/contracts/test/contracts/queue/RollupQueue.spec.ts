@@ -15,7 +15,7 @@ const log = getLogger('rollup-queue', true)
 const DEFAULT_TX = '0x1234'
 
 /* Tests */
-describe('RollupQueue', () => {
+describe.only('RollupQueue', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -37,9 +37,10 @@ describe('RollupQueue', () => {
     // Submit the rollup batch on-chain
     const enqueueTx = await rollupQueue.enqueueTx(tx)
     const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
-    const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
+    const blocknumber = txReceipt.blockNumber
+    const timestamp = (await provider.getBlock(blocknumber)).timestamp
     // Generate a local version of the rollup batch
-    const localBatch = new TxQueueBatch(tx, timestamp)
+    const localBatch = new TxQueueBatch(tx, timestamp, blocknumber)
     await localBatch.generateTree()
     return localBatch
   }
@@ -53,10 +54,11 @@ describe('RollupQueue', () => {
 
     it('should set the TimestampedHash correctly', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
-      const { txHash, timestamp } = await rollupQueue.batchHeaders(0)
+      const { txHash, timestamp, blocknumber } = await rollupQueue.batchHeaders(0)
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)
+      blocknumber.should.equal(localBatch.blocknumber)
     })
 
     it('should add multiple batches correctly', async () => {
