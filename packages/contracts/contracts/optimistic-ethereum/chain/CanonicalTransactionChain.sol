@@ -29,6 +29,7 @@ contract CanonicalTransactionChain is ContractResolver {
 
     address public sequencer;
     uint public forceInclusionPeriodSeconds;
+    uint public forceInclusionPeriodBlocks;
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
@@ -54,6 +55,7 @@ contract CanonicalTransactionChain is ContractResolver {
     {
         sequencer = _sequencer;
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
+        forceInclusionPeriodBlocks = _forceInclusionPeriodSeconds / 13;
         lastOVMTimestamp = 0;
     }
 
@@ -181,8 +183,18 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         require(
+            _blocknumber + forceInclusionPeriodBlocks > block.number,
+            "Cannot submit a batch with a blocknumber older than the sequencer inclusion period"
+        );
+
+        require(
             _timestamp <= now,
             "Cannot submit a batch with a timestamp in the future"
+        );
+
+        require(
+            _blocknumber <= block.number,
+            "Cannot submit a batch with a blocknumber in the future"
         );
 
         if (!l1ToL2Queue.isEmpty()) {

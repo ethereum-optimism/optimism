@@ -234,7 +234,22 @@ describe.only('CanonicalTransactionChain', () => {
       )
     })
 
-    // TODO: add equivalent block number test here
+    it('should revert if submitting a batch with timestamp older than the inclusion period', async () => {
+      const timestamp = Math.floor(Date.now() / 1000)
+      const FORCE_INCLUSION_PERIOD_BLOCKS = await canonicalTxChain.forceInclusionPeriodBlocks()
+      for (let i = 0; i < FORCE_INCLUSION_PERIOD_BLOCKS + 1; i++) {
+        await provider.send('evm_mine', [])
+      }
+      const currentBlockNumber = await canonicalTxChain.provider.getBlockNumber()
+      await TestUtils.assertRevertsAsync(
+        'Cannot submit a batch with a blocknumber older than the sequencer inclusion period',
+        async () => {
+          await canonicalTxChain
+            .connect(sequencer)
+            .appendSequencerBatch(DEFAULT_BATCH, timestamp, currentBlockNumber - FORCE_INCLUSION_PERIOD_BLOCKS)
+        }
+      )
+    })
 
     it('should not revert if submitting a 5 minute old batch', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
@@ -255,6 +270,20 @@ describe.only('CanonicalTransactionChain', () => {
           await canonicalTxChain
             .connect(sequencer)
             .appendSequencerBatch(DEFAULT_BATCH, futureTimestamp, blocknumber)
+        }
+      )
+    })
+
+    it('should revert if submitting a batch with a future blocknumber', async () => {
+      const timestamp = Math.floor(Date.now() / 1000)
+      const blocknumber = Math.floor(timestamp/15)
+      const futureBlocknumber = blocknumber + 100
+      await TestUtils.assertRevertsAsync(
+        'Cannot submit a batch with a blocknumber in the future',
+        async () => {
+          await canonicalTxChain
+            .connect(sequencer)
+            .appendSequencerBatch(DEFAULT_BATCH, timestamp, futureBlocknumber)
         }
       )
     })
