@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 import { IL2ToL1MessagePasser } from "../bridge/IL2ToL1MessagePasser.sol";
 
-contract L2ToL1MessagePasser is IL2ToL1MessagePasser{
+contract RealL2ToL1MessagePasser is IL2ToL1MessagePasser{
 
     mapping (uint => bytes32) public storedMessages;
     uint public index = 0;
