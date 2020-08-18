@@ -214,11 +214,13 @@ contract CanonicalTransactionChain is ContractResolver {
             "Timestamps must monotonically increase"
         );
 
-// TODO: add all requires for the queuing
+        require(
+            _blocknumber >= lastOVMBlocknumber,
+            "Blocknumbers must monotonically increase"
+        );
 
         lastOVMTimestamp = _timestamp;
         lastOVMBlocknumber = _blocknumber;
-
 
         RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(

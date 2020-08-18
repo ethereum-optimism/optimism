@@ -273,8 +273,19 @@ describe.only('CanonicalTransactionChain', () => {
       )
     })
 
-    // todo add equivalent block number test here
+    it('should revert if submitting a new batch with a blocknumber older than last batch blocknumber', async () => {
+      const [timestamp, blocknumber] = await appendSequencerBatch(DEFAULT_BATCH)
 
+      const oldBlockNumber = blocknumber - 1
+      await TestUtils.assertRevertsAsync(
+        'Blocknumbers must monotonically increase',
+        async () => {
+          await canonicalTxChain
+            .connect(sequencer)
+            .appendSequencerBatch(DEFAULT_BATCH, timestamp, oldBlockNumber)
+        }
+      )
+    })
     it('should add to batches array', async () => {
       await appendSequencerBatch(DEFAULT_BATCH)
       const batchesLength = await canonicalTxChain.getBatchesLength()
@@ -431,7 +442,7 @@ describe.only('CanonicalTransactionChain', () => {
           .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, safetyBlocknumber)
       })
 
-      it.only('should successfully append a batch with an older blocknumber than the oldest batch', async () => {
+      it('should successfully append a batch with an older blocknumber than the oldest batch', async () => {
         const oldBlockNumber = safetyBlocknumber - 1
         await canonicalTxChain
           .connect(sequencer)
@@ -456,7 +467,7 @@ describe.only('CanonicalTransactionChain', () => {
         )
       })
 
-      it.only('should revert when appending a batch with a timestamp in between the two batches', async () => {
+      it('should revert when appending a batch with a timestamp in between the two batches', async () => {
         const middleBlocknumber = safetyBlocknumber + 1
         await TestUtils.assertRevertsAsync(
           'Must process older SafetyQueue batches first to enforce OVM blocknumber monotonicity',
@@ -481,7 +492,7 @@ describe.only('CanonicalTransactionChain', () => {
         )
       })
 
-      it.only('should revert when appending a batch with a blocknumber newer than both batches', async () => {
+      it('should revert when appending a batch with a blocknumber newer than both batches', async () => {
         await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 10]) // increase time by 60 seconds
         const newBlocknumber = l1ToL2Blocknumber + 1
         await TestUtils.assertRevertsAsync(
@@ -524,7 +535,7 @@ describe.only('CanonicalTransactionChain', () => {
           .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, l1ToL2Blocknumber)
       })
 
-      it.only('should successfully append a batch with an older blocknumber than both batches', async () => {
+      it('should successfully append a batch with an older blocknumber than both batches', async () => {
         const oldBlocknumber = l1ToL2Blocknumber - 1
         await canonicalTxChain
           .connect(sequencer)
@@ -549,7 +560,7 @@ describe.only('CanonicalTransactionChain', () => {
         )
       })
 
-      it.only('should revert when appending a batch with a blocknumber in between the two batches', async () => {
+      it('should revert when appending a batch with a blocknumber in between the two batches', async () => {
         const middleBlocknumber = l1ToL2Blocknumber + 1
         await TestUtils.assertRevertsAsync(
           'Must process older L1ToL2Queue batches first to enforce OVM timestamp monotonicity',
@@ -574,7 +585,7 @@ describe.only('CanonicalTransactionChain', () => {
         )
       })
 
-      it.only('should revert when appending a batch with a blocknumber newer than both batches', async () => {
+      it('should revert when appending a batch with a blocknumber newer than both batches', async () => {
         await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD / 10]) // increase time by 60 seconds
         const newBlocknumber = safetyBlocknumber + 1
         await TestUtils.assertRevertsAsync(
