@@ -96,11 +96,11 @@ contract CanonicalTransactionChain is ContractResolver {
     }
 
     /**
-     * Checks whether a sender is allowed to append to the chain.
+     * Checks whether an address is the sequencer.
      * @param _sender Address to check.
-     * @return Whether or not the address can append.
+     * @return Whether or not the address is the sequencer.
      */
-    function authenticateAppend(
+    function isSequencer(
         address _sender
     )
         public
@@ -123,7 +123,7 @@ contract CanonicalTransactionChain is ContractResolver {
 
         require(
             safetyQueue.isEmpty() || l1ToL2Header.timestamp <= safetyQueue.peekTimestamp(),
-            "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
+            "Must process older SafetyQueue batches first to enforce OVM timestamp monotonicity"
         );
 
         _appendQueueBatch(l1ToL2Header, true);
@@ -143,7 +143,7 @@ contract CanonicalTransactionChain is ContractResolver {
 
         require(
             l1ToL2Queue.isEmpty() || safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(),
-            "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
+            "Must process older L1ToL2Queue batches first to enforce OVM timestamp monotonicity"
         );
 
         _appendQueueBatch(safetyHeader, false);
@@ -166,7 +166,7 @@ contract CanonicalTransactionChain is ContractResolver {
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
 
         require(
-            authenticateAppend(msg.sender),
+            isSequencer(msg.sender),
             "Message sender does not have permission to append a batch"
         );
 
@@ -185,15 +185,29 @@ contract CanonicalTransactionChain is ContractResolver {
             "Cannot submit a batch with a timestamp in the future"
         );
 
-        require(
-            l1ToL2Queue.isEmpty() || _timestamp <= l1ToL2Queue.peekTimestamp(),
-            "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
-        );
+        if (!l1ToL2Queue.isEmpty()) {
+            require(
+                _timestamp <= l1ToL2Queue.peekTimestamp(),
+                "Must process older L1ToL2Queue batches first to enforce OVM timestamp monotonicity"
+            );
 
-        require(
-            safetyQueue.isEmpty() || _timestamp <= safetyQueue.peekTimestamp(),
-            "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
-        );
+            require(
+                _blocknumber <= l1ToL2Queue.peekBlocknumber(),
+                "Must process older L1ToL2Queue batches first to enforce OVM blocknumber monotonicity"
+            );
+        }
+
+        if (!safetyQueue.isEmpty()) {
+            require(
+                _timestamp <= safetyQueue.peekTimestamp(),
+                "Must process older SafetyQueue batches first to enforce OVM timestamp monotonicity"
+            );
+
+            require(
+                _blocknumber <= safetyQueue.peekBlocknumber(),
+                "Must process older SafetyQueue batches first to enforce OVM blocknumber monotonicity"
+            );
+        }
 
         require(
             _timestamp >= lastOVMTimestamp,
@@ -281,7 +295,7 @@ contract CanonicalTransactionChain is ContractResolver {
         uint blocknumber = _timestampedHash.blocknumber;
 
         require(
-            timestamp + forceInclusionPeriodSeconds <= now || authenticateAppend(msg.sender),
+            timestamp + forceInclusionPeriodSeconds <= now || isSequencer(msg.sender),
             "Message sender does not have permission to append this batch"
         );
 
