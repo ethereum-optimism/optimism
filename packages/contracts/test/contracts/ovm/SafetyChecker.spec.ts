@@ -33,9 +33,12 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
     haltingOpcodes.indexOf(x) < 0 &&
     x.name !== 'CALLER'
 )
+const DEFAULT_INVALID_OPCODE: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+  'hex'
+)
 
 /* Tests */
-describe.only('Safety Checker', () => {
+describe('Safety Checker', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -59,9 +62,7 @@ describe.only('Safety Checker', () => {
       'SafetyChecker',
       {
         factory: SafetyChecker,
-        params: [
-          resolver.addressResolver.address,
-        ],
+        params: [resolver.addressResolver.address],
       }
     )
 
@@ -109,9 +110,6 @@ describe.only('Safety Checker', () => {
 
     describe('PUSH cases', async () => {
       it('skips at least specified number of bytes for PUSH cases', async () => {
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -119,7 +117,7 @@ describe.only('Safety Checker', () => {
         for (let i = 1; i < 33; i++) {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
-          )}${invalidOpcode.repeat(i)}`
+          )}${DEFAULT_INVALID_OPCODE.repeat(i)}`
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
@@ -129,9 +127,6 @@ describe.only('Safety Checker', () => {
       })
 
       it('skips at most specified number of bytes for PUSH cases', async () => {
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -139,7 +134,7 @@ describe.only('Safety Checker', () => {
         for (let i = 1; i < 33; i++) {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
-          )}${invalidOpcode.repeat(i + 1)}`
+          )}${DEFAULT_INVALID_OPCODE.repeat(i + 1)}`
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             false,
@@ -153,14 +148,10 @@ describe.only('Safety Checker', () => {
     describe('multiple opcode cases', async () => {
       it('works for whitelisted, non-halting codes', async () => {
         let bytecode: string = '0x'
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
-
         for (const opcode of whitelistedNotHaltingOrCALL) {
-          bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
-            opcode.programBytesConsumed
-          )}`
+          bytecode += `${opcode.code.toString(
+            'hex'
+          )}${DEFAULT_INVALID_OPCODE.repeat(opcode.programBytesConsumed)}`
         }
 
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -169,14 +160,10 @@ describe.only('Safety Checker', () => {
 
       it('fails for non-halting whitelisted codes with one not on whitelist at the end', async () => {
         let bytecode: string = '0x'
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
-
         for (const opcode of whitelistedNotHaltingOrCALL) {
-          bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
-            opcode.programBytesConsumed
-          )}`
+          bytecode += `${opcode.code.toString(
+            'hex'
+          )}${DEFAULT_INVALID_OPCODE.repeat(opcode.programBytesConsumed)}`
         }
         for (const opcode of DEFAULT_UNSAFE_OPCODES) {
           const res: boolean = await safetyChecker.isBytecodeSafe(
@@ -436,57 +423,60 @@ describe.only('Safety Checker', () => {
         )
       })
     })
-    describe('Synthetix contracts', async () => {
+    describe.skip('Synthetix contracts', async () => {
       for (const [name, json] of Object.entries(SYNTHETIX_BYTECODE)) {
-        //if (name === 'Synthetix.json') {
-          it(`${name}: gas cost for init code safety check`, async () => {
-            const data = await safetyChecker.interface.encodeFunctionData(
-              'isBytecodeSafe',
-              [json.bytecode]
-            )
-            const tx = {
-              to: safetyChecker.address,
-              data,
-            }
+        // if (name === 'Synthetix.json') {
+        it(`${name}: gas cost for init code safety check`, async () => {
+          const data = await safetyChecker.interface.encodeFunctionData(
+            'isBytecodeSafe',
+            [json.bytecode]
+          )
+          const tx = {
+            to: safetyChecker.address,
+            data,
+          }
 
-            console.log(
-              `${name}: initcode is ${json.bytecode.length / 2} bytes long`
-            )
+          console.log(
+            `${name}: initcode is ${json.bytecode.length / 2} bytes long`
+          )
 
-            // THIS IS THE NUMBER WE WANT TO GO DOWN--average per-byte cost of a safety check should go down.
-            const res = await safetyChecker.provider.estimateGas(tx)
-            console.log(`${name}: estimate gas result for initcode: ${res}`)
+          // THIS IS THE NUMBER WE WANT TO GO DOWN--average per-byte cost of a safety check should go down.
+          const res = await safetyChecker.provider.estimateGas(tx)
+          console.log(`${name}: estimate gas result for initcode: ${res}`)
 
-            const isSafe: boolean = await safetyChecker.isBytecodeSafe(
-              json.bytecode
-            )
-            isSafe.should.eq(true, `Initcode for ${name} should be safe!`)
-          })
-          it(`${name}: gas cost for deployed bytecode safety check`, async () => {
-            const data = await safetyChecker.interface.encodeFunctionData(
-              'isBytecodeSafe',
-              [json.deployedBytecode]
-            )
-            const tx = {
-              to: safetyChecker.address,
-              data,
-            }
-            console.log(
-              `${name}: deployed bytecode is ${json.bytecode.length /
-                2} bytes long`
-            )
+          const isSafe: boolean = await safetyChecker.isBytecodeSafe(
+            json.bytecode
+          )
+          isSafe.should.eq(true, `Initcode for ${name} should be safe!`)
+        })
+        it(`${name}: gas cost for deployed bytecode safety check`, async () => {
+          const data = await safetyChecker.interface.encodeFunctionData(
+            'isBytecodeSafe',
+            [json.deployedBytecode]
+          )
+          const tx = {
+            to: safetyChecker.address,
+            data,
+          }
+          console.log(
+            `${name}: deployed bytecode is ${json.bytecode.length /
+              2} bytes long`
+          )
 
-            const res = await safetyChecker.provider.estimateGas(tx)
-            console.log(
-              `${name}: estimate gas result for deployed bytecode: ${res}`
-            )
+          const res = await safetyChecker.provider.estimateGas(tx)
+          console.log(
+            `${name}: estimate gas result for deployed bytecode: ${res}`
+          )
 
-            const isSafe: boolean = await safetyChecker.isBytecodeSafe(
-              json.deployedBytecode
-            )
-            isSafe.should.eq(true, `Deployed bytecode for ${name} should be safe!`)
-          })
-        //}
+          const isSafe: boolean = await safetyChecker.isBytecodeSafe(
+            json.deployedBytecode
+          )
+          isSafe.should.eq(
+            true,
+            `Deployed bytecode for ${name} should be safe!`
+          )
+        })
+        // }
       }
     })
   })
