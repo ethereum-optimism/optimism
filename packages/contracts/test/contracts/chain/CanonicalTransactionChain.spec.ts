@@ -30,7 +30,7 @@ const abi = new ethers.utils.AbiCoder()
 /* Tests */
 describe.only('CanonicalTransactionChain', () => {
   const provider = ethers.provider
-  const FORCE_INCLUSION_PERIOD = 600 //600 seconds = 10 minutes
+  const FORCE_INCLUSION_PERIOD = 4000
   const DEFAULT_BATCH = [
     GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(30_000),
     GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(35_000),
@@ -56,8 +56,8 @@ describe.only('CanonicalTransactionChain', () => {
   let safetyQueue: Contract
 
   const appendSequencerBatch = async (batch: string[]): Promise<number[]> => {
+    const blocknumber = await provider.getBlockNumber()
     const timestamp = Math.floor(Date.now() / 1000)
-    const blocknumber = Math.floor(timestamp / 15)
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
@@ -223,7 +223,7 @@ describe.only('CanonicalTransactionChain', () => {
     it('should revert if submitting a batch with timestamp older than the inclusion period', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       const blocknumber = Math.floor(timestamp/15)
-      const oldTimestamp = timestamp - (FORCE_INCLUSION_PERIOD + 1)
+      const oldTimestamp = timestamp - (FORCE_INCLUSION_PERIOD + 1000)
       await TestUtils.assertRevertsAsync(
         'Cannot submit a batch with a timestamp older than the sequencer inclusion period',
         async () => {
@@ -234,7 +234,7 @@ describe.only('CanonicalTransactionChain', () => {
       )
     })
 
-    it('should revert if submitting a batch with timestamp older than the inclusion period', async () => {
+    it('should revert if submitting a batch with blocknumber older than the inclusion period', async () => {
       const timestamp = Math.floor(Date.now() / 1000)
       const FORCE_INCLUSION_PERIOD_BLOCKS = await canonicalTxChain.forceInclusionPeriodBlocks()
       for (let i = 0; i < FORCE_INCLUSION_PERIOD_BLOCKS + 1; i++) {
@@ -251,9 +251,9 @@ describe.only('CanonicalTransactionChain', () => {
       )
     })
 
-    it('should not revert if submitting a 5 minute old batch', async () => {
-      const timestamp = Math.floor(Date.now() / 1000)
-      const blocknumber = Math.floor(timestamp/15)
+    it('should not revert if submitting an INCLUSION_PERIOD/2 old batch', async () => {
+      const blocknumber = await provider.getBlockNumber()
+      const timestamp = (await provider.getBlock(blocknumber)).timestamp
       const oldTimestamp = timestamp - FORCE_INCLUSION_PERIOD / 2
       await canonicalTxChain
         .connect(sequencer)
@@ -261,9 +261,9 @@ describe.only('CanonicalTransactionChain', () => {
     })
 
     it('should revert if submitting a batch with a future timestamp', async () => {
+      const blocknumber = await provider.getBlockNumber()
       const timestamp = Math.floor(Date.now() / 1000)
-      const blocknumber = Math.floor(timestamp/15)
-      const futureTimestamp = timestamp + 100
+      const futureTimestamp = timestamp + 30_000
       await TestUtils.assertRevertsAsync(
         'Cannot submit a batch with a timestamp in the future',
         async () => {
@@ -427,7 +427,7 @@ describe.only('CanonicalTransactionChain', () => {
           .appendSequencerBatch(DEFAULT_BATCH, localBatch.timestamp, localBatch.blocknumber)
       })
 
-      it('should revert when there is an older batch in the SafetyQueue', async () => {
+      it('should revert when there is an older-timestamp batch in the SafetyQueue', async () => {
         const snapshotID = await provider.send('evm_snapshot', [])
         await provider.send('evm_increaseTime', [FORCE_INCLUSION_PERIOD])
         const newTimestamp = localBatch.timestamp + 60
@@ -436,10 +436,22 @@ describe.only('CanonicalTransactionChain', () => {
           async () => {
             await canonicalTxChain
               .connect(sequencer)
-              .appendSequencerBatch(DEFAULT_BATCH, newTimestamp, localBatch.timestamp)
+              .appendSequencerBatch(DEFAULT_BATCH, newTimestamp, localBatch.blocknumber)
           }
         )
         await provider.send('evm_revert', [snapshotID])
+      })
+
+      it('should revert when there is an older-blocknumber batch in the SafetyQueue', async () => {
+        await provider.send(`evm_mine`, [])
+        await TestUtils.assertRevertsAsync(
+          'Must process older SafetyQueue batches first to enforce OVM blocknumber monotonicity',
+          async () => {
+            await canonicalTxChain
+              .connect(sequencer)
+              .appendSequencerBatch(DEFAULT_BATCH, localBatch.timestamp, localBatch.blocknumber + 1)
+          }
+        )
       })
     })
     describe('when there is an old batch in the safetyQueue and a recent batch in the l1ToL2Queue', async () => {
