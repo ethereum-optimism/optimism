@@ -11,7 +11,7 @@ import { initial } from 'lodash'
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe('DepositedERC20', () => {
+describe.only('DepositedERC20', () => {
   const provider = ethers.provider
 
   let wallet: Signer
@@ -25,7 +25,12 @@ describe('DepositedERC20', () => {
 
   let depositedERC20: Contract
   beforeEach(async () => {
-    depositedERC20 = await DepositedERC20.deploy(0, '_tokenName', 10, '_tokenSymbol')
+    depositedERC20 = await DepositedERC20.deploy(
+      0,
+      '_tokenName',
+      10,
+      '_tokenSymbol'
+    )
   })
 
   describe('constructor()', async () => {
@@ -52,7 +57,6 @@ describe('DepositedERC20', () => {
     })
 
     it('mints tokens and increases total supply', async () => {
-
       const initialTotalSupply = (await depositedERC20.totalSupply()).toNumber()
       const depositAmount = 5
       await depositedERC20.processDeposit('0x' + '00'.repeat(20), depositAmount)
@@ -83,7 +87,9 @@ describe('DepositedERC20', () => {
         await depositedERC20.balanceOf(userWallet.getAddress())
       ).toNumber()
       const withdrawalAmount = 5
-      await depositedERC20.connect(userWallet).initializeWithdrawal('0x' + '00'.repeat(20), withdrawalAmount)
+      await depositedERC20
+        .connect(userWallet)
+        .initializeWithdrawal('0x' + '00'.repeat(20), withdrawalAmount)
       const newSupply = (await depositedERC20.totalSupply()).toNumber()
       const newBalance = (
         await depositedERC20.balanceOf(userWallet.getAddress())

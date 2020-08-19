@@ -11,7 +11,7 @@ import { deployAndRegister } from 'src'
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe('L1ERC20Bridge', () => {
+describe.only('L1ERC20Bridge', () => {
   const provider = ethers.provider
   let depositer: Signer
   let withdrawer: Signer

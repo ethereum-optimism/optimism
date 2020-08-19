@@ -10,7 +10,7 @@ import { MessageChannel } from 'worker_threads'
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe('L2ERC20Bridge', () => {
+describe.only('L2ERC20Bridge', () => {
   const provider = ethers.provider
 
   let depositer: Signer
@@ -19,7 +19,7 @@ describe('L2ERC20Bridge', () => {
   let DepositedERC20: ContractFactory
   let MockL2ToL1MessagePasser: ContractFactory
   const mockL1ERC20Address = '0x' + '00'.repeat(20)
-  const mockL1ERC20BridgeAddress = '0x' + '11'.repeat(20) 
+  const mockL1ERC20BridgeAddress = '0x' + '11'.repeat(20)
 
   before(async () => {
     ;[depositer, withdrawer] = await ethers.getSigners()
@@ -39,7 +39,12 @@ describe('L2ERC20Bridge', () => {
       mockL1ERC20BridgeAddress,
       l2ToL1MessagePasser.address
     ) //some random addy to represent l1ERC20Bridge
-    await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address, 'Token Name', 10, 'Token Symbol')
+    await l2ERC20Bridge.deployNewDepositedERC20(
+      mockL1ERC20Address,
+      'Token Name',
+      10,
+      'Token Symbol'
+    )
     depositedERC20 = DepositedERC20.attach(
       await l2ERC20Bridge.correspondingDepositedERC20(mockL1ERC20Address)
     )
@@ -51,7 +56,12 @@ describe('L2ERC20Bridge', () => {
       await TestUtils.assertRevertsAsync(
         'L2 ERC20 Contract for this asset already exists.',
         async () => {
-          await l2ERC20Bridge.deployNewDepositedERC20(mockL1ERC20Address, 'Token Name', 10, 'Token Symbol')
+          await l2ERC20Bridge.deployNewDepositedERC20(
+            mockL1ERC20Address,
+            'Token Name',
+            10,
+            'Token Symbol'
+          )
         }
       )
     })

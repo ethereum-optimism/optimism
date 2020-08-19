@@ -19,7 +19,9 @@ describe.only('RealL2ToL1MessagePasser', () => {
 
   before(async () => {
     ;[wallet] = await ethers.getSigners()
-    L2ToL1MessagePasser = await ethers.getContractFactory('RealL2ToL1MessagePasser')
+    L2ToL1MessagePasser = await ethers.getContractFactory(
+      'RealL2ToL1MessagePasser'
+    )
   })
 
   let l2ToL1MessagePasser: Contract
