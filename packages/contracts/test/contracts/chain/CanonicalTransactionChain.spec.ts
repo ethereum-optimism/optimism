@@ -28,7 +28,7 @@ const log = getLogger('canonical-tx-chain', true)
 const abi = new ethers.utils.AbiCoder()
 
 /* Tests */
-describe.only('CanonicalTransactionChain', () => {
+describe('CanonicalTransactionChain', () => {
   const provider = ethers.provider
   const FORCE_INCLUSION_PERIOD = 4000
   const DEFAULT_BATCH = [

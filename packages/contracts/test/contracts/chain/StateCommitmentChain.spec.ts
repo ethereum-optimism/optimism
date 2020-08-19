@@ -78,10 +78,11 @@ describe('StateCommitmentChain', () => {
 
   const appendTxBatch = async (batch: string[]): Promise<void> => {
     const timestamp = Math.floor(Date.now() / 1000)
+    const blocknumber = await canonicalTxChain.provider.getBlockNumber()
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendSequencerBatch(batch, timestamp)
+      .appendSequencerBatch(batch, timestamp, blocknumber)
   }
 
   let resolver: AddressResolverMapping

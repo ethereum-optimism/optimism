@@ -64,12 +64,12 @@ const appendTransactionBatch = async (
   sequencer: Signer,
   batch: string[]
 ): Promise<number[]> => {
+  const blocknumber = await canonicalTransactionChain.provider.getBlockNumber()
   const timestamp = Math.floor(Date.now() / 1000)
-  const blocknumber = Math.floor(timestamp / 15)
 
   await canonicalTransactionChain
     .connect(sequencer)
-    .appendSequencerBatch(batch, timestamp)
+    .appendSequencerBatch(batch, timestamp, blocknumber)
 
   return [timestamp, blocknumber]
 }
