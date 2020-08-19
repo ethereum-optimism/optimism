@@ -159,7 +159,7 @@ describe('Execution Manager -- Context opcodes', () => {
     })
   })
 
-  describe.only('ovmTIMESTAMP', async () => {
+  describe('ovmTIMESTAMP', async () => {
     it('properly retrieves TIMESTAMP', async () => {
       const timestamp: number = getCurrentTime()
       const result = await executeTransaction(
@@ -180,7 +180,7 @@ describe('Execution Manager -- Context opcodes', () => {
     })
   })
 
-  describe.only('ovmNUMBER', async () => {
+  describe('ovmNUMBER', async () => {
     it('properly retrieves NUMBER', async () => {
       const blocknumber: number = 15
       const result = await executeTransaction(

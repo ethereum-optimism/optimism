@@ -40,7 +40,7 @@ describe('StateCommitmentChain', () => {
     '0x1234',
     '0x5678',
   ]
-  const FORCE_INCLUSION_PERIOD = 600
+  const FORCE_INCLUSION_PERIOD = 4000
 
   let wallet: Signer
   let sequencer: Signer
