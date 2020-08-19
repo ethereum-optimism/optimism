@@ -19,6 +19,7 @@ import {
 
 interface OVMTransactionData {
   timestamp: number
+  blocknumber: number
   queueOrigin: number
   ovmEntrypoint: string
   callBytes: string
@@ -34,6 +35,7 @@ const FORCE_INCLUSION_PERIOD = 600
 const makeDummyTransaction = (calldata: string): OVMTransactionData => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
+    blocknumber: 0,
     queueOrigin: 0,
     ovmEntrypoint: NULL_ADDRESS,
     callBytes: calldata,

@@ -26,6 +26,7 @@ library DataTypes {
         bool inStaticContext;
         uint chainId;
         uint timestamp;
+        uint blocknumber;
         uint queueOrigin;
         address ovmActiveContract;
         address ovmMsgSender;
@@ -93,6 +94,7 @@ library DataTypes {
 
     struct OVMTransactionData {
         uint256 timestamp;
+        uint256 blocknumber;
         uint256 queueOrigin;
         address ovmEntrypoint;
         bytes callBytes;

@@ -232,6 +232,7 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         // Execute the transaction via the execution manager.
         executionManager.executeTransaction(
             _transactionData.timestamp,
+            _transactionData.blocknumber,
             _transactionData.queueOrigin,
             _transactionData.ovmEntrypoint,
             _transactionData.callBytes,

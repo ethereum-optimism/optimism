@@ -153,7 +153,8 @@ describe('Execution Manager -- Gas Metering', () => {
     timestamp: number,
     queueOrigin: number,
     gasToConsume: number,
-    gasLimit: any = false
+    gasLimit: any = false,
+    blocknumber: number = 0
   ) => {
     const internalCallBytes = GasConsumer.interface.encodeFunctionData(
       'consumeGasInternalCall',
@@ -170,6 +171,7 @@ describe('Execution Manager -- Gas Metering', () => {
       'executeTransaction',
       [
         timestamp,
+        blocknumber,
         queueOrigin,
         gasConsumerAddress,
         internalCallBytes,
