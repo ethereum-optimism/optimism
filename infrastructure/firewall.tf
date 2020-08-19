@@ -100,12 +100,12 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
 }
 
 /*
- * This firewall rule contains the required access from the omisego VPC to access Vault
+ * This firewall rule contains the required access from the OMGNetwork VPC to access Vault
  */
-resource "google_compute_firewall" "omisego_vpc_access" {
-  name        = "omisego-vpc-access"
+resource "google_compute_firewall" "omgnetwork_vpc_access" {
+  name        = "omgnetwork-vpc-access"
   network     = google_compute_network.vpc.name
-  description = "Allows access from Omisego VPC"
+  description = "Allows access from OMGNetwork VPC"
   direction   = "INGRESS"
   priority    = "1000"
 
@@ -120,7 +120,7 @@ resource "google_compute_firewall" "omisego_vpc_access" {
     ports    = ["8200"]
   }
 
-  source_ranges = [var.omisego_subnet_cidr, var.subnet_cidr]
+  source_ranges = [var.omgnetwork_subnet_cidr, var.subnet_cidr]
   target_tags   = ["vault"]
 }
 

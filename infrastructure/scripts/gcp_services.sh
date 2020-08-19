@@ -3,6 +3,8 @@
 set -e
 
 SERVICES=("compute.googleapis.com" "containerregistry.googleapis.com")
+SECONDARY=("container.googleapis.com")
+
 MODE="enable"
 GCP_PROJECT=""
 
@@ -24,12 +26,24 @@ shift "$(($OPTIND -2))"
 
 if [ "$MODE" == "enable" ]; then
   echo "Enabling GCP services. This may take some time..."
+
+  for svc in "${SERVICES[@]}"; do
+    gcloud services $MODE $svc
+  done
+
+  for svc in "${SECONDARY[@]}"; do
+    gcloud services $MODE $svc
+  done
 else
   echo "Disabling GCP services. This may take some time..."
-fi
 
-for svc in "${SERVICES[@]}"; do
-  gcloud services $MODE $svc
-done
+  for svc in "${SECONDARY[@]}"; do
+    gcloud services $MODE $svc
+  done
+
+  for svc in "${SERVICES[@]}"; do
+    gcloud services $MODE $svc
+  done
+fi
 
 echo "Done."

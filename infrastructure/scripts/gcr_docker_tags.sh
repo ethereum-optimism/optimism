@@ -2,7 +2,7 @@
 
 set -e
 
-CONTAINER_IMAGES=("consul:1.7.1" "hashicorp/consul-k8s:0.12.0" "omgnetwork/vault:1.0.0")
+CONTAINER_IMAGES=("omgnetwork/vault:1.0.0")
 MODE="create"
 GCR_HOST="gcr.io"
 GCP_PROJECT=""

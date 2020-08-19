@@ -23,11 +23,11 @@ variable "datadog_app_key" {
   description = "Datadog APP key"
 }
 
-variable "omisego_vpc_uri" {
+variable "omgnetwork_vpc_uri" {
   description = "URI of the client VPC to be peered to the Vault VPC"
 }
 
-variable "omisego_subnet_cidr" {
+variable "omgnetwork_subnet_cidr" {
   description = "CIDR block of subnet used when allowing ingress access in Vault VPC firewall"
 }
 
