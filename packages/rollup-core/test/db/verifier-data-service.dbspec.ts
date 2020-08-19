@@ -13,6 +13,7 @@ import {
   createTxOutput,
   defaultStateRoot,
   deleteAllData,
+  insertTxOutput,
   l1Block,
   verifyL1BlockRes,
   verifyL2TxOutput,
@@ -75,13 +76,12 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx1,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      batchNum.should.equal(0, `Batch should have been built`)
 
       const candidate = await dataService.getNextVerificationCandidate()
       const candidateExists = !!candidate
@@ -107,13 +107,13 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -152,13 +152,13 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -194,13 +194,13 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -236,13 +236,13 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -281,19 +281,19 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
       const tx3 = createTxOutput(
         keccak256FromUtf8('tx 3'),
         keccak256FromUtf8(defaultStateRoot),
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx3)
+      await insertTxOutput(dataService, tx3, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -309,14 +309,14 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
         stateRoot4,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx4)
+      await insertTxOutput(dataService, tx4, BatchSubmissionStatus.FINALIZED)
 
       const tx5 = createTxOutput(
         keccak256FromUtf8('tx 5'),
         stateRoot5,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx5)
+      await insertTxOutput(dataService, tx5, BatchSubmissionStatus.FINALIZED)
 
       const batch2Num = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
