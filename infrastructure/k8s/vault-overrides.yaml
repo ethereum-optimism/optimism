@@ -9,6 +9,11 @@ Vault:
     Key: "immutajeff-key"
 
 server:
+  image:
+    repository: vault # TODO: will change to the omgnetwork/vault image
+    tag: "1.5.0" # TODO: will change to the appropriate tag for omgnetwork/vault
+    pullPolicy: IfNotPresent
+
   extraEnvironmentVars:
     GOOGLE_REGION: global
     GOOGLE_PROJECT: immutajeff-vault
@@ -16,4 +21,4 @@ server:
 
   extraVolumes:
     - type: secret
-      name: 'kms-creds'
+      name: "kms-creds"
