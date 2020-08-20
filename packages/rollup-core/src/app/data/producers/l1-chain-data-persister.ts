@@ -184,11 +184,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
     )
 
     const flattened: Log[] = [].concat(...logsArrays)
-    log.info(
-      `Logs Arrays: ${JSON.stringify(logsArrays)}.\nFlattened: ${JSON.stringify(
-        flattened
-      )}`
-    )
+    log.debug(`Logs Arrays: ${JSON.stringify(flattened)}`)
 
     return flattened
   }

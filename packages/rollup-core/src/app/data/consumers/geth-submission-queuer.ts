@@ -24,7 +24,7 @@ export class GethSubmissionQueuer extends ScheduledTask {
    * Creates Geth Submission Queue batches from L1 Transactions in the DB.
    *
    */
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     // TODO: Leaving this here as a placeholder, but I think we'll implement this in geth
     try {
       const queueIndex = await this.dataService.queueNextGethSubmission(
@@ -32,8 +32,10 @@ export class GethSubmissionQueuer extends ScheduledTask {
       )
       if (queueIndex < 0) {
         log.debug(`No transactions present to queue for Geth submission.`)
+        return false
       }
       log.debug(`Queued submission number ${queueIndex} to send to Geth.`)
+      return true
     } catch (e) {
       logError(log, `Error queueing transactions for submission to Geth`, e)
       // swallow exception.
