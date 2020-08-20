@@ -1,12 +1,8 @@
-Vault:
-  Config:
-    ClusterName: "immutajeff"
-    LogLevel: "debug"
-  Seal:
-    Project: "immutajeff-vault"
-    Region: "global"
-    KeyRing: "immutajeff-keyring"
-    Key: "immutajeff-key"
+global:
+  tlsDisable: true # TODO: change to enable TLS
+
+injector:
+  enabled: false
 
 server:
   image:
@@ -22,3 +18,17 @@ server:
   extraVolumes:
     - type: secret
       name: "kms-creds"
+
+ui:
+  enabled: false
+
+vault:
+  config:
+    clusterName: "immutajeff"
+    logLevel: "debug"
+
+  seal:
+    project: "immutajeff-vault"
+    region: "global"
+    keyRing: "immutajeff-keyring"
+    key: "immutajeff-key"

@@ -384,8 +384,8 @@ server:
     
       config: |
         ui = false
-        log_level = {{ .Values.Vault.Config.LogLevel | quote }}
-        cluster_name = "omg-vault-{{ .Values.Vault.Config.ClusterName }}"
+        log_level = {{ .Values.vault.config.logLevel | quote }}
+        cluster_name = "omg-vault-{{ .Values.vault.config.clusterName }}"
         listener "tcp" {
           tls_disable = 1
           address = "[::]:8200"
@@ -393,10 +393,10 @@ server:
         }
 
         seal "gcpckms" {
-          project     = {{ .Values.Vault.Seal.Project | quote }}
-          region      = {{ .Values.Vault.Seal.Region | quote }}
-          key_ring    = {{ .Values.Vault.Seal.KeyRing | quote }}
-          crypto_key  = {{ .Values.Vault.Seal.Key | quote }}
+          project     = {{ .Values.vault.seal.project | quote }}
+          region      = {{ .Values.vault.seal.region | quote }}
+          key_ring    = {{ .Values.vault.seal.keyRing | quote }}
+          crypto_key  = {{ .Values.vault.seal.key | quote }}
         }
 
         storage "raft" {
@@ -407,7 +407,7 @@ server:
    
     config: |
       ui = true
-      log_level = {{ .Values.Vault.Config.LogLevel | quote }}
+      log_level = {{ .Values.vault.config.logLevel | quote }}
 
       listener "tcp" {
         tls_disable = 1
@@ -421,10 +421,10 @@ server:
       # GKMS keys must already exist, and the cluster must have a service account
       # that is authorized to access GCP KMS.
       seal "gcpckms" {
-         project     = {{ .Values.Vault.Seal.Project | quote }}
-         region      = {{ .Values.Vault.Seal.Region | quote }}
-         key_ring    = {{ .Values.Vault.Seal.KeyRing | quote }}
-         crypto_key  = {{ .Values.Vault.Seal.Key | quote }}
+         project     = {{ .Values.vault.seal.project | quote }}
+         region      = {{ .Values.vault.seal.region | quote }}
+         key_ring    = {{ .Values.vault.seal.keyRing | quote }}
+         crypto_key  = {{ .Values.vault.seal.key | quote }}
       }
 
     # A disruption budget limits the number of pods of a replicated application

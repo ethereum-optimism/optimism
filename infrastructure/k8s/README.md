@@ -42,7 +42,7 @@ Edit _vault-overrides.yaml_. Be sure to change the values for:
 Execute:
 
 ```
-helm install vault vault --values vault-overrides.yaml
+helm install vault ./vault --values vault-overrides.yaml
 ```
 
 ## Install the Vault Helm Chart

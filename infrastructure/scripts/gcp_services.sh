@@ -2,7 +2,7 @@
 
 set -e
 
-SERVICES=("compute.googleapis.com" "containerregistry.googleapis.com")
+SERVICES=("compute.googleapis.com" "cloudkms.googleapis.com" "containerregistry.googleapis.com")
 SECONDARY=("container.googleapis.com")
 
 MODE="enable"
