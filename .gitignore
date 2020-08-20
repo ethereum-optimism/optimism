@@ -24,3 +24,4 @@ unsealer/backup.snap
 docker/config/data
 docker/config/unseal.json
 *.key.json
+credentials.json

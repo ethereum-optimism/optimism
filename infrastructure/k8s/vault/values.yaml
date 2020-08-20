@@ -42,7 +42,7 @@ injector:
   # required.
   agentImage:
     repository: "vault"
-    tag: "1.4.2"
+    tag: "1.5.0"
 
   # Mount Path of the Vault Kubernetes Auth Method.
   authPath: "auth/kubernetes"
@@ -96,7 +96,6 @@ injector:
   # extraEnvironmentVars is a list of extra enviroment variables to set in the
   # injector deployment.
   extraEnvironmentVars: {}
-    # KUBERNETES_SERVICE_HOST: kubernetes.default.svc
 
   # Affinity Settings for injector pods
   # This should be a multi-line string matching the affinity section of a
@@ -125,7 +124,7 @@ server:
 
   image:
     repository: "vault"
-    tag: "1.4.2"
+    tag: "1.5.0"
     # Overrides the default Image Pull Policy
     pullPolicy: IfNotPresent
 
@@ -234,9 +233,6 @@ server:
   # extraEnvironmentVars is a list of extra enviroment variables to set with the stateful set. These could be
   # used to include variables required for auto-unseal.
   extraEnvironmentVars: {}
-    # GOOGLE_REGION: global
-    # GOOGLE_PROJECT: myproject
-    # GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/myproject/myproject-creds.json
 
   # extraSecretEnvironmentVars is a list of extra enviroment variables to set with the stateful set.
   # These variables take value from existing Secret objects.
@@ -249,25 +245,16 @@ server:
   # to Vault in the path `/vault/userconfig/<name>/`. The value below is
   # an array of objects, examples are shown below.
   extraVolumes: []
-    # - type: secret (or "configMap")
-    #   name: my-secret
-    #   path: null # default is `/vault/userconfig`
 
   # volumes is a list of volumes made available to all containers. These are rendered
   # via toYaml rather than pre-processed like the extraVolumes value.
   # The purpose is to make it easy to share volumes between containers.
-  volumes: null
-  #   - name: plugins
-  #     emptyDir: {}
+  volumes: []
 
   # volumeMounts is a list of volumeMounts for the main server container. These are rendered
   # via toYaml rather than pre-processed like the extraVolumes value.
   # The purpose is to make it easy to share volumes between containers.
-  volumeMounts: null
-  #   - mountPath: /usr/local/libexec/vault
-  #     name: plugins
-  #     readOnly: true
-
+  volumeMounts: []
 
   # Affinity Settings
   # Commenting out or setting as empty the affinity variable, will allow
@@ -370,43 +357,8 @@ server:
   dev:
     enabled: false
 
-  # Run Vault in "standalone" mode. This is the default mode that will deploy if
-  # no arguments are given to helm. This requires a PVC for data storage to use
-  # the "file" backend.  This mode is not highly available and should not be scaled
-  # past a single replica.
   standalone:
-    enabled: "-"
-
-    # config is a raw string of default configuration when using a Stateful
-    # deployment. Default is to use a PersistentVolumeClaim mounted at /vault/data
-    # and store data there. This is only used when using a Replica count of 1, and
-    # using a stateful set. This should be HCL.
-
-    # Note: Configuration files are stored in ConfigMaps so sensitive data 
-    # such as passwords should be either mounted through extraSecretEnvironmentVars
-    # or through a Kube secret.  For more information see: 
-    # https://www.vaultproject.io/docs/platform/k8s/helm/run#protecting-sensitive-vault-configurations
-    config: |
-      ui = true
-
-      listener "tcp" {
-        tls_disable = 1
-        address = "[::]:8200"
-        cluster_address = "[::]:8201"
-      }
-      storage "file" {
-        path = "/vault/data"
-      }
-
-      # Example configuration for using auto-unseal, using Google Cloud KMS. The
-      # GKMS keys must already exist, and the cluster must have a service account
-      # that is authorized to access GCP KMS.
-      #seal "gcpckms" {
-      #   project     = "vault-helm-dev"
-      #   region      = "global"
-      #   key_ring    = "vault-helm-unseal-kr"
-      #   crypto_key  = "vault-helm-unseal-key"
-      #}
+    enabled: false
 
   # Run Vault in "HA" mode. There are no storage requirements unless audit log
   # persistence is required.  In HA mode Vault will configure itself to use Consul
@@ -414,7 +366,7 @@ server:
   # Helm project by default.  It is possible to manually configure Vault to use a
   # different HA backend.
   ha:
-    enabled: false
+    enabled: true
     replicas: 3
 
     # Set the api_addr configuration for Vault HA
@@ -427,23 +379,24 @@ server:
     # persistent volumes for Vault to store data according to the configuration under server.dataStorage.
     # The Vault cluster will coordinate leader elections and failovers internally.
     raft:
-
-      # Enables Raft integrated storage
-      enabled: false
-      # Set the Node Raft ID to the name of the pod
-      setNodeId: false
+      enabled: true
+      setNodeId: true
     
-      # Note: Configuration files are stored in ConfigMaps so sensitive data 
-      # such as passwords should be either mounted through extraSecretEnvironmentVars
-      # or through a Kube secret.  For more information see: 
-      # https://www.vaultproject.io/docs/platform/k8s/helm/run#protecting-sensitive-vault-configurations
       config: |
-        ui = true
-
+        ui = false
+        log_level = {{ .Values.Vault.Config.LogLevel | quote }}
+        cluster_name = "omg-vault-{{ .Values.Vault.Config.ClusterName }}"
         listener "tcp" {
           tls_disable = 1
           address = "[::]:8200"
           cluster_address = "[::]:8201"
+        }
+
+        seal "gcpckms" {
+          project     = {{ .Values.Vault.Seal.Project | quote }}
+          region      = {{ .Values.Vault.Seal.Region | quote }}
+          key_ring    = {{ .Values.Vault.Seal.KeyRing | quote }}
+          crypto_key  = {{ .Values.Vault.Seal.Key | quote }}
         }
 
         storage "raft" {
@@ -452,25 +405,14 @@ server:
 
         service_registration "kubernetes" {}
    
-    # config is a raw string of default configuration when using a Stateful
-    # deployment. Default is to use a Consul for its HA storage backend.
-    # This should be HCL.
-    
-    # Note: Configuration files are stored in ConfigMaps so sensitive data 
-    # such as passwords should be either mounted through extraSecretEnvironmentVars
-    # or through a Kube secret.  For more information see: 
-    # https://www.vaultproject.io/docs/platform/k8s/helm/run#protecting-sensitive-vault-configurations
     config: |
       ui = true
+      log_level = {{ .Values.Vault.Config.LogLevel | quote }}
 
       listener "tcp" {
         tls_disable = 1
         address = "[::]:8200"
         cluster_address = "[::]:8201"
-      }
-      storage "consul" {
-        path = "vault"
-        address = "HOST_IP:8500"
       }
 
       service_registration "kubernetes" {}
@@ -478,12 +420,12 @@ server:
       # Example configuration for using auto-unseal, using Google Cloud KMS. The
       # GKMS keys must already exist, and the cluster must have a service account
       # that is authorized to access GCP KMS.
-      #seal "gcpckms" {
-      #   project     = "vault-helm-dev-246514"
-      #   region      = "global"
-      #   key_ring    = "vault-helm-unseal-kr"
-      #   crypto_key  = "vault-helm-unseal-key"
-      #}
+      seal "gcpckms" {
+         project     = {{ .Values.Vault.Seal.Project | quote }}
+         region      = {{ .Values.Vault.Seal.Region | quote }}
+         key_ring    = {{ .Values.Vault.Seal.KeyRing | quote }}
+         crypto_key  = {{ .Values.Vault.Seal.Key | quote }}
+      }
 
     # A disruption budget limits the number of pods of a replicated application
     # that are down simultaneously from voluntary disruptions

@@ -1,0 +1,19 @@
+Vault:
+  Config:
+    ClusterName: "immutajeff"
+    LogLevel: "debug"
+  Seal:
+    Project: "immutajeff-vault"
+    Region: "global"
+    KeyRing: "immutajeff-keyring"
+    Key: "immutajeff-key"
+
+server:
+  extraEnvironmentVars:
+    GOOGLE_REGION: global
+    GOOGLE_PROJECT: immutajeff-vault
+    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/credentials.json
+
+  extraVolumes:
+    - type: secret
+      name: 'kms-creds'
