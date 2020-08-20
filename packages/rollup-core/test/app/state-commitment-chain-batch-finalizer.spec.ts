@@ -1,5 +1,5 @@
 /* External Imports */
-import { keccak256FromUtf8, TestUtils,sleep } from '@eth-optimism/core-utils'
+import { keccak256FromUtf8, TestUtils, sleep } from '@eth-optimism/core-utils'
 import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */

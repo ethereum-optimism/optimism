@@ -1223,7 +1223,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.SENT)
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.SENT
+      )
 
       const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
       const batchExists: boolean = !!batch
@@ -1241,7 +1246,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.QUEUED)
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
+      )
 
       const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
       const batchExists: boolean = !!batch
@@ -1257,7 +1267,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.FINALIZED)
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.FINALIZED
+      )
 
       const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
       const batchExists: boolean = !!batch
@@ -1273,14 +1288,24 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.SENT)
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.SENT
+      )
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.SENT)
+      await insertTxOutput(
+        dataService,
+        tx2,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.SENT
+      )
 
       const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
       const batchExists: boolean = !!batch
@@ -1292,7 +1317,6 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
     })
   })
-
 
   describe('markStateRootBatchSubmittedToL1', () => {
     it('Should update tx batch to submitted', async () => {

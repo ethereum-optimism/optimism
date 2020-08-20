@@ -300,11 +300,7 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
     getSequencerWallet()
   )
 
-  return new CanonicalChainBatchSubmitter(
-    getDataService(),
-    contract,
-    period
-  )
+  return new CanonicalChainBatchSubmitter(getDataService(), contract, period)
 }
 
 /**
