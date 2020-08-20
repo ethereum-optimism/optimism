@@ -25,6 +25,7 @@ const config: any = {
   solc: {
     path: path.resolve(__dirname, '../../node_modules/@eth-optimism/solc'),
   },
+  useOvm: true,
 }
 
 export default config
