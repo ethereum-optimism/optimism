@@ -1,6 +1,6 @@
 import { extendEnvironment } from '@nomiclabs/buidler/config'
 // tslint:disable-next-line
-const VM = require('ethereumjs-vm').default
+const VM = require('ethereumjs-ovm').default
 
 extendEnvironment(async (bre) => {
   // Initialize the provider so it has a VM instance ready to copy.

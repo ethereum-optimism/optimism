@@ -72,7 +72,7 @@
     "@nomiclabs/buidler": "^1.4.4",
     "ethereum-waffle-v2": "npm:ethereum-waffle@2",
     "ethereum-waffle-v3": "npm:ethereum-waffle@3",
-    "ethereumjs-vm": "git+https://github.com/ethereum-optimism/ethereumjs-vm",
+    "ethereumjs-ovm": "git+https://github.com/ethereum-optimism/ethereumjs-vm",
     "ethers-v4": "npm:ethers@4",
     "ethers-v5": "npm:ethers@5.0.7"
   }

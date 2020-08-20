@@ -1,6 +1,6 @@
 import * as eGanache from 'ganache-core'
 // tslint:disable-next-line
-const VM = require('ethereumjs-vm').default
+const VM = require('ethereumjs-ovm').default
 
 // tslint:disable-next-line:no-shadowed-variable
 const wrap = (provider: any, opts: any) => {
