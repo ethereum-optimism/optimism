@@ -4,6 +4,7 @@ import {
   TransactionBatchSubmission,
   BatchSubmissionStatus,
   StateCommitmentBatchSubmission,
+  BatchSubmission,
 } from './types'
 
 export interface L2DataService {
@@ -70,6 +71,14 @@ export interface L2DataService {
   >
 
   /**
+   * Gets the next Canonical Chain Tx batch for finalization on L1, if one exists.
+   *
+   * @returns The BatchSubmission object, or undefined
+   * @throws An error if there is a DB error.
+   */
+  getNextCanonicalChainTransactionBatchToFinalize(): Promise<BatchSubmission>
+
+  /**
    * Marks the Canonical Chain Tx batch with the provided batch number as submitted to the L1 chain.
    *
    * @param batchNumber The batch number to mark as submitted.
@@ -100,6 +109,14 @@ export interface L2DataService {
    * @throws An error if there is a DB error.
    */
   getNextStateCommitmentBatchToSubmit(): Promise<StateCommitmentBatchSubmission>
+
+  /**
+   * Gets the next State Commitment Chain batch for finalization on L1, if one exists.
+   *
+   * @returns The BatchSubmission object, or undefined
+   * @throws An error if there is a DB error.
+   */
+  getNextStateCommitmentBatchToFinalize(): Promise<BatchSubmission>
 
   /**
    * Marks the StateCommitment batch with the provided batch number as submitted to the L1 chain.

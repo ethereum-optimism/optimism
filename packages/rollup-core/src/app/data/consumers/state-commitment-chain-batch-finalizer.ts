@@ -4,18 +4,19 @@ import { Contract } from 'ethers'
 
 /* Internal Imports */
 import {
+  BatchSubmission,
   BatchSubmissionStatus,
   L2DataService,
   StateCommitmentBatchSubmission,
 } from '../../../types/data'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 
-const log = getLogger('state-commitment-chain-batch-submitter')
+const log = getLogger('state-commitment-chain-batch-finalizer')
 
 /**
  * Polls the DB for L2 batches ready to send to L1 and submits them.
  */
-export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
+export class StateCommitmentChainBatchFinalizer extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
     private readonly stateCommitmentChain: Contract,
@@ -31,82 +32,43 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
    * Submits L2 batches from L2 Transactions in the DB whenever there is a batch that is ready.
    */
   public async runTask(): Promise<boolean> {
-    let stateBatch: StateCommitmentBatchSubmission
+    let batchToFinalize: BatchSubmission
     try {
-      stateBatch = await this.dataService.getNextStateCommitmentBatchToSubmit()
+      batchToFinalize = await this.dataService.getNextStateCommitmentBatchToFinalize()
     } catch (e) {
       logError(
         log,
-        `Error fetching state root batch for L1 submission! Continuing...`,
+        `Error fetching state root batch for L1 finalization! Continuing...`,
         e
       )
       return false
     }
 
-    if (stateBatch.status !== BatchSubmissionStatus.QUEUED) {
+    if (
+      !batchToFinalize ||
+      batchToFinalize.batchNumber === null ||
+      batchToFinalize.batchNumber === undefined ||
+      !batchToFinalize.submissionTxHash
+    ) {
+      log.debug(`No tx batches found to finalize.`)
+      return false
+    }
+
+    if (batchToFinalize.status !== BatchSubmissionStatus.SENT) {
       const msg = `Received state commitment batch to finalize in ${
-        stateBatch.status
+        batchToFinalize.status
       } instead of ${
         BatchSubmissionStatus.SENT
-      }. Batch Submission: ${JSON.stringify(stateBatch)}.`
+      }. Batch Submission: ${JSON.stringify(batchToFinalize)}.`
       log.error(msg)
       throw msg
     }
 
-    await this.buildAndSendRollupBatchTransaction(stateBatch)
+    await this.waitForStateRootBatchConfirms(
+      batchToFinalize.submissionTxHash,
+      batchToFinalize.batchNumber
+    )
     return true
-  }
-
-  /**
-   * Builds and sends a Rollup State Root Batch transaction to L1, returning its tx hash.
-   *
-   * @param stateRootBatch The state root batch to send to L1.
-   * @returns The L1 tx hash.
-   */
-  private async buildAndSendRollupBatchTransaction(
-    stateRootBatch: StateCommitmentBatchSubmission
-  ): Promise<string> {
-    let txHash: string
-    try {
-      const stateRoots: string[] = stateRootBatch.stateRoots
-
-      log.debug(
-        `Appending state root batch number: ${stateRootBatch.batchNumber} with ${stateRoots.length} state roots.`
-      )
-
-      const txRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(
-        stateRoots
-      )
-      log.debug(
-        `State Root batch ${stateRootBatch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
-      )
-      txHash = txRes.hash
-    } catch (e) {
-      logError(
-        log,
-        `Error submitting State Root batch ${stateRootBatch.batchNumber} to state commitment chain!`,
-        e
-      )
-      return undefined
-    }
-
-    try {
-      log.debug(
-        `Marking State Root batch ${stateRootBatch.batchNumber} submitted`
-      )
-      await this.dataService.markStateRootBatchSubmittedToL1(
-        stateRootBatch.batchNumber,
-        txHash
-      )
-    } catch (e) {
-      logError(
-        log,
-        `Error marking State Root batch ${stateRootBatch.batchNumber} as submitted!`,
-        e
-      )
-      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
-    }
-    return txHash
   }
 
   /**

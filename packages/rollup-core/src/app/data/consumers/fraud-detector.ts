@@ -28,11 +28,11 @@ export class FraudDetector extends ScheduledTask {
     this.fraudCount = 0
   }
 
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     const verifierCandidate: VerificationCandidate = await this.dataService.getNextVerificationCandidate()
     if (!verifierCandidate) {
       log.debug(`No verifier candidate is available, returning...`)
-      return
+      return false
     }
 
     if (verifierCandidate.batchNumber === undefined) {
@@ -67,7 +67,7 @@ export class FraudDetector extends ScheduledTask {
           }
         }
         this.fraudCount++
-        return
+        return false
       }
     }
 
@@ -80,5 +80,6 @@ export class FraudDetector extends ScheduledTask {
 
     log.debug(`Batch #${verifierCandidate.batchNumber} has been verified!`)
     await this.dataService.verifyStateRootBatch(verifierCandidate.batchNumber)
+    return true
   }
 }
