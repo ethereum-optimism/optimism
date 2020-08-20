@@ -1,4 +1,4 @@
-import debug, { Debug } from 'debug'
+import debug from 'debug'
 import { Logger } from '../types'
 
 export const LOG_NEWLINE_STRING = process.env.LOG_NEW_LINES ? '\n' : ' <\\n> '
@@ -14,7 +14,7 @@ export const LOG_NEWLINE_STRING = process.env.LOG_NEW_LINES ? '\n' : ' <\\n> '
 export const getLogger = (
   identifier: string,
   isTest: boolean = false,
-  debugToUseTestOnly?: Debug
+  debugToUseTestOnly?: any
 ): Logger => {
   const testString = isTest ? 'test:' : ''
   return {
@@ -67,7 +67,7 @@ const joinNewLines = (...logs: any[]): string => {
  */
 const getLogFunction = (
   identifier: string,
-  debugToUseTestOnly: Debug = debug
+  debugToUseTestOnly: any = debug
 ): any => {
   const d = debugToUseTestOnly(identifier)
   return (...logs: any[]): any => {
