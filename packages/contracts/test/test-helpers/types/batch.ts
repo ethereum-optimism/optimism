@@ -279,7 +279,14 @@ export class TxQueueBatch {
     const txHash = await this.getMerkleRoot()
     return utils.solidityKeccak256(
       ['uint', 'uint', 'bool', 'bytes32', 'uint', 'uint'],
-      [this.timestamp, this.blocknumber, isL1ToL2Tx, txHash, 1, cumulativePrevElements]
+      [
+        this.timestamp,
+        this.blocknumber,
+        isL1ToL2Tx,
+        txHash,
+        1,
+        cumulativePrevElements,
+      ]
     )
   }
 }

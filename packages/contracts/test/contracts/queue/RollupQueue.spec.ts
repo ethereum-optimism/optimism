@@ -54,7 +54,9 @@ describe('RollupQueue', () => {
 
     it('should set the TimestampedHash correctly', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
-      const { txHash, timestamp, blocknumber } = await rollupQueue.batchHeaders(0)
+      const { txHash, timestamp, blocknumber } = await rollupQueue.batchHeaders(
+        0
+      )
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)

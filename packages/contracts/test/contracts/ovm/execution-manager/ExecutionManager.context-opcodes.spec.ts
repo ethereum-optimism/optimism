@@ -173,10 +173,7 @@ describe('Execution Manager -- Context opcodes', () => {
       log.debug(`TIMESTAMP result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      hexStrToNumber(result).should.equal(
-        timestamp,
-        'Timestamps do not match.'
-      )
+      hexStrToNumber(result).should.equal(timestamp, 'Timestamps do not match.')
     })
   })
 
@@ -270,7 +267,7 @@ describe('Execution Manager -- Context opcodes', () => {
     args: any[],
     queueOrigin = ZERO_ADDRESS,
     timestamp = getCurrentTime(),
-    blocknumber = 0,
+    blocknumber = 0
   ): Promise<string> => {
     const callBytes = add0x(methodId + encodeRawArguments(args))
     const data = executionManager.interface.encodeFunctionData(
