@@ -19,6 +19,7 @@ import {
   verifyL2TxOutput,
 } from './helpers'
 import {
+  BatchSubmission,
   BatchSubmissionStatus,
   QueueOrigin,
   StateCommitmentBatchSubmission,
@@ -851,6 +852,89 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
     })
   })
 
+  describe('getNextCanonicalChainTransactionBatchToFinalize', () => {
+    it('Should not return batch when no batch exists', async () => {
+      const batch: BatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(false, `Sent batch should not exist`)
+    })
+
+    it('Should return batch when batch exists', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.SENT)
+
+      const batch: BatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(true, `Sent batch should exist`)
+      batch.batchNumber.should.equal('0', `Incorrect batch number!`)
+      batch.status.should.equal(
+        BatchSubmissionStatus.SENT,
+        `Incorrect batch status!`
+      )
+    })
+
+    it('Should not return batch when batch is QUEUED', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.QUEUED)
+
+      const batch: BatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(
+        false,
+        `Batch should not be returned because it was not sent.`
+      )
+    })
+
+    it('Should not return batch when batch is final on L1', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED)
+
+      const batch: BatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(
+        false,
+        `Batch should not be returned because it was already finalized.`
+      )
+    })
+
+    it('Should return earliest batch when there are multiple', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.SENT)
+
+      const tx2 = createTxOutput(
+        keccak256FromUtf8('tx 2'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.SENT)
+
+      const batch: BatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(true, `Sent batch should exist`)
+      batch.batchNumber.should.equal('0', `Incorrect batch number!`)
+      batch.status.should.equal(
+        BatchSubmissionStatus.SENT,
+        `Incorrect batch status!`
+      )
+    })
+  })
+
   describe('markTransactionBatchSubmittedToL1', () => {
     it('Should update tx batch to submitted', async () => {
       const tx = createTxOutput(
@@ -1125,6 +1209,90 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
     })
   })
+
+  describe('getNextStateCommitmentBatchToFinalize', () => {
+    it('Should not return batch when no batch exists', async () => {
+      const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(false, `Sent batch should not exist`)
+    })
+
+    it('Should return batch when batch exists', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.SENT)
+
+      const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(true, `Sent batch should exist`)
+      batch.batchNumber.should.equal('0', `Incorrect batch number!`)
+      batch.status.should.equal(
+        BatchSubmissionStatus.SENT,
+        `Incorrect batch status!`
+      )
+    })
+
+    it('Should not return batch when batch is QUEUED', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.QUEUED)
+
+      const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(
+        false,
+        `Batch should not be returned because it was not sent.`
+      )
+    })
+
+    it('Should not return batch when batch is final on L1', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.FINALIZED)
+
+      const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(
+        false,
+        `Batch should not be returned because it was already finalized.`
+      )
+    })
+
+    it('Should return earliest batch when there are multiple', async () => {
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.SENT)
+
+      const tx2 = createTxOutput(
+        keccak256FromUtf8('tx 2'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED, BatchSubmissionStatus.SENT)
+
+      const batch: BatchSubmission = await dataService.getNextStateCommitmentBatchToFinalize()
+      const batchExists: boolean = !!batch
+      batchExists.should.equal(true, `Sent batch should exist`)
+      batch.batchNumber.should.equal('0', `Incorrect batch number!`)
+      batch.status.should.equal(
+        BatchSubmissionStatus.SENT,
+        `Incorrect batch status!`
+      )
+    })
+  })
+
 
   describe('markStateRootBatchSubmittedToL1', () => {
     it('Should update tx batch to submitted', async () => {

@@ -1,11 +1,13 @@
+/* External Imports */
+import { keccak256FromUtf8, TestUtils,sleep } from '@eth-optimism/core-utils'
+import { JsonRpcProvider, TransactionReceipt } from 'ethers/providers'
+
+/* Internal Imports */
 import {
   CanonicalChainBatchFinalizer,
   DefaultDataService,
 } from '../../src/app/data'
 import { BatchSubmission, BatchSubmissionStatus } from '../../src/types/data'
-import { keccak256FromUtf8, TestUtils } from '@eth-optimism/core-utils/build'
-import { JsonRpcProvider, Provider, TransactionReceipt } from 'ethers/providers'
-import { sleep } from '@eth-optimism/core-utils/build/src'
 
 class MockDataService extends DefaultDataService {
   public throwOnFinalize: boolean = false
