@@ -14,7 +14,11 @@ import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
 import { CHAIN_ID } from '../../src/app'
-import { QueueOrigin } from '../../src/types/data'
+import {
+  BatchSubmissionStatus,
+  DataService,
+  QueueOrigin,
+} from '../../src/types/data'
 import { RollupTransaction, TransactionOutput } from '../../src/types'
 
 export const blockHash = keccak256FromUtf8('block hash')
@@ -299,4 +303,59 @@ export const verifyL2TxOutput = (row: Row, tx: TransactionOutput) => {
     tx.stateRoot,
     `State Root mismatch!`
   )
+}
+
+export const insertTxOutput = async (
+  dataService: DataService,
+  tx: TransactionOutput,
+  desiredTxBatchStatus?: string,
+  desiredRootBatchStatus?: string
+): Promise<void> => {
+  await dataService.insertL2TransactionOutput(tx)
+
+  let txBatchNumber: number
+  if (!!desiredTxBatchStatus) {
+    txBatchNumber = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
+      1,
+      1
+    )
+    txBatchNumber.should.be.gte(0, 'canonical chain batch not built')
+
+    if (desiredTxBatchStatus === BatchSubmissionStatus.SENT) {
+      await dataService.markTransactionBatchSubmittedToL1(
+        txBatchNumber,
+        keccak256FromUtf8(txBatchNumber.toString(10))
+      )
+    }
+
+    if (desiredTxBatchStatus === BatchSubmissionStatus.FINALIZED) {
+      await dataService.markTransactionBatchFinalOnL1(
+        txBatchNumber,
+        keccak256FromUtf8(txBatchNumber.toString(10))
+      )
+    }
+  }
+
+  let stateRootBatchNumber: number
+  if (!!desiredRootBatchStatus) {
+    stateRootBatchNumber = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
+      1,
+      1
+    )
+    stateRootBatchNumber.should.be.gte(0, 'state root chain batch not built')
+
+    if (desiredRootBatchStatus === BatchSubmissionStatus.SENT) {
+      await dataService.markStateRootBatchSubmittedToL1(
+        stateRootBatchNumber,
+        keccak256FromUtf8(txBatchNumber.toString(10))
+      )
+    }
+
+    if (desiredRootBatchStatus === BatchSubmissionStatus.FINALIZED) {
+      await dataService.markStateRootBatchFinalOnL1(
+        stateRootBatchNumber,
+        keccak256FromUtf8(txBatchNumber.toString(10))
+      )
+    }
+  }
 }

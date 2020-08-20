@@ -13,6 +13,7 @@ import {
   createTxOutput,
   defaultStateRoot,
   deleteAllData,
+  insertTxOutput,
   l1Block,
   verifyL1BlockRes,
   verifyL2TxOutput,
@@ -62,7 +63,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
 
     it('Should not build a batch without fewer than min tx outputs', async () => {
       const tx = createTxOutput(keccak256FromUtf8('tx'))
-      await dataService.insertL2TransactionOutput(tx)
+      await insertTxOutput(dataService, tx)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         2,
@@ -76,7 +77,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
 
     it('Should build a batch with min tx outputs', async () => {
       const tx = createTxOutput(keccak256FromUtf8('tx'))
-      await dataService.insertL2TransactionOutput(tx)
+      await insertTxOutput(dataService, tx)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         1,
@@ -108,10 +109,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
 
     it('Should build a batch with more than min tx outputs', async () => {
       const tx = createTxOutput(keccak256FromUtf8('tx'))
-      await dataService.insertL2TransactionOutput(tx)
+      await insertTxOutput(dataService, tx)
 
       const tx2 = createTxOutput(keccak256FromUtf8('tx 2'))
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         1,
@@ -174,7 +175,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
 
       const tx = createTxOutput(keccak256FromUtf8('tx'))
       tx.l1RollupTransactionId = parseInt(rollupTxRes[0]['id'], 10)
-      await dataService.insertL2TransactionOutput(tx)
+      await insertTxOutput(dataService, tx)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         1,
@@ -197,8 +198,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         keccak256FromUtf8(defaultStateRoot),
         blockNumber + 1
       )
-      await dataService.insertL2TransactionOutput(tx1)
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx1)
+      await insertTxOutput(dataService, tx2)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         1,
@@ -234,8 +235,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         blockNumber + 1,
         2
       )
-      await dataService.insertL2TransactionOutput(tx1)
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx1)
+      await insertTxOutput(dataService, tx2)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         1,
@@ -296,8 +297,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         keccak256FromUtf8(defaultStateRoot),
         blockNumber + 1
       )
-      await dataService.insertL2TransactionOutput(tx1)
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx1)
+      await insertTxOutput(dataService, tx2)
 
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         1,
@@ -360,7 +361,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -428,7 +429,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch()
       batchNum.should.equal(0, `Batch should have been built`)
@@ -461,14 +462,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch()
       batchNum.should.equal(0, `Batch should have been built`)
@@ -527,7 +528,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch()
       batchNum.should.equal(0, `Batch should have been built`)
@@ -551,14 +552,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch()
       batchNum.should.equal(0, `Batch should have been built`)
@@ -592,7 +593,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         2,
@@ -601,13 +602,58 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       batchNum.should.equal(-1, `No batch should have been built`)
     })
 
-    it('Should build a state commitment batch when min num txs present', async () => {
+    it('Should not build a state commitment batch when min num txs present but not queued for canonical chain', async () => {
       const tx1 = createTxOutput(
         keccak256FromUtf8('tx 1'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1)
+
+      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
+        1,
+        10
+      )
+      batchNum.should.equal(-1, `Batch should have been built`)
+    })
+
+    it('Should not build a state commitment batch when min num txs present but only queued for canonical chain', async () => {
+      const tx1 = createTxOutput(
+        keccak256FromUtf8('tx 1'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.QUEUED)
+
+      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
+        1,
+        10
+      )
+      batchNum.should.equal(-1, `Batch should have been built`)
+    })
+
+    it('Should not build a state commitment batch when min num txs present and sent but not finalized on canonical chain', async () => {
+      const tx1 = createTxOutput(
+        keccak256FromUtf8('tx 1'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.SENT)
+
+      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
+        1,
+        10
+      )
+      batchNum.should.equal(-1, `Batch should have been built`)
+    })
+
+    it('Should build a state commitment batch when min num txs present and canonical batch is finalized', async () => {
+      const tx1 = createTxOutput(
+        keccak256FromUtf8('tx 1'),
+        defaultStateRoot,
+        blockNumber
+      )
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -631,14 +677,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -674,14 +720,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx1)
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       let batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -725,13 +771,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
-      )
-      batchNum.should.equal(0, `Batch should have been built`)
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.QUEUED)
 
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -754,15 +794,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
-      )
-      batchNum.should.equal(0, `Batch should have been built`)
-
-      await dataService.markTransactionBatchSubmittedToL1(0, tx.transactionHash)
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.SENT)
 
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -778,15 +810,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
-      )
-      batchNum.should.equal(0, `Batch should have been built`)
-
-      await dataService.markTransactionBatchFinalOnL1(0, tx.transactionHash)
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED)
 
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -802,26 +826,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
-      )
-      batchNum.should.equal(0, `Batch 0 should have been built`)
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.QUEUED)
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
-
-      const secondBatchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
-      )
-      secondBatchNum.should.equal(1, `Batch 1 should have been built`)
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.QUEUED)
 
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -1005,7 +1017,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
+      await insertTxOutput(dataService, tx, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
         1,
@@ -1034,15 +1046,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.SENT
       )
-      batchNum.should.equal(0, `Batch should have been built`)
-
-      await dataService.markStateRootBatchSubmittedToL1(0, tx.transactionHash)
 
       const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -1058,15 +1067,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.FINALIZED
       )
-      batchNum.should.equal(0, `Batch should have been built`)
-
-      await dataService.markStateRootBatchFinalOnL1(0, tx.transactionHash)
 
       const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -1082,26 +1088,24 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      batchNum.should.equal(0, `Batch 0 should have been built`)
 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx2)
-
-      const secondBatchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx2,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      secondBatchNum.should.equal(1, `Batch 1 should have been built`)
 
       const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
       const batchExists: boolean = !!batch
@@ -1129,18 +1133,13 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      batchNum.should.equal(0, `Batch 0 should have been built`)
-      const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
-      batch.status.should.equal(
-        BatchSubmissionStatus.QUEUED,
-        `Batch should be queued!`
-      )
+      const batchNum = 0
 
       const submissionHash: string = keccak256FromUtf8('derp')
       await dataService.markStateRootBatchSubmittedToL1(
@@ -1168,18 +1167,13 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      batchNum.should.equal(0, `Batch 0 should have been built`)
-      const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
-      batch.status.should.equal(
-        BatchSubmissionStatus.QUEUED,
-        `Batch should be queued!`
-      )
+      const batchNum = 0
 
       const submissionHash: string = keccak256FromUtf8('derp')
       await dataService.markStateRootBatchSubmittedToL1(
@@ -1207,18 +1201,13 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      batchNum.should.equal(0, `Batch 0 should have been built`)
-      const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
-      batch.status.should.equal(
-        BatchSubmissionStatus.QUEUED,
-        `Batch should be queued!`
-      )
+      const batchNum = 0
 
       const submissionHash: string = keccak256FromUtf8('derp')
       await dataService.markStateRootBatchFinalOnL1(batchNum, submissionHash)
@@ -1243,18 +1232,13 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
         defaultStateRoot,
         blockNumber
       )
-      await dataService.insertL2TransactionOutput(tx)
-
-      const batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
-        1,
-        10
+      await insertTxOutput(
+        dataService,
+        tx,
+        BatchSubmissionStatus.FINALIZED,
+        BatchSubmissionStatus.QUEUED
       )
-      batchNum.should.equal(0, `Batch 0 should have been built`)
-      const batch: StateCommitmentBatchSubmission = await dataService.getNextStateCommitmentBatchToSubmit()
-      batch.status.should.equal(
-        BatchSubmissionStatus.QUEUED,
-        `Batch should be queued!`
-      )
+      const batchNum = 0
 
       const submissionHash: string = keccak256FromUtf8('derp')
       await dataService.markStateRootBatchFinalOnL1(
