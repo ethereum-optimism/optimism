@@ -8,6 +8,7 @@ import {
   L2DataService,
 } from '../../../types/data'
 import { Provider, TransactionReceipt } from 'ethers/providers'
+import { UnexpectedBatchStatus } from '../../../types'
 
 const log = getLogger('canonical-chain-batch-finalizer')
 
@@ -59,7 +60,7 @@ export class CanonicalChainBatchFinalizer extends ScheduledTask {
         BatchSubmissionStatus.SENT
       }. Batch Submission: ${JSON.stringify(batchToFinalize)}.`
       log.error(msg)
-      throw msg
+      throw new UnexpectedBatchStatus(msg)
     }
 
     return this.waitForTxBatchConfirms(

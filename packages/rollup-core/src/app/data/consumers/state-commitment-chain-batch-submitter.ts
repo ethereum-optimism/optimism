@@ -9,6 +9,7 @@ import {
   StateCommitmentBatchSubmission,
 } from '../../../types/data'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
+import { UnexpectedBatchStatus } from '../../../types'
 
 const log = getLogger('state-commitment-chain-batch-submitter')
 
@@ -54,7 +55,7 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
         BatchSubmissionStatus.SENT
       }. Batch Submission: ${JSON.stringify(stateBatch)}.`
       log.error(msg)
-      throw msg
+      throw new UnexpectedBatchStatus(msg)
     }
 
     const txHash: string = await this.buildAndSendRollupBatchTransaction(

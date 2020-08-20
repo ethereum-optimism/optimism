@@ -34,6 +34,12 @@ export class SignatureError extends Error {
   }
 }
 
+export class UnexpectedBatchStatus extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
 export const isStateTransitionError = (error: Error): boolean => {
   return (
     error instanceof InsufficientBalanceError ||

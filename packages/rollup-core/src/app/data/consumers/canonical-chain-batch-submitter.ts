@@ -16,6 +16,7 @@ import {
   StateCommitmentBatchSubmission,
 } from '../../../types/data'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
+import { UnexpectedBatchStatus } from '../../../types'
 
 const log = getLogger('canonical-chain-batch-submitter')
 
@@ -65,7 +66,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         BatchSubmissionStatus.QUEUED
       }. Batch Submission: ${JSON.stringify(batchSubmission)}.`
       log.error(msg)
-      throw msg
+      throw new UnexpectedBatchStatus(msg)
     }
 
     const txHash: string = await this.buildAndSendRollupBatchTransaction(

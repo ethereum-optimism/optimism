@@ -12,6 +12,7 @@ import {
   TransactionBatchSubmission,
   BatchSubmissionStatus,
 } from '../../src/types/data'
+import { UnexpectedBatchStatus } from '../../src/types'
 
 interface BatchNumberHash {
   batchNumber: number
@@ -138,7 +139,7 @@ describe('Canonical Chain Batch Submitter', () => {
 
     await TestUtils.assertThrowsAsync(async () => {
       await batchSubmitter.runTask()
-    })
+    }, UnexpectedBatchStatus)
 
     dataService.txBatchesSubmitted.length.should.equal(
       0,

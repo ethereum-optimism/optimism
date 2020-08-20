@@ -13,6 +13,7 @@ import {
   StateCommitmentBatchSubmission,
 } from '../../src/types/data'
 import { StateCommitmentChainBatchSubmitter } from '../../src/app/data/consumers/state-commitment-chain-batch-submitter'
+import { UnexpectedBatchStatus } from '../../src/types'
 
 interface BatchNumberHash {
   batchNumber: number
@@ -123,7 +124,7 @@ describe('State Commitment Chain Batch Submitter', () => {
 
     await TestUtils.assertThrowsAsync(async () => {
       await batchSubmitter.runTask()
-    })
+    }, UnexpectedBatchStatus)
 
     dataService.stateRootBatchesSubmitted.length.should.equal(
       0,

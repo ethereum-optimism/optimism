@@ -8,6 +8,7 @@ import {
   DefaultDataService,
 } from '../../src/app/data'
 import { BatchSubmission, BatchSubmissionStatus } from '../../src/types/data'
+import { UnexpectedBatchStatus } from '../../src/types'
 
 class MockDataService extends DefaultDataService {
   public throwOnFinalize: boolean = false
@@ -99,7 +100,7 @@ describe('Canonical Chain Batch Finalizer', () => {
 
     TestUtils.assertThrowsAsync(async () => {
       await batchFinalizer.runTask()
-    })
+    }, UnexpectedBatchStatus)
 
     dataService.getWasInvoked.should.equal(
       true,

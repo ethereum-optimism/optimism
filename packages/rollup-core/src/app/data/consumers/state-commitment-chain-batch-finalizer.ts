@@ -14,6 +14,7 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from 'ethers/providers'
+import { UnexpectedBatchStatus } from '../../../types'
 
 const log = getLogger('state-commitment-chain-batch-finalizer')
 
@@ -60,7 +61,7 @@ export class StateCommitmentChainBatchFinalizer extends ScheduledTask {
         BatchSubmissionStatus.SENT
       }. Batch Submission: ${JSON.stringify(batchToFinalize)}.`
       log.error(msg)
-      throw msg
+      throw new UnexpectedBatchStatus(msg)
     }
 
     return this.waitForStateRootBatchConfirms(
