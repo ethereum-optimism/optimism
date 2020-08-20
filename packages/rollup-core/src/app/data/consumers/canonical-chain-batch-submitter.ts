@@ -13,8 +13,9 @@ import {
   TransactionBatchSubmission,
   BatchSubmissionStatus,
   L2DataService,
+  StateCommitmentBatchSubmission,
 } from '../../../types/data'
-import { TransactionResponse } from 'ethers/providers'
+import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 
 const log = getLogger('canonical-chain-batch-submitter')
 
@@ -25,7 +26,6 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
     private readonly canonicalTransactionChain: Contract,
-    private readonly confirmationsUntilFinal: number = 1,
     periodMilliseconds = 10_000
   ) {
     super(periodMilliseconds)
@@ -68,8 +68,13 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       throw msg
     }
 
-    await this.buildAndSendRollupBatchTransaction(batchSubmission)
-    return true
+    const txHash: string = await this.buildAndSendRollupBatchTransaction(
+      batchSubmission
+    )
+    if (!txHash) {
+      return false
+    }
+    return this.waitForProofThatTransactionSucceeded(txHash, batchSubmission)
   }
 
   /**
@@ -106,20 +111,6 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       return undefined
     }
 
-    try {
-      log.debug(`Marking tx batch ${l2Batch.batchNumber} submitted`)
-      await this.dataService.markTransactionBatchSubmittedToL1(
-        l2Batch.batchNumber,
-        txHash
-      )
-    } catch (e) {
-      logError(
-        log,
-        `Error marking tx batch ${l2Batch.batchNumber} as submitted!`,
-        e
-      )
-      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
-    }
     return txHash
   }
 
@@ -150,5 +141,54 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     return txs
+  }
+
+  /**
+   * Waits for a confirm to indicate that the transaction did not fail.
+   *
+   * @param txHash The tx hash to wait for.
+   * @param txBatch The rollup batch in question.
+   * @returns true if the tx was successful and false otherwise.
+   */
+  private async waitForProofThatTransactionSucceeded(
+    txHash: string,
+    txBatch: TransactionBatchSubmission
+  ): Promise<boolean> {
+    try {
+      const receipt: TransactionReceipt = await this.canonicalTransactionChain.provider.waitForTransaction(
+        txHash,
+        1
+      )
+      if (!receipt.status) {
+        log.error(
+          `Error submitting tx batch # ${txBatch.batchNumber} to L1!. Batch: ${txBatch}`
+        )
+        return false
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error submitting tx batch # ${txBatch.batchNumber} to L1!. Batch: ${txBatch}`,
+        e
+      )
+      return false
+    }
+
+    try {
+      log.debug(`Marking tx batch ${txBatch.batchNumber} submitted`)
+      await this.dataService.markTransactionBatchSubmittedToL1(
+        txBatch.batchNumber,
+        txHash
+      )
+    } catch (e) {
+      logError(
+        log,
+        `Error marking tx batch ${txBatch.batchNumber} as submitted!`,
+        e
+      )
+      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+      return false
+    }
+    return true
   }
 }

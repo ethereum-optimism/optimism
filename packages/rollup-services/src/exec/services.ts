@@ -287,14 +287,11 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
   const contractAddress: string = Environment.getOrThrow(
     Environment.canonicalTransactionChainContractAddress
   )
-  const finalityDelay: number = Environment.getOrThrow(
-    Environment.finalityDelayInBlocks
-  )
   const period: number = Environment.getOrThrow(
     Environment.canonicalChainBatchSubmitterPeriodMillis
   )
   log.info(
-    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${contractAddress}, and period of ${period} millis.`
   )
 
   const contract: Contract = new Contract(
@@ -306,7 +303,6 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
   return new CanonicalChainBatchSubmitter(
     getDataService(),
     contract,
-    finalityDelay,
     period
   )
 }
@@ -317,9 +313,6 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
  * @returns The CanonicalChainBatchFinalizer.
  */
 const createCanonicalChainBatchFinalizer = (): CanonicalChainBatchFinalizer => {
-  const contractAddress: string = Environment.getOrThrow(
-    Environment.canonicalTransactionChainContractAddress
-  )
   const finalityDelay: number = Environment.getOrThrow(
     Environment.finalityDelayInBlocks
   )
@@ -327,18 +320,12 @@ const createCanonicalChainBatchFinalizer = (): CanonicalChainBatchFinalizer => {
     Environment.canonicalChainBatchSubmitterPeriodMillis
   )
   log.info(
-    `Creating CanonicalChainBatchFinalizer with the canonical chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
-  )
-
-  const contract: Contract = new Contract(
-    contractAddress,
-    getContractDefinition('CanonicalTransactionChain').abi,
-    getSequencerWallet()
+    `Creating CanonicalChainBatchFinalizer with finality delay of ${finalityDelay} blocks, and period of ${period} millis`
   )
 
   return new CanonicalChainBatchFinalizer(
     getDataService(),
-    contract,
+    getL1Provider(),
     finalityDelay,
     period
   )
@@ -376,14 +363,11 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
   const contractAddress: string = Environment.getOrThrow(
     Environment.stateCommitmentChainContractAddress
   )
-  const finalityDelay: number = Environment.getOrThrow(
-    Environment.finalityDelayInBlocks
-  )
   const period: number = Environment.getOrThrow(
     Environment.stateCommitmentChainBatchSubmitterPeriodMillis
   )
   log.info(
-    `Creating StateCommitmentChainBatchSubmitter with the state commitment chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+    `Creating StateCommitmentChainBatchSubmitter with the state commitment chain contract address of ${contractAddress}, and period of ${period} millis`
   )
 
   return new StateCommitmentChainBatchSubmitter(
@@ -393,7 +377,6 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
       getContractDefinition('StateCommitmentChain').abi,
       getStateRootSubmissionWallet()
     ),
-    finalityDelay,
     period
   )
 }
@@ -404,9 +387,6 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
  * @returns The StateCommitmentChainBatchFinalizer.
  */
 const createStateCommitmentChainBatchFinalizer = (): StateCommitmentChainBatchFinalizer => {
-  const contractAddress: string = Environment.getOrThrow(
-    Environment.stateCommitmentChainContractAddress
-  )
   const finalityDelay: number = Environment.getOrThrow(
     Environment.finalityDelayInBlocks
   )
@@ -414,16 +394,12 @@ const createStateCommitmentChainBatchFinalizer = (): StateCommitmentChainBatchFi
     Environment.stateCommitmentChainBatchSubmitterPeriodMillis
   )
   log.info(
-    `Creating StateCommitmentChainBatchFinalizer with the state commitment chain contract address of ${contractAddress}, finality delay of ${finalityDelay} blocks, and period of ${period} millis`
+    `Creating StateCommitmentChainBatchFinalizer with finality delay of ${finalityDelay} blocks, and period of ${period} millis.`
   )
 
   return new StateCommitmentChainBatchFinalizer(
     getDataService(),
-    new Contract(
-      contractAddress,
-      getContractDefinition('StateCommitmentChain').abi,
-      getStateRootSubmissionWallet()
-    ),
+    getL1Provider(),
     finalityDelay,
     period
   )

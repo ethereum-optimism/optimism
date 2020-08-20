@@ -7,7 +7,7 @@ import {
   BatchSubmissionStatus,
   L2DataService,
 } from '../../../types/data'
-import { TransactionReceipt } from 'ethers/providers'
+import { Provider, TransactionReceipt } from 'ethers/providers'
 
 const log = getLogger('canonical-chain-batch-finalizer')
 
@@ -17,7 +17,7 @@ const log = getLogger('canonical-chain-batch-finalizer')
 export class CanonicalChainBatchFinalizer extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
-    private readonly canonicalTransactionChain: Contract,
+    private readonly provider: Provider,
     private readonly confirmationsUntilFinal: number = 1,
     periodMilliseconds = 10_000
   ) {
@@ -62,11 +62,10 @@ export class CanonicalChainBatchFinalizer extends ScheduledTask {
       throw msg
     }
 
-    await this.waitForTxBatchConfirms(
+    return this.waitForTxBatchConfirms(
       batchToFinalize.submissionTxHash,
       batchToFinalize.batchNumber
     )
-    return true
   }
 
   /**
@@ -75,37 +74,48 @@ export class CanonicalChainBatchFinalizer extends ScheduledTask {
    *
    * @param txHash The tx hash to wait for.
    * @param batchNumber The rollup batch number in question.
+   * @returns true if succeeded, false otherwise
    */
   private async waitForTxBatchConfirms(
     txHash: string,
     batchNumber: number
-  ): Promise<void> {
-    if (this.confirmationsUntilFinal > 1) {
-      try {
-        log.debug(
-          `Waiting for ${this.confirmationsUntilFinal} confirmations before treating tx batch ${batchNumber} submission as final.`
+  ): Promise<boolean> {
+    try {
+      log.debug(
+        `Waiting for ${this.confirmationsUntilFinal} confirmations before treating tx batch ${batchNumber} submission as final.`
+      )
+
+      const receipt: TransactionReceipt = await this.provider.waitForTransaction(
+        txHash,
+        this.confirmationsUntilFinal
+      )
+
+      if (!receipt.status) {
+        log.error(
+          `Tx Batch ${batchNumber} sent but errored on confirmation! Received tx status of 0. Tx: ${txHash}`
         )
-        const receipt: TransactionReceipt = await this.canonicalTransactionChain.provider.waitForTransaction(
-          txHash,
-          this.confirmationsUntilFinal
-        )
-        log.debug(`Batch submission finalized for tx batch ${batchNumber}!`)
-      } catch (e) {
-        logError(
-          log,
-          `Error waiting for necessary block confirmations until final!`,
-          e
-        )
-        // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+        return false
       }
+
+      log.debug(`Tx Batch submission finalized for tx batch ${batchNumber}!`)
+    } catch (e) {
+      logError(
+        log,
+        `Error waiting for necessary block confirmations until final!`,
+        e
+      )
+      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+      return false
     }
 
     try {
       log.debug(`Marking tx batch ${batchNumber} confirmed!`)
       await this.dataService.markTransactionBatchFinalOnL1(batchNumber, txHash)
       log.debug(`Tx batch ${batchNumber} marked confirmed!`)
+      return true
     } catch (e) {
       logError(log, `Error marking tx batch ${batchNumber} as confirmed!`, e)
+      return false
     }
   }
 }

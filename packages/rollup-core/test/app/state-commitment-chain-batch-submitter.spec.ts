@@ -1,5 +1,5 @@
 /* External Imports */
-import { keccak256FromUtf8, sleep } from '@eth-optimism/core-utils'
+import { keccak256FromUtf8, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
@@ -50,7 +50,7 @@ class MockDataService extends DefaultDataService {
 }
 
 class MockProvider {
-  public confirmedTxs: Map<string, TransactionReceipt> = new Map<
+  public txReceipts: Map<string, TransactionReceipt> = new Map<
     string,
     TransactionReceipt
   >()
@@ -59,10 +59,10 @@ class MockProvider {
     hash: string,
     numConfirms: number
   ): Promise<TransactionReceipt> {
-    while (!this.confirmedTxs.get(hash)) {
+    while (!this.txReceipts.get(hash)) {
       await sleep(100)
     }
-    return this.confirmedTxs.get(hash)
+    return this.txReceipts.get(hash)
   }
 }
 
@@ -99,7 +99,9 @@ describe('State Commitment Chain Batch Submitter', () => {
   })
 
   it('should not do anything if there are no batches', async () => {
-    await batchSubmitter.runTask()
+    const res = await batchSubmitter.runTask()
+
+    res.should.equal(false, 'Incorrect result when there are no batches')
 
     dataService.stateRootBatchesSubmitted.length.should.equal(
       0,
@@ -111,7 +113,7 @@ describe('State Commitment Chain Batch Submitter', () => {
     )
   })
 
-  it('should not do anything if the next batch has an invalid status', async () => {
+  it('should throw if the next batch has an invalid status', async () => {
     dataService.nextBatch.push({
       submissionTxHash: undefined,
       status: 'derp' as any,
@@ -119,7 +121,9 @@ describe('State Commitment Chain Batch Submitter', () => {
       stateRoots: [keccak256FromUtf8('root 1'), keccak256FromUtf8('root 2')],
     })
 
-    await batchSubmitter.runTask()
+    await TestUtils.assertThrowsAsync(async () => {
+      await batchSubmitter.runTask()
+    })
 
     dataService.stateRootBatchesSubmitted.length.should.equal(
       0,
@@ -146,8 +150,10 @@ describe('State Commitment Chain Batch Submitter', () => {
     })
 
     stateCommitmentChain.responses.push({ hash } as any)
+    provider.txReceipts.set(hash, { status: 1 } as any)
 
-    await batchSubmitter.runTask()
+    const res: boolean = await batchSubmitter.runTask()
+    res.should.equal(true, `Batch should have been submitted successfully.`)
 
     dataService.stateRootBatchesSubmitted.length.should.equal(
       1,
@@ -163,16 +169,39 @@ describe('State Commitment Chain Batch Submitter', () => {
     )
 
     dataService.stateRootBatchesFinalized.length.should.equal(
-      1,
-      'No state root batches confirmed!'
+      0,
+      'No state root batches should be confirmed!'
     )
-    dataService.stateRootBatchesFinalized[0].txHash.should.equal(
-      hash,
-      'Incorrect tx hash confirmed!'
-    )
-    dataService.stateRootBatchesFinalized[0].batchNumber.should.equal(
+  })
+
+  it('should not mark batch as submitted if batch submission tx fails', async () => {
+    const hash: string = keccak256FromUtf8('tx hash')
+    const stateRoots: string[] = [
+      keccak256FromUtf8('root 1'),
+      keccak256FromUtf8('root 2'),
+    ]
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      submissionTxHash: undefined,
+      status: BatchSubmissionStatus.QUEUED,
       batchNumber,
-      'Incorrect tx batch number confirmed!'
+      stateRoots,
+    })
+
+    stateCommitmentChain.responses.push({ hash } as any)
+    provider.txReceipts.set(hash, { status: 0 } as any)
+
+    const res: boolean = await batchSubmitter.runTask()
+    res.should.equal(false, `Batch tx should have errored out.`)
+
+    dataService.stateRootBatchesSubmitted.length.should.equal(
+      0,
+      'No state root batches should have been submitted!'
+    )
+
+    dataService.stateRootBatchesFinalized.length.should.equal(
+      0,
+      'No state root batches should be confirmed!'
     )
   })
 })

@@ -9,7 +9,11 @@ import {
   L2DataService,
   StateCommitmentBatchSubmission,
 } from '../../../types/data'
-import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
+import {
+  Provider,
+  TransactionReceipt,
+  TransactionResponse,
+} from 'ethers/providers'
 
 const log = getLogger('state-commitment-chain-batch-finalizer')
 
@@ -19,7 +23,7 @@ const log = getLogger('state-commitment-chain-batch-finalizer')
 export class StateCommitmentChainBatchFinalizer extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
-    private readonly stateCommitmentChain: Contract,
+    private readonly provider: Provider,
     private readonly confirmationsUntilFinal: number = 1,
     periodMilliseconds = 10_000
   ) {
@@ -44,12 +48,7 @@ export class StateCommitmentChainBatchFinalizer extends ScheduledTask {
       return false
     }
 
-    if (
-      !batchToFinalize ||
-      batchToFinalize.batchNumber === null ||
-      batchToFinalize.batchNumber === undefined ||
-      !batchToFinalize.submissionTxHash
-    ) {
+    if (!batchToFinalize) {
       log.debug(`No tx batches found to finalize.`)
       return false
     }
@@ -64,11 +63,10 @@ export class StateCommitmentChainBatchFinalizer extends ScheduledTask {
       throw msg
     }
 
-    await this.waitForStateRootBatchConfirms(
+    return this.waitForStateRootBatchConfirms(
       batchToFinalize.submissionTxHash,
       batchToFinalize.batchNumber
     )
-    return true
   }
 
   /**
@@ -77,39 +75,50 @@ export class StateCommitmentChainBatchFinalizer extends ScheduledTask {
    *
    * @param txHash The tx hash to wait for.
    * @param batchNumber The rollup batch number in question.
+   * @returns true if succeeded, false otherwise
    */
   private async waitForStateRootBatchConfirms(
     txHash: string,
     batchNumber: number
-  ): Promise<void> {
-    if (this.confirmationsUntilFinal > 1) {
-      try {
-        log.debug(
-          `Waiting for ${this.confirmationsUntilFinal} confirmations before treating state root batch ${batchNumber} submission as final.`
+  ): Promise<boolean> {
+    try {
+      log.debug(
+        `Waiting for ${this.confirmationsUntilFinal} confirmations before treating state root batch ${batchNumber} submission as final.`
+      )
+
+      const receipt: TransactionReceipt = await this.provider.waitForTransaction(
+        txHash,
+        this.confirmationsUntilFinal
+      )
+
+      if (!receipt.status) {
+        log.error(
+          `State Commitment Batch ${batchNumber} sent but errored on confirmation! Received tx status of 0. Tx: ${txHash}`
         )
-        const receipt: TransactionReceipt = await this.stateCommitmentChain.provider.waitForTransaction(
-          txHash,
-          this.confirmationsUntilFinal
-        )
-        log.debug(
-          `State root batch submission finalized for batch ${batchNumber}!`
-        )
-      } catch (e) {
-        logError(
-          log,
-          `Error waiting for necessary block confirmations until final!`,
-          e
-        )
-        // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+        return false
       }
+
+      log.debug(
+        `State root batch submission finalized for batch ${batchNumber}!`
+      )
+    } catch (e) {
+      logError(
+        log,
+        `Error waiting for necessary block confirmations until final!`,
+        e
+      )
+      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+      return false
     }
 
     try {
       log.debug(`Marking state root batch ${batchNumber} confirmed!`)
       await this.dataService.markStateRootBatchFinalOnL1(batchNumber, txHash)
       log.debug(`State root batch ${batchNumber} marked confirmed!`)
+      return true
     } catch (e) {
       logError(log, `Error marking batch ${batchNumber} as confirmed!`, e)
+      return false
     }
   }
 }
