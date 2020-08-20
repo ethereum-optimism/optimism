@@ -1,11 +1,14 @@
 /*
-Implements ERC20 token standard: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
+Implements EIP20 token standard: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-20.md
 .*/
 
 
 pragma solidity ^0.5.16;
 
-contract ERC20{
+import "./ERC20Interface.sol";
+
+
+contract ERC20 is ERC20Interface {
 
     uint256 constant private MAX_UINT256 = 2**256 - 1;
     mapping (address => uint256) public balances;
@@ -19,7 +22,6 @@ contract ERC20{
     string public name;                   //fancy name: eg Simon Bucks
     uint8 public decimals;                //How many decimals to show.
     string public symbol;                 //An identifier: eg SBX
-    uint256 public totalSupply;
 
     constructor(
         uint256 _initialAmount,
@@ -38,7 +40,7 @@ contract ERC20{
         require(balances[msg.sender] >= _value);
         balances[msg.sender] -= _value;
         balances[_to] += _value;
-        // emit Transfer(msg.sender, _to, _value); //solhint-disable-line indent, no-unused-vars
+        emit Transfer(msg.sender, _to, _value); //solhint-disable-line indent, no-unused-vars
         return true;
     }
 
@@ -50,7 +52,7 @@ contract ERC20{
         if (allowance < MAX_UINT256) {
             allowed[_from][msg.sender] -= _value;
         }
-        // emit Transfer(_from, _to, _value); //solhint-disable-line indent, no-unused-vars
+        emit Transfer(_from, _to, _value); //solhint-disable-line indent, no-unused-vars
         return true;
     }
 
@@ -60,7 +62,7 @@ contract ERC20{
 
     function approve(address _spender, uint256 _value) public returns (bool success) {
         allowed[msg.sender][_spender] = _value;
-        // emit Approval(msg.sender, _spender, _value); //solhint-disable-line indent, no-unused-vars
+        emit Approval(msg.sender, _spender, _value); //solhint-disable-line indent, no-unused-vars
         return true;
     }
 

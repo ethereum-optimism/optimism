@@ -1,7 +1,7 @@
-const EIP20Abstraction = artifacts.require('EIP20');
+const EIP20Abstraction = artifacts.require('ERC20');
 let HST;
 
-contract('EIP20', (accounts) => {
+contract('ERC20', (accounts) => {
   const tokenName = 'Optipus Coins'
   const tokenSymbol = 'OPT'
   const tokenDecimals = 1

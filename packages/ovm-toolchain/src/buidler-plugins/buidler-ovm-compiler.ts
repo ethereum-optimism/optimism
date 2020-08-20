@@ -23,12 +23,6 @@ internalTask(TASK_COMPILE_RUN_COMPILER).setAction(
       }
     }
 
-    if ((config as any).solc.executionManagerAddress) {
-      input.settings[
-        'executionManagerAddress' as any
-      ] = (config as any).solc.executionManagerAddress
-    }
-
     return compiler.compile(input)
   }
 )

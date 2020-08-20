@@ -1,3 +1,4 @@
+import path from 'path'
 import { usePlugin } from '@nomiclabs/buidler/config'
 
 usePlugin('@nomiclabs/buidler-ethers')
@@ -22,8 +23,7 @@ const config: any = {
     timeout: 50000,
   },
   solc: {
-    path: '../../node_modules/@eth-optimism/solc-transpiler',
-    executionManagerAddress: '0x6454c9d69a4721feba60e26a367bd4d56196ee7c',
+    path: path.resolve(__dirname, '../../node_modules/@eth-optimism/solc'),
   },
 }
 
