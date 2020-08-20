@@ -17,13 +17,10 @@ const overrides = {
 describe('Timestamp Manipulation Support', () => {
   let provider: any
   let wallet: Wallet
-  before(async () => {
-    provider = new waffleV2.MockProvider(overrides)
-    ;[wallet] = provider.getWallets()
-  })
-
   let timestampChecker: Contract
   beforeEach(async () => {
+    provider = new waffleV2.MockProvider(overrides)
+    ;[wallet] = provider.getWallets()
     timestampChecker = await deployContract(
       wallet,
       TimestampCheckerContract,
@@ -43,18 +40,7 @@ describe('Timestamp Manipulation Support', () => {
 
   it('should retrieve the block timestamp correctly after modifying with evm_mine', async () => {
     const beforeTimestamp = (await timestampChecker.blockTimestamp()).toNumber()
-    await provider.sendRpc('evm_mine', [beforeTimestamp + 10])
-    const afterTimestamp = (await timestampChecker.blockTimestamp()).toNumber()
-
-    expect(beforeTimestamp + 10).to.equal(
-      afterTimestamp,
-      'Block timestamp was incorrect'
-    )
-  })
-
-  it('should retrieve the block timestamp correctly after modifying with evm_increaseTime', async () => {
-    const beforeTimestamp = (await timestampChecker.blockTimestamp()).toNumber()
-    await provider.sendRpc('evm_increaseTime', [10])
+    await provider.rpc('evm_mine', [beforeTimestamp + 10])
     const afterTimestamp = (await timestampChecker.blockTimestamp()).toNumber()
 
     expect(beforeTimestamp + 10).to.equal(

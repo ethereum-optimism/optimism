@@ -1,12 +1,18 @@
+/* External Imports */
 import { providers, Wallet } from 'ethers-v5'
 import { defaultAccounts } from 'ethereum-waffle-v3'
 import Ganache from 'ganache-core'
+
+/* Internal Imports */
 import { ganache } from '../ganache'
 
 interface MockProviderOptions {
   ganacheOptions: Ganache.IProviderOptions
 }
 
+/**
+ * WaffleV3 MockProvider wrapper.
+ */
 export class MockProvider extends providers.Web3Provider {
   constructor(private options?: MockProviderOptions) {
     super(
@@ -18,7 +24,11 @@ export class MockProvider extends providers.Web3Provider {
     )
   }
 
-  public getWallets() {
+  /**
+   * Retrieves the wallet objects passed to this provider.
+   * @returns List of wallet objects.
+   */
+  public getWallets(): Wallet[] {
     const items = this.options?.ganacheOptions.accounts ?? defaultAccounts
     return items.map((x: any) => new Wallet(x.secretKey, this))
   }

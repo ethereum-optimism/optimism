@@ -5,8 +5,8 @@ const VM = require('ethereumjs-vm').default
 // tslint:disable-next-line:no-shadowed-variable
 const wrap = (provider: any, opts: any) => {
   const blockchain = provider.engine.manager.state.blockchain
-
   let ovm: any
+
   const _original = blockchain.createVMFromStateTrie.bind(blockchain)
   // tslint:disable-next-line:only-arrow-functions
   blockchain.createVMFromStateTrie = function(
@@ -33,6 +33,42 @@ const wrap = (provider: any, opts: any) => {
       })
     }
   }
+
+  const _send = provider.send.bind(provider)
+  const _wrappedSend = (payload: any, cb: any) => {
+    if (payload.method === 'eth_getProof') {
+      ovm
+        .getEthTrieProof(payload.params[0], payload.params[1])
+        .then((ethTrieProof: any) => {
+          cb(null, {
+            id: payload.id,
+            jsonrpc: '2.0',
+            result: ethTrieProof,
+          })
+        })
+        .catch((err: any) => {
+          cb(err, null)
+        })
+    } else if (payload.method === 'eth_getAccount') {
+      ovm
+        .getEthAccount(payload.params[0])
+        .then((account: any) => {
+          cb(null, {
+            id: payload.id,
+            jsonrpc: '2.0',
+            result: account,
+          })
+        })
+        .catch((err: any) => {
+          cb(err, null)
+        })
+    } else {
+      _send(payload, cb)
+    }
+  }
+
+  provider.send = _wrappedSend
+  provider.sendAsync = _wrappedSend
 
   return provider
 }
