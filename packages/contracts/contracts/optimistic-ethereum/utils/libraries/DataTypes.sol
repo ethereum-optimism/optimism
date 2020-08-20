@@ -6,6 +6,16 @@ pragma experimental ABIEncoderV2;
  * @notice Main data structures which to be used in rollup smart contracts.
  */
 library DataTypes {
+    struct L2ToL1Proof {
+        uint stateRootIndex;
+        StateElementInclusionProof stateChainWitness;
+        bytes32 key;
+        bytes32 value;
+        bytes _stateTrieWitness;
+        bytes _storageTrieWitness;
+        bytes32 _stateTrieRoot;
+    }
+
     struct L2ToL1Message {
         address ovmSender;
         bytes callData;

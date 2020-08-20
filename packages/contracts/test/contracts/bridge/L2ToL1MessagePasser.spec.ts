@@ -12,7 +12,7 @@ import { indexOf } from 'lodash'
 const log = getLogger('rollup-queue', true)
 
 /* Tests */
-describe.only('RealL2ToL1MessagePasser', () => {
+describe('RealL2ToL1MessagePasser', () => {
   const provider = ethers.provider
   let wallet: Signer
   let L2ToL1MessagePasser: ContractFactory
