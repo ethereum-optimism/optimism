@@ -24,6 +24,7 @@ import {
   RollupTransaction,
 } from '../../../types'
 import { CHAIN_ID } from '../../constants'
+import { Environment } from '../../util'
 
 const abi = new ethers.utils.AbiCoder()
 const log = getLogger('log-handler')
@@ -311,7 +312,7 @@ export const SequencerBatchAppendedLogHandler = async (
         l1Timestamp: timestamp.toNumber(),
         l1TxHash: l.transactionHash,
         l1TxIndex: l.transactionIndex,
-        l1TxLogIndex: l.transactionLogIndex,
+        l1TxLogIndex: l.transactionLogIndex || 0,
         queueOrigin: QueueOrigin.SEQUENCER,
         indexWithinSubmission: i,
         sender,
@@ -335,7 +336,7 @@ export const SequencerBatchAppendedLogHandler = async (
   const batchNumber = await ds.insertL1RollupTransactions(
     l.transactionHash,
     rollupTransactions,
-    true
+    !Environment.isSequencerStack()
   )
   log.debug(`Sequencer batch number ${batchNumber} successfully created!`)
 }
@@ -371,6 +372,8 @@ export const StateBatchAppendedLogHandler = async (
     )
     return
   }
+
+  log.debug(`Inserting state roots: ${JSON.stringify(stateRoots)}`)
 
   await ds.insertL1RollupStateRoots(l.transactionHash, stateRoots)
 }

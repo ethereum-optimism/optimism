@@ -1,0 +1,13 @@
+{
+  "sourcesPath": "./contracts",
+  "targetPath": "./build",
+  "npmPath": "../../node_modules",
+  "compilerVersion": "../../node_modules/@eth-optimism/solc",
+  "compilerOptions": {
+    "outputSelection": {
+      "*": {
+        "*": ["*"]
+      }
+    }
+  }
+}
