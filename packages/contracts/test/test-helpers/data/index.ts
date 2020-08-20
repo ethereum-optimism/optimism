@@ -1,6 +1,7 @@
 import { create2Tests } from './create2.test.json'
 import { rlpTests } from './rlp.test.json'
 import * as fs from 'fs'
+import * as path from 'path'
 
 const createSynthetixJSON = () => {
   const files = {}
@@ -11,11 +12,10 @@ const createSynthetixJSON = () => {
       .split('$__')
       .join('000')
   }
-  const dir = __dirname + '/synthetix/optimized/'
-  console.log(dir)
+  const dir = path.join(__dirname, 'synthetix', 'optimized') + '/'
   fs.readdirSync(dir).forEach((fileName) => {
     if (fileName.endsWith('.json')) {
-      const obj = JSON.parse(fs.readFileSync(dir + fileName, 'utf8'))
+      const obj = require(dir + fileName)
       files[fileName] = {
         bytecode: '0x' + sanitizeLibs(obj.evm.bytecode.object),
         deployedBytecode: '0x' + sanitizeLibs(obj.evm.deployedBytecode.object),

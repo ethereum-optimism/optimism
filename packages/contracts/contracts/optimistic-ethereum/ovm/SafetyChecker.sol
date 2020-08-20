@@ -4,8 +4,6 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title SafetyChecker
  * @notice Safety Checker contract used to check whether or not bytecode is
@@ -121,7 +119,6 @@ contract SafetyChecker is ContractResolver {
 
                     // allowed = CALLER PUSH1 0x00 SWAP1 GAS CALL
                     if (ops != 0x336000905af1) {
-                        // console.log('Encountered a bad call');
                         return false;
                     }
 
@@ -129,7 +126,6 @@ contract SafetyChecker is ContractResolver {
                     continue;
                 } else {
                     // encountered a non-whitelisted opcode!
-                    // console.log('Encountered a non-whitelisted opcode (in decimal):', op, "at location", _pc);
                     return false;
                 }
             }
