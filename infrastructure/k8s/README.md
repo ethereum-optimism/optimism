@@ -1,20 +1,41 @@
-# Launch vault via helm in Minikube
+# Launch Vault via helm in Minikube
+
+## Establish hashicorp registry
+
+Execute:
+
+```
+helm repo add hashicorp http://helm.releases.hashicorp.com
+```
 
 ## Start Minikube
 
 Execute:
 
 ```
-minikube start
+minikube start --mount=true
 ```
 
-## Generate Credentials to GCP KMS
+## GCP Project
 
-First, you need to enable the KMS endpoint in your project by visiting this [GCP](https://console.developers.google.com/apis/library/cloudkms.googleapis.com). Select your project from the dropdown at the top, then click Enable.
+You will need a project to create all of your resources in. It's easiest if you call it `omgnetwork-vault`, but you can call it whatever you want.
 
-Next, go to the [Credentials](https://console.developers.google.com/apis/credentials) page. Select your project from the dropdown at the top, then click _+ CREATE CREDENTIALS_ -> _Service account_. Pick any name you want for the _Service account name_, then click _CREATE_.
+## GCP Service Account
 
-Once you have a service account, go to it and click _ADD KEY_ -> _Create new key_. Choose _JSON_ -> _CREATE_ and download the file. Move the file to the current directory and call the file credentials.txt.
+You will need a service account. Go to https://console.cloud.google.com/iam-admin/serviceaccounts?authuser=4&project=omgnetwork-vault
+
+Go to the [Credentials](https://console.developers.google.com/apis/credentials) page. Select `omgnetwork-vault` from the dropdown at the top, then click _+ CREATE CREDENTIALS_ -> _Service account_. Pick any name you want for the _Service account name_, then click _CREATE_.
+
+You need to add the following roles to this service account:
+
+* Owner
+* Cloud KMS Admin
+* Cloud KMS CryptoKey Encrypter/Decrypter
+* Compute Admin
+* Kubernetes Engine Admin
+* Storage Admin
+
+Click your new service account and then click _ADD KEY_ -> _Create new key_. Choose _JSON_ -> _CREATE_ and download the file. Move the file to the current directory and call the file credentials.txt.
 
 Execute:
 
@@ -28,43 +49,91 @@ Visit [Cryptographic Keys](https://console.cloud.google.com/security/kms). Selec
 
 Click the newly created keyring and then click _+ CREATE KEY_. Give it a name (again, you'll need it down below) and the rest of the defaults are okay. Click _CREATE_.
 
+## Deploy the Infrastructure
+
+Set the environment variable:
+
+```
+export GOOGLE_APPLICATION_CREDENTIALS=<path-to>/credentials.json
+```
+
+Over in infrastructure/terraform directory, execute:
+
+```
+terraform apply
+```
+
+You may get jillions of failures here, but follow the instructions for what they say and you should be fine. It's basically just enabling services in GCP. You can also try to get ahead of the game by going to infrastructure/scripts and executing:
+
+```
+./gcp_services.sh -p omgnetwork-vault
+```
+
 ## Update value overrides
 
-Edit _vault-overrides.yaml_. Be sure to change the values for:
-
-* ClusterName
-* Project
-* KeyRing
-* Key
+Back in infrastructure/k8s, edit _vault-overrides.yaml_ and verify all the values are correct (hint: they _should_ be fine unless you renamed things or something).
 
 ## Start the Pods
 
 Execute:
 
 ```
-helm install vault ./vault --values vault-overrides.yaml
+helm install vault hashicorp/vault —-values vault-overrides.yaml
 ```
 
-## Install the Vault Helm Chart
+## Interact with Vault
 
-Execute:
+### Logs
+
+You can see the vault logs by executing:
+
+```
+kubectl logs vault-0
+```
+
+Before you initialize vault, you'll soee errors like this:
+
+```
+2020-08-21T03:26:41.607Z [INFO]  core: stored unseal keys supported, attempting fetch
+2020-08-21T03:26:41.684Z [WARN]  failed to unseal core: error="fetching stored unseal keys failed: failed to decrypt encrypted stored keys: failed to decrypt envelope: rpc error: code = InvalidArgument desc = Decryption failed: verify that 'name' refers to the correct CryptoKey."
+```
+
+No worries, just go initialize vault.
+
+### Connect to the Pods
+
+Note that you can connect to vault-0, vault-1, or vault-2. Execute:
 
 ```
 kubectl exec --stdin --tty vault-0 -- /bin/sh
 ```
 
-From here, you can interact with vault. For example:
+and then initialize vault:
 
 ```
-vault status
-vault operator init
+mkdir -p /vault/init
+vault operator init > /vault/init/stdout 2> /vault/init/stderr
 vault status
 ```
 
-## Remove the Vault Helm Chart
+## Uninstalling Vault
 
-When you're done, execute:
+When you're done, you can uninstall vault.
 
 ```
 helm uninstall vault
+```
+
+## Ending Minikube
+
+To stop the minikube VM:
+
+```
+minikube stop
+```
+
+To delete the minikube VM:
+
+```
+minikube delete
 ```
