@@ -1,6 +1,7 @@
 import * as eGanache from 'ganache-core'
 // tslint:disable-next-line
 const VM = require('ethereumjs-ovm').default
+// tslint:disable-next-line
 const BN = require('bn.js')
 
 // tslint:disable-next-line:no-shadowed-variable
