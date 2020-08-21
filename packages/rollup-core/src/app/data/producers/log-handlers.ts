@@ -61,7 +61,7 @@ export const L1ToL2TxEnqueuedLogHandler = async (
   )
 
   const parsedLogData = abi.decode(
-    ['address','address','uint32','bytes'],
+    ['address', 'address', 'uint32', 'bytes'],
     l.data
   )
 
