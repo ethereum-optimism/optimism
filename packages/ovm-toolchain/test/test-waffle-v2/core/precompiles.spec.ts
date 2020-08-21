@@ -12,21 +12,17 @@ import { waffleV2 } from '../../../src/waffle/waffle-v2'
 /* Contract Imports */
 import * as Precompiles from '../../temp/build/waffle/Precompiles.json'
 
-const overrides = {
-  gasLimit: 20000000,
-}
-
 describe('Precompile Support', () => {
   let wallet: Wallet
   let provider: any
   beforeEach(async () => {
-    provider = new waffleV2.MockProvider(overrides)
+    provider = new waffleV2.MockProvider()
     ;[wallet] = provider.getWallets()
   })
 
   let precompiles: Contract
   beforeEach(async () => {
-    precompiles = await deployContract(wallet, Precompiles, [], overrides)
+    precompiles = await deployContract(wallet, Precompiles, [])
   })
 
   it('should correctly ecrecover signer address', async () => {

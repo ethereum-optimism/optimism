@@ -10,18 +10,12 @@ import { waffleV2 } from '../../src/waffle/waffle-v2'
 /* Contract Imports */
 import * as ERC20 from '../temp/build/waffle/ERC20.json'
 
-const overrides = {
-  gasLimit: 10000000,
-}
-
 describe('ERC20 smart contract', () => {
   let provider: any
   let wallet1: Wallet
   let wallet2: Wallet
   before(async () => {
-    provider = new waffleV2.MockProvider({
-      gasLimit: 10000000,
-    })
+    provider = new waffleV2.MockProvider()
     ;[wallet1, wallet2] = provider.getWallets()
   })
 
@@ -33,12 +27,12 @@ describe('ERC20 smart contract', () => {
   /* Deploy a new ERC20 Token before each test */
   let ERC20Token: Contract
   beforeEach(async () => {
-    ERC20Token = await deployContract(
-      wallet1,
-      ERC20,
-      [10000, COIN_NAME, NUM_DECIMALS, TICKER],
-      overrides
-    )
+    ERC20Token = await deployContract(wallet1, ERC20, [
+      10000,
+      COIN_NAME,
+      NUM_DECIMALS,
+      TICKER,
+    ])
   })
 
   it('creation: should create an initial balance of 10000 for the creator', async () => {
@@ -58,7 +52,7 @@ describe('ERC20 smart contract', () => {
   })
 
   it('transfers: should transfer 10000 to walletTo with wallet having 10000', async () => {
-    await ERC20Token.transfer(wallet2.address, 10000, overrides)
+    await ERC20Token.transfer(wallet2.address, 10000)
     const walletToBalance = await ERC20Token.balanceOf(wallet2.address)
     const walletFromBalance = await ERC20Token.balanceOf(wallet1.address)
     expect(walletToBalance.toNumber()).to.equal(10000)
