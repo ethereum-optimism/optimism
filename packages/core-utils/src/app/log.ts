@@ -14,7 +14,7 @@ export const LOG_NEWLINE_STRING = process.env.LOG_NEW_LINES ? '\n' : ' <\\n> '
 export const getLogger = (
   identifier: string,
   isTest: boolean = false,
-  debugToUseTestOnly?: debug
+  debugToUseTestOnly?: any
 ): Logger => {
   const testString = isTest ? 'test:' : ''
   return {
@@ -67,7 +67,7 @@ const joinNewLines = (...logs: any[]): string => {
  */
 const getLogFunction = (
   identifier: string,
-  debugToUseTestOnly: debug = debug
+  debugToUseTestOnly: any = debug
 ): any => {
   const d = debugToUseTestOnly(identifier)
   return (...logs: any[]): any => {

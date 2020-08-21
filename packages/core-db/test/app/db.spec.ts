@@ -8,7 +8,7 @@ import { logError } from '@eth-optimism/core-utils'
 import { Batch, DB, DEL_BATCH_TYPE, PUT_BATCH_TYPE } from '../../src/types/db'
 import { newInMemoryDB } from '../../src/app'
 
-const log = debug('db', true)
+const log = debug('db')
 
 describe('RangeDB', () => {
   let db: DB
@@ -37,7 +37,7 @@ describe('RangeDB', () => {
       try {
         await db.batch(batch)
       } catch (e) {
-        logError(log, `Error processing put batch`, e)
+        //logError(log, `Error processing put batch`, e)
         throw e
       }
 
@@ -75,7 +75,7 @@ describe('RangeDB', () => {
       try {
         await db.batch(batch)
       } catch (e) {
-        logError(log, `Error processing put batch`, e)
+        //logError(log, `Error processing put batch`, e)
         assert.fail()
       }
 
@@ -115,7 +115,7 @@ describe('RangeDB', () => {
       try {
         await db.batch(batch)
       } catch (e) {
-        logError(log, `Error processing put batch`, e)
+        //logError(log, `Error processing put batch`, e)
         assert.fail()
       }
 
