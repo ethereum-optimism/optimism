@@ -31,11 +31,6 @@ variable "omgnetwork_subnet_cidr" {
   description = "CIDR block of subnet used when allowing ingress access in Vault VPC firewall"
 }
 
-variable "bucket_name" {
-  description = "Bucket where OpenVPN config file is stored"
-}
-
-
 variable "ssh_user_email" {
   description = "Email of user allowed to SSH into VPN instance for troubleshooting purposes"
 }

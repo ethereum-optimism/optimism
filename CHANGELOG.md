@@ -4,11 +4,16 @@ NEW FEATURES:
 
 * GCP KMS-based Auto Unseal
 * Raft-based Vault Backend
+* Enable GCR and KMS in the Vault GCP project with service accounts
 
 N/A
 
 REFACTOR:
 
+* removal of the unsealer Vault server
+* clean Helm and Kubernetes from the infrastructure Terraform scripts
+* Helm and GCP are now separate deployments
+* cleaned firewall rules in the Vault infrastructure Terraform scripts
 * use golang 1.14 as the builder
 * stopped using `-dev` mode - use file backend to support snapshotting
   - [x] `unseal.json` holds the keys

@@ -99,6 +99,22 @@ resource "google_compute_firewall" "datadog_agent_2_egress" {
   destination_ranges = element(chunklist(data.datadog_ip_ranges.ips.agents_ipv4, 256), 1)
 }
 
+
+resource "google_compute_firewall" "infura_egress" {
+  name      = "infura-egress"
+  network   = google_compute_network.vpc.name
+  direction = "EGRESS"
+  priority  = "64300"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["443"]
+  }
+
+  # FIXME:
+  destination_ranges = ["0.0.0.0/0"]
+}
+
 /*
  * This firewall rule contains the required access from the OMGNetwork VPC to access Vault
  */
@@ -143,46 +159,4 @@ resource "google_compute_firewall" "ssh_iap" {
   }
 
   source_tags = ["ssh-access"]
-}
-
-/*
- * This firewall rules for VPN ingress access
- */
-
-resource "google_compute_firewall" "vpn_internet" {
-  name      = "vpn-internet"
-  network   = google_compute_network.vpc.name
-  direction = "INGRESS"
-  priority  = "1200"
-
-  source_ranges = ["0.0.0.0/0"]
-
-  allow {
-    protocol = "udp"
-    ports    = ["1194"]
-  }
-
-  target_tags = ["vpn"]
-}
-
-resource "google_compute_firewall" "vpn_outbound" {
-  name      = "vpn-access"
-  network   = google_compute_network.vpc.name
-  direction = "INGRESS"
-  priority  = "1300"
-
-  allow {
-    protocol = "udp"
-  }
-
-  allow {
-    protocol = "icmp"
-  }
-
-  allow {
-    protocol = "tcp"
-  }
-
-  source_tags = ["vault"]
-  target_tags = ["vpn"]
 }
