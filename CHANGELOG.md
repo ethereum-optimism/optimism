@@ -2,6 +2,9 @@
 
 NEW FEATURES:
 
+* GCP KMS-based Auto Unseal
+* Raft-based Vault Backend
+
 N/A
 
 REFACTOR:
@@ -17,8 +20,6 @@ REFACTOR:
 * Update to hashicorp/vault v1.5.2
 * Use official hashicorp/vault helm chart
 * Removed the local copy of the helm chart
-* Added GCP KMS-based Auto Unseal
-* Added Raft-based Vault Backend
 * Standardize GCP resource names to be of the form omgnetwork-<resource>
 
 BUG FIXES:
