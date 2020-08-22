@@ -14,6 +14,12 @@ REFACTOR:
 * Wallet Smoke Test 
   - [x] Remove test of `activateChildChain`.
 * Re-generate Plasma bindings using v1.9.16 `abigen`
+* Update to hashicorp/vault v1.5.2
+* Use official hashicorp/vault helm chart
+* Removed the local copy of the helm chart
+* Added GCP KMS-based Auto Unseal
+* Added Raft-based Vault Backend
+* Standardize GCP resource names to be of the form omgnetwork-<resource>
 
 BUG FIXES:
 
