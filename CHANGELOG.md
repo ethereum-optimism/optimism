@@ -5,11 +5,13 @@ NEW FEATURES:
 * GCP KMS-based Auto Unseal
 * Raft-based Vault Backend
 * Enable GCR and KMS in the Vault GCP project with service accounts
+* CircleCI config to push `omgnetwork/vault` images into GCR
 
 N/A
 
 REFACTOR:
 
+* updated `VERSION` file to `0.0.6`
 * removal of the unsealer Vault server
 * clean Helm and Kubernetes from the infrastructure Terraform scripts
 * Helm and GCP are now separate deployments
