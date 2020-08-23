@@ -4,7 +4,7 @@
 
 Execute:
 
-```
+```bash
 helm repo add hashicorp http://helm.releases.hashicorp.com
 ```
 
@@ -12,7 +12,7 @@ helm repo add hashicorp http://helm.releases.hashicorp.com
 
 Execute:
 
-```
+```bash
 minikube start --mount=true
 ```
 
@@ -39,7 +39,7 @@ Click your new service account and then click _ADD KEY_ -> _Create new key_. Cho
 
 Execute:
 
-```
+```bash
 kubectl create secret generic kms-creds --from-file=credentials.json
 ```
 
@@ -53,19 +53,19 @@ Click the newly created keyring and then click _+ CREATE KEY_. Give it a name (a
 
 Set the environment variable:
 
-```
+```bash
 export GOOGLE_APPLICATION_CREDENTIALS=<path-to>/credentials.json
 ```
 
 Over in infrastructure/terraform directory, execute:
 
-```
+```bash
 terraform apply
 ```
 
 You may get jillions of failures here, but follow the instructions for what they say and you should be fine. It's basically just enabling services in GCP. You can also try to get ahead of the game by going to infrastructure/scripts and executing:
 
-```
+```bash
 ./gcp_services.sh -p omgnetwork-vault
 ```
 
@@ -77,7 +77,7 @@ Back in infrastructure/k8s, edit _vault-overrides.yaml_ and verify all the value
 
 Execute:
 
-```
+```bash
 helm install vault hashicorp/vault —-values vault-overrides.yaml
 ```
 
@@ -87,7 +87,7 @@ helm install vault hashicorp/vault —-values vault-overrides.yaml
 
 You can see the vault logs by executing:
 
-```
+```bash
 kubectl logs vault-0
 ```
 
@@ -102,17 +102,29 @@ No worries, just go initialize vault.
 
 ### Connect to the Pods
 
-Note that you can connect to vault-0, vault-1, or vault-2. Execute:
+Note that you can connect to vault-0, vault-1, or vault-2 directly by executing:
 
-```
+```bash
 kubectl exec --stdin --tty vault-0 -- /bin/sh
 ```
 
-and then initialize vault:
+Otherwise, you can run commands on the vault nodes through minikube. For example, to initialize vault:
 
+```bash
+kubectl exec vault-0 -- vault operator init -format=json > cluster-keys.json
+kubectl exec vault-0 -- vault status
 ```
-mkdir -p /vault/init
-vault operator init > /vault/init/stdout 2> /vault/init/stderr
+
+Set up port forwarding in minikube to access the cluster from your mac. In one terminal, execute:
+
+```bash
+kubectl port-forward vault-0 8200:8200
+```
+
+In another terminal, execute:
+
+```bash
+export VAULT_ADDR=http://127.0.0.1:8200
 vault status
 ```
 
@@ -120,7 +132,7 @@ vault status
 
 When you're done, you can uninstall vault.
 
-```
+```bash
 helm uninstall vault
 ```
 
@@ -128,12 +140,12 @@ helm uninstall vault
 
 To stop the minikube VM:
 
-```
+```bash
 minikube stop
 ```
 
 To delete the minikube VM:
 
-```
+```bash
 minikube delete
 ```
