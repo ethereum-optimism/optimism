@@ -2,23 +2,19 @@
 
 set -e
 
-SERVICES=("compute.googleapis.com" "cloudkms.googleapis.com" "containerregistry.googleapis.com", "iap.googleapis.com",
-	"iam.googleapis.com")
+SERVICES=("compute.googleapis.com" "cloudkms.googleapis.com" "containerregistry.googleapis.com" "iap.googleapis.com" "iam.googleapis.com")
 SECONDARY=("container.googleapis.com")
 
 MODE="enable"
 GCP_PROJECT=""
 
-while getopts "hdp:" opt; do
+while getopts "hd" opt; do
   case "$opt" in
     d)
       MODE="disable"
       ;;
-    p)
-      GCP_PROJECT="$OPTARG"
-      ;;
     h)
-      echo "USAGE: ./gcp_services.sh -p <gcp_project> [-d:disable]"
+      echo "USAGE: ./gcp_services.sh [-d:disable]"
       exit 1
       ;;
   esac

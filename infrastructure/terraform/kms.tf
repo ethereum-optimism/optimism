@@ -1,23 +1,4 @@
 /*
- * KMS Key Ring: https://www.terraform.io/docs/providers/google/r/kms_key_ring.html
- * Create the KMS key ring to hold the autounseal key for Vault
- */
-resource "google_kms_key_ring" "vault" {
-  name     = "omgnetwork-vault-ring"
-  location = "global"
-}
-
-/*
- * KMS Crypto Key: https://www.terraform.io/docs/providers/google/r/kms_crypto_key.html
- * Create the KMS key on the Vault key ring used for unsealing
- */
-resource "google_kms_crypto_key" "unseal" {
-  name            = "omgnetwork-vault-unseal-key"
-  key_ring        = google_kms_key_ring.vault.id
-  rotation_period = "86400s"
-}
-
-/*
  * Google Service Account: https://www.terraform.io/docs/providers/google/r/google_service_account.html
  * Creation of the service account to provide access to KMS
  */

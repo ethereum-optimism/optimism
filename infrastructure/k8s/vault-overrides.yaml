@@ -27,7 +27,7 @@ server:
         seal "gcpckms" {
           region      = "global"
           project     = "omgnetwork-vault"
-          key_ring    = "omgnetwork-vault-ring"
+          key_ring    = "omgnetwork-vault-keyring"
           crypto_key  = "omgnetwork-vault-unseal-key"
         }
 

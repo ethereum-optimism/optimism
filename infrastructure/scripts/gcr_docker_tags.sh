@@ -2,7 +2,7 @@
 
 set -e
 
-CONTAINER_IMAGES=("omgnetwork/vault:1.0.0")
+CONTAINER_IMAGES=("omgnetwork/vault:latest")
 MODE="create"
 GCR_HOST="gcr.io"
 GCP_PROJECT=""

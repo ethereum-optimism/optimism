@@ -13,40 +13,7 @@ output "subnet_uri" {
   description = "URI of the Vault subnet"
 }
 
-output "vpn_private_instance_ip" {
-  value       = google_compute_instance.vpn.network_interface.0.network_ip
-  description = "Internal IP address of the VPN instance"
-}
-
-output "vpn_instance_ssh_command" {
-  value       = "gcloud beta compute ssh --zone ${google_compute_instance.vpn.zone} ${google_compute_instance.vpn.name} --tunnel-through-iap --project ${var.gcp_project}"
-  description = "SSH command to access VPN instance"
-}
-
-output "vpn_public_instance_ip" {
-  value       = google_compute_address.vpn_address.address
-  description = "Public IP address of the VPN instance"
-}
-
-output "bucket_ovpn_copy_command" {
-  value       = "gsutil cp gs://${var.bucket_name}/unsealer.ovpn ."
-  description = "Command to retrieve ovpn file"
-}
-
-output "bucket_ovpn_delete_command" {
-  value       = "gsutil rm gs://${var.bucket_name}/unsealer.ovpn"
-  description = "Command to delete the VPN key from the bucket"
-}
-
 output "registry_uri" {
   value       = google_container_registry.registry.bucket_self_link
   description = "The self-link URI for the private container registry in GCR"
-}
-
-output "kms-key-ring" {
-	value = google_kms_key_ring.vault.name
-}
-
-output "kms-key" {
-	value = google_kms_crypto_key.unseal.name
 }
