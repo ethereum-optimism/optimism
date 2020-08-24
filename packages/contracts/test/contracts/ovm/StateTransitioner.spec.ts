@@ -10,7 +10,7 @@ import {
   remove0x,
   numberToHexString,
 } from '@eth-optimism/core-utils'
-import * as solc from '@eth-optimism/solc-transpiler'
+import solc from '@eth-optimism/solc'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
 import { cloneDeep } from 'lodash'
