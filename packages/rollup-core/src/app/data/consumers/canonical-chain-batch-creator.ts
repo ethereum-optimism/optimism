@@ -25,9 +25,8 @@ export class CanonicalChainBatchCreator extends ScheduledTask {
    * Creates L2 batches from L2 Transactions in the DB, either when:
    *    1. Unsubmitted & unverified transactions in the L2 tx DB match the oldest unverified L1 batch in size
    *    2. Unsubmitted & unverified transactions in the L2 tx DB have multiple timestamps (multiple batches exist)
-   *
    */
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     try {
       const l2OnlyBatchBuilt: number = await this.dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
         this.minBatchSize,
@@ -37,7 +36,7 @@ export class CanonicalChainBatchCreator extends ScheduledTask {
         log.debug(
           `L2-only Canonical Chain Tx batch with number ${l2OnlyBatchBuilt} was built!`
         )
-        return
+        return true
       }
 
       log.debug(`No Canonical Chain Tx batches built... sad.`)
@@ -48,5 +47,6 @@ export class CanonicalChainBatchCreator extends ScheduledTask {
         e
       )
     }
+    return false
   }
 }

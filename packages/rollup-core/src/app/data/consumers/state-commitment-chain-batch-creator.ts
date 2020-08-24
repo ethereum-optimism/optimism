@@ -22,7 +22,7 @@ export class StateCommitmentChainBatchCreator extends ScheduledTask {
   /**
    * @inheritDoc
    */
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     try {
       const isAppendedOnL1: boolean = await this.dataService.isNextStateCommitmentChainBatchToBuildAlreadyAppendedOnL1()
       if (isAppendedOnL1) {
@@ -34,6 +34,7 @@ export class StateCommitmentChainBatchCreator extends ScheduledTask {
           log.debug(
             `State root batch matching appended L1 batch number ${batchNumber} was built!`
           )
+          return true
         }
       } else {
         log.debug(`Attempting to build L2-only state root batch...`)
@@ -45,10 +46,12 @@ export class StateCommitmentChainBatchCreator extends ScheduledTask {
           log.debug(
             `L2-only state root batch with number ${l2OnlyBatchBuilt} was built!`
           )
+          return true
         }
       }
 
       log.debug(`No L2 State Root batch built... sad.`)
+      return false
     } catch (e) {
       logError(
         log,

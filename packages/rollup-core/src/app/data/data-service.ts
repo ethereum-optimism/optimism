@@ -21,6 +21,7 @@ import {
   VerificationCandidate,
   VerificationStatus,
   StateCommitmentBatchSubmission,
+  BatchSubmission,
 } from '../../types'
 import {
   getL1BlockInsertValue,
@@ -618,6 +619,32 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
+  public async getNextCanonicalChainTransactionBatchToFinalize(): Promise<
+    BatchSubmission
+  > {
+    const res = await this.rdb.select(
+      `SELECT batch_number, status, submission_tx_hash
+      FROM canonical_chain_batch 
+      WHERE status = '${BatchSubmissionStatus.SENT}'
+      ORDER BY batch_number ASC
+      LIMIT 1`
+    )
+
+    if (!res || !res.length || !res[0]) {
+      log.debug(`No canonical chain tx batch to finalize.`)
+      return undefined
+    }
+
+    return {
+      submissionTxHash: res[0]['submission_tx_hash'],
+      status: res[0]['status'],
+      batchNumber: res[0]['batch_number'],
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
   public async markTransactionBatchSubmittedToL1(
     batchNumber: number,
     l1TxHash: string
@@ -643,6 +670,9 @@ export class DefaultDataService implements DataService {
     )
   }
 
+  /**
+   * @inheritDoc
+   */
   public async getNextStateCommitmentBatchToSubmit(): Promise<
     StateCommitmentBatchSubmission
   > {
@@ -667,6 +697,32 @@ export class DefaultDataService implements DataService {
       status: res[0]['status'],
       batchNumber: res[0]['batch_number'],
       stateRoots: res.map((x: Row) => x['state_root']),
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getNextStateCommitmentBatchToFinalize(): Promise<
+    BatchSubmission
+  > {
+    const res = await this.rdb.select(
+      `SELECT batch_number, status, submission_tx_hash
+      FROM state_commitment_chain_batch 
+      WHERE status = '${BatchSubmissionStatus.SENT}'
+      ORDER BY batch_number ASC
+      LIMIT 1`
+    )
+
+    if (!res || !res.length || !res[0]) {
+      log.debug(`No state commitment chain batch to finalize.`)
+      return undefined
+    }
+
+    return {
+      submissionTxHash: res[0]['submission_tx_hash'],
+      status: res[0]['status'],
+      batchNumber: res[0]['batch_number'],
     }
   }
 

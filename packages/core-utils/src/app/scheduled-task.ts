@@ -38,8 +38,9 @@ export abstract class ScheduledTask {
 
   public async run(): Promise<void> {
     while (this.running) {
+      let rerunImmediately: boolean
       try {
-        await this.runTask()
+        rerunImmediately = await this.runTask()
       } catch (e) {
         logError(
           log,
@@ -49,6 +50,13 @@ export abstract class ScheduledTask {
         this.running = false
         throw e
       }
+
+      if (rerunImmediately) {
+        // Purposefully do not await
+        this.run()
+        return
+      }
+
       try {
         await sleep(this.periodMilliseconds)
       } catch (e) {
@@ -65,6 +73,7 @@ export abstract class ScheduledTask {
    * Task to be called every `periodMilliseconds` when `running` is true.
    *
    * Note: Exceptions must be handled in this function or else subsequent runs will not occur.
+   * @returns True if the task should be re-run immediately, false if it should be re-run after the configured delay.
    */
-  public abstract async runTask(): Promise<void>
+  public abstract async runTask(): Promise<boolean>
 }

@@ -1,5 +1,5 @@
 /* External Imports */
-import { keccak256FromUtf8, sleep } from '@eth-optimism/core-utils'
+import { keccak256FromUtf8, sleep, TestUtils } from '@eth-optimism/core-utils'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import { Wallet } from 'ethers'
 
@@ -12,6 +12,7 @@ import {
   TransactionBatchSubmission,
   BatchSubmissionStatus,
 } from '../../src/types/data'
+import { UnexpectedBatchStatus } from '../../src/types'
 
 interface BatchNumberHash {
   batchNumber: number
@@ -49,7 +50,7 @@ class MockDataService extends DefaultDataService {
 }
 
 class MockProvider {
-  public confirmedTxs: Map<string, TransactionReceipt> = new Map<
+  public txReceipts: Map<string, TransactionReceipt> = new Map<
     string,
     TransactionReceipt
   >()
@@ -58,10 +59,10 @@ class MockProvider {
     hash: string,
     numConfirms: number
   ): Promise<TransactionReceipt> {
-    while (!this.confirmedTxs.get(hash)) {
+    while (!this.txReceipts.get(hash)) {
       await sleep(100)
     }
-    return this.confirmedTxs.get(hash)
+    return this.txReceipts.get(hash)
   }
 }
 
@@ -101,7 +102,9 @@ describe('Canonical Chain Batch Submitter', () => {
   })
 
   it('should not do anything if there are no batches', async () => {
-    await batchSubmitter.runTask()
+    const res = await batchSubmitter.runTask()
+
+    res.should.equal(false, 'Incorrect result when there are no batches')
 
     dataService.txBatchesSubmitted.length.should.equal(
       0,
@@ -113,7 +116,7 @@ describe('Canonical Chain Batch Submitter', () => {
     )
   })
 
-  it('should not do anything if the next batch has an invalid status', async () => {
+  it('should throw if the next batch has an invalid status', async () => {
     dataService.nextBatch.push({
       submissionTxHash: undefined,
       status: 'derp' as any,
@@ -134,7 +137,9 @@ describe('Canonical Chain Batch Submitter', () => {
       ],
     })
 
-    await batchSubmitter.runTask()
+    await TestUtils.assertThrowsAsync(async () => {
+      await batchSubmitter.runTask()
+    }, UnexpectedBatchStatus)
 
     dataService.txBatchesSubmitted.length.should.equal(
       0,
@@ -170,8 +175,10 @@ describe('Canonical Chain Batch Submitter', () => {
     })
 
     canonicalTransactionChain.responses.push({ hash } as any)
+    canonicalProvider.txReceipts.set(hash, { status: 1 } as any)
 
-    await batchSubmitter.runTask()
+    const res: boolean = await batchSubmitter.runTask()
+    res.should.equal(true, `Batch should have been submitted successfully.`)
 
     dataService.txBatchesSubmitted.length.should.equal(
       1,
@@ -187,16 +194,48 @@ describe('Canonical Chain Batch Submitter', () => {
     )
 
     dataService.txBatchesFinalized.length.should.equal(
-      1,
-      'No tx batches confirmed!'
+      0,
+      'No tx batches should be confirmed!'
     )
-    dataService.txBatchesFinalized[0].txHash.should.equal(
-      hash,
-      'Incorrect tx hash confirmed!'
-    )
-    dataService.txBatchesFinalized[0].batchNumber.should.equal(
+  })
+
+  it('should not mark txs as sent if batch submission tx fails', async () => {
+    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      submissionTxHash: undefined,
+      status: BatchSubmissionStatus.QUEUED,
       batchNumber,
-      'Incorrect tx batch number confirmed!'
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    canonicalProvider.txReceipts.set(hash, { status: 0 } as any)
+
+    const res: boolean = await batchSubmitter.runTask()
+    res.should.equal(false, `Batch tx should have errored out.`)
+
+    dataService.txBatchesSubmitted.length.should.equal(
+      0,
+      'No tx batches submitted!'
+    )
+
+    dataService.txBatchesFinalized.length.should.equal(
+      0,
+      'No tx batches should be confirmed!'
     )
   })
 })
