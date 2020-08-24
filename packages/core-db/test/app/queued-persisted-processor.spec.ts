@@ -72,6 +72,7 @@ describe('Queued Persisted Processor', () => {
   let db: DB
   let processor: DummyQueuedPersistedProcessor
   const persistenceKey: string = 'derp'
+  const retrySleepDelayMillis: number = 100
 
   beforeEach(async () => {
     db = newInMemoryDB()
@@ -79,7 +80,7 @@ describe('Queued Persisted Processor', () => {
       db,
       persistenceKey,
       0,
-      100
+      retrySleepDelayMillis
     )
   })
 
@@ -171,10 +172,10 @@ describe('Queued Persisted Processor', () => {
 
       processor.handledQueue.length.should.equal(
         1,
-        `There should still only be one item processed! Should fail and retry after 100 millis`
+        `There should still only be one item processed! Should fail and retry after ${retrySleepDelayMillis} millis`
       )
 
-      await sleep(200)
+      await sleep(retrySleepDelayMillis * 2)
 
       processor.handledQueue.length.should.equal(
         2,
@@ -210,7 +211,7 @@ describe('Queued Persisted Processor', () => {
         `There should be 2 items processed until item 2 is replayed!`
       )
 
-      await sleep(200)
+      await sleep(retrySleepDelayMillis * 2)
 
       processor.handledQueue.length.should.equal(
         3,
