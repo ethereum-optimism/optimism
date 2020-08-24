@@ -12,7 +12,7 @@ import {
   hexStrToBuf,
   bufToHexString,
 } from '@eth-optimism/core-utils'
-import * as solc from '@eth-optimism/solc-transpiler'
+import * as solc from '@eth-optimism/solc'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
 import { cloneDeep } from 'lodash'
@@ -479,9 +479,6 @@ describe('StateTransitioner', () => {
         __dirname,
         '../../../contracts/test-helpers/FraudTester.sol'
       ),
-      {
-        executionManagerAddress: executionManager.address,
-      }
     ).contracts['FraudTester.sol']
     FraudTesterJson = AllFraudTestJson.FraudTester
     MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester

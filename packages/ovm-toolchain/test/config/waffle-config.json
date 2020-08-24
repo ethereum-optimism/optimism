@@ -1,0 +1,14 @@
+{
+  "sourceDirectory": "./test/common/contracts",
+  "outputDirectory": "./test/temp/build/waffle",
+  "nodeModulesDirectory": "../../node_modules",
+  "compilerType": "solcjs",
+  "compilerVersion": "../../node_modules/@eth-optimism/solc",
+  "compilerOptions": {
+    "outputSelection": {
+      "*": {
+        "*": ["*"]
+      }
+    }
+  }
+}
