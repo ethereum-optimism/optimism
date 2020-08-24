@@ -86,32 +86,6 @@
     ethereum-waffle "2.1.0"
     ethers "^4.0.39"
 
-"@eth-optimism/rollup-dev-tools@^0.0.1-alpha.28":
-  version "0.0.1-alpha.28"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-dev-tools/-/rollup-dev-tools-0.0.1-alpha.28.tgz#17d7fa31c59a094756c04a058f72b5eb70530386"
-  integrity sha512-RGrEojvRtmYekYY5oERNRRccNJhyv8nBEzWz34/O+TQtH2lm+AxYng87DNl9VGejV5bzt/GosjhfP1aNca0A8g==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
-    "@eth-optimism/rollup-core" "^0.0.1-alpha.28"
-    async-lock "^1.2.2"
-    bn.js "^5.1.1"
-    dotenv "^8.2.0"
-    ethereumjs-abi "^0.6.8"
-    ethereumjs-tx "^2.1.2"
-    ethereumjs-vm "^4.1.3"
-    ethers "^4.0.42"
-
-"@eth-optimism/solc-transpiler@^0.0.1-alpha.27", "@eth-optimism/solc-transpiler@^0.0.1-alpha.28":
-  version "0.0.1-alpha.28"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/solc-transpiler/-/solc-transpiler-0.0.1-alpha.28.tgz#327743c7c0271dac13243fb4de22e1f0ee81b31c"
-  integrity sha512-UyQK6AseKfG1h1kRW+Atu9z0z0Ym3MW+ncoiRK+7TUbKyrDcKuBlLst+FXuo6fChHkw25oDfHpb3t/oTLDLlCg==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
-    "@eth-optimism/rollup-dev-tools" "^0.0.1-alpha.28"
-    ethers "^4.0.45"
-    require-from-string "^2.0.2"
-    solc "^0.5.12"
-
 "@eth-optimism/solc@^0.5.16-alpha.0":
   version "0.5.16-alpha.0"
   resolved "https://registry.yarnpkg.com/@eth-optimism/solc/-/solc-0.5.16-alpha.0.tgz#27df0e8db3f4d1118bf18882460115c79d6dc6c5"
