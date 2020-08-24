@@ -10,7 +10,7 @@ import {
   remove0x,
   numberToHexString,
 } from '@eth-optimism/core-utils'
-import solc from '@eth-optimism/solc'
+import * as solc from '@eth-optimism/solc'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
 import { cloneDeep } from 'lodash'
@@ -410,7 +410,7 @@ const makeModifiedTrie = (
 }
 
 /* Begin tests */
-describe('StateTransitioner', () => {
+describe.only('StateTransitioner', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
@@ -442,9 +442,6 @@ describe('StateTransitioner', () => {
         __dirname,
         '../../../contracts/test-helpers/FraudTester.sol'
       ),
-      {
-        executionManagerAddress: executionManager.address,
-      }
     ).contracts['FraudTester.sol']
     FraudTesterJson = AllFraudTestJson.FraudTester
     MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester
