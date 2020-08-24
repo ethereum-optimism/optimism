@@ -60,9 +60,10 @@ describe('Test Sending Transactions Directly To L2', () => {
       )
     })
 
-    it('Sets storage N times', async () => {
+    const numTxsToSend: number = 50
+    it(`Sets storage ${numTxsToSend} times`, async () => {
       const key: string = 'test'
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < numTxsToSend; i++) {
         log.debug(`Sending tx to set storage key ${key}`)
         const res = await simpleStorage.setStorage(key, `${key}${i}`)
         const receipt: TransactionReceipt = await provider.waitForTransaction(

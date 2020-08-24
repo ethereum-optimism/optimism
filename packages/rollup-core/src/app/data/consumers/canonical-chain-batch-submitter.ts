@@ -91,8 +91,10 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     try {
       const txsCalldata: string[] = this.getTransactionBatchCalldata(l2Batch)
 
+      // TODO: update this to work with geth-persisted timestamp/block number that updates based on L1 actions
       const timestamp = l2Batch.transactions[0].timestamp
-      const blocknumber = l2Batch.transactions[0].blockNumber
+      const blocknumber = await this.canonicalTransactionChain.provider.getBlockNumber() - 10 // broken for any prod setting but works for now
+
       log.debug(
         `Submitting tx batch ${l2Batch.batchNumber} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
