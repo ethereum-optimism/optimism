@@ -44,7 +44,7 @@ server:
   extraEnvironmentVars:
     GOOGLE_REGION: global
     GOOGLE_PROJECT: omgnetwork-vault
-    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/credentials.json
+    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
 
   extraVolumes:
     - type: secret

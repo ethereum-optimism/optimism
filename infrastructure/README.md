@@ -2,6 +2,30 @@
 
 This directory holds the Terraform scripts and the Helm chart overrides to deploy the cloud infrastructure and Kubernetes resources into a Google Cloud project.
 
+## GCloud Authentication
+
+You have to authenticate with the `gcloud` command line tool (download if not already installed). If you already have credentials locally for the project, you can simply set `GOOGLE_APPLICATION_CREDENTIALS` to the local file path, and Terraform will utilize those credentials.
+
+Otherwise, you can run `gcloud init` to create a fresh GCP project configuration locally, or just run:
+
+```bash
+$ gcloud config set project $PROJECT_ID # <-- important for subsequent commands
+$ gcloud auth login
+```
+
+This will open up a browser window for you to login and authorize access to the target project for `gcloud` to provider credentials for. This session with `gcloud` can later be revoked by running:
+
+```bash
+$ gcloud auth revoke
+```
+
+> Note:
+> 
+> Alternatively, if you have a service account designated for IaC deployments, you can activate those credentials with:
+> ```bash
+> $ gcloud auth activate-service-account --key-file <path_to_key_file>
+> ```
+
 ## Terraform
 
 [Source](./terraform)
@@ -42,28 +66,6 @@ This enables:
   - `container.googleapis.com`
 
 Without doing this first, the deployment will not succeed.
-
-Now you have to authentication with the `gcloud` command line tool (download if not already installed). If you already have credentials locally for the project, you can simply set `GOOGLE_APPLICATION_CREDENTIALS` to the local file path, and Terraform will utilize those credentials.
-
-Otherwise, you can run `gcloud init` to create a fresh GCP project configuration locally, or just run:
-
-```bash
-$ gcloud config set project $PROJECT_ID # <-- important for subsequent commands
-$ gcloud auth login
-```
-
-This will open up a browser window for you to login and authorize access to the target project for `gcloud` to provider credentials for. This session with `gcloud` can later be revoked by running:
-
-```bash
-$ gcloud auth revoke
-```
-
-> Note:
-> 
-> Alternatively, if you have a service account designated for IaC deployments, you can activate those credentials with:
-> ```bash
-> $ gcloud auth activate-service-account --key-file <path_to_key_file>
-> ```
 
 Now that you're authenticated locally to your GCP project, you can now deploy the scripts. Ensure that you have all of the necessary Terraform variables set and run:
 

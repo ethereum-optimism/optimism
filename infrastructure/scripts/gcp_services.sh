@@ -19,7 +19,6 @@ while getopts "hd" opt; do
       ;;
   esac
 done
-shift "$(($OPTIND -2))"
 
 if [ "$MODE" == "enable" ]; then
   echo "Enabling GCP services. This may take some time..."

@@ -39,17 +39,6 @@ variable "omgnetwork_subnet_cidr" {
   type        = string
 }
 
-variable "ssh_user_email" {
-  description = "Email of user allowed to SSH into VPN instance for troubleshooting purposes"
-  type        = string
-}
-
-variable "allow_ssh" {
-  description = "Boolean indicating if SSH access to VPN instance is configured"
-  default     = false
-  type        = bool
-}
-
 variable "lockdown_egress" {
   description = "Boolean indicating if egress network access is lockdown to only Datadog IPs"
   default     = false
