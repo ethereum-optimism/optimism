@@ -28,7 +28,8 @@ export abstract class BaseQueuedPersistedProcessor<T>
   protected constructor(
     private readonly db: DB,
     private readonly persistenceKey: string,
-    startIndex: number = 0
+    startIndex: number = 0,
+    private readonly retrySleepDelayMillis: number = 1000
   ) {
     this.initialized = false
     this.nextIndexToProcess = startIndex
@@ -70,13 +71,25 @@ export abstract class BaseQueuedPersistedProcessor<T>
       return
     }
 
+    try {
+      await this.setNextToProcess(index + 1)
+    } catch (e) {
+      this.log(`Error setting next to process to ${index + 1}!`, e)
+      throw e
+    }
+
     this.setLastProcessed(index).then(async () => {
+      this.log(
+        `Attempting to fetch index ${this.nextIndexToProcess} from storage`
+      )
       const nextItem = await this.fetchItem(this.nextIndexToProcess)
       if (!!nextItem) {
         this.log(
           `Index ${this.nextIndexToProcess} was already stored. Handling it now.`
         )
-        await this.handleIfReady(this.nextIndexToProcess, nextItem)
+        setTimeout(() => {
+          this.handleIfReady(this.nextIndexToProcess, nextItem)
+        }, 0)
       } else {
         this.log(
           `Have not received index ${this.nextIndexToProcess} yet. Waiting...`
@@ -222,13 +235,12 @@ export abstract class BaseQueuedPersistedProcessor<T>
         (allowRetries && index === this.nextIndexToProcess - 1))
     ) {
       try {
-        await this.setNextToProcess(index + 1)
         this.log(`Handling index ${index}.`)
         await this.handleNextItem(index, item)
       } catch (e) {
         logError(log, `Error handling item ${index}. Going to retry.`, e)
-        await sleep(1000)
-        return this.handleIfReady(index, item, allowRetries)
+        await sleep(this.retrySleepDelayMillis)
+        return this.handleIfReady(index, item, true)
       }
     } else {
       this.log(
@@ -306,7 +318,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * Sets the next index to process, persisting the updated index in case of failure.
    * @param index The index to set  Processed to.
    */
-  private async setNextToProcess(index: number): Promise<void> {
+  protected async setNextToProcess(index: number): Promise<void> {
     await this.db.put(
       this.getStorageKey(
         BaseQueuedPersistedProcessor.NEXT_INDEX_TO_PROCESS_KEY

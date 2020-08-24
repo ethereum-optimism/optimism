@@ -25,9 +25,11 @@ import {
   RollupTransaction,
   L1DataService,
   GethSubmissionRecord,
+  L1BlockPersistenceInfo,
 } from '../../src/types'
 
 class MockDataService extends DefaultDataService {
+  public l1BlockPersistenceInfo: L1BlockPersistenceInfo
   public readonly blocks: Block[] = []
   public readonly processedBlocks: Set<string> = new Set<string>()
   public readonly blockTransactions: Map<string, TransactionResponse[]>
@@ -41,6 +43,18 @@ class MockDataService extends DefaultDataService {
     this.blockTransactions = new Map<string, TransactionResponse[]>()
     this.stateRoots = new Map<string, string[]>()
     this.rollupTransactions = new Map<string, RollupTransaction[]>()
+    this.l1BlockPersistenceInfo = {
+      blockPersisted: false,
+      txPersisted: false,
+      rollupTxsPersisted: false,
+      rollupStateRootsPersisted: false,
+    }
+  }
+
+  public async getL1BlockPersistenceInfo(
+    blockNumber: number
+  ): Promise<L1BlockPersistenceInfo> {
+    return this.l1BlockPersistenceInfo
   }
 
   public async insertL1Block(block: Block, processed: boolean): Promise<void> {
@@ -226,7 +240,7 @@ describe('L1 Chain Data Persister', () => {
   })
 
   describe('Irrelevant logs', () => {
-    it('should not persist block without log handler', async () => {
+    it('should persist block but no txs without log handler', async () => {
       chainDataPersister = await L1ChainDataPersister.create(
         db,
         dataService,
@@ -252,7 +266,7 @@ describe('L1 Chain Data Persister', () => {
       )
     })
 
-    it('should not persist block without logs relevant to log handler topic', async () => {
+    it('should persist block but no txs without logs relevant to log handler topic', async () => {
       const logHandlerContext: LogHandlerContext = {
         topic: 'not your topic',
         contractAddress: ZERO_ADDRESS,
@@ -285,7 +299,7 @@ describe('L1 Chain Data Persister', () => {
       )
     })
 
-    it('should not persist block without logs relevant to log handler address', async () => {
+    it('should persist block but no txs without logs relevant to log handler address', async () => {
       chainDataPersister = await L1ChainDataPersister.create(
         db,
         dataService,
@@ -689,6 +703,241 @@ describe('L1 Chain Data Persister', () => {
           .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
 
         dataService.processedBlocks.size.should.equal(2, `block not processed!`)
+      })
+    })
+  })
+
+  describe('Partial state persisted', () => {
+    it('should not persist block if already persisted', async () => {
+      chainDataPersister = await L1ChainDataPersister.create(
+        db,
+        dataService,
+        provider,
+        []
+      )
+
+      provider.topicToLogsToReturn.set('derp', [getLog(['derp'], ZERO_ADDRESS)])
+
+      dataService.l1BlockPersistenceInfo.blockPersisted = true
+      const block = getBlock(keccak256FromUtf8('derp'))
+      await chainDataPersister.handle(block)
+
+      await sleep(1_000)
+
+      dataService.blocks.length.should.equal(0, `Should not re-insert block!`)
+      dataService.blockTransactions.size.should.equal(
+        0,
+        `Inserted transactions when shouldn't have!`
+      )
+      dataService.stateRoots.size.should.equal(
+        0,
+        `Inserted roots when shouldn't have!`
+      )
+    })
+
+    describe('with logs', () => {
+      const configuredHandlerContext: LogHandlerContext = {
+        ...errorLogHandlerContext,
+      }
+      beforeEach(async () => {
+        chainDataPersister = await L1ChainDataPersister.create(
+          db,
+          dataService,
+          provider,
+          [configuredHandlerContext]
+        )
+      })
+
+      it('should not persist block or l1 transaction if already persisted but should persist logs', async () => {
+        const rollupTxs = [getRollupTransaction()]
+        configuredHandlerContext.handleLog = async (ds, l, t) => {
+          await ds.insertL1RollupTransactions(t.hash, rollupTxs)
+        }
+
+        const tx: TransactionResponse = getTransactionResponse()
+        provider.txsToReturn.set(tx.hash, tx)
+        provider.topicToLogsToReturn.set(topic, [
+          getLog([topic], contractAddress, tx.hash),
+        ])
+
+        dataService.l1BlockPersistenceInfo.blockPersisted = true
+
+        await chainDataPersister.handle(defaultBlock)
+
+        await sleep(1_000)
+
+        dataService.blocks.length.should.equal(
+          0,
+          `Should not have inserted block because it already exists!`
+        )
+        dataService.blockTransactions.size.should.equal(
+          0,
+          `Should not have inserted transaction because it already exists!`
+        )
+
+        const rollupTxsExist: boolean = !!dataService.rollupTransactions.get(
+          tx.hash
+        )
+        rollupTxsExist.should.equal(
+          true,
+          `Should have inserted rollup txs for the tx!`
+        )
+        dataService.rollupTransactions
+          .get(tx.hash)
+          .length.should.equal(1, `Should have inserted 1 rollup tx!`)
+        dataService.rollupTransactions
+          .get(tx.hash)[0]
+          .should.deep.equal(rollupTxs[0], `Inserted rollup tx mismatch!`)
+
+        dataService.processedBlocks.size.should.equal(1, `block not processed!`)
+        dataService.processedBlocks
+          .has(defaultBlock.hash)
+          .should.equal(true, `correct block not processed!`)
+      })
+
+      it('should not persist block, transaction or rollup transaction it is all already stored', async () => {
+        const rollupTxs = [getRollupTransaction()]
+        configuredHandlerContext.handleLog = async (ds, l, t) => {
+          await ds.insertL1RollupTransactions(t.hash, rollupTxs)
+        }
+
+        const tx: TransactionResponse = getTransactionResponse()
+        provider.txsToReturn.set(tx.hash, tx)
+        provider.topicToLogsToReturn.set(topic, [
+          getLog([topic], contractAddress, tx.hash),
+        ])
+
+        dataService.l1BlockPersistenceInfo.blockPersisted = true
+        dataService.l1BlockPersistenceInfo.rollupTxsPersisted = true
+
+        await chainDataPersister.handle(defaultBlock)
+
+        await sleep(1_000)
+
+        dataService.blocks.length.should.equal(
+          0,
+          `Should not have inserted block because it already exists!`
+        )
+        dataService.blockTransactions.size.should.equal(
+          0,
+          `Should not have inserted transaction because it already exists!`
+        )
+
+        const rollupTxsExist: boolean = !!dataService.rollupTransactions.get(
+          tx.hash
+        )
+        rollupTxsExist.should.equal(
+          false,
+          `Should not have inserted rollup txs for the tx because they already exist!`
+        )
+        dataService.processedBlocks.size.should.equal(
+          0,
+          `block should not be marked processed because it already is!`
+        )
+      })
+
+      it('should not persist block or transaction but should persist state roots', async () => {
+        const stateRoots = [keccak256FromUtf8('root')]
+        configuredHandlerContext.handleLog = async (ds, l, t) => {
+          await ds.insertL1RollupStateRoots(tx.hash, stateRoots)
+        }
+        chainDataPersister = await L1ChainDataPersister.create(
+          db,
+          dataService,
+          provider,
+          [configuredHandlerContext]
+        )
+
+        const tx: TransactionResponse = getTransactionResponse()
+        const tx2: TransactionResponse = getTransactionResponse(
+          keccak256FromUtf8('tx2')
+        )
+        provider.txsToReturn.set(tx.hash, tx)
+        provider.txsToReturn.set(tx2.hash, tx2)
+        provider.topicToLogsToReturn.set(topic, [
+          getLog([topic], contractAddress, tx.hash),
+        ])
+
+        dataService.l1BlockPersistenceInfo.blockPersisted = true
+
+        await chainDataPersister.handle(defaultBlock)
+
+        await sleep(1_000)
+
+        dataService.blocks.length.should.equal(
+          0,
+          `Should not have inserted block because it already exists!`
+        )
+        dataService.blockTransactions.size.should.equal(
+          0,
+          `Should not have inserted transactions for 1 block because it already exists!`
+        )
+
+        const stateRootsExist: boolean = !!dataService.stateRoots.get(tx.hash)
+        stateRootsExist.should.equal(
+          true,
+          `Should have inserted state roots for the tx!`
+        )
+        dataService.stateRoots
+          .get(tx.hash)
+          .length.should.equal(1, `Should have inserted 1 state root!`)
+        dataService.stateRoots
+          .get(tx.hash)[0]
+          .should.deep.equal(stateRoots[0], `Inserted state Root mismatch!`)
+
+        dataService.processedBlocks.size.should.equal(1, `block not processed!`)
+        dataService.processedBlocks
+          .has(defaultBlock.hash)
+          .should.equal(true, `correct block not processed!`)
+      })
+
+      it('should not persist block, transaction, or state roots if they are already persisted', async () => {
+        const stateRoots = [keccak256FromUtf8('root')]
+        configuredHandlerContext.handleLog = async (ds, l, t) => {
+          await ds.insertL1RollupStateRoots(tx.hash, stateRoots)
+        }
+        chainDataPersister = await L1ChainDataPersister.create(
+          db,
+          dataService,
+          provider,
+          [configuredHandlerContext]
+        )
+
+        const tx: TransactionResponse = getTransactionResponse()
+        const tx2: TransactionResponse = getTransactionResponse(
+          keccak256FromUtf8('tx2')
+        )
+        provider.txsToReturn.set(tx.hash, tx)
+        provider.txsToReturn.set(tx2.hash, tx2)
+        provider.topicToLogsToReturn.set(topic, [
+          getLog([topic], contractAddress, tx.hash),
+        ])
+
+        dataService.l1BlockPersistenceInfo.blockPersisted = true
+        dataService.l1BlockPersistenceInfo.rollupStateRootsPersisted = true
+
+        await chainDataPersister.handle(defaultBlock)
+
+        await sleep(1_000)
+
+        dataService.blocks.length.should.equal(
+          0,
+          `Should not have inserted block because it already exists!`
+        )
+        dataService.blockTransactions.size.should.equal(
+          0,
+          `Should not have inserted transactions for 1 block because it already exists!`
+        )
+
+        const stateRootsExist: boolean = !!dataService.stateRoots.get(tx.hash)
+        stateRootsExist.should.equal(
+          false,
+          `Should not have inserted state roots for the tx because they already exist!`
+        )
+        dataService.processedBlocks.size.should.equal(
+          0,
+          `block should not be marked processed because it already is!`
+        )
       })
     })
   })

@@ -138,3 +138,10 @@ export interface TransactionResult {
   updatedStorage: StorageElement[]
   updatedContracts: ContractStorage[]
 }
+
+export interface L1BlockPersistenceInfo {
+  blockPersisted: boolean
+  txPersisted: boolean
+  rollupTxsPersisted: boolean
+  rollupStateRootsPersisted: boolean
+}
