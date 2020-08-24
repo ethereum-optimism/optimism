@@ -43,7 +43,7 @@ const deployContract = async (
   const contract = new Contract(
     receipt.contractAddress,
     config.factory.interface,
-    config.signer,
+    config.signer
   ) as any // set as any so we can override read-only deployTransaction field
   contract.deployTransaction = deployResult
 
@@ -65,9 +65,13 @@ export const deployAndRegister = async (
   log.debug(`Deploying ${name} with params: [${[...deployConfig.params]}]...`)
   const deployedContract = await deployContract(deployConfig)
   const deployTxHash = deployedContract.deployTransaction.hash
-  const deployTxReceipt = await addressResolver.provider.getTransactionReceipt(deployTxHash)
+  const deployTxReceipt = await addressResolver.provider.getTransactionReceipt(
+    deployTxHash
+  )
   log.info(`Deployed ${name} at address ${deployedContract.address}.`)
-  log.debug(`${name} deploy tx (hash: ${deployTxHash}) used ${deployTxReceipt.gasUsed.toNumber()} gas.`)
+  log.debug(
+    `${name} deploy tx (hash: ${deployTxHash}) used ${deployTxReceipt.gasUsed.toNumber()} gas.`
+  )
 
   log.debug(`Registering ${name} with AddressResolver`)
   const res: ethers.providers.TransactionResponse = await addressResolver.setAddress(
@@ -89,7 +93,11 @@ export const deployAndRegister = async (
 export const deployAllContracts = async (
   config: RollupDeployConfig
 ): Promise<AddressResolverMapping> => {
-  log.debug(`Attempting to deploy all L1 rollup contracts with the following rollup options: \n${JSON.stringify(config.rollupOptions)}`)
+  log.debug(
+    `Attempting to deploy all L1 rollup contracts with the following rollup options: \n${JSON.stringify(
+      config.rollupOptions
+    )}`
+  )
   let addressResolver: Contract
   if (!config.addressResolverContractAddress) {
     if (!config.addressResolverConfig) {
