@@ -28,7 +28,7 @@ const deployContract = async (
   // Can't use this because it fails on ExecutionManager & FraudVerifier
   // return config.factory.deploy(...config.params)
 
-  const res = await config.signer.sendTransaction({
+  const deployResult = await config.signer.sendTransaction({
     data: rawTx.data,
     gasLimit: 9_500_000,
     gasPrice: 2_000_000_000,
@@ -37,14 +37,17 @@ const deployContract = async (
   })
 
   const receipt: ethers.providers.TransactionReceipt = await config.signer.provider.waitForTransaction(
-    res.hash
+    deployResult.hash
   )
 
-  return new Contract(
+  const contract = new Contract(
     receipt.contractAddress,
     config.factory.interface,
-    config.signer
-  )
+    config.signer,
+  ) as any // set as any so we can override read-only deployTransaction field
+  contract.deployTransaction = deployResult
+
+  return contract as Contract
 }
 
 /**
@@ -59,9 +62,12 @@ export const deployAndRegister = async (
   name: string,
   deployConfig: ContractDeployOptions
 ): Promise<Contract> => {
-  log.debug(`Deploying ${name}...`)
+  log.debug(`Deploying ${name} with params: [${[...deployConfig.params]}]...`)
   const deployedContract = await deployContract(deployConfig)
+  const deployTxHash = deployedContract.deployTransaction.hash
+  const deployTxReceipt = await addressResolver.provider.getTransactionReceipt(deployTxHash)
   log.info(`Deployed ${name} at address ${deployedContract.address}.`)
+  log.debug(`${name} deploy tx (hash: ${deployTxHash}) used ${deployTxReceipt.gasUsed.toNumber()} gas.`)
 
   log.debug(`Registering ${name} with AddressResolver`)
   const res: ethers.providers.TransactionResponse = await addressResolver.setAddress(
@@ -83,6 +89,7 @@ export const deployAndRegister = async (
 export const deployAllContracts = async (
   config: RollupDeployConfig
 ): Promise<AddressResolverMapping> => {
+  log.debug(`Attempting to deploy all L1 rollup contracts with the following rollup options: \n${JSON.stringify(config.rollupOptions)}`)
   let addressResolver: Contract
   if (!config.addressResolverContractAddress) {
     if (!config.addressResolverConfig) {

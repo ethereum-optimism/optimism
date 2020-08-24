@@ -92,12 +92,14 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       const txsCalldata: string[] = this.getTransactionBatchCalldata(l2Batch)
 
       const timestamp = l2Batch.transactions[0].timestamp
+      const blocknumber = l2Batch.transactions[0].blockNumber
       log.debug(
         `Submitting tx batch ${l2Batch.batchNumber} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
       const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
         txsCalldata,
-        timestamp
+        timestamp,
+        blocknumber
       )
       log.debug(
         `Tx batch ${l2Batch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
