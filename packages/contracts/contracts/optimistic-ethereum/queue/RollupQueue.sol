@@ -82,16 +82,16 @@ contract RollupQueue {
         return frontBatch.blocknumber;
     }
 
-    /**
-     * Checks if this is a calldata transaction queue.
-     * @return Whether or not this is a calldata tx queue.
-     */
-    function isCalldataTxQueue()
-        public
-        returns (bool)
-    {
-        return true;
-    }
+    // /**
+    //  * Checks if this is a calldata transaction queue.
+    //  * @return Whether or not this is a calldata tx queue.
+    //  */
+    // function isCalldataTxQueue()
+    //     public
+    //     returns (bool)
+    // {
+    //     return true;
+    // }
     
     /*
     * Internal Functions

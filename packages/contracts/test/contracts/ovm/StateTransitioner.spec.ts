@@ -12,7 +12,7 @@ import {
   hexStrToBuf,
   bufToHexString,
 } from '@eth-optimism/core-utils'
-import * as solc from '@eth-optimism/solc-transpiler'
+import * as solc from '@eth-optimism/solc'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
 import { cloneDeep } from 'lodash'
@@ -36,7 +36,6 @@ import {
   makeStateTrie,
 } from '../../test-helpers'
 import { BaseTrie } from 'merkle-patricia-tree'
-import { stat } from 'fs'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
@@ -478,13 +477,7 @@ describe('StateTransitioner', () => {
 
     const AllFraudTestJson = compile(
       solc,
-      path.resolve(
-        __dirname,
-        '../../../contracts/test-helpers/FraudTester.sol'
-      ),
-      {
-        executionManagerAddress: executionManager.address,
-      }
+      path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol')
     ).contracts['FraudTester.sol']
     FraudTesterJson = AllFraudTestJson.FraudTester
     MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester
