@@ -152,7 +152,7 @@ describe('RollupQueue', () => {
     })
   })
 
-  describe('peek(), peekTimestamp(), and peekBlocknumber()', async () => {
+  describe('peek(), peekTimestamp(), and peekBlockNumber()', async () => {
     it('should peek successfully with single element', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
       const { txHash, timestamp, blockNumber } = await rollupQueue.peek()
@@ -163,8 +163,8 @@ describe('RollupQueue', () => {
       const peekTimestamp = await rollupQueue.peekTimestamp()
       peekTimestamp.should.equal(timestamp)
 
-      const peekBlocknumber = await rollupQueue.peekBlocknumber()
-      peekBlocknumber.should.equal(blockNumber)
+      const peekBlockNumber = await rollupQueue.peekBlockNumber()
+      peekBlockNumber.should.equal(blockNumber)
     })
 
     it('should revert when peeking at an empty queue', async () => {
