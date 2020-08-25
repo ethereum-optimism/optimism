@@ -4,14 +4,12 @@
 
 VAULT_CREDENTIALS="/home/vault/config/unseal.json"
 
-CONFIG_DIR="/home/vault/ca"
-CERTS_DIR="/home/vault/ca/certs"
-KEYS_DIR="/home/vault/ca/private"
+CONFIG_DIR="/home/vault/config"
 
-CA_CERT="$CERTS_DIR/ca.crt"
-CA_KEY="$KEYS_DIR/ca.key"
-TLS_KEY="$KEYS_DIR/my-service.key"
-TLS_CERT="$CERTS_DIR/my-service.crt"
+CA_CERT="$CONFIG_DIR/ca.crt"
+CA_KEY="$CONFIG_DIR/ca.key"
+TLS_KEY="$CONFIG_DIR/my-service.key"
+TLS_CERT="$CONFIG_DIR/my-service.crt"
 CONFIG="$CONFIG_DIR/openssl.cnf"
 CSR="$CONFIG_DIR/my-service.csr"
 
@@ -64,7 +62,6 @@ EOF
 
 function gencerts {
 
-	mkdir -p $CERTS_DIR $KEYS_DIR
     create_config
 	openssl req \
 	-new \

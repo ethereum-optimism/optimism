@@ -22,6 +22,11 @@ unsealer/backup.snap
 .vscode
 docker/config/data
 docker/config/unseal.json
+docker/config/*.crt
+docker/config/*.key
+docker/config/*.cnf
+docker/config/*.csr
+docker/config/*.srl
 *.key.json
 credentials.json
 *.pem
