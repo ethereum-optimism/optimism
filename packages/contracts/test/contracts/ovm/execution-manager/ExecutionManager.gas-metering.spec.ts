@@ -4,30 +4,22 @@ import '../../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import {
   getLogger,
-  remove0x,
-  add0x,
-  TestUtils,
-  getCurrentTime,
   ZERO_ADDRESS,
   NULL_ADDRESS,
   hexStrToNumber,
+  numberToHexString,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
-import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
-  addressToBytes32Address,
-  didCreateSucceed,
-  encodeMethodId,
-  encodeRawArguments,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  executeTransaction,
 } from '../../../test-helpers'
 
 /* Logging */
@@ -36,7 +28,7 @@ const log = getLogger('execution-manager-calls', true)
 /* Testing Constants */
 
 const OVM_TX_BASE_GAS_FEE = 30_000
-const OVM_TX_MAX_GAS = 1_500_000
+const OVM_TX_MAX_GAS = 2_000_000
 const GAS_RATE_LIMIT_EPOCH_IN_SECONDS = 60_000
 const MAX_GAS_PER_EPOCH = 2_000_000
 
@@ -47,10 +39,10 @@ const INITIAL_OVM_DEPLOY_TIMESTAMP = 1
 
 const abi = new ethers.utils.AbiCoder()
 
-// Empirically determined constant which is some extra gas the EM records due to running CALL and gasAfter - gasBefore.
+// Empirically determined constant which is some extra gas the EM records due to running CALL, gasAfter - gasBefore, etc.
 // This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
 // However, that size is constant for these tests, since we only call consumeGas() below.
-const EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD = 41827
+const CONSUME_GAS_EXECUTION_OVERHEAD = 39967
 
 /*********
  * TESTS *
@@ -65,6 +57,11 @@ describe('Execution Manager -- Gas Metering', () => {
   let GasConsumer: ContractFactory
   let ExecutionManager: ContractFactory
   let StateManager: ContractFactory
+  let StateManagerGasSanitizer: ContractFactory
+  let stateManagerGasSanitizer: Contract
+
+  let executionManager: Contract
+  let gasConsumerAddress: Address
   before(async () => {
     ;[wallet] = await ethers.getSigners()
     walletAddress = await wallet.getAddress()
@@ -72,11 +69,11 @@ describe('Execution Manager -- Gas Metering', () => {
     GasConsumer = await ethers.getContractFactory('GasConsumer')
     ExecutionManager = await ethers.getContractFactory('ExecutionManager')
     StateManager = await ethers.getContractFactory('FullStateManager')
-  })
+    StateManagerGasSanitizer = await ethers.getContractFactory(
+      'StateManagerGasSanitizer'
+    )
 
-  let executionManager: Contract
-  let gasConsumerAddress: Address
-  beforeEach(async () => {
+    // redeploy EM with our gas metering params
     executionManager = await deployAndRegister(
       resolver.addressResolver,
       wallet,
@@ -94,6 +91,18 @@ describe('Execution Manager -- Gas Metering', () => {
             MAX_GAS_PER_EPOCH,
           ],
         ],
+      }
+    )
+  })
+
+  beforeEach(async () => {
+    stateManagerGasSanitizer = await deployAndRegister(
+      resolver.addressResolver,
+      wallet,
+      'StateManagerGasSanitizer',
+      {
+        factory: StateManagerGasSanitizer,
+        params: [resolver.addressResolver.address],
       }
     )
 
@@ -147,12 +156,12 @@ describe('Execution Manager -- Gas Metering', () => {
     gasLimit: any = false
   ) => {
     const internalCallBytes = GasConsumer.interface.encodeFunctionData(
-      'consumeGas',
+      'consumeGasInternalCall',
       [gasToConsume]
     )
 
     // overall tx gas padding to account for executeTransaction and SimpleGas return overhead
-    const gasLimitPad: number = 100_000
+    const gasLimitPad: number = 500_000
     const ovmTxGasLimit: number = gasLimit
       ? gasLimit
       : gasToConsume + OVM_TX_BASE_GAS_FEE + gasLimitPad
@@ -181,15 +190,27 @@ describe('Execution Manager -- Gas Metering', () => {
   }
 
   const getCumulativeQueuedGas = async (): Promise<number> => {
-    return hexStrToNumber(
-      (await executionManager.getCumulativeQueuedGas())._hex
+    const data: string = executionManager.interface.encodeFunctionData(
+      'getCumulativeQueuedGas',
+      []
     )
+    const res = await executionManager.provider.call({
+      to: executionManager.address,
+      data,
+    })
+    return hexStrToNumber(res)
   }
 
   const getCumulativeSequencedGas = async (): Promise<number> => {
-    return hexStrToNumber(
-      (await executionManager.getCumulativeSequencedGas())._hex
+    const data: string = executionManager.interface.encodeFunctionData(
+      'getCumulativeSequencedGas',
+      []
     )
+    const res = await executionManager.provider.call({
+      to: executionManager.address,
+      data,
+    })
+    return hexStrToNumber(res)
   }
 
   const getChangeInCumulativeGas = async (
@@ -205,7 +226,7 @@ describe('Execution Manager -- Gas Metering', () => {
     log.debug(`finished calling the callback which should change gas`)
     const queuedAfter: number = await getCumulativeQueuedGas()
     const sequencedAfter: number = await getCumulativeSequencedGas()
-
+    log.debug(`values after callback are: ${queuedAfter}, ${sequencedAfter}`)
     return {
       sequenced: sequencedAfter - sequencedBefore,
       queued: queuedAfter - queuedBefore,
@@ -255,9 +276,7 @@ describe('Execution Manager -- Gas Metering', () => {
 
       change.queued.should.equal(0)
       change.sequenced.should.equal(
-        gasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+        gasToConsume + OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
     it('Should properly track queued consumed gas', async () => {
@@ -271,9 +290,7 @@ describe('Execution Manager -- Gas Metering', () => {
 
       change.sequenced.should.equal(0)
       change.queued.should.equal(
-        gasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+        gasToConsume + OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
     it('Should properly track both queue and sequencer consumed gas', async () => {
@@ -300,12 +317,10 @@ describe('Execution Manager -- Gas Metering', () => {
       change.sequenced.should.equal(
         sequencerGasToConsume +
           OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+          CONSUME_GAS_EXECUTION_OVERHEAD
       )
       change.queued.should.equal(
-        queueGasToConsume +
-          OVM_TX_BASE_GAS_FEE +
-          EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD
+        queueGasToConsume + OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
   })
@@ -336,14 +351,14 @@ describe('Execution Manager -- Gas Metering', () => {
       change.queued.should.equal(
         gasToConsumeFirst +
           gasToConsumeSecond +
-          2 * (OVM_TX_BASE_GAS_FEE + EXECUTE_TRANSACTION_CONSUME_GAS_OVERHEAD)
+          2 * (OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD)
       )
     })
     // start in a new epoch since the deployment takes some gas
     const startTimestamp = 1 + GAS_RATE_LIMIT_EPOCH_IN_SECONDS
     const moreThanHalfGas: number = MAX_GAS_PER_EPOCH / 2 + 1000
     for (const [queueToFill, otherQueue] of [
-      // [QUEUED_ORIGIN, SEQUENCER_ORIGIN],
+      [QUEUED_ORIGIN, SEQUENCER_ORIGIN],
       [SEQUENCER_ORIGIN, QUEUED_ORIGIN],
     ]) {
       it('Should revert like-kind transactions in a full epoch, still allowing gas through the other queue', async () => {
@@ -396,5 +411,147 @@ describe('Execution Manager -- Gas Metering', () => {
         await assertOvmTxDidNotRevert(successTx, wallet)
       }).timeout(30000)
     }
+  })
+  describe('StateManagerGasSanitizer - OVM Gas virtualization', async () => {
+    const timestamp = 1
+    const gasToConsume = 100_000
+    const SM_IMPLEMENTATION = 'StateManagerImplementation'
+
+    let GasConsumingProxy: ContractFactory
+    let SimpleStorage: ContractFactory
+    let simpleStorageAddress: string
+    before(async () => {
+      GasConsumingProxy = await ethers.getContractFactory('GasConsumingProxy')
+      SimpleStorage = await ethers.getContractFactory(
+        'SimpleStorageArgsFromCalldata'
+      )
+    })
+
+    const key = numberToHexString(1234, 32)
+    const val = numberToHexString(5678, 32)
+    const setStorage = async (): Promise<any> => {
+      const data = SimpleStorage.interface.encodeFunctionData('setStorage', [
+        key,
+        val,
+      ])
+      return executeTransaction(
+        executionManager,
+        wallet,
+        simpleStorageAddress,
+        data,
+        false,
+        1
+      )
+    }
+
+    it('Should record OVM transactions with different state manager gas consumption consuming the same EM gas', async () => {
+      executionManager = await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'ExecutionManager',
+        {
+          factory: ExecutionManager,
+          params: [
+            resolver.addressResolver.address,
+            NULL_ADDRESS,
+            [
+              OVM_TX_BASE_GAS_FEE,
+              OVM_TX_MAX_GAS,
+              GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
+              MAX_GAS_PER_EPOCH,
+              MAX_GAS_PER_EPOCH,
+            ],
+          ],
+        }
+      )
+
+      await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'StateManager',
+        {
+          factory: StateManager,
+          params: [],
+        }
+      )
+
+      simpleStorageAddress = await manuallyDeployOvmContract(
+        wallet,
+        resolver.contracts.executionManager.provider,
+        executionManager,
+        SimpleStorage,
+        [resolver.addressResolver.address],
+        1
+      )
+
+      // get normal OVM gas change with normal full state manager
+      const fullSateManagerTx = setStorage
+      let fullStateManagerResult
+      const fullStateManagerChange = await getChangeInCumulativeGas(
+        async () => {
+          fullStateManagerResult = await fullSateManagerTx()
+        }
+      )
+
+      executionManager = await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'ExecutionManager',
+        {
+          factory: ExecutionManager,
+          params: [
+            resolver.addressResolver.address,
+            NULL_ADDRESS,
+            [
+              OVM_TX_BASE_GAS_FEE,
+              OVM_TX_MAX_GAS,
+              GAS_RATE_LIMIT_EPOCH_IN_SECONDS,
+              MAX_GAS_PER_EPOCH,
+              MAX_GAS_PER_EPOCH,
+            ],
+          ],
+        }
+      )
+
+      await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        'StateManager',
+        {
+          factory: GasConsumingProxy,
+          params: [resolver.addressResolver.address, SM_IMPLEMENTATION],
+        }
+      )
+
+      const stateManagerImplementation = await deployAndRegister(
+        resolver.addressResolver,
+        wallet,
+        SM_IMPLEMENTATION,
+        {
+          factory: StateManager,
+          params: [],
+        }
+      )
+
+      gasConsumerAddress = await manuallyDeployOvmContract(
+        wallet,
+        provider,
+        executionManager,
+        GasConsumer,
+        [],
+        INITIAL_OVM_DEPLOY_TIMESTAMP
+      )
+
+      // get normal OVM gas change with normal full state manager
+      const proxiedFullStateManagerTx = setStorage
+      let proxiedFullStateManagerResult
+      const proxiedFullStateManagerChange = await getChangeInCumulativeGas(
+        async () => {
+          proxiedFullStateManagerResult = await proxiedFullStateManagerTx()
+        }
+      )
+
+      proxiedFullStateManagerChange.should.deep.equal(fullStateManagerChange)
+    })
   })
 })

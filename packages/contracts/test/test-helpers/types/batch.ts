@@ -9,6 +9,8 @@ import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 
 import { utils } from 'ethers'
 
+const abi = new utils.AbiCoder()
+
 interface TxChainBatchHeader {
   timestamp: number
   isL1ToL2Tx: boolean
@@ -114,6 +116,18 @@ export class ChainBatch {
   }
 }
 
+export function getL1ToL2MessageTxData(
+  sender: any,
+  to: any,
+  gasLimit: any,
+  data: any
+): string {
+  return abi.encode(
+    ['address', 'address', 'uint32', 'bytes'],
+    [sender, to, gasLimit, data]
+  )
+}
+
 /*
  * Helper class which provides all information requried for a particular
  * Rollup batch. This includes all of the transactions in readable form
@@ -128,9 +142,28 @@ export class TxChainBatch extends ChainBatch {
     isL1ToL2Tx: boolean,
     batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
-    elements: string[]
+    elements: any[],
+    sender?: string
   ) {
-    super(batchIndex, cumulativePrevElements, elements)
+    let elementsToMerklize: string[]
+    if (isL1ToL2Tx) {
+      if (!sender) {
+        throw new Error(
+          'To create a local L1->L2 batch, the msg.sender must be known.'
+        )
+      }
+      elementsToMerklize = elements.map((l1ToL2Params) => {
+        return getL1ToL2MessageTxData(
+          sender,
+          l1ToL2Params[0],
+          l1ToL2Params[1],
+          l1ToL2Params[2]
+        )
+      })
+    } else {
+      elementsToMerklize = elements
+    }
+    super(batchIndex, cumulativePrevElements, elementsToMerklize)
     this.isL1ToL2Tx = isL1ToL2Tx
     this.timestamp = timestamp
   }
