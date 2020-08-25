@@ -70,8 +70,8 @@ contract RollupQueue {
     }
 
     /**
-     * Peeks the blocknumber of the front element on the queue.
-     * @return Front queue element blocknumber (lowest in queue).
+     * Peeks the blockNumber of the front element on the queue.
+     * @return Front queue element blockNumber (lowest in queue).
      */
     function peekBlocknumber()
         public
@@ -79,7 +79,7 @@ contract RollupQueue {
         returns (uint)
     {
         DataTypes.TimestampedHash memory frontBatch = peek();
-        return frontBatch.blocknumber;
+        return frontBatch.blockNumber;
     }
     
     /*
@@ -100,7 +100,7 @@ contract RollupQueue {
         batchHeaders.push(DataTypes.TimestampedHash({
             txHash: txHash,
             timestamp: now,
-            blocknumber: block.number
+            blockNumber: block.number
         }));
     }
 

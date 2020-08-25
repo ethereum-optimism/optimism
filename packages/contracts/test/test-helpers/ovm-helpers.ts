@@ -265,7 +265,7 @@ export const executeTransaction = async (
   data: string,
   allowRevert: boolean,
   timestamp: number = getCurrentTime(),
-  blocknumber: number = 0
+  blockNumber: number = 0
 ): Promise<any> => {
   // Verify that the transaction is not accidentally sending to the ZERO_ADDRESS
   if (to === ZERO_ADDRESS) {
@@ -288,7 +288,7 @@ export const executeTransaction = async (
   // Actually make the call
   const tx = await executionManager.executeTransaction(
     timestamp,
-    blocknumber,
+    blockNumber,
     0,
     ovmTo,
     data,

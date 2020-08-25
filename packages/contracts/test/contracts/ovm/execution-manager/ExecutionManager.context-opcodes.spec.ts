@@ -179,22 +179,22 @@ describe('Execution Manager -- Context opcodes', () => {
 
   describe('ovmNUMBER', async () => {
     it('properly retrieves NUMBER', async () => {
-      const blocknumber: number = 15
+      const blockNumber: number = 15
       const result = await executeTransaction(
         contractAddress,
         methodIds.callThroughExecutionManager,
         [contract2Address32, methodIds.getNUMBER],
         '0x00',
         1,
-        blocknumber
+        blockNumber
       )
 
       log.debug(`NUMBER result: ${result}`)
 
       should.exist(result, 'Result should exist!')
       hexStrToNumber(result).should.equal(
-        blocknumber,
-        'blocknumbers do not match.'
+        blockNumber,
+        'blockNumbers do not match.'
       )
     })
   })
@@ -267,14 +267,14 @@ describe('Execution Manager -- Context opcodes', () => {
     args: any[],
     queueOrigin = ZERO_ADDRESS,
     timestamp = getCurrentTime(),
-    blocknumber = 0
+    blockNumber = 0
   ): Promise<string> => {
     const callBytes = add0x(methodId + encodeRawArguments(args))
     const data = executionManager.interface.encodeFunctionData(
       'executeTransaction',
       [
         timestamp,
-        blocknumber,
+        blockNumber,
         queueOrigin,
         address,
         callBytes,

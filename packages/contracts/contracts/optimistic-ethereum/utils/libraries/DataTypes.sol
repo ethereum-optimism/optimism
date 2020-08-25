@@ -26,7 +26,7 @@ library DataTypes {
         bool inStaticContext;
         uint chainId;
         uint timestamp;
-        uint blocknumber;
+        uint blockNumber;
         uint queueOrigin;
         address ovmActiveContract;
         address ovmMsgSender;
@@ -65,7 +65,7 @@ library DataTypes {
 
     struct TxChainBatchHeader {
        uint timestamp;
-       uint blocknumber;
+       uint blockNumber;
        bool isL1ToL2Tx;
        bytes32 elementsMerkleRoot;
        uint numElementsInBatch;
@@ -75,7 +75,7 @@ library DataTypes {
     struct TimestampedHash {
        bytes32 txHash;
        uint timestamp;
-       uint blocknumber;
+       uint blockNumber;
     }
 
     struct AccountState {
@@ -94,7 +94,7 @@ library DataTypes {
 
     struct OVMTransactionData {
         uint256 timestamp;
-        uint256 blocknumber;
+        uint256 blockNumber;
         uint256 queueOrigin;
         address ovmEntrypoint;
         bytes callBytes;

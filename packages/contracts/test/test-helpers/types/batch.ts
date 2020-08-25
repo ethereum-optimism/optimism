@@ -13,7 +13,7 @@ const abi = new utils.AbiCoder()
 
 interface TxChainBatchHeader {
   timestamp: number
-  blocknumber: number
+  blockNumber: number
   isL1ToL2Tx: boolean
   elementsMerkleRoot: string
   numElementsInBatch: number
@@ -136,12 +136,12 @@ export function getL1ToL2MessageTxData(
  */
 export class TxChainBatch extends ChainBatch {
   public timestamp: number
-  public blocknumber: number
+  public blockNumber: number
   public isL1ToL2Tx: boolean
 
   constructor(
     timestamp: number, // Ethereum timestamp this batch was submitted in
-    blocknumber: number, // Same as above w/ blocknumber
+    blockNumber: number, // Same as above w/ blockNumber
     isL1ToL2Tx: boolean,
     batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
@@ -169,7 +169,7 @@ export class TxChainBatch extends ChainBatch {
     super(batchIndex, cumulativePrevElements, elementsToMerklize)
     this.isL1ToL2Tx = isL1ToL2Tx
     this.timestamp = timestamp
-    this.blocknumber = blocknumber
+    this.blockNumber = blockNumber
   }
 
   public async hashBatchHeader(): Promise<string> {
@@ -178,7 +178,7 @@ export class TxChainBatch extends ChainBatch {
       ['uint', 'uint', 'bool', 'bytes32', 'uint', 'uint'],
       [
         this.timestamp,
-        this.blocknumber,
+        this.blockNumber,
         this.isL1ToL2Tx,
         bufToHexString(bufferRoot),
         this.elements.length,
@@ -199,7 +199,7 @@ export class TxChainBatch extends ChainBatch {
       batchIndex: this.batchIndex,
       batchHeader: {
         timestamp: this.timestamp,
-        blocknumber: this.blocknumber,
+        blockNumber: this.blockNumber,
         isL1ToL2Tx: this.isL1ToL2Tx,
         elementsMerkleRoot: bufToHexString(bufferRoot),
         numElementsInBatch: this.elements.length,
@@ -242,13 +242,13 @@ export class TxQueueBatch {
   public elements: string[]
   public elementsMerkleTree: SparseMerkleTreeImpl
   public timestamp: number
-  public blocknumber: number
+  public blockNumber: number
 
-  // TODO remove blocknumber optionality, just here for testing
-  constructor(tx: string, timestamp: number, blocknumber: number) {
+  // TODO remove blockNumber optionality, just here for testing
+  constructor(tx: string, timestamp: number, blockNumber: number) {
     this.elements = [tx]
     this.timestamp = timestamp
-    this.blocknumber = blocknumber
+    this.blockNumber = blockNumber
   }
   /*
    * Generate the elements merkle tree from this.elements
@@ -281,7 +281,7 @@ export class TxQueueBatch {
       ['uint', 'uint', 'bool', 'bytes32', 'uint', 'uint'],
       [
         this.timestamp,
-        this.blocknumber,
+        this.blockNumber,
         isL1ToL2Tx,
         txHash,
         1,

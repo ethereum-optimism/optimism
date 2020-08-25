@@ -37,10 +37,10 @@ describe('RollupQueue', () => {
     // Submit the rollup batch on-chain
     const enqueueTx = await rollupQueue.enqueueTx(tx)
     const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
-    const blocknumber = txReceipt.blockNumber
-    const timestamp = (await provider.getBlock(blocknumber)).timestamp
+    const blockNumber = txReceipt.blockNumber
+    const timestamp = (await provider.getBlock(blockNumber)).timestamp
     // Generate a local version of the rollup batch
-    const localBatch = new TxQueueBatch(tx, timestamp, blocknumber)
+    const localBatch = new TxQueueBatch(tx, timestamp, blockNumber)
     await localBatch.generateTree()
     return localBatch
   }
@@ -54,13 +54,13 @@ describe('RollupQueue', () => {
 
     it('should set the TimestampedHash correctly', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
-      const { txHash, timestamp, blocknumber } = await rollupQueue.batchHeaders(
+      const { txHash, timestamp, blockNumber } = await rollupQueue.batchHeaders(
         0
       )
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)
-      blocknumber.should.equal(localBatch.blocknumber)
+      blockNumber.should.equal(localBatch.blockNumber)
     })
 
     it('should add multiple batches correctly', async () => {
@@ -109,7 +109,7 @@ describe('RollupQueue', () => {
         const expectedTxHash = await localFrontBatch.getMerkleRoot()
         frontBatch.txHash.should.equal(expectedTxHash)
         frontBatch.timestamp.should.equal(localFrontBatch.timestamp)
-        frontBatch.blocknumber.should.equal(localFrontBatch.blocknumber)
+        frontBatch.blockNumber.should.equal(localFrontBatch.blockNumber)
 
         await rollupQueue.dequeue()
 
@@ -155,7 +155,7 @@ describe('RollupQueue', () => {
   describe('peek(), peekTimestamp(), and peekBlocknumber()', async () => {
     it('should peek successfully with single element', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
-      const { txHash, timestamp, blocknumber } = await rollupQueue.peek()
+      const { txHash, timestamp, blockNumber } = await rollupQueue.peek()
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)
@@ -164,7 +164,7 @@ describe('RollupQueue', () => {
       peekTimestamp.should.equal(timestamp)
 
       const peekBlocknumber = await rollupQueue.peekBlocknumber()
-      peekBlocknumber.should.equal(blocknumber)
+      peekBlocknumber.should.equal(blockNumber)
     })
 
     it('should revert when peeking at an empty queue', async () => {

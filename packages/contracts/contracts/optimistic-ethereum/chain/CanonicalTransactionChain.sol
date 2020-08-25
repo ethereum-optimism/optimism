@@ -33,7 +33,7 @@ contract CanonicalTransactionChain is ContractResolver {
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
-    uint public lastOVMBlocknumber;
+    uint public lastOVMBlockNumber;
 
 
     /*
@@ -89,7 +89,7 @@ contract CanonicalTransactionChain is ContractResolver {
     {
         return keccak256(abi.encodePacked(
             _batchHeader.timestamp,
-            _batchHeader.blocknumber,
+            _batchHeader.blockNumber,
             _batchHeader.isL1ToL2Tx, // TODO REPLACE WITH QUEUE ORIGIN (if you are a PR reviewer please lmk!)
             _batchHeader.elementsMerkleRoot,
             _batchHeader.numElementsInBatch,
@@ -160,7 +160,7 @@ contract CanonicalTransactionChain is ContractResolver {
     function appendSequencerBatch(
         bytes[] memory _txBatch,
         uint _timestamp,
-        uint _blocknumber
+        uint _blockNumber
     )
         public
     {
@@ -183,8 +183,8 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         require(
-            _blocknumber + forceInclusionPeriodBlocks > block.number,
-            "Cannot submit a batch with a blocknumber older than the sequencer inclusion period"
+            _blockNumber + forceInclusionPeriodBlocks > block.number,
+            "Cannot submit a batch with a blockNumber older than the sequencer inclusion period"
         );
 
         require(
@@ -193,8 +193,8 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         require(
-            _blocknumber <= block.number,
-            "Cannot submit a batch with a blocknumber in the future"
+            _blockNumber <= block.number,
+            "Cannot submit a batch with a blockNumber in the future"
         );
 
         if (!l1ToL2Queue.isEmpty()) {
@@ -204,8 +204,8 @@ contract CanonicalTransactionChain is ContractResolver {
             );
 
             require(
-                _blocknumber <= l1ToL2Queue.peekBlocknumber(),
-                "Must process older L1ToL2Queue batches first to enforce OVM blocknumber monotonicity"
+                _blockNumber <= l1ToL2Queue.peekBlockNumber(),
+                "Must process older L1ToL2Queue batches first to enforce OVM blockNumber monotonicity"
             );
         }
 
@@ -216,8 +216,8 @@ contract CanonicalTransactionChain is ContractResolver {
             );
 
             require(
-                _blocknumber <= safetyQueue.peekBlocknumber(),
-                "Must process older SafetyQueue batches first to enforce OVM blocknumber monotonicity"
+                _blockNumber <= safetyQueue.peekBlockNumber(),
+                "Must process older SafetyQueue batches first to enforce OVM blockNumber monotonicity"
             );
         }
 
@@ -227,18 +227,18 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         require(
-            _blocknumber >= lastOVMBlocknumber,
-            "Blocknumbers must monotonically increase"
+            _blockNumber >= lastOVMBlockNumber,
+            "BlockNumbers must monotonically increase"
         );
 
         lastOVMTimestamp = _timestamp;
-        lastOVMBlocknumber = _blocknumber;
+        lastOVMBlockNumber = _blockNumber;
 
         RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
-            _blocknumber,
-            false, // isL1ToL2Tx
+            _blockNumber,
+            false, // isL1ToL2Tx TODO: replace with queue origin
             merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
             _txBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
@@ -306,7 +306,7 @@ contract CanonicalTransactionChain is ContractResolver {
         internal
     {
         uint timestamp = _timestampedHash.timestamp;
-        uint blocknumber = _timestampedHash.blocknumber;
+        uint blockNumber = _timestampedHash.blockNumber;
 
         require(
             timestamp + forceInclusionPeriodSeconds <= now || isSequencer(msg.sender),
@@ -314,13 +314,13 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         lastOVMTimestamp = timestamp;
-        lastOVMBlocknumber = blocknumber;
+        lastOVMBlockNumber = blockNumber;
         bytes32 elementsMerkleRoot = _timestampedHash.txHash;
         uint numElementsInBatch = 1;
 
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             timestamp,
-            blocknumber,
+            blockNumber,
             _isL1ToL2Tx,
             elementsMerkleRoot,
             numElementsInBatch,
