@@ -4,25 +4,27 @@ import { should } from '../setup'
 import { sleep } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
-import { BaseQueuedPersistedProcessor, newInMemoryDB } from '../../src/app'
+import {
+  BaseQueuedPersistedProcessor,
+  newInMemoryDB,
+  QueuedPersistedProcessorItem,
+} from '../../src/app'
 import { DB } from '../../src/types/db'
 
 class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   string
 > {
+  public lastProcessedIndex: number = -1
   public callMarkProcessed: boolean = true
   public throwOnceHandlingNextItem: boolean = false
-  public throwOnceOnSettingNextToProcess: boolean = false
   public handledQueue: string[]
+  public items: Map<number, QueuedPersistedProcessorItem<string>>
+
   public static async create(
-    db: DB,
-    persistenceKey: string,
     startIndex: number = 0,
     retrySleepDelayMillis: number = 1000
   ): Promise<DummyQueuedPersistedProcessor> {
     const processor = new DummyQueuedPersistedProcessor(
-      db,
-      persistenceKey,
       startIndex,
       retrySleepDelayMillis
     )
@@ -31,13 +33,12 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   }
 
   private constructor(
-    db: DB,
-    persistenceKey: string,
     startIndex: number = 0,
     retrySleepDelayMillis: number = 1000
   ) {
-    super(db, persistenceKey, startIndex, retrySleepDelayMillis)
+    super(undefined, 'test', startIndex, retrySleepDelayMillis)
     this.handledQueue = []
+    this.items = new Map<number, QueuedPersistedProcessorItem<string>>()
   }
 
   protected async handleNextItem(index: number, item: string): Promise<void> {
@@ -51,34 +52,37 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
     }
   }
 
-  protected async serializeItem(item: string): Promise<Buffer> {
-    return Buffer.from(item, 'utf-8')
+  protected async serializeItem(item: string): Promise<string> {
+    return item
   }
 
-  protected async deserializeItem(itemBuffer: Buffer): Promise<string> {
-    return itemBuffer.toString('utf-8')
+  protected async deserializeItem(item: string): Promise<string> {
+    return item
   }
 
-  protected async setNextToProcess(index: number): Promise<void> {
-    if (this.throwOnceOnSettingNextToProcess) {
-      this.throwOnceOnSettingNextToProcess = false
-      throw Error('you told me to throw in setNextToProcess.')
-    }
-    return super.setNextToProcess(index)
+  protected async updateToProcessed(index: number): Promise<void> {
+    this.items.get(index).processed = true
+  }
+
+  protected async fetchItem(
+    index: number
+  ): Promise<QueuedPersistedProcessorItem<string>> {
+    return this.items.get(index)
+  }
+
+  public async getLastIndexProcessed(): Promise<number> {
+    return this.lastProcessedIndex
   }
 }
 
 describe('Queued Persisted Processor', () => {
   let db: DB
   let processor: DummyQueuedPersistedProcessor
-  const persistenceKey: string = 'derp'
   const retrySleepDelayMillis: number = 100
 
   beforeEach(async () => {
     db = newInMemoryDB()
     processor = await DummyQueuedPersistedProcessor.create(
-      db,
-      persistenceKey,
       0,
       retrySleepDelayMillis
     )
@@ -190,54 +194,11 @@ describe('Queued Persisted Processor', () => {
         'Throw once config should be reset!'
       )
     })
-
-    it('replays item if setNextToProcess fails', async () => {
-      const first = 'Number 0!'
-      const second = 'Number 1!'
-      await processor.add(0, first)
-      await sleep(10)
-      processor.handledQueue.length.should.equal(
-        1,
-        `Incorrect number processed!`
-      )
-      processor.handledQueue[0].should.equal(first, `Incorrect item processed!`)
-
-      processor.throwOnceOnSettingNextToProcess = true
-      await processor.add(1, second)
-      await sleep(10)
-
-      processor.handledQueue.length.should.equal(
-        2,
-        `There should be 2 items processed until item 2 is replayed!`
-      )
-
-      await sleep(retrySleepDelayMillis * 2)
-
-      processor.handledQueue.length.should.equal(
-        3,
-        `Incorrect number processed!`
-      )
-      processor.handledQueue[1].should.equal(
-        second,
-        `Incorrect item processed!`
-      )
-      processor.handledQueue[2].should.equal(
-        second,
-        `Incorrect item re-processed!`
-      )
-      processor.throwOnceOnSettingNextToProcess.should.equal(
-        false,
-        'Throw once config should be reset!'
-      )
-    })
   })
 
   describe('Start with existing state', () => {
     it('restarts with existing state (empty)', async () => {
-      const secondProc = await DummyQueuedPersistedProcessor.create(
-        db,
-        persistenceKey
-      )
+      const secondProc = await DummyQueuedPersistedProcessor.create()
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         0,
@@ -266,10 +227,7 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      const secondProc = await DummyQueuedPersistedProcessor.create(
-        db,
-        persistenceKey
-      )
+      const secondProc = await DummyQueuedPersistedProcessor.create()
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         1,
@@ -288,10 +246,7 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      const secondProc = await DummyQueuedPersistedProcessor.create(
-        db,
-        persistenceKey
-      )
+      const secondProc = await DummyQueuedPersistedProcessor.create()
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         0,
@@ -309,10 +264,7 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      const secondProc = await DummyQueuedPersistedProcessor.create(
-        db,
-        persistenceKey
-      )
+      const secondProc = await DummyQueuedPersistedProcessor.create()
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         0,

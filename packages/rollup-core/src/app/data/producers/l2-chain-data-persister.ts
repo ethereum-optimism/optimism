@@ -1,5 +1,5 @@
 /* External Imports */
-import { DB } from '@eth-optimism/core-db'
+import { RDB } from '@eth-optimism/core-db'
 import { getLogger, Logger } from '@eth-optimism/core-utils'
 
 import {
@@ -35,14 +35,14 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
-    db: DB,
+    rdb: RDB,
     dataService: L2DataService,
     l2Provider: Provider,
     earliestBlock: number = 0,
     persistenceKey: string = L2ChainDataPersister.persistenceKey
   ): Promise<L2ChainDataPersister> {
     const processor = new L2ChainDataPersister(
-      db,
+      rdb,
       dataService,
       monkeyPatchL2Provider(l2Provider),
       earliestBlock,
@@ -53,13 +53,13 @@ export class L2ChainDataPersister extends ChainDataProcessor {
   }
 
   private constructor(
-    db: DB,
+    rdb: RDB,
     private readonly l2DataService: L2DataService,
     private readonly l2Provider: Provider,
     private earliestBlock: number,
     persistenceKey: string
   ) {
-    super(db, persistenceKey, earliestBlock)
+    super(rdb, persistenceKey, earliestBlock)
   }
 
   /**
