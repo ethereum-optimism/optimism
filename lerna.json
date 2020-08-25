@@ -4,7 +4,6 @@
     "packages/contracts/*",
     "packages/core-db/*",
     "packages/core-utils/*",
-    "packages/optimistic-game-semantics/*",
     "packages/ovm-toolchain/*",
     "packages/rollup-core/*",
     "packages/rollup-services/*"
