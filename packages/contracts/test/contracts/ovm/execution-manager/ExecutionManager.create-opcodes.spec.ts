@@ -172,8 +172,11 @@ describe('ExecutionManager -- Create opcodes', () => {
         gasLimit: GAS_LIMIT,
       }
 
-      // apply first tx to 
-      const txSigner = new ethers.Wallet('0x1234123412341234', executionManager.provider)
+      // apply first tx to
+      const txSigner = new ethers.Wallet(
+        '0x1234123412341234',
+        executionManager.provider
+      )
       const signedTx = await txSigner.signTransaction(tx)
       await executionManager.provider.sendTransaction(signedTx)
 
