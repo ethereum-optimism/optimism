@@ -746,6 +746,24 @@ contract ExecutionManager is ContractResolver {
         address creator = executionContext.ovmActiveContract;
         address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
 
+        // Check for collisions and return 0 if the contract already exists. (see EIP 684)
+        StateManager stateManager = resolveStateManager();
+        address existingCodeContractAddress = stateManager.getCodeContractAddressFromOvmAddress(_newOvmContractAddress);
+        uint existingCodeContractSize;
+        assembly {
+            existingCodeContractSize := extcodesize(existingCodeContractAddress)
+        }
+        if (
+            stateManager.getOvmContractNonce(_newOvmContractAddress) != 0 ||
+            existingCodeContractSize > 0
+        ) {
+            assembly {
+                let returnData := mload(0x40)
+                mstore(returnData, 0)
+                return(returnData, 0x20)
+            }
+        }
+
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
