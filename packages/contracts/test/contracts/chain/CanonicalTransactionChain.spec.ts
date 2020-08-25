@@ -124,15 +124,11 @@ describe('CanonicalTransactionChain', () => {
     )
     // Generate a local version of the rollup batch
     const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
-<<<<<<< HEAD
     const localBatch = new TxQueueBatch(
       rolledupData,
       timestamp,
       txReceipt.blockNumber
     )
-=======
-    const localBatch = new TxQueueBatch(rolledupData, timestamp)
->>>>>>> origin/master
     await localBatch.generateTree()
     return localBatch
   }
