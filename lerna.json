@@ -7,7 +7,7 @@
     "packages/optimistic-game-semantics/*",
     "packages/ovm-toolchain/*",
     "packages/rollup-core/*",
-    "packages/rollup-services/*",
+    "packages/rollup-services/*"
   ],
   "command": {
     "publish": {
