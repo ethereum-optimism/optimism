@@ -64,6 +64,10 @@ class MockProvider {
     }
     return this.txReceipts.get(hash)
   }
+
+  public async getBlockNumber(): Promise<number> {
+    return this.txReceipts.size
+  }
 }
 
 class MockCanonicalTransactionChain {
