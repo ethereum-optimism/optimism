@@ -6,7 +6,11 @@ import { Block, Provider, TransactionResponse } from 'ethers/providers'
 import { Log } from 'ethers/providers/abstract-provider'
 
 /* Internal Imports */
-import { L1DataService, LogHandlerContext } from '../../../types'
+import {
+  L1BlockPersistenceInfo,
+  L1DataService,
+  LogHandlerContext,
+} from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 
 const log: Logger = getLogger('l1-chain-data-persister')
@@ -82,8 +86,27 @@ export class L1ChainDataPersister extends ChainDataProcessor {
 
     let relevantLogs: Log[]
     let txs: TransactionResponse[]
-
+    let blockPersistenceInfo: L1BlockPersistenceInfo
     try {
+      blockPersistenceInfo = await this.l1DataService.getL1BlockPersistenceInfo(
+        block.number
+      )
+      log.debug(
+        `Got block persistence info for block number ${
+          block.number
+        }: ${JSON.stringify(blockPersistenceInfo)}.`
+      )
+
+      if (
+        blockPersistenceInfo.rollupTxsPersisted ||
+        blockPersistenceInfo.rollupStateRootsPersisted
+      ) {
+        log.info(
+          `block already had txs or state roots persisted. Marking processing as complete.`
+        )
+        return this.markProcessed(index)
+      }
+
       const logs: Log[] = await this.getLogsForBlock(block.hash)
 
       log.debug(
@@ -107,9 +130,10 @@ export class L1ChainDataPersister extends ChainDataProcessor {
         log.debug(
           `No relevant logs found in block ${block.number}. Storing block and moving on.`
         )
-        await this.l1DataService.insertL1Block(block, true)
-        await this.markProcessed(index)
-        return
+        if (!blockPersistenceInfo.blockPersisted) {
+          await this.l1DataService.insertL1Block(block, true)
+        }
+        return this.markProcessed(index)
       }
 
       log.debug(
@@ -132,7 +156,9 @@ export class L1ChainDataPersister extends ChainDataProcessor {
       log.debug(
         `Inserting block ${block.number} and ${txs.length} transactions.`
       )
-      await this.l1DataService.insertL1BlockAndTransactions(block, txs, false)
+      if (!blockPersistenceInfo.blockPersisted) {
+        await this.l1DataService.insertL1BlockAndTransactions(block, txs, false)
+      }
 
       log.debug(
         `Looping through ${relevantLogs.length} logs from block ${block.number} to insert rollup transactions & state roots`

@@ -22,6 +22,7 @@ import {
   VerificationStatus,
   StateCommitmentBatchSubmission,
   BatchSubmission,
+  L1BlockPersistenceInfo,
 } from '../../types'
 import {
   getL1BlockInsertValue,
@@ -47,16 +48,54 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
+  public async getL1BlockPersistenceInfo(
+    blockNumber: number
+  ): Promise<L1BlockPersistenceInfo> {
+    const res = await this.rdb.select(
+      `SELECT MAX(b.block_number) as block_number, MAX(tx.id) as l1_tx, MAX(rtx.id) as rollup_tx, MAX(rsb.id) as rollup_state_root_batch
+        FROM l1_block b
+          LEFT OUTER JOIN l1_tx tx ON tx.block_number = b.block_number
+          LEFT OUTER JOIN l1_rollup_tx rtx ON rtx.l1_tx_hash = tx.tx_hash
+          LEFT OUTER JOIN l1_rollup_state_root_batch rsb ON rsb.l1_tx_hash = tx.tx_hash
+        WHERE b.block_number = ${blockNumber}
+        GROUP BY b.block_number, tx.tx_hash, rtx.id, rsb.id
+        LIMIT 1`
+    )
+
+    const toReturn = {
+      blockPersisted: false,
+      txPersisted: false,
+      rollupTxsPersisted: false,
+      rollupStateRootsPersisted: false,
+    }
+
+    if (!res || !res.length) {
+      return toReturn
+    }
+
+    toReturn.blockPersisted =
+      res['block_number'] !== null && res['block_number'] !== undefined
+    toReturn.txPersisted = res['l1_tx'] !== null && res['l1_tx'] !== undefined
+    toReturn.rollupTxsPersisted =
+      res['rollup_tx'] !== null && res['rollup_tx'] !== undefined
+    toReturn.rollupStateRootsPersisted =
+      res['rollup_state_root_batch'] !== null &&
+      res['rollup_state_root_batch'] !== undefined
+
+    return toReturn
+  }
+
+  /**
+   * @inheritDoc
+   */
   public async insertL1Block(
     block: Block,
     processed: boolean = false,
     txContext?: any
   ): Promise<void> {
     return this.rdb.execute(
-      `${l1BlockInsertStatement} VALUES (${getL1BlockInsertValue(
-        block,
-        processed
-      )})`,
+      `${l1BlockInsertStatement} 
+      VALUES (${getL1BlockInsertValue(block, processed)})`,
       txContext
     )
   }
@@ -75,7 +114,8 @@ export class DefaultDataService implements DataService {
       (tx, index) => `(${getL1TransactionInsertValue(tx, index)})`
     )
     return this.rdb.execute(
-      `${l1TxInsertStatement} VALUES ${values.join(',')}`,
+      `${l1TxInsertStatement} 
+      VALUES ${values.join(',')}`,
       txContext
     )
   }
@@ -321,9 +361,9 @@ export class DefaultDataService implements DataService {
    */
   public async insertL2TransactionOutput(tx: TransactionOutput): Promise<void> {
     return this.rdb.execute(
-      `${l2TransactionOutputInsertStatement} VALUES (${getL2TransactionOutputInsertValue(
-        tx
-      )})`
+      `${l2TransactionOutputInsertStatement} 
+      VALUES (${getL2TransactionOutputInsertValue(tx)})
+      ON CONFLICT (tx_hash) DO NOTHING` // makes it so if we're inserting data that already exists, it doesn't fail. If tx_hash is not unique, we have bigger problems =|
     )
   }
 

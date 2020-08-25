@@ -1,7 +1,7 @@
 import './setup'
 
 /* External Imports */
-import { getLogger, keccak256FromUtf8 } from '@eth-optimism/core-utils'
+import { getLogger, keccak256FromUtf8, sleep } from '@eth-optimism/core-utils'
 import {
   CHAIN_ID,
   GAS_LIMIT,
@@ -62,19 +62,10 @@ describe('Test Sending Transactions Directly To L2', () => {
 
     it('Sets storage N times', async () => {
       const key: string = 'test'
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 20; i++) {
         log.debug(`Sending tx to set storage key ${key}`)
         const res = await simpleStorage.setStorage(key, `${key}${i}`)
-        const receipt: TransactionReceipt = await provider.waitForTransaction(
-          res.hash
-        )
-        receipt.status.should.equal(
-          1,
-          `Transaction ${i} failed! ${JSON.stringify(receipt)}`
-        )
-
-        const setStorage = await simpleStorage.getStorage(key)
-        setStorage.should.equal(`${key}${i}`, `Storage not set to ${key}${i}`)
+        await sleep(1)
       }
     }).timeout(100_000)
   })

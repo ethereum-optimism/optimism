@@ -10,23 +10,45 @@ import { DB } from '../../src/types/db'
 class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   string
 > {
+  public callMarkProcessed: boolean = true
+  public throwOnceHandlingNextItem: boolean = false
+  public throwOnceOnSettingNextToProcess: boolean = false
   public handledQueue: string[]
   public static async create(
     db: DB,
-    persistenceKey: string
+    persistenceKey: string,
+    startIndex: number = 0,
+    retrySleepDelayMillis: number = 1000
   ): Promise<DummyQueuedPersistedProcessor> {
-    const processor = new DummyQueuedPersistedProcessor(db, persistenceKey)
+    const processor = new DummyQueuedPersistedProcessor(
+      db,
+      persistenceKey,
+      startIndex,
+      retrySleepDelayMillis
+    )
     await processor.init()
     return processor
   }
 
-  private constructor(db: DB, persistenceKey: string) {
-    super(db, persistenceKey)
+  private constructor(
+    db: DB,
+    persistenceKey: string,
+    startIndex: number = 0,
+    retrySleepDelayMillis: number = 1000
+  ) {
+    super(db, persistenceKey, startIndex, retrySleepDelayMillis)
     this.handledQueue = []
   }
 
   protected async handleNextItem(index: number, item: string): Promise<void> {
+    if (this.throwOnceHandlingNextItem) {
+      this.throwOnceHandlingNextItem = false
+      throw Error('you told me to throw in handleNextItem.')
+    }
     this.handledQueue.push(item)
+    if (this.callMarkProcessed) {
+      return this.markProcessed(index)
+    }
   }
 
   protected async serializeItem(item: string): Promise<Buffer> {
@@ -36,16 +58,30 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   protected async deserializeItem(itemBuffer: Buffer): Promise<string> {
     return itemBuffer.toString('utf-8')
   }
+
+  protected async setNextToProcess(index: number): Promise<void> {
+    if (this.throwOnceOnSettingNextToProcess) {
+      this.throwOnceOnSettingNextToProcess = false
+      throw Error('you told me to throw in setNextToProcess.')
+    }
+    return super.setNextToProcess(index)
+  }
 }
 
 describe('Queued Persisted Processor', () => {
   let db: DB
   let processor: DummyQueuedPersistedProcessor
   const persistenceKey: string = 'derp'
+  const retrySleepDelayMillis: number = 100
 
   beforeEach(async () => {
     db = newInMemoryDB()
-    processor = await DummyQueuedPersistedProcessor.create(db, persistenceKey)
+    processor = await DummyQueuedPersistedProcessor.create(
+      db,
+      persistenceKey,
+      0,
+      retrySleepDelayMillis
+    )
   })
 
   describe('Fresh start', () => {
@@ -65,6 +101,8 @@ describe('Queued Persisted Processor', () => {
     })
 
     it('does not handle next item if previous is not acknowledged', async () => {
+      processor.callMarkProcessed = false
+
       const first = 'Number 0!'
       await processor.add(0, first)
       await processor.add(1, 'Number 1!')
@@ -81,20 +119,12 @@ describe('Queued Persisted Processor', () => {
       const second = 'Number 1!'
       await processor.add(0, first)
       await processor.add(1, second)
-      await sleep(10)
-      processor.handledQueue.length.should.equal(
-        1,
-        `Incorrect number processed!`
-      )
-      processor.handledQueue[0].should.equal(first, `Incorrect item processed!`)
-
-      await processor.markProcessed(0)
-      await sleep(10)
-
+      await sleep(20)
       processor.handledQueue.length.should.equal(
         2,
         `Incorrect number processed!`
       )
+      processor.handledQueue[0].should.equal(first, `Incorrect item processed!`)
       processor.handledQueue[1].should.equal(
         second,
         `Incorrect item processed!`
@@ -105,15 +135,7 @@ describe('Queued Persisted Processor', () => {
       const first = 'Number 0!'
       const second = 'Number 1!'
       await processor.add(0, first)
-      await sleep(10)
-      processor.handledQueue.length.should.equal(
-        1,
-        `Incorrect number processed!`
-      )
-      processor.handledQueue[0].should.equal(first, `Incorrect item processed!`)
-
-      await processor.markProcessed(0)
-      await sleep(10)
+      await sleep(20)
 
       processor.handledQueue.length.should.equal(
         1,
@@ -121,7 +143,7 @@ describe('Queued Persisted Processor', () => {
       )
 
       await processor.add(1, second)
-      await sleep(10)
+      await sleep(20)
       processor.handledQueue.length.should.equal(
         2,
         `Incorrect number processed!`
@@ -129,6 +151,83 @@ describe('Queued Persisted Processor', () => {
       processor.handledQueue[1].should.equal(
         second,
         `Incorrect item processed!`
+      )
+    })
+
+    it('retries processing item if handleNextItemThrows', async () => {
+      const first = 'Number 0!'
+      const second = 'Number 1!'
+      await processor.add(0, first)
+      await sleep(10)
+      processor.handledQueue.length.should.equal(
+        1,
+        `Incorrect number processed!`
+      )
+      processor.handledQueue[0].should.equal(first, `Incorrect item processed!`)
+
+      processor.throwOnceHandlingNextItem = true
+      await processor.add(1, second)
+
+      await sleep(20)
+
+      processor.handledQueue.length.should.equal(
+        1,
+        `There should still only be one item processed! Should fail and retry after ${retrySleepDelayMillis} millis`
+      )
+
+      await sleep(retrySleepDelayMillis * 2)
+
+      processor.handledQueue.length.should.equal(
+        2,
+        `Incorrect number processed!`
+      )
+      processor.handledQueue[1].should.equal(
+        second,
+        `Incorrect item processed!`
+      )
+      processor.throwOnceHandlingNextItem.should.equal(
+        false,
+        'Throw once config should be reset!'
+      )
+    })
+
+    it('replays item if setNextToProcess fails', async () => {
+      const first = 'Number 0!'
+      const second = 'Number 1!'
+      await processor.add(0, first)
+      await sleep(10)
+      processor.handledQueue.length.should.equal(
+        1,
+        `Incorrect number processed!`
+      )
+      processor.handledQueue[0].should.equal(first, `Incorrect item processed!`)
+
+      processor.throwOnceOnSettingNextToProcess = true
+      await processor.add(1, second)
+      await sleep(10)
+
+      processor.handledQueue.length.should.equal(
+        2,
+        `There should be 2 items processed until item 2 is replayed!`
+      )
+
+      await sleep(retrySleepDelayMillis * 2)
+
+      processor.handledQueue.length.should.equal(
+        3,
+        `Incorrect number processed!`
+      )
+      processor.handledQueue[1].should.equal(
+        second,
+        `Incorrect item processed!`
+      )
+      processor.handledQueue[2].should.equal(
+        second,
+        `Incorrect item re-processed!`
+      )
+      processor.throwOnceOnSettingNextToProcess.should.equal(
+        false,
+        'Throw once config should be reset!'
       )
     })
   })
@@ -156,6 +255,8 @@ describe('Queued Persisted Processor', () => {
     })
 
     it('restarts with existing state (1 added but not acknowledged)', async () => {
+      processor.callMarkProcessed = false
+
       const item: string = 'Number 0!'
       await processor.add(0, item)
       await sleep(10)
@@ -187,8 +288,6 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      await processor.markProcessed(0)
-
       const secondProc = await DummyQueuedPersistedProcessor.create(
         db,
         persistenceKey
@@ -209,8 +308,6 @@ describe('Queued Persisted Processor', () => {
         `One item should be processed!`
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
-
-      await processor.markProcessed(0)
 
       const secondProc = await DummyQueuedPersistedProcessor.create(
         db,
