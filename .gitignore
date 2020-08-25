@@ -5,7 +5,6 @@ immutability-eth-plugin-*-amd64*
 SHA256SUMS
 SHA256SUMS.sig
 plugins
-docker/ca
 docker/ganache_data
 **/eth-plugin
 eth-plugin*
