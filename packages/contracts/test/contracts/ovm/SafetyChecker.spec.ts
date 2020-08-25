@@ -192,6 +192,45 @@ describe('Safety Checker', () => {
         }
       })
 
+      it(`skips PUSHed JUMPDESTs in unreachable code`, async () => {
+        const push1Code: number = parseInt(
+          Opcode.PUSH1.code.toString('hex'),
+          16
+        )
+        for (let i = 1; i < 33; i++) {
+          let bytecode: string = '0x'
+          bytecode += Opcode.STOP.code.toString('hex')
+          bytecode += Buffer.of(push1Code + i - 1).toString('hex')
+          bytecode += Opcode.JUMPDEST.code.toString('hex').repeat(i)
+          bytecode += DEFAULT_INVALID_OPCODE
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
+          res.should.eq(
+            true,
+            `Unreachable code with PUSH${i} followed by ${i} JUMPDEST opcodes should remain unreachable`
+          )
+        }
+      })
+
+      it(`skips exactly PUSHed # of bytes in unreachable code`, async () => {
+        const push1Code: number = parseInt(
+          Opcode.PUSH1.code.toString('hex'),
+          16
+        )
+        for (let i = 1; i < 33; i++) {
+          let bytecode: string = '0x'
+          bytecode += Opcode.STOP.code.toString('hex')
+          bytecode += Buffer.of(push1Code + i - 1).toString('hex')
+          bytecode += DEFAULT_INVALID_OPCODE.repeat(i)
+          bytecode += Opcode.JUMPDEST.code.toString('hex')
+          bytecode += DEFAULT_INVALID_OPCODE
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
+          res.should.eq(
+            false,
+            `Unreachable code with PUSH${i} followed by ${i} bytes and then a JUMPDEST should become reachable`
+          )
+        }
+      })
+
       it('parses opcodes after first JUMP and JUMPDEST', async () => {
         let bytecode: string = '0x'
         bytecode += Opcode.JUMP.code.toString('hex')
