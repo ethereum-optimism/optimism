@@ -9,8 +9,10 @@ import {
   TestUtils,
   remove0x,
   numberToHexString,
+  hexStrToBuf,
+  bufToHexString,
 } from '@eth-optimism/core-utils'
-import * as solc from '@eth-optimism/solc-transpiler'
+import * as solc from '@eth-optimism/solc'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
 import { cloneDeep } from 'lodash'
@@ -31,7 +33,9 @@ import {
   makeAddressResolver,
   AddressResolverMapping,
   GAS_LIMIT,
+  makeStateTrie,
 } from '../../test-helpers'
+import { BaseTrie } from 'merkle-patricia-tree'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
@@ -151,6 +155,34 @@ const INITIAL_OVM_GAS_STORAGE = (): any => {
       val: numberToHexString(initialCumulativeQueuedGasAtEpochStart, 32),
     },
   ])
+}
+
+const proveOVMGasMetadataStorage = async (
+  stateTransitioner: any,
+  stateTrie: any
+) => {
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    hexStrToBuf(METADATA_STORAGE_ADDRESS)
+  )
+  await stateTransitioner.proveContractInclusion(
+    METADATA_STORAGE_ADDRESS,
+    METADATA_STORAGE_ADDRESS,
+    0,
+    rlp.encode(stateTrieWitness)
+  )
+  const storageTrie = stateTrie.storage[METADATA_STORAGE_ADDRESS]
+
+  for (const { key, val } of INITIAL_OVM_GAS_STORAGE()) {
+    const storageWitness = await BaseTrie.prove(storageTrie, hexStrToBuf(key))
+    await stateTransitioner.proveStorageSlotInclusion(
+      METADATA_STORAGE_ADDRESS,
+      key,
+      val,
+      rlp.encode(stateTrieWitness),
+      rlp.encode(storageWitness)
+    )
+  }
 }
 
 // A populated state trie layout, with OVM gas metering state pre-populated
@@ -332,9 +364,11 @@ const initStateTransitioner = async (
   StateTransitioner: ContractFactory,
   StateManager: ContractFactory,
   addressResolver: Contract,
-  stateTrieRoot: string,
+  trieMapping: any,
   transactionData: OVMTransactionData
 ): Promise<[Contract, Contract, OVMTransactionData]> => {
+  const stateTrie = await makeStateTrie(trieMapping)
+  const stateTrieRoot = bufToHexString(stateTrie.trie.root)
   const stateTransitioner = await StateTransitioner.deploy(
     addressResolver.address,
     10,
@@ -344,6 +378,8 @@ const initStateTransitioner = async (
   const stateManager = StateManager.attach(
     await stateTransitioner.stateManager()
   )
+
+  await proveOVMGasMetadataStorage(stateTransitioner, stateTrie)
 
   return [stateTransitioner, stateManager, transactionData]
 }
@@ -438,13 +474,7 @@ describe('StateTransitioner', () => {
 
     const AllFraudTestJson = compile(
       solc,
-      path.resolve(
-        __dirname,
-        '../../../contracts/test-helpers/FraudTester.sol'
-      ),
-      {
-        executionManagerAddress: executionManager.address,
-      }
+      path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol')
     ).contracts['FraudTester.sol']
     FraudTesterJson = AllFraudTestJson.FraudTester
     MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester
@@ -486,7 +516,7 @@ describe('StateTransitioner', () => {
       StateTransitioner,
       StateManager,
       resolver.addressResolver,
-      test.stateTrieRoot,
+      stateTrie,
       makeDummyTransaction('0x00')
     )
   })
@@ -596,7 +626,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -649,7 +679,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        accessTest.stateTrieRoot,
+        trie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -690,7 +720,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -723,7 +753,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -761,7 +791,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -795,7 +825,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -837,7 +867,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -872,7 +902,7 @@ describe('StateTransitioner', () => {
 
         expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
-      })
+      }).timeout(80000)
 
       it('should correctly update when the same slot has changed multiple times', async () => {
         ;[
@@ -883,7 +913,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -931,7 +961,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -972,7 +1002,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -1043,7 +1073,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          accessTest.stateTrieRoot,
+          trie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -1090,7 +1120,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,

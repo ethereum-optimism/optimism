@@ -22,10 +22,10 @@ contract StateManager {
     // Contract code storage / contract address retrieval
     function associateCodeContract(address _ovmContractAddress, address _codeContractAddress) public;
     function registerCreatedContract(address _ovmContractAddress) public;
-    function getCodeContractAddressFromOvmAddress(address _ovmContractAddress) external view returns(address);
-    function getOvmAddressFromCodeContractAddress(address _codeContractAddress) external view returns(address);
+    function getCodeContractAddressFromOvmAddress(address _ovmContractAddress) external returns(address);
+    function getOvmAddressFromCodeContractAddress(address _codeContractAddress) external returns(address);
     function getCodeContractBytecode(
         address _codeContractAddress
-    ) public view returns (bytes memory codeContractBytecode);
-    function getCodeContractHash(address _codeContractAddress) external view returns (bytes32 _codeContractHash);
+    ) public returns (bytes memory codeContractBytecode);
+    function getCodeContractHash(address _codeContractAddress) external returns (bytes32 _codeContractHash);
 }

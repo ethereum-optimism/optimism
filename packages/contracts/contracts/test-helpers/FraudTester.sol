@@ -32,9 +32,10 @@ contract FraudTester is BaseFraudTester {
         assembly {
             let newContractAddress := create(0, add(_initcode, 0x20), mload(_initcode))
 
-            if iszero(extcodesize(newContractAddress)) {
-                revert(0, 0)
-            }
+            // TODO: add back this check
+            // if iszero(extcodesize(newContractAddress)) {
+            //     revert(0, 0)
+            // }
         }
     }
 

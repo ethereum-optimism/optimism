@@ -40,11 +40,11 @@ const defaultTransaction: Partial<RollupTransaction> = {
  * Handles the L1ToL2TxEnqueued event by parsing a RollupTransaction
  * from the event data and storing it in the DB.
  *
- * Assumed Log Data Format:
- *  - sender: 20-byte address    0-20
- *  - target: 20-byte address	   20-40
- *  - gasLimit: 32-byte uint 	   40-72
- *  - calldata: bytes            72-end
+ * Assumed Log Data Format: Solidity event L1ToL2TxEnqueued(address,address,uint32,bytes) where:
+ *  1. address: sender
+ *  2. address: target
+ *  3. uint32: gasLimit
+ *  4. bytes: calldata
  *
  * @param ds The L1DataService to use for persistence.
  * @param l The log event that was emitted.
@@ -60,7 +60,10 @@ export const L1ToL2TxEnqueuedLogHandler = async (
     `L1ToL2TxEnqueued event received at block ${tx.blockNumber}, tx ${l.transactionIndex}, log: ${l.transactionLogIndex}. TxHash: ${tx.hash}. Log Data: ${l.data}`
   )
 
-  const data: string = remove0x(l.data)
+  const parsedLogData = abi.decode(
+    ['address', 'address', 'uint32', 'bytes'],
+    l.data
+  )
 
   const rollupTransaction: any = { ...defaultTransaction }
   try {
@@ -72,14 +75,14 @@ export const L1ToL2TxEnqueuedLogHandler = async (
     rollupTransaction.queueOrigin = QueueOrigin.L1_TO_L2_QUEUE
     rollupTransaction.indexWithinSubmission = 0
     rollupTransaction.sender = l.address
-    rollupTransaction.l1MessageSender = add0x(data.substr(0, 40))
-    rollupTransaction.target = add0x(data.substr(40, 40))
+    rollupTransaction.l1MessageSender = add0x(parsedLogData[0])
+    rollupTransaction.target = add0x(parsedLogData[1])
     // TODO: Change gasLimit to a BigNumber so it can support 256 bits
     rollupTransaction.gasLimit = new BigNumber(
-      data.substr(80, 64),
+      parsedLogData[2],
       'hex'
     ).toNumber()
-    rollupTransaction.calldata = add0x(data.substr(144))
+    rollupTransaction.calldata = add0x(parsedLogData[3])
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
     log.debug(

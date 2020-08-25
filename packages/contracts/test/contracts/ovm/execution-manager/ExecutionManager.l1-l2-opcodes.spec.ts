@@ -183,7 +183,6 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         'L2ToL1Message(uint256,address,bytes)'
       )
       const crossChainMessageEvent = txLogs.find((logged) => {
-        // console.log(logged)
         return logged.topics.includes(l2ToL1EventTopic)
       })
 

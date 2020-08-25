@@ -12,7 +12,13 @@ import {
   bufferUtils,
   bufToHexString,
   hexStrToBuf,
+  hexStrToNumber,
 } from '@eth-optimism/core-utils'
+
+export const getGasConsumed = async (tx: any, provider: any) => {
+  const receipt = await provider.getTransactionReceipt(tx.hash)
+  return hexStrToNumber(receipt.gasUsed._hex)
+}
 
 /**
  * Deterministically computes the smart contract address given

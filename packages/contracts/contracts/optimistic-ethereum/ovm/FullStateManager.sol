@@ -188,7 +188,6 @@ contract FullStateManager is StateManager {
         address _ovmContractAddress
     )
         public
-        view
         returns (address)
     {
         return ovmAddressToCodeContractAddress[_ovmContractAddress];
@@ -203,7 +202,6 @@ contract FullStateManager is StateManager {
         address _codeContractAddress
     )
         public
-        view
         returns (address)
     {
         return codeContractAddressToOvmAddress[_codeContractAddress];
@@ -219,7 +217,6 @@ contract FullStateManager is StateManager {
         address _codeContractAddress
     )
         public
-        view
         returns (bytes memory codeContractBytecode)
     {
         assembly {
@@ -246,7 +243,6 @@ contract FullStateManager is StateManager {
         address _codeContractAddress
     )
         public
-        view
         returns (bytes32 _codeContractHash)
     {
         // TODO: Look up cached hash values eventually to avoid having to load all of this bytecode
