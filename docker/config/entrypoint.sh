@@ -108,6 +108,8 @@ function gencerts {
 
   chown -R nobody:nobody $CONFIG_DIR && chmod -R 777 $CONFIG_DIR
 }
+echo ">>>> The current user is: " 
+whoami
 
 gencerts
 
