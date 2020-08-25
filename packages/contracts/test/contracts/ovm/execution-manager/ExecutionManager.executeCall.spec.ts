@@ -155,6 +155,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       const tx = await executionManager.executeTransaction(
         getCurrentTime(),
         0,
+        0,
         transaction.to,
         transaction.data,
         wallet.address,
@@ -293,6 +294,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         [
           ZERO_UINT,
           ZERO_UINT,
+          ZERO_UINT,
           dummyContractAddress,
           internalCalldata,
           wallet.address,
@@ -332,6 +334,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       const calldata = ExecutionManager.interface.encodeFunctionData(
         'executeTransaction',
         [
+          ZERO_UINT,
           ZERO_UINT,
           ZERO_UINT,
           dummyContractAddress,

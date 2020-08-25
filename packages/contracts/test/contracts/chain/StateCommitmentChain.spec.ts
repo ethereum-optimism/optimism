@@ -40,7 +40,7 @@ describe('StateCommitmentChain', () => {
     '0x1234',
     '0x5678',
   ]
-  const FORCE_INCLUSION_PERIOD = 600
+  const FORCE_INCLUSION_PERIOD = 4000
 
   let wallet: Signer
   let sequencer: Signer
@@ -77,11 +77,12 @@ describe('StateCommitmentChain', () => {
   }
 
   const appendTxBatch = async (batch: string[]): Promise<void> => {
+    const blockNumber = await canonicalTxChain.provider.getBlockNumber()
     const timestamp = Math.floor(Date.now() / 1000)
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendSequencerBatch(batch, timestamp)
+      .appendSequencerBatch(batch, timestamp, blockNumber)
   }
 
   let resolver: AddressResolverMapping

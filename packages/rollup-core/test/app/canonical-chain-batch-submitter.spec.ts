@@ -64,6 +64,10 @@ class MockProvider {
     }
     return this.txReceipts.get(hash)
   }
+
+  public async getBlockNumber(): Promise<number> {
+    return this.txReceipts.size
+  }
 }
 
 class MockCanonicalTransactionChain {
@@ -73,7 +77,8 @@ class MockCanonicalTransactionChain {
 
   public async appendSequencerBatch(
     calldata: string,
-    timestamp: number
+    timestamp: number,
+    blockNumber: number
   ): Promise<TransactionResponse> {
     const response: TransactionResponse = this.responses.shift()
     if (!response) {

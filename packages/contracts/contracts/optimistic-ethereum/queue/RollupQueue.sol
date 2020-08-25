@@ -58,7 +58,7 @@ contract RollupQueue {
 
     /**
      * Peeks the timestamp of the front element on the queue.
-     * @return Front queue element timestamp.
+     * @return Front queue element timestamp (lowest in queue).
      */
     function peekTimestamp()
         public
@@ -70,14 +70,16 @@ contract RollupQueue {
     }
 
     /**
-     * Checks if this is a calldata transaction queue.
-     * @return Whether or not this is a calldata tx queue.
+     * Peeks the blockNumber of the front element on the queue.
+     * @return Front queue element blockNumber (lowest in queue).
      */
-    function isCalldataTxQueue()
+    function peekBlockNumber()
         public
-        returns (bool)
+        view
+        returns (uint)
     {
-        return true;
+        DataTypes.TimestampedHash memory frontBatch = peek();
+        return frontBatch.blockNumber;
     }
     
     /*
@@ -96,8 +98,9 @@ contract RollupQueue {
         bytes32 txHash = keccak256(_data);
 
         batchHeaders.push(DataTypes.TimestampedHash({
+            txHash: txHash,
             timestamp: now,
-            txHash: txHash
+            blockNumber: block.number
         }));
     }
 

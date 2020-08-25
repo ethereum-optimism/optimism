@@ -200,6 +200,7 @@ contract ExecutionManager is ContractResolver {
         // Make the EOA call for the account
         executeTransaction(
             _timestamp,
+            0, // note: since executeEOACall is soon to be deprecated, not bothering to add blockNumber here.
             _queueOrigin,
             _ovmEntrypoint,
             _callBytes,
@@ -214,6 +215,7 @@ contract ExecutionManager is ContractResolver {
      * Execute a transaction. Note that unsigned EOA calls are unauthenticated.
      * This means that they should not be allowed for normal execution.
      * @param _timestamp The timestamp which should be used for this call's context.
+     * @param _blockNumber The blockNumber which should be used for this call's context.
      * @param _queueOrigin The parent-chain queue from which this call originated.
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
@@ -223,6 +225,7 @@ contract ExecutionManager is ContractResolver {
      */
     function executeTransaction(
         uint _timestamp,
+        uint _blockNumber,
         uint _queueOrigin,
         address _ovmEntrypoint,
         bytes memory _callBytes,
@@ -238,7 +241,7 @@ contract ExecutionManager is ContractResolver {
         require(_timestamp > 0, "Timestamp must be greater than 0");
 
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
+        initializeContext(_timestamp, _blockNumber, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
@@ -471,6 +474,28 @@ contract ExecutionManager is ContractResolver {
         view
     {
         uint t = executionContext.timestamp;
+
+        assembly {
+            let timestampMemory := mload(0x40)
+            mstore(timestampMemory, t)
+            return(timestampMemory, 32)
+        }
+    }
+
+    /**
+     * @notice NUMBER opcode
+     * This gets the current blockNumber. Since the L2 value for this
+     * will necessarily be different than L1, this needs to be overridden for the OVM.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the current blockNumber.
+     */
+    function ovmNUMBER()
+        public
+        view
+    {
+        uint t = executionContext.blockNumber;
 
         assembly {
             let timestampMemory := mload(0x40)
@@ -1315,6 +1340,7 @@ contract ExecutionManager is ContractResolver {
      */
     function initializeContext(
         uint _timestamp,
+        uint _blockNumber,
         uint _queueOrigin,
         address _ovmTxOrigin,
         address _l1MsgSender,
@@ -1326,9 +1352,10 @@ contract ExecutionManager is ContractResolver {
         // reserved for the genesis contract & initial msgSender).
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
 
-        // And finally set the timestamp, queue origin, tx origin, and
+        // And finally set the timestamp, blockNumber, queue origin, tx origin, and
         // l1MessageSender.
         executionContext.timestamp = _timestamp;
+        executionContext.blockNumber = _blockNumber;
         executionContext.queueOrigin = _queueOrigin;
         executionContext.ovmTxOrigin = _ovmTxOrigin;
         executionContext.l1MessageSender = _l1MsgSender;
