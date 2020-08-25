@@ -69,13 +69,6 @@ jobs:
           path: packages/rollup-full-node/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-full-node/package.json') }}
 
-      - name: Cache rollup-contracts deps
-        uses: actions/cache@v1
-        id: cache_rollup-contracts
-        with:
-          path: packages/rollup-contracts/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-contracts/package.json') }}
-
       - name: Cache rollup-core deps
         uses: actions/cache@v1
         id: cache_rollup-core
