@@ -438,10 +438,7 @@ describe('StateTransitioner', () => {
 
     const AllFraudTestJson = compile(
       solc,
-      path.resolve(
-        __dirname,
-        '../../../contracts/test-helpers/FraudTester.sol'
-      ),
+      path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol')
     ).contracts['FraudTester.sol']
     FraudTesterJson = AllFraudTestJson.FraudTester
     MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester
