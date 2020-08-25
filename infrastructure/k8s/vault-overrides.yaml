@@ -1,5 +1,6 @@
 global:
-  tlsDisable: true # TODO: change to enable TLS
+  tlsDisable: false
+  certSecretName: omgnetwork-certs-h7tk624bf6
 
 injector:
   enabled: false
@@ -19,7 +20,10 @@ server:
         cluster_name = "omgnetwork-cluster"
 
         listener "tcp" {
-          tls_disable = 1
+          tls_disable = {{ .Values.global.tlsDisable }}
+          tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.cert.pem"
+          tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.key.pem"
+
           address = "[::]:8200"
           cluster_address = "[::]:8201"
         }
@@ -27,7 +31,7 @@ server:
         seal "gcpckms" {
           region      = "global"
           project     = "omgnetwork-vault"
-          key_ring    = "omgnetwork-vault-keyring"
+          key_ring    = "omgnetwork-vault-ring"
           crypto_key  = "omgnetwork-vault-unseal-key"
         }
 
@@ -49,6 +53,10 @@ server:
   extraVolumes:
     - type: secret
       name: "kms-creds"
+    - type: secret
+      name: "omgnetwork-certs-h7tk624bf6"
+
+  affinity: null
 
   dev:
     enabled: false
