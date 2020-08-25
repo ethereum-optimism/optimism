@@ -69,33 +69,12 @@ jobs:
           path: packages/rollup-full-node/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-full-node/package.json') }}
 
-      - name: Cache rollup-contracts deps
-        uses: actions/cache@v1
-        id: cache_rollup-contracts
-        with:
-          path: packages/rollup-contracts/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-contracts/package.json') }}
-
       - name: Cache rollup-core deps
         uses: actions/cache@v1
         id: cache_rollup-core
         with:
           path: packages/rollup-core/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-core/package.json') }}
-
-      - name: Cache rollup-dev-tools deps
-        uses: actions/cache@v1
-        id: cache_rollup-dev-tools
-        with:
-          path: packages/rollup-dev-tools/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/rollup-dev-tools/package.json') }}
-
-      - name: Cache solc-transpiler deps
-        uses: actions/cache@v1
-        id: cache_solc-transpiler
-        with:
-          path: packages/solc-transpiler/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
       - name: Cache state-synchronizer deps
         uses: actions/cache@v1
