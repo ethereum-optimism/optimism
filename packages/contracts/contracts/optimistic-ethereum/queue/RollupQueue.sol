@@ -73,7 +73,7 @@ contract RollupQueue {
      * Peeks the blockNumber of the front element on the queue.
      * @return Front queue element blockNumber (lowest in queue).
      */
-    function peekBlocknumber()
+    function peekBlockNumber()
         public
         view
         returns (uint)
