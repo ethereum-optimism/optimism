@@ -22,7 +22,6 @@ import { console } from "@nomiclabs/buidler/console.sol";
  */
 
  // TODO: inerit IStateManager after visibility changes
- // TODO: rename.  Gas sanitizer?
  // TODO: parammeterize
 contract StateManagerGasSanitizer is ContractResolver {
 

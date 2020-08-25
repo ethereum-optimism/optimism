@@ -36,7 +36,6 @@ import {
   makeStateTrie,
 } from '../../test-helpers'
 import { BaseTrie } from 'merkle-patricia-tree'
-import { stat } from 'fs'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
