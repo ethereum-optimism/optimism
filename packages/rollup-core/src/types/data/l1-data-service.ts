@@ -2,10 +2,25 @@
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { GethSubmission, RollupTransaction } from '../types'
+import {
+  GethSubmission,
+  L1BlockPersistenceInfo,
+  RollupTransaction,
+} from '../types'
 import { GethSubmissionRecord } from './types'
 
 export interface L1DataService {
+  /**
+   * Gets Information regarding whether or not the block (and its related data) associated with
+   * the provided L1 block number is present in the DB.
+   *
+   * @param blockNumber The block number in question.
+   * @returns The L1BlockPersistenceInfo object containing booleans indicating what has been persisted.
+   */
+  getL1BlockPersistenceInfo(
+    blockNumber: number
+  ): Promise<L1BlockPersistenceInfo>
+
   /**
    * Inserts the provided block into the associated RDB.
    *

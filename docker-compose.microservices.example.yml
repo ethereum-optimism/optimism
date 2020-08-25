@@ -58,13 +58,13 @@ services:
       - CANONICAL_CHAIN_MIN_BATCH_SIZE=50                                                           # The minimum batch size to build -- if fewer than this number of transactions are ready, a batch will not be created (defaults to 10)
       - CANONICAL_CHAIN_MAX_BATCH_SIZE=50                                                           # The maximum batch size to build -- if more than this number of transactions are ready, they will be split into multiple batches of at most this size (defaults to 100)
       - CANONICAL_CHAIN_BATCH_CREATOR_PERIOD_MILLIS=30000                                           # The period in millis at which the CanonicalChainBatchCreator should attempt to create Canonical Chain Batches (defaults to 10,000)
-      # Canonical Transaction Chain Batch Submitter (needs Postgres, L1 Node, L1 Submitters, and CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS vars above)
+      # Canonical Transaction Chain Batch Submitter / Finalizer (needs Postgres, L1 Node, L1 Submitters, and CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS vars above)
       - CANONICAL_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS                                               # The period in millis at which the CanonicalChainBatchCreator should attempt to create Canonical Chain Batches (defaults to 10,000)
       # State Commitment Chain Batch Creator (needs Postgres vars above)
       - STATE_COMMITMENT_CHAIN_MIN_BATCH_SIZE=40                                                    # The minimum batch size to build -- if fewer than this number of transactions are ready, a batch will not be created (defaults to 10)
       - STATE_COMMITMENT_CHAIN_MAX_BATCH_SIZE=500                                                   # The maximum batch size to build -- if more than this number of transactions are ready, they will be split into multiple batches of at most this size (defaults to 100)
       - STATE_COMMITMENT_CHAIN_BATCH_CREATOR_PERIOD_MILLIS=30000                                    # The period in millis at which the StateCommitmentChainBatchCreator should attempt to create StateCommitmentChain Batches (defaults to 10,000)
-      # State Commitment Chain Batch Submitter (needs Postgres, L1 Node, L1 Submitters, STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS vars above)
+      # State Commitment Chain Batch Submitter / Finalizer (needs Postgres, L1 Node, L1 Submitters, STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS vars above)
       - STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS                                        # The period in millis at which the StateCommitmentChainBatchCreator should attempt to create StateCommitmentChain Batches (defaults to 10,000)
       # Fraud Detector
       - FRAUD_DETECTOR_PERIOD_MILLIS                                                                # The period in millis at which the FraudDetector should run (defaults to 10,000)
@@ -75,9 +75,9 @@ services:
       - RUN_GETH_SUBMISSION_QUEUER=1                                                                # Set to anything to run Geth Submission Queuer
       - RUN_QUEUED_GETH_SUBMITTER=1                                                                 # Set to anything to run Queued Geth Submitter
       - RUN_CANONICAL_CHAIN_BATCH_CREATOR=1                                                         # Set to anything to run Canonical Chain Batch Creator
-      - RUN_CANONICAL_CHAIN_BATCH_SUBMITTER=1                                                       # Set to anything to run Canonical Chain Batch Submitter
+      - RUN_CANONICAL_CHAIN_BATCH_SUBMITTER=1                                                       # Set to anything to run Canonical Chain Batch Submitter & Finalizer
       - RUN_STATE_COMMITMENT_CHAIN_BATCH_CREATOR=1                                                  # Set to anything to run State Commitment Chain Batch Creator
-      - RUN_STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER=1                                                # Set to anything to run State Commitment Chain Batch Submitter
+      - RUN_STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER=1                                                # Set to anything to run State Commitment Chain Batch Submitter & Finalizer
       - RUN_FRAUD_DETECTOR=1                                                                        # Set to anything to run Fraud Detector
 
   postgres:

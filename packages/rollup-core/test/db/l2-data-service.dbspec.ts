@@ -48,6 +48,21 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       res.length.should.equal(1, `No L2 Tx rows!`)
       verifyL2TxOutput(res[0], tx)
     })
+
+    it('Should not fail on duplicate insert into L2 Tx Output', async () => {
+      const tx = createTxOutput(keccak256FromUtf8('tx'))
+      await dataService.insertL2TransactionOutput(tx)
+
+      let res = await postgres.select(`SELECT * FROM l2_tx_output`)
+      res.length.should.equal(1, `No L2 Tx rows!`)
+      verifyL2TxOutput(res[0], tx)
+
+      await dataService.insertL2TransactionOutput(tx)
+
+      res = await postgres.select(`SELECT * FROM l2_tx_output`)
+      res.length.should.equal(1, `No L2 Tx rows!`)
+      verifyL2TxOutput(res[0], tx)
+    })
   })
 
   describe('tryBuildCanonicalChainBatchNotPresentOnL1', () => {

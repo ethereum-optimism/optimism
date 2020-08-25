@@ -106,7 +106,10 @@ export const runServices = async (): Promise<any[]> => {
   const subscriptions: Array<Promise<any>> = []
   if (!!l1ChainDataPersister) {
     services.push(l1ChainDataPersister)
-    const l1Processor: EthereumBlockProcessor = createL1BlockSubscriber()
+    const lastProcessedBlock = await l1ChainDataPersister.getLastIndexProcessed()
+    const l1Processor: EthereumBlockProcessor = createL1BlockSubscriber(
+      lastProcessedBlock
+    )
     log.info(`Starting to sync L1 chain`)
     subscriptions.push(
       l1Processor.subscribe(getL1Provider(), l1ChainDataPersister)
@@ -114,7 +117,10 @@ export const runServices = async (): Promise<any[]> => {
   }
   if (!!l2ChainDataPersister) {
     services.push(l2ChainDataPersister)
-    const l2Processor: EthereumBlockProcessor = createL2BlockSubscriber()
+    const lastProcessedBlock = await l2ChainDataPersister.getLastIndexProcessed()
+    const l2Processor: EthereumBlockProcessor = createL2BlockSubscriber(
+      lastProcessedBlock
+    )
     log.info(`Starting to sync L2 chain`)
     subscriptions.push(
       l2Processor.subscribe(getL2Provider(), l2ChainDataPersister)
@@ -425,16 +431,28 @@ const createFraudDetector = (): FraudDetector => {
   )
 }
 
-const createL1BlockSubscriber = (): EthereumBlockProcessor => {
+const createL1BlockSubscriber = (
+  lastBlockProcessed: number = 0
+): EthereumBlockProcessor => {
+  const startBlock = Math.max(
+    lastBlockProcessed,
+    Environment.getOrThrow(Environment.l1EarliestBlock)
+  )
+  log.info(`Starting subscription to L1 chain starting at block ${startBlock}`)
   return new EthereumBlockProcessor(
     getL1BlockProcessorDB(),
-    Environment.getOrThrow(Environment.l1EarliestBlock),
+    startBlock,
     Environment.getOrThrow(Environment.finalityDelayInBlocks)
   )
 }
 
-const createL2BlockSubscriber = (): EthereumBlockProcessor => {
-  return new EthereumBlockProcessor(getL2Db(), 0, 1)
+const createL2BlockSubscriber = (
+  lastBlockProcessed: number = 0
+): EthereumBlockProcessor => {
+  log.info(
+    `Starting subscription to L2 node starting at block ${lastBlockProcessed}`
+  )
+  return new EthereumBlockProcessor(getL2Db(), lastBlockProcessed, 1)
 }
 
 /*********************
