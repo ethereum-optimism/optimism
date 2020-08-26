@@ -68,12 +68,15 @@ export class DefaultSequentialProcessingDataService
   public async persistItem(
     index: number,
     itemData: string,
-    sequenceKey: string
+    sequenceKey: string,
+    processed: boolean = false
   ): Promise<void> {
     try {
       await this.rdb.execute(
-        `INSERT INTO sequential_processing(sequence_key, sequence_number, data_to_process)
-        VALUES('${sequenceKey}', ${index}, '${itemData}')
+        `INSERT INTO sequential_processing(sequence_key, sequence_number, data_to_process, processed)
+        VALUES('${sequenceKey}', ${index}, '${itemData}', ${
+          processed ? 'TRUE' : 'FALSE'
+        })
         ON CONFLICT ON CONSTRAINT sequential_processing_sequence_key_sequence_number_key DO NOTHING`
       )
     } catch (e) {
@@ -141,14 +144,15 @@ export class InMemoryProcessingDataService
 
   public async persistItem(
     index: number,
-    item: string,
-    sequenceKey: string
+    data: string,
+    sequenceKey: string,
+    processed: boolean = false
   ): Promise<void> {
     if (!this.items.get(sequenceKey)) {
       this.items.set(sequenceKey, new Map<number, SequentialProcessingItem>())
     }
     if (!this.items.get(sequenceKey).get(index)) {
-      this.items.get(sequenceKey).set(index, { processed: false, data: item })
+      this.items.get(sequenceKey).set(index, { processed, data })
     }
   }
 

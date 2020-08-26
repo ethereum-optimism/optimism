@@ -3,9 +3,12 @@ import { getLogger } from '@eth-optimism/core-utils'
 import {
   BaseDB,
   DB,
+  DefaultSequentialProcessingDataService,
   EthereumBlockProcessor,
   getLevelInstance,
   PostgresDB,
+  RDB,
+  SequentialProcessingDataService,
 } from '@eth-optimism/core-db'
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 import {
@@ -154,7 +157,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
     `Creating L1 Chain Data Persister with earliest block ${Environment.l1EarliestBlock()}`
   )
   return L1ChainDataPersister.create(
-    getL1BlockProcessorDB(),
+    getProcessingDataService(),
     getDataService(),
     getL1Provider(),
     [
@@ -212,7 +215,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
  */
 const createL2ChainDataPersister = async (): Promise<L2ChainDataPersister> => {
   return L2ChainDataPersister.create(
-    getL2Db(),
+    getProcessingDataService(),
     getDataService(),
     getL2Provider()
   )
@@ -452,7 +455,11 @@ const createL2BlockSubscriber = (
   log.info(
     `Starting subscription to L2 node starting at block ${lastBlockProcessed}`
   )
-  return new EthereumBlockProcessor(getL2Db(), lastBlockProcessed, 1)
+  return new EthereumBlockProcessor(
+    getL2BlockProcessorDB(),
+    lastBlockProcessed,
+    1
+  )
 }
 
 /*********************
@@ -475,38 +482,54 @@ const getL1BlockProcessorDB = (): DB => {
   return l1BlockProcessorDb
 }
 
-let l2Db: DB
-const getL2Db = (): DB => {
-  if (!l2Db) {
+let l2BlockProcessorDb: DB
+const getL2BlockProcessorDB = (): DB => {
+  if (!l2BlockProcessorDb) {
     clearDataIfNecessary(
       Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
     )
-    l2Db = new BaseDB(
+    l2BlockProcessorDb = new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
       ),
       256
     )
   }
-  return l2Db
+  return l2BlockProcessorDb
+}
+
+let rdb: RDB
+const getRDBInstance = (): RDB => {
+  if (!rdb) {
+    rdb = new PostgresDB(
+      Environment.getOrThrow(Environment.postgresHost),
+      Environment.getOrThrow(Environment.postgresPort),
+      Environment.getOrThrow(Environment.postgresUser),
+      Environment.getOrThrow(Environment.postgresPassword),
+      Environment.postgresDatabase('rollup'),
+      Environment.postgresPoolSize(20),
+      Environment.postgresUseSsl(false)
+    )
+  }
+  return rdb
 }
 
 let dataService: DataService
 const getDataService = (): DataService => {
   if (!dataService) {
-    dataService = new DefaultDataService(
-      new PostgresDB(
-        Environment.getOrThrow(Environment.postgresHost),
-        Environment.getOrThrow(Environment.postgresPort),
-        Environment.getOrThrow(Environment.postgresUser),
-        Environment.getOrThrow(Environment.postgresPassword),
-        Environment.postgresDatabase('rollup'),
-        Environment.postgresPoolSize(20),
-        Environment.postgresUseSsl(false)
-      )
-    )
+    dataService = new DefaultDataService(getRDBInstance())
   }
   return dataService
+}
+
+let processingDataService: SequentialProcessingDataService
+const getProcessingDataService = (): SequentialProcessingDataService => {
+  if (!processingDataService) {
+    processingDataService = new DefaultSequentialProcessingDataService(
+      getRDBInstance()
+    )
+  }
+  return processingDataService
 }
 
 let l2NodeService: L2NodeService

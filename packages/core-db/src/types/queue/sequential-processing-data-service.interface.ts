@@ -21,8 +21,14 @@ export interface SequentialProcessingDataService {
    * @param index The index in question.
    * @param sequenceKey The key identifying the sequence in which the provided item should be stored at the provided index.
    * @param item The item to store.
+   * @param processed (optional) Whether or not the item should be stored as processed.
    */
-  persistItem(index: number, item: string, sequenceKey: string): Promise<void>
+  persistItem(
+    index: number,
+    item: string,
+    sequenceKey: string,
+    processed?: boolean
+  ): Promise<void>
 
   /**
    * Fetches the item with the provided index, if one exists.

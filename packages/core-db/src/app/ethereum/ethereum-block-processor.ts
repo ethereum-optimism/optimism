@@ -50,6 +50,13 @@ export class EthereumBlockProcessor {
     this.subscriptions.add(handler)
 
     provider.on('block', async (blockNumber) => {
+      if (blockNumber < this.earliestBlock) {
+        log.debug(
+          `Received block [${blockNumber}] which is before earliest block [${this.earliestBlock}]. Ignoring...`
+        )
+        return
+      }
+
       log.debug(`Block [${blockNumber}] was mined!`)
 
       await this.fetchAndDisseminateBlock(provider, blockNumber)
@@ -136,21 +143,24 @@ export class EthereumBlockProcessor {
    */
   private async syncBlocks(provider: Provider): Promise<void> {
     log.debug(`Syncing blocks`)
-    const lastSyncedBlockNumber = await this.getLastSyncedBlockNumber()
+    const syncStart = Math.max(
+      (await this.getLastSyncedBlockNumber()) + 1,
+      this.earliestBlock
+    )
     const blockNumber = await this.getBlockNumber(provider)
 
-    if (blockNumber === lastSyncedBlockNumber) {
+    if (blockNumber === syncStart) {
       log.debug(`Up to date, not syncing.`)
       this.finishSync(blockNumber, blockNumber)
       return
     }
 
-    for (let i = lastSyncedBlockNumber + 1; i <= blockNumber; i++) {
+    for (let i = syncStart; i <= blockNumber; i++) {
       await this.fetchAndDisseminateBlock(provider, i)
       await this.storeLastProcessedBlockNumber(i)
     }
 
-    this.finishSync(lastSyncedBlockNumber + 1, blockNumber)
+    this.finishSync(syncStart, blockNumber)
   }
 
   private finishSync(syncStart: number, currentBlock: number): void {
