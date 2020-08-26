@@ -18,7 +18,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
   private processingLock: AsyncLock
 
   protected constructor(
-    private readonly dataService: SequentialProcessingDataService,
+    private readonly processingDataService: SequentialProcessingDataService,
     private readonly persistenceKey: string,
     startIndex: number = 0,
     private readonly retrySleepDelayMillis: number = 1000
@@ -30,7 +30,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @inheritDoc
    */
   public async add(index: number, item: T): Promise<void> {
-    await this.dataService.persistItem(
+    await this.processingDataService.persistItem(
       index,
       await this.serializeItem(item),
       this.persistenceKey
@@ -51,7 +51,10 @@ export abstract class BaseQueuedPersistedProcessor<T>
       `Marking index ${index} as processed for processor ${this.persistenceKey}`
     )
 
-    await this.dataService.updateToProcessed(index, this.persistenceKey)
+    await this.processingDataService.updateToProcessed(
+      index,
+      this.persistenceKey
+    )
 
     setTimeout(() => {
       this.handleIfExists(index + 1)
@@ -62,7 +65,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @inheritDoc
    */
   public async getLastIndexProcessed(): Promise<number> {
-    return this.dataService.getLastIndexProcessed(this.persistenceKey)
+    return this.processingDataService.getLastIndexProcessed(this.persistenceKey)
   }
 
   /**
@@ -174,7 +177,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @param index The index in question.
    */
   private async handleIfExists(index: number): Promise<void> {
-    const item: SequentialProcessingItem = await this.dataService.fetchItem(
+    const item: SequentialProcessingItem = await this.processingDataService.fetchItem(
       index,
       this.persistenceKey
     )

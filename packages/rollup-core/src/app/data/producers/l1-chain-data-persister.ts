@@ -1,5 +1,5 @@
 /* External Imports */
-import { RDB } from '@eth-optimism/core-db'
+import { RDB, SequentialProcessingDataService } from '@eth-optimism/core-db'
 import { getLogger, Logger } from '@eth-optimism/core-utils'
 
 import { Block, Provider, TransactionResponse } from 'ethers/providers'
@@ -28,7 +28,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
    * Creates a L1ChainDataPersister that subscribes to L1 blocks, processes all
    * events, and inserts relevant data into the provided RDB.
    *
-   * @param rdb The RDB to use to persist the queue of Block objects.
+   * @param processingDataService The data service used for queued persisted processing.
    * @param dataService The L1 Data Service handling persistence of relevant data.
    * @param l1Provider The provider to use to connect to L1 to subscribe & fetch block / tx / log data.
    * @param logHandlerContexts The collection of LogHandlerContexts that uniquely identify the log events
@@ -37,7 +37,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
-    rdb: RDB,
+    processingDataService: SequentialProcessingDataService,
     dataService: L1DataService,
     l1Provider: Provider,
     logHandlerContexts: LogHandlerContext[],
@@ -45,7 +45,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
     persistenceKey: string = L1ChainDataPersister.persistenceKey
   ): Promise<L1ChainDataPersister> {
     const processor = new L1ChainDataPersister(
-      rdb,
+      processingDataService,
       dataService,
       l1Provider,
       logHandlerContexts,
@@ -57,14 +57,14 @@ export class L1ChainDataPersister extends ChainDataProcessor {
   }
 
   private constructor(
-    rdb: RDB,
+    processingDataService: SequentialProcessingDataService,
     private readonly l1DataService: L1DataService,
     private readonly l1Provider: Provider,
     private readonly logHandlerContexts: LogHandlerContext[],
     private earliestBlock: number,
     persistenceKey: string
   ) {
-    super(rdb, persistenceKey, earliestBlock)
+    super(processingDataService, persistenceKey, earliestBlock)
     this.topicMap = new Map<string, LogHandlerContext>(
       this.logHandlerContexts.map((x) => [x.topic, x])
     )

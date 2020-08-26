@@ -3,6 +3,7 @@ import {
   BaseQueuedPersistedProcessor,
   EthereumListener,
   RDB,
+  SequentialProcessingDataService,
 } from '@eth-optimism/core-db'
 import { BigNumber, getLogger, Logger } from '@eth-optimism/core-utils'
 
@@ -16,8 +17,12 @@ const log: Logger = getLogger('chain-data-persister')
 export abstract class ChainDataProcessor
   extends BaseQueuedPersistedProcessor<Block>
   implements EthereumListener<Block> {
-  protected constructor(rdb: RDB, persistenceKey: string, startIndex: number) {
-    super(rdb, persistenceKey, startIndex)
+  protected constructor(
+    processingDataService: SequentialProcessingDataService,
+    persistenceKey: string,
+    startIndex: number
+  ) {
+    super(processingDataService, persistenceKey, startIndex)
   }
 
   /**

@@ -59,7 +59,7 @@ export class DefaultSequentialProcessingDataService
       return -1
     }
 
-    return res[0]['last_processed']
+    return parseInt(res[0]['last_processed'], 10)
   }
 
   /**
@@ -111,7 +111,8 @@ export class DefaultSequentialProcessingDataService
 /**
  * Mock data service used to mock out the one specified above.
  */
-export class MockedDataService implements SequentialProcessingDataService {
+export class InMemoryProcessingDataService
+  implements SequentialProcessingDataService {
   public lastProcessedIndex: Map<string, number>
   public items: Map<string, Map<number, SequentialProcessingItem>>
 

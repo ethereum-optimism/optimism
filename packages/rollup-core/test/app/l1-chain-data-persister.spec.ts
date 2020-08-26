@@ -1,5 +1,5 @@
 /* External Imports */
-import { newInMemoryDB } from '@eth-optimism/core-db'
+import { InMemoryProcessingDataService } from '@eth-optimism/core-db'
 import {
   BigNumber,
   keccak256FromUtf8,
@@ -205,19 +205,19 @@ const errorLogHandlerContext: LogHandlerContext = {
 }
 
 describe('L1 Chain Data Persister', () => {
-  let db
   let chainDataPersister: L1ChainDataPersister
+  let processingDataService: InMemoryProcessingDataService
   let dataService: MockDataService
   let provider: MockProvider
   beforeEach(async () => {
-    db = newInMemoryDB()
+    processingDataService = new InMemoryProcessingDataService()
     dataService = new MockDataService()
     provider = new MockProvider()
   })
 
   it('should not persist block without logs', async () => {
     chainDataPersister = await L1ChainDataPersister.create(
-      db,
+      processingDataService,
       dataService,
       provider,
       []
@@ -242,7 +242,7 @@ describe('L1 Chain Data Persister', () => {
   describe('Irrelevant logs', () => {
     it('should persist block but no txs without log handler', async () => {
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         []
@@ -275,7 +275,7 @@ describe('L1 Chain Data Persister', () => {
         },
       }
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         [logHandlerContext]
@@ -301,7 +301,7 @@ describe('L1 Chain Data Persister', () => {
 
     it('should persist block but no txs without logs relevant to log handler address', async () => {
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         [errorLogHandlerContext]
@@ -331,7 +331,7 @@ describe('L1 Chain Data Persister', () => {
     }
     beforeEach(async () => {
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         [configuredHandlerContext]
@@ -458,7 +458,7 @@ describe('L1 Chain Data Persister', () => {
       }
       const topic2 = 'derp_derp'
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         [
@@ -544,7 +544,7 @@ describe('L1 Chain Data Persister', () => {
       }
       const topic2 = 'derp_derp'
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         [
@@ -710,7 +710,7 @@ describe('L1 Chain Data Persister', () => {
   describe('Partial state persisted', () => {
     it('should not persist block if already persisted', async () => {
       chainDataPersister = await L1ChainDataPersister.create(
-        db,
+        processingDataService,
         dataService,
         provider,
         []
@@ -741,7 +741,7 @@ describe('L1 Chain Data Persister', () => {
       }
       beforeEach(async () => {
         chainDataPersister = await L1ChainDataPersister.create(
-          db,
+          processingDataService,
           dataService,
           provider,
           [configuredHandlerContext]
@@ -842,7 +842,7 @@ describe('L1 Chain Data Persister', () => {
           await ds.insertL1RollupStateRoots(tx.hash, stateRoots)
         }
         chainDataPersister = await L1ChainDataPersister.create(
-          db,
+          processingDataService,
           dataService,
           provider,
           [configuredHandlerContext]
@@ -897,7 +897,7 @@ describe('L1 Chain Data Persister', () => {
           await ds.insertL1RollupStateRoots(tx.hash, stateRoots)
         }
         chainDataPersister = await L1ChainDataPersister.create(
-          db,
+          processingDataService,
           dataService,
           provider,
           [configuredHandlerContext]

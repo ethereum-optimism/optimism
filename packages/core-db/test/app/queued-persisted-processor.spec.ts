@@ -6,7 +6,7 @@ import { sleep } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import {
   BaseQueuedPersistedProcessor,
-  MockedDataService,
+  InMemoryProcessingDataService,
   SequentialProcessingItem,
 } from '../../src'
 import { SequentialProcessingDataService } from '../../src/types/queue'
@@ -64,12 +64,12 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
 }
 
 describe('Queued Persisted Processor', () => {
-  let dataService: MockedDataService
+  let dataService: InMemoryProcessingDataService
   let processor: DummyQueuedPersistedProcessor
   const retrySleepDelayMillis: number = 100
 
   beforeEach(async () => {
-    dataService = new MockedDataService()
+    dataService = new InMemoryProcessingDataService()
     processor = await DummyQueuedPersistedProcessor.create(
       dataService,
       0,
