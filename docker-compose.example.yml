@@ -1,4 +1,4 @@
-# TODO: COPY THIS OVER TO docker-compose.microservices.mine.yml FOR YOUR OWN LOCAL CONFIG
+# TODO: COPY THIS OVER TO docker-compose.local.yml FOR YOUR OWN LOCAL CONFIG
 version: "3"
 
 services:
@@ -8,11 +8,14 @@ services:
     volumes:
       - l1-node-data:/mnt/l1-node:rw
       - l2-node-data:/mnt/l2-node:rw
+      - ./:/mnt/monorepo                 # Mounts the source
     build:
       context: .
-      dockerfile: Dockerfile.microservices
+      dockerfile: Dockerfile.dev          # Relies on the code to be mounted via mount above
     environment:
       # LOCAL ONLY!
+      - REBUILD=1         # Set this to 1 if you want to rebuild on startup. Leave unset if you don't want to!
+      - FETCH_DEPS=       # Set this if you want to run `yarn` on startup to fetch dependencies. Leave unset otherwise!
       - LOG_NEW_LINES=1   # Logs new lines instead of <\n>
       # DATA CLEARING
       - CLEAR_DATA_KEY=123                                                              # Change this if you want to delete filesystem data on startup.

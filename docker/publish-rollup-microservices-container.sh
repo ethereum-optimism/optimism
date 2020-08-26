@@ -26,7 +26,7 @@ echo "\nAuthenticating within ECR...\n"
 aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-microservices"
 
 echo "\nBuilding Microservices container...\n"
-docker build -f "$ROOT_DIR/Dockerfile.microservices" -t "optimism/rollup-microservices:$TAG" "$ROOT_DIR"
+docker build -f "$ROOT_DIR/Dockerfile" -t "optimism/rollup-microservices:$TAG" "$ROOT_DIR"
 
 echo "\nTagging Microservices container as $TAG in ECR...\n"
 docker tag "optimism/rollup-microservices:$TAG" "$AWS_ACCOUNT_NUMBER.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-microservices:$TAG"

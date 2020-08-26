@@ -15,14 +15,6 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v1
 
-      - name: Install Dependencies
-        run: yarn install
-
-      - name: Build
-        run: |
-          yarn clean
-          yarn build
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
@@ -40,7 +32,7 @@ jobs:
           ECR_REPOSITORY: optimism/rollup-microservices
           IMAGE_TAG: latest
         run: |
-          docker build -f Dockerfile.microservices -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -f Dockerfile -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
       - name: Stop existing dev-rollup-microservices ECS task to auto-start task with new image

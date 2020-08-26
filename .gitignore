@@ -41,4 +41,5 @@ npm-debug.log
 /packages/docs/src/core/env/
 
 # Local Dockerfiles
-docker-compose.*.mine.yml
+*.local.yml
+*.mine.yml
