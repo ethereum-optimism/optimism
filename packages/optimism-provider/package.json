@@ -1,0 +1,27 @@
+{
+  "name": "optimism-provider",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
+    "build": "tsc -p .",
+    "clean": "rimraf build/",
+    "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
+    "lint": "tslint --format stylish --project .",
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@bitrelay/bufio": "^3.0.2",
+    "@eth-optimism/core-utils": "0.0.1-alpha.27",
+    "@ethersproject/logger": "^5.0.4",
+    "ethers": "^5.0.8"
+  },
+  "devDependencies": {
+    "ts-node": "^8.2.0",
+    "typescript": "^3.5.1"
+  }
+}
