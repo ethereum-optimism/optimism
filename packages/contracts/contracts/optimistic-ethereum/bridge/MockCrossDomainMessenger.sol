@@ -2,7 +2,6 @@ pragma solidity ^0.5.0;
 
 /* Interface Imports */
 import { ICrossDomainMessenger } from "./CrossDomainMessenger.interface.sol";
-import { ICrossDomainMessageReceiver } from "./CrossDomainMessageReceiver.interface.sol";
 
 /**
  * @title MockCrossDomainMessenger
@@ -13,7 +12,7 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
      */
 
     ICrossDomainMessenger targetMessenger;
-
+    address public crossDomainMsgSender;
 
     /*
      * Public Functions
@@ -26,20 +25,13 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
     function relayMessage(
         address _target,
         address _sender,
-        bytes memory _message,
-        uint256 _timestamp,
-        uint256 _blockNumber
+        bytes memory _message
     )
         public
     {
-        ICrossDomainMessageReceiver target = ICrossDomainMessageReceiver(_target);
-        
-        target.receiveMessage(
-            _sender,
-            _message,
-            _timestamp,
-            _blockNumber
-        );
+        crossDomainMsgSender = _sender;
+        (bool success,) = _target.call(_message);
+        require(success, "Received message reverted during execution.");
     }
 
     /**
@@ -60,9 +52,7 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
         targetMessenger.relayMessage(
             _target,
             msg.sender,
-            _message,
-            block.timestamp,
-            block.number
+            _message
         );
     }
 

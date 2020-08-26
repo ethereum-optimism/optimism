@@ -5,17 +5,21 @@ import { ethers } from '@nomiclabs/buidler'
 import { ContractFactory, Contract, Signer } from 'ethers'
 import { NULL_ADDRESS } from '@eth-optimism/core-utils'
 
-describe('MockCrossDomainMessenger', () => {
+describe.only('MockCrossDomainMessenger', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
   })
 
   let MockCrossDomainMessengerFactory: ContractFactory
-  let SimpleStorageMessageReceiverFactory: ContractFactory
+  let CrossDomainSimpleStorageFactory: ContractFactory
   before(async () => {
-    MockCrossDomainMessengerFactory = await ethers.getContractFactory('MockCrossDomainMessenger')
-    SimpleStorageMessageReceiverFactory = await ethers.getContractFactory('SimpleStorageMessageReceiver')
+    MockCrossDomainMessengerFactory = await ethers.getContractFactory(
+      'MockCrossDomainMessenger'
+    )
+    CrossDomainSimpleStorageFactory = await ethers.getContractFactory(
+      'CrossDomainSimpleStorage'
+    )
   })
 
   let L1MockCrossDomainMessenger: Contract
@@ -24,47 +28,44 @@ describe('MockCrossDomainMessenger', () => {
     L1MockCrossDomainMessenger = await MockCrossDomainMessengerFactory.deploy()
     L2MockCrossDomainMessenger = await MockCrossDomainMessengerFactory.deploy()
 
-    await L1MockCrossDomainMessenger.setTargetMessenger(L2MockCrossDomainMessenger.address)
-    await L2MockCrossDomainMessenger.setTargetMessenger(L1MockCrossDomainMessenger.address)
+    await L1MockCrossDomainMessenger.setTargetMessenger(
+      L2MockCrossDomainMessenger.address
+    )
+    await L2MockCrossDomainMessenger.setTargetMessenger(
+      L1MockCrossDomainMessenger.address
+    )
   })
 
-  let L2SimpleStorageMessageReceiver: Contract
+  let L2SimpleStorage: Contract
   beforeEach(async () => {
-    L2SimpleStorageMessageReceiver = await SimpleStorageMessageReceiverFactory.deploy()
-    
-    await L2SimpleStorageMessageReceiver.setMessenger(L2MockCrossDomainMessenger.address)
-  })
+    L2SimpleStorage = await CrossDomainSimpleStorageFactory.deploy()
 
+    await L2SimpleStorage.setMessenger(L2MockCrossDomainMessenger.address)
+  })
   describe('relayMessage', () => {
     it('should successfully relay a message to the target receiver', async () => {
       const expectedStorageKey = ethers.utils.keccak256('0x1234')
       const expectedStorageValue = ethers.utils.keccak256('0x5678')
 
-      const calldata = L2SimpleStorageMessageReceiver.interface.encodeFunctionData(
-        'setStorage',
-        [
-          expectedStorageKey,
-          expectedStorageValue
-        ]
+      const calldata = L2SimpleStorage.interface.encodeFunctionData(
+        'crossDomainSetStorage',
+        [expectedStorageKey, expectedStorageValue]
       )
 
-      const expectedMessage = [
-        await wallet.getAddress(),
-        calldata,
-        ethers.BigNumber.from(Date.now()),
-        ethers.BigNumber.from(123)
-      ]
+      const expectedMessage = [await wallet.getAddress(), calldata]
 
       await L2MockCrossDomainMessenger.relayMessage(
-        L2SimpleStorageMessageReceiver.address,
+        L2SimpleStorage.address,
         ...expectedMessage
       )
 
-      const actualStorageValue = await L2SimpleStorageMessageReceiver.getStorage(expectedStorageKey)
+      const actualStorageValue = await L2SimpleStorage.getStorage(
+        expectedStorageKey
+      )
       expect(actualStorageValue).to.equal(expectedStorageValue)
-
-      const actualMessage = await L2SimpleStorageMessageReceiver.messages(0)
-      expect(actualMessage).to.deep.equal(expectedMessage)
+      expect(await L2SimpleStorage.crossDomainMsgSender()).to.equal(
+        await wallet.getAddress()
+      )
     })
   })
 
@@ -73,16 +74,13 @@ describe('MockCrossDomainMessenger', () => {
       const expectedStorageKey = ethers.utils.keccak256('0x1234')
       const expectedStorageValue = ethers.utils.keccak256('0x5678')
 
-      const calldata = L2SimpleStorageMessageReceiver.interface.encodeFunctionData(
-        'setStorage',
-        [
-          expectedStorageKey,
-          expectedStorageValue
-        ]
+      const calldata = L2SimpleStorage.interface.encodeFunctionData(
+        'crossDomainSetStorage',
+        [expectedStorageKey, expectedStorageValue]
       )
 
       await L1MockCrossDomainMessenger.sendMessage(
-        L2SimpleStorageMessageReceiver.address,
+        L2SimpleStorage.address,
         calldata,
         {
           from: await wallet.getAddress(),
@@ -90,41 +88,39 @@ describe('MockCrossDomainMessenger', () => {
       )
 
       const currentBlock = await ethers.provider.getBlock('latest')
-      const expectedMessage = [
-        await wallet.getAddress(),
-        calldata,
-        ethers.BigNumber.from(currentBlock.timestamp),
-        ethers.BigNumber.from(currentBlock.number),
-      ]
+      const expectedMessage = [await wallet.getAddress(), calldata]
 
-      const actualStorageValue = await L2SimpleStorageMessageReceiver.getStorage(expectedStorageKey)
+      const actualStorageValue = await L2SimpleStorage.getStorage(
+        expectedStorageKey
+      )
       expect(actualStorageValue).to.equal(expectedStorageValue)
-
-      const actualMessage = await L2SimpleStorageMessageReceiver.messages(0)
-      expect(actualMessage).to.deep.equal(expectedMessage)
+      expect(await L2SimpleStorage.crossDomainMsgSender()).to.equal(
+        await wallet.getAddress()
+      )
     })
 
     it('should revert if its target messenger is not set', async () => {
       const expectedStorageKey = ethers.utils.keccak256('0x1234')
       const expectedStorageValue = ethers.utils.keccak256('0x5678')
 
-      const calldata = L2SimpleStorageMessageReceiver.interface.encodeFunctionData(
+      const calldata = L2SimpleStorage.interface.encodeFunctionData(
         'setStorage',
-        [
-          expectedStorageKey,
-          expectedStorageValue
-        ]
+        [expectedStorageKey, expectedStorageValue]
       )
 
       await L1MockCrossDomainMessenger.setTargetMessenger(NULL_ADDRESS)
 
-      await expect(L1MockCrossDomainMessenger.sendMessage(
-        L2SimpleStorageMessageReceiver.address,
-        calldata,
-        {
-          from: await wallet.getAddress(),
-        }
-      )).to.be.revertedWith('Cannot send a message without setting the target messenger.')
+      await expect(
+        L1MockCrossDomainMessenger.sendMessage(
+          L2SimpleStorage.address,
+          calldata,
+          {
+            from: await wallet.getAddress(),
+          }
+        )
+      ).to.be.revertedWith(
+        'Cannot send a message without setting the target messenger.'
+      )
     })
   })
 })
