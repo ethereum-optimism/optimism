@@ -42,7 +42,7 @@ const abi = new ethers.utils.AbiCoder()
 // Empirically determined constant which is some extra gas the EM records due to running CALL, gasAfter - gasBefore, etc.
 // This is unfortunately not always the same--it will differ based on the size of calldata into the CALL.
 // However, that size is constant for these tests, since we only call consumeGas() below.
-const CONSUME_GAS_EXECUTION_OVERHEAD = 39967
+const CONSUME_GAS_EXECUTION_OVERHEAD = 39945
 
 /*********
  * TESTS *
@@ -153,7 +153,8 @@ describe('Execution Manager -- Gas Metering', () => {
     timestamp: number,
     queueOrigin: number,
     gasToConsume: number,
-    gasLimit: any = false
+    gasLimit: any = false,
+    blockNumber: number = 0
   ) => {
     const internalCallBytes = GasConsumer.interface.encodeFunctionData(
       'consumeGasInternalCall',
@@ -170,6 +171,7 @@ describe('Execution Manager -- Gas Metering', () => {
       'executeTransaction',
       [
         timestamp,
+        blockNumber,
         queueOrigin,
         gasConsumerAddress,
         internalCallBytes,

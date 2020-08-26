@@ -29,9 +29,11 @@ contract CanonicalTransactionChain is ContractResolver {
 
     address public sequencer;
     uint public forceInclusionPeriodSeconds;
+    uint public forceInclusionPeriodBlocks;
     uint public cumulativeNumElements;
     bytes32[] public batches;
     uint public lastOVMTimestamp;
+    uint public lastOVMBlockNumber;
 
 
     /*
@@ -53,6 +55,7 @@ contract CanonicalTransactionChain is ContractResolver {
     {
         sequencer = _sequencer;
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
+        forceInclusionPeriodBlocks = _forceInclusionPeriodSeconds / 13;
         lastOVMTimestamp = 0;
     }
 
@@ -86,6 +89,7 @@ contract CanonicalTransactionChain is ContractResolver {
     {
         return keccak256(abi.encodePacked(
             _batchHeader.timestamp,
+            _batchHeader.blockNumber,
             _batchHeader.isL1ToL2Tx, // TODO REPLACE WITH QUEUE ORIGIN (if you are a PR reviewer please lmk!)
             _batchHeader.elementsMerkleRoot,
             _batchHeader.numElementsInBatch,
@@ -94,11 +98,11 @@ contract CanonicalTransactionChain is ContractResolver {
     }
 
     /**
-     * Checks whether a sender is allowed to append to the chain.
+     * Checks whether an address is the sequencer.
      * @param _sender Address to check.
-     * @return Whether or not the address can append.
+     * @return Whether or not the address is the sequencer.
      */
-    function authenticateAppend(
+    function isSequencer(
         address _sender
     )
         public
@@ -121,7 +125,7 @@ contract CanonicalTransactionChain is ContractResolver {
 
         require(
             safetyQueue.isEmpty() || l1ToL2Header.timestamp <= safetyQueue.peekTimestamp(),
-            "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
+            "Must process older SafetyQueue batches first to enforce OVM timestamp monotonicity"
         );
 
         _appendQueueBatch(l1ToL2Header, true);
@@ -141,7 +145,7 @@ contract CanonicalTransactionChain is ContractResolver {
 
         require(
             l1ToL2Queue.isEmpty() || safetyHeader.timestamp <= l1ToL2Queue.peekTimestamp(),
-            "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
+            "Must process older L1ToL2Queue batches first to enforce OVM timestamp monotonicity"
         );
 
         _appendQueueBatch(safetyHeader, false);
@@ -155,7 +159,8 @@ contract CanonicalTransactionChain is ContractResolver {
      */
     function appendSequencerBatch(
         bytes[] memory _txBatch,
-        uint _timestamp
+        uint _timestamp,
+        uint _blockNumber
     )
         public
     {
@@ -163,7 +168,7 @@ contract CanonicalTransactionChain is ContractResolver {
         SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
 
         require(
-            authenticateAppend(msg.sender),
+            isSequencer(msg.sender),
             "Message sender does not have permission to append a batch"
         );
 
@@ -178,31 +183,62 @@ contract CanonicalTransactionChain is ContractResolver {
         );
 
         require(
+            _blockNumber + forceInclusionPeriodBlocks > block.number,
+            "Cannot submit a batch with a blockNumber older than the sequencer inclusion period"
+        );
+
+        require(
             _timestamp <= now,
             "Cannot submit a batch with a timestamp in the future"
         );
 
         require(
-            l1ToL2Queue.isEmpty() || _timestamp <= l1ToL2Queue.peekTimestamp(),
-            "Must process older L1ToL2Queue batches first to enforce timestamp monotonicity"
+            _blockNumber <= block.number,
+            "Cannot submit a batch with a blockNumber in the future"
         );
 
-        require(
-            safetyQueue.isEmpty() || _timestamp <= safetyQueue.peekTimestamp(),
-            "Must process older SafetyQueue batches first to enforce timestamp monotonicity"
-        );
+        if (!l1ToL2Queue.isEmpty()) {
+            require(
+                _timestamp <= l1ToL2Queue.peekTimestamp(),
+                "Must process older L1ToL2Queue batches first to enforce OVM timestamp monotonicity"
+            );
+
+            require(
+                _blockNumber <= l1ToL2Queue.peekBlockNumber(),
+                "Must process older L1ToL2Queue batches first to enforce OVM blockNumber monotonicity"
+            );
+        }
+
+        if (!safetyQueue.isEmpty()) {
+            require(
+                _timestamp <= safetyQueue.peekTimestamp(),
+                "Must process older SafetyQueue batches first to enforce OVM timestamp monotonicity"
+            );
+
+            require(
+                _blockNumber <= safetyQueue.peekBlockNumber(),
+                "Must process older SafetyQueue batches first to enforce OVM blockNumber monotonicity"
+            );
+        }
 
         require(
             _timestamp >= lastOVMTimestamp,
             "Timestamps must monotonically increase"
         );
 
+        require(
+            _blockNumber >= lastOVMBlockNumber,
+            "BlockNumbers must monotonically increase"
+        );
+
         lastOVMTimestamp = _timestamp;
+        lastOVMBlockNumber = _blockNumber;
 
         RollupMerkleUtils merkleUtils = resolveRollupMerkleUtils();
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             _timestamp,
-            false, // isL1ToL2Tx
+            _blockNumber,
+            false, // isL1ToL2Tx TODO: replace with queue origin
             merkleUtils.getMerkleRoot(_txBatch), // elementsMerkleRoot
             _txBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
@@ -270,18 +306,21 @@ contract CanonicalTransactionChain is ContractResolver {
         internal
     {
         uint timestamp = _timestampedHash.timestamp;
+        uint blockNumber = _timestampedHash.blockNumber;
 
         require(
-            timestamp + forceInclusionPeriodSeconds <= now || authenticateAppend(msg.sender),
+            timestamp + forceInclusionPeriodSeconds <= now || isSequencer(msg.sender),
             "Message sender does not have permission to append this batch"
         );
 
         lastOVMTimestamp = timestamp;
+        lastOVMBlockNumber = blockNumber;
         bytes32 elementsMerkleRoot = _timestampedHash.txHash;
         uint numElementsInBatch = 1;
 
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
             timestamp,
+            blockNumber,
             _isL1ToL2Tx,
             elementsMerkleRoot,
             numElementsInBatch,

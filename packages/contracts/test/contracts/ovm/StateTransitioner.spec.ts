@@ -53,6 +53,7 @@ const DEFAULT_TX_NUM_STORAGE_UPDATES: number = 4
 
 interface OVMTransactionData {
   timestamp: number
+  blockNumber: number
   queueOrigin: number
   ovmEntrypoint: string
   callBytes: string
@@ -65,6 +66,7 @@ interface OVMTransactionData {
 const makeDummyTransaction = (calldata: string): OVMTransactionData => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
+    blockNumber: 0,
     queueOrigin: 0,
     ovmEntrypoint: NULL_ADDRESS,
     callBytes: calldata,
@@ -252,6 +254,7 @@ const makeTransactionData = async (
 
   return {
     timestamp: 1,
+    blockNumber: 1,
     queueOrigin: 1,
     ovmEntrypoint: target.address,
     callBytes: calldata,

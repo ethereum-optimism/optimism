@@ -44,13 +44,6 @@ jobs:
           path: packages/ovm/node_modules
           key: ${{ runner.os }}-${{ hashFiles('packages/ovm/package.json') }}
 
-      - name: Cache optimistic-game-semantics deps
-        uses: actions/cache@v1
-        id: cache_optimistic-game-semantics
-        with:
-          path: packages/optimistic-game-semantics/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('packages/optimistic-game-semantics/package.json') }}
-
       - name: Cache rollup-full-node deps
         uses: actions/cache@v1
         id: cache_rollup-full-node

@@ -69,13 +69,6 @@ jobs:
           path: packages/integration-test-utils/node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/integration-test-utils/package.json') }}
 
-      - name: Cache optimistic-game-semantics deps
-        uses: actions/cache@v1
-        id: cache_optimistic-game-semantics
-        with:
-          path: packages/optimistic-game-semantics/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/optimistic-game-semantics/package.json') }}
-
       - name: Cache ovm toolchain deps
         uses: actions/cache@v1
         id: cache_ovm-toolchain

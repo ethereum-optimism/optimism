@@ -19,6 +19,7 @@ import {
 
 interface OVMTransactionData {
   timestamp: number
+  blockNumber: number
   queueOrigin: number
   ovmEntrypoint: string
   callBytes: string
@@ -34,6 +35,7 @@ const FORCE_INCLUSION_PERIOD = 600
 const makeDummyTransaction = (calldata: string): OVMTransactionData => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
+    blockNumber: 0,
     queueOrigin: 0,
     ovmEntrypoint: NULL_ADDRESS,
     callBytes: calldata,
@@ -63,14 +65,15 @@ const appendTransactionBatch = async (
   canonicalTransactionChain: Contract,
   sequencer: Signer,
   batch: string[]
-): Promise<number> => {
+): Promise<number[]> => {
+  const blockNumber = await canonicalTransactionChain.provider.getBlockNumber()
   const timestamp = Math.floor(Date.now() / 1000)
 
   await canonicalTransactionChain
     .connect(sequencer)
-    .appendSequencerBatch(batch, timestamp)
+    .appendSequencerBatch(batch, timestamp, blockNumber)
 
-  return timestamp
+  return [timestamp, blockNumber]
 }
 
 const appendAndGenerateTransactionBatch = async (
@@ -80,7 +83,7 @@ const appendAndGenerateTransactionBatch = async (
   batchIndex: number = 0,
   cumulativePrevElements: number = 0
 ): Promise<TxChainBatch> => {
-  const timestamp = await appendTransactionBatch(
+  const [timestamp, blockNumber] = await appendTransactionBatch(
     canonicalTransactionChain,
     sequencer,
     batch
@@ -88,6 +91,7 @@ const appendAndGenerateTransactionBatch = async (
 
   const localBatch = new TxChainBatch(
     timestamp,
+    blockNumber,
     false,
     batchIndex,
     cumulativePrevElements,
