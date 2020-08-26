@@ -4,23 +4,21 @@ import { getLogger, logError, Logger, sleep } from '@eth-optimism/core-utils'
 import * as AsyncLock from 'async-lock'
 
 /* Internal Imports */
-import { QueuedPersistedProcessor, RDB, Row } from '../types'
-import { last } from 'ethereum-waffle/dist/utils'
+import {
+  QueuedPersistedProcessor,
+  SequentialProcessingItem,
+  SequentialProcessingDataService,
+} from '../../types'
 
 const log: Logger = getLogger('base-persisted-queue')
 const lockKey: string = 'lock_key'
-
-export interface QueuedPersistedProcessorItem<T> {
-  item: T
-  processed: boolean
-}
 
 export abstract class BaseQueuedPersistedProcessor<T>
   implements QueuedPersistedProcessor<T> {
   private processingLock: AsyncLock
 
   protected constructor(
-    private readonly rdb: RDB,
+    private readonly dataService: SequentialProcessingDataService,
     private readonly persistenceKey: string,
     startIndex: number = 0,
     private readonly retrySleepDelayMillis: number = 1000
@@ -32,7 +30,11 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @inheritDoc
    */
   public async add(index: number, item: T): Promise<void> {
-    await this.persistItem(index, item)
+    await this.dataService.persistItem(
+      index,
+      await this.serializeItem(item),
+      this.persistenceKey
+    )
 
     // purposefully not awaiting response
     this.handleIfReady(index, item)
@@ -49,7 +51,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
       `Marking index ${index} as processed for processor ${this.persistenceKey}`
     )
 
-    await this.updateToProcessed(index)
+    await this.dataService.updateToProcessed(index, this.persistenceKey)
 
     setTimeout(() => {
       this.handleIfExists(index + 1)
@@ -60,24 +62,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @inheritDoc
    */
   public async getLastIndexProcessed(): Promise<number> {
-    const res = await this.rdb.select(
-      `SELECT MAX(sequence_number) as last_processed
-      FROM sequential_processing
-      WHERE 
-        sequence_key = ${this.persistenceKey}
-        AND processed = TRUE`
-    )
-
-    if (
-      !res ||
-      !res.length ||
-      res[0]['last_processed'] === null ||
-      res[0]['last_processed'] === undefined
-    ) {
-      return -1
-    }
-
-    return res[0]['last_processed']
+    return this.dataService.getLastIndexProcessed(this.persistenceKey)
   }
 
   /**
@@ -113,43 +98,6 @@ export abstract class BaseQueuedPersistedProcessor<T>
     return this.handleIfExists(lastProcessed + 1)
   }
 
-  protected async updateToProcessed(index: number): Promise<void> {
-    return this.rdb.execute(
-      `UPDATE sequential_processing
-      SET processed = TRUE
-      WHERE 
-        sequence_key = '${this.persistenceKey}'
-        AND sequence_number = ${index}
-      `
-    )
-  }
-
-  /**
-   * Fetches the item with the provided index from storage if it exists.
-   *
-   * @param index The index in question.
-   * @returns The fetched item if it exists, undefined otherwise.
-   */
-  protected async fetchItem(
-    index: number
-  ): Promise<QueuedPersistedProcessorItem<T>> {
-    const res: Row[] = await this.rdb.select(
-      `SELECT data_to_process, processed
-      FROM sequential_processing
-      WHERE
-        sequence_key = '${this.persistenceKey}'
-        AND sequence_number = ${index}`
-    )
-
-    if (!res || !res.length || !res[0]['data_to_process']) {
-      return undefined
-    }
-    return {
-      item: await this.deserializeItem(res[0]['data_to_process']),
-      processed: !!res[0]['processed'],
-    }
-  }
-
   /**
    * Log utility that prepends logs with this specific instance's persistence key.
    *
@@ -165,7 +113,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
         log.error(message)
       }
     } else {
-      this.log(message)
+      log.debug(message)
     }
   }
 
@@ -226,7 +174,10 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @param index The index in question.
    */
   private async handleIfExists(index: number): Promise<void> {
-    const item: QueuedPersistedProcessorItem<T> = await this.fetchItem(index)
+    const item: SequentialProcessingItem = await this.dataService.fetchItem(
+      index,
+      this.persistenceKey
+    )
 
     if (!item) {
       this.log(
@@ -243,33 +194,6 @@ export abstract class BaseQueuedPersistedProcessor<T>
       return
     }
 
-    await this.handleIfReady(index, item.item)
-  }
-
-  /**
-   * Stores the provided item, associating it with the provided index.
-   *
-   * @param index The index of the item.
-   * @param item The item.
-   */
-  private async persistItem(index: number, item: T): Promise<void> {
-    const serializedItem: string = await this.serializeItem(item)
-
-    try {
-      await this.rdb.execute(
-        `INSERT INTO sequential_processing(sequence_key, sequence_number, data_to_process)
-        VALUES('${this.persistenceKey}', ${index}, '${serializedItem}')
-        ON CONFLICT ON CONSTRAINT sequential_processing_sequence_key_sequence_number_key DO NOTHING`
-      )
-    } catch (e) {
-      this.log(
-        `Error persisting index ${index} data: ${serializedItem}.`,
-        true,
-        e
-      )
-      throw e
-    }
-
-    this.log(`Persisted item with index ${index}: ${serializedItem}`)
+    return this.handleIfReady(index, await this.deserializeItem(item.data))
   }
 }

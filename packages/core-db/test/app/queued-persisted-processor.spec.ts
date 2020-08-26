@@ -6,25 +6,27 @@ import { sleep } from '@eth-optimism/core-utils'
 /* Internal Imports */
 import {
   BaseQueuedPersistedProcessor,
-  newInMemoryDB,
-  QueuedPersistedProcessorItem,
-} from '../../src/app'
-import { DB } from '../../src/types/db'
+  MockedDataService,
+  SequentialProcessingItem,
+} from '../../src'
+import { SequentialProcessingDataService } from '../../src/types/queue'
+
+const persistenceKey: string = 'test'
 
 class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   string
 > {
-  public lastProcessedIndex: number = -1
   public callMarkProcessed: boolean = true
   public throwOnceHandlingNextItem: boolean = false
   public handledQueue: string[]
-  public items: Map<number, QueuedPersistedProcessorItem<string>>
 
   public static async create(
+    dataService: SequentialProcessingDataService,
     startIndex: number = 0,
     retrySleepDelayMillis: number = 1000
   ): Promise<DummyQueuedPersistedProcessor> {
     const processor = new DummyQueuedPersistedProcessor(
+      dataService,
       startIndex,
       retrySleepDelayMillis
     )
@@ -33,12 +35,12 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   }
 
   private constructor(
+    dataService: SequentialProcessingDataService,
     startIndex: number = 0,
     retrySleepDelayMillis: number = 1000
   ) {
-    super(undefined, 'test', startIndex, retrySleepDelayMillis)
+    super(dataService, persistenceKey, startIndex, retrySleepDelayMillis)
     this.handledQueue = []
-    this.items = new Map<number, QueuedPersistedProcessorItem<string>>()
   }
 
   protected async handleNextItem(index: number, item: string): Promise<void> {
@@ -59,30 +61,17 @@ class DummyQueuedPersistedProcessor extends BaseQueuedPersistedProcessor<
   protected async deserializeItem(item: string): Promise<string> {
     return item
   }
-
-  protected async updateToProcessed(index: number): Promise<void> {
-    this.items.get(index).processed = true
-  }
-
-  protected async fetchItem(
-    index: number
-  ): Promise<QueuedPersistedProcessorItem<string>> {
-    return this.items.get(index)
-  }
-
-  public async getLastIndexProcessed(): Promise<number> {
-    return this.lastProcessedIndex
-  }
 }
 
 describe('Queued Persisted Processor', () => {
-  let db: DB
+  let dataService: MockedDataService
   let processor: DummyQueuedPersistedProcessor
   const retrySleepDelayMillis: number = 100
 
   beforeEach(async () => {
-    db = newInMemoryDB()
+    dataService = new MockedDataService()
     processor = await DummyQueuedPersistedProcessor.create(
+      dataService,
       0,
       retrySleepDelayMillis
     )
@@ -95,6 +84,14 @@ describe('Queued Persisted Processor', () => {
       await sleep(10)
       processor.handledQueue.length.should.equal(1, `Queue item not processed!`)
       processor.handledQueue[0].should.equal(item, `Incorrect item processed!`)
+    })
+
+    it('wont handle item if already processed', async () => {
+      const item = 'Number 0!'
+      dataService.lastProcessedIndex.set(persistenceKey, 0)
+      await processor.add(0, item)
+      await sleep(10)
+      processor.handledQueue.length.should.equal(0, `Queue item processed!`)
     })
 
     it('does not handle items out of order', async () => {
@@ -198,7 +195,7 @@ describe('Queued Persisted Processor', () => {
 
   describe('Start with existing state', () => {
     it('restarts with existing state (empty)', async () => {
-      const secondProc = await DummyQueuedPersistedProcessor.create()
+      const secondProc = await DummyQueuedPersistedProcessor.create(dataService)
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         0,
@@ -227,7 +224,10 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      const secondProc = await DummyQueuedPersistedProcessor.create()
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        dataService,
+        0
+      )
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         1,
@@ -246,7 +246,10 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      const secondProc = await DummyQueuedPersistedProcessor.create()
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        dataService,
+        0
+      )
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         0,
@@ -264,7 +267,10 @@ describe('Queued Persisted Processor', () => {
       )
       processor.handledQueue[0].should.equal(item, `Incorrect item processed`)
 
-      const secondProc = await DummyQueuedPersistedProcessor.create()
+      const secondProc = await DummyQueuedPersistedProcessor.create(
+        dataService,
+        0
+      )
       await sleep(10)
       secondProc.handledQueue.length.should.equal(
         0,
