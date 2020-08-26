@@ -13,7 +13,7 @@ import { DB } from '../../../src/types'
 const log = getLogger('ethereum-block-processor-test', true)
 
 const timeout = 25_000
-describe('Block Subscription', () => {
+describe.only('Block Subscription', () => {
   let provider
   let wallets
   let ownerWallet
@@ -36,9 +36,6 @@ describe('Block Subscription', () => {
     log.debug(`Connection info: ${JSON.stringify(provider.connection)}`)
 
     tokenContract = await deployTokenContract(ownerWallet, initialSupply)
-
-    // Wait for deploy block to be mined
-    await sleep(25)
 
     db = newInMemoryDB()
     blockProcessor = new EthereumBlockProcessor(db)
