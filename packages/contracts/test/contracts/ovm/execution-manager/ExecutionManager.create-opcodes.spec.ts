@@ -8,6 +8,7 @@ import {
   add0x,
   TestUtils,
   NULL_ADDRESS,
+  ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer, providers, Wallet } from 'ethers'
 import { fromPairs } from 'lodash'
@@ -132,6 +133,25 @@ describe('ExecutionManager -- Create opcodes', () => {
         }
       )
     })
+    it('returns 00000s when attempting to redeploy with same nonce', async () => {
+      // first actually CREATE
+      const tx = {
+        to: executionManager.address,
+        data: add0x(
+          methodIds.ovmCREATE + encodeRawArguments([deployTx.data])
+        ),
+        gasLimit: GAS_LIMIT,
+      }
+      await wallet.sendTransaction(tx)
+
+      // reset nonce (contract is zero address since direct call to ovmCREATE does not initialize an active contract)
+      await resolver.contracts.stateManager.setOvmContractNonce(ZERO_ADDRESS, 0)
+      
+      // now try to CREATE with same nonce
+      const result = await executionManager.provider.call(tx)
+      const address: string = remove0x(result)
+      address.should.equal('00'.repeat(32), 'Should not be 0 address')
+    })
   })
 
   describe('ovmCREATE2', async () => {
@@ -172,13 +192,7 @@ describe('ExecutionManager -- Create opcodes', () => {
         gasLimit: GAS_LIMIT,
       }
 
-      // apply first tx to
-      const txSigner = new ethers.Wallet(
-        '0x1234123412341234',
-        executionManager.provider
-      )
-      const signedTx = await txSigner.signTransaction(tx)
-      await executionManager.provider.sendTransaction(signedTx)
+      await wallet.sendTransaction(tx)
 
       const result = await executionManager.provider.call({
         to: executionManager.address,

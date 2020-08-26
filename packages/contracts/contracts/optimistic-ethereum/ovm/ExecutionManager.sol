@@ -683,6 +683,8 @@ contract ExecutionManager is ContractResolver {
         uint creatorNonce = stateManager.getOvmContractNonce(creator);
         address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE(creator, creatorNonce);
 
+        abortIfAlreadyCreatedOVMContract(_newOvmContractAddress);
+
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
 
@@ -746,23 +748,7 @@ contract ExecutionManager is ContractResolver {
         address creator = executionContext.ovmActiveContract;
         address _newOvmContractAddress = ContractAddressGenerator.getAddressFromCREATE2(creator, _salt, _ovmInitcode);
 
-        // Check for collisions and return 0 if the contract already exists. (see EIP 684)
-        StateManager stateManager = resolveStateManager();
-        address existingCodeContractAddress = stateManager.getCodeContractAddressFromOvmAddress(_newOvmContractAddress);
-        uint existingCodeContractSize;
-        assembly {
-            existingCodeContractSize := extcodesize(existingCodeContractAddress)
-        }
-        if (
-            stateManager.getOvmContractNonce(_newOvmContractAddress) != 0 ||
-            existingCodeContractSize > 0
-        ) {
-            assembly {
-                let returnData := mload(0x40)
-                mstore(returnData, 0)
-                return(returnData, 0x20)
-            }
-        }
+        abortIfAlreadyCreatedOVMContract(_newOvmContractAddress);
 
         // Next we need to actually create the contract in our state at that address
         createNewContract(_newOvmContractAddress, _ovmInitcode);
@@ -1323,6 +1309,34 @@ contract ExecutionManager is ContractResolver {
 
         // Emit CreatedContract event! We've created a new contract!
         emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
+    }
+
+    /**
+     * Checks whether an OVM contract already exists at the given address, and returns 00s if it does.
+     * Follows the address collision rules specified by EIP 684.
+     * @param _ovmContractAddress The OVM contract address  to check.
+     */
+    function abortIfAlreadyCreatedOVMContract(
+        address _ovmContractAddress
+    ) internal {
+        // Check for collisions and return 0 if the contract already exists. (see EIP 684)
+        StateManager stateManager = resolveStateManager();
+        address existingCodeContractAddress = stateManager.getCodeContractAddressFromOvmAddress(_ovmContractAddress);
+        uint existingCodeContractSize;
+        assembly {
+            existingCodeContractSize := extcodesize(existingCodeContractAddress)
+        }
+        
+        if (
+            existingCodeContractSize > 0 ||
+            stateManager.getOvmContractNonce(_ovmContractAddress) != 0
+        ) {
+            assembly {
+                let returnData := mload(0x40)
+                mstore(returnData, 0)
+                return(returnData, 0x20)
+            }
+        }
     }
 
     /**
