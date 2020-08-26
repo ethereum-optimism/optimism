@@ -492,6 +492,9 @@ describe('StateTransitioner', () => {
 
   let stateTrie: any
   let test: AccountStorageProofTest
+  let stateTransitioner: Contract
+  let stateManager: Contract
+  let initializedDummyTxSnapshot
   before(async () => {
     stateTrie = makeInitialStateTrie(
       fraudTester.address,
@@ -509,12 +512,6 @@ describe('StateTransitioner', () => {
       fraudTester.address,
       DUMMY_ACCOUNT_STORAGE()[0].key
     )
-  })
-
-  let stateTransitioner: Contract
-  let stateManager: Contract
-  let transactionData: OVMTransactionData
-  beforeEach(async () => {
     ;[stateTransitioner, stateManager] = await initStateTransitioner(
       StateTransitioner,
       StateManager,
@@ -522,6 +519,27 @@ describe('StateTransitioner', () => {
       stateTrie,
       makeDummyTransaction('0x00')
     )
+    initializedDummyTxSnapshot = await ethers.provider.send(
+      'evm_snapshot',
+      []
+    )
+  })
+
+  const revertToDummyTxSnapshot = async () => {
+    await ethers.provider.send(
+      'evm_revert',
+      [initializedDummyTxSnapshot]
+    )
+    // evm_revert deletes the snapshot so reset it right after
+    initializedDummyTxSnapshot = await ethers.provider.send(
+      'evm_snapshot',
+      []
+    )
+  }
+
+  let transactionData: OVMTransactionData
+  beforeEach(async () => {
+    await revertToDummyTxSnapshot()
   })
 
   describe('Initialization', async () => {
@@ -547,16 +565,21 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly reject inclusion of a contract with an invalid nonce', async () => {
-        try {
-          await stateTransitioner.proveContractInclusion(
-            fraudTester.address,
-            fraudTester.address,
-            123, // Wrong nonce.
-            test.stateTrieWitness
-          )
-        } catch (e) {
-          expect(e.toString()).to.contain('Invalid account state provided.')
-        }
+        await ethers.provider.send(
+          'evm_revert',
+          [initializedDummyTxSnapshot]
+        )
+        await TestUtils.assertRevertsAsync(
+          'Invalid account state provided.',
+          async () => {
+            await stateTransitioner.proveContractInclusion(
+              fraudTester.address,
+              fraudTester.address,
+              123, // Wrong nonce.
+              test.stateTrieWitness
+            )
+          }
+        )
 
         expect(
           await stateManager.isVerifiedContract(fraudTester.address)
@@ -597,17 +620,18 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        try {
-          await stateTransitioner.proveStorageSlotInclusion(
-            fraudTester.address,
-            DUMMY_ACCOUNT_STORAGE()[0].key,
-            DUMMY_ACCOUNT_STORAGE()[1].val, // Different value.
-            test.stateTrieWitness,
-            test.storageTrieWitness
-          )
-        } catch (e) {
-          expect(e.toString()).to.contain('Invalid account state provided.')
-        }
+        await TestUtils.assertRevertsAsync(
+          'Invalid account state provided.',
+          async () => {
+            await stateTransitioner.proveStorageSlotInclusion(
+              fraudTester.address,
+              DUMMY_ACCOUNT_STORAGE()[0].key,
+              DUMMY_ACCOUNT_STORAGE()[1].val, // Different value.
+              test.stateTrieWitness,
+              test.storageTrieWitness
+            )
+          }
+        )
 
         expect(
           await stateManager.isVerifiedStorage(
