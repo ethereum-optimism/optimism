@@ -137,16 +137,14 @@ describe('ExecutionManager -- Create opcodes', () => {
       // first actually CREATE
       const tx = {
         to: executionManager.address,
-        data: add0x(
-          methodIds.ovmCREATE + encodeRawArguments([deployTx.data])
-        ),
+        data: add0x(methodIds.ovmCREATE + encodeRawArguments([deployTx.data])),
         gasLimit: GAS_LIMIT,
       }
       await wallet.sendTransaction(tx)
 
       // reset nonce (contract is zero address since direct call to ovmCREATE does not initialize an active contract)
       await resolver.contracts.stateManager.setOvmContractNonce(ZERO_ADDRESS, 0)
-      
+
       // now try to CREATE with same nonce
       const result = await executionManager.provider.call(tx)
       const address: string = remove0x(result)
