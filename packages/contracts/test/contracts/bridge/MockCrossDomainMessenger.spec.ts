@@ -5,7 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { ContractFactory, Contract, Signer } from 'ethers'
 import { NULL_ADDRESS } from '@eth-optimism/core-utils'
 
-describe.only('MockCrossDomainMessenger', () => {
+describe('MockCrossDomainMessenger', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()
