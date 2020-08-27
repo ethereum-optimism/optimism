@@ -1,5 +1,5 @@
 /* External Imports */
-import { DB } from '@eth-optimism/core-db'
+import { RDB, SequentialProcessingDataService } from '@eth-optimism/core-db'
 import { getLogger, Logger } from '@eth-optimism/core-utils'
 
 import {
@@ -28,21 +28,21 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    * Creates a L2ChainDataPersister that subscribes to blocks, processes all
    * transactions, and inserts relevant data into the provided RDB.
    *
-   * @param db The DB to use to persist the queue of Block objects.
+   * @param processingDataService The data service used for queued persisted processing.
    * @param dataService The L2 Data Service handling persistence of relevant data.
    * @param l2Provider The provider to use to connect to L2 to subscribe & fetch block / tx data.
    * @param earliestBlock The earliest block to sync.
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
-    db: DB,
+    processingDataService: SequentialProcessingDataService,
     dataService: L2DataService,
     l2Provider: Provider,
     earliestBlock: number = 0,
     persistenceKey: string = L2ChainDataPersister.persistenceKey
   ): Promise<L2ChainDataPersister> {
     const processor = new L2ChainDataPersister(
-      db,
+      processingDataService,
       dataService,
       monkeyPatchL2Provider(l2Provider),
       earliestBlock,
@@ -53,13 +53,13 @@ export class L2ChainDataPersister extends ChainDataProcessor {
   }
 
   private constructor(
-    db: DB,
+    processingDataService: SequentialProcessingDataService,
     private readonly l2DataService: L2DataService,
     private readonly l2Provider: Provider,
     private earliestBlock: number,
     persistenceKey: string
   ) {
-    super(db, persistenceKey, earliestBlock)
+    super(processingDataService, persistenceKey, earliestBlock)
   }
 
   /**
