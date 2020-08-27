@@ -1,0 +1,10 @@
+# Ignored packages
+packages/docs
+packages/gas-profiler
+packages/integration-test-utils
+packages/test-rollup-workflow
+
+# Ignored dirs
+docker
+db
+
