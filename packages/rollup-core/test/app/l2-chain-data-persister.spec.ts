@@ -1,5 +1,5 @@
 /* External Imports */
-import { newInMemoryDB } from '@eth-optimism/core-db'
+import { InMemoryProcessingDataService } from '@eth-optimism/core-db'
 import {
   BigNumber,
   keccak256FromUtf8,
@@ -120,16 +120,16 @@ const getBlock = (hash: string, txHashes: string[], number: number = 0) => {
 }
 
 describe('L2 Chain Data Persister', () => {
-  let db
+  let processingDataService: InMemoryProcessingDataService
   let chainDataPersister: L2ChainDataPersister
   let dataService: MockDataService
   let provider: MockProvider
   beforeEach(async () => {
-    db = newInMemoryDB()
+    processingDataService = new InMemoryProcessingDataService()
     dataService = new MockDataService()
     provider = new MockProvider()
     chainDataPersister = await L2ChainDataPersister.create(
-      db,
+      processingDataService,
       dataService,
       provider
     )

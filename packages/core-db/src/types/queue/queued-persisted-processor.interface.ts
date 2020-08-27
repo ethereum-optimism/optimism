@@ -22,7 +22,8 @@ export interface QueuedPersistedProcessor<T> {
    */
   markProcessed(index: number): Promise<void>
 
+  /**
+   * Gets the last index processed by this processor.
+   */
   getLastIndexProcessed(): Promise<number>
-
-  getNextIndexToProcess(): Promise<number>
 }
