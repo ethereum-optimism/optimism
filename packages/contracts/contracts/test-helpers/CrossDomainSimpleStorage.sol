@@ -1,6 +1,6 @@
 pragma solidity ^0.5.0;
 
-import { ICrossDomainMessenger} from "../optimistic-ethereum/bridge/CrossDomainMessenger.interface.sol";
+import { ICrossDomainMessenger } from "../optimistic-ethereum/bridge/CrossDomainMessenger.interface.sol";
 import { SimpleStorage } from "./SimpleStorage.sol";
 
 contract CrossDomainSimpleStorage is SimpleStorage {
@@ -12,7 +12,7 @@ contract CrossDomainSimpleStorage is SimpleStorage {
     }
 
     function crossDomainSetStorage(bytes32 key, bytes32 value) public {
-        crossDomainMsgSender = crossDomainMessenger.crossDomainMsgSender();
+        crossDomainMsgSender = crossDomainMessenger.xDomainMessageSender();
         setStorage(key, value);
     }
 }

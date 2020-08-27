@@ -1,21 +1,12 @@
 pragma solidity ^0.5.0;
-pragma experimental ABIEncoderV2;
+
+/* Interface Imports */
+import { IL2ToL1MessagePasser } from "./L2ToL1MessagePasser.interface.sol";
 
 /**
  * @title L2ToL1MessagePasser
  */
-contract L2ToL1MessagePasser {
-    /*
-     * Events
-     */
-
-    event L2ToL1Message(
-       uint _nonce,
-       address _ovmSender,
-       bytes _callData
-    );
-
-
+contract L2ToL1MessagePasser is IL2ToL1MessagePasser {
     /*
      * Contract Variables
      */

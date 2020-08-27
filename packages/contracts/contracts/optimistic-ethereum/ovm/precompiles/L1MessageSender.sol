@@ -1,13 +1,16 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/* Interface Imports */
+import { IL1MessageSender } from "./L1MessageSender.interface.sol";
+
 /* Contract Imports */
 import { ExecutionManager } from "../ExecutionManager.sol";
 
 /**
  * @title L1MessageSender
  */
-contract L1MessageSender {
+contract L1MessageSender is IL1MessageSender {
     /*
      * Contract Variables
      */
