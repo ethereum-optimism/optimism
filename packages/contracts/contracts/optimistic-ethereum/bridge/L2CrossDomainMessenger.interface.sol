@@ -4,6 +4,21 @@ pragma solidity ^0.5.0;
  * @title IL2CrossDomainMessenger
  */
 contract IL2CrossDomainMessenger {
+    /*
+     * Contract Variables
+     */
+
+    mapping (bytes32 => bool) public receivedMessages;
+    mapping (bytes32 => bool) public sentMessages;
+    address public targetMessengerAddress;
+    uint256 public messageNonce;
+    address public xDomainMessageSender;
+
+
+    /*
+     * Public Functions
+     */
+
     /**
      * Sends a cross domain message to the target messenger.
      * @param _target Target contract address.

@@ -9,6 +9,16 @@ import { DataTypes } from "../utils/libraries/DataTypes.sol";
  */
 contract IL1CrossDomainMessenger {
     /*
+     * Contract Variables
+     */
+
+    mapping (bytes32 => bool) public receivedMessages;
+    mapping (bytes32 => bool) public sentMessages;
+    address public targetMessengerAddress;
+    uint256 public messageNonce;
+    address public xDomainMessageSender;
+
+    /*
      * Data Structures
      */
 
