@@ -6,9 +6,9 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Build and Test
+          name: Build
           command: |
-            make all
+            make docker-build
           no_output_timeout: 2400s
 
   publish:

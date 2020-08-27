@@ -30,7 +30,7 @@ FROM vault:latest
 ARG always_upgrade
 RUN echo ${always_upgrade} > /dev/null && apk update && apk upgrade
 RUN apk add bash openssl jq
-
+USER vault
 WORKDIR /app
 RUN mkdir -p /home/vault/ca \
     /home/vault/config \
