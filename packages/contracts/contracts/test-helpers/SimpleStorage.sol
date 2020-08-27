@@ -1,44 +1,19 @@
 pragma solidity ^0.5.0;
 
-/* Testing Imports */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 contract SimpleStorage {
     mapping(bytes32 => bytes32) public builtInStorage;
 
     function setStorage(bytes32 key, bytes32 value) public {
         bytes memory EMcalldata = abi.encodeWithSelector(bytes4(keccak256(bytes("ovmSSTORE()"))), key, value);
 
-        // // #if FLAG_IS_DEBUG
-        // console.log("Generated the following calldata for the EM (ovmSSTORE op):");
-        // console.logBytes(EMcalldata);
-        // // #endif
-
         (bool success,) = msg.sender.call(EMcalldata);
 
-        // // #if FLAG_IS_DEBUG
-        // console.log("call to ovmSSTORE was:");
-        // console.log(success);
-        // // #endif
     }
 
     function getStorage(bytes32 key) public returns (bytes32) {
         bytes memory EMcalldata = abi.encodeWithSelector(bytes4(keccak256(bytes("ovmSLOAD()"))), key);
 
-        // // #if FLAG_IS_DEBUG
-        // console.log("Generated the following calldata for the EM (ovmSLOAD op):");
-        // console.logBytes(EMcalldata);
-        // // #endif
-
         (bool success, bytes memory response) = msg.sender.call(EMcalldata);
-
-        // // #if FLAG_IS_DEBUG
-        // console.log("Got the following response from the EM (ovmSLOAD op):");
-        // console.log(success);
-        // console.logBytes(response);
-        // console.log("which converts to the following bytes32:");
-        // console.logBytes32(bytesToBytes32(response));
-        // // #endif
 
         return bytesToBytes32(response);
     }
