@@ -1,5 +1,5 @@
 /* External Imports */
-import { DB } from '@eth-optimism/core-db'
+import { RDB, SequentialProcessingDataService } from '@eth-optimism/core-db'
 import { getLogger, Logger } from '@eth-optimism/core-utils'
 
 import {
@@ -10,11 +10,7 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import {
-  L2DataService,
-  LogHandlerContext,
-  TransactionOutput,
-} from '../../../types'
+import { L2DataService, TransactionOutput } from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 import { monkeyPatchL2Provider } from '../../utils'
 import { BigNumber, remove0x } from '@eth-optimism/core-utils/build'
@@ -32,21 +28,24 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    * Creates a L2ChainDataPersister that subscribes to blocks, processes all
    * transactions, and inserts relevant data into the provided RDB.
    *
-   * @param db The DB to use to persist the queue of Block objects.
+   * @param processingDataService The data service used for queued persisted processing.
    * @param dataService The L2 Data Service handling persistence of relevant data.
    * @param l2Provider The provider to use to connect to L2 to subscribe & fetch block / tx data.
+   * @param earliestBlock The earliest block to sync.
    * @param persistenceKey The persistence key to use for this instance within the provided DB.
    */
   public static async create(
-    db: DB,
+    processingDataService: SequentialProcessingDataService,
     dataService: L2DataService,
     l2Provider: Provider,
+    earliestBlock: number = 0,
     persistenceKey: string = L2ChainDataPersister.persistenceKey
   ): Promise<L2ChainDataPersister> {
     const processor = new L2ChainDataPersister(
-      db,
+      processingDataService,
       dataService,
       monkeyPatchL2Provider(l2Provider),
+      earliestBlock,
       persistenceKey
     )
     await processor.init()
@@ -54,52 +53,58 @@ export class L2ChainDataPersister extends ChainDataProcessor {
   }
 
   private constructor(
-    db: DB,
+    processingDataService: SequentialProcessingDataService,
     private readonly l2DataService: L2DataService,
     private readonly l2Provider: Provider,
+    private earliestBlock: number,
     persistenceKey: string
   ) {
-    super(db, persistenceKey)
+    super(processingDataService, persistenceKey, earliestBlock)
   }
 
   /**
    * @inheritDoc
    */
   protected async handleNextItem(index: number, block: Block): Promise<void> {
-    log.debug(`handling block ${block.number}.`)
+    try {
+      log.debug(`handling block ${block.number}.`)
 
-    if (!block.transactions || !block.transactions.length) {
-      log.error(`Received L2 block #${index} with 0 transactions!`)
+      if (!block.transactions || !block.transactions.length) {
+        log.error(`Received L2 block #${index} with 0 transactions!`)
+        return this.markProcessed(index)
+      }
+
+      if (block.transactions.length > 1) {
+        log.error(
+          `Received ${block.transactions.length} transactions for block #${block.number}`
+        )
+      }
+
+      const txHashes: string[] = block.transactions.map((x) =>
+        typeof x !== 'string' ? x['hash'] : x
+      )
+
+      const txs: any[] = await Promise.all([
+        ...txHashes.map(
+          (hash) => this.l2Provider.getTransaction(hash) as Promise<any>
+        ),
+        ...txHashes.map((hash) => this.l2Provider.getTransactionReceipt(hash)),
+      ])
+
+      for (let i = 0; i < block.transactions.length; i++) {
+        const txAndRoot: TransactionOutput = L2ChainDataPersister.getTransactionAndRoot(
+          block,
+          txs[i],
+          txs[i + block.transactions.length]
+        )
+        await this.l2DataService.insertL2TransactionOutput(txAndRoot)
+      }
+
       return this.markProcessed(index)
+    } catch (e) {
+      this.logError(`Error processing block ${block.number}`, e)
+      throw e
     }
-
-    if (block.transactions.length > 1) {
-      log.error(
-        `Received ${block.transactions.length} transactions for block #${block.number}`
-      )
-    }
-
-    const txHashes: string[] = block.transactions.map((x) =>
-      typeof x !== 'string' ? x['hash'] : x
-    )
-
-    const txs: any[] = await Promise.all([
-      ...txHashes.map(
-        (hash) => this.l2Provider.getTransaction(hash) as Promise<any>
-      ),
-      ...txHashes.map((hash) => this.l2Provider.getTransactionReceipt(hash)),
-    ])
-
-    for (let i = 0; i < block.transactions.length; i++) {
-      const txAndRoot: TransactionOutput = L2ChainDataPersister.getTransactionAndRoot(
-        block,
-        txs[i],
-        txs[i + block.transactions.length]
-      )
-      await this.l2DataService.insertL2TransactionOutput(txAndRoot)
-    }
-
-    return this.markProcessed(index)
   }
 
   /**
@@ -116,6 +121,8 @@ export class L2ChainDataPersister extends ChainDataProcessor {
     response: TransactionResponse,
     receipt: TransactionReceipt
   ): TransactionOutput {
+    log.debug(`Block data: ${JSON.stringify(block)}`)
+
     const res: TransactionOutput = {
       timestamp: block.timestamp,
       blockNumber: receipt.blockNumber,
@@ -125,7 +132,9 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       nonce: response.nonce,
       calldata: response.data,
       from: response.from || receipt.from,
-      stateRoot: receipt.root,
+      stateRoot: block['stateRoot'], // should be added by rollup-core/app/utils.ts: monkeyPatchL2Provider
+      gasLimit: L2ChainDataPersister.parseBigNumber(response.gasLimit),
+      gasPrice: L2ChainDataPersister.parseBigNumber(response.gasPrice),
     }
 
     if (!!response['l1MessageSender']) {
@@ -140,6 +149,23 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       )}${response.v.toString(16)}`
     }
 
+    log.debug(
+      `L2 Tx Output for block ${receipt.blockNumber}: ${JSON.stringify(res)}`
+    )
+
     return res
+  }
+
+  private static parseBigNumber(data: any): BigNumber {
+    if (!data) {
+      return undefined
+    }
+    if (typeof data === 'string') {
+      return new BigNumber(remove0x(data), 'hex')
+    }
+    if (typeof data.toHexString === 'function') {
+      return new BigNumber(data.toHexString(), 'hex')
+    }
+    return new BigNumber(data.toString('hex'), 'hex')
   }
 }

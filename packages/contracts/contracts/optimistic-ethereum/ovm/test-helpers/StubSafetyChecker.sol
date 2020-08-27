@@ -13,7 +13,7 @@ contract StubSafetyChecker is SafetyChecker {
 
     constructor()
         public
-        SafetyChecker(address(0x0), 0)
+        SafetyChecker(address(0x0))
     {}
 
 

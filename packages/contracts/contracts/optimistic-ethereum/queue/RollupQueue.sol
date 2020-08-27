@@ -9,23 +9,15 @@ import { DataTypes } from "../utils/libraries/DataTypes.sol";
  */
 contract RollupQueue {
     /*
-    * Events
-    */
-    event CalldataTxEnqueued();
-    event L1ToL2TxEnqueued(bytes _tx);
-
-
-    /*
-    * Contract Variables
-    */
+     * Contract Variables
+     */
 
     DataTypes.TimestampedHash[] public batchHeaders;
     uint256 public front;
 
-
     /*
-    * Public Functions
-    */
+     * Public Functions
+     */
 
     /**
      * Gets the total number of batches.
@@ -66,7 +58,7 @@ contract RollupQueue {
 
     /**
      * Peeks the timestamp of the front element on the queue.
-     * @return Front queue element timestamp.
+     * @return Front queue element timestamp (lowest in queue).
      */
     function peekTimestamp()
         public
@@ -78,87 +70,46 @@ contract RollupQueue {
     }
 
     /**
-     * Checks whether a sender is allowed to enqueue.
-     * @param _sender Sender address to check.
-     * @return Whether or not the sender can enqueue.
+     * Peeks the blockNumber of the front element on the queue.
+     * @return Front queue element blockNumber (lowest in queue).
      */
-    function authenticateEnqueue(
-        address _sender
-    )
+    function peekBlockNumber()
         public
         view
-        returns (bool)
+        returns (uint)
     {
-        return true;
+        DataTypes.TimestampedHash memory frontBatch = peek();
+        return frontBatch.blockNumber;
     }
+    
+    /*
+    * Internal Functions
+    */
 
     /**
-     * Checks whether a sender is allowed to dequeue.
-     * @param _sender Sender address to check.
-     * @return Whether or not the sender can dequeue.
+     * Attempts to enqueue a single data block (i.e. will not be merklized).
+     * @param _data Transaction data to enqueue.
      */
-    function authenticateDequeue(
-        address _sender
+    function _enqueue(
+        bytes memory _data
     )
-        public
-        view
-        returns (bool)
+        internal
     {
-        return true;
-    }
-
-    /**
-     * Checks if this is a calldata transaction queue.
-     * @return Whether or not this is a calldata tx queue.
-     */
-    function isCalldataTxQueue()
-        public
-        returns (bool)
-    {
-        return true;
-    }
-
-    /**
-     * Attempts to enqueue a transaction.
-     * @param _tx Transaction data to enqueue.
-     */
-    function enqueueTx(
-        bytes memory _tx
-    )
-        public
-    {
-        // Authentication.
-        require(
-            authenticateEnqueue(msg.sender),
-            "Message sender does not have permission to enqueue"
-        );
-
-        bytes32 txHash = keccak256(_tx);
+        bytes32 txHash = keccak256(_data);
 
         batchHeaders.push(DataTypes.TimestampedHash({
+            txHash: txHash,
             timestamp: now,
-            txHash: txHash
+            blockNumber: block.number
         }));
-
-        if (isCalldataTxQueue()) {
-            emit CalldataTxEnqueued();
-        } else {
-            emit L1ToL2TxEnqueued(_tx);
-        }
     }
 
     /**
      * Attempts to dequeue a transaction.
      */
-    function dequeue()
-        public
+    function _dequeue()
+        internal
     {
-        // Authentication.
-        require(
-            authenticateDequeue(msg.sender),
-            "Message sender does not have permission to dequeue"
-        );
-
         require(front < batchHeaders.length, "Cannot dequeue from an empty queue");
 
         delete batchHeaders[front];

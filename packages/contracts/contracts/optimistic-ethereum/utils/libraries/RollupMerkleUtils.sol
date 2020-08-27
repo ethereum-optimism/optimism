@@ -46,7 +46,7 @@ contract RollupMerkleUtils {
     /**
      * Get the sparse merkle root computed from some set of data blocks.
      * @param _dataBlocks The data being used to generate the tree.
-     * @return the sparse merkle tree root
+     * @return the sparse merkle tree root.
      */
     function getMerkleRoot(
         bytes[] memory _dataBlocks
@@ -55,21 +55,74 @@ contract RollupMerkleUtils {
         view
         returns (bytes32)
     {
-        uint nextLevelLength = _dataBlocks.length;
-        uint currentLevel = 0;
+        if (_dataBlocks.length == 1) {
+            return keccak256(_dataBlocks[0]);
+        }
 
         // Add one in case we have an odd number of leaves.
-        bytes32[] memory nodes = new bytes32[](nextLevelLength + 1);
+        bytes32[] memory nodes = new bytes32[](_dataBlocks.length);
 
         // Generate the leaf hashes.
         for (uint i = 0; i < _dataBlocks.length; i++) {
             nodes[i] = keccak256(_dataBlocks[i]);
         }
 
-        // If we only have a single leaf, then it must be the root.
+        return getMerkleRootFromLeafNodes(nodes);
+    }
+
+    /**
+     * Get the sparse merkle root computed from some set of data blocks.
+     * @param _dataBlocks The data being used to generate the tree.
+     * @return the sparse merkle tree root.
+     */
+    function getMerkleRootFrom32ByteLeafData(
+        bytes32[] memory _dataBlocks
+    )
+        public
+        view
+        returns (bytes32)
+    {
         if (_dataBlocks.length == 1) {
-            return nodes[0];
+            return keccak256(abi.encodePacked(_dataBlocks[0]));
         }
+
+        // Generate the leaf hashes.
+        for (uint i = 0; i < _dataBlocks.length; i++) {
+            _dataBlocks[i] = keccak256(abi.encodePacked(_dataBlocks[i]));
+        }
+
+        return getMerkleRootFromLeafNodes(_dataBlocks);
+    }
+
+    /**
+     * Get the sparse merkle root computed from some set of leaf hashes that are 32 bytes.
+     * @param _hashes The hashes being used to generate the tree.
+     * @return the sparse merkle tree root.
+     */
+    function getMerkleRootFromLeafNodes(
+        bytes32[] memory _hashes
+    )
+        private
+        view
+        returns (bytes32)
+    {
+        // If we only have a single leaf, then it must be the root.
+        if (_hashes.length == 1) {
+            return _hashes[0];
+        }
+
+        bytes32[] memory nodes;
+        if (_hashes.length % 2 == 0) {
+            nodes = _hashes;
+        } else {
+            nodes = new bytes32[](_hashes.length + 1);
+            for (uint i = 0; i < _hashes.length; i++) {
+                nodes[i] = _hashes[i];
+            }
+        }
+
+        uint nextLevelLength = _hashes.length;
+        uint currentLevel = 0;
 
         // Add a defaultNode if we've got an odd number of leaves.
         if (nextLevelLength % 2 == 1) {

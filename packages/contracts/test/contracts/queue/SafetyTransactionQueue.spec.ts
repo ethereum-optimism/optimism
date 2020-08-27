@@ -2,7 +2,13 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  TestUtils,
+  numberToHexString,
+  remove0x,
+  hexStrToNumber,
+} from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -10,6 +16,8 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getGasConsumed,
+  GET_DUMMY_TX_WITH_OVM_GAS_LIMIT,
 } from '../../test-helpers'
 
 /* Logging */
@@ -17,7 +25,8 @@ const log = getLogger('safety-tx-queue', true)
 
 /* Tests */
 describe('SafetyTransactionQueue', () => {
-  const defaultTx = '0x1234'
+  const defaultGasLimit = 30_000
+  const defaultTx = GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(defaultGasLimit)
 
   let wallet: Signer
   let canonicalTransactionChain: Signer
@@ -33,6 +42,11 @@ describe('SafetyTransactionQueue', () => {
   let resolver: AddressResolverMapping
   before(async () => {
     resolver = await makeAddressResolver(wallet)
+  })
+
+  let SimpleProxy: ContractFactory
+  before(async () => {
+    SimpleProxy = await ethers.getContractFactory('SimpleProxy')
   })
 
   let SafetyTxQueue: ContractFactory
@@ -59,10 +73,67 @@ describe('SafetyTransactionQueue', () => {
   })
 
   describe('enqueueBatch() ', async () => {
-    it('should allow enqueue from any address', async () => {
+    it('should allow enqueue from a random EOA ', async () => {
       await safetyTxQueue.connect(randomWallet).enqueueTx(defaultTx)
       const batchesLength = await safetyTxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
+    })
+
+    it('Should disallow calls from non-EOAs', async () => {
+      const simpleProxy = await SimpleProxy.deploy()
+
+      const data = safetyTxQueue.interface.encodeFunctionData('enqueueTx', [
+        '0x1234123412341234',
+      ])
+
+      TestUtils.assertRevertsAsync(
+        'Only EOAs can enqueue rollup transactions to the safety queue.',
+        async () => {
+          await simpleProxy.callContractWithData(safetyTxQueue.address, data)
+        }
+      )
+    })
+
+    it('should emit the right event on enqueue', async () => {
+      const tx = await safetyTxQueue.connect(randomWallet).enqueueTx(defaultTx)
+      const receipt = await safetyTxQueue.provider.getTransactionReceipt(
+        tx.hash
+      )
+      const topic = receipt.logs[0].topics[0]
+
+      const expectedTopic = safetyTxQueue.filters['CalldataTxEnqueued()']()
+        .topics[0]
+
+      topic.should.equal(expectedTopic, `Did not receive expected event!`)
+    })
+
+    it('Should burn _ovmGasLimit/L2_GAS_DISCOUNT_DIVISOR gas to enqueue', async () => {
+      // do an initial enqueue to make subsequent SSTORES equivalently priced
+      await safetyTxQueue.enqueueTx(defaultTx)
+      // specify as hex string to ensure EOA calldata cost is the same
+      const gasLimits: number[] = ['0x22000', '0x33000'].map((num) => {
+        return hexStrToNumber(num)
+      })
+      const [lowerGasLimitTx, higherGasLimitTx] = gasLimits.map((num) => {
+        return GET_DUMMY_TX_WITH_OVM_GAS_LIMIT(num)
+      })
+
+      const lowerLimitEnqueue = await safetyTxQueue.enqueueTx(lowerGasLimitTx)
+      const higherLimitEnqueue = await safetyTxQueue.enqueueTx(higherGasLimitTx)
+
+      const lowerLimitL1GasConsumed = await getGasConsumed(
+        lowerLimitEnqueue,
+        safetyTxQueue.provider
+      )
+      const higherLimitL1GasConsumed = await getGasConsumed(
+        higherLimitEnqueue,
+        safetyTxQueue.provider
+      )
+      const l1GasDiff = higherLimitL1GasConsumed - lowerLimitL1GasConsumed
+
+      const expectedDiff = Math.floor((gasLimits[1] - gasLimits[0]) / 10)
+
+      l1GasDiff.should.equal(expectedDiff)
     })
   })
 
@@ -84,7 +155,7 @@ describe('SafetyTransactionQueue', () => {
     it('should not allow dequeue from other address', async () => {
       await safetyTxQueue.enqueueTx(defaultTx)
       await TestUtils.assertRevertsAsync(
-        'Message sender does not have permission to dequeue',
+        'Only the canonical transaction chain can dequeue safety queue transactions.',
         async () => {
           await safetyTxQueue.dequeue()
         }

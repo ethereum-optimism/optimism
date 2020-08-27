@@ -35,6 +35,8 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
 
     bytes32 constant private BYTES32_NULL = bytes32('');
     uint256 constant private UINT256_NULL = uint256(0);
+    // Max gas overhead that executeTransaction(...) can consume outside of the metered code contract execution.  TODO: parameterize
+    uint constant private MAX_EXECUTE_TRANSACTION_GAS_OVERHEAD = 500000;
 
 
     /*
@@ -229,9 +231,17 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         stateManager.initNewTransactionExecution();
         executionManager.setStateManager(address(stateManager));
 
+        // Make sure we were given sufficient gas, accounting for EIP 150, +10000 to account for gas cost of prepping executeTransaction calldata
+        uint gasLeft = gasleft();
+        require(
+            gasLeft > ((_transactionData.gasLimit + MAX_EXECUTE_TRANSACTION_GAS_OVERHEAD + 10000) * 64 / 63),
+            "Insufficient gas supplied to ensure L1 execution will not run out of gas before OVM transaction gas limit."
+        );
+
         // Execute the transaction via the execution manager.
-        executionManager.executeTransaction(
+        executionManager.executeTransaction.gas(gasLeft)(
             _transactionData.timestamp,
+            _transactionData.blockNumber,
             _transactionData.queueOrigin,
             _transactionData.ovmEntrypoint,
             _transactionData.callBytes,

@@ -2,7 +2,12 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, TestUtils } from '@eth-optimism/core-utils'
+import {
+  getLogger,
+  TestUtils,
+  ZERO_ADDRESS,
+  hexStrToNumber,
+} from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -10,6 +15,7 @@ import {
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  getGasConsumed,
 } from '../../test-helpers'
 
 /* Logging */
@@ -17,15 +23,19 @@ const log = getLogger('l1-to-l2-tx-queue', true)
 
 /* Tests */
 describe('L1ToL2TransactionQueue', () => {
-  const defaultTx = '0x1234'
+  const L2_GAS_DISCOUNT_DIVISOR = 10
+  const GET_DUMMY_L1_L2_ARGS = (ovmGasLimit: number) => {
+    return [ZERO_ADDRESS, ovmGasLimit, '0x1234123412341234']
+  }
+  const defaultL1ToL2Params = GET_DUMMY_L1_L2_ARGS(30_000)
 
   let wallet: Signer
-  let l1ToL2TransactionPasser: Signer
+  let otherWallet: Signer
   let canonicalTransactionChain: Signer
   before(async () => {
     ;[
       wallet,
-      l1ToL2TransactionPasser,
+      otherWallet,
       canonicalTransactionChain,
     ] = await ethers.getSigners()
   })
@@ -58,27 +68,70 @@ describe('L1ToL2TransactionQueue', () => {
     )
   })
 
-  describe('enqueueBatch() ', async () => {
-    it('should allow enqueue from l1ToL2TransactionPasser', async () => {
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx) // Did not throw... success!
+  describe('enqueueL1ToL2Message() ', async () => {
+    it('should allow enqueue from a random address', async () => {
+      await l1ToL2TxQueue
+        .connect(otherWallet)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params) // Did not throw... success!
       const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
     })
 
-    // TODO: Uncomment and implement when authentication mechanism is sorted out
-    // it('should not allow enqueue from other address', async () => {
-    //   await TestUtils.assertRevertsAsync(
-    //     'Message sender does not have permission to enqueue',
-    //     async () => {
-    //       await l1ToL2TxQueue.enqueueTx(defaultTx)
-    //     }
-    //   )
-    // })
+    it('should emit the right event on enqueue', async () => {
+      const tx = await l1ToL2TxQueue
+        .connect(wallet)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params)
+      const receipt = await l1ToL2TxQueue.provider.getTransactionReceipt(
+        tx.hash
+      )
+      const topic = receipt.logs[0].topics[0]
+
+      const expectedTopic = l1ToL2TxQueue.filters[
+        'L1ToL2TxEnqueued(address,address,uint32,bytes)'
+      ]().topics[0]
+
+      topic.should.equal(expectedTopic, `Did not receive expected event!`)
+    })
+
+    it('Should charge/burn _ovmGasLimit/L2_GAS_DISCOUNT_DIVISOR gas to enqueue', async () => {
+      // do an initial enqueue to make subsequent SSTORES equivalently priced
+      await l1ToL2TxQueue.enqueueL1ToL2Message(...defaultL1ToL2Params)
+      // specify as hex string to ensure EOA calldata cost is the same
+      const gasLimits: number[] = ['0x22000', '0x33000'].map((num) => {
+        return hexStrToNumber(num)
+      })
+      const [lowerGasLimtArgs, higherGasLimitArgs] = gasLimits.map((num) => {
+        return GET_DUMMY_L1_L2_ARGS(num)
+      })
+
+      const lowerLimitEnqueue = await l1ToL2TxQueue.enqueueL1ToL2Message(
+        ...lowerGasLimtArgs
+      )
+      const higherLimitEnqueue = await l1ToL2TxQueue.enqueueL1ToL2Message(
+        ...higherGasLimitArgs
+      )
+
+      const lowerLimitL1GasConsumed = await getGasConsumed(
+        lowerLimitEnqueue,
+        l1ToL2TxQueue.provider
+      )
+      const higherLimitL1GasConsumed = await getGasConsumed(
+        higherLimitEnqueue,
+        l1ToL2TxQueue.provider
+      )
+      const l1GasDiff = higherLimitL1GasConsumed - lowerLimitL1GasConsumed
+
+      const expectedDiff = Math.floor((gasLimits[1] - gasLimits[0]) / 10)
+
+      l1GasDiff.should.equal(expectedDiff)
+    })
   })
 
   describe('dequeue() ', async () => {
     it('should allow dequeue from canonicalTransactionChain', async () => {
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
+      await l1ToL2TxQueue
+        .connect(otherWallet)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params)
       await l1ToL2TxQueue.connect(canonicalTransactionChain).dequeue()
       const batchesLength = await l1ToL2TxQueue.getBatchHeadersLength()
       batchesLength.should.equal(1)
@@ -92,9 +145,11 @@ describe('L1ToL2TransactionQueue', () => {
     })
 
     it('should not allow dequeue from other address', async () => {
-      await l1ToL2TxQueue.connect(l1ToL2TransactionPasser).enqueueTx(defaultTx)
+      await l1ToL2TxQueue
+        .connect(otherWallet)
+        .enqueueL1ToL2Message(...defaultL1ToL2Params)
       await TestUtils.assertRevertsAsync(
-        'Message sender does not have permission to dequeue',
+        'Only the canonical transaction chain can dequeue L1->L2 queue transactions.',
         async () => {
           await l1ToL2TxQueue.dequeue()
         }

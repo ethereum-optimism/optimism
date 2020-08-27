@@ -171,9 +171,14 @@ describe('Log Handlers', () => {
     const gasLimit: string = '00'.repeat(32)
     const calldata: string = 'abcd'.repeat(40)
 
-    const data = `0x${sender}${target}${gasLimit}${calldata}`
-
-    const l = createLog(data)
+    const l = createLog(
+      abi.encode(
+        ['address', 'address', 'uint32', 'bytes'],
+        [sender, target, gasLimit, calldata].map((el) => {
+          return add0x(el)
+        })
+      )
+    )
     const tx = createTx('00'.repeat(64))
 
     await L1ToL2TxEnqueuedLogHandler(dataService, l, tx)
@@ -200,11 +205,12 @@ describe('Log Handlers', () => {
     )
     received.indexWithinSubmission.should.equal(0, 'Batch index mismatch')
     received.sender.should.equal(l.address, 'Sender mismatch')
-    remove0x(received.l1MessageSender).should.equal(
-      sender,
-      'L1 Message Sender mismatch'
-    )
-    remove0x(received.target).should.equal(target, 'Target mismatch')
+    remove0x(received.l1MessageSender)
+      .toLowerCase()
+      .should.equal(sender, 'L1 Message Sender mismatch')
+    remove0x(received.target)
+      .toLowerCase()
+      .should.equal(target, 'Target mismatch')
     received.gasLimit.should.equal(0, 'Gas Limit mismatch')
     remove0x(received.calldata).should.equal(calldata, 'Calldata mismatch')
 
@@ -357,6 +363,82 @@ describe('Log Handlers', () => {
       1,
       'Should have created batch!'
     )
+  })
+  describe('Sequencer Batch as sequencer', () => {
+    before(() => {
+      process.env.IS_SEQUENCER_STACK = '1'
+    })
+    after(() => {
+      process.env.IS_SEQUENCER_STACK = ''
+    })
+
+    it('should parse and insert Sequencer Batch without creating a geth submission', async () => {
+      const timestamp = 1
+
+      const target: string = 'bb'.repeat(20)
+      const nonce: string = '00'.repeat(32)
+      const gasLimit: string = '00'.repeat(31) + '01'
+      const calldata: string = 'abcd'.repeat(40)
+
+      const signature = await getTxSignature(target, nonce, gasLimit, calldata)
+
+      let data = `0x${target}${nonce}${gasLimit}${remove0x(
+        signature
+      )}${calldata}`
+      data = abi.encode(['bytes[]', 'uint256'], [[data, data, data], timestamp])
+
+      const l = createLog('00'.repeat(64))
+      const tx = createTx(`0x22222222${remove0x(data)}`)
+
+      await SequencerBatchAppendedLogHandler(dataService, l, tx)
+
+      dataService.rollupTransactionsInserted.length.should.equal(
+        1,
+        `No tx batch inserted!`
+      )
+      dataService.rollupTransactionsInserted[0].length.should.equal(
+        3,
+        `Tx inserted count mismatch!`
+      )
+      for (
+        let i = 0;
+        i < dataService.rollupTransactionsInserted[0].length;
+        i++
+      ) {
+        const received = dataService.rollupTransactionsInserted[0][i]
+
+        received.l1BlockNumber.should.equal(
+          tx.blockNumber,
+          'Block number mismatch'
+        )
+        received.l1Timestamp.should.equal(tx.timestamp, 'Timestamp mismatch')
+        received.l1TxHash.should.equal(l.transactionHash, 'Tx hash mismatch')
+        received.l1TxIndex.should.equal(l.transactionIndex, 'Tx index mismatch')
+        received.l1TxLogIndex.should.equal(l.logIndex, 'Tx log index mismatch')
+        received.queueOrigin.should.equal(
+          QueueOrigin.SEQUENCER,
+          'Queue Origin mismatch'
+        )
+        received.indexWithinSubmission.should.equal(i, 'Batch index mismatch')
+        remove0x(received.sender).should.equal(
+          remove0x(wallet.address),
+          'Sender mismatch'
+        )
+        remove0x(received.target).should.equal(target, 'Target mismatch')
+        received.nonce.should.equal(0, 'Nonce mismatch')
+        received.gasLimit.should.equal(1, 'Gas Limit mismatch')
+        remove0x(received.signature).should.equal(
+          remove0x(signature),
+          'Signature mismatch'
+        )
+        remove0x(received.calldata).should.equal(calldata, 'Calldata mismatch')
+      }
+
+      dataService.txHashBatchesCreated.size.should.equal(
+        0,
+        'Should not have created batch!'
+      )
+    })
   })
 
   it('should parse and insert State Batch', async () => {

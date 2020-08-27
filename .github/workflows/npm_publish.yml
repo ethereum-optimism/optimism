@@ -44,13 +44,6 @@ jobs:
           path: packages/ovm/node_modules
           key: ${{ runner.os }}-${{ hashFiles('packages/ovm/package.json') }}
 
-      - name: Cache optimistic-game-semantics deps
-        uses: actions/cache@v1
-        id: cache_optimistic-game-semantics
-        with:
-          path: packages/optimistic-game-semantics/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('packages/optimistic-game-semantics/package.json') }}
-
       - name: Cache rollup-full-node deps
         uses: actions/cache@v1
         id: cache_rollup-full-node
@@ -71,20 +64,6 @@ jobs:
         with:
           path: packages/rollup-core/node_modules
           key: ${{ runner.os }}-${{ hashFiles('packages/rollup-core/package.json') }}
-
-      - name: Cache rollup-dev-tools deps
-        uses: actions/cache@v1
-        id: cache_rollup-dev-tools
-        with:
-          path: packages/rollup-dev-tools/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('packages/rollup-dev-tools/package.json') }}
-
-      - name: Cache solc-transpiler deps
-        uses: actions/cache@v1
-        id: cache_solc-transpiler
-        with:
-          path: packages/solc-transpiler/node_modules
-          key: ${{ runner.os }}-${{ hashFiles('packages/solc-transpiler/package.json') }}
 
       - name: Cache state-synchronizer deps
         uses: actions/cache@v1

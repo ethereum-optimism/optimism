@@ -1,6 +1,11 @@
 /* External Imports */
 import { RDB, Row } from '@eth-optimism/core-db'
-import { add0x, getLogger, logError } from '@eth-optimism/core-utils'
+import {
+  add0x,
+  getLogger,
+  logError,
+  ZERO_ADDRESS,
+} from '@eth-optimism/core-utils'
 
 import { Block, TransactionResponse } from 'ethers/providers'
 
@@ -16,6 +21,8 @@ import {
   VerificationCandidate,
   VerificationStatus,
   StateCommitmentBatchSubmission,
+  BatchSubmission,
+  L1BlockPersistenceInfo,
 } from '../../types'
 import {
   getL1BlockInsertValue,
@@ -41,16 +48,54 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
+  public async getL1BlockPersistenceInfo(
+    blockNumber: number
+  ): Promise<L1BlockPersistenceInfo> {
+    const res = await this.rdb.select(
+      `SELECT MAX(b.block_number) as block_number, MAX(tx.id) as l1_tx, MAX(rtx.id) as rollup_tx, MAX(rsb.id) as rollup_state_root_batch
+        FROM l1_block b
+          LEFT OUTER JOIN l1_tx tx ON tx.block_number = b.block_number
+          LEFT OUTER JOIN l1_rollup_tx rtx ON rtx.l1_tx_hash = tx.tx_hash
+          LEFT OUTER JOIN l1_rollup_state_root_batch rsb ON rsb.l1_tx_hash = tx.tx_hash
+        WHERE b.block_number = ${blockNumber}
+        GROUP BY b.block_number, tx.tx_hash, rtx.id, rsb.id
+        LIMIT 1`
+    )
+
+    const toReturn = {
+      blockPersisted: false,
+      txPersisted: false,
+      rollupTxsPersisted: false,
+      rollupStateRootsPersisted: false,
+    }
+
+    if (!res || !res.length) {
+      return toReturn
+    }
+
+    toReturn.blockPersisted =
+      res['block_number'] !== null && res['block_number'] !== undefined
+    toReturn.txPersisted = res['l1_tx'] !== null && res['l1_tx'] !== undefined
+    toReturn.rollupTxsPersisted =
+      res['rollup_tx'] !== null && res['rollup_tx'] !== undefined
+    toReturn.rollupStateRootsPersisted =
+      res['rollup_state_root_batch'] !== null &&
+      res['rollup_state_root_batch'] !== undefined
+
+    return toReturn
+  }
+
+  /**
+   * @inheritDoc
+   */
   public async insertL1Block(
     block: Block,
     processed: boolean = false,
     txContext?: any
   ): Promise<void> {
     return this.rdb.execute(
-      `${l1BlockInsertStatement} VALUES (${getL1BlockInsertValue(
-        block,
-        processed
-      )})`,
+      `${l1BlockInsertStatement} 
+      VALUES (${getL1BlockInsertValue(block, processed)})`,
       txContext
     )
   }
@@ -69,7 +114,8 @@ export class DefaultDataService implements DataService {
       (tx, index) => `(${getL1TransactionInsertValue(tx, index)})`
     )
     return this.rdb.execute(
-      `${l1TxInsertStatement} VALUES ${values.join(',')}`,
+      `${l1TxInsertStatement} 
+      VALUES ${values.join(',')}`,
       txContext
     )
   }
@@ -155,6 +201,7 @@ export class DefaultDataService implements DataService {
     if (!txHashRes || !txHashRes.length || !txHashRes[0]['l1_tx_hash']) {
       return -1
     }
+    log.debug(`Next Geth Submission res: ${JSON.stringify(txHashRes)}`)
 
     const txHash = txHashRes[0]['l1_tx_hash']
     const txLogIndex = txHashRes[0]['l1_tx_log_index']
@@ -314,9 +361,9 @@ export class DefaultDataService implements DataService {
    */
   public async insertL2TransactionOutput(tx: TransactionOutput): Promise<void> {
     return this.rdb.execute(
-      `${l2TransactionOutputInsertStatement} VALUES (${getL2TransactionOutputInsertValue(
-        tx
-      )})`
+      `${l2TransactionOutputInsertStatement} 
+      VALUES (${getL2TransactionOutputInsertValue(tx)})
+      ON CONFLICT (tx_hash) DO NOTHING` // makes it so if we're inserting data that already exists, it doesn't fail. If tx_hash is not unique, we have bigger problems =|
     )
   }
 
@@ -510,8 +557,7 @@ export class DefaultDataService implements DataService {
   ): Promise<number> {
     const availableRootsRes = await this.rdb.select(
       `SELECT COUNT(*) as available
-      FROM l2_tx_output
-      WHERE state_commitment_chain_batch_number IS NULL`
+      FROM batchable_l2_only_tx_states`
     )
 
     if (
@@ -543,9 +589,8 @@ export class DefaultDataService implements DataService {
             state_commitment_chain_batch_number = ${batchNumber},
             state_commitment_chain_batch_index = t.row_number
         FROM (
-          SELECT id, row_number() over (ORDER BY id ASC) -1 AS row_number
-          FROM l2_tx_output
-          WHERE state_commitment_chain_batch_number IS NULL 
+          SELECT id, row_number
+          FROM batchable_l2_only_tx_states
           ORDER BY block_number ASC, tx_index ASC
           LIMIT ${maxBatchSize}
         ) t
@@ -596,19 +641,45 @@ export class DefaultDataService implements DataService {
         blockNumber: row['block_number'],
         transactionIndex: row['tx_index'],
         transactionHash: row['tx_hash'],
-        to: row['target'],
+        to: row['target'] || ZERO_ADDRESS,
         from: row['sender'],
         nonce: parseInt(row['nonce'], 10),
         calldata: row['calldata'],
         stateRoot: row['state_root'],
         gasPrice: row['gas_price'],
         gasLimit: row['gas_limit'],
-        l1MessageSender: row['l1_message_sender'], // should never be present in this case
+        l1MessageSender: row['l1_message_sender'] || undefined, // should never be present in this case
         signature: row['signature'],
       })
     }
 
     return batch
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getNextCanonicalChainTransactionBatchToFinalize(): Promise<
+    BatchSubmission
+  > {
+    const res = await this.rdb.select(
+      `SELECT batch_number, status, submission_tx_hash
+      FROM canonical_chain_batch 
+      WHERE status = '${BatchSubmissionStatus.SENT}'
+      ORDER BY batch_number ASC
+      LIMIT 1`
+    )
+
+    if (!res || !res.length || !res[0]) {
+      log.debug(`No canonical chain tx batch to finalize.`)
+      return undefined
+    }
+
+    return {
+      submissionTxHash: res[0]['submission_tx_hash'],
+      status: res[0]['status'],
+      batchNumber: res[0]['batch_number'],
+    }
   }
 
   /**
@@ -639,6 +710,9 @@ export class DefaultDataService implements DataService {
     )
   }
 
+  /**
+   * @inheritDoc
+   */
   public async getNextStateCommitmentBatchToSubmit(): Promise<
     StateCommitmentBatchSubmission
   > {
@@ -663,6 +737,32 @@ export class DefaultDataService implements DataService {
       status: res[0]['status'],
       batchNumber: res[0]['batch_number'],
       stateRoots: res.map((x: Row) => x['state_root']),
+    }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getNextStateCommitmentBatchToFinalize(): Promise<
+    BatchSubmission
+  > {
+    const res = await this.rdb.select(
+      `SELECT batch_number, status, submission_tx_hash
+      FROM state_commitment_chain_batch 
+      WHERE status = '${BatchSubmissionStatus.SENT}'
+      ORDER BY batch_number ASC
+      LIMIT 1`
+    )
+
+    if (!res || !res.length || !res[0]) {
+      log.debug(`No state commitment chain batch to finalize.`)
+      return undefined
+    }
+
+    return {
+      submissionTxHash: res[0]['submission_tx_hash'],
+      status: res[0]['status'],
+      batchNumber: res[0]['batch_number'],
     }
   }
 
@@ -730,10 +830,24 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
-  public async verifyStateRootBatch(batchNumber): Promise<void> {
+  public async verifyStateRootBatch(batchNumber: number): Promise<void> {
     await this.rdb.execute(
       `UPDATE l1_rollup_state_root_batch
       SET status = '${VerificationStatus.VERIFIED}'
+      WHERE batch_number = ${batchNumber}
+        AND status = '${VerificationStatus.UNVERIFIED}'`
+    )
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markVerificationCandidateFraudulent(
+    batchNumber: number
+  ): Promise<void> {
+    await this.rdb.execute(
+      `UPDATE l1_rollup_state_root_batch
+      SET status = '${VerificationStatus.FRAUDULENT}'
       WHERE batch_number = ${batchNumber}
         AND status = '${VerificationStatus.UNVERIFIED}'`
     )
@@ -798,13 +912,15 @@ export class DefaultDataService implements DataService {
             VALUES ('${l1TxHash}', ${batchNumber})`,
           txContext
         )
-        break
+        return batchNumber
       } catch (e) {
         retries--
+        if (retries === 0) {
+          logError(log, `Error inserting new L1 State Root Batch`, e)
+          throw e
+        }
       }
     }
-
-    return batchNumber
   }
 
   /**
@@ -829,13 +945,15 @@ export class DefaultDataService implements DataService {
             VALUES (${batchNumber})`,
           txContext
         )
-        break
+        return batchNumber
       } catch (e) {
         retries--
+        if (retries === 0) {
+          logError(log, `Error inserting new canonical chain batch`, e)
+          throw e
+        }
       }
     }
-
-    return batchNumber
   }
 
   /**
@@ -892,13 +1010,15 @@ export class DefaultDataService implements DataService {
           }')`,
           txContext
         )
-        break
+        return batchNumber
       } catch (e) {
         retries--
+        if (retries === 0) {
+          logError(log, `Error inserting new state commitment chain batch`, e)
+          throw e
+        }
       }
     }
-
-    return batchNumber
   }
 
   /**

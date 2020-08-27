@@ -1,0 +1,117 @@
+# TODO: COPY THIS OVER TO docker-compose.microservices.mine.yml FOR YOUR OWN LOCAL CONFIG
+version: "3"
+
+services:
+
+  # Look at packages/rollup-core/README.md for info on configuration
+  microservices:
+    volumes:
+      - l1-node-data:/mnt/l1-node:rw
+      - l2-node-data:/mnt/l2-node:rw
+    build:
+      context: .
+      dockerfile: Dockerfile.microservices
+    environment:
+      # LOCAL ONLY!
+      - LOG_NEW_LINES=1   # Logs new lines instead of <\n>
+      # DATA CLEARING
+      - CLEAR_DATA_KEY=123                                                              # Change this if you want to delete filesystem data on startup.
+      # Container
+      - STARTUP_WAIT_TIMEOUT=30                                                         # The amount of times to attempt to connect to L2 geth before failing (set to -1 if not to wait for L2 geth).
+      # Logging
+      - DEBUG=info*,error*,warn*,debug*                                                 # The comma-separated logging patterns to match (common options are `error*`, `info*`, `warn*`, and `debug*`)
+      # Postgres
+      - POSTGRES_HOST=postgres                                                          # (Required) The host DNS entry / IP for the postgres DB
+      - POSTGRES_PORT=5432                                                              # (Required) Should almost always be 5432
+      - POSTGRES_USER=test                                                              # (Required) The user to use to connect to the db
+      - POSTGRES_PASSWORD=test                                                          # (Required) The password to use to connect to the db
+      - POSTGRES_DATABASE=rollup                                                        # (Required) The database name to connect to (should be `rollup`)
+      - POSTGRES_CONNECTION_POOL_SIZE                                                   # The connection pool size for postgres (defaults to 20)
+      - POSTGRES_USE_SSL                                                                # Set to anything to indicate that SSL should be used in the connection
+      # L1 Node
+      - L1_NODE_INFURA_NETWORK=rinkeby                                                  # The Infura network for the connection to the L1 node
+      - L1_NODE_INFURA_PROJECT_ID=91981cfffb524ceca0c2e5b18905f9f5                      # The Infura project ID for the connection to the L1 node
+      - L1_NODE_WEB3_URL                                                                # The URL of the L1 node
+      - FINALITY_DELAY_IN_BLOCKS=1                                                      # The number of block confirmations required to consider a transaction final on L1
+      # L2 Node
+      - L2_NODE_WEB3_URL=http://geth_l2:8545                                            # The URL of the L2 node
+      # L1 Submitters
+      - L1_SEQUENCER_PRIVATE_KEY=<TODO: Add this>                                                   # (Required) The private key to use to submit Sequencer Transaction Batches
+      - L1_STATE_ROOT_SUBMITTER_PRIVATE_KEY=<TODO: Add this>                                        # (Required) The private key to use to submit State Root Batches (will cause nonce issues if the same as the above key)
+      # Shared Contracts
+      - CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS=<TODO: Add this>                               # (Required) The address of the CanonicalTransactionChain contract
+      - STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS=<TODO: Add this>                                    # (Required) The address of the StateCommitmentChain contract
+      # L1 Chain Data Persister (needs Postgres & L1 Node vars above)
+      - L1_TO_L2_TRANSACTION_QUEUE_CONTRACT_ADDRESS=<TODO: Add this>                                # (Required) The address of the L1ToL2TransactionQueue contract
+      - SAFETY_TRANSACTION_QUEUE_CONTRACT_ADDRESS=<TODO: Add this>                                  # (Required) The address of the SafetyTransactionQueue contract
+      - L1_CHAIN_DATA_PERSISTER_DB_PATH=/mnt/l1-node                                                # (Required) The filepath where to locate (or create) the L1 Chain Data Persister LevelDB database
+      - L1_EARLIEST_BLOCK=7001000                                                                   # (Required) The earliest block to sync on L1 to start persisting data
+      # L2 Chain Data Persister (needs Postgres & L2 Node vars above)
+      - L2_CHAIN_DATA_PERSISTER_DB_PATH=/mnt/l2-node                                                # (Required) The filepath where to locate (or create) the L2 Chain Data Persister LevelDB database
+      # Geth Submission Queuer (needs Postgres vars above)
+      - IS_SEQUENCER_STACK=1                                                                        # (Required) Set if this is queueing Geth submissions for a sequencer (and not _just_ a verifier)
+      - GETH_SUBMISSION_QUEUER_PERIOD_MILLIS                                                        # The period in millis at which the GethSubmissionQueuer should attempt to queue an L2 Geth submission (defaults to 10,000)
+      # Queued Geth Submitter (needs Postgres & L2 Node vars above)
+      - SUBMIT_TO_L2_PRIVATE_KEY=<TODO: Add this>                                                   # (Required) The PK to use to sign batches to send to geth (deprecated)
+      - QUEUED_GETH_SUBMITTER_PERIOD_MILLIS                                                         # The period in millis at which the QueuedGethSubmitter should attempt to send L2 Geth submissions (defaults to 10,000)
+      # Canonical Transaction Chain Batch Creator (needs Postgres vars above)
+      - CANONICAL_CHAIN_MIN_BATCH_SIZE=50                                                           # The minimum batch size to build -- if fewer than this number of transactions are ready, a batch will not be created (defaults to 10)
+      - CANONICAL_CHAIN_MAX_BATCH_SIZE=50                                                           # The maximum batch size to build -- if more than this number of transactions are ready, they will be split into multiple batches of at most this size (defaults to 100)
+      - CANONICAL_CHAIN_BATCH_CREATOR_PERIOD_MILLIS=30000                                           # The period in millis at which the CanonicalChainBatchCreator should attempt to create Canonical Chain Batches (defaults to 10,000)
+      # Canonical Transaction Chain Batch Submitter / Finalizer (needs Postgres, L1 Node, L1 Submitters, and CANONICAL_TRANSACTION_CHAIN_CONTRACT_ADDRESS vars above)
+      - CANONICAL_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS                                               # The period in millis at which the CanonicalChainBatchCreator should attempt to create Canonical Chain Batches (defaults to 10,000)
+      # State Commitment Chain Batch Creator (needs Postgres vars above)
+      - STATE_COMMITMENT_CHAIN_MIN_BATCH_SIZE=40                                                    # The minimum batch size to build -- if fewer than this number of transactions are ready, a batch will not be created (defaults to 10)
+      - STATE_COMMITMENT_CHAIN_MAX_BATCH_SIZE=500                                                   # The maximum batch size to build -- if more than this number of transactions are ready, they will be split into multiple batches of at most this size (defaults to 100)
+      - STATE_COMMITMENT_CHAIN_BATCH_CREATOR_PERIOD_MILLIS=30000                                    # The period in millis at which the StateCommitmentChainBatchCreator should attempt to create StateCommitmentChain Batches (defaults to 10,000)
+      # State Commitment Chain Batch Submitter / Finalizer (needs Postgres, L1 Node, L1 Submitters, STATE_COMMITMENT_CHAIN_CONTRACT_ADDRESS vars above)
+      - STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER_PERIOD_MILLIS                                        # The period in millis at which the StateCommitmentChainBatchCreator should attempt to create StateCommitmentChain Batches (defaults to 10,000)
+      # Fraud Detector
+      - FRAUD_DETECTOR_PERIOD_MILLIS                                                                # The period in millis at which the FraudDetector should run (defaults to 10,000)
+      - REALERT_ON_UNRESOLVED_FRAUD_EVERY_N_FRAUD_DETECTOR_RUNS                                     # The number of runs after which a detected fraud, if still present, should re-alert (via error logs) (defaults to 10)
+      # Which Services to run (respective vars must be configured above)
+      - RUN_L1_CHAIN_DATA_PERSISTER=1                                                               # Set to anything to run L1 Chain Data Persister
+      - RUN_L2_CHAIN_DATA_PERSISTER=1                                                               # Set to anything to run L2 Chain Data Persister
+      - RUN_GETH_SUBMISSION_QUEUER=1                                                                # Set to anything to run Geth Submission Queuer
+      - RUN_QUEUED_GETH_SUBMITTER=1                                                                 # Set to anything to run Queued Geth Submitter
+      - RUN_CANONICAL_CHAIN_BATCH_CREATOR=1                                                         # Set to anything to run Canonical Chain Batch Creator
+      - RUN_CANONICAL_CHAIN_BATCH_SUBMITTER=1                                                       # Set to anything to run Canonical Chain Batch Submitter & Finalizer
+      - RUN_STATE_COMMITMENT_CHAIN_BATCH_CREATOR=1                                                  # Set to anything to run State Commitment Chain Batch Creator
+      - RUN_STATE_COMMITMENT_CHAIN_BATCH_SUBMITTER=1                                                # Set to anything to run State Commitment Chain Batch Submitter & Finalizer
+      - RUN_FRAUD_DETECTOR=1                                                                        # Set to anything to run Fraud Detector
+
+  postgres:
+    build:
+      context: ./db/
+      dockerfile: db.dockerfile
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+    ports:
+      - 5432:5432
+
+  geth_l2:
+    image: <aws_account_id>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
+    volumes:
+      - l2-node-data:/mnt/l2-node/l2:rw
+    environment:
+      - CLEAR_DATA_KEY
+      - TARGET_GAS_LIMIT
+      - VOLUME_PATH=/mnt/l2-node/l2
+      - HOSTNAME=geth_l2
+      - PORT=8545
+      - NETWORK_ID=108
+    ports:
+      - 8545:8545
+
+volumes:
+  l1-node-data:
+  l2-node-data:
+
+
+
+
+
+
+
+

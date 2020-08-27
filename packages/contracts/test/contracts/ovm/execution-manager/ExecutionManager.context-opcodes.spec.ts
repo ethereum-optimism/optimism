@@ -18,7 +18,6 @@ import { fromPairs } from 'lodash'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
   addressToBytes32Address,
@@ -46,6 +45,7 @@ const methodIds = fromPairs(
     'getCHAINID',
     'ovmADDRESS',
     'ovmCALLER',
+    'getNUMBER',
   ].map((methodId) => [methodId, encodeMethodId(methodId)])
 )
 
@@ -164,15 +164,36 @@ describe('Execution Manager -- Context opcodes', () => {
       const result = await executeTransaction(
         contractAddress,
         methodIds.callThroughExecutionManager,
-        [contract2Address32, methodIds.getTIMESTAMP]
+        [contract2Address32, methodIds.getTIMESTAMP],
+        '0x00',
+        timestamp
       )
 
       log.debug(`TIMESTAMP result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      hexStrToNumber(result).should.be.gte(
-        timestamp,
-        'Timestamps do not match.'
+      hexStrToNumber(result).should.equal(timestamp, 'Timestamps do not match.')
+    })
+  })
+
+  describe('ovmNUMBER', async () => {
+    it('properly retrieves NUMBER', async () => {
+      const blockNumber: number = 15
+      const result = await executeTransaction(
+        contractAddress,
+        methodIds.callThroughExecutionManager,
+        [contract2Address32, methodIds.getNUMBER],
+        '0x00',
+        1,
+        blockNumber
+      )
+
+      log.debug(`NUMBER result: ${result}`)
+
+      should.exist(result, 'Result should exist!')
+      hexStrToNumber(result).should.equal(
+        blockNumber,
+        'blockNumbers do not match.'
       )
     })
   })
@@ -243,13 +264,16 @@ describe('Execution Manager -- Context opcodes', () => {
     address: string,
     methodId: string,
     args: any[],
-    queueOrigin = ZERO_ADDRESS
+    queueOrigin = ZERO_ADDRESS,
+    timestamp = getCurrentTime(),
+    blockNumber = 0
   ): Promise<string> => {
     const callBytes = add0x(methodId + encodeRawArguments(args))
     const data = executionManager.interface.encodeFunctionData(
       'executeTransaction',
       [
-        getCurrentTime(),
+        timestamp,
+        blockNumber,
         queueOrigin,
         address,
         callBytes,

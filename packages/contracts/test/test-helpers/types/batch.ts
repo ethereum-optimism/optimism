@@ -9,8 +9,11 @@ import { newInMemoryDB, SparseMerkleTreeImpl } from '@eth-optimism/core-db'
 
 import { utils } from 'ethers'
 
+const abi = new utils.AbiCoder()
+
 interface TxChainBatchHeader {
   timestamp: number
+  blockNumber: number
   isL1ToL2Tx: boolean
   elementsMerkleRoot: string
   numElementsInBatch: number
@@ -114,6 +117,18 @@ export class ChainBatch {
   }
 }
 
+export function getL1ToL2MessageTxData(
+  sender: any,
+  to: any,
+  gasLimit: any,
+  data: any
+): string {
+  return abi.encode(
+    ['address', 'address', 'uint32', 'bytes'],
+    [sender, to, gasLimit, data]
+  )
+}
+
 /*
  * Helper class which provides all information requried for a particular
  * Rollup batch. This includes all of the transactions in readable form
@@ -121,26 +136,49 @@ export class ChainBatch {
  */
 export class TxChainBatch extends ChainBatch {
   public timestamp: number
+  public blockNumber: number
   public isL1ToL2Tx: boolean
 
   constructor(
-    timestamp: number, // Ethereum batch this batch was submitted in
+    timestamp: number, // Ethereum timestamp this batch was submitted in
+    blockNumber: number, // Same as above w/ blockNumber
     isL1ToL2Tx: boolean,
     batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
-    elements: string[]
+    elements: any[],
+    sender?: string
   ) {
-    super(batchIndex, cumulativePrevElements, elements)
+    let elementsToMerklize: string[]
+    if (isL1ToL2Tx) {
+      if (!sender) {
+        throw new Error(
+          'To create a local L1->L2 batch, the msg.sender must be known.'
+        )
+      }
+      elementsToMerklize = elements.map((l1ToL2Params) => {
+        return getL1ToL2MessageTxData(
+          sender,
+          l1ToL2Params[0],
+          l1ToL2Params[1],
+          l1ToL2Params[2]
+        )
+      })
+    } else {
+      elementsToMerklize = elements
+    }
+    super(batchIndex, cumulativePrevElements, elementsToMerklize)
     this.isL1ToL2Tx = isL1ToL2Tx
     this.timestamp = timestamp
+    this.blockNumber = blockNumber
   }
 
   public async hashBatchHeader(): Promise<string> {
     const bufferRoot = await this.elementsMerkleTree.getRootHash()
     return utils.solidityKeccak256(
-      ['uint', 'bool', 'bytes32', 'uint', 'uint'],
+      ['uint', 'uint', 'bool', 'bytes32', 'uint', 'uint'],
       [
         this.timestamp,
+        this.blockNumber,
         this.isL1ToL2Tx,
         bufToHexString(bufferRoot),
         this.elements.length,
@@ -161,6 +199,7 @@ export class TxChainBatch extends ChainBatch {
       batchIndex: this.batchIndex,
       batchHeader: {
         timestamp: this.timestamp,
+        blockNumber: this.blockNumber,
         isL1ToL2Tx: this.isL1ToL2Tx,
         elementsMerkleRoot: bufToHexString(bufferRoot),
         numElementsInBatch: this.elements.length,
@@ -203,10 +242,13 @@ export class TxQueueBatch {
   public elements: string[]
   public elementsMerkleTree: SparseMerkleTreeImpl
   public timestamp: number
+  public blockNumber: number
 
-  constructor(tx: string, timestamp: number) {
+  // TODO remove blockNumber optionality, just here for testing
+  constructor(tx: string, timestamp: number, blockNumber: number) {
     this.elements = [tx]
     this.timestamp = timestamp
+    this.blockNumber = blockNumber
   }
   /*
    * Generate the elements merkle tree from this.elements
@@ -236,8 +278,15 @@ export class TxQueueBatch {
   ): Promise<string> {
     const txHash = await this.getMerkleRoot()
     return utils.solidityKeccak256(
-      ['uint', 'bool', 'bytes32', 'uint', 'uint'],
-      [this.timestamp, isL1ToL2Tx, txHash, 1, cumulativePrevElements]
+      ['uint', 'uint', 'bool', 'bytes32', 'uint', 'uint'],
+      [
+        this.timestamp,
+        this.blockNumber,
+        isL1ToL2Tx,
+        txHash,
+        1,
+        cumulativePrevElements,
+      ]
     )
   }
 }

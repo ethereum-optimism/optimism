@@ -456,6 +456,7 @@ describe('Execution Manager -- Call opcodes', () => {
       [
         getCurrentTime(),
         0,
+        0,
         callContractAddress,
         callBytes,
         ZERO_ADDRESS,
@@ -484,6 +485,7 @@ describe('Execution Manager -- Call opcodes', () => {
       'executeTransaction',
       [
         getCurrentTime(),
+        0,
         0,
         contractAddress,
         callBytes,

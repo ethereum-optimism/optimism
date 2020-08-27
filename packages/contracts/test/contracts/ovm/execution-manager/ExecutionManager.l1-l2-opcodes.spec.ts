@@ -17,7 +17,6 @@ import { cloneDeep, fromPairs } from 'lodash'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS,
   Address,
   manuallyDeployOvmContract,
@@ -161,6 +160,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         [
           getCurrentTime(),
           0,
+          0,
           callContractAddress,
           callBytes,
           ZERO_ADDRESS,
@@ -183,7 +183,6 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         'L2ToL1Message(uint256,address,bytes)'
       )
       const crossChainMessageEvent = txLogs.find((logged) => {
-        // console.log(logged)
         return logged.topics.includes(l2ToL1EventTopic)
       })
 
@@ -210,6 +209,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         executionManager,
         [
           getCurrentTime(),
+          0,
           0,
           l1MessageSenderPrecompileAddr,
           getL1MessageSenderMethodId,

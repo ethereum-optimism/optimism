@@ -7,11 +7,29 @@ import { RollupQueue } from "./RollupQueue.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
+import { GasConsumer } from "../utils/libraries/GasConsumer.sol";
 
 /**
  * @title L1ToL2TransactionQueue
  */
 contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
+    /*
+     * Events
+     */
+
+    event L1ToL2TxEnqueued(
+        address sender,
+        address target,
+        uint32 gasLimit,
+        bytes data
+    );
+
+    /*
+     * Constants
+     */
+
+    uint constant public L2_GAS_DISCOUNT_DIVISOR = 10;
+
     /*
      * Constructor
      */
@@ -27,54 +45,64 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     {
     }
 
-
     /*
      * Public Functions
      */
 
     /**
-     * Checks whether a sender is allowed to enqueue.
-     * @param _sender Sender address to check.
-     * @return Whether or not the sender can enqueue.
+     * Checks that that a dequeue is authenticated, and dequques if authenticated.
      */
-    function authenticateEnqueue(
-        address _sender
-    )
+    function dequeue()
         public
-        view
-        returns (bool)
     {
-        // TODO: figure out how we're going to authenticate this
-        return true;
-        // return _sender != tx.origin;
+        require(msg.sender == address(resolveCanonicalTransactionChain()), "Only the canonical transaction chain can dequeue L1->L2 queue transactions.");
+        _dequeue();
     }
 
     /**
-     * Checks whether a sender is allowed to dequeue.
-     * @param _sender Sender address to check.
-     * @return Whether or not the sender can dequeue.
+     * Enqueues an L1->L2 message.
      */
-    function authenticateDequeue(
-        address _sender
+    function enqueueL1ToL2Message(
+        address _ovmTarget,
+        uint32 _ovmGasLimit,
+        bytes calldata _data
     )
-        public
-        view
-        returns (bool)
+        external
     {
-        return _sender == address(resolveCanonicalTransactionChain());
+        uint gasToBurn = _ovmGasLimit / L2_GAS_DISCOUNT_DIVISOR;
+        resolveGasConsumer().consumeGasInternalCall(gasToBurn);
+
+        address sender = msg.sender;
+        bytes memory tx = encodeL1ToL2Tx(
+            sender,
+            _ovmTarget,
+            _ovmGasLimit,
+            _data
+        );
+        emit L1ToL2TxEnqueued(
+            sender,
+            _ovmTarget,
+            _ovmGasLimit,
+            _data
+        );
+        _enqueue(tx);
     }
 
-    /**
-     * Checks whether this is a calldata transaction queue.
-     * @return Whether or not this is a calldata tx queue.
+    /*
+     * Internal Functions
      */
-    function isCalldataTxQueue()
-        public
-        returns (bool)
-    {
-        return false;
-    }
 
+    function encodeL1ToL2Tx(
+        address _sender,
+        address _target,
+        uint32 _gasLimit,
+        bytes memory _data
+    ) 
+        internal
+        returns(bytes memory)
+    {
+        return abi.encode(_sender, _target, _gasLimit, _data);
+    }
 
     /*
      * Contract Resolution
@@ -86,5 +114,13 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
         returns (CanonicalTransactionChain)
     {
         return CanonicalTransactionChain(resolveContract("CanonicalTransactionChain"));
+    }
+
+    function resolveGasConsumer()
+        internal
+        view
+        returns (GasConsumer)
+    {
+        return GasConsumer(resolveContract("GasConsumer"));
     }
 }

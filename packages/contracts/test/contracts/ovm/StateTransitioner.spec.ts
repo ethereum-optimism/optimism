@@ -9,8 +9,10 @@ import {
   TestUtils,
   remove0x,
   numberToHexString,
+  hexStrToBuf,
+  bufToHexString,
 } from '@eth-optimism/core-utils'
-import * as solc from '@eth-optimism/solc-transpiler'
+import * as solc from '@eth-optimism/solc'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { keccak256 } from 'ethers/utils'
 import { cloneDeep } from 'lodash'
@@ -31,7 +33,9 @@ import {
   makeAddressResolver,
   AddressResolverMapping,
   GAS_LIMIT,
+  makeStateTrie,
 } from '../../test-helpers'
+import { BaseTrie } from 'merkle-patricia-tree'
 
 /* Logging */
 const log = getLogger('state-transitioner', true)
@@ -47,8 +51,11 @@ const DUMMY_ACCOUNT_ADDRESSES = [
 // gas metering always causes some storage slots to be updated
 const DEFAULT_TX_NUM_STORAGE_UPDATES: number = 4
 
+const SUFFICIENT_APPLY_TRANSACTION_GAS = GAS_LIMIT * 2
+
 interface OVMTransactionData {
   timestamp: number
+  blockNumber: number
   queueOrigin: number
   ovmEntrypoint: string
   callBytes: string
@@ -61,6 +68,7 @@ interface OVMTransactionData {
 const makeDummyTransaction = (calldata: string): OVMTransactionData => {
   return {
     timestamp: Math.floor(Date.now() / 1000),
+    blockNumber: 0,
     queueOrigin: 0,
     ovmEntrypoint: NULL_ADDRESS,
     callBytes: calldata,
@@ -153,6 +161,34 @@ const INITIAL_OVM_GAS_STORAGE = (): any => {
   ])
 }
 
+const proveOVMGasMetadataStorage = async (
+  stateTransitioner: any,
+  stateTrie: any
+) => {
+  const stateTrieWitness = await BaseTrie.prove(
+    stateTrie.trie,
+    hexStrToBuf(METADATA_STORAGE_ADDRESS)
+  )
+  await stateTransitioner.proveContractInclusion(
+    METADATA_STORAGE_ADDRESS,
+    METADATA_STORAGE_ADDRESS,
+    0,
+    rlp.encode(stateTrieWitness)
+  )
+  const storageTrie = stateTrie.storage[METADATA_STORAGE_ADDRESS]
+
+  for (const { key, val } of INITIAL_OVM_GAS_STORAGE()) {
+    const storageWitness = await BaseTrie.prove(storageTrie, hexStrToBuf(key))
+    await stateTransitioner.proveStorageSlotInclusion(
+      METADATA_STORAGE_ADDRESS,
+      key,
+      val,
+      rlp.encode(stateTrieWitness),
+      rlp.encode(storageWitness)
+    )
+  }
+}
+
 // A populated state trie layout, with OVM gas metering state pre-populated
 const DUMMY_INITIAL_STATE_TRIE = {
   [DUMMY_ACCOUNT_ADDRESSES[0]]: {
@@ -220,6 +256,7 @@ const makeTransactionData = async (
 
   return {
     timestamp: 1,
+    blockNumber: 1,
     queueOrigin: 1,
     ovmEntrypoint: target.address,
     callBytes: calldata,
@@ -332,9 +369,11 @@ const initStateTransitioner = async (
   StateTransitioner: ContractFactory,
   StateManager: ContractFactory,
   addressResolver: Contract,
-  stateTrieRoot: string,
+  trieMapping: any,
   transactionData: OVMTransactionData
 ): Promise<[Contract, Contract, OVMTransactionData]> => {
+  const stateTrie = await makeStateTrie(trieMapping)
+  const stateTrieRoot = bufToHexString(stateTrie.trie.root)
   const stateTransitioner = await StateTransitioner.deploy(
     addressResolver.address,
     10,
@@ -344,6 +383,8 @@ const initStateTransitioner = async (
   const stateManager = StateManager.attach(
     await stateTransitioner.stateManager()
   )
+
+  await proveOVMGasMetadataStorage(stateTransitioner, stateTrie)
 
   return [stateTransitioner, stateManager, transactionData]
 }
@@ -438,13 +479,7 @@ describe('StateTransitioner', () => {
 
     const AllFraudTestJson = compile(
       solc,
-      path.resolve(
-        __dirname,
-        '../../../contracts/test-helpers/FraudTester.sol'
-      ),
-      {
-        executionManagerAddress: executionManager.address,
-      }
+      path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol')
     ).contracts['FraudTester.sol']
     FraudTesterJson = AllFraudTestJson.FraudTester
     MicroFraudTesterJson = AllFraudTestJson.MicroFraudTester
@@ -459,6 +494,10 @@ describe('StateTransitioner', () => {
 
   let stateTrie: any
   let test: AccountStorageProofTest
+  let stateTransitioner: Contract
+  let stateManager: Contract
+  let dummyTransactionData: OVMTransactionData
+  let initializedDummyTxSnapshot
   before(async () => {
     stateTrie = makeInitialStateTrie(
       fraudTester.address,
@@ -476,19 +515,29 @@ describe('StateTransitioner', () => {
       fraudTester.address,
       DUMMY_ACCOUNT_STORAGE()[0].key
     )
-  })
-
-  let stateTransitioner: Contract
-  let stateManager: Contract
-  let transactionData: OVMTransactionData
-  beforeEach(async () => {
-    ;[stateTransitioner, stateManager] = await initStateTransitioner(
+    ;[
+      stateTransitioner,
+      stateManager,
+      dummyTransactionData,
+    ] = await initStateTransitioner(
       StateTransitioner,
       StateManager,
       resolver.addressResolver,
-      test.stateTrieRoot,
+      stateTrie,
       makeDummyTransaction('0x00')
     )
+    initializedDummyTxSnapshot = await ethers.provider.send('evm_snapshot', [])
+  })
+
+  const revertToDummyTxSnapshot = async () => {
+    await ethers.provider.send('evm_revert', [initializedDummyTxSnapshot])
+    // evm_revert deletes the snapshot so reset it right after
+    initializedDummyTxSnapshot = await ethers.provider.send('evm_snapshot', [])
+  }
+
+  let transactionData: OVMTransactionData
+  beforeEach(async () => {
+    await revertToDummyTxSnapshot()
   })
 
   describe('Initialization', async () => {
@@ -514,16 +563,18 @@ describe('StateTransitioner', () => {
       })
 
       it('should correctly reject inclusion of a contract with an invalid nonce', async () => {
-        try {
-          await stateTransitioner.proveContractInclusion(
-            fraudTester.address,
-            fraudTester.address,
-            123, // Wrong nonce.
-            test.stateTrieWitness
-          )
-        } catch (e) {
-          expect(e.toString()).to.contain('Invalid account state provided.')
-        }
+        await ethers.provider.send('evm_revert', [initializedDummyTxSnapshot])
+        await TestUtils.assertRevertsAsync(
+          'Invalid account state provided.',
+          async () => {
+            await stateTransitioner.proveContractInclusion(
+              fraudTester.address,
+              fraudTester.address,
+              123, // Wrong nonce.
+              test.stateTrieWitness
+            )
+          }
+        )
 
         expect(
           await stateManager.isVerifiedContract(fraudTester.address)
@@ -564,17 +615,18 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        try {
-          await stateTransitioner.proveStorageSlotInclusion(
-            fraudTester.address,
-            DUMMY_ACCOUNT_STORAGE()[0].key,
-            DUMMY_ACCOUNT_STORAGE()[1].val, // Different value.
-            test.stateTrieWitness,
-            test.storageTrieWitness
-          )
-        } catch (e) {
-          expect(e.toString()).to.contain('Invalid account state provided.')
-        }
+        await TestUtils.assertRevertsAsync(
+          'Invalid account state provided.',
+          async () => {
+            await stateTransitioner.proveStorageSlotInclusion(
+              fraudTester.address,
+              DUMMY_ACCOUNT_STORAGE()[0].key,
+              DUMMY_ACCOUNT_STORAGE()[1].val, // Different value.
+              test.stateTrieWitness,
+              test.storageTrieWitness
+            )
+          }
+        )
 
         expect(
           await stateManager.isVerifiedStorage(
@@ -587,6 +639,16 @@ describe('StateTransitioner', () => {
   })
 
   describe('applyTransaction(...)', async () => {
+    it('should fail if supplied less gas than might be needed to executeTransaction(...)', async () => {
+      TestUtils.assertRevertsAsync(
+        'Insufficient gas supplied to ensure L1 execution will not run out of gas before OVM transaction gas limit.',
+        async () => {
+          await stateTransitioner.applyTransaction(dummyTransactionData, {
+            gasLimit: GAS_LIMIT / 2,
+          })
+        }
+      )
+    })
     it('should succeed if no state is accessed', async () => {
       ;[
         stateTransitioner,
@@ -596,7 +658,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -613,7 +675,9 @@ describe('StateTransitioner', () => {
         test.stateTrieWitness
       )
 
-      await stateTransitioner.applyTransaction(transactionData)
+      await stateTransitioner.applyTransaction(transactionData, {
+        gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+      })
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(
         STATE_TRANSITIONER_PHASES.POST_EXECUTION
       )
@@ -649,7 +713,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        accessTest.stateTrieRoot,
+        trie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -674,7 +738,9 @@ describe('StateTransitioner', () => {
         accessTest.storageTrieWitness
       )
 
-      await stateTransitioner.applyTransaction(transactionData)
+      await stateTransitioner.applyTransaction(transactionData, {
+        gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+      })
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(
         STATE_TRANSITIONER_PHASES.POST_EXECUTION
       )
@@ -690,7 +756,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -707,7 +773,9 @@ describe('StateTransitioner', () => {
         test.stateTrieWitness
       )
 
-      await stateTransitioner.applyTransaction(transactionData)
+      await stateTransitioner.applyTransaction(transactionData, {
+        gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+      })
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(
         STATE_TRANSITIONER_PHASES.POST_EXECUTION
       )
@@ -723,7 +791,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -743,7 +811,9 @@ describe('StateTransitioner', () => {
       await TestUtils.assertRevertsAsync(
         'Detected an invalid state access.',
         async () => {
-          await stateTransitioner.applyTransaction(transactionData)
+          await stateTransitioner.applyTransaction(transactionData, {
+            gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+          })
         }
       )
 
@@ -761,7 +831,7 @@ describe('StateTransitioner', () => {
         StateTransitioner,
         StateManager,
         resolver.addressResolver,
-        test.stateTrieRoot,
+        stateTrie,
         await makeTransactionData(
           FraudTester,
           fraudTester,
@@ -774,7 +844,9 @@ describe('StateTransitioner', () => {
       await TestUtils.assertRevertsAsync(
         'Detected an invalid state access.',
         async () => {
-          await stateTransitioner.applyTransaction(transactionData)
+          await stateTransitioner.applyTransaction(transactionData, {
+            gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+          })
         }
       )
 
@@ -795,7 +867,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -812,7 +884,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(
           DEFAULT_TX_NUM_STORAGE_UPDATES + 1
@@ -837,7 +911,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -858,7 +932,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(
           DEFAULT_TX_NUM_STORAGE_UPDATES + 3
@@ -872,7 +948,7 @@ describe('StateTransitioner', () => {
 
         expect(await stateTransitioner.stateRoot()).to.equal(newStateTrieRoot)
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(0)
-      })
+      }).timeout(80000)
 
       it('should correctly update when the same slot has changed multiple times', async () => {
         ;[
@@ -883,7 +959,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -904,7 +980,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
 
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(
           DEFAULT_TX_NUM_STORAGE_UPDATES + 1
@@ -931,7 +1009,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -948,7 +1026,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
 
         // One update for each new contract, plus one nonce update for the creating contract.
         expect(await stateManager.updatedContractsCounter()).to.equal(2)
@@ -972,7 +1052,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -992,7 +1072,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
 
         // One update for each new contract, plus one nonce update for the creating contract.
         expect(await stateManager.updatedContractsCounter()).to.equal(4)
@@ -1043,7 +1125,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          accessTest.stateTrieRoot,
+          trie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -1068,7 +1150,9 @@ describe('StateTransitioner', () => {
           accessTest.storageTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(
           DEFAULT_TX_NUM_STORAGE_UPDATES + 0
         )
@@ -1090,7 +1174,7 @@ describe('StateTransitioner', () => {
           StateTransitioner,
           StateManager,
           resolver.addressResolver,
-          test.stateTrieRoot,
+          stateTrie,
           await makeTransactionData(
             FraudTester,
             fraudTester,
@@ -1107,7 +1191,9 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await stateTransitioner.applyTransaction(transactionData)
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
         expect(await stateManager.updatedStorageSlotCounter()).to.equal(
           DEFAULT_TX_NUM_STORAGE_UPDATES + 1
         )

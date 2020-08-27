@@ -276,6 +276,9 @@ export class Environment {
   public static sequencerPrivateKey(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_PRIVATE_KEY || defaultValue
   }
+  public static stateRootSubmissionWallet(defaultValue?: string): string {
+    return process.env.L1_STATE_ROOT_SUBMITTER_PRIVATE_KEY || defaultValue
+  }
   public static sequencerAddress(defaultValue?: string): string {
     return process.env.L1_SEQUENCER_ADDRESS || defaultValue
   }

@@ -27,21 +27,22 @@ export class QueuedGethSubmitter extends ScheduledTask {
   /**
    * @inheritDoc
    */
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     let gethSubmission: GethSubmission
     try {
       gethSubmission = await this.l1DataService.getNextQueuedGethSubmission()
     } catch (e) {
       logError(log, `Error fetching next Geth Submission!`, e)
-      return
+      return false
     }
 
     if (!gethSubmission) {
       log.debug(`No Geth Submissions ready to be sent.`)
-      return
+      return false
     }
 
     try {
+      log.debug(`Submitting Geth Submission ${gethSubmission.submissionNumber}`)
       await this.l2NodeService.sendGethSubmission(gethSubmission)
     } catch (e) {
       logError(
@@ -49,20 +50,21 @@ export class QueuedGethSubmitter extends ScheduledTask {
         `Error sending Geth Submission: ${JSON.stringify(gethSubmission)}`,
         e
       )
-      return
+      return false
     }
 
     try {
       await this.l1DataService.markQueuedGethSubmissionSubmittedToGeth(
         gethSubmission.submissionNumber
       )
+      return true
     } catch (e) {
       logError(
         log,
         `Error marking Geth Submission submitted to Geth. L1 Batch Number: ${gethSubmission.submissionNumber}`,
         e
       )
-      return
+      return false
     }
   }
 }

@@ -2,7 +2,7 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, sleep, TestUtils } from '@eth-optimism/core-utils'
+import { getLogger, TestUtils } from '@eth-optimism/core-utils'
 import { Signer, ContractFactory, Contract } from 'ethers'
 
 /* Internal Imports */
@@ -25,7 +25,7 @@ describe('RollupQueue', () => {
 
   let RollupQueue: ContractFactory
   before(async () => {
-    RollupQueue = await ethers.getContractFactory('RollupQueue')
+    RollupQueue = await ethers.getContractFactory('RollupQueueImplementation')
   })
 
   let rollupQueue: Contract
@@ -37,9 +37,10 @@ describe('RollupQueue', () => {
     // Submit the rollup batch on-chain
     const enqueueTx = await rollupQueue.enqueueTx(tx)
     const txReceipt = await provider.getTransactionReceipt(enqueueTx.hash)
-    const timestamp = (await provider.getBlock(txReceipt.blockNumber)).timestamp
+    const blockNumber = txReceipt.blockNumber
+    const timestamp = (await provider.getBlock(blockNumber)).timestamp
     // Generate a local version of the rollup batch
-    const localBatch = new TxQueueBatch(tx, timestamp)
+    const localBatch = new TxQueueBatch(tx, timestamp, blockNumber)
     await localBatch.generateTree()
     return localBatch
   }
@@ -53,10 +54,13 @@ describe('RollupQueue', () => {
 
     it('should set the TimestampedHash correctly', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
-      const { txHash, timestamp } = await rollupQueue.batchHeaders(0)
+      const { txHash, timestamp, blockNumber } = await rollupQueue.batchHeaders(
+        0
+      )
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)
+      blockNumber.should.equal(localBatch.blockNumber)
     })
 
     it('should add multiple batches correctly', async () => {
@@ -71,19 +75,6 @@ describe('RollupQueue', () => {
       //check batches length
       const batchesLength = await rollupQueue.getBatchHeadersLength()
       batchesLength.toNumber().should.equal(numBatches)
-    })
-
-    it('should emit event on enqueue', async () => {
-      let receivedEvent: boolean = false
-      rollupQueue.on(rollupQueue.filters['CalldataTxEnqueued'](), () => {
-        receivedEvent = true
-      })
-
-      await enqueueAndGenerateBatch(DEFAULT_TX)
-
-      await sleep(5_000)
-
-      receivedEvent.should.equal(true, `Did not receive expected event!`)
     })
   })
 
@@ -118,6 +109,7 @@ describe('RollupQueue', () => {
         const expectedTxHash = await localFrontBatch.getMerkleRoot()
         frontBatch.txHash.should.equal(expectedTxHash)
         frontBatch.timestamp.should.equal(localFrontBatch.timestamp)
+        frontBatch.blockNumber.should.equal(localFrontBatch.blockNumber)
 
         await rollupQueue.dequeue()
 
@@ -160,16 +152,19 @@ describe('RollupQueue', () => {
     })
   })
 
-  describe('peek() and peekTimestamp()', async () => {
+  describe('peek(), peekTimestamp(), and peekBlockNumber()', async () => {
     it('should peek successfully with single element', async () => {
       const localBatch = await enqueueAndGenerateBatch(DEFAULT_TX)
-      const { txHash, timestamp } = await rollupQueue.peek()
+      const { txHash, timestamp, blockNumber } = await rollupQueue.peek()
       const expectedBatchHeaderHash = await localBatch.getMerkleRoot()
       txHash.should.equal(expectedBatchHeaderHash)
       timestamp.should.equal(localBatch.timestamp)
 
       const peekTimestamp = await rollupQueue.peekTimestamp()
       peekTimestamp.should.equal(timestamp)
+
+      const peekBlockNumber = await rollupQueue.peekBlockNumber()
+      peekBlockNumber.should.equal(blockNumber)
     })
 
     it('should revert when peeking at an empty queue', async () => {

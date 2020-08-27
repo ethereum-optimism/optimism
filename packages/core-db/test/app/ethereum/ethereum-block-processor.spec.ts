@@ -1,7 +1,7 @@
 import '../../setup'
 
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, sleep } from '@eth-optimism/core-utils'
 import { Block } from 'ethers/providers'
 import { createMockProvider, getWallets } from 'ethereum-waffle'
 
@@ -62,18 +62,44 @@ describe('Block Subscription', () => {
 
     const blocks: Block[] = await blockListener.waitForSyncToComplete()
 
-    blocks[0].number.should.equal(0)
-    blocks[1].number.should.equal(1)
+    blocks
+      .map((x) => x.number)
+      .sort()
+      .should.deep.equal([0, 1], `Incorrect blocks received!`)
   }).timeout(timeout)
 
-  it('processes old blocks starting at 1', async () => {
+  it('honors earliest block', async () => {
     blockProcessor = new EthereumBlockProcessor(db, 1)
     await blockProcessor.subscribe(provider, blockListener)
 
     const blocks: Block[] = await blockListener.waitForSyncToComplete()
 
-    blocks.length.should.equal(1)
-    blocks[0].number.should.equal(1)
+    blocks.length.should.equal(0)
+  }).timeout(timeout)
+
+  it('processes blocks starting at 1', async () => {
+    blockProcessor = new EthereumBlockProcessor(db, 1)
+    await blockProcessor.subscribe(provider, blockListener)
+
+    let blocks: Block[] = await blockListener.waitForSyncToComplete()
+    blocks.length.should.equal(0)
+
+    await tokenContract.transfer(
+      ownerWallet.address,
+      recipientWallet.address,
+      sendAmount * 2
+    )
+
+    blocks = await blockListener.waitForReceive(2)
+    blocks.length.should.equal(2, `Incorrect number of blocks received!`)
+
+    blocks
+      .map((x) => x.number)
+      .sort()
+      .should.deep.equal([1, 2], `Incorrect blocks received!`)
+    blocks
+      .filter((x) => x.number === 2)[0]
+      .transactions.length.should.equal(1, `Tx Length incorrect!`)
   }).timeout(timeout)
 
   it('processes old and new blocks', async () => {
@@ -85,14 +111,16 @@ describe('Block Subscription', () => {
       sendAmount * 2
     )
 
-    const blocks: Block[] = await blockListener.waitForReceive(4)
+    const blocks: Block[] = await blockListener.waitForReceive(3)
 
-    blocks.length.should.equal(4)
-    blocks[0].number.should.equal(0)
-    blocks[1].number.should.equal(1)
-    // TODO: Fix rebroadcasting latest once caught up
-    blocks[2].number.should.equal(1)
-    blocks[3].number.should.equal(2)
-    blocks[3].transactions.length.should.equal(1)
+    blocks.length.should.equal(3, `Incorrect number of blocks received!`)
+
+    blocks
+      .map((x) => x.number)
+      .sort()
+      .should.deep.equal([0, 1, 2], `Incorrect blocks received!`)
+    blocks
+      .filter((x) => x.number === 2)[0]
+      .transactions.length.should.equal(1, `Tx Length incorrect!`)
   }).timeout(timeout)
 })

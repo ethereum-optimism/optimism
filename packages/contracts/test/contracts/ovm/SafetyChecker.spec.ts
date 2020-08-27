@@ -2,18 +2,18 @@ import '../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { getLogger, add0x, remove0x } from '@eth-optimism/core-utils'
+import { getLogger, add0x } from '@eth-optimism/core-utils'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   DEFAULT_UNSAFE_OPCODES,
   EVMOpcode,
   Opcode,
   makeAddressResolver,
   deployAndRegister,
   AddressResolverMapping,
+  SYNTHETIX_BYTECODE,
 } from '../../test-helpers'
 
 /* Logging */
@@ -30,7 +30,10 @@ const whitelistedNotHaltingOrCALL: EVMOpcode[] = Opcode.ALL_OP_CODES.filter(
   (x) =>
     DEFAULT_UNSAFE_OPCODES.indexOf(x) < 0 &&
     haltingOpcodes.indexOf(x) < 0 &&
-    x.name !== 'CALL'
+    x.name !== 'CALLER'
+)
+const DEFAULT_INVALID_OPCODE: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
+  'hex'
 )
 
 /* Tests */
@@ -58,10 +61,7 @@ describe('Safety Checker', () => {
       'SafetyChecker',
       {
         factory: SafetyChecker,
-        params: [
-          resolver.addressResolver.address,
-          DEFAULT_OPCODE_WHITELIST_MASK,
-        ],
+        params: [resolver.addressResolver.address],
       }
     )
 
@@ -109,9 +109,6 @@ describe('Safety Checker', () => {
 
     describe('PUSH cases', async () => {
       it('skips at least specified number of bytes for PUSH cases', async () => {
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -119,7 +116,7 @@ describe('Safety Checker', () => {
         for (let i = 1; i < 33; i++) {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
-          )}${invalidOpcode.repeat(i)}`
+          )}${DEFAULT_INVALID_OPCODE.repeat(i)}`
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
@@ -129,9 +126,6 @@ describe('Safety Checker', () => {
       })
 
       it('skips at most specified number of bytes for PUSH cases', async () => {
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
         const push1Code: number = parseInt(
           Opcode.PUSH1.code.toString('hex'),
           16
@@ -139,7 +133,7 @@ describe('Safety Checker', () => {
         for (let i = 1; i < 33; i++) {
           const bytecode: string = `0x${Buffer.of(push1Code + i - 1).toString(
             'hex'
-          )}${invalidOpcode.repeat(i + 1)}`
+          )}${DEFAULT_INVALID_OPCODE.repeat(i + 1)}`
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             false,
@@ -153,14 +147,10 @@ describe('Safety Checker', () => {
     describe('multiple opcode cases', async () => {
       it('works for whitelisted, non-halting codes', async () => {
         let bytecode: string = '0x'
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
-
         for (const opcode of whitelistedNotHaltingOrCALL) {
-          bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
-            opcode.programBytesConsumed
-          )}`
+          bytecode += `${opcode.code.toString(
+            'hex'
+          )}${DEFAULT_INVALID_OPCODE.repeat(opcode.programBytesConsumed)}`
         }
 
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -169,14 +159,10 @@ describe('Safety Checker', () => {
 
       it('fails for non-halting whitelisted codes with one not on whitelist at the end', async () => {
         let bytecode: string = '0x'
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
-
         for (const opcode of whitelistedNotHaltingOrCALL) {
-          bytecode += `${opcode.code.toString('hex')}${invalidOpcode.repeat(
-            opcode.programBytesConsumed
-          )}`
+          bytecode += `${opcode.code.toString(
+            'hex'
+          )}${DEFAULT_INVALID_OPCODE.repeat(opcode.programBytesConsumed)}`
         }
         for (const opcode of DEFAULT_UNSAFE_OPCODES) {
           const res: boolean = await safetyChecker.isBytecodeSafe(
@@ -205,39 +191,43 @@ describe('Safety Checker', () => {
           )
         }
       })
-      it('skips bytecode after an unreachable JUMPDEST', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
+
+      it(`skips PUSHed JUMPDESTs in unreachable code`, async () => {
+        const push1Code: number = parseInt(
+          Opcode.PUSH1.code.toString('hex'),
+          16
+        )
+        for (let i = 1; i < 33; i++) {
           let bytecode: string = '0x'
-          bytecode += haltingOp.code.toString('hex')
-          bytecode += Opcode.JUMPDEST.code.toString('hex')
-          for (const opcode of DEFAULT_UNSAFE_OPCODES) {
-            bytecode += opcode.code.toString('hex')
-          }
+          bytecode += Opcode.STOP.code.toString('hex')
+          bytecode += Buffer.of(push1Code + i - 1).toString('hex')
+          bytecode += Opcode.JUMPDEST.code.toString('hex').repeat(i)
+          bytecode += DEFAULT_INVALID_OPCODE
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
           res.should.eq(
             true,
-            `Bytecode containing invalid opcodes after unreachable JUMPDEST (after a ${haltingOp.name}) failed!`
+            `Unreachable code with PUSH${i} followed by ${i} JUMPDEST opcodes should remain unreachable`
           )
         }
       })
 
-      it('parses opcodes after a reachable JUMPDEST', async () => {
-        for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
-            let bytecode: string = '0x'
-            bytecode += jump.code.toString('hex')
-            bytecode += Opcode.JUMPDEST.code.toString('hex') // JUMPDEST here so that the haltingOp is reachable
-            bytecode += haltingOp.code.toString('hex')
-            bytecode += Opcode.JUMPDEST.code.toString('hex')
-            for (const opcode of DEFAULT_UNSAFE_OPCODES) {
-              bytecode += opcode.code.toString('hex')
-            }
-            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
-            res.should.eq(
-              false,
-              `Bytecode containing invalid opcodes after a JUMPDEST preceded by a ${haltingOp.name} and reachable by ${jump.name} should have failed!`
-            )
-          }
+      it(`skips exactly PUSHed # of bytes in unreachable code`, async () => {
+        const push1Code: number = parseInt(
+          Opcode.PUSH1.code.toString('hex'),
+          16
+        )
+        for (let i = 1; i < 33; i++) {
+          let bytecode: string = '0x'
+          bytecode += Opcode.STOP.code.toString('hex')
+          bytecode += Buffer.of(push1Code + i - 1).toString('hex')
+          bytecode += DEFAULT_INVALID_OPCODE.repeat(i)
+          bytecode += Opcode.JUMPDEST.code.toString('hex')
+          bytecode += DEFAULT_INVALID_OPCODE
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
+          res.should.eq(
+            false,
+            `Unreachable code with PUSH${i} followed by ${i} bytes and then a JUMPDEST should become reachable`
+          )
         }
       })
 
@@ -270,29 +260,27 @@ describe('Safety Checker', () => {
 
       it('should correctly handle alternating reachable/uncreachable code ending in reachable, valid code', async () => {
         for (const haltingOp of haltingOpcodesNoJump) {
-          for (const jump of jumps) {
-            let bytecode: string = '0x'
-            bytecode += jump.code.toString('hex')
-            // JUMPDEST here so that the haltingOp is reachable
-            bytecode += Opcode.JUMPDEST.code.toString('hex')
-            for (let i = 0; i < 3; i++) {
-              bytecode += haltingOp.code.toString('hex')
-              // Unreachable, invalid code
-              for (const opcode of DEFAULT_UNSAFE_OPCODES) {
-                bytecode += opcode.code.toString('hex')
-              }
-              bytecode += Opcode.JUMPDEST.code.toString('hex')
-              // Reachable, valid code
-              for (const opcode of whitelistedNotHaltingOrCALL) {
-                bytecode += opcode.code.toString('hex')
-              }
+          let bytecode: string = '0x'
+          bytecode += Opcode.JUMP.code.toString('hex')
+          // JUMPDEST here so that the haltingOp is reachable
+          bytecode += Opcode.JUMPDEST.code.toString('hex')
+          for (let i = 0; i < 3; i++) {
+            bytecode += haltingOp.code.toString('hex')
+            // Unreachable, invalid code
+            for (const opcode of DEFAULT_UNSAFE_OPCODES) {
+              bytecode += opcode.code.toString('hex')
             }
-            const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
-            res.should.eq(
-              true,
-              `Long bytecode containing alternating valid reachable and invalid unreachable code failed!`
-            )
+            bytecode += Opcode.JUMPDEST.code.toString('hex')
+            // Reachable, valid code
+            for (const opcode of whitelistedNotHaltingOrCALL) {
+              bytecode += opcode.code.toString('hex')
+            }
           }
+          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
+          res.should.eq(
+            true,
+            `Long bytecode containing alternating valid reachable and invalid unreachable code failed!`
+          )
         }
       }).timeout(30_000)
 
@@ -326,76 +314,42 @@ describe('Safety Checker', () => {
       }).timeout(30_000)
     })
     describe('handles CALLs', async () => {
-      it(`accepts valid call, PUSHing gas`, async () => {
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
-        const push1Code: number = parseInt(
-          Opcode.PUSH1.code.toString('hex'),
-          16
-        )
-        // test for PUSH1...PUSH32
-        for (let i = 1; i <= 32; i++) {
-          let bytecode: string = '0x'
-          // set value
-          bytecode += Opcode.PUSH1.code.toString('hex')
-          bytecode += '00' //PUSH1 0x00
-          // set address
-          bytecode += Opcode.PUSH20.code.toString('hex')
-          bytecode += remove0x(executionManagerAddress) //PUSH20 Execution Manager address
-          // set gas
-          bytecode += Buffer.of(push1Code + i - 1).toString('hex')
-          bytecode += invalidOpcode.repeat(i)
-          // CALL
-          bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
-          res.should.eq(
-            true,
-            `Bytecode containing valid CALL using PUSH${i} to set gas failed!`
-          )
-        }
+      it(`accepts valid call`, async () => {
+        let bytecode: string = '0x'
+        // set address
+        bytecode += Opcode.CALLER.code.toString('hex')
+        // set value
+        bytecode += Opcode.PUSH1.code.toString('hex')
+        bytecode += '00' //PUSH1 0x00
+        // swap the address and value
+        bytecode += Opcode.SWAP1.code.toString('hex')
+        // set gas
+        bytecode += Opcode.GAS.code.toString('hex')
+        // CALL
+        bytecode += Opcode.CALL.code.toString('hex')
+        const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
+        res.should.eq(true, `Bytecode containing valid CALL failed!`)
       })
-      it(`accepts valid call, DUPing gas`, async () => {
-        const invalidOpcode: string = DEFAULT_UNSAFE_OPCODES[0].code.toString(
-          'hex'
-        )
-        const dup1Code: number = parseInt(Opcode.DUP1.code.toString('hex'), 16)
-        // test for DUP1...DUP16
-        for (let i = 1; i <= 16; i++) {
-          let bytecode: string = '0x'
-          // set value
-          bytecode += Opcode.PUSH1.code.toString('hex')
-          bytecode += '00' //PUSH1 0x00
-          // set address
-          bytecode += Opcode.PUSH20.code.toString('hex')
-          bytecode += remove0x(executionManagerAddress) //PUSH20 Execution Manager address
-          // set gas
-          bytecode += Buffer.of(dup1Code + i - 1).toString('hex')
-          // CALL
-          bytecode += Opcode.CALL.code.toString('hex')
-          const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
-          res.should.eq(
-            true,
-            `Bytecode containing valid CALL using DUP${i} to set gas failed!`
-          )
-        }
-      })
-      it(`rejects invalid CALLs using opcodes other than PUSH or DUP to set gas`, async () => {
+      it(`rejects invalid CALLs using opcodes other than GAS to set gas`, async () => {
         const invalidGasSetters: EVMOpcode[] = whitelistedNotHaltingOrCALL.filter(
-          (x) => !x.name.startsWith('PUSH') && !x.name.startsWith('DUP')
+          (x) => x.name !== 'GAS'
         )
         log.debug(`Invalid Gas Setters ${invalidGasSetters.map((x) => x.name)}`)
         // test for whitelisted, non-halting opcodes (excluding PUSHes or DUPs)
         for (const opcode of invalidGasSetters) {
           let bytecode: string = '0x'
+          // set address
+          bytecode += Opcode.CALLER.code.toString('hex')
           // set value
           bytecode += Opcode.PUSH1.code.toString('hex')
           bytecode += '00' //PUSH1 0x00
-          // set address
-          bytecode += Opcode.PUSH20.code.toString('hex')
-          bytecode += remove0x(executionManagerAddress) //PUSH20 Execution Manager address
+          // swap the address and value
+          bytecode += Opcode.SWAP1.code.toString('hex')
           // set gas with invalid opcode
           bytecode += opcode.code.toString('hex')
+          if (opcode.programBytesConsumed > 0) {
+            bytecode += '00'.repeat(opcode.programBytesConsumed) //PUSHX X_zero_bytes
+          }
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -415,17 +369,17 @@ describe('Safety Checker', () => {
         // test for whitelisted, non-halting opcodes (excluding PUSH1)
         for (const opcode of invalidValueSetters) {
           let bytecode: string = '0x'
-          // set value with invalid opcode
+          // set address
+          bytecode += Opcode.CALLER.code.toString('hex')
+          // set value using invalid opcode
           bytecode += opcode.code.toString('hex')
           if (opcode.programBytesConsumed > 0) {
             bytecode += '00'.repeat(opcode.programBytesConsumed) //PUSHX X_zero_bytes
           }
-          // set address
-          bytecode += Opcode.PUSH20.code.toString('hex')
-          bytecode += remove0x(executionManagerAddress) //PUSH20 Execution Manager address
+          // swap the address and value
+          bytecode += Opcode.SWAP1.code.toString('hex')
           // set gas
-          bytecode += Opcode.PUSH32.code.toString('hex')
-          bytecode += '11'.repeat(32) //PUSH32 0x11...11
+          bytecode += Opcode.GAS.code.toString('hex')
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -435,9 +389,9 @@ describe('Safety Checker', () => {
           )
         }
       }).timeout(20_000)
-      it(`rejects invalid CALLs using opcodes other than PUSH20 to set address`, async () => {
+      it(`rejects invalid CALLs using opcodes other than CALLER to set address`, async () => {
         const invalidAddressSetters: EVMOpcode[] = whitelistedNotHaltingOrCALL.filter(
-          (x) => x.name !== 'PUSH20'
+          (x) => x.name !== 'CALLER'
         )
         log.debug(
           `Invalid Address Setters ${invalidAddressSetters.map((x) => x.name)}`
@@ -445,17 +399,18 @@ describe('Safety Checker', () => {
         // test for whitelisted, non-halting opcodes (excluding PUSH20)
         for (const opcode of invalidAddressSetters) {
           let bytecode: string = '0x'
-          // set value
-          bytecode += Opcode.PUSH1.code.toString('hex')
-          bytecode += '00' //PUSH1 0x00
           // set address with invalid opcode
           bytecode += opcode.code.toString('hex')
           if (opcode.programBytesConsumed > 0) {
             bytecode += '00'.repeat(opcode.programBytesConsumed) //PUSHX X_zero_bytes
           }
+          // set value
+          bytecode += Opcode.PUSH1.code.toString('hex')
+          bytecode += '00' //PUSH1 0x00
+          // swap the address and value
+          bytecode += Opcode.SWAP1.code.toString('hex')
           // set gas
-          bytecode += Opcode.PUSH32.code.toString('hex')
-          bytecode += '11'.repeat(32) //PUSH32 0x11...11
+          bytecode += Opcode.GAS.code.toString('hex')
           // CALL
           bytecode += Opcode.CALL.code.toString('hex')
           const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -467,15 +422,15 @@ describe('Safety Checker', () => {
       }).timeout(20_000)
       it(`rejects invalid CALL with a non-zero value`, async () => {
         let bytecode: string = '0x'
-        // set a non-zero value
+        // set address
+        bytecode += Opcode.CALLER.code.toString('hex')
+        // set value to non-zero value
         bytecode += Opcode.PUSH1.code.toString('hex')
         bytecode += '01' //PUSH1 0x01
-        // set address
-        bytecode += Opcode.PUSH20.code.toString('hex')
-        bytecode += remove0x(executionManagerAddress) //PUSH20 Execution Manager address
+        // swap the address and value
+        bytecode += Opcode.SWAP1.code.toString('hex')
         // set gas
-        bytecode += Opcode.PUSH32.code.toString('hex')
-        bytecode += '11'.repeat(32) //PUSH32 0x11...11
+        bytecode += Opcode.GAS.code.toString('hex')
         // CALL
         bytecode += Opcode.CALL.code.toString('hex')
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -486,15 +441,16 @@ describe('Safety Checker', () => {
       })
       it(`rejects invalid CALL to a non-Execution Manager address`, async () => {
         let bytecode: string = '0x'
-        // set value
-        bytecode += Opcode.PUSH1.code.toString('hex')
-        bytecode += '00' //PUSH1 0x00
         // set a non-Execution Manager address
         bytecode += Opcode.PUSH20.code.toString('hex')
         bytecode += 'ff'.repeat(20) //PUSH20 invalid address
+        // set value
+        bytecode += Opcode.PUSH1.code.toString('hex')
+        bytecode += '00' //PUSH1 0x00
+        // swap the address and value
+        bytecode += Opcode.SWAP1.code.toString('hex')
         // set gas
-        bytecode += Opcode.PUSH32.code.toString('hex')
-        bytecode += '11'.repeat(32) //PUSH32 0x11...11
+        bytecode += Opcode.GAS.code.toString('hex')
         // CALL
         bytecode += Opcode.CALL.code.toString('hex')
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
@@ -503,22 +459,79 @@ describe('Safety Checker', () => {
           `Bytecode containing invalid CALL PUSH20ing non-Execution Manager address should have failed!`
         )
       })
-      it(`rejects invalid CALL with only 2 preceding opcodes`, async () => {
+      it(`rejects invalid CALL without SWAP1`, async () => {
         let bytecode: string = '0x'
+        // set value
+        bytecode += Opcode.PUSH1.code.toString('hex')
+        bytecode += '00' //PUSH1 0x00
         // set address
-        bytecode += Opcode.PUSH20.code.toString('hex')
-        bytecode += remove0x(executionManagerAddress) //PUSH20 Execution Manager address
+        bytecode += Opcode.CALLER.code.toString('hex')
         // set gas
-        bytecode += Opcode.PUSH32.code.toString('hex')
-        bytecode += '11'.repeat(32) //PUSH32 0x11...11
+        bytecode += Opcode.GAS.code.toString('hex')
         // CALL
         bytecode += Opcode.CALL.code.toString('hex')
         const res: boolean = await safetyChecker.isBytecodeSafe(bytecode)
         res.should.eq(
           false,
-          `Bytecode containing invalid CALL with only two preceding opcodes should have failed!`
+          `Bytecode containing invalid CALL with value set before CALLER is pushed to stack should have failed!`
         )
       })
+    })
+    describe.skip('Synthetix contracts', async () => {
+      for (const [name, json] of Object.entries(SYNTHETIX_BYTECODE)) {
+        it(`${name}: init code safety check`, async () => {
+          const data = await safetyChecker.interface.encodeFunctionData(
+            'isBytecodeSafe',
+            [json.bytecode]
+          )
+          const tx = {
+            to: safetyChecker.address,
+            data,
+          }
+
+          console.log(
+            `${name}: initcode is ${json.bytecode.length / 2} bytes long`
+          )
+
+          // THIS IS THE NUMBER WE WANT TO GO DOWN--average per-byte cost of a safety check should go down.
+          const res = await safetyChecker.provider.estimateGas(tx)
+          console.log(`${name}: estimate gas result for initcode: ${res}`)
+          res.toNumber().should.be.lessThan(1550000)
+
+          const isSafe: boolean = await safetyChecker.isBytecodeSafe(
+            json.bytecode
+          )
+          isSafe.should.eq(true, `Initcode for ${name} should be safe!`)
+        })
+        it(`${name}: deployed bytecode safety check`, async () => {
+          const data = await safetyChecker.interface.encodeFunctionData(
+            'isBytecodeSafe',
+            [json.deployedBytecode]
+          )
+          const tx = {
+            to: safetyChecker.address,
+            data,
+          }
+          console.log(
+            `${name}: deployed bytecode is ${json.bytecode.length /
+              2} bytes long`
+          )
+
+          const res = await safetyChecker.provider.estimateGas(tx)
+          console.log(
+            `${name}: estimate gas result for deployed bytecode: ${res}`
+          )
+          res.toNumber().should.be.lessThan(1500000)
+
+          const isSafe: boolean = await safetyChecker.isBytecodeSafe(
+            json.deployedBytecode
+          )
+          isSafe.should.eq(
+            true,
+            `Deployed bytecode for ${name} should be safe!`
+          )
+        })
+      }
     })
   })
 })

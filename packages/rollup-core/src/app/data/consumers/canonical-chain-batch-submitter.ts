@@ -13,8 +13,10 @@ import {
   TransactionBatchSubmission,
   BatchSubmissionStatus,
   L2DataService,
+  StateCommitmentBatchSubmission,
 } from '../../../types/data'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
+import { UnexpectedBatchStatus } from '../../../types'
 
 const log = getLogger('canonical-chain-batch-submitter')
 
@@ -25,7 +27,6 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
     private readonly canonicalTransactionChain: Contract,
-    private readonly confirmationsUntilFinal: number = 1,
     periodMilliseconds = 10_000
   ) {
     super(periodMilliseconds)
@@ -35,15 +36,18 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
    * @inheritDoc
    *
    * Submits L2 batches from L2 Transactions in the DB whenever there is a batch that is ready.
-   *
    */
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     let batchSubmission: TransactionBatchSubmission
     try {
       batchSubmission = await this.dataService.getNextCanonicalChainTransactionBatchToSubmit()
     } catch (e) {
-      logError(log, `Error fetching batch for L1 submission! Continuing...`, e)
-      return
+      logError(
+        log,
+        `Error fetching tx batch for L1 submission! Continuing...`,
+        e
+      )
+      return false
     }
 
     if (
@@ -51,34 +55,27 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       !batchSubmission.transactions ||
       !batchSubmission.transactions.length
     ) {
-      log.debug(`No batches found for L1 submission.`)
-      return
+      log.debug(`No tx batches found for L1 submission.`)
+      return false
     }
 
-    let txBatchTxHash: string = batchSubmission.submissionTxHash
-    switch (batchSubmission.status) {
-      case BatchSubmissionStatus.QUEUED:
-        txBatchTxHash = await this.buildAndSendRollupBatchTransaction(
-          batchSubmission
-        )
-        if (!txBatchTxHash) {
-          return
-        }
-      // Fallthrough on purpose -- this is a workflow
-      case BatchSubmissionStatus.SENT:
-        await this.waitForTxBatchConfirms(
-          txBatchTxHash,
-          batchSubmission.batchNumber
-        )
-      // Fallthrough on purpose -- this is a workflow
-      case BatchSubmissionStatus.FINALIZED:
-        break
-      default:
-        log.error(
-          `Received L1 Batch submission in unexpected tx batch state: ${batchSubmission.status}!`
-        )
-        return
+    if (batchSubmission.status !== BatchSubmissionStatus.QUEUED) {
+      const msg = `Received tx batch to send in ${
+        batchSubmission.status
+      } instead of ${
+        BatchSubmissionStatus.QUEUED
+      }. Batch Submission: ${JSON.stringify(batchSubmission)}.`
+      log.error(msg)
+      throw new UnexpectedBatchStatus(msg)
     }
+
+    const txHash: string = await this.buildAndSendRollupBatchTransaction(
+      batchSubmission
+    )
+    if (!txHash) {
+      return false
+    }
+    return this.waitForProofThatTransactionSucceeded(txHash, batchSubmission)
   }
 
   /**
@@ -94,17 +91,18 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     try {
       const txsCalldata: string[] = this.getTransactionBatchCalldata(l2Batch)
 
+      // TODO: update this to work with geth-persisted timestamp/block number that updates based on L1 actions
       const timestamp = l2Batch.transactions[0].timestamp
+      const blockNumber =
+        (await this.canonicalTransactionChain.provider.getBlockNumber()) - 10 // broken for any prod setting but works for now
+
       log.debug(
-        `Submitting tx batch ${
-          l2Batch.batchNumber
-        } to canonical chain. Batch: ${JSON.stringify(
-          l2Batch
-        )}, txs bytes: ${JSON.stringify(txsCalldata)}, timestamp: ${timestamp}`
+        `Submitting tx batch ${l2Batch.batchNumber} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
       const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
         txsCalldata,
-        timestamp
+        timestamp,
+        blockNumber
       )
       log.debug(
         `Tx batch ${l2Batch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
@@ -119,61 +117,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       return undefined
     }
 
-    try {
-      log.debug(`Marking tx batch ${l2Batch.batchNumber} submitted`)
-      await this.dataService.markTransactionBatchSubmittedToL1(
-        l2Batch.batchNumber,
-        txHash
-      )
-    } catch (e) {
-      logError(
-        log,
-        `Error marking tx batch ${l2Batch.batchNumber} as submitted!`,
-        e
-      )
-      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
-    }
     return txHash
-  }
-
-  /**
-   * Waits for the configured number of confirms for the provided rollup tx transaction hash and
-   * marks the tx as
-   *
-   * @param txHash The tx hash to wait for.
-   * @param batchNumber The rollup batch number in question.
-   */
-  private async waitForTxBatchConfirms(
-    txHash: string,
-    batchNumber: number
-  ): Promise<void> {
-    if (this.confirmationsUntilFinal > 1) {
-      try {
-        log.debug(
-          `Waiting for ${this.confirmationsUntilFinal} confirmations before treating tx batch ${batchNumber} submission as final.`
-        )
-        const receipt: TransactionReceipt = await this.canonicalTransactionChain.provider.waitForTransaction(
-          txHash,
-          this.confirmationsUntilFinal
-        )
-        log.debug(`Batch submission finalized for tx batch ${batchNumber}!`)
-      } catch (e) {
-        logError(
-          log,
-          `Error waiting for necessary block confirmations until final!`,
-          e
-        )
-        // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
-      }
-    }
-
-    try {
-      log.debug(`Marking tx batch ${batchNumber} confirmed!`)
-      await this.dataService.markTransactionBatchFinalOnL1(batchNumber, txHash)
-      log.debug(`Tx batch ${batchNumber} marked confirmed!`)
-    } catch (e) {
-      logError(log, `Error marking tx batch ${batchNumber} as confirmed!`, e)
-    }
   }
 
   /**
@@ -203,5 +147,54 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     return txs
+  }
+
+  /**
+   * Waits for a confirm to indicate that the transaction did not fail.
+   *
+   * @param txHash The tx hash to wait for.
+   * @param txBatch The rollup batch in question.
+   * @returns true if the tx was successful and false otherwise.
+   */
+  private async waitForProofThatTransactionSucceeded(
+    txHash: string,
+    txBatch: TransactionBatchSubmission
+  ): Promise<boolean> {
+    try {
+      const receipt: TransactionReceipt = await this.canonicalTransactionChain.provider.waitForTransaction(
+        txHash,
+        1
+      )
+      if (!receipt.status) {
+        log.error(
+          `Error submitting tx batch # ${txBatch.batchNumber} to L1!. Batch: ${txBatch}`
+        )
+        return false
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error submitting tx batch # ${txBatch.batchNumber} to L1!. Batch: ${txBatch}`,
+        e
+      )
+      return false
+    }
+
+    try {
+      log.debug(`Marking tx batch ${txBatch.batchNumber} submitted`)
+      await this.dataService.markTransactionBatchSubmittedToL1(
+        txBatch.batchNumber,
+        txHash
+      )
+    } catch (e) {
+      logError(
+        log,
+        `Error marking tx batch ${txBatch.batchNumber} as submitted!`,
+        e
+      )
+      // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+      return false
+    }
+    return true
   }
 }

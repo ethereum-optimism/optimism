@@ -1,0 +1,587 @@
+{
+	"abi": [
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "anySynthOrSNXRateIsStale",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "anyRateStale",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "availableCurrencyKeys",
+			"outputs": [
+				{
+					"internalType": "bytes32[]",
+					"name": "",
+					"type": "bytes32[]"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "availableSynthCount",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "index",
+					"type": "uint256"
+				}
+			],
+			"name": "availableSynths",
+			"outputs": [
+				{
+					"internalType": "contract ISynth",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "amount",
+					"type": "uint256"
+				}
+			],
+			"name": "burnSynths",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "burnForAddress",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "amount",
+					"type": "uint256"
+				}
+			],
+			"name": "burnSynthsOnBehalf",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [],
+			"name": "burnSynthsToTarget",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "burnForAddress",
+					"type": "address"
+				}
+			],
+			"name": "burnSynthsToTargetOnBehalf",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "account",
+					"type": "address"
+				}
+			],
+			"name": "collateral",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "issuer",
+					"type": "address"
+				}
+			],
+			"name": "collateralisationRatio",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "issuer",
+					"type": "address"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "debtBalanceOf",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "sourceCurrencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "sourceAmount",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "destinationCurrencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "exchange",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "amountReceived",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "exchangeForAddress",
+					"type": "address"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "sourceCurrencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "sourceAmount",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "destinationCurrencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "exchangeOnBehalf",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "amountReceived",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "isWaitingPeriod",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [],
+			"name": "issueMaxSynths",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "issueForAddress",
+					"type": "address"
+				}
+			],
+			"name": "issueMaxSynthsOnBehalf",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "amount",
+					"type": "uint256"
+				}
+			],
+			"name": "issueSynths",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "issueForAddress",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "amount",
+					"type": "uint256"
+				}
+			],
+			"name": "issueSynthsOnBehalf",
+			"outputs": [],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "account",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "susdAmount",
+					"type": "uint256"
+				}
+			],
+			"name": "liquidateDelinquentAccount",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "issuer",
+					"type": "address"
+				}
+			],
+			"name": "maxIssuableSynths",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "maxIssuable",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [],
+			"name": "mint",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "issuer",
+					"type": "address"
+				}
+			],
+			"name": "remainingIssuableSynths",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "maxIssuable",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "alreadyIssued",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "totalSystemDebt",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": false,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "settle",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "reclaimed",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "refunded",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "numEntries",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "synths",
+			"outputs": [
+				{
+					"internalType": "contract ISynth",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "synthAddress",
+					"type": "address"
+				}
+			],
+			"name": "synthsByAddress",
+			"outputs": [
+				{
+					"internalType": "bytes32",
+					"name": "",
+					"type": "bytes32"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "totalIssuedSynths",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "totalIssuedSynthsExcludeEtherCollateral",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "account",
+					"type": "address"
+				}
+			],
+			"name": "transferableSynthetix",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "transferable",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		}
+	],
+	"evm": {
+		"bytecode": {
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		},
+		"deployedBytecode": {
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		}
+	}
+}

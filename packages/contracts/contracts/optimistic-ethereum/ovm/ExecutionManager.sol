@@ -6,6 +6,7 @@ import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
+import { StateManagerGasSanitizer } from "./StateManagerGasSanitizer.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -15,6 +16,7 @@ import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 
 /* Testing Imports */
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title ExecutionManager
@@ -108,7 +110,7 @@ contract ExecutionManager is ContractResolver {
     {
         // Deploy a default state manager
         StateManager stateManager = resolveStateManager();
-
+        
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
             stateManager.associateCodeContract(address(i), address(i));
@@ -198,6 +200,7 @@ contract ExecutionManager is ContractResolver {
         // Make the EOA call for the account
         executeTransaction(
             _timestamp,
+            0, // note: since executeEOACall is soon to be deprecated, not bothering to add blockNumber here.
             _queueOrigin,
             _ovmEntrypoint,
             _callBytes,
@@ -212,6 +215,7 @@ contract ExecutionManager is ContractResolver {
      * Execute a transaction. Note that unsigned EOA calls are unauthenticated.
      * This means that they should not be allowed for normal execution.
      * @param _timestamp The timestamp which should be used for this call's context.
+     * @param _blockNumber The blockNumber which should be used for this call's context.
      * @param _queueOrigin The parent-chain queue from which this call originated.
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
@@ -221,6 +225,7 @@ contract ExecutionManager is ContractResolver {
      */
     function executeTransaction(
         uint _timestamp,
+        uint _blockNumber,
         uint _queueOrigin,
         address _ovmEntrypoint,
         bytes memory _callBytes,
@@ -236,14 +241,10 @@ contract ExecutionManager is ContractResolver {
         require(_timestamp > 0, "Timestamp must be greater than 0");
 
         // Initialize our context
-        initializeContext(_timestamp, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
+        initializeContext(_timestamp, _blockNumber, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
-
-        // Do pre-execution gas checks and updates
-        startNewGasEpochIfNecessary(_timestamp);
-        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
 
         // Set methodId based on whether we're creating a contract
         bytes32 methodId;
@@ -287,6 +288,10 @@ contract ExecutionManager is ContractResolver {
             mstore8(add(_callBytes, 3), methodId)
         }
 
+        // Do pre-execution gas checks and updates
+        startNewGasEpochIfNecessary(_timestamp);
+        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
+        StateManagerGasSanitizer(address(resolveStateManager())).resetOVMGasRefund();
         // subtract the flat gas fee off the tx gas limit which we will pass as gas
         _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
 
@@ -469,6 +474,28 @@ contract ExecutionManager is ContractResolver {
         view
     {
         uint t = executionContext.timestamp;
+
+        assembly {
+            let timestampMemory := mload(0x40)
+            mstore(timestampMemory, t)
+            return(timestampMemory, 32)
+        }
+    }
+
+    /**
+     * @notice NUMBER opcode
+     * This gets the current blockNumber. Since the L2 value for this
+     * will necessarily be different than L1, this needs to be overridden for the OVM.
+     * Note: This is a raw function, so there are no listed (ABI-encoded) inputs / outputs.
+     * Below format of the bytes expected as input and written as output:
+     * calldata: 4 bytes: [methodID (bytes4)]
+     * returndata: uint256 representing the current blockNumber.
+     */
+    function ovmNUMBER()
+        public
+        view
+    {
+        uint t = executionContext.blockNumber;
 
         assembly {
             let timestampMemory := mload(0x40)
@@ -1022,7 +1049,6 @@ contract ExecutionManager is ContractResolver {
      */
     function ovmEXTCODESIZE()
         public
-        view
     {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
@@ -1053,7 +1079,6 @@ contract ExecutionManager is ContractResolver {
      */
     function ovmEXTCODEHASH()
         public
-        view
     {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
@@ -1089,7 +1114,6 @@ contract ExecutionManager is ContractResolver {
      */
     function ovmEXTCODECOPY()
         public
-        view
     {
         StateManager stateManager = resolveStateManager();
         bytes32 _targetAddressBytes;
@@ -1147,12 +1171,12 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
-    function getCumulativeSequencedGas() public view returns(uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
+    function getCumulativeSequencedGas() public returns(uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
     }
 
-    function getCumulativeQueuedGas() public view returns(uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
+    function getCumulativeQueuedGas() public returns(uint) {
+        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
     }
 
     /*
@@ -1226,17 +1250,20 @@ contract ExecutionManager is ContractResolver {
     }
 
     function updateCumulativeGas(uint _gasConsumed) internal {
+        uint refund = StateManagerGasSanitizer(address(resolveStateManager())).getOVMGasRefund();
         if (executionContext.queueOrigin == 0) {
             setCumulativeSequencedGas(
                 getCumulativeSequencedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
+                - refund
             );
         } else {
             setCumulativeQueuedGas(
                 getCumulativeQueuedGas()
                 + gasMeterConfig.OvmTxBaseGasFee
                 + _gasConsumed
+                - refund
             );
         }
     }
@@ -1313,6 +1340,7 @@ contract ExecutionManager is ContractResolver {
      */
     function initializeContext(
         uint _timestamp,
+        uint _blockNumber,
         uint _queueOrigin,
         address _ovmTxOrigin,
         address _l1MsgSender,
@@ -1324,9 +1352,10 @@ contract ExecutionManager is ContractResolver {
         // reserved for the genesis contract & initial msgSender).
         restoreContractContext(ZERO_ADDRESS, ZERO_ADDRESS);
 
-        // And finally set the timestamp, queue origin, tx origin, and
+        // And finally set the timestamp, blockNumber, queue origin, tx origin, and
         // l1MessageSender.
         executionContext.timestamp = _timestamp;
+        executionContext.blockNumber = _blockNumber;
         executionContext.queueOrigin = _queueOrigin;
         executionContext.ovmTxOrigin = _ovmTxOrigin;
         executionContext.l1MessageSender = _l1MsgSender;
@@ -1386,56 +1415,67 @@ contract ExecutionManager is ContractResolver {
      * @notice Sets the new cumulative sequenced gas as a result of tx execution.
      */
     function setCumulativeSequencedGas(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Sets the new cumulative queued gas as a result of this new tx.
      */
     function setCumulativeQueuedGas(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getGasRateLimitEpochStart() public view returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
+    function getGasRateLimitEpochStart() public returns (uint) {
+        return uint(getMetadataStorageSlot(GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
      * @notice Used to store the current time at the start of a new gas rate limit epoch.
      */
     function setGasRateLimitEpochStart(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Sets the cumulative sequenced gas at the start of a new gas rate limit epoch.
      */
     function setCumulativeSequencedGasAtEpochStart(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
      */
-    function getCumulativeSequencedGasAtEpochStart() internal view returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    function getCumulativeSequencedGasAtEpochStart() internal returns (uint) {
+        return uint(getMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
     }
 
     /**
      * @notice Sets what the cumulative queued gas is at the start of a new gas rate limit epoch.
      */
     function setCumulativeQueuedGasAtEpochStart(uint _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
+        setMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
     }
 
     /**
      * @notice Gets the cumulative queued gas was at the start of this gas rate limit epoch.
      */
-    function getCumulativeQueuedGasAtEpochStart() internal view returns (uint) {
-        return uint(StateManager(resolveStateManager()).getStorageView(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    function getCumulativeQueuedGasAtEpochStart() internal returns (uint) {
+        return uint(getMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
+    }
+
+    /**
+     * @notice Gets the OVM slot value for the given key at the METADATA_STORAGE_ADDRESS.
+     */
+    function getMetadataStorageSlot(bytes32 _key) internal returns (bytes32) {
+        return StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, _key);
+    }
+
+    function setMetadataStorageSlot(bytes32 _key, bytes32 _value) internal {
+        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, _key, _value);
     }
 
     /*
@@ -1455,6 +1495,6 @@ contract ExecutionManager is ContractResolver {
         view
         returns (StateManager)
     {
-        return StateManager(resolveContract("StateManager"));
+        return StateManager(resolveContract("StateManagerGasSanitizer"));
     }
 }

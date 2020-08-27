@@ -22,6 +22,10 @@ export const getDefaultDeployConfig = async (
   const [owner, sequencer, l1ToL2TransactionPasser] = await ethers.getSigners()
 
   return {
+    GasConsumer: {
+      factory: await ethers.getContractFactory('GasConsumer'),
+      params: [],
+    },
     L1ToL2TransactionQueue: {
       factory: await ethers.getContractFactory('L1ToL2TransactionQueue'),
       params: [addressResolver.address],
@@ -45,6 +49,10 @@ export const getDefaultDeployConfig = async (
     StateManager: {
       factory: await ethers.getContractFactory('FullStateManager'),
       params: [],
+    },
+    StateManagerGasSanitizer: {
+      factory: await ethers.getContractFactory('StateManagerGasSanitizer'),
+      params: [addressResolver.address],
     },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),

@@ -9,6 +9,7 @@ import {
   StateCommitmentBatchSubmission,
 } from '../../../types/data'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
+import { UnexpectedBatchStatus } from '../../../types'
 
 const log = getLogger('state-commitment-chain-batch-submitter')
 
@@ -19,7 +20,6 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
     private readonly stateCommitmentChain: Contract,
-    private readonly confirmationsUntilFinal: number = 1,
     periodMilliseconds = 10_000
   ) {
     super(periodMilliseconds)
@@ -29,9 +29,8 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
    * @inheritDoc
    *
    * Submits L2 batches from L2 Transactions in the DB whenever there is a batch that is ready.
-   *
    */
-  public async runTask(): Promise<void> {
+  public async runTask(): Promise<boolean> {
     let stateBatch: StateCommitmentBatchSubmission
     try {
       stateBatch = await this.dataService.getNextStateCommitmentBatchToSubmit()
@@ -41,42 +40,31 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
         `Error fetching state root batch for L1 submission! Continuing...`,
         e
       )
-      return
+      return false
     }
 
-    if (
-      !stateBatch ||
-      !stateBatch.stateRoots ||
-      !stateBatch.stateRoots.length
-    ) {
-      log.debug(`No state root batches found for L1 submission.`)
-      return
+    if (!stateBatch) {
+      log.debug(`No state batches ready for submission.`)
+      return false
     }
 
-    let rootBatchTxHash: string = stateBatch.submissionTxHash
-    switch (stateBatch.status) {
-      case BatchSubmissionStatus.QUEUED:
-        rootBatchTxHash = await this.buildAndSendRollupBatchTransaction(
-          stateBatch
-        )
-        if (!rootBatchTxHash) {
-          return
-        }
-      // Fallthrough on purpose -- this is a workflow
-      case BatchSubmissionStatus.SENT:
-        await this.waitForStateRootBatchConfirms(
-          rootBatchTxHash,
-          stateBatch.batchNumber
-        )
-      // Fallthrough on purpose -- this is a workflow
-      case BatchSubmissionStatus.FINALIZED:
-        break
-      default:
-        log.error(
-          `Received L1 Batch submission in unexpected tx batch state: ${stateBatch.status}!`
-        )
-        return
+    if (stateBatch.status !== BatchSubmissionStatus.QUEUED) {
+      const msg = `Received state commitment batch to finalize in ${
+        stateBatch.status
+      } instead of ${
+        BatchSubmissionStatus.SENT
+      }. Batch Submission: ${JSON.stringify(stateBatch)}.`
+      log.error(msg)
+      throw new UnexpectedBatchStatus(msg)
     }
+
+    const txHash: string = await this.buildAndSendRollupBatchTransaction(
+      stateBatch
+    )
+    if (!txHash) {
+      return false
+    }
+    return this.waitForProofThatTransactionSucceeded(txHash, stateBatch)
   }
 
   /**
@@ -91,6 +79,10 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     let txHash: string
     try {
       const stateRoots: string[] = stateRootBatch.stateRoots
+
+      log.debug(
+        `Appending state root batch number: ${stateRootBatch.batchNumber} with ${stateRoots.length} state roots.`
+      )
 
       const txRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(
         stateRoots
@@ -108,6 +100,40 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       return undefined
     }
 
+    return txHash
+  }
+
+  /**
+   * Waits for a confirm to indicate that the transaction did not fail.
+   *
+   * @param txHash The tx hash to wait for.
+   * @param stateRootBatch The rollup batch in question.
+   * @returns true if the tx was successful and false otherwise.
+   */
+  private async waitForProofThatTransactionSucceeded(
+    txHash: string,
+    stateRootBatch: StateCommitmentBatchSubmission
+  ): Promise<boolean> {
+    try {
+      const receipt: TransactionReceipt = await this.stateCommitmentChain.provider.waitForTransaction(
+        txHash,
+        1
+      )
+      if (!receipt.status) {
+        log.error(
+          `Error submitting State Root batch # ${stateRootBatch.batchNumber} to L1!. Batch: ${stateRootBatch}`
+        )
+        return false
+      }
+    } catch (e) {
+      logError(
+        log,
+        `Error submitting State Root batch # ${stateRootBatch.batchNumber} to L1!. Batch: ${stateRootBatch}`,
+        e
+      )
+      return false
+    }
+
     try {
       log.debug(
         `Marking State Root batch ${stateRootBatch.batchNumber} submitted`
@@ -123,49 +149,8 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
         e
       )
       // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
+      return false
     }
-    return txHash
-  }
-
-  /**
-   * Waits for the configured number of confirms for the provided rollup tx transaction hash and
-   * marks the tx as
-   *
-   * @param txHash The tx hash to wait for.
-   * @param batchNumber The rollup batch number in question.
-   */
-  private async waitForStateRootBatchConfirms(
-    txHash: string,
-    batchNumber: number
-  ): Promise<void> {
-    if (this.confirmationsUntilFinal > 1) {
-      try {
-        log.debug(
-          `Waiting for ${this.confirmationsUntilFinal} confirmations before treating state root batch ${batchNumber} submission as final.`
-        )
-        const receipt: TransactionReceipt = await this.stateCommitmentChain.provider.waitForTransaction(
-          txHash,
-          this.confirmationsUntilFinal
-        )
-        log.debug(
-          `State root batch submission finalized for batch ${batchNumber}!`
-        )
-      } catch (e) {
-        logError(
-          log,
-          `Error waiting for necessary block confirmations until final!`,
-          e
-        )
-        // TODO: Should we return here? Don't want to resubmit, so I think we should update the DB
-      }
-    }
-
-    try {
-      log.debug(`Marking state root batch ${batchNumber} confirmed!`)
-      await this.dataService.markStateRootBatchFinalOnL1(batchNumber, txHash)
-      log.debug(`State root batch ${batchNumber} marked confirmed!`)
-    } catch (e) {
-      logError(log, `Error marking batch ${batchNumber} as confirmed!`, e)
-    }
+    return true
   }
 }

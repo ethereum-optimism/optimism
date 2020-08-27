@@ -15,7 +15,6 @@ import { Contract, ContractFactory, Signer } from 'ethers'
 /* Internal Imports */
 import {
   GAS_LIMIT,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   Address,
   manuallyDeployOvmContract,
   executeOVMCall,

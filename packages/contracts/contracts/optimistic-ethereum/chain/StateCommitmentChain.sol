@@ -80,10 +80,10 @@ contract StateCommitmentChain is ContractResolver {
 
     /**
      * Attempts to append a state batch.
-     * @param _stateBatch Batch to append.
+     * @param _stateBatch Batch of ordered root hashes to append.
      */
     function appendStateBatch(
-        bytes[] memory _stateBatch
+        bytes32[] memory _stateBatch
     )
         public
     {
@@ -101,7 +101,7 @@ contract StateCommitmentChain is ContractResolver {
         );
 
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
-            merkleUtils.getMerkleRoot(_stateBatch), // elementsMerkleRoot
+            merkleUtils.getMerkleRootFrom32ByteLeafData(_stateBatch), // elementsMerkleRoot
             _stateBatch.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));
