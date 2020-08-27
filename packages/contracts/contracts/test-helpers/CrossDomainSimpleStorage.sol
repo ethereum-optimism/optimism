@@ -1,9 +1,9 @@
 pragma solidity ^0.5.0;
 
 import { ICrossDomainMessenger} from "../optimistic-ethereum/bridge/CrossDomainMessenger.interface.sol";
-import { SimpleStorage } from "./SimpleStorage.sol";
+import { SimpleStorageEVM } from "./SimpleStorageEVM.sol";
 
-contract CrossDomainSimpleStorage is SimpleStorage {
+contract CrossDomainSimpleStorage is SimpleStorageEVM {
     ICrossDomainMessenger crossDomainMessenger;
     address public crossDomainMsgSender;
 
