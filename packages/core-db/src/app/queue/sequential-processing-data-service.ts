@@ -10,6 +10,20 @@ import { RDB, Row } from '../../types/db'
 
 const log: Logger = getLogger('sequential-processing-data-service')
 
+const doesColumnDataExist = (
+  queryRes: Row[],
+  rowIndex: number,
+  columnName: string
+): boolean => {
+  return (
+    !!queryRes &&
+    queryRes.length > rowIndex &&
+    !!queryRes[rowIndex] &&
+    queryRes[rowIndex][columnName] !== null &&
+    queryRes[rowIndex][columnName] !== undefined
+  )
+}
+
 export class DefaultSequentialProcessingDataService
   implements SequentialProcessingDataService {
   constructor(private readonly rdb: RDB) {}
@@ -29,7 +43,7 @@ export class DefaultSequentialProcessingDataService
         AND sequence_number = ${index}`
     )
 
-    if (!res || !res.length || !res[0]['data_to_process']) {
+    if (!doesColumnDataExist(res, 0, 'data_to_process')) {
       return undefined
     }
     return {
@@ -50,12 +64,7 @@ export class DefaultSequentialProcessingDataService
         AND processed = TRUE`
     )
 
-    if (
-      !res ||
-      !res.length ||
-      res[0]['last_processed'] === null ||
-      res[0]['last_processed'] === undefined
-    ) {
+    if (!doesColumnDataExist(res, 0, 'last_processed')) {
       return -1
     }
 
@@ -148,10 +157,10 @@ export class InMemoryProcessingDataService
     sequenceKey: string,
     processed: boolean = false
   ): Promise<void> {
-    if (!this.items.get(sequenceKey)) {
+    if (!this.items.has(sequenceKey)) {
       this.items.set(sequenceKey, new Map<number, SequentialProcessingItem>())
     }
-    if (!this.items.get(sequenceKey).get(index)) {
+    if (!this.items.get(sequenceKey).has(index)) {
       this.items.get(sequenceKey).set(index, { processed, data })
     }
   }
@@ -160,7 +169,7 @@ export class InMemoryProcessingDataService
     index: number,
     sequenceKey: string
   ): Promise<SequentialProcessingItem> {
-    if (!this.items.get(sequenceKey)) {
+    if (!this.items.has(sequenceKey)) {
       return undefined
     }
     return this.items.get(sequenceKey).get(index)
