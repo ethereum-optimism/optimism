@@ -142,11 +142,14 @@ export class EthereumBlockProcessor {
    * @param provider The provider with the connection to the blockchain.
    */
   private async syncBlocks(provider: Provider): Promise<void> {
-    log.debug(`Syncing blocks`)
-    const syncStart = Math.max(
-      (await this.getLastSyncedBlockNumber()) + 1,
-      this.earliestBlock
+    log.debug(`Syncing blocks.`)
+    const lastSynced = await this.getLastSyncedBlockNumber()
+    const syncStart = Math.max(lastSynced + 1, this.earliestBlock)
+
+    log.debug(
+      `Starting sync with block ${syncStart}. Last synced: ${lastSynced}, earliest block: ${this.earliestBlock}.`
     )
+
     const blockNumber = await this.getBlockNumber(provider)
 
     if (blockNumber === syncStart) {

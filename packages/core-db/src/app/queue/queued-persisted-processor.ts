@@ -15,12 +15,12 @@ const lockKey: string = 'lock_key'
 
 export abstract class BaseQueuedPersistedProcessor<T>
   implements QueuedPersistedProcessor<T> {
-  private processingLock: AsyncLock
+  private readonly processingLock: AsyncLock
 
   protected constructor(
     private readonly processingDataService: SequentialProcessingDataService,
     private readonly persistenceKey: string,
-    startIndex: number = 0,
+    private readonly startIndex: number = 0,
     private readonly retrySleepDelayMillis: number = 1000
   ) {
     this.processingLock = new AsyncLock()
@@ -65,7 +65,10 @@ export abstract class BaseQueuedPersistedProcessor<T>
    * @inheritDoc
    */
   public async getLastIndexProcessed(): Promise<number> {
-    return this.processingDataService.getLastIndexProcessed(this.persistenceKey)
+    const last: number = await this.processingDataService.getLastIndexProcessed(
+      this.persistenceKey
+    )
+    return Math.max(last, this.startIndex - 1)
   }
 
   /**

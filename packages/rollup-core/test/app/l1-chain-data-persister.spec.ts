@@ -215,7 +215,7 @@ describe('L1 Chain Data Persister', () => {
     provider = new MockProvider()
   })
 
-  it('should not persist block without logs', async () => {
+  it('should persist block but not tx without logs', async () => {
     chainDataPersister = await L1ChainDataPersister.create(
       processingDataService,
       dataService,
@@ -224,6 +224,56 @@ describe('L1 Chain Data Persister', () => {
     )
 
     const block = getBlock(keccak256FromUtf8('derp'))
+    await chainDataPersister.handle(block)
+
+    await sleep(1_000)
+
+    dataService.blocks.length.should.equal(1, `Should always insert blocks!`)
+    dataService.blockTransactions.size.should.equal(
+      0,
+      `Inserted transactions when shouldn't have!`
+    )
+    dataService.stateRoots.size.should.equal(
+      0,
+      `Inserted roots when shouldn't have!`
+    )
+  })
+
+  it('should honor earliest block param -- not process old', async () => {
+    chainDataPersister = await L1ChainDataPersister.create(
+      processingDataService,
+      dataService,
+      provider,
+      [],
+      1
+    )
+
+    const block = getBlock(keccak256FromUtf8('derp'))
+    await chainDataPersister.handle(block)
+
+    await sleep(1_000)
+
+    dataService.blocks.length.should.equal(0, `Should always insert blocks!`)
+    dataService.blockTransactions.size.should.equal(
+      0,
+      `Inserted transactions when shouldn't have!`
+    )
+    dataService.stateRoots.size.should.equal(
+      0,
+      `Inserted roots when shouldn't have!`
+    )
+  })
+
+  it('should honor earliest block param -- process new', async () => {
+    chainDataPersister = await L1ChainDataPersister.create(
+      processingDataService,
+      dataService,
+      provider,
+      [],
+      1
+    )
+
+    const block = getBlock(keccak256FromUtf8('derp'), 1)
     await chainDataPersister.handle(block)
 
     await sleep(1_000)

@@ -111,7 +111,7 @@ export const runServices = async (): Promise<any[]> => {
     services.push(l1ChainDataPersister)
     const lastProcessedBlock = await l1ChainDataPersister.getLastIndexProcessed()
     const l1Processor: EthereumBlockProcessor = createL1BlockSubscriber(
-      lastProcessedBlock
+      lastProcessedBlock + 1
     )
     log.info(`Starting to sync L1 chain`)
     subscriptions.push(
@@ -122,7 +122,7 @@ export const runServices = async (): Promise<any[]> => {
     services.push(l2ChainDataPersister)
     const lastProcessedBlock = await l2ChainDataPersister.getLastIndexProcessed()
     const l2Processor: EthereumBlockProcessor = createL2BlockSubscriber(
-      lastProcessedBlock
+      lastProcessedBlock + 1
     )
     log.info(`Starting to sync L2 chain`)
     subscriptions.push(
