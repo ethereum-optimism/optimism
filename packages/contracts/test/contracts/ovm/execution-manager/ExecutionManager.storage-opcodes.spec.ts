@@ -7,7 +7,6 @@ import { Contract, Signer, ContractFactory } from 'ethers'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   encodeMethodId,
   encodeRawArguments,

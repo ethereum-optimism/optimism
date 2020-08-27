@@ -1,0 +1,536 @@
+{
+	"abi": [
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "aggregators",
+			"outputs": [
+				{
+					"internalType": "address",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32[]",
+					"name": "currencyKeys",
+					"type": "bytes32[]"
+				}
+			],
+			"name": "anyRateIsStale",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "currentRoundForRate",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "sourceCurrencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "sourceAmount",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "destinationCurrencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "effectiveValue",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "value",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "sourceCurrencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "sourceAmount",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "destinationCurrencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "effectiveValueAndRates",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "value",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "sourceRate",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "destinationRate",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "sourceCurrencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "sourceAmount",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes32",
+					"name": "destinationCurrencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "roundIdForSrc",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "roundIdForDest",
+					"type": "uint256"
+				}
+			],
+			"name": "effectiveValueAtRound",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "value",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "getCurrentRoundId",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "startingRoundId",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "startingTimestamp",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "timediff",
+					"type": "uint256"
+				}
+			],
+			"name": "getLastRoundIdBeforeElapsedSecs",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "inversePricing",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "entryPoint",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "upperLimit",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "lowerLimit",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bool",
+					"name": "frozen",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "lastRateUpdateTimes",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "oracle",
+			"outputs": [
+				{
+					"internalType": "address",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "roundId",
+					"type": "uint256"
+				}
+			],
+			"name": "rateAndTimestampAtRound",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "rate",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "time",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "rateAndUpdatedTime",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "rate",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "time",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "rateForCurrency",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "rateIsFrozen",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				}
+			],
+			"name": "rateIsStale",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [],
+			"name": "rateStalePeriod",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32[]",
+					"name": "currencyKeys",
+					"type": "bytes32[]"
+				}
+			],
+			"name": "ratesAndStaleForCurrencies",
+			"outputs": [
+				{
+					"internalType": "uint256[]",
+					"name": "",
+					"type": "uint256[]"
+				},
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "currencyKey",
+					"type": "bytes32"
+				},
+				{
+					"internalType": "uint256",
+					"name": "numRounds",
+					"type": "uint256"
+				}
+			],
+			"name": "ratesAndUpdatedTimeForCurrencyLastNRounds",
+			"outputs": [
+				{
+					"internalType": "uint256[]",
+					"name": "rates",
+					"type": "uint256[]"
+				},
+				{
+					"internalType": "uint256[]",
+					"name": "times",
+					"type": "uint256[]"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"constant": true,
+			"inputs": [
+				{
+					"internalType": "bytes32[]",
+					"name": "currencyKeys",
+					"type": "bytes32[]"
+				}
+			],
+			"name": "ratesForCurrencies",
+			"outputs": [
+				{
+					"internalType": "uint256[]",
+					"name": "",
+					"type": "uint256[]"
+				}
+			],
+			"payable": false,
+			"stateMutability": "view",
+			"type": "function"
+		}
+	],
+	"evm": {
+		"bytecode": {
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		},
+		"deployedBytecode": {
+			"linkReferences": {},
+			"object": "",
+			"opcodes": "",
+			"sourceMap": ""
+		}
+	}
+}
