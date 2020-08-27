@@ -26,9 +26,11 @@
     "test:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST,FLAG_IS_DEBUG\" buidler test --show-stack-traces",
     "coverage": "yarn run coverage:contracts",
     "coverage:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST\" buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
-    "build": "yarn run build:contracts && yarn run build:typescript",
+    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
     "build:contracts": "buidler compile",
     "build:typescript": "tsc -p .",
+    "build:copy": "yarn run build:copy:contracts",
+    "build:copy:contracts": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "clean": "rm -rf ./artifacts ./build ./cache",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
@@ -62,6 +64,7 @@
     "typescript": "^3.9.5"
   },
   "devDependencies": {
+    "copyfiles": "^2.3.0",
     "cross-env": "^7.0.2",
     "glob": "^7.1.6",
     "solidity-coverage": "^0.7.9"
