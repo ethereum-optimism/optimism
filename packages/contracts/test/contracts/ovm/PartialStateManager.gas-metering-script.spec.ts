@@ -36,7 +36,7 @@ const numIterationsToDo = 30
 const startIndexForMultipleKeys = 1
 const multipleSequentialKeys = new Array<string>(numIterationsToDo)
   .fill('lol')
-  .map((val, i) => {
+  .map((v, i) => {
     return numberToHexString(startIndexForMultipleKeys + i, 32)
   })
 const val = '0x' + '23'.repeat(32)
@@ -176,7 +176,7 @@ describe.skip('Partial State Manager -- Storage Performance Testing Script', () 
       '0x' + '00'.repeat(32)
     )
     // reset the sequential keys we set so sstore costs are the same between tests (new set vs update)
-    for (let aKey of multipleSequentialKeys) {
+    for (const aKey of multipleSequentialKeys) {
       await stateManager.insertVerifiedStorage(
         simpleStorageOVMAddress,
         aKey,
@@ -186,7 +186,7 @@ describe.skip('Partial State Manager -- Storage Performance Testing Script', () 
   })
 
   it('setStorage', async () => {
-    let doCall = getSimpleStorageCallCallback('setStorage', [key, val])
+    const doCall = getSimpleStorageCallCallback('setStorage', [key, val])
     const change = await getChangeInCumulativeGas(doCall)
     log.debug(
       `OVM gas cost of a single setStorage is ${change.internalToOVM}, with + ${change.additionalExecuteTransactionOverhead} EVM overhead from executeTransaction().`
@@ -194,7 +194,7 @@ describe.skip('Partial State Manager -- Storage Performance Testing Script', () 
   })
 
   it('getstorage', async () => {
-    let doCall = getSimpleStorageCallCallback('getStorage', [key])
+    const doCall = getSimpleStorageCallCallback('getStorage', [key])
     const change = await getChangeInCumulativeGas(doCall)
     log.debug(
       `OVM gas cost of a single getStorage is ${change.internalToOVM}, with + ${change.additionalExecuteTransactionOverhead} EVM overhead from executeTransaction().`
@@ -202,7 +202,7 @@ describe.skip('Partial State Manager -- Storage Performance Testing Script', () 
   })
 
   it(`getstorages (${numIterationsToDo}x)`, async () => {
-    let doCall = getSimpleStorageCallCallback('getStorages', [
+    const doCall = getSimpleStorageCallCallback('getStorages', [
       key,
       numIterationsToDo,
     ])
@@ -217,7 +217,7 @@ describe.skip('Partial State Manager -- Storage Performance Testing Script', () 
   })
 
   it(`setSameSlotRepeated (${numIterationsToDo}x set storage, same key)`, async () => {
-    let doCall = getSimpleStorageCallCallback('setSameSlotRepeated', [
+    const doCall = getSimpleStorageCallCallback('setSameSlotRepeated', [
       key,
       val,
       numIterationsToDo,
@@ -233,7 +233,7 @@ describe.skip('Partial State Manager -- Storage Performance Testing Script', () 
   })
 
   it(`setStorages (${numIterationsToDo}x, sequential unset keys)`, async () => {
-    let doCall = getSimpleStorageCallCallback('setSequentialSlots', [
+    const doCall = getSimpleStorageCallCallback('setSequentialSlots', [
       startIndexForMultipleKeys,
       val,
       numIterationsToDo,
