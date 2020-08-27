@@ -1,12 +1,17 @@
 import * as eGanache from 'ganache-core'
 // tslint:disable-next-line
 const VM = require('ethereumjs-ovm').default
+// tslint:disable-next-line
+const BN = require('bn.js')
 
 // tslint:disable-next-line:no-shadowed-variable
 const wrap = (provider: any, opts: any) => {
+  const gasLimit = opts.gasLimit || 100_000_000
   const blockchain = provider.engine.manager.state.blockchain
-  let ovm: any
 
+  blockchain.blockGasLimit = '0x' + new BN(gasLimit).toString('hex')
+
+  let ovm: any
   const _original = blockchain.createVMFromStateTrie.bind(blockchain)
   // tslint:disable-next-line:only-arrow-functions
   blockchain.createVMFromStateTrie = function(
@@ -18,7 +23,7 @@ const wrap = (provider: any, opts: any) => {
       ovm = new VM({
         ...vm.opts,
         stateManager: vm.stateManager,
-        emGasLimit: opts.gasLimit || 100_000_000,
+        emGasLimit: gasLimit,
       })
       return ovm
     } else {
@@ -32,6 +37,13 @@ const wrap = (provider: any, opts: any) => {
         contracts: ovm._contracts,
       })
     }
+  }
+
+  // tslint:disable-next-line:only-arrow-functions
+  blockchain.estimateGas = function(tx: any, blockNumber: any, callback: any) {
+    callback(null, {
+      gasEstimate: new BN(gasLimit),
+    })
   }
 
   const _send = provider.send.bind(provider)

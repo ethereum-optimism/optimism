@@ -10,7 +10,7 @@ import './src/buidler-plugins/buidler-ovm-node'
 const config: any = {
   networks: {
     buidlerevm: {
-      blockGasLimit: 100000000,
+      blockGasLimit: 100_000_000,
     },
   },
   paths: {

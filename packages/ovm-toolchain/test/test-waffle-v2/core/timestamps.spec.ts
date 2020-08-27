@@ -10,22 +10,17 @@ import { waffleV2 } from '../../../src/waffle/waffle-v2'
 /* Contract Imports */
 import * as TimestampCheckerContract from '../../temp/build/waffle/TimestampChecker.json'
 
-const overrides = {
-  gasLimit: 100000000,
-}
-
 describe('Timestamp Manipulation Support', () => {
   let provider: any
   let wallet: Wallet
   let timestampChecker: Contract
   beforeEach(async () => {
-    provider = new waffleV2.MockProvider(overrides)
+    provider = new waffleV2.MockProvider()
     ;[wallet] = provider.getWallets()
     timestampChecker = await deployContract(
       wallet,
       TimestampCheckerContract,
-      [],
-      overrides
+      []
     )
   })
 
