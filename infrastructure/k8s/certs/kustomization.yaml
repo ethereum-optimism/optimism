@@ -2,5 +2,5 @@ secretGenerator:
 - name: omgnetwork-certs
   files:
   - ca-chain.cert.pem
-  - vault.omgnetwork.io.cert.pem
-  - vault.omgnetwork.io.key.pem
+  - vault-internal.cert.pem
+  - vault-internal.key.pem

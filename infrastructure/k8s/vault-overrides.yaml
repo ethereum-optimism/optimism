@@ -1,6 +1,6 @@
 global:
   tlsDisable: false
-  certSecretName: omgnetwork-certs-h7tk624bf6
+  certSecretName: omgnetwork-certs-628mdgd8tm
 
 injector:
   enabled: false
@@ -31,8 +31,8 @@ server:
 
         listener "tcp" {
           tls_disable = {{ .Values.global.tlsDisable }}
-          tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.cert.pem"
-          tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.key.pem"
+          tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
+          tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
 
           address = "[::]:8200"
           cluster_address = "[::]:8201"
@@ -50,22 +50,22 @@ server:
 
           retry_join {
             leader_api_addr = "https://vault-0.vault-internal:8200"
-            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.cert.pem"
-            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.key.pem"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
             leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca-chain.cert.pem"
           }
 
           retry_join {
             leader_api_addr = "https://vault-1.vault-internal:8200"
-            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.cert.pem"
-            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.key.pem"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
             leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca-chain.cert.pem"
           }
 
           retry_join {
             leader_api_addr = "https://vault-2.vault-internal:8200"
-            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.cert.pem"
-            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.omgnetwork.io.key.pem"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
             leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca-chain.cert.pem"
           }
         }
@@ -79,13 +79,13 @@ server:
   extraEnvironmentVars:
     GOOGLE_REGION: global
     GOOGLE_PROJECT: omgnetwork-vault
-    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
+    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/credentials.json
 
   extraVolumes:
     - type: secret
       name: "kms-creds"
     - type: secret
-      name: "omgnetwork-certs-h7tk624bf6"
+      name: "omgnetwork-certs-628mdgd8tm"
 
   affinity: null
 
