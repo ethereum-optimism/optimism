@@ -8,7 +8,6 @@ import { Contract, ContractFactory } from 'ethers'
 /* Internal Imports */
 import {
   CHAIN_ID,
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   signTransaction,
   getSignedComponents,

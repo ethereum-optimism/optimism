@@ -8,7 +8,6 @@ import { TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   manuallyDeployOvmContractReturnReceipt,
   didCreateSucceed,
@@ -54,10 +53,7 @@ describe('Execution Manager -- Safety Checking', () => {
       'SafetyChecker',
       {
         factory: SafetyChecker,
-        params: [
-          resolver.addressResolver.address,
-          DEFAULT_OPCODE_WHITELIST_MASK,
-        ],
+        params: [resolver.addressResolver.address],
       }
     )
   })

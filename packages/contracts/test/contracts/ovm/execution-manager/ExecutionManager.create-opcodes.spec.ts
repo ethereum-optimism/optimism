@@ -14,7 +14,6 @@ import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
-  DEFAULT_OPCODE_WHITELIST_MASK,
   GAS_LIMIT,
   executeOVMCall,
   encodeMethodId,
@@ -63,10 +62,7 @@ describe('ExecutionManager -- Create opcodes', () => {
   let safetyChecker: Contract
   let stubSafetyChecker: Contract
   before(async () => {
-    safetyChecker = await SafetyChecker.deploy(
-      resolver.addressResolver.address,
-      DEFAULT_OPCODE_WHITELIST_MASK
-    )
+    safetyChecker = await SafetyChecker.deploy(resolver.addressResolver.address)
     stubSafetyChecker = await StubSafetyChecker.deploy()
   })
 
