@@ -21,6 +21,10 @@ import pkg = require('../../package.json')
 const version = pkg.version
 const logger = new Logger(version);
 
+const allowedTransactionKeys: { [ key: string ]: boolean } = {
+    chainId: true, data: true, gasLimit: true, gasPrice:true, nonce: true, to: true, value: true
+}
+
 export class OptimismSigner implements JsonRpcSigner {
   private _signer: JsonRpcSigner
   public readonly provider: JsonRpcProvider
@@ -29,13 +33,13 @@ export class OptimismSigner implements JsonRpcSigner {
   public _index: number
   public _address: string
 
+  // TODO: this shouldn't be the optimism provider
   constructor(provider: OptimismProvider, signer: JsonRpcSigner, addressOrIndex: string | number) {
     if (addressOrIndex == null) { addressOrIndex = 0; }
 
     if (typeof(addressOrIndex) === "string") {
       defineReadOnly(this, "_address", this.provider.formatter.address(addressOrIndex));
       defineReadOnly(this, "_index", null);
-
     } else if (typeof(addressOrIndex) === "number") {
       defineReadOnly(this, "_index", addressOrIndex);
       defineReadOnly(this, "_address", null);
@@ -53,7 +57,10 @@ export class OptimismSigner implements JsonRpcSigner {
     return this._signer
   }
 
+  // TODO: I think this is the right codepath.
+  // Connect to metamask
   public connect(provider: Provider): JsonRpcSigner {
+    // Modify this so it can connect.
     return this.signer.connect(provider)
   }
 
@@ -61,7 +68,7 @@ export class OptimismSigner implements JsonRpcSigner {
     return this.signer.connectUnchecked()
   }
 
-  public getAddress(): Promise<string> {
+  public async getAddress(): Promise<string> {
     return this.signer.getAddress()
   }
 
@@ -143,6 +150,9 @@ export class OptimismSigner implements JsonRpcSigner {
 
   // The transaction must be signed already
   public sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
+
+    // if not signed, sign it
+
     return this.sendUncheckedTransaction(transaction).then((hash) => {
       return poll(() => {
         return this.provider.getTransaction(hash).then((tx: TransactionResponse) => {
@@ -155,6 +165,19 @@ export class OptimismSigner implements JsonRpcSigner {
       });
     });
   }
+
+  /*
+  // TODO(mark): check this codepath
+  // Populates all fields in a transaction, signs it and sends it to the network
+  public async sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
+    this._checkProvider("sendTransaction");
+    return this.populateTransaction(transaction).then((tx) => {
+      return this.signTransaction(tx).then((signedTx) => {
+        return this.provider.sendTransaction(signedTx);
+      });
+    });
+  }
+  */
 
   public async signMessage(message: Bytes | string): Promise<string> {
     return this.signer.signMessage(message)
@@ -174,11 +197,13 @@ export class OptimismSigner implements JsonRpcSigner {
     return !!(value && value._isSigner);
   }
 
+  // target: public node
   public async getBalance(blockTag?: BlockTag): Promise<BigNumber> {
     this._checkProvider("getBalance");
     return this.provider.getBalance(this.getAddress(), blockTag);
   }
 
+  // target: public node
   public async getTransactionCount(blockTag?: BlockTag): Promise<number> {
     this._checkProvider("getTransactionCount");
     return this.provider.getTransactionCount(this.getAddress(), blockTag);
@@ -199,30 +224,19 @@ export class OptimismSigner implements JsonRpcSigner {
     return this.provider.call(tx, blockTag);
   }
 
-  /*
-  // TODO(mark): check this codepath
-  // Populates all fields in a transaction, signs it and sends it to the network
-  public async sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
-    this._checkProvider("sendTransaction");
-    return this.populateTransaction(transaction).then((tx) => {
-      return this.signTransaction(tx).then((signedTx) => {
-        return this.provider.sendTransaction(signedTx);
-      });
-    });
-  }
-  */
-
   public async getChainId(): Promise<number> {
     this._checkProvider("getChainId");
     const network = await this.provider.getNetwork();
     return network.chainId;
   }
 
+  // target: public node
   public async getGasPrice(): Promise<BigNumber> {
     this._checkProvider("getGasPrice");
     return this.provider.getGasPrice();
   }
 
+  // target: public node
   public async resolveName(name: string): Promise<string> {
     this._checkProvider("resolveName");
     return this.provider.resolveName(name);
@@ -239,7 +253,7 @@ export class OptimismSigner implements JsonRpcSigner {
   //   - populateTransaction (and therefor sendTransaction)
   public checkTransaction(transaction: Deferrable<TransactionRequest>): Deferrable<TransactionRequest> {
     for (const key in transaction) {
-      if (allowedTransactionKeys.indexOf(key) === -1) {
+      if (!(key in allowedTransactionKeys)) {
         logger.throwArgumentError("invalid transaction key: " + key, "transaction", transaction);
       }
     }
@@ -269,7 +283,6 @@ export class OptimismSigner implements JsonRpcSigner {
   // By default called from: (overriding these prevents it)
   //   - sendTransaction
   public async populateTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionRequest> {
-
     const tx: Deferrable<TransactionRequest> = await resolveProperties(this.checkTransaction(transaction))
 
     if (tx.to != null) { tx.to = Promise.resolve(tx.to).then((to) => this.resolveName(to)); }
@@ -303,6 +316,7 @@ export class OptimismSigner implements JsonRpcSigner {
   }
 }
 
+// TODO(mark): this may be duplicate functionality to `this.checkTransaction`
 function ensureTransactionDefaults(transaction: Deferrable<TransactionRequest>): Deferrable<TransactionRequest> {
   transaction = deepCopy(transaction);
 
