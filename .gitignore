@@ -30,3 +30,5 @@ docker/config/*.srl
 *.key.json
 credentials.json
 *.pem
+*.crt
+*.key

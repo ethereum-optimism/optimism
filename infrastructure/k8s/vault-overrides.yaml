@@ -1,6 +1,6 @@
 global:
   tlsDisable: false
-  certSecretName: omgnetwork-certs-628mdgd8tm
+  certSecretName: omgnetwork-certs-b8k72gm922
 
 injector:
   enabled: false
@@ -26,22 +26,22 @@ server:
 
       config: |
         ui = false
-        log_level = "debug"
-        cluster_name = "omgnetwork-cluster"
+        log_level = "info"
+        cluster_name = "vault-cluster-0827"
 
         listener "tcp" {
           tls_disable = {{ .Values.global.tlsDisable }}
-          tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
-          tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
+          tls_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
+          tls_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
 
           address = "[::]:8200"
           cluster_address = "[::]:8201"
         }
 
         seal "gcpckms" {
-          region      = "global"
-          project     = "omgnetwork-vault"
-          key_ring    = "omgnetwork-vault-ring"
+          region      = "us-west2"
+          project     = "vault-cluster-0827"
+          key_ring    = "omgnetwork-vault-keyring"
           crypto_key  = "omgnetwork-vault-unseal-key"
         }
 
@@ -49,24 +49,24 @@ server:
           path = "/vault/data"
 
           retry_join {
-            leader_api_addr = "https://vault-0.vault-internal:8200"
-            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
-            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
-            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca-chain.cert.pem"
+            leader_api_addr = "https://vault-0.vault-internal.default.svc.cluster.local:8200"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
           }
 
           retry_join {
-            leader_api_addr = "https://vault-1.vault-internal:8200"
-            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
-            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
-            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca-chain.cert.pem"
+            leader_api_addr = "https://vault-1.vault-internal.default.svc.cluster.local:8200"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
           }
 
           retry_join {
-            leader_api_addr = "https://vault-2.vault-internal:8200"
-            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.cert.pem"
-            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault-internal.key.pem"
-            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca-chain.cert.pem"
+            leader_api_addr = "https://vault-2.vault-internal.default.svc.cluster.local:8200"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
           }
         }
 
@@ -77,15 +77,15 @@ server:
     pullPolicy: IfNotPresent
 
   extraEnvironmentVars:
-    GOOGLE_REGION: global
-    GOOGLE_PROJECT: omgnetwork-vault
-    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/credentials.json
+    GOOGLE_REGION: us-west2
+    GOOGLE_PROJECT: vault-cluster-0827
+    GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
 
   extraVolumes:
     - type: secret
       name: "kms-creds"
     - type: secret
-      name: "omgnetwork-certs-628mdgd8tm"
+      name: "omgnetwork-certs-b8k72gm922"
 
   affinity: null
 

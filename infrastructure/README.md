@@ -9,8 +9,8 @@ You have to authenticate with the `gcloud` command line tool (download if not al
 Otherwise, you can run `gcloud init` to create a fresh GCP project configuration locally, or just run:
 
 ```bash
-$ gcloud config set project $PROJECT_ID # <-- important for subsequent commands
 $ gcloud auth login
+$ gcloud config set project $PROJECT_ID # <-- important for subsequent commands
 ```
 
 This will open up a browser window for you to login and authorize access to the target project for `gcloud` to provider credentials for. This session with `gcloud` can later be revoked by running:
@@ -68,32 +68,7 @@ This enables:
 
 Without doing this first, the deployment will not succeed.
 
-<<<<<<< Updated upstream
-=======
-Now you have to authentication with the `gcloud` command line tool (download if not already installed). If you already have credentials locally for the project, you can simply set `GOOGLE_APPLICATION_CREDENTIALS` to the local file path, and Terraform will utilize those credentials.
-
-Otherwise, you can run `gcloud init` to create a fresh GCP project configuration locally, or just run:
-
-```bash
-gcloud config set project $PROJECT_ID # <-- important for subsequent commands
-gcloud auth login
-```
-
-This will open up a browser window for you to login and authorize access to the target project for `gcloud` to provider credentials for. This session with `gcloud` can later be revoked by running:
-
-```bash
-gcloud auth revoke
-```
-
-> Note:
-> 
-> Alternatively, if you have a service account designated for IaC deployments, you can activate those credentials with:
-> ```bash
-> gcloud auth activate-service-account --key-file <path_to_key_file>
-> ```
-
->>>>>>> Stashed changes
-Now that you're authenticated locally to your GCP project, you can now deploy the scripts. Ensure that you have all of the necessary Terraform variables set and run:
+Now that you're authenticated locally to your GCP project, you can now deploy the scripts. Ensure that you have all of the necessary Terraform variables set in the `terraform.tfvars` file and run:
 
 ```bash
 cd ./terraform
@@ -110,7 +85,7 @@ The deployment could take some time because of spinning up a new GKE cluster, bu
 
 [Source](./k8s)
 
-Now that you have your GKE cluster running in a configured GCP project, you can setup your local Kubernetes configuration to point to the GKE cluster you've created! Assuming you are still authenticated to your project with the `gcloud` CLI, you can run:
+Now that you have your GKE cluster running in a configured GCP project, you can setup your local Kubernetes configuration to point to the GKE cluster you've created. Assuming you are still authenticated to your project with the `gcloud` CLI, you can run:
 
 ```bash
 export GKE_CLUSTER_NAME=$(gcloud container clusters list --format=json | jq -r '.[].name')
@@ -132,7 +107,8 @@ kubectl config use-context $GKE_CONTEXT_NAME
 And later _delete_ it (if necessary with):
 
 ```bash
-kubectl config delete-context/delete-cluster $GKE_CONTEXT_NAME
+kubectl config delete-context $GKE_CONTEXT_NAME
+kubectl config delete-cluster $GKE_CONTEXT_NAME
 kubectl config unset users.$GKE_CONTEXT_NAME
 kubectl config unset current-context
 ```
@@ -177,22 +153,20 @@ helm repo add hashicorp http://helm.releases.hashicorp.com
 
 #### Generate Self-Signed Certs
 
-In the following sections, `$DOMAIN` will refer to whatever you used as the common name for the certificate (e.g., vault.omgnetwork.io, localhost, etc).
+[Source](./infrastructure)
 
-One way to generate the CA and a self-signed cert is to follow the guide at [https://jamielinux.com/docs/openssl-certificate-authority/create-the-root-pair.html](https://jamielinux.com/docs/openssl-certificate-authority/create-the-root-pair.html).
-
-If you followed the aforementioned guide to generate your cert, you'll want to generate your the key and self-signed cert in the last step _without a passphrase. So, following the guide (3rd page), once you finish step `Sign server and client certificates` -> `Create a key`, execute this command to clear the passphrase:
+To generate the self-signed certs, execute:
 
 ```bash
-openssl rsa -in intermediate/private/$DOMAIN.key.pem -out intermediate/private/$DOMAIN.key.pem
+./scripts/gen_certs.sh -d <dns-domain>
 ```
+
+For GKE clusters, use: `-d vault-internal.default.svc.cluster.local`
+For Minikube, use: `-d vault-internal`
 
 ---
 
-**NOTE**: When generating the Root CA Certificate, you should use a 20 year TTL (as suggested in the guide above). This
-should only happen once and it should be performed with your system _disconneted_ from the internet. Use a reasonably complex passphrase and keep that passphrase safe (for example, in a physical vault). Only select people should have access to this passphrase.
-
-**NOTE**: When generating the TLS Certs (or Intermediate CA Certificates if you choose to go that route per the guide above), the Root CA Key will need to be take out of _secure offline storage_. Once the new certs have been generated, the Root CA Key should be returned to its _secure offline storage_.
+**NOTE**: The Root CA Certificate uses a 20 year TTL
 
 **NOTE**: The TLS Key Material should be generated each time the Vault Cluster is upgraded. We currently suggest an upgrade cycle of 2-4 months, so the TLS Key Material should have a TTL of 6 months.
 
@@ -200,27 +174,7 @@ should only happen once and it should be performed with your system _disconneted
 
 #### Create a kubernetes secret with the cert
 
-In this section `$K8S` will be the absolute filesystem path to your `immutability-eth-plugin/infrastructure/k8s` directory.
-
-```bash
-cp -f intermediate/certs/ca-chain.cert.pem $K8S/certs
-cp -f intermediate/certs/$DOMAIN.cert.pem $K8S/certs
-cp -f intermediate/private/$DOMAIN.key.pem $K8S/certs
-
-cd $K8S/certs
-```
-
-In `$K8S/certs`, edit the file called `kustomization.yaml` and fill it with these contents:
-
-```yaml
-secretGenerator:
-- name: omgnetwork-certs
-  files:
-  - $DOMAIN.cert.pem
-  - $DOMAIN.key.pem
-```
-
-Create the kubernetes secret:
+In `infrastructure/k8s/certs`, execute:
 
 ```bash
 kubectl apply -k .
@@ -232,18 +186,32 @@ You'll see something like this for output:
 secret/certs-k9g6gg7hft created
 ```
 
-Take note of the generated secret name (we'll reference it below with `$SECRET-NAME`)
+Take note of the generated secret hash value (e.g., k9g6gg7hft) because you'll need it in the next step.
 
 #### Update value overrides
 
-In `infrastructure/k8s`, edit _vault-overrides.yaml_ and verify all the values are correct. Specifically, you'll need to update the kubernetes secret for the self-signed certificate. Look for `global` -> `certSecretName` _and_ `server` -> `extraVolumes` -> "the second secret". Also make sure resources like the project name are set to $PROJECT, etc.
+In `infrastructure/k8s`, edit _vault-overrides.yaml_ and verify all the values are correct.
+
+* Update `global` -> `certSecretName` with the secret hash value from above
+* Update the second secret in `server` -> `extraVolumes` with the secret hash value from above
+* Update `server` -> `ha` -> `raft` -> `config` -> `cluster_name` to match your kubernetes cluster name
+* Update `server` -> `ha` -> `raft` -> `config` -> `seal` -> `region` to match the region the resources are deployed in
+* Update `server` -> `ha` -> `raft` -> `config` -> `seal` -> `project` to match the project the resources are deployed in
+* Update `server` -> `ha` -> `extraEnvironmentVars` -> `GOOGLE_REGION` to match the region the resources are deployed in
+* Update `server` -> `ha` -> `extraEnvironmentVars` -> `GOOGLE_PROJECT` to match the project the resources are deployed in
+
+---
+
+NOTE: If you are running in minikube, replace all instances of `vault-internal.default.svc.cluster.local` with `vault-internal`.
+
+---
 
 #### Start the Pods using the Helm Chart
 
 Execute:
 
 ```bash
-helm install vault hashicorp/vault —-values vault-overrides.yaml
+helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault
 ```
 
 ### Interact with Vault
@@ -280,17 +248,7 @@ kubectl exec vault-0 -- vault operator init -format=json > cluster-keys.json
 kubectl exec vault-0 -- vault status
 ```
 
-#### Set up localhost to connect to Vault using the CLI
-
-First you need to update `/etc/hosts` and create an entry like this:
-
-```
-127.0.0.1 $DOMAIN
-```
-
 #### Set up k8s Port Forwarding
-
-If running locally with minikube, to access the cluster from your development system execute:
 
 ```bash
 kubectl port-forward vault-0 8200:8200
@@ -301,7 +259,7 @@ kubectl port-forward vault-0 8200:8200
 In another terminal, execute:
 
 ```bash
-export VAULT_ADDR=https://$DOMAIN:8200
+export VAULT_ADDR=https://localhost:8200
 export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
 
 vault status

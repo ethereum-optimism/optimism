@@ -55,8 +55,3 @@ variable "gke_node_count" {
   default     = 1
   type        = number
 }
-
-variable "kms_key_ring" {
-  description = "The name of the KMS key ring to create the new unsealing key"
-  type        = string
-}
