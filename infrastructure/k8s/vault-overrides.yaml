@@ -103,4 +103,4 @@ server:
     enabled: false
 
 ui:
-  enabled: false
+  enabled: true
