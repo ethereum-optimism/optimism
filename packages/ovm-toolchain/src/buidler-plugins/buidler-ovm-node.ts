@@ -20,6 +20,7 @@ extendEnvironment(async (bre) => {
       stateManager: vm.stateManager,
       emGasLimit: gasLimit,
     })
+    await ovm.init()
     node['_vm' as any] = ovm
 
     // Hijack the gas estimation function.
