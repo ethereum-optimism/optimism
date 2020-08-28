@@ -6,19 +6,12 @@ injector:
   enabled: false
 
 server:
-  dataStorage:
-    enabled: true
-    size: 10Gi
-    accessMode: ReadWriteOnce
-
   auditStorage:
     enabled: true
-    size: 10Gi
-    accessMode: ReadWriteOnce
 
   ha:
     enabled: true
-    replicas: 3
+    replicas: 5
 
     raft:
       enabled: true
@@ -64,6 +57,20 @@ server:
 
           retry_join {
             leader_api_addr = "https://vault-2.vault-internal.default.svc.cluster.local:8200"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+          }
+
+          retry_join {
+            leader_api_addr = "https://vault-3.vault-internal.default.svc.cluster.local:8200"
+            leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
+            leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
+            leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
+          }
+
+          retry_join {
+            leader_api_addr = "https://vault-4.vault-internal.default.svc.cluster.local:8200"
             leader_client_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.crt"
             leader_client_key_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/vault.key"
             leader_ca_cert_file = "/vault/userconfig/{{ .Values.global.certSecretName }}/ca.crt"
