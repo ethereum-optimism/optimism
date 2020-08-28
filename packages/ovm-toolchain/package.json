@@ -2,6 +2,7 @@
   "name": "@eth-optimism/ovm-toolchain",
   "version": "0.0.1-alpha.1",
   "description": "Wrappers for Ethereum dev tools",
+  "private": true,
   "main": "build/index.js",
   "files": [
     "build/**/*.js"
