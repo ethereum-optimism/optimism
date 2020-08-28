@@ -1,11 +1,24 @@
 import path from 'path'
-import { usePlugin } from '@nomiclabs/buidler/config'
+import { usePlugin, task } from '@nomiclabs/buidler/config'
 
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
 
 import './src/buidler-plugins/buidler-ovm-compiler'
 import './src/buidler-plugins/buidler-ovm-node'
+
+task('test')
+  .addFlag('ovm', 'Run tests on the OVM using a custom OVM provider')
+  .setAction(async (taskArguments, bre: any, runSuper) => {
+    if (taskArguments.ovm) {
+      console.log('Compiling and running tests in the OVM...')
+      bre.config.solc = {
+        path: path.resolve(__dirname, '../../node_modules/@eth-optimism/solc'),
+      }
+      await bre.config.startOvmNode()
+    }
+    await runSuper(taskArguments)
+  })
 
 const config: any = {
   networks: {
@@ -23,9 +36,8 @@ const config: any = {
     timeout: 50000,
   },
   solc: {
-    path: path.resolve(__dirname, '../../node_modules/@eth-optimism/solc'),
+    version: '0.5.16',
   },
-  useOvm: true,
 }
 
 export default config
