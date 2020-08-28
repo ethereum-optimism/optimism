@@ -9,7 +9,8 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "test:debug": "mocha debug --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +22,11 @@
     "ethers": "^5.0.8"
   },
   "devDependencies": {
+    "@eth-optimism/ovm-toolchain": "0.0.1-alpha.1",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "ethereum-waffle": "^3.0.2",
+    "mocha": "^8.1.2",
     "ts-node": "^8.2.0",
     "typescript": "^3.5.1"
   }
