@@ -151,65 +151,9 @@ contract ExecutionManager is ContractResolver {
     }
 
 
-    /*********************
-     * Execute EOA Calls *
-     *********************/
-
-    /**
-     * Execute an Externally Owned Account (EOA) call. This will accept all information required
-     * for an OVM transaction as well as a signature from an EOA. First we will calculate the
-     * sender address (EOA address) and then we will perform the call.
-     * @param _timestamp The timestamp which should be used for this call's context.
-     * @param _queueOrigin The parent-chain queue from which this call originated.
-     * @param _nonce The current nonce of the EOA.
-     * @param _ovmEntrypoint The contract which this transaction should be executed against.
-     * @param _callBytes The calldata for this ovm transaction.
-     * @param _v The v value of the ECDSA signature + CHAIN_ID.
-     * @param _r The r value of the ECDSA signature.
-     * @param _s The s value of the ECDSA signature.
-     */
-    function executeEOACall(
-        uint _timestamp,
-        uint _queueOrigin,
-        uint _nonce,
-        address _ovmEntrypoint,
-        bytes memory _callBytes,
-        uint _ovmTxGasLimit,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    )
-        public
-    {
-        StateManager stateManager = resolveStateManager();
-
-        // Get EOA address
-        address eoaAddress = recoverEOAAddress(_nonce, _ovmEntrypoint, _callBytes, _v, _r, _s);
-
-        // Require that the EOA signature isn't zero (invalid signature)
-        require(eoaAddress != ZERO_ADDRESS, "Failed to recover signature");
-
-        // Require nonce to be correct
-        require(_nonce == stateManager.getOvmContractNonce(eoaAddress), "Incorrect nonce!");
-
-        emit CallingWithEOA(
-            eoaAddress,
-            _ovmEntrypoint
-        );
-
-        // Make the EOA call for the account
-        executeTransaction(
-            _timestamp,
-            0, // note: since executeEOACall is soon to be deprecated, not bothering to add blockNumber here.
-            _queueOrigin,
-            _ovmEntrypoint,
-            _callBytes,
-            eoaAddress,
-            ZERO_ADDRESS,
-            _ovmTxGasLimit,
-            false
-        );
-    }
+    /*************************
+     * Transaction Execution *
+     *************************/
 
     /**
      * Execute a transaction. Note that unsigned EOA calls are unauthenticated.
