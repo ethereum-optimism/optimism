@@ -25,10 +25,10 @@
     "build:waffle": "waffle \"test/config/waffle-config.json\"",
     "build:typescript": "tsc -p .",
     "clean": "rimraf build/",
-    "test": "yarn run test:truffle && yarn run test:waffle-v2",
+    "test": "yarn run test:truffle && yarn run test:waffle-v2 && yarn run test:buidler",
     "test:truffle": "truffle test \"test/test-truffle/erc20.spec.js\" --config \"test/config/truffle-config.js\"",
     "test:waffle-v2": "waffle \"test/config/waffle-config.json\" && mocha --require source-map-support/register --require ts-node/register \"test/test-waffle-v2/**/*.spec.ts\" --timeout 10000",
-    "test:buidler": "buidler test"
+    "test:buidler": "buidler test --ovm"
   },
   "keywords": [
     "optimistic",

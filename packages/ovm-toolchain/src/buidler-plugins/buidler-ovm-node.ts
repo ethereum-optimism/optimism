@@ -6,7 +6,7 @@ const BN = require('bn.js')
 
 extendEnvironment(async (bre) => {
   const config: any = bre.config
-  if (config.useOvm) {
+  config.startOvmNode = async (): Promise<void> => {
     const gasLimit = 100_000_000
 
     // Initialize the provider so it has a VM instance ready to copy.
