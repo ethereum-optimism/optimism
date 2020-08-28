@@ -114,9 +114,8 @@ export class EthereumBlockProcessor {
           `Error waiting for ${this.confirmsUntilFinal} confirms on block ${blockNumber}`,
           e
         )
-        // TODO: If this is not a re-org, this may require a restart or some other action.
-        //  Monitor what actually happens and re-throw here if necessary.
-        return
+        // Cannot silently fail here because syncing will move on as if this block was processed.
+        throw e
       }
 
       log.debug(
@@ -131,7 +130,13 @@ export class EthereumBlockProcessor {
         // purposefully ignore promise
         h.handle(block)
       } catch (e) {
-        // should be logged in handler
+        // Cannot silently fail here because syncing will move on as if the block was processed
+        logError(
+          log,
+          `Error in subscriber handling block number ${blockNumber}. Re-throwing because we cannot proceed skipping a block.`,
+          e
+        )
+        throw e
       }
     })
   }
