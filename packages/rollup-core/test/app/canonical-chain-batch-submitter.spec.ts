@@ -88,11 +88,26 @@ class MockCanonicalTransactionChain {
   }
 }
 
+class MockQueue {
+  public timestamp: number = 0
+  public blockNumber: number = 0
+
+  public async peekBlockNumber(): Promise<number> {
+    return this.blockNumber
+  }
+
+  public async peekTimestamp(): Promise<number> {
+    return this.blockNumber
+  }
+}
+
 describe('Canonical Chain Batch Submitter', () => {
   let batchSubmitter: CanonicalChainBatchSubmitter
   let dataService: MockDataService
   let canonicalProvider: MockProvider
   let canonicalTransactionChain: MockCanonicalTransactionChain
+  let l1ToL2TransactionQueue: MockQueue
+  let safetyQueue: MockQueue
 
   beforeEach(async () => {
     dataService = new MockDataService()
@@ -100,9 +115,13 @@ describe('Canonical Chain Batch Submitter', () => {
     canonicalTransactionChain = new MockCanonicalTransactionChain(
       canonicalProvider
     )
+    l1ToL2TransactionQueue = new MockQueue()
+    safetyQueue = new MockQueue()
     batchSubmitter = new CanonicalChainBatchSubmitter(
       dataService,
-      canonicalTransactionChain as any
+      canonicalTransactionChain as any,
+      l1ToL2TransactionQueue as any,
+      safetyQueue as any
     )
   })
 
