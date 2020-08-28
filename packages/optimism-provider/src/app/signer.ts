@@ -3,64 +3,70 @@
  * MIT License
  */
 
-// TODO: delete dead code
-import { JsonRpcSigner, JsonRpcProvider } from '@ethersproject/providers'
+import { JsonRpcSigner, JsonRpcProvider, Web3Provider } from '@ethersproject/providers'
 import { Logger } from "@ethersproject/logger";
 import { BlockTag, Provider, TransactionRequest, TransactionResponse } from '@ethersproject/abstract-provider';
 import { Signer } from '@ethersproject/abstract-signer';
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
-import { arrayify, Bytes } from '@ethersproject/bytes'
-import { hexStrToBuf } from '@eth-optimism/core-utils'
+import { Bytes } from '@ethersproject/bytes'
+import { hexStrToBuf, isHexString } from '@eth-optimism/core-utils'
 import { ConnectionInfo, fetchJson, poll } from "@ethersproject/web";
-import { checkProperties, deepCopy, Deferrable, defineReadOnly, getStatic, resolveProperties, shallowCopy } from "@ethersproject/properties";
+import {
+  checkProperties, deepCopy, Deferrable,
+  defineReadOnly, getStatic, resolveProperties,
+  shallowCopy
+} from "@ethersproject/properties";
 import * as bio from '@bitrelay/bufio'
 
+import { allowedTransactionKeys, serializeEthSignTransaction,
+  ensureTransactionDefaults } from './utils'
 import { OptimismProvider } from './provider'
 import pkg = require('../../package.json')
 
 const version = pkg.version
 const logger = new Logger(version);
 
-const allowedTransactionKeys: { [ key: string ]: boolean } = {
-    chainId: true, data: true, gasLimit: true, gasPrice:true, nonce: true, to: true, value: true
-}
-
+/**
+ * OptimismSigner must be passed a Web3Provider that is responsible for key
+ * management. Calls such as `eth_sendTransaction` must be sent to an optimism
+ * node.
+ */
 export class OptimismSigner implements JsonRpcSigner {
   private _signer: JsonRpcSigner
-  public readonly provider: JsonRpcProvider
+  public readonly provider: Web3Provider
+  private readonly _optimism: OptimismProvider
 
-  public _isSigner: boolean
-  public _index: number
-  public _address: string
+  public readonly _isSigner: boolean
+  public readonly _index: number
+  public readonly _address: string
 
-  // TODO: this shouldn't be the optimism provider
-  constructor(provider: OptimismProvider, signer: JsonRpcSigner, addressOrIndex: string | number) {
+  constructor(provider: Web3Provider, optimism: OptimismProvider, addressOrIndex: string | number) {
     if (addressOrIndex == null) { addressOrIndex = 0; }
 
-    if (typeof(addressOrIndex) === "string") {
-      defineReadOnly(this, "_address", this.provider.formatter.address(addressOrIndex));
-      defineReadOnly(this, "_index", null);
-    } else if (typeof(addressOrIndex) === "number") {
-      defineReadOnly(this, "_index", addressOrIndex);
-      defineReadOnly(this, "_address", null);
+    if (typeof addressOrIndex === 'string') {
+      this._address = this.provider.formatter.address(addressOrIndex)
+      this._index = null
+    } else if (typeof addressOrIndex  === 'number') {
+      this._index = addressOrIndex
+      this._address = null
     } else {
       logger.throwArgumentError("invalid address or index", "addressOrIndex", addressOrIndex);
     }
 
-    defineReadOnly(this, "_isSigner", true);
-
     this._isSigner = true
-    this._signer = signer
+    this._optimism = optimism
+    this._signer = provider.getSigner()
   }
 
   get signer() {
     return this._signer
   }
 
-  // TODO: I think this is the right codepath.
-  // Connect to metamask
+  get optimism() {
+    return this._optimism
+  }
+
   public connect(provider: Provider): JsonRpcSigner {
-    // Modify this so it can connect.
     return this.signer.connect(provider)
   }
 
@@ -132,27 +138,15 @@ export class OptimismSigner implements JsonRpcSigner {
   }
 
   // Calls `eth_sign` on the web3 provider
-  public signTransaction(transaction: Deferrable<TransactionRequest>): Promise<string> {
+  public async signTransaction(transaction: Deferrable<TransactionRequest>): Promise<string> {
     transaction = ensureTransactionDefaults(transaction)
-
-    const bw = bio.write();
-    bw.writeU64(transaction.nonce as number)
-    bw.writeBytes(toBuffer(transaction.gasPrice as BigNumberish))
-    bw.writeBytes(toBuffer(transaction.gasLimit as BigNumberish))
-    bw.writeBytes(hexStrToBuf(transaction.to as string))
-    bw.writeBytes(toBuffer(transaction.value as BigNumberish))
-    bw.writeBytes(transaction.data as Buffer)
-    bw.writeU8(0)
-    bw.writeU8(0)
-
-    return this.signer.signMessage(bw.render())
+    const ser = serializeEthSignTransaction(transaction)
+    return this.signer.signMessage(ser)
   }
 
   // The transaction must be signed already
   public sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
-
-    // if not signed, sign it
-
+    // TODO(mark): if not signed, sign the transaction
     return this.sendUncheckedTransaction(transaction).then((hash) => {
       return poll(() => {
         return this.provider.getTransaction(hash).then((tx: TransactionResponse) => {
@@ -167,7 +161,7 @@ export class OptimismSigner implements JsonRpcSigner {
   }
 
   /*
-  // TODO(mark): check this codepath
+  // TODO(mark): maybe use this codepath instead
   // Populates all fields in a transaction, signs it and sends it to the network
   public async sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
     this._checkProvider("sendTransaction");
@@ -188,8 +182,18 @@ export class OptimismSigner implements JsonRpcSigner {
   }
 
   public _checkProvider(operation?: string): void {
-    if (!this.provider) { logger.throwError("missing provider", Logger.errors.UNSUPPORTED_OPERATION, {
-      operation: (operation || "_checkProvider") });
+    if (!this.provider) {
+      logger.throwError("missing provider", Logger.errors.UNSUPPORTED_OPERATION, {
+        operation: (operation || "_checkProvider")
+      });
+    }
+  }
+
+  public _checkOptimism(operation?: string): void {
+    if (!this.optimism) {
+      logger.throwError("missing optimism provider", Logger.errors.UNSUPPORTED_OPERATION, {
+        operation: (operation || "_checkProvider")
+      });
     }
   }
 
@@ -197,26 +201,26 @@ export class OptimismSigner implements JsonRpcSigner {
     return !!(value && value._isSigner);
   }
 
-  // target: public node
+  // Calls the optimism node to check the signer's address balance
   public async getBalance(blockTag?: BlockTag): Promise<BigNumber> {
-    this._checkProvider("getBalance");
-    return this.provider.getBalance(this.getAddress(), blockTag);
+    this._checkOptimism("getBalance");
+    return this.optimism.getBalance(this.getAddress(), blockTag);
   }
 
-  // target: public node
+  // Calls the optimism node to check the signer's address transaction count
   public async getTransactionCount(blockTag?: BlockTag): Promise<number> {
-    this._checkProvider("getTransactionCount");
-    return this.provider.getTransactionCount(this.getAddress(), blockTag);
+    this._checkOptimism("getTransactionCount");
+    return this.optimism.getTransactionCount(this.getAddress(), blockTag);
   }
 
-  // TODO(mark): double check this method
-  // Populates "from" if unspecified, and estimates the gas for the transation
+  // Calls the optmism node to estimate a transaction's gas
   public async estimateGas(transaction: Deferrable<TransactionRequest>): Promise<BigNumber> {
-    this._checkProvider("estimateGas");
+    this._checkOptimism("estimateGas");
     const tx = await resolveProperties(this.checkTransaction(transaction));
-    return this.provider.estimateGas(tx);
+    return this.optimism.estimateGas(tx);
   }
 
+  // TODO:(mark) in some cases, this should call optimism.call
   // Populates "from" if unspecified, and calls with the transation
   public async call(transaction: Deferrable<TransactionRequest>, blockTag?: BlockTag): Promise<string> {
     this._checkProvider("call");
@@ -224,22 +228,23 @@ export class OptimismSigner implements JsonRpcSigner {
     return this.provider.call(tx, blockTag);
   }
 
+  // Calls the optimism node to get the chainid
   public async getChainId(): Promise<number> {
-    this._checkProvider("getChainId");
-    const network = await this.provider.getNetwork();
+    this._checkOptimism("getChainId");
+    const network = await this.optimism.getNetwork();
     return network.chainId;
   }
 
-  // target: public node
+  // Calls the optimism node to get the gas price
   public async getGasPrice(): Promise<BigNumber> {
-    this._checkProvider("getGasPrice");
-    return this.provider.getGasPrice();
+    this._checkOptimism("getGasPrice");
+    return this.optimism.getGasPrice();
   }
 
-  // target: public node
+  // Resolve ENS on the optimism node, if it exists
   public async resolveName(name: string): Promise<string> {
-    this._checkProvider("resolveName");
-    return this.provider.resolveName(name);
+    this._checkOptimism("resolveName");
+    return this.optimism.resolveName(name);
   }
 
   // Checks a transaction does not contain invalid keys and if
@@ -316,47 +321,3 @@ export class OptimismSigner implements JsonRpcSigner {
   }
 }
 
-// TODO(mark): this may be duplicate functionality to `this.checkTransaction`
-function ensureTransactionDefaults(transaction: Deferrable<TransactionRequest>): Deferrable<TransactionRequest> {
-  transaction = deepCopy(transaction);
-
-  if (isNullorUndefined(transaction.to)) {
-    transaction.to = '0x0000000000000000000000000000000000000000'
-  }
-
-  if (isNullorUndefined(transaction.nonce)) {
-    transaction.nonce = 0
-  }
-
-  if (isNullorUndefined(transaction.gasLimit)) {
-    transaction.gasLimit = 0
-  }
-
-  if (isNullorUndefined(transaction.gasPrice)) {
-    transaction.gasPrice = 0
-  }
-
-  if (isNullorUndefined(transaction.data)) {
-    transaction.data = Buffer.alloc(0)
-  }
-
-  if (isNullorUndefined(transaction.value)) {
-    transaction.value = 0
-  }
-
-  if (isNullorUndefined(transaction.chainId)) {
-    transaction.chainId = 1
-  }
-
-  return transaction
-}
-
-function isNullorUndefined(a: any): boolean {
-  return a === null || a === undefined
-}
-
-function toBuffer(n: BigNumberish): Buffer {
-  const bignum = BigNumber.from(n)
-  const uint8array = arrayify(bignum)
-  return Buffer.from(uint8array)
-}

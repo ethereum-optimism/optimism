@@ -3,7 +3,6 @@
  * MIT License
  */
 
-// TODO: clean up dead code
 import { Logger } from "@ethersproject/logger";
 import { Network, Networkish } from "@ethersproject/networks";
 import { UrlJsonRpcProvider, JsonRpcSigner, JsonRpcProvider, Web3Provider } from '@ethersproject/providers'
@@ -20,7 +19,6 @@ const logger = new Logger(version);
 
 // TODO edge cases
 // static getNetwork
-// ens names
 // it shouldn't call `get_getChainId` before every call
 // when calling the hosted node
 
@@ -32,25 +30,26 @@ export class OptimismProvider extends JsonRpcProvider {
     const connectionInfo = getUrl(net, network)
 
     super(connectionInfo);
+    this._ethereum = provider
   }
 
   public get ethereum() {
     return this._ethereum
   }
 
-  public getSigner(address?: string): OptimismSigner | JsonRpcSigner {
+  public getSigner(address?: string): OptimismSigner {
     if (this.ethereum) {
-      const signer = this.ethereum.getSigner(address);
-      return new OptimismSigner(this, signer, address)
+      return new OptimismSigner(this.ethereum, this, address)
     }
 
-    return super.getSigner()
+    logger.throwError('no web3 instance provided', Logger.errors.UNSUPPORTED_OPERATION, {
+      operation: 'getSigner'
+    });
   }
 
-  // `send` takes the literal RPC method name
+  // `send` takes the literal RPC method name. The signer cannot use this
+  // codepath, it is for querying an optimism node.
   public async send(method: string, params: any[]): Promise<any> {
-    // if being called from the signer, certain calls need to get through.
-
     // Prevent certain calls from hitting the public nodes
     if (utils.isBlacklistedMethod(method)) {
       logger.throwError('blacklisted operation', Logger.errors.UNSUPPORTED_OPERATION, {
@@ -61,16 +60,12 @@ export class OptimismProvider extends JsonRpcProvider {
     return super.send(method, params)
   }
 
-  // TODO: special case:
+  // TODO(mark): handle special case:
   //"sendTransaction" -> "eth_sendRawTransaction"
 
   // `perform` accepts more human-friendly method names that are usually the
   // name of the RPC method without the `eth_` prefix.
   public async perform(method: string, params: any): Promise<any> {
-    if (method === 'sendRawTransaction') {
-      // TODO:
-    }
-
     return super.perform(method, params)
   }
 }

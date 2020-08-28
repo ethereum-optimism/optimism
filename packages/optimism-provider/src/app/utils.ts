@@ -2,7 +2,13 @@
  * Optimism Copyright 2020
  * MIT License
  */
-
+import { Networkish } from "@ethersproject/networks";
+import * as bio from '@bitrelay/bufio'
+import { hexStrToBuf, isHexString } from '@eth-optimism/core-utils'
+import { arrayify, Bytes } from '@ethersproject/bytes'
+import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
+import { Deferrable, deepCopy } from "@ethersproject/properties";
+import { TransactionRequest } from '@ethersproject/abstract-provider';
 
 const blacklist = new Set([
   'web3_sha3',
@@ -45,4 +51,87 @@ const blacklist = new Set([
 
 export function isBlacklistedMethod(method: string) {
   return blacklist.has(method)
+}
+
+export function isUrl(n: string): boolean {
+  if (typeof n === 'string') {
+    if (n.startsWith('http')) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export const allowedTransactionKeys: { [ key: string ]: boolean } = {
+    chainId: true,
+    data: true,
+    gasLimit: true,
+    gasPrice:true,
+    nonce: true,
+    to: true,
+    value: true
+}
+
+export function serializeEthSignTransaction(transaction): Bytes {
+  const bw = bio.write();
+  bw.writeU64(transaction.nonce as number)
+  bw.writeBytes(toBuffer(transaction.gasPrice as BigNumberish))
+  bw.writeBytes(toBuffer(transaction.gasLimit as BigNumberish))
+  bw.writeBytes(hexStrToBuf(transaction.to as string))
+  bw.writeBytes(toBuffer(transaction.value as BigNumberish))
+  bw.writeBytes(toBuffer(transaction.data as Buffer))
+  bw.writeU8(0)
+  bw.writeU8(0)
+  return bw.render()
+}
+
+function toBuffer(n: BigNumberish): Buffer {
+  if (typeof n === 'string' && isHexString(n as string)) {
+    return hexStrToBuf(n as string)
+  }
+
+  const bignum = BigNumber.from(n)
+  const uint8array = arrayify(bignum)
+  return Buffer.from(uint8array)
+}
+
+
+// TODO(mark): this may be duplicate functionality to `this.checkTransaction`
+export function ensureTransactionDefaults(transaction: Deferrable<TransactionRequest>): Deferrable<TransactionRequest> {
+  transaction = deepCopy(transaction);
+
+  if (isNullorUndefined(transaction.to)) {
+    transaction.to = '0x0000000000000000000000000000000000000000'
+  }
+
+  if (isNullorUndefined(transaction.nonce)) {
+    transaction.nonce = 0
+  }
+
+  if (isNullorUndefined(transaction.gasLimit)) {
+    transaction.gasLimit = 0
+  }
+
+  if (isNullorUndefined(transaction.gasPrice)) {
+    transaction.gasPrice = 0
+  }
+
+  if (isNullorUndefined(transaction.data)) {
+    transaction.data = Buffer.alloc(0)
+  }
+
+  if (isNullorUndefined(transaction.value)) {
+    transaction.value = 0
+  }
+
+  if (isNullorUndefined(transaction.chainId)) {
+    transaction.chainId = 1
+  }
+
+  return transaction
+}
+
+function isNullorUndefined(a: any): boolean {
+  return a === null || a === undefined
 }
