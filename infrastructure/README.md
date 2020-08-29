@@ -242,14 +242,6 @@ vault status
 
 The status command may not work yet if the Vault Server isn't initialized.
 
-#### Connect to the Pods
-
-Note that you can connect to vault-0, vault-1, or vault-2 directly by executing:
-
-```bash
-kubectl exec --stdin --tty vault-0 -- /bin/sh
-```
-
 #### Initialize Vault
 
 ```bash
@@ -259,7 +251,9 @@ vault status
 
 #### Enable Auditing
 
+```bash
 vault audit enable file file_path=/vault/audit/audit.log
+```
 
 ### Uninstalling Vault
 
