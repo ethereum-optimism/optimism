@@ -182,26 +182,19 @@ and look for "omgnetwork-certs-"
 
 #### Update value overrides
 
-In `infrastructure/k8s`, execute:
-
-edit _vault-overrides.yaml_ and verify all the values are correct.
+In `infrastructure`, execute:
 
 ```bash
-yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_REGION $GCP_REGION
-yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_PROJECT $PROJECT_ID
+./scripts/gen_overrides.sh
 ```
 
-In `vault-overrides.yaml`, update:
+You can supply the `--help` option to see what options are available. If you have the following environment variables set, it will use these values as defaults:
 
-server.ha.raft.config.cluster_name with \$GKE_CLUSTER_NAME
-server.ha.raft.config.seal.region with \$GCP_REGION
-server.ha.raft.config.seal.project with \$PROJECT_ID
-
----
-
-NOTE: If you are running in minikube, replace all instances of `vault-internal.default.svc.cluster.local` with `vault-internal`.
-
----
+```bash
+$GCP_REGION
+$GCP_PROJECT
+$GKE_CLUSTER_NAME
+```
 
 #### Start the Pods using the Helm Chart
 
@@ -228,24 +221,9 @@ Before you initialize vault, you'll see errors like this:
 2020-08-21T03:26:41.684Z [WARN]  failed to unseal core: error="fetching stored unseal keys failed: failed to decrypt encrypted stored keys: failed to decrypt envelope: rpc error: code = InvalidArgument desc = Decryption failed: verify that 'name' refers to the correct CryptoKey."
 ```
 
-No worries, just go initialize vault.
-
-#### Connect to the Pods
-
-Note that you can connect to vault-0, vault-1, or vault-2 directly by executing:
-
-```bash
-kubectl exec --stdin --tty vault-0 -- /bin/sh
-```
-
-Otherwise, you can run commands on the vault nodes through kubectl. For example, to initialize vault:
-
-```bash
-kubectl exec vault-0 -- vault operator init -format=json > cluster-keys.json
-kubectl exec vault-0 -- vault status
-```
-
 #### Set up k8s Port Forwarding
+
+In one terminal, execute:
 
 ```bash
 kubectl port-forward vault-0 8200:8200
@@ -261,6 +239,27 @@ export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
 
 vault status
 ```
+
+The status command may not work yet if the Vault Server isn't initialized.
+
+#### Connect to the Pods
+
+Note that you can connect to vault-0, vault-1, or vault-2 directly by executing:
+
+```bash
+kubectl exec --stdin --tty vault-0 -- /bin/sh
+```
+
+#### Initialize Vault
+
+```bash
+vault operator init -format=json > cluster-keys.json
+vault status
+```
+
+#### Enable Auditing
+
+vault audit enable file file_path=/vault/audit/audit.log
 
 ### Uninstalling Vault
 
