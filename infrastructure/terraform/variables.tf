@@ -52,6 +52,6 @@ variable "gke_cluster_name" {
 
 variable "gke_node_count" {
   description = "The number of nodes to create in the GKE node pool"
-  default     = 1
+  default     = 3
   type        = number
 }

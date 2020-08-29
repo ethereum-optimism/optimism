@@ -27,7 +27,7 @@ resource "google_container_node_pool" "pool" {
   name       = "${var.gke_cluster_name}-node-pool"
   location   = var.gcp_region
   cluster    = google_container_cluster.cluster.name
-  node_count = var.gke_node_count
+  node_count = 2
 
   management {
     auto_repair  = true

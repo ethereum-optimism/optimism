@@ -149,6 +149,20 @@ copycerts() {
 	cp -f ${TLS_CERT} k8s/certs
 }
 
+# gensecret creates the kubenernetes secret containing the TLS Material that will
+# be consumed by vault in the pods.
+gensecret() {
+	cd ./k8s/certs
+	OUTPUT=$(kubectl apply -k .)
+	CERT_SECRET=$(echo $OUTPUT | cut -d' ' -f1 | cut -d'-' -f3)
+
+	cd ..
+	yq w -i vault-overrides.yaml global.certSecretName omgnetwork-certs-$CERT_SECRET
+	yq w -i vault-overrides.yaml server.extraVolumes[1].name omgnetwork-certs-$CERT_SECRET
+
+	cd ..
+}
+
 ##
 ## main
 ##
@@ -195,6 +209,7 @@ LOG="${CERT_DIR}/process.log"
 genconfig
 gencerts
 copycerts
+gensecret
 
 echo ""
 echo "> In your shell, execute this command:"

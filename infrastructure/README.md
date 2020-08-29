@@ -133,15 +133,15 @@ This script will activate the KMS service account in the `gcloud` tool using the
 
 Deploying services to a Kubernetes cluster typically require the use of (helm)[https://helm.sh] to manage the cluster configuration and dependencies. This guide shows how to use the official (Hashicorp)[https://www.hashicorp.com] _helm chart_ to deploy a Vault cluster.
 
-#### Installing Helm
+#### Installing Helm and Supporting Tools
 
 If you are running on MacOS, you can install helm by executing:
 
 ```bash
-brew install helm
+brew install helm yq
 ```
 
-If you are running on Linux or Windows, see the (Helm Download Page)[https://github.com/helm/helm/releases/latest].
+If you are running on Linux or Windows, see the (Helm Download Page)[https://github.com/helm/helm/releases/latest]. You'll also want to install the yq utility.
 
 #### Establish hashicorp registry
 
@@ -153,9 +153,7 @@ helm repo add hashicorp http://helm.releases.hashicorp.com
 
 #### Generate Self-Signed Certs
 
-[Source](./infrastructure)
-
-To generate the self-signed certs, execute:
+In `./infrastructure`, execute:
 
 ```bash
 ./scripts/gen_certs.sh -d <dns-domain>
@@ -174,31 +172,30 @@ For Minikube, use: `-d vault-internal`
 
 #### Create a kubernetes secret with the cert
 
-In `infrastructure/k8s/certs`, execute:
+The `gen-certs.sh` script updates `k8s/vault-overrides.yaml` with the name of the secret that was generated with the new certs material. To see the created secret, execute:
 
 ```bash
-kubectl apply -k .
+kubectl list secrets
 ```
 
-You'll see something like this for output:
-
-```
-secret/certs-k9g6gg7hft created
-```
-
-Take note of the generated secret hash value (e.g., k9g6gg7hft) because you'll need it in the next step.
+and look for "omgnetwork-certs-"
 
 #### Update value overrides
 
-In `infrastructure/k8s`, edit _vault-overrides.yaml_ and verify all the values are correct.
+In `infrastructure/k8s`, execute:
 
-* Update `global` -> `certSecretName` with the secret hash value from above
-* Update the second secret in `server` -> `extraVolumes` with the secret hash value from above
-* Update `server` -> `ha` -> `raft` -> `config` -> `cluster_name` to match your kubernetes cluster name
-* Update `server` -> `ha` -> `raft` -> `config` -> `seal` -> `region` to match the region the resources are deployed in
-* Update `server` -> `ha` -> `raft` -> `config` -> `seal` -> `project` to match the project the resources are deployed in
-* Update `server` -> `ha` -> `extraEnvironmentVars` -> `GOOGLE_REGION` to match the region the resources are deployed in
-* Update `server` -> `ha` -> `extraEnvironmentVars` -> `GOOGLE_PROJECT` to match the project the resources are deployed in
+edit _vault-overrides.yaml_ and verify all the values are correct.
+
+```bash
+yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_REGION $GCP_REGION
+yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_PROJECT $PROJECT_ID
+```
+
+In `vault-overrides.yaml`, update:
+
+server.ha.raft.config.cluster_name with \$GKE_CLUSTER_NAME
+server.ha.raft.config.seal.region with \$GCP_REGION
+server.ha.raft.config.seal.project with \$PROJECT_ID
 
 ---
 
