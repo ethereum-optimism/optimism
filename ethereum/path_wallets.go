@@ -22,7 +22,7 @@ import (
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/omisego/immutability-eth-plugin/util"
+	"github.com/omgnetwork/immutability-eth-plugin/util"
 )
 
 const (
@@ -65,7 +65,7 @@ type TransactionParams struct {
 // WalletPaths are the path handlers for Ethereum wallets
 func WalletPaths(b *PluginBackend) []*framework.Path {
 	return []*framework.Path{
-		&framework.Path{
+		{
 			Pattern: QualifiedPath("wallets/?"),
 			Callbacks: map[logical.Operation]framework.OperationFunc{
 				logical.ListOperation: b.pathWalletsList,
@@ -75,7 +75,7 @@ func WalletPaths(b *PluginBackend) []*framework.Path {
 			All the Ethereum wallets will be listed.
 			`,
 		},
-		&framework.Path{
+		{
 			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name")),
 			HelpSynopsis: "Create an Ethereum wallet using a generated or provided passphrase.",
 			HelpDescription: `
@@ -85,18 +85,18 @@ The generator produces a high-entropy passphrase with the provided length and re
 
 `,
 			Fields: map[string]*framework.FieldSchema{
-				"name": &framework.FieldSchema{Type: framework.TypeString},
-				"mnemonic": &framework.FieldSchema{
+				"name": {Type: framework.TypeString},
+				"mnemonic": {
 					Type:        framework.TypeString,
 					Default:     Empty,
 					Description: "The mnemonic to use to create the account. If not provided, one is generated.",
 				},
 				// whitelisting and blacklisting are not implemented in this release
-				"whitelist": &framework.FieldSchema{
+				"whitelist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of wallets that this wallet can send transactions to.",
 				},
-				"blacklist": &framework.FieldSchema{
+				"blacklist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of wallets that this wallet can't send transactions to.",
 				},

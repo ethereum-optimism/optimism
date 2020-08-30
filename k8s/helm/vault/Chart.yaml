@@ -1,5 +1,0 @@
-apiVersion: v1
-appVersion: "1.0"
-description: Custom Vault Helm chart for Omisego
-name: omisego-vault
-version: 0.1.0

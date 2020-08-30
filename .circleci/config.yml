@@ -1,0 +1,45 @@
+version: 2.1
+jobs:
+  build:
+    machine:
+      image: ubuntu-1604:202004-01
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+            make docker-build
+          no_output_timeout: 2400s
+
+  publish:
+    docker:
+      - image: google/cloud-sdk
+    environment:
+      GCR_PREFIX: gcr.io/omisego-development
+      IMMUTABILITY_IMAGE: omgnetwork/vault
+    steps:
+      - checkout
+      - run: |
+          export SEMVER=$(cat ./VERSION)
+          echo $GCLOUD_SERVICE_KEY | gcloud auth activate-service-account --key-file=-
+          gcloud -q auth configure-docker
+          docker tag $IMMUTABILITY_IMAGE:latest $GCR_PREFIX/$IMMUTABILITY_IMAGE:latest
+          docker tag $IMMUTABILITY_IMAGE:latest $GCR_PREFIX/$IMMUTABILITY_IMAGE:$SEMVER
+          docker push $GCR_PREFIX/$IMMUTABILITY_IMAGE:latest
+          docker push $GCR_PREFIX/$IMMUTABILITY_IMAGE:$SEMVER
+
+workflows:
+  version: 2
+  build-test-lint:
+    jobs:
+      - build
+      - publish:
+          requires: [build]
+          filters: &master_and_version_branches_and_all_tags
+            branches:
+              only:
+                - master
+                - /^v[0-9]+\.[0-9]+/
+            tags:
+              only:
+                - /.+/

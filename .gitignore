@@ -5,7 +5,6 @@ immutability-eth-plugin-*-amd64*
 SHA256SUMS
 SHA256SUMS.sig
 plugins
-docker/ca
 docker/ganache_data
 **/eth-plugin
 eth-plugin*
@@ -19,5 +18,17 @@ terraform.tfvars
 .variables
 *.ovpn
 *.b64
-*.hcl
 unsealer/backup.snap
+.vscode
+docker/config/data
+docker/config/unseal.json
+docker/config/*.crt
+docker/config/*.key
+docker/config/*.cnf
+docker/config/*.csr
+docker/config/*.srl
+*.key.json
+credentials.json
+*.pem
+*.crt
+*.key

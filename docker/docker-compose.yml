@@ -1,4 +1,4 @@
-version: '3.3'
+version: "3.3"
 
 services:
   ganache:
@@ -41,47 +41,25 @@ services:
         chown nobody:nogroup /truffleshuffle/*.out
         cat /truffleshuffle/plasma_framework_addr.out
       "
-  gencerts:
-    image: alpine:3.10
-    volumes:
-      - "./ca:/home/root/ca:rw"
-      - "./config:/home/root/:rw"
-    entrypoint: >
-      /bin/sh -c "
-        apk add bash openssl
-        chown -R nobody:nobody /home/root/ca && chmod -R 777 /home/root/ca
-        # only gen if they aren't there
-        if [ -f /home/root/ca/certs/my-service.crt ];then
-          exit 0
-        else
-          /home/root/gencerts.sh
-        fi
-      "
   vault_server:
-    image: omisego/immutability-vault-ethereum:latest
+    image: omgnetwork/vault:latest
     networks:
       - testnet
     ports:
-      - "8200:8200"
+      - "8200:8900"
     depends_on:
-      - "gencerts"
       - "ganache"
     links:
       - "ganache"
       - "truffle"
     volumes:
-      - "./ca:/home/vault/ca:rw"
-      - "./config:/home/vault/config:ro"
+      - "./config:/home/vault/config:rw"
       - "../contracts:/home/vault/contracts:ro"
       - "../scripts:/home/vault/scripts:ro"
       - "./truffle:/truffleshuffle:rw"
     entrypoint: >
       /bin/sh -c "
         sleep 2
-        while [ ! -f /home/vault/ca/certs/my-service.crt ];do
-          echo Waiting on gencerts...
-          sleep 1
-        done;
         while [ ! -f /truffleshuffle/plasma_framework_addr.out ];do
           echo Waiting on the truffle shuffle.  This will take some time as plasma framework is recompiled...
           sleep 3

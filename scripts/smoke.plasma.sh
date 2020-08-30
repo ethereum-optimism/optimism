@@ -56,30 +56,6 @@ banner
 vault write -format=json -f -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts
 banner
 echo "*** SHOULD FAIL! ***" 
-echo "UNAUTHORIZED ACTIVATION OF CHILD CHAIN BY $UNAUTHORIZED" 
-echo "vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/activateChildChain contract=$PLASMA_CONTRACT"
-vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/activateChildChain contract=$PLASMA_CONTRACT
-banner
-vault write  -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/activateChildChain contract=$PLASMA_CONTRACT
-
-banner
-echo "*** SHOULD SUCCEED ***" 
-echo "AUTHORIZED ACTIVATION OF CHILD CHAIN BY $ORIGINAL_AUTHORITY" 
-echo "vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT"
-vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
-banner
-vault write  -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
-
-banner
-echo "*** SHOULD FAIL ***" 
-echo "SECOND CALL TO ACTIVATION OF CHILD CHAIN BY $ORIGINAL_AUTHORITY" 
-echo "vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT"
-vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
-banner
-vault write  -output-curl-string immutability-eth-plugin/wallets/plasma-deployer/accounts/$ORIGINAL_AUTHORITY/plasma/activateChildChain contract=$PLASMA_CONTRACT
-
-banner
-echo "*** SHOULD FAIL! ***" 
 echo "UNAUTHORIZED SUBMISSION OF BLOCK BY $UNAUTHORIZED" 
 echo "vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/submitBlock block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT"
 vault write -format=json immutability-eth-plugin/wallets/plasma-deployer/accounts/$UNAUTHORIZED/plasma/submitBlock block_root=$BLOCK_ROOT contract=$PLASMA_CONTRACT

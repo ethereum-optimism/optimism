@@ -14,7 +14,7 @@ import (
 	log "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/helper/logging"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/omisego/immutability-eth-plugin/util"
+	"github.com/omgnetwork/immutability-eth-plugin/util"
 )
 
 const (

@@ -1,3 +1,41 @@
+## 0.0.6 (August 15, 2020)
+
+NEW FEATURES:
+
+* GCP KMS-based Auto Unseal
+* Raft-based Vault Backend
+* Enable GCR and KMS in the Vault GCP project with service accounts
+* CircleCI config to push `omgnetwork/vault` images into GCR
+
+N/A
+
+REFACTOR:
+
+* updated `VERSION` file to `0.0.6`
+* removal of the unsealer Vault server
+* clean Helm and Kubernetes from the infrastructure Terraform scripts
+* Helm and GCP are now separate deployments
+* cleaned firewall rules in the Vault infrastructure Terraform scripts
+* use golang 1.14 as the builder
+* stopped using `-dev` mode - use file backend to support snapshotting
+  - [x] `unseal.json` holds the keys
+  - [x] the Vault data is at `/home/vault/config/data` 
+* Update to github.com/ethereum/go-ethereum v1.9.16
+* Removed redundant types from array, slice or map composite literals.
+  - [x] `&framework.Path`
+  - [x] `&framework.FieldSchema`
+* Remove `activateChildChain`
+* Wallet Smoke Test 
+  - [x] Remove test of `activateChildChain`.
+* Re-generate Plasma bindings using v1.9.16 `abigen`
+* Update to hashicorp/vault v1.5.2
+* Use official hashicorp/vault helm chart
+* Removed the local copy of the helm chart
+* Standardize GCP resource names to be of the form omgnetwork-<resource>
+
+BUG FIXES:
+
+N/A
 ## 0.0.5 (January 18, 2020)
 
 NEW FEATURES:

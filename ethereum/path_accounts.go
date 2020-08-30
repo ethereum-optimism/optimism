@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/omisego/immutability-eth-plugin/util"
+	"github.com/omgnetwork/immutability-eth-plugin/util"
 )
 
 // AccountJSON is what we store for an Ethereum address
@@ -38,7 +38,7 @@ func (account *AccountJSON) BlackListed(toAddress *common.Address) error {
 // AccountPaths are the path handlers for Ethereum wallets
 func AccountPaths(b *PluginBackend) []*framework.Path {
 	return []*framework.Path{
-		&framework.Path{
+		{
 			Pattern: QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/?"),
 			Callbacks: map[logical.Operation]framework.OperationFunc{
 				logical.ListOperation:   b.pathAccountsList,
@@ -46,12 +46,12 @@ func AccountPaths(b *PluginBackend) []*framework.Path {
 				logical.UpdateOperation: b.pathAccountsCreate,
 			},
 			Fields: map[string]*framework.FieldSchema{
-				"name": &framework.FieldSchema{Type: framework.TypeString},
-				"whitelist": &framework.FieldSchema{
+				"name": {Type: framework.TypeString},
+				"whitelist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can send ETH to.",
 				},
-				"blacklist": &framework.FieldSchema{
+				"blacklist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can't send ETH to.",
 				},
@@ -62,7 +62,7 @@ func AccountPaths(b *PluginBackend) []*framework.Path {
 			`,
 		},
 
-		&framework.Path{
+		{
 			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address")),
 			HelpSynopsis: "Create an address.",
 			HelpDescription: `
@@ -72,13 +72,13 @@ The generator produces a high-entropy passphrase with the provided length and re
 
 `,
 			Fields: map[string]*framework.FieldSchema{
-				"name":    &framework.FieldSchema{Type: framework.TypeString},
-				"address": &framework.FieldSchema{Type: framework.TypeString},
-				"whitelist": &framework.FieldSchema{
+				"name":    {Type: framework.TypeString},
+				"address": {Type: framework.TypeString},
+				"whitelist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can send ETH to.",
 				},
-				"blacklist": &framework.FieldSchema{
+				"blacklist": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "The list of accounts that any account can't send ETH to.",
 				},
@@ -90,7 +90,7 @@ The generator produces a high-entropy passphrase with the provided length and re
 				logical.DeleteOperation: b.pathAccountsDelete,
 			},
 		},
-		&framework.Path{
+		{
 			Pattern:      QualifiedPath("wallets/" + framework.GenericNameRegex("name") + "/accounts/" + framework.GenericNameRegex("address") + "/debit"),
 			HelpSynopsis: "Send ETH from an account.",
 			HelpDescription: `
@@ -99,22 +99,22 @@ Send ETH from an account.
 
 `,
 			Fields: map[string]*framework.FieldSchema{
-				"name":    &framework.FieldSchema{Type: framework.TypeString},
-				"address": &framework.FieldSchema{Type: framework.TypeString},
-				"to": &framework.FieldSchema{
+				"name":    {Type: framework.TypeString},
+				"address": {Type: framework.TypeString},
+				"to": {
 					Type:        framework.TypeString,
 					Description: "The address of the wallet to send ETH to.",
 				},
-				"amount": &framework.FieldSchema{
+				"amount": {
 					Type:        framework.TypeString,
 					Description: "Amount of ETH (in wei).",
 				},
-				"gas_limit": &framework.FieldSchema{
+				"gas_limit": {
 					Type:        framework.TypeString,
 					Description: "The gas limit for the transaction - defaults to 21000.",
 					Default:     "21000",
 				},
-				"gas_price": &framework.FieldSchema{
+				"gas_price": {
 					Type:        framework.TypeString,
 					Description: "The gas price for the transaction in wei.",
 					Default:     "0",

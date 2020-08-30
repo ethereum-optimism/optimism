@@ -1,0 +1,6 @@
+secretGenerator:
+- name: omgnetwork-certs
+  files:
+  - ca.crt
+  - vault.crt
+  - vault.key
