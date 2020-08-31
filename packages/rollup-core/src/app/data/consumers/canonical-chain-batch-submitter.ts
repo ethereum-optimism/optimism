@@ -113,7 +113,6 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     try {
       const txsCalldata: string[] = this.getTransactionBatchCalldata(l2Batch)
 
-      // TODO: update this to work with geth-persisted timestamp/block number that updates based on L1 actions
       const timestamp = l2Batch.transactions[0].timestamp
 
       log.debug(
@@ -219,7 +218,8 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   }
 
   protected async getBatchSubmissionBlockNumber(): Promise<number> {
-    // TODO: This is bad. Make this not suck.
+    // TODO: This will eventually be part of the output metadata from L2 tx outputs
+    //  Need to update geth to have this functionality so this is a mock for now
     return (await this.getL1BlockNumber()) - 10
   }
 
@@ -229,7 +229,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   ): Promise<void> {
     let forceInclusionSeconds: number
     let forceInclusionBlocks: number
-    let blockNumber: number
+    let l1BlockNumber: number
     let safetyQueueTimestampSeconds: number
     let safetyQueueBlockNumber: number
     let l1ToL2QueueTimestampSeconds: number
@@ -239,7 +239,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     ;[
       forceInclusionSeconds,
       forceInclusionBlocks,
-      blockNumber,
+      l1BlockNumber,
       safetyQueueTimestampSeconds,
       safetyQueueBlockNumber,
       l1ToL2QueueTimestampSeconds,
@@ -261,9 +261,9 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     const nowSeconds = Math.round(new Date().getTime() / 1000)
     const batchTimestamp = batchSubmission.transactions[0].timestamp
 
-    if (batchBlockNumber > blockNumber) {
+    if (batchBlockNumber > l1BlockNumber) {
       throw new FutureRollupBatchNumberError(
-        `Batch block number cannot be in the future. Batch block number is ${batchBlockNumber} and block number: ${blockNumber}.`
+        `Batch block number cannot be in the future. Batch block number is ${batchBlockNumber} and block number: ${l1BlockNumber}.`
       )
     }
 
@@ -279,9 +279,9 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       )
     }
 
-    if (batchBlockNumber + forceInclusionBlocks <= blockNumber) {
+    if (batchBlockNumber + forceInclusionBlocks <= l1BlockNumber) {
       throw new RollupBatchBlockNumberTooOldError(
-        `Batch is too old. Batch Block # is ${batchTimestamp}, force inclusion blocks is ${forceInclusionBlocks}, L1 block number is ${blockNumber}`
+        `Batch is too old. Batch Block # is ${batchTimestamp}, force inclusion blocks is ${forceInclusionBlocks}, L1 block number is ${l1BlockNumber}`
       )
     }
 
