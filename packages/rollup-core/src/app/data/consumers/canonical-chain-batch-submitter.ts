@@ -17,7 +17,19 @@ import {
   BatchSubmission,
 } from '../../../types/data'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
-import { UnexpectedBatchStatus } from '../../../types'
+import {
+  UnexpectedBatchStatus,
+  FutureRollupBatchNumberError,
+  FutureRollupBatchTimestampError,
+  RollupBatchBlockNumberTooOldError,
+  RollupBatchTimestampTooOldError,
+  RollupBatchSafetyQueueBlockNumberError,
+  RollupBatchSafetyQueueBlockTimestampError,
+  RollupBatchL1ToL2QueueBlockNumberError,
+  RollupBatchL1ToL2QueueBlockTimestampError,
+  RollupBatchOvmBlockNumberError,
+  RollupBatchOvmTimestampError,
+} from '../../../types'
 
 const log = getLogger('canonical-chain-batch-submitter')
 
@@ -74,7 +86,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
 
     const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
-    this.validateBatchSubmission(batchSubmission, batchBlockNumber)
+    await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
 
     const txHash: string = await this.buildAndSendRollupBatchTransaction(
       batchSubmission,
@@ -206,7 +218,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     return true
   }
 
-  private async getBatchSubmissionBlockNumber(): Promise<number> {
+  protected async getBatchSubmissionBlockNumber(): Promise<number> {
     // TODO: This is bad. Make this not suck.
     return (await this.getL1BlockNumber()) - 10
   }
@@ -250,25 +262,25 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     const batchTimestamp = batchSubmission.transactions[0].timestamp
 
     if (batchBlockNumber > blockNumber) {
-      throw Error(
+      throw new FutureRollupBatchNumberError(
         `Batch block number cannot be in the future. Batch block number is ${batchBlockNumber} and block number: ${blockNumber}.`
       )
     }
 
     if (batchTimestamp > nowSeconds) {
-      throw Error(
+      throw new FutureRollupBatchTimestampError(
         `Batch timestamp cannot be in the future. Batch timestamp is ${batchTimestamp} and current timestamp is ${nowSeconds}.`
       )
     }
 
     if (batchTimestamp + forceInclusionSeconds <= nowSeconds) {
-      throw Error(
+      throw new RollupBatchTimestampTooOldError(
         `Batch is too old. Batch timestamp is ${batchTimestamp}, force inclusion period is ${forceInclusionSeconds}, now is ${nowSeconds}`
       )
     }
 
     if (batchBlockNumber + forceInclusionBlocks <= blockNumber) {
-      throw Error(
+      throw new RollupBatchBlockNumberTooOldError(
         `Batch is too old. Batch Block # is ${batchTimestamp}, force inclusion blocks is ${forceInclusionBlocks}, L1 block number is ${blockNumber}`
       )
     }
@@ -277,7 +289,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       safetyQueueTimestampSeconds !== 0 &&
       batchTimestamp > safetyQueueTimestampSeconds
     ) {
-      throw Error(
+      throw new RollupBatchSafetyQueueBlockTimestampError(
         `Safety Queue tx must come first. Safety queue timestamp is ${safetyQueueTimestampSeconds}, batch timestamp is ${batchTimestamp}`
       )
     }
@@ -286,7 +298,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       safetyQueueBlockNumber !== 0 &&
       batchBlockNumber > safetyQueueBlockNumber
     ) {
-      throw Error(
+      throw new RollupBatchSafetyQueueBlockNumberError(
         `Safety Queue tx must come first. Safety queue blockNumber is ${safetyQueueBlockNumber}, batch blockNumber is ${batchBlockNumber}`
       )
     }
@@ -295,7 +307,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       l1ToL2QueueTimestampSeconds !== 0 &&
       batchTimestamp > l1ToL2QueueTimestampSeconds
     ) {
-      throw Error(
+      throw new RollupBatchL1ToL2QueueBlockTimestampError(
         `L1 to L2 Queue tx must come first. L1 to L2 Queue timestamp is ${l1ToL2QueueTimestampSeconds}, batch timestamp is ${batchTimestamp}`
       )
     }
@@ -304,19 +316,19 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       l1ToL2QueueBlockNumber !== 0 &&
       batchBlockNumber > l1ToL2QueueBlockNumber
     ) {
-      throw Error(
+      throw new RollupBatchL1ToL2QueueBlockNumberError(
         `L1 to L2 Queue tx must come first. L1 to L2 Queue blockNumber is ${l1ToL2QueueBlockNumber}, batch blockNumber is ${batchBlockNumber}`
       )
     }
 
     if (batchTimestamp < lastOvmTimestampSeconds) {
-      throw Error(
+      throw new RollupBatchOvmTimestampError(
         `Batch timestamp must be > last OVM Timestamp. Batch timestamp is ${batchTimestamp}, last OVM timestamp is ${lastOvmTimestampSeconds}`
       )
     }
 
     if (batchBlockNumber < lastOvmBlockNumber) {
-      throw Error(
+      throw new RollupBatchOvmBlockNumberError(
         `Batch block number must be > last OVM block number. Batch block number is ${batchBlockNumber}, last OVM block number is ${lastOvmBlockNumber}`
       )
     }
@@ -325,8 +337,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   private forceInclusionPeriodSeconds: number
   private async getForceInclusionPeriodSeconds(): Promise<number> {
     if (this.forceInclusionPeriodSeconds === undefined) {
-      const num = await this.canonicalTransactionChain.forceInclusionPeriodSeconds()
-      this.forceInclusionPeriodSeconds = num.toNumber
+      this.forceInclusionPeriodSeconds = await this.canonicalTransactionChain.forceInclusionPeriodSeconds()
     }
     return this.forceInclusionPeriodSeconds
   }
