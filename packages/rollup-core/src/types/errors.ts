@@ -58,3 +58,67 @@ export class NotSyncedError extends Error {
     )
   }
 }
+
+/***************************
+ * Batch Submission Errors *
+ ***************************/
+
+export class FutureRollupBatchNumberError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class FutureRollupBatchTimestampError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchBlockNumberTooOldError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchTimestampTooOldError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchSafetyQueueBlockNumberError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchSafetyQueueBlockTimestampError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchL1ToL2QueueBlockNumberError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchL1ToL2QueueBlockTimestampError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchOvmBlockNumberError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
+export class RollupBatchOvmTimestampError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}

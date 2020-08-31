@@ -293,23 +293,47 @@ const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
  * @returns The CanonicalChainBatchSubmitter.
  */
 const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
-  const contractAddress: string = Environment.getOrThrow(
+  const canonicalTxChainAddress: string = Environment.getOrThrow(
     Environment.canonicalTransactionChainContractAddress
+  )
+  const l1ToL2TransactionQueueAddress: string = Environment.getOrThrow(
+    Environment.l1ToL2TransactionQueueContractAddress
+  )
+  const safetyQueueAddress: string = Environment.getOrThrow(
+    Environment.safetyTransactionQueueContractAddress
   )
   const period: number = Environment.getOrThrow(
     Environment.canonicalChainBatchSubmitterPeriodMillis
   )
   log.info(
-    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${contractAddress}, and period of ${period} millis.`
+    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${canonicalTxChainAddress}, l1 to l2 contract address of ${l1ToL2TransactionQueueAddress}, safety queue contract address of ${safetyQueueAddress}, and period of ${period} millis.`
   )
 
-  const contract: Contract = new Contract(
-    contractAddress,
+  const canonicalTxChainContract: Contract = new Contract(
+    canonicalTxChainAddress,
     getContractDefinition('CanonicalTransactionChain').abi,
     getSequencerWallet()
   )
 
-  return new CanonicalChainBatchSubmitter(getDataService(), contract, period)
+  const l1ToL2TransactionChainContract: Contract = new Contract(
+    l1ToL2TransactionQueueAddress,
+    getContractDefinition('L1ToL2TransactionQueue').abi,
+    getSequencerWallet()
+  )
+
+  const safetyQueueContract: Contract = new Contract(
+    safetyQueueAddress,
+    getContractDefinition('SafetyTransactionQueue').abi,
+    getSequencerWallet()
+  )
+
+  return new CanonicalChainBatchSubmitter(
+    getDataService(),
+    canonicalTxChainContract,
+    l1ToL2TransactionChainContract,
+    safetyQueueContract,
+    period
+  )
 }
 
 /**
