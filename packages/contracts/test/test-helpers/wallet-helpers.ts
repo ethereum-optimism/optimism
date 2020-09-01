@@ -18,11 +18,7 @@ export const signTransaction = async (
 }
 
 export const getRawSignedComponents = (signed: string): any[] => {
-  return [
-    signed.slice(130, 132),
-    signed.slice(2, 66),
-    signed.slice(66, 130)
-  ]
+  return [signed.slice(130, 132), signed.slice(2, 66), signed.slice(66, 130)]
 }
 
 export const getSignedComponents = (signed: string): any[] => {

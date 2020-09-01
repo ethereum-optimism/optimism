@@ -16,7 +16,7 @@ import {
   getDefaultGasMeterParams,
   GAS_LIMIT,
   manuallyDeployOvmContract,
-  executeTransaction
+  executeTransaction,
 } from '../../../test-helpers'
 
 describe('ExecutionManager -- EOA Creation Opcodes', () => {
@@ -39,7 +39,9 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
   let StateManagerFactory: ContractFactory
   let OVMNonceTesterFactory: ContractFactory
   before(async () => {
-    ExecutionManagerFactory = await ethers.getContractFactory('ExecutionManager')
+    ExecutionManagerFactory = await ethers.getContractFactory(
+      'ExecutionManager'
+    )
     StateManagerFactory = await ethers.getContractFactory('FullStateManager')
     OVMNonceTesterFactory = await ethers.getContractFactory('OVMNonceTester')
   })
@@ -67,7 +69,7 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
       {
         factory: StateManagerFactory,
         params: [],
-      },
+      }
     )
   })
 
@@ -88,29 +90,31 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
     before(async () => {
       transaction = {
         to: ZERO_ADDRESS,
-        data: '0x1234'
+        data: '0x1234',
       }
     })
 
     it('should create an EOA account given a signed message', async () => {
       const signedTransaction = await signTransaction(wallet, transaction)
       const [v, r, s] = getSignedComponents(signedTransaction)
-      const serializedTransaction = ethers.utils.serializeTransaction(transaction)
+      const serializedTransaction = ethers.utils.serializeTransaction(
+        transaction
+      )
       const transactionHash = ethers.utils.keccak256(serializedTransaction)
 
-      await ExecutionManger.ovmCREATEEOA(
-        transactionHash,
-        v,
-        r,
-        s,
-        {
-          gasLimit: GAS_LIMIT
-        }
-      )
+      await ExecutionManger.ovmCREATEEOA(transactionHash, v, r, s, {
+        gasLimit: GAS_LIMIT,
+      })
 
-      const ecdsaPrototypeBytecode = await ethers.provider.getCode(ECDSAContractAccountPrototype.address)
-      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(wallet.address)
-      const codeContractBytecode = await ethers.provider.getCode(codeContractAddress)
+      const ecdsaPrototypeBytecode = await ethers.provider.getCode(
+        ECDSAContractAccountPrototype.address
+      )
+      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(
+        wallet.address
+      )
+      const codeContractBytecode = await ethers.provider.getCode(
+        codeContractAddress
+      )
 
       expect(codeContractAddress).to.not.equal(ZERO_ADDRESS)
       expect(codeContractBytecode).to.equal(ecdsaPrototypeBytecode)
@@ -119,45 +123,41 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
     it('should revert if the EOA account already exists', async () => {
       const signedTransaction = await signTransaction(wallet, transaction)
       const [v, r, s] = getSignedComponents(signedTransaction)
-      const serializedTransaction = ethers.utils.serializeTransaction(transaction)
+      const serializedTransaction = ethers.utils.serializeTransaction(
+        transaction
+      )
       const transactionHash = ethers.utils.keccak256(serializedTransaction)
 
-      await ExecutionManger.ovmCREATEEOA(
-        transactionHash,
-        v,
-        r,
-        s,
-        {
-          gasLimit: GAS_LIMIT
-        }
-      )
+      await ExecutionManger.ovmCREATEEOA(transactionHash, v, r, s, {
+        gasLimit: GAS_LIMIT,
+      })
 
-      await expect(ExecutionManger.ovmCREATEEOA(
-        transactionHash,
-        v,
-        r,
-        s,
-        {
-          gasLimit: GAS_LIMIT
-        }
-      )).to.be.revertedWith('EOA account has already been created.')
+      await expect(
+        ExecutionManger.ovmCREATEEOA(transactionHash, v, r, s, {
+          gasLimit: GAS_LIMIT,
+        })
+      ).to.be.revertedWith('EOA account has already been created.')
     })
 
     it('should revert if the provided signature is invalid', async () => {
       const signedTransaction = await signTransaction(wallet, transaction)
       const [v, r, s] = getSignedComponents(signedTransaction)
-      const serializedTransaction = ethers.utils.serializeTransaction(transaction)
+      const serializedTransaction = ethers.utils.serializeTransaction(
+        transaction
+      )
       const transactionHash = ethers.utils.keccak256(serializedTransaction)
 
-      await expect(ExecutionManger.ovmCREATEEOA(
-        transactionHash,
-        v,
-        r,
-        '0x' + '00'.repeat(32), // Invalid 's' parameter.
-        {
-          gasLimit: GAS_LIMIT
-        }
-      )).to.be.revertedWith('Provided signature is invalid.')
+      await expect(
+        ExecutionManger.ovmCREATEEOA(
+          transactionHash,
+          v,
+          r,
+          '0x' + '00'.repeat(32), // Invalid 's' parameter.
+          {
+            gasLimit: GAS_LIMIT,
+          }
+        )
+      ).to.be.revertedWith('Provided signature is invalid.')
     })
   })
 
@@ -166,9 +166,7 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
       const expectedNonce = 1234
       const calldata = OVMNonceTesterFactory.interface.encodeFunctionData(
         'setNonce',
-        [
-          expectedNonce
-        ]
+        [expectedNonce]
       )
 
       await executeTransaction(
@@ -180,7 +178,9 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
         1
       )
 
-      const actualNonce = await StateManager.getOvmContractNonceView(OVMNonceTesterAddress)
+      const actualNonce = await StateManager.getOvmContractNonceView(
+        OVMNonceTesterAddress
+      )
       expect(actualNonce).to.equal(expectedNonce)
     })
 
@@ -188,9 +188,7 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
       const expectedNonce = 1234
       const calldata = OVMNonceTesterFactory.interface.encodeFunctionData(
         'setNonce',
-        [
-          expectedNonce
-        ]
+        [expectedNonce]
       )
 
       await executeTransaction(
@@ -202,23 +200,23 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
         1
       )
 
-      await expect(executeTransaction(
-        ExecutionManger,
-        wallet,
-        OVMNonceTesterAddress,
-        calldata,
-        true,
-        1
-      )).to.be.rejectedWith('New nonce must be greater than the current nonce.')
+      await expect(
+        executeTransaction(
+          ExecutionManger,
+          wallet,
+          OVMNonceTesterAddress,
+          calldata,
+          true,
+          1
+        )
+      ).to.be.rejectedWith('New nonce must be greater than the current nonce.')
     })
 
     it('should fail if new nonce is lower than previous one', async () => {
       const expectedNonce = 1234
       const firstCalldata = OVMNonceTesterFactory.interface.encodeFunctionData(
         'setNonce',
-        [
-          expectedNonce
-        ]
+        [expectedNonce]
       )
 
       await executeTransaction(
@@ -229,28 +227,30 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
         true,
         1
       )
-      
+
       const secondCalldata = OVMNonceTesterFactory.interface.encodeFunctionData(
         'setNonce',
         [
-          expectedNonce - 1 // Make nonce lower than previous one.
+          expectedNonce - 1, // Make nonce lower than previous one.
         ]
       )
 
-      await expect(executeTransaction(
-        ExecutionManger,
-        wallet,
-        OVMNonceTesterAddress,
-        secondCalldata,
-        true,
-        1
-      )).to.be.rejectedWith('New nonce must be greater than the current nonce.')
+      await expect(
+        executeTransaction(
+          ExecutionManger,
+          wallet,
+          OVMNonceTesterAddress,
+          secondCalldata,
+          true,
+          1
+        )
+      ).to.be.rejectedWith('New nonce must be greater than the current nonce.')
     })
 
     it('should fail if attempting to call outside of an execution context', async () => {
-      await expect(
-        ExecutionManger.ovmSETNONCE(1234)
-      ).to.be.rejectedWith('Must be inside a valid execution context.')
+      await expect(ExecutionManger.ovmSETNONCE(1234)).to.be.rejectedWith(
+        'Must be inside a valid execution context.'
+      )
     })
   })
 
@@ -260,7 +260,9 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
         'getNonce'
       )
 
-      const expectedNonce = await StateManager.getOvmContractNonceView(OVMNonceTesterAddress)
+      const expectedNonce = await StateManager.getOvmContractNonceView(
+        OVMNonceTesterAddress
+      )
 
       await executeTransaction(
         ExecutionManger,
@@ -273,7 +275,9 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
 
       // Nonce tester will increment the returned nonce by one to make sure
       // it's actually getting the correct nonce back.
-      const actualNonce = await StateManager.getOvmContractNonceView(OVMNonceTesterAddress)
+      const actualNonce = await StateManager.getOvmContractNonceView(
+        OVMNonceTesterAddress
+      )
       expect(actualNonce.toNumber()).to.equal(expectedNonce.toNumber() + 1)
     })
 
@@ -281,9 +285,7 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
       const expectedNonce = 1234
       const ovmSETNONCEcalldata = OVMNonceTesterFactory.interface.encodeFunctionData(
         'setNonce',
-        [
-          expectedNonce
-        ]
+        [expectedNonce]
       )
 
       await executeTransaction(
@@ -310,7 +312,9 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
 
       // Nonce tester will increment the returned nonce by one to make sure
       // it's actually getting the correct nonce back.
-      const actualNonce = await StateManager.getOvmContractNonceView(OVMNonceTesterAddress)
+      const actualNonce = await StateManager.getOvmContractNonceView(
+        OVMNonceTesterAddress
+      )
       expect(actualNonce.toNumber()).to.equal(expectedNonce + 1)
     })
   })

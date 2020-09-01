@@ -17,7 +17,7 @@ import {
   getDefaultGasMeterParams,
   GAS_LIMIT,
   manuallyDeployOvmContract,
-  executeTransaction
+  executeTransaction,
 } from '../../../test-helpers'
 
 interface EOATransaction {
@@ -26,9 +26,7 @@ interface EOATransaction {
   data: string
 }
 
-const boolToByte = (
-  value: boolean
-): string => {
+const boolToByte = (value: boolean): string => {
   return value ? '01' : '00'
 }
 
@@ -40,39 +38,38 @@ const encodeSequencerCalldata = async (
 ) => {
   const serializedTransaction = ethers.utils.defaultAbiCoder.encode(
     ['address', 'uint256', 'bytes'],
-    [
-      transaction.target,
-      transaction.nonce,
-      transaction.data
-    ]
+    [transaction.target, transaction.nonce, transaction.data]
   )
   const transactionHash = ethers.utils.keccak256(serializedTransaction)
   const transactionHashBytes = ethers.utils.arrayify(transactionHash)
   const transactionSignature = await wallet.signMessage(transactionHashBytes)
 
-  const [v, r, s] = getRawSignedComponents(transactionSignature).map((component) => {
-    return remove0x(component)
-  })
-  
-  const messageHash = isEthSignedMessage ? ethers.utils.hashMessage(
-    transactionHashBytes
-  ) : transactionHash
+  const [v, r, s] = getRawSignedComponents(transactionSignature).map(
+    (component) => {
+      return remove0x(component)
+    }
+  )
+
+  const messageHash = isEthSignedMessage
+    ? ethers.utils.hashMessage(transactionHashBytes)
+    : transactionHash
 
   let calldata = `0x${boolToByte(isEOACreation)}${v}${r}${s}`
   if (isEOACreation) {
     calldata = `${calldata}${remove0x(messageHash)}`
   } else {
-    calldata = `${calldata}${boolToByte(isEthSignedMessage)}${remove0x(serializedTransaction)}`
+    calldata = `${calldata}${boolToByte(isEthSignedMessage)}${remove0x(
+      serializedTransaction
+    )}`
   }
 
   return calldata
 }
 
 const getMappingStorageSlot = (key: string, index: number): string => {
-  const hexIndex = remove0x(ethers.BigNumber.from(index).toHexString()).padStart(
-    64,
-    '0'
-  )
+  const hexIndex = remove0x(
+    ethers.BigNumber.from(index).toHexString()
+  ).padStart(64, '0')
   return ethers.utils.keccak256(key + hexIndex)
 }
 
@@ -97,9 +94,13 @@ describe('SequencerMessageDecompressor', () => {
   let SequencerMessageDecompressorFactory: ContractFactory
   let SimpleStorageFactory: ContractFactory
   before(async () => {
-    ExecutionManagerFactory = await ethers.getContractFactory('ExecutionManager')
+    ExecutionManagerFactory = await ethers.getContractFactory(
+      'ExecutionManager'
+    )
     StateManagerFactory = await ethers.getContractFactory('FullStateManager')
-    SequencerMessageDecompressorFactory = await ethers.getContractFactory('SequencerMessageDecompressor')
+    SequencerMessageDecompressorFactory = await ethers.getContractFactory(
+      'SequencerMessageDecompressor'
+    )
     SimpleStorageFactory = await ethers.getContractFactory('SimpleStorage')
   })
 
@@ -126,7 +127,7 @@ describe('SequencerMessageDecompressor', () => {
       {
         factory: StateManagerFactory,
         params: [],
-      },
+      }
     )
   })
 
@@ -172,9 +173,15 @@ describe('SequencerMessageDecompressor', () => {
         true
       )
 
-      const ecdsaPrototypeBytecode = await ethers.provider.getCode(ECDSAContractAccountPrototype.address)
-      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(wallet.address)
-      const codeContractBytecode = await ethers.provider.getCode(codeContractAddress)
+      const ecdsaPrototypeBytecode = await ethers.provider.getCode(
+        ECDSAContractAccountPrototype.address
+      )
+      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(
+        wallet.address
+      )
+      const codeContractBytecode = await ethers.provider.getCode(
+        codeContractAddress
+      )
 
       expect(codeContractAddress).to.not.equal(ZERO_ADDRESS)
       expect(codeContractBytecode).to.equal(ecdsaPrototypeBytecode)
@@ -210,11 +217,8 @@ describe('SequencerMessageDecompressor', () => {
           nonce: 5,
           data: SimpleStorageFactory.interface.encodeFunctionData(
             'setStorage',
-            [
-              expectedKey,
-              expectedVal,
-            ]
-          )
+            [expectedKey, expectedVal]
+          ),
         },
         false,
         true
@@ -228,7 +232,9 @@ describe('SequencerMessageDecompressor', () => {
         true
       )
 
-      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(SimpleStorageAddress)
+      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(
+        SimpleStorageAddress
+      )
       const SimpleStorage = SimpleStorageFactory.attach(codeContractAddress)
       const actualVal = await SimpleStorage.getStorage(expectedKey)
       expect(actualVal).to.equal(expectedVal)

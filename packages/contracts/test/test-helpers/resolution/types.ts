@@ -68,5 +68,5 @@ export const factoryToContractName = {
   ExecutionManager: 'executionManager',
   SafetyChecker: 'safetyChecker',
   FraudVerifier: 'fraudVerifier',
-  ECDSAContractAccount: 'ecdsaContractAccount'
+  ECDSAContractAccount: 'ecdsaContractAccount',
 }

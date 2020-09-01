@@ -73,7 +73,7 @@ export const getDefaultDeployConfig = async (
     ECDSAContractAccount: {
       factory: await ethers.getContractFactory('ECDSAContractAccount'),
       params: [],
-    }
+    },
   }
 }
 
