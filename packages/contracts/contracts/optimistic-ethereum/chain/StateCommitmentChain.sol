@@ -102,7 +102,7 @@ contract StateCommitmentChain is ContractResolver {
             "Cannot submit an empty state commitment batch"
         );
 
-        if (_startsAtRootIndex + _stateBatch.length >= cumulativeNumElements) {
+        if (cumulativeNumElements >= _startsAtRootIndex + _stateBatch.length) {
             // This means all the roots in this batch were already appended. Don't fail, but don't change state.
             return;
         }
