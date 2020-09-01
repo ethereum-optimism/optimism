@@ -50,20 +50,29 @@ export class EthereumBlockProcessor {
     this.subscriptions.add(handler)
 
     provider.on('block', async (blockNumber) => {
-      if (blockNumber < this.earliestBlock) {
-        log.debug(
-          `Received block [${blockNumber}] which is before earliest block [${this.earliestBlock}]. Ignoring...`
+      try {
+        if (blockNumber < this.earliestBlock) {
+          log.debug(
+            `Received block [${blockNumber}] which is before earliest block [${this.earliestBlock}]. Ignoring...`
+          )
+          return
+        }
+
+        log.debug(`Block [${blockNumber}] was mined!`)
+
+        await this.fetchAndDisseminateBlock(provider, blockNumber)
+        this.currentBlockNumber = blockNumber
+
+        if (!syncPastBlocks || this.syncCompleted) {
+          await this.storeLastProcessedBlockNumber(this.currentBlockNumber)
+        }
+      } catch (e) {
+        logError(
+          log,
+          `Error thrown processing block ${blockNumber}. Exiting since throwing will not be caught.`,
+          e
         )
-        return
-      }
-
-      log.debug(`Block [${blockNumber}] was mined!`)
-
-      await this.fetchAndDisseminateBlock(provider, blockNumber)
-      this.currentBlockNumber = blockNumber
-
-      if (!syncPastBlocks || this.syncCompleted) {
-        await this.storeLastProcessedBlockNumber(this.currentBlockNumber)
+        process.exit(1)
       }
     })
 

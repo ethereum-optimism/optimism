@@ -81,9 +81,11 @@ contract StateCommitmentChain is ContractResolver {
     /**
      * Attempts to append a state batch.
      * @param _stateBatch Batch of ordered root hashes to append.
+     * @param _startsAtRootIndex The absolute index in the state root chain of the first state root in this batch.
      */
     function appendStateBatch(
-        bytes32[] memory _stateBatch
+        bytes32[] memory _stateBatch,
+        uint _startsAtRootIndex
     )
         public
     {
@@ -100,14 +102,30 @@ contract StateCommitmentChain is ContractResolver {
             "Cannot submit an empty state commitment batch"
         );
 
+        if (_startsAtRootIndex + _stateBatch.length >= cumulativeNumElements) {
+            // This means all the roots in this batch were already appended. Don't fail, but don't change state.
+            return;
+        }
+
+        bytes32[] memory batchToAppend;
+        if (_startsAtRootIndex < cumulativeNumElements) {
+            uint elementsToSkip = cumulativeNumElements - _startsAtRootIndex;
+            batchToAppend = new bytes32[](_stateBatch.length - elementsToSkip);
+            for (uint i = 0; i < batchToAppend.length; i++) {
+                batchToAppend[i] = _stateBatch[elementsToSkip + i];
+            }
+        } else {
+            batchToAppend = _stateBatch;
+        }
+
         bytes32 batchHeaderHash = keccak256(abi.encodePacked(
-            merkleUtils.getMerkleRootFrom32ByteLeafData(_stateBatch), // elementsMerkleRoot
-            _stateBatch.length, // numElementsInBatch
+            merkleUtils.getMerkleRootFrom32ByteLeafData(batchToAppend), // elementsMerkleRoot
+            batchToAppend.length, // numElementsInBatch
             cumulativeNumElements // cumulativeNumElements
         ));
 
         batches.push(batchHeaderHash);
-        cumulativeNumElements += _stateBatch.length;
+        cumulativeNumElements += batchToAppend.length;
         emit StateBatchAppended(batchHeaderHash);
     }
 

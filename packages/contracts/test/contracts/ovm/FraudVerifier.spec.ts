@@ -64,14 +64,15 @@ const encodeTransaction = (transaction: OVMTransactionData): string => {
 const appendTransactionBatch = async (
   canonicalTransactionChain: Contract,
   sequencer: Signer,
-  batch: string[]
+  batch: string[],
+  txStartIndex: number
 ): Promise<number[]> => {
   const blockNumber = await canonicalTransactionChain.provider.getBlockNumber()
   const timestamp = Math.floor(Date.now() / 1000)
 
   await canonicalTransactionChain
     .connect(sequencer)
-    .appendSequencerBatch(batch, timestamp, blockNumber)
+    .appendSequencerBatch(batch, timestamp, blockNumber, txStartIndex)
 
   return [timestamp, blockNumber]
 }
@@ -86,7 +87,8 @@ const appendAndGenerateTransactionBatch = async (
   const [timestamp, blockNumber] = await appendTransactionBatch(
     canonicalTransactionChain,
     sequencer,
-    batch
+    batch,
+    cumulativePrevElements
   )
 
   const localBatch = new TxChainBatch(
@@ -109,7 +111,7 @@ const appendAndGenerateStateBatch = async (
   batchIndex: number = 0,
   cumulativePrevElements: number = 0
 ): Promise<StateChainBatch> => {
-  await stateCommitmentChain.appendStateBatch(batch)
+  await stateCommitmentChain.appendStateBatch(batch, cumulativePrevElements)
 
   const localBatch = new StateChainBatch(
     batchIndex,

@@ -153,14 +153,61 @@ contract CanonicalTransactionChain is ContractResolver {
     }
 
     /**
+     * Appends transaction batches from the L1ToL2Queue and/or SafetyQueue until the total
+     * number of transactions in the canonical chain equals the provided _upToIndex.
+     * This will revert if there are too few or too many transactions in queued batches such that
+     * the total number of canonical tx chain elements isn't exactly _upToIndex as a result of this call.
+     * @param _upToTransactionIndex The expected next available tx index in the canonical chain after this call.
+     */
+    function appendFromQueuesUpToTransactionIndex(
+        uint _upToTransactionIndex
+    )
+        public
+    {
+        require(
+            isSequencer(msg.sender),
+            "Message sender does not have permission to append from queues"
+        );
+
+        L1ToL2TransactionQueue l1ToL2Queue = resolveL1ToL2TransactionQueue();
+        SafetyTransactionQueue safetyQueue = resolveSafetyTransactionQueue();
+
+        while(cumulativeNumElements < _upToTransactionIndex) {
+            bool safetyQueueIsEmpty = safetyQueue.isEmpty();
+            bool l1ToL2QueueIsEmpty = l1ToL2Queue.isEmpty();
+            if (safetyQueueIsEmpty && l1ToL2QueueIsEmpty) {
+                revert("Cannot append from queues up to index because queues are empty");
+            }
+            else if (l1ToL2QueueIsEmpty) {
+                appendSafetyBatch();
+            }
+            else if (safetyQueueIsEmpty) {
+                appendL1ToL2Batch();
+            }
+            else if (safetyQueue.peekTimestamp() < l1ToL2Queue.peekTimestamp()) {
+                appendSafetyBatch();
+            } else {
+                appendL1ToL2Batch();
+            }
+        }
+
+        require(
+            cumulativeNumElements == _upToTransactionIndex,
+            "Up to index was exceeded in appending from queues"
+        );
+    }
+
+    /**
      * Attempts to append a batch provided by the sequencer.
      * @param _txBatch Transaction batch to append.
      * @param _timestamp Timestamp for the batch.
+     * @param _startsAtTxIndex The absolute index in the canonical chain of this batch's first transaction.
      */
     function appendSequencerBatch(
         bytes[] memory _txBatch,
         uint _timestamp,
-        uint _blockNumber
+        uint _blockNumber,
+        uint _startsAtTxIndex
     )
         public
     {
@@ -196,6 +243,15 @@ contract CanonicalTransactionChain is ContractResolver {
             _blockNumber <= block.number,
             "Cannot submit a batch with a blockNumber in the future"
         );
+
+        require(
+            _startsAtTxIndex >= cumulativeNumElements,
+            "Cannot submit a batch with a startsAtTxIndex less than cumulativeNumElements"
+        );
+
+        if (_startsAtTxIndex > cumulativeNumElements) {
+            appendFromQueuesUpToTransactionIndex(_startsAtTxIndex);
+        }
 
         if (!l1ToL2Queue.isEmpty()) {
             require(
@@ -288,7 +344,6 @@ contract CanonicalTransactionChain is ContractResolver {
         //compare computed batch header with the batch header in the list.
         return hashBatchHeader(batchHeader) == batches[_inclusionProof.batchIndex];
     }
-
 
     /*
      * Internal Functions

@@ -124,7 +124,8 @@ class MockCanonicalTransactionChain {
   public async appendSequencerBatch(
     calldata: string,
     timestamp: number,
-    blockNumber: number
+    blockNumber: number,
+    startIndex: number
   ): Promise<TransactionResponse> {
     const response: TransactionResponse = this.responses.shift()
     if (!response) {

@@ -121,7 +121,8 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
         txsCalldata,
         timestamp,
-        batchBlockNumber
+        batchBlockNumber,
+        l2Batch.startIndex
       )
       log.debug(
         `Tx batch ${l2Batch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`

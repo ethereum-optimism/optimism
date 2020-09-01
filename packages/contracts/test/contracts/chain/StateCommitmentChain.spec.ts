@@ -65,7 +65,7 @@ describe('StateCommitmentChain', () => {
     batchIndex: number = 0,
     cumulativePrevElements: number = 0
   ): Promise<StateChainBatch> => {
-    await stateChain.appendStateBatch(batch)
+    await stateChain.appendStateBatch(batch, cumulativePrevElements)
     // Generate a local version of the rollup batch
     const localBatch = new StateChainBatch(
       batchIndex,
@@ -76,13 +76,16 @@ describe('StateCommitmentChain', () => {
     return localBatch
   }
 
-  const appendTxBatch = async (batch: string[]): Promise<void> => {
+  const appendTxBatch = async (
+    batch: string[],
+    txStartIndex: number
+  ): Promise<void> => {
     const blockNumber = await canonicalTxChain.provider.getBlockNumber()
     const timestamp = Math.floor(Date.now() / 1000)
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendSequencerBatch(batch, timestamp, blockNumber)
+      .appendSequencerBatch(batch, timestamp, blockNumber, txStartIndex)
   }
 
   let resolver: AddressResolverMapping
@@ -116,7 +119,7 @@ describe('StateCommitmentChain', () => {
       }
     )
 
-    await appendTxBatch(DEFAULT_TX_BATCH)
+    await appendTxBatch(DEFAULT_TX_BATCH, 0)
     await resolver.addressResolver.setAddress(
       'FraudVerifier',
       await fraudVerifier.getAddress()
@@ -139,7 +142,7 @@ describe('StateCommitmentChain', () => {
     it('should allow appending of state batches from any wallet', async () => {
       await stateChain
         .connect(randomWallet)
-        .appendStateBatch(DEFAULT_STATE_BATCH)
+        .appendStateBatch(DEFAULT_STATE_BATCH, 0)
     })
 
     it('should throw if submitting an empty batch', async () => {
@@ -147,19 +150,19 @@ describe('StateCommitmentChain', () => {
       await TestUtils.assertRevertsAsync(
         'Cannot submit an empty state commitment batch',
         async () => {
-          await stateChain.appendStateBatch(emptyBatch)
+          await stateChain.appendStateBatch(emptyBatch, 0)
         }
       )
     })
 
     it('should add to batches array', async () => {
-      await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
+      await stateChain.appendStateBatch(DEFAULT_STATE_BATCH, 0)
       const batchesLength = await stateChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
+      await stateChain.appendStateBatch(DEFAULT_STATE_BATCH, 0)
       const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(DEFAULT_STATE_BATCH.length)
     })
@@ -196,12 +199,18 @@ describe('StateCommitmentChain', () => {
     it('should throw if submitting more state commitments than number of txs in canonical tx chain', async () => {
       const numBatches = 5
       for (let i = 0; i < numBatches; i++) {
-        await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
+        await stateChain.appendStateBatch(
+          DEFAULT_STATE_BATCH,
+          i * DEFAULT_STATE_BATCH.length
+        )
       }
       await TestUtils.assertRevertsAsync(
         'Cannot append more state commitments than total number of transactions in CanonicalTransactionChain',
         async () => {
-          await stateChain.appendStateBatch(DEFAULT_STATE_BATCH)
+          await stateChain.appendStateBatch(
+            DEFAULT_STATE_BATCH,
+            numBatches * DEFAULT_STATE_BATCH.length
+          )
         }
       )
     })
@@ -210,7 +219,7 @@ describe('StateCommitmentChain', () => {
   describe('verifyElement() ', async () => {
     it('should return true for valid elements for different batches and elements', async () => {
       // add enough transaction batches so # txs > # state roots
-      await appendTxBatch(DEFAULT_TX_BATCH)
+      await appendTxBatch(DEFAULT_TX_BATCH, DEFAULT_TX_BATCH.length)
 
       const numBatches = 4
       let cumulativePrevElements = 0

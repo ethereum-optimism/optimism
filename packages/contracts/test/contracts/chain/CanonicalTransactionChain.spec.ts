@@ -55,13 +55,16 @@ describe('CanonicalTransactionChain', () => {
   let l1ToL2Queue: Contract
   let safetyQueue: Contract
 
-  const appendSequencerBatch = async (batch: string[]): Promise<number[]> => {
+  const appendSequencerBatch = async (
+    batch: string[],
+    txStartIndex: number
+  ): Promise<number[]> => {
     const blockNumber = await provider.getBlockNumber()
     const timestamp = Math.floor(Date.now() / 1000)
     // Submit the rollup batch on-chain
     await canonicalTxChain
       .connect(sequencer)
-      .appendSequencerBatch(batch, timestamp, blockNumber)
+      .appendSequencerBatch(batch, timestamp, blockNumber, txStartIndex)
     return [timestamp, blockNumber]
   }
 
@@ -70,7 +73,10 @@ describe('CanonicalTransactionChain', () => {
     batchIndex: number = 0,
     cumulativePrevElements: number = 0
   ): Promise<TxChainBatch> => {
-    const [timestamp, blockNumber] = await appendSequencerBatch(batch)
+    const [timestamp, blockNumber] = await appendSequencerBatch(
+      batch,
+      cumulativePrevElements
+    )
     return createTxChainBatch(
       batch,
       timestamp,
@@ -211,7 +217,7 @@ describe('CanonicalTransactionChain', () => {
 
   describe('appendSequencerBatch()', async () => {
     it('should not throw when appending a batch from the sequencer', async () => {
-      await appendSequencerBatch(DEFAULT_BATCH)
+      await appendSequencerBatch(DEFAULT_BATCH, 0)
     })
 
     it('should throw if submitting an empty batch', async () => {
@@ -219,7 +225,7 @@ describe('CanonicalTransactionChain', () => {
       await TestUtils.assertRevertsAsync(
         'Cannot submit an empty batch',
         async () => {
-          await appendSequencerBatch(emptyBatch)
+          await appendSequencerBatch(emptyBatch, 0)
         }
       )
     })
@@ -233,7 +239,7 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, blockNumber)
+            .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, blockNumber, 0)
         }
       )
     })
@@ -253,7 +259,8 @@ describe('CanonicalTransactionChain', () => {
             .appendSequencerBatch(
               DEFAULT_BATCH,
               timestamp,
-              currentBlockNumber - FORCE_INCLUSION_PERIOD_BLOCKS
+              currentBlockNumber - FORCE_INCLUSION_PERIOD_BLOCKS,
+              0
             )
         }
       )
@@ -265,7 +272,7 @@ describe('CanonicalTransactionChain', () => {
       const oldTimestamp = timestamp - FORCE_INCLUSION_PERIOD / 2
       await canonicalTxChain
         .connect(sequencer)
-        .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, blockNumber)
+        .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, blockNumber, 0)
     })
 
     it('should revert if submitting a batch with a future timestamp', async () => {
@@ -277,7 +284,12 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendSequencerBatch(DEFAULT_BATCH, futureTimestamp, blockNumber)
+            .appendSequencerBatch(
+              DEFAULT_BATCH,
+              futureTimestamp,
+              blockNumber,
+              0
+            )
         }
       )
     })
@@ -291,13 +303,21 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendSequencerBatch(DEFAULT_BATCH, timestamp, futureBlockNumber)
+            .appendSequencerBatch(
+              DEFAULT_BATCH,
+              timestamp,
+              futureBlockNumber,
+              0
+            )
         }
       )
     })
 
     it('should revert if submitting a new batch with a timestamp older than last batch timestamp', async () => {
-      const [timestamp, blockNumber] = await appendSequencerBatch(DEFAULT_BATCH)
+      const [timestamp, blockNumber] = await appendSequencerBatch(
+        DEFAULT_BATCH,
+        0
+      )
 
       const oldTimestamp = timestamp - 1
       await TestUtils.assertRevertsAsync(
@@ -305,13 +325,21 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, blockNumber)
+            .appendSequencerBatch(
+              DEFAULT_BATCH,
+              oldTimestamp,
+              blockNumber,
+              DEFAULT_BATCH.length
+            )
         }
       )
     })
 
     it('should revert if submitting a new batch with a blockNumber older than last batch blockNumber', async () => {
-      const [timestamp, blockNumber] = await appendSequencerBatch(DEFAULT_BATCH)
+      const [timestamp, blockNumber] = await appendSequencerBatch(
+        DEFAULT_BATCH,
+        0
+      )
 
       const oldBlockNumber = blockNumber - 1
       await TestUtils.assertRevertsAsync(
@@ -319,18 +347,23 @@ describe('CanonicalTransactionChain', () => {
         async () => {
           await canonicalTxChain
             .connect(sequencer)
-            .appendSequencerBatch(DEFAULT_BATCH, timestamp, oldBlockNumber)
+            .appendSequencerBatch(
+              DEFAULT_BATCH,
+              timestamp,
+              oldBlockNumber,
+              DEFAULT_BATCH.length
+            )
         }
       )
     })
     it('should add to batches array', async () => {
-      await appendSequencerBatch(DEFAULT_BATCH)
+      await appendSequencerBatch(DEFAULT_BATCH, 0)
       const batchesLength = await canonicalTxChain.getBatchesLength()
       batchesLength.toNumber().should.equal(1)
     })
 
     it('should update cumulativeNumElements correctly', async () => {
-      await appendSequencerBatch(DEFAULT_BATCH)
+      await appendSequencerBatch(DEFAULT_BATCH, 0)
       const cumulativeNumElements = await canonicalTxChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(DEFAULT_BATCH.length)
     })
@@ -345,7 +378,8 @@ describe('CanonicalTransactionChain', () => {
           await canonicalTxChain.appendSequencerBatch(
             DEFAULT_BATCH,
             timestamp,
-            blockNumber
+            blockNumber,
+            0
           )
         }
       )
@@ -395,7 +429,7 @@ describe('CanonicalTransactionChain', () => {
         const oldBlockNumber = localBatch.blockNumber - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, oldBlockNumber)
+          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, oldBlockNumber, 0)
       })
 
       it('should successfully append a batch with an equal timestamp', async () => {
@@ -404,7 +438,8 @@ describe('CanonicalTransactionChain', () => {
           .appendSequencerBatch(
             DEFAULT_BATCH,
             localBatch.timestamp,
-            localBatch.blockNumber
+            localBatch.blockNumber,
+            0
           )
       })
 
@@ -420,7 +455,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 newTimestamp,
-                localBatch.blockNumber
+                localBatch.blockNumber,
+                0
               )
           }
         )
@@ -441,7 +477,8 @@ describe('CanonicalTransactionChain', () => {
           .appendSequencerBatch(
             DEFAULT_BATCH,
             oldTimestamp,
-            localBatch.blockNumber
+            localBatch.blockNumber,
+            0
           )
       })
 
@@ -451,7 +488,8 @@ describe('CanonicalTransactionChain', () => {
           .appendSequencerBatch(
             DEFAULT_BATCH,
             localBatch.timestamp,
-            localBatch.blockNumber
+            localBatch.blockNumber,
+            0
           )
       })
 
@@ -467,7 +505,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 newTimestamp,
-                localBatch.blockNumber
+                localBatch.blockNumber,
+                0
               )
           }
         )
@@ -484,7 +523,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 localBatch.timestamp,
-                localBatch.blockNumber + 1
+                localBatch.blockNumber + 1,
+                0
               )
           }
         )
@@ -516,14 +556,24 @@ describe('CanonicalTransactionChain', () => {
         const oldTimestamp = safetyTimestamp - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, safetyBlockNumber)
+          .appendSequencerBatch(
+            DEFAULT_BATCH,
+            oldTimestamp,
+            safetyBlockNumber,
+            0
+          )
       })
 
       it('should successfully append a batch with an older blockNumber than the oldest batch', async () => {
         const oldBlockNumber = safetyBlockNumber - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendSequencerBatch(DEFAULT_BATCH, safetyTimestamp, oldBlockNumber)
+          .appendSequencerBatch(
+            DEFAULT_BATCH,
+            safetyTimestamp,
+            oldBlockNumber,
+            0
+          )
       })
 
       it('should successfully append a batch with a timestamp and blockNumber equal to the oldest batch', async () => {
@@ -532,7 +582,8 @@ describe('CanonicalTransactionChain', () => {
           .appendSequencerBatch(
             DEFAULT_BATCH,
             safetyTimestamp,
-            safetyBlockNumber
+            safetyBlockNumber,
+            0
           )
       })
 
@@ -546,7 +597,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 middleTimestamp,
-                safetyBlockNumber
+                safetyBlockNumber,
+                0
               )
           }
         )
@@ -562,7 +614,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 safetyTimestamp,
-                middleBlockNumber
+                middleBlockNumber,
+                0
               )
           }
         )
@@ -579,7 +632,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 newTimestamp,
-                safetyBlockNumber
+                safetyBlockNumber,
+                0
               )
           }
         )
@@ -596,7 +650,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 safetyTimestamp,
-                newBlockNumber
+                newBlockNumber,
+                0
               )
           }
         )
@@ -629,14 +684,24 @@ describe('CanonicalTransactionChain', () => {
         const oldTimestamp = l1ToL2Timestamp - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendSequencerBatch(DEFAULT_BATCH, oldTimestamp, l1ToL2BlockNumber)
+          .appendSequencerBatch(
+            DEFAULT_BATCH,
+            oldTimestamp,
+            l1ToL2BlockNumber,
+            0
+          )
       })
 
       it('should successfully append a batch with an older blockNumber than both batches', async () => {
         const oldBlockNumber = l1ToL2BlockNumber - 1
         await canonicalTxChain
           .connect(sequencer)
-          .appendSequencerBatch(DEFAULT_BATCH, l1ToL2Timestamp, oldBlockNumber)
+          .appendSequencerBatch(
+            DEFAULT_BATCH,
+            l1ToL2Timestamp,
+            oldBlockNumber,
+            0
+          )
       })
 
       it('should successfully append a batch with a timestamp and blockNumber equal to the older batch', async () => {
@@ -645,7 +710,8 @@ describe('CanonicalTransactionChain', () => {
           .appendSequencerBatch(
             DEFAULT_BATCH,
             l1ToL2Timestamp,
-            l1ToL2BlockNumber
+            l1ToL2BlockNumber,
+            0
           )
       })
 
@@ -659,7 +725,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 middleTimestamp,
-                safetyBlockNumber
+                safetyBlockNumber,
+                0
               )
           }
         )
@@ -675,7 +742,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 safetyTimestamp,
-                middleBlockNumber
+                middleBlockNumber,
+                0
               )
           }
         )
@@ -692,7 +760,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 newTimestamp,
-                safetyBlockNumber
+                safetyBlockNumber,
+                0
               )
           }
         )
@@ -709,7 +778,8 @@ describe('CanonicalTransactionChain', () => {
               .appendSequencerBatch(
                 DEFAULT_BATCH,
                 l1ToL2Timestamp,
-                newBlockNumber
+                newBlockNumber,
+                0
               )
           }
         )
