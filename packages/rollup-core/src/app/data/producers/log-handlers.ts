@@ -279,10 +279,12 @@ export const SequencerBatchAppendedLogHandler = async (
 
   const rollupTransactions: RollupTransaction[] = []
   let timestamp: any
+  let blockNumber: any
+  let startsAtIndex: any
   try {
     let transactionsBytes: string[]
-    ;[transactionsBytes, timestamp] = abi.decode(
-      ['bytes[]', 'uint256'],
+    ;[transactionsBytes, timestamp, blockNumber, startsAtIndex] = abi.decode(
+      ['bytes[]', 'uint256', 'uint256', 'uint256'],
       ethers.utils.hexDataSlice(tx.data, 4)
     )
 
@@ -311,7 +313,7 @@ export const SequencerBatchAppendedLogHandler = async (
       const sender: string = await getTxSigner(unsigned, r, s, v)
 
       rollupTransactions.push({
-        l1BlockNumber: tx.blockNumber,
+        l1BlockNumber: blockNumber.toNumber(),
         l1Timestamp: timestamp.toNumber(),
         l1TxHash: l.transactionHash,
         l1TxIndex: l.transactionIndex,
@@ -363,9 +365,10 @@ export const StateBatchAppendedLogHandler = async (
   )
 
   let stateRoots: string[]
+  let startsAtRootIndex: any
   try {
-    ;[stateRoots] = abi.decode(
-      ['bytes32[]'],
+    ;[stateRoots, startsAtRootIndex] = abi.decode(
+      ['bytes32[]', 'uint256'],
       ethers.utils.hexDataSlice(tx.data, 4)
     )
   } catch (e) {
@@ -375,6 +378,28 @@ export const StateBatchAppendedLogHandler = async (
     )
     return
   }
+
+  startsAtRootIndex = startsAtRootIndex.toNumber()
+
+  const rollupStateRootCount = await ds.getL1RollupStateRootCount()
+
+  const sliceIndex = rollupStateRootCount - startsAtRootIndex
+
+  if (sliceIndex < 0) {
+    const msg: string = `Received rollup state root batch that starts at ${startsAtRootIndex} but we only have ${rollupStateRootCount} rollup state roots in the DB!`
+    log.error(msg)
+    throw Error(msg)
+  }
+
+  if (sliceIndex >= stateRoots.length) {
+    // This means
+    log.warn(
+      `Received Rollup State Root Batch of size ${stateRoots.length} with start index ${startsAtRootIndex}, but we already have ${rollupStateRootCount} L1 rollup state roots in the DB!`
+    )
+    return
+  }
+
+  stateRoots = stateRoots.slice(sliceIndex)
 
   log.debug(`Inserting state roots: ${JSON.stringify(stateRoots)}`)
 

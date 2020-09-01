@@ -82,6 +82,7 @@ const createTx = (
 }
 
 class MockDataService extends DefaultDataService {
+  public rollupStateRootCount: number = 0
   public createdL1ToL2Batches: number = 0
   public createdSafetyQueueBatches: number = 0
   public rollupTransactionsInserted: RollupTransaction[][] = []
@@ -132,6 +133,10 @@ class MockDataService extends DefaultDataService {
   ): Promise<number> {
     this.txHashToRollupRootsInserted.set(l1TxHash, stateRoots)
     return undefined
+  }
+
+  public async getL1RollupStateRootCount(): Promise<number> {
+    return this.rollupStateRootCount
   }
 }
 
@@ -305,6 +310,8 @@ describe('Log Handlers', () => {
 
   it('should parse and insert Sequencer Batch', async () => {
     const timestamp = 1
+    const blockNumber = 1
+    const txStartIndex = 0
 
     const target: string = 'bb'.repeat(20)
     const nonce: string = '00'.repeat(32)
@@ -314,7 +321,10 @@ describe('Log Handlers', () => {
     const signature = await getTxSignature(target, nonce, gasLimit, calldata)
 
     let data = `0x${target}${nonce}${gasLimit}${remove0x(signature)}${calldata}`
-    data = abi.encode(['bytes[]', 'uint256'], [[data, data, data], timestamp])
+    data = abi.encode(
+      ['bytes[]', 'uint256', 'uint256', 'uint256'],
+      [[data, data, data], timestamp, blockNumber, txStartIndex]
+    )
 
     const l = createLog('00'.repeat(64))
     const tx = createTx(`0x22222222${remove0x(data)}`)
@@ -374,6 +384,8 @@ describe('Log Handlers', () => {
 
     it('should parse and insert Sequencer Batch without creating a geth submission', async () => {
       const timestamp = 1
+      const blockNumber = 1
+      const txStartIndex = 0
 
       const target: string = 'bb'.repeat(20)
       const nonce: string = '00'.repeat(32)
@@ -385,7 +397,10 @@ describe('Log Handlers', () => {
       let data = `0x${target}${nonce}${gasLimit}${remove0x(
         signature
       )}${calldata}`
-      data = abi.encode(['bytes[]', 'uint256'], [[data, data, data], timestamp])
+      data = abi.encode(
+        ['bytes[]', 'uint256', 'uint256', 'uint256'],
+        [[data, data, data], timestamp, blockNumber, txStartIndex]
+      )
 
       const l = createLog('00'.repeat(64))
       const tx = createTx(`0x22222222${remove0x(data)}`)
@@ -443,13 +458,14 @@ describe('Log Handlers', () => {
 
   it('should parse and insert State Batch', async () => {
     const timestamp = 1
+    const rootStartIndex = 0
 
     const roots: string[] = [
       keccak256FromUtf8('1'),
       keccak256FromUtf8('2'),
       keccak256FromUtf8('3'),
     ]
-    const data = abi.encode(['bytes32[]'], [roots])
+    const data = abi.encode(['bytes32[]', 'uint256'], [roots, rootStartIndex])
 
     const l = createLog('00'.repeat(64))
     const tx = createTx(`0x22222222${remove0x(data)}`)

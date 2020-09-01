@@ -346,10 +346,32 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async updateBlockToProcessed(blockHash: string): Promise<void> {
-    return this.rdb.execute(`
-    UPDATE l1_block 
-    SET processed = TRUE 
-    WHERE block_hash = '${add0x(blockHash)}'`)
+    return this.rdb.execute(
+      `UPDATE l1_block 
+        SET processed = TRUE 
+        WHERE block_hash = '${add0x(blockHash)}'`
+    )
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getL1RollupStateRootCount(): Promise<number> {
+    const res: Row[] = await this.rdb.select(
+      `SELECT COUNT(id) as l1_state_root_count
+      FROM l1_rollup_state_root
+      WHERE removed = false`
+    )
+
+    if (!res || !res.length || !res[0]) {
+      const msg: string = `Got result ${JSON.stringify(
+        res
+      )} from L1 Rollup State Root Count query!`
+      log.error(msg)
+      throw Error(msg)
+    }
+
+    return res[0]['l1_state_root_count']
   }
 
   /*******************
