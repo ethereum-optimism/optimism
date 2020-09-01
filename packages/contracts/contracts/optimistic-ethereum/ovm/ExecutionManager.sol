@@ -7,16 +7,17 @@ import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
 import { StateManagerGasSanitizer } from "./StateManagerGasSanitizer.sol";
+import { ECDSAContractAccount } from "../accounts/ECDSAContractAccount.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { ContractAddressGenerator } from "../utils/libraries/ContractAddressGenerator.sol";
 import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
+import { EthUtils } from "../utils/libraries/EthUtils.sol";
 
 /* Testing Imports */
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
-import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title ExecutionManager
@@ -265,6 +266,9 @@ contract ExecutionManager is ContractResolver {
         // set the new cumulative gas
         updateCumulativeGas(gasConsumedByExecution);
 
+        // Reset the active contract.
+        switchActiveContract(address(0));
+
         assembly {
             let resultData := add(result, 0x20)
             if eq(success, 1) {
@@ -337,6 +341,75 @@ contract ExecutionManager is ContractResolver {
          * https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md#specification
          */
         return ecrecover(hash, (_v - uint8(executionContext.chainId) * 2) - 8, _r, _s);
+    }
+
+
+    /*******************
+     * OVM EOA Opcodes *
+     *******************/
+    
+    function ovmCREATEEOA(
+        bytes32 _messageHash,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    )
+        public
+        returns (
+            address
+        )
+    {
+        address eoa = ecrecover(
+            _messageHash,
+            _v,
+            _r,
+            _s
+        );
+
+        require(
+            eoa != address(0),
+            "Provided signature is invalid."
+        );
+
+        StateManager stateManager = resolveStateManager();
+        require(
+            stateManager.getCodeContractAddressFromOvmAddress(eoa) == address(0),
+            "EOA account has already been created."
+        );
+
+        ECDSAContractAccount eoaContractAccount = new ECDSAContractAccount();
+        stateManager.associateCodeContract(eoa, address(eoaContractAccount));
+
+        return eoa;
+    }
+
+    function ovmSETNONCE(
+        uint256 _nonce
+    )
+        public
+    {
+        require(
+            executionContext.ovmActiveContract != address(0),
+            "Must be inside a valid execution context."
+        );
+
+        require(
+            _nonce > ovmGETNONCE(),
+            "New nonce must be greater than the current nonce."
+        );
+
+        StateManager stateManager = resolveStateManager();
+        stateManager.setOvmContractNonce(executionContext.ovmActiveContract, _nonce);
+    }
+
+    function ovmGETNONCE()
+        public
+        returns (
+            uint256
+        )
+    {
+        StateManager stateManager = resolveStateManager();
+        return stateManager.getOvmContractNonce(executionContext.ovmActiveContract);
     }
 
 

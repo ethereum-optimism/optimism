@@ -70,6 +70,10 @@ export const getDefaultDeployConfig = async (
       factory: await ethers.getContractFactory('FraudVerifier'),
       params: [addressResolver.address],
     },
+    ECDSAContractAccount: {
+      factory: await ethers.getContractFactory('ECDSAContractAccount'),
+      params: [],
+    }
   }
 }
 

@@ -4,9 +4,9 @@ import { ethers, Wallet } from 'ethers'
 /* Internal Imports */
 import { DEFAULT_ACCOUNTS } from './constants'
 
-export const getWallets = (): Wallet[] => {
+export const getWallets = (provider?: any): Wallet[] => {
   return DEFAULT_ACCOUNTS.map((account) => {
-    return new ethers.Wallet(account.secretKey)
+    return new ethers.Wallet(account.secretKey, provider)
   })
 }
 
@@ -15,6 +15,14 @@ export const signTransaction = async (
   transaction: any
 ): Promise<string> => {
   return wallet.signTransaction(transaction)
+}
+
+export const getRawSignedComponents = (signed: string): any[] => {
+  return [
+    signed.slice(130, 132),
+    signed.slice(2, 66),
+    signed.slice(66, 130)
+  ]
 }
 
 export const getSignedComponents = (signed: string): any[] => {

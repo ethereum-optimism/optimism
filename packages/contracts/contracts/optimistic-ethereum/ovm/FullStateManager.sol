@@ -24,8 +24,8 @@ contract FullStateManager is StateManager {
 
     mapping(address => mapping(bytes32 => bytes32)) private ovmContractStorage;
     mapping(address => uint) private ovmContractNonces;
-    mapping(address => address) private ovmAddressToCodeContractAddress;
-    mapping(address => address) private codeContractAddressToOvmAddress;
+    mapping(address => address) public ovmAddressToCodeContractAddress;
+    mapping(address => address) public codeContractAddressToOvmAddress;
 
 
     /*

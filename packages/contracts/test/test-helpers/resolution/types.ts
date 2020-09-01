@@ -17,6 +17,7 @@ type ContractFactoryName =
   | 'SafetyChecker'
   | 'FraudVerifier'
   | 'StateManagerGasSanitizer'
+  | 'ECDSAContractAccount'
 
 export interface AddressResolverDeployConfig {
   GasConsumer: ContractDeployConfig
@@ -29,6 +30,7 @@ export interface AddressResolverDeployConfig {
   ExecutionManager: ContractDeployConfig
   SafetyChecker: ContractDeployConfig
   FraudVerifier: ContractDeployConfig
+  ECDSAContractAccount: ContractDeployConfig
 }
 
 export interface AddressResolverConfig {
@@ -47,6 +49,7 @@ interface ContractMapping {
   executionManager: Contract
   safetyChecker: Contract
   fraudVerifier: Contract
+  ecdsaContractAccount: Contract
 }
 
 export interface AddressResolverMapping {
@@ -65,4 +68,5 @@ export const factoryToContractName = {
   ExecutionManager: 'executionManager',
   SafetyChecker: 'safetyChecker',
   FraudVerifier: 'fraudVerifier',
+  ECDSAContractAccount: 'ecdsaContractAccount'
 }
