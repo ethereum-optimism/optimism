@@ -1,13 +1,18 @@
 global:
   tlsDisable: false
-  certSecretName: omgnetwork-certs-k7hc7k9k42
+  certSecretName: omgnetwork-certs-62f8bbkck8
 injector:
   enabled: false
 server:
+  dataStorage:
+    enabled: true
+    size: 200Gi
+    storageClassName: vault-data
+    accessMode: ReadWriteOnce
   auditStorage:
     enabled: true
-    size: 10Gi
-    storageClass: default
+    size: 100Gi
+    storageClass: vault-audit
     accessMode: ReadWriteOnce
   ha:
     enabled: true
@@ -76,7 +81,7 @@ server:
         }
   image:
     repository: vault # TODO: will change to the omgnetwork/vault image
-    tag: "1.5.2" # TODO: will change to the appropriate tag for omgnetwork/vault
+    tag: "1.5.3" # TODO: will change to the appropriate tag for omgnetwork/vault
     pullPolicy: IfNotPresent
   extraEnvironmentVars:
     GOOGLE_REGION: us-west4
@@ -86,11 +91,18 @@ server:
     - type: secret
       name: "kms-creds"
     - type: secret
-      name: omgnetwork-certs-k7hc7k9k42
+      name: omgnetwork-certs-62f8bbkck8
   affinity: null
   dev:
     enabled: false
   standalone:
     enabled: false
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
 ui:
   enabled: true
