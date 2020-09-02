@@ -332,6 +332,52 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
     })
   })
 
+  describe('getL1RollupStateRootCount', () => {
+    it('should return 0 if there are no state roots', async () => {
+      const count = await dataService.getL1RollupStateRootCount()
+      count.should.equal(0, `Incorrect state root count!`)
+    })
+
+    it('should return count of state roots if roots are present', async () => {
+      const tx = createTx(keccak256FromUtf8('tx 1'))
+      await dataService.insertL1BlockAndTransactions(l1Block, [tx], true)
+      const stateRoots = [
+        keccak256FromUtf8('root1'),
+        keccak256FromUtf8('root2'),
+        keccak256FromUtf8('root3'),
+      ]
+      await dataService.insertL1RollupStateRoots(
+        tx.hash,
+        stateRoots
+      )
+
+      const count = await dataService.getL1RollupStateRootCount()
+      count.should.equal(3, `Incorrect state root count!`)
+    })
+
+    it('should not count state roots if they are removed', async () => {
+      const tx = createTx(keccak256FromUtf8('tx 1'))
+      await dataService.insertL1BlockAndTransactions(l1Block, [tx], true)
+      const stateRoots = [
+        keccak256FromUtf8('root1'),
+        keccak256FromUtf8('root2'),
+        keccak256FromUtf8('root3'),
+      ]
+      await dataService.insertL1RollupStateRoots(
+        tx.hash,
+        stateRoots
+      )
+
+      await postgres.execute(
+        `UPDATE l1_rollup_state_root 
+        SET removed = true 
+        WHERE state_root = '${stateRoots[0]}'`)
+
+      const count = await dataService.getL1RollupStateRootCount()
+      count.should.equal(2, `Incorrect State Root Count!`)
+    })
+  })
+
   describe('getNextQueuedGethSubmission', () => {
     it('Should be empty without any queued geth submissions', async () => {
       const res = await postgres.select(

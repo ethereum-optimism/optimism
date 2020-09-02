@@ -371,7 +371,7 @@ export class DefaultDataService implements DataService {
       throw Error(msg)
     }
 
-    return res[0]['l1_state_root_count']
+    return parseInt(res[0]['l1_state_root_count'], 10)
   }
 
   /*******************
