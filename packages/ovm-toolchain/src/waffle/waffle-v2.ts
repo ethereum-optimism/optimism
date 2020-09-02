@@ -38,20 +38,24 @@ export class MockProvider extends providers.Web3Provider {
    */
   public async rpc(method: string, params: any[] = []): Promise<any> {
     return new Promise<any>((resolve, reject) => {
-      this._web3Provider.sendAsync(
-        {
-          jsonrpc: '2.0',
-          method,
-          params,
-        },
-        (err: any, res: any) => {
-          if (err) {
-            reject(err)
-          } else {
-            resolve(res.result)
+      if (!!this._web3Provider) {
+        this._web3Provider.sendAsync(
+          {
+            jsonrpc: '2.0',
+            method,
+            params,
+          },
+          (err: any, res: any) => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve(res.result)
+            }
           }
-        }
-      )
+        )
+      } else {
+        reject('web3Provider not defined')
+      }
     })
   }
 }
