@@ -346,10 +346,7 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         keccak256FromUtf8('root2'),
         keccak256FromUtf8('root3'),
       ]
-      await dataService.insertL1RollupStateRoots(
-        tx.hash,
-        stateRoots
-      )
+      await dataService.insertL1RollupStateRoots(tx.hash, stateRoots)
 
       const count = await dataService.getL1RollupStateRootCount()
       count.should.equal(3, `Incorrect state root count!`)
@@ -363,15 +360,13 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
         keccak256FromUtf8('root2'),
         keccak256FromUtf8('root3'),
       ]
-      await dataService.insertL1RollupStateRoots(
-        tx.hash,
-        stateRoots
-      )
+      await dataService.insertL1RollupStateRoots(tx.hash, stateRoots)
 
       await postgres.execute(
         `UPDATE l1_rollup_state_root 
         SET removed = true 
-        WHERE state_root = '${stateRoots[0]}'`)
+        WHERE state_root = '${stateRoots[0]}'`
+      )
 
       const count = await dataService.getL1RollupStateRootCount()
       count.should.equal(2, `Incorrect State Root Count!`)
