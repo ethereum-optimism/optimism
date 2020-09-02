@@ -228,7 +228,9 @@ describe('StateCommitmentChain', () => {
       )
       const secondBatchHeaderHashExpected = await secondLocalBatch.hashBatchHeader()
       const calculatedSecondBatchHeaderHash = await stateChain.batches(1)
-      calculatedSecondBatchHeaderHash.should.equal(secondBatchHeaderHashExpected)
+      calculatedSecondBatchHeaderHash.should.equal(
+        secondBatchHeaderHashExpected
+      )
 
       const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
       cumulativeNumElements.toNumber().should.equal(5)
