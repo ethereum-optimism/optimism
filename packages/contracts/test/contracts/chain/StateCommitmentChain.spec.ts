@@ -208,6 +208,62 @@ describe('StateCommitmentChain', () => {
         )
       }, 'Cannot append more state commitments than total number of transactions in CanonicalTransactionChain')
     })
+
+    it('should disregard first few state roots of batch if they have already been appended', async () => {
+      const firstBatch = makeRandomBatchOfSize(2)
+      const firstLocalBatch = await appendAndGenerateStateBatch(
+        firstBatch,
+        0,
+        0
+      )
+      const firstBatchHeaderHashExpected = await firstLocalBatch.hashBatchHeader()
+      const calculatedFirstBatchHeaderHash = await stateChain.batches(0)
+      calculatedFirstBatchHeaderHash.should.equal(firstBatchHeaderHashExpected)
+
+      const secondBatch = makeRandomBatchOfSize(5)
+      const secondLocalBatch = await appendAndGenerateStateBatch(
+        secondBatch.slice(2),
+        1,
+        2
+      )
+      const secondBatchHeaderHashExpected = await secondLocalBatch.hashBatchHeader()
+      const calculatedSecondBatchHeaderHash = await stateChain.batches(1)
+      calculatedSecondBatchHeaderHash.should.equal(secondBatchHeaderHashExpected)
+
+      const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
+      cumulativeNumElements.toNumber().should.equal(5)
+      const batchesLength = await stateChain.getBatchesLength()
+      batchesLength.toNumber().should.equal(2)
+    })
+
+    it('should not fail or append duplicate batch', async () => {
+      const firstBatch = makeRandomBatchOfSize(2)
+      const firstLocalBatch = await appendAndGenerateStateBatch(
+        firstBatch,
+        0,
+        0
+      )
+      const firstBatchHeaderHashExpected = await firstLocalBatch.hashBatchHeader()
+      const calculatedFirstBatchHeaderHash = await stateChain.batches(0)
+      calculatedFirstBatchHeaderHash.should.equal(firstBatchHeaderHashExpected)
+
+      const secondLocalBatch = await appendAndGenerateStateBatch(
+        firstBatch,
+        0,
+        0
+      )
+
+      const cumulativeNumElements = await stateChain.cumulativeNumElements.call()
+      cumulativeNumElements.toNumber().should.equal(2)
+      const batchesLength = await stateChain.getBatchesLength()
+      batchesLength.toNumber().should.equal(1)
+    })
+
+    it('should fail append future root index', async () => {
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateChain.appendStateBatch(makeRandomBatchOfSize(2), 1)
+      }, '_startsAtRootIndex index indicates future state root')
+    })
   })
 
   describe('verifyElement() ', async () => {

@@ -3,6 +3,7 @@ import {
   add0x,
   keccak256FromUtf8,
   remove0x,
+  TestUtils,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 
@@ -22,6 +23,7 @@ import {
   SequencerBatchAppendedLogHandler,
   StateBatchAppendedLogHandler,
   CHAIN_ID,
+  StateRootsMissingError,
 } from '../../src'
 import {
   arrayify,
@@ -487,5 +489,56 @@ describe('Log Handlers', () => {
       const received = dataService.txHashToRollupRootsInserted.get(tx.hash)[i]
       received.should.equal(roots[i], `Root ${i} mismatch!`)
     }
+  })
+
+  it('should parse and insert State Batch disregarding redundant roots', async () => {
+    const timestamp = 1
+    const rootStartIndex = 0
+
+    dataService.rollupStateRootCount = 2
+
+    const roots: string[] = [
+      keccak256FromUtf8('1'),
+      keccak256FromUtf8('2'),
+      keccak256FromUtf8('3'),
+    ]
+    const data = abi.encode(['bytes32[]', 'uint256'], [roots, rootStartIndex])
+
+    const l = createLog('00'.repeat(64))
+    const tx = createTx(`0x22222222${remove0x(data)}`)
+
+    await StateBatchAppendedLogHandler(dataService, l, tx)
+
+    dataService.txHashToRollupRootsInserted.size.should.equal(
+      1,
+      `No root batch inserted!`
+    )
+    dataService.txHashToRollupRootsInserted
+      .get(tx.hash)
+      .length.should.equal(1, `State root inserted count mismatch!`)
+
+    const received = dataService.txHashToRollupRootsInserted.get(tx.hash)[0]
+    received.should.equal(roots[2], `Root mismatch!`)
+  })
+
+  it('should throw if root is in the future, indicating we are missing roots', async () => {
+    const timestamp = 1
+    const rootStartIndex = 2
+
+    dataService.rollupStateRootCount = 0
+
+    const roots: string[] = [
+      keccak256FromUtf8('1'),
+      keccak256FromUtf8('2'),
+      keccak256FromUtf8('3'),
+    ]
+    const data = abi.encode(['bytes32[]', 'uint256'], [roots, rootStartIndex])
+
+    const l = createLog('00'.repeat(64))
+    const tx = createTx(`0x22222222${remove0x(data)}`)
+
+    await TestUtils.assertThrowsAsync(async () => {
+      await StateBatchAppendedLogHandler(dataService, l, tx)
+    }, StateRootsMissingError)
   })
 })

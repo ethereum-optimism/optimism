@@ -59,6 +59,12 @@ export class NotSyncedError extends Error {
   }
 }
 
+export class StateRootsMissingError extends Error {
+  constructor(msg: string) {
+    super(msg)
+  }
+}
+
 /***************************
  * Batch Submission Errors *
  ***************************/

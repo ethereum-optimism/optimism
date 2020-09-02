@@ -22,6 +22,7 @@ import {
   LogHandler,
   QueueOrigin,
   RollupTransaction,
+  StateRootsMissingError,
 } from '../../../types'
 import { CHAIN_ID } from '../../constants'
 import { Environment } from '../../util'
@@ -388,7 +389,7 @@ export const StateBatchAppendedLogHandler = async (
   if (sliceIndex < 0) {
     const msg: string = `Received rollup state root batch that starts at ${startsAtRootIndex} but we only have ${rollupStateRootCount} rollup state roots in the DB!`
     log.error(msg)
-    throw Error(msg)
+    throw new StateRootsMissingError(msg)
   }
 
   if (sliceIndex >= stateRoots.length) {

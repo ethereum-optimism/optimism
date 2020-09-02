@@ -102,6 +102,11 @@ contract StateCommitmentChain is ContractResolver {
             "Cannot submit an empty state commitment batch"
         );
 
+        require(
+            _startsAtRootIndex <= cumulativeNumElements,
+            "_startsAtRootIndex index indicates future state root"
+        );
+
         if (cumulativeNumElements >= _startsAtRootIndex + _stateBatch.length) {
             // This means all the roots in this batch were already appended. Don't fail, but don't change state.
             return;
