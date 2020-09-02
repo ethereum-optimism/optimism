@@ -147,12 +147,9 @@ describe('StateCommitmentChain', () => {
 
     it('should throw if submitting an empty batch', async () => {
       const emptyBatch = []
-      await TestUtils.assertRevertsAsync(
-        'Cannot submit an empty state commitment batch',
-        async () => {
-          await stateChain.appendStateBatch(emptyBatch, 0)
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateChain.appendStateBatch(emptyBatch, 0)
+      }, 'Cannot submit an empty state commitment batch')
     })
 
     it('should add to batches array', async () => {
@@ -204,15 +201,12 @@ describe('StateCommitmentChain', () => {
           i * DEFAULT_STATE_BATCH.length
         )
       }
-      await TestUtils.assertRevertsAsync(
-        'Cannot append more state commitments than total number of transactions in CanonicalTransactionChain',
-        async () => {
-          await stateChain.appendStateBatch(
-            DEFAULT_STATE_BATCH,
-            numBatches * DEFAULT_STATE_BATCH.length
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateChain.appendStateBatch(
+          DEFAULT_STATE_BATCH,
+          numBatches * DEFAULT_STATE_BATCH.length
+        )
+      }, 'Cannot append more state commitments than total number of transactions in CanonicalTransactionChain')
     })
   })
 
@@ -317,15 +311,12 @@ describe('StateCommitmentChain', () => {
         numElementsInBatch: DEFAULT_STATE_BATCH.length,
         cumulativePrevElements,
       }
-      await TestUtils.assertRevertsAsync(
-        'Only FraudVerifier has permission to delete state batches',
-        async () => {
-          await stateChain.connect(randomWallet).deleteAfterInclusive(
-            batchIndex, // delete the single appended batch
-            batchHeader
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateChain.connect(randomWallet).deleteAfterInclusive(
+          batchIndex, // delete the single appended batch
+          batchHeader
+        )
+      }, 'Only FraudVerifier has permission to delete state batches')
     })
     describe('when a single batch is deleted', async () => {
       beforeEach(async () => {
@@ -395,15 +386,12 @@ describe('StateCommitmentChain', () => {
         numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
         cumulativePrevElements,
       }
-      await TestUtils.assertRevertsAsync(
-        'Calculated batch header is different than expected batch header',
-        async () => {
-          await stateChain.connect(fraudVerifier).deleteAfterInclusive(
-            batchIndex, // delete the single appended batch
-            batchHeader
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateChain.connect(fraudVerifier).deleteAfterInclusive(
+          batchIndex, // delete the single appended batch
+          batchHeader
+        )
+      }, 'Calculated batch header is different than expected batch header')
     })
 
     it('should revert if trying to delete a batch outside of valid range', async () => {
@@ -415,14 +403,11 @@ describe('StateCommitmentChain', () => {
         numElementsInBatch: DEFAULT_STATE_BATCH.length + 1, // increment to make header incorrect
         cumulativePrevElements,
       }
-      await TestUtils.assertRevertsAsync(
-        'Cannot delete batches outside of valid range',
-        async () => {
-          await stateChain
-            .connect(fraudVerifier)
-            .deleteAfterInclusive(batchIndex, batchHeader)
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateChain
+          .connect(fraudVerifier)
+          .deleteAfterInclusive(batchIndex, batchHeader)
+      }, 'Cannot delete batches outside of valid range')
     })
   })
 

@@ -184,9 +184,10 @@ contract CanonicalTransactionChain is ContractResolver {
             else if (safetyQueueIsEmpty) {
                 appendL1ToL2Batch();
             }
-            else if (safetyQueue.peekTimestamp() < l1ToL2Queue.peekTimestamp()) {
+            else if (safetyQueue.peekTimestamp() <= l1ToL2Queue.peekTimestamp()) {
                 appendSafetyBatch();
-            } else {
+            }
+            else {
                 appendL1ToL2Batch();
             }
         }

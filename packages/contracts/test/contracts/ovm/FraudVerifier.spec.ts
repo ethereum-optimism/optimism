@@ -299,18 +299,15 @@ describe('FraudVerifier', () => {
         0
       )
 
-      await TestUtils.assertRevertsAsync(
-        'Provided pre-state root inclusion proof is invalid.',
-        async () => {
-          await fraudVerifier.initializeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            transaction,
-            transactionProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.initializeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          transaction,
+          transactionProof
+        )
+      }, 'Provided pre-state root inclusion proof is invalid.')
 
       expect(
         await fraudVerifier.hasStateTransitioner(transactionIndex, preStateRoot)
@@ -328,18 +325,15 @@ describe('FraudVerifier', () => {
         0
       )
 
-      await TestUtils.assertRevertsAsync(
-        'Provided transaction data is invalid.',
-        async () => {
-          await fraudVerifier.initializeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            transaction,
-            transactionProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.initializeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          transaction,
+          transactionProof
+        )
+      }, 'Provided transaction data is invalid.')
 
       expect(
         await fraudVerifier.hasStateTransitioner(transactionIndex, preStateRoot)
@@ -414,18 +408,15 @@ describe('FraudVerifier', () => {
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
-      await TestUtils.assertRevertsAsync(
-        'State transition process has not been completed.',
-        async () => {
-          await fraudVerifier.finalizeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            postStateRoot,
-            postStateRootProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.finalizeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          postStateRoot,
+          postStateRootProof
+        )
+      }, 'State transition process has not been completed.')
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
     })
@@ -445,18 +436,15 @@ describe('FraudVerifier', () => {
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
-      await TestUtils.assertRevertsAsync(
-        'Provided pre-state root does not match StateTransitioner.',
-        async () => {
-          await fraudVerifier.finalizeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            postStateRoot,
-            postStateRootProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.finalizeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          postStateRoot,
+          postStateRootProof
+        )
+      }, 'Provided pre-state root does not match StateTransitioner.')
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
     })
@@ -476,18 +464,15 @@ describe('FraudVerifier', () => {
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
-      await TestUtils.assertRevertsAsync(
-        'Provided pre-state root inclusion proof is invalid.',
-        async () => {
-          await fraudVerifier.finalizeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            postStateRoot,
-            postStateRootProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.finalizeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          postStateRoot,
+          postStateRootProof
+        )
+      }, 'Provided pre-state root inclusion proof is invalid.')
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
     })
@@ -507,18 +492,15 @@ describe('FraudVerifier', () => {
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
-      await TestUtils.assertRevertsAsync(
-        'Provided post-state root inclusion proof is invalid.',
-        async () => {
-          await fraudVerifier.finalizeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            postStateRoot,
-            postStateRootProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.finalizeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          postStateRoot,
+          postStateRootProof
+        )
+      }, 'Provided post-state root inclusion proof is invalid.')
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
     })
@@ -538,18 +520,15 @@ describe('FraudVerifier', () => {
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
 
-      await TestUtils.assertRevertsAsync(
-        'State transition has not been proven fraudulent.',
-        async () => {
-          await fraudVerifier.finalizeFraudVerification(
-            transactionIndex,
-            preStateRoot,
-            preStateRootProof,
-            postStateRoot,
-            postStateRootProof
-          )
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await fraudVerifier.finalizeFraudVerification(
+          transactionIndex,
+          preStateRoot,
+          preStateRootProof,
+          postStateRoot,
+          postStateRootProof
+        )
+      }, 'State transition has not been proven fraudulent.')
 
       expect(await stateCommitmentChain.getBatchesLength()).to.equal(1)
     })

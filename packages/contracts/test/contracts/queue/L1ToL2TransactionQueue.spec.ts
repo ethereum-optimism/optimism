@@ -148,12 +148,9 @@ describe('L1ToL2TransactionQueue', () => {
       await l1ToL2TxQueue
         .connect(otherWallet)
         .enqueueL1ToL2Message(...defaultL1ToL2Params)
-      await TestUtils.assertRevertsAsync(
-        'Only the canonical transaction chain can dequeue L1->L2 queue transactions.',
-        async () => {
-          await l1ToL2TxQueue.dequeue()
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await l1ToL2TxQueue.dequeue()
+      }, 'Only the canonical transaction chain can dequeue L1->L2 queue transactions.')
     })
   })
 })

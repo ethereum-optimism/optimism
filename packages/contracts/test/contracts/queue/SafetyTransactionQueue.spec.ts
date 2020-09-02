@@ -86,12 +86,9 @@ describe('SafetyTransactionQueue', () => {
         '0x1234123412341234',
       ])
 
-      TestUtils.assertRevertsAsync(
-        'Only EOAs can enqueue rollup transactions to the safety queue.',
-        async () => {
-          await simpleProxy.callContractWithData(safetyTxQueue.address, data)
-        }
-      )
+      TestUtils.assertRevertsAsync(async () => {
+        await simpleProxy.callContractWithData(safetyTxQueue.address, data)
+      }, 'Only EOAs can enqueue rollup transactions to the safety queue.')
     })
 
     it('should emit the right event on enqueue', async () => {
@@ -154,12 +151,9 @@ describe('SafetyTransactionQueue', () => {
 
     it('should not allow dequeue from other address', async () => {
       await safetyTxQueue.enqueueTx(defaultTx)
-      await TestUtils.assertRevertsAsync(
-        'Only the canonical transaction chain can dequeue safety queue transactions.',
-        async () => {
-          await safetyTxQueue.dequeue()
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await safetyTxQueue.dequeue()
+      }, 'Only the canonical transaction chain can dequeue safety queue transactions.')
     })
   })
 })
