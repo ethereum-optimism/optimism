@@ -9,6 +9,7 @@ import './src/buidler-plugins/buidler-ovm-node'
 
 task('test')
   .addFlag('ovm', 'Run tests on the OVM using a custom OVM provider')
+  .addFlag('native', 'Use custom native solc compiler')
   .setAction(async (taskArguments, bre: any, runSuper) => {
     if (taskArguments.ovm) {
       console.log('Compiling and running tests in the OVM...')
@@ -17,6 +18,11 @@ task('test')
       }
       await bre.config.startOvmNode()
     }
+
+    if (taskArguments.native) {
+      bre.config.solc.native = true
+    }
+
     await runSuper(taskArguments)
   })
 
