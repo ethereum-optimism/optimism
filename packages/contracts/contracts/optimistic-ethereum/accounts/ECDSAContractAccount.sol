@@ -2,7 +2,8 @@ pragma solidity ^0.5.0;
 
 /* Library Imports */
 import { ECDSAUtils } from "../utils/libraries/ECDSAUtils.sol";
-import { OVMUtils } from "../utils/libraries/OVMUtils.sol";
+import { ExecutionManagerWrapper } from "../utils/libraries/ExecutionManagerWrapper.sol";
+import { RLPReader } from "../utils/libraries/RLPReader.sol";
 
 /* Contract Imports */
 import { ExecutionManager } from "../ovm/ExecutionManager.sol";
@@ -56,7 +57,7 @@ contract ECDSAContractAccount {
                 _v,
                 _r,
                 _s
-            ) == OVMUtils.ovmADDRESS(address(executionManager)),
+            ) == ExecutionManagerWrapper.ovmADDRESS(address(executionManager)),
             "Provided signature is invalid."
         );
 
@@ -70,18 +71,14 @@ contract ECDSAContractAccount {
         executionManager.ovmSETNONCE(expectedNonce);
 
         if (decodedTx.target == address(0)) {
-            bytes memory bytecode = decodedTx.data;
-            address created;
-            assembly {
-                created := create(0, add(bytecode, 0x20), mload(bytecode))
-                if iszero(extcodesize(created)) {
-                    revert(0, 0)
-                }
-            }
-
-            _ret = abi.encode(created);
+            _ret = abi.encode(
+                ExecutionManagerWrapper.ovmCREATE(
+                    address(executionManager),
+                    decodedTx.data
+                )
+            );
         } else {
-            _ret = OVMUtils.ovmCALL(
+            _ret = ExecutionManagerWrapper.ovmCALL(
                 address(executionManager),
                 decodedTx.target,
                 decodedTx.data
@@ -110,16 +107,12 @@ contract ECDSAContractAccount {
             EOATransaction memory _decoded
         )
     {
-        (
-            address target,
-            uint256 nonce,
-            bytes memory data
-        ) = abi.decode(_transaction, (address, uint256, bytes));
+        RLPReader.RLPItem[] memory decoded = RLPReader.toList(RLPReader.toRlpItem(_transaction));
 
         return EOATransaction({
-            target: target,
-            nonce: nonce,
-            data: data
+            target: RLPReader.toAddress(decoded[3]),
+            nonce: RLPReader.toUint(decoded[0]),
+            data: RLPReader.toBytes(decoded[5])
         });
     }
 }

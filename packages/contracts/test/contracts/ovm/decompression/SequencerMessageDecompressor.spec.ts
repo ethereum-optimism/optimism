@@ -12,6 +12,7 @@ import {
   getWallets,
   ZERO_ADDRESS,
   signTransaction,
+  getSignedComponents,
   getRawSignedComponents,
   deployAndRegister,
   getDefaultGasMeterParams,
@@ -20,39 +21,39 @@ import {
   executeTransaction,
 } from '../../../test-helpers'
 
-interface EOATransaction {
-  target: string
-  nonce: number
-  data: string
-}
-
 const boolToByte = (value: boolean): string => {
   return value ? '01' : '00'
 }
 
 const encodeSequencerCalldata = async (
   wallet: Wallet,
-  transaction: EOATransaction,
+  transaction: UnsignedTransaction,
   isEOACreation: boolean,
   isEthSignedMessage: boolean
 ) => {
-  const serializedTransaction = ethers.utils.defaultAbiCoder.encode(
-    ['address', 'uint256', 'bytes'],
-    [transaction.target, transaction.nonce, transaction.data]
-  )
+  const serializedTransaction = ethers.utils.serializeTransaction(transaction)
   const transactionHash = ethers.utils.keccak256(serializedTransaction)
-  const transactionHashBytes = ethers.utils.arrayify(transactionHash)
-  const transactionSignature = await wallet.signMessage(transactionHashBytes)
 
-  const [v, r, s] = getRawSignedComponents(transactionSignature).map(
-    (component) => {
+  let v
+  let r
+  let s
+  let messageHash
+  if (isEthSignedMessage) {
+    const transactionHashBytes = ethers.utils.arrayify(transactionHash)
+    const transactionSignature = await wallet.signMessage(transactionHashBytes)
+    ;[v, r, s] = getRawSignedComponents(transactionSignature).map(
+      (component) => {
+        return remove0x(component)
+      }
+    )
+    messageHash = ethers.utils.hashMessage(transactionHashBytes)
+  } else {
+    const transactionSignature = await wallet.signTransaction(transaction)
+    ;[v, r, s] = getSignedComponents(transactionSignature).map((component) => {
       return remove0x(component)
-    }
-  )
-
-  const messageHash = isEthSignedMessage
-    ? ethers.utils.hashMessage(transactionHashBytes)
-    : transactionHash
+    })
+    messageHash = transactionHash
+  }
 
   let calldata = `0x${boolToByte(isEOACreation)}${v}${r}${s}`
   if (isEOACreation) {
@@ -157,12 +158,12 @@ describe('SequencerMessageDecompressor', () => {
       const calldata = await encodeSequencerCalldata(
         wallet,
         {
-          target: wallet.address,
+          to: wallet.address,
           nonce: 1,
           data: '0x',
         },
         true,
-        true
+        false
       )
 
       await executeTransaction(
@@ -191,12 +192,12 @@ describe('SequencerMessageDecompressor', () => {
       const ovmCREATEEOAcalldata = await encodeSequencerCalldata(
         wallet,
         {
-          target: wallet.address,
+          to: wallet.address,
           nonce: 1,
           data: '0x',
         },
         true,
-        true
+        false
       )
 
       await executeTransaction(
@@ -213,7 +214,7 @@ describe('SequencerMessageDecompressor', () => {
       const calldata = await encodeSequencerCalldata(
         wallet,
         {
-          target: SimpleStorageAddress,
+          to: SimpleStorageAddress,
           nonce: 5,
           data: SimpleStorageFactory.interface.encodeFunctionData(
             'setStorage',
@@ -221,7 +222,7 @@ describe('SequencerMessageDecompressor', () => {
           ),
         },
         false,
-        true
+        false
       )
 
       await executeTransaction(

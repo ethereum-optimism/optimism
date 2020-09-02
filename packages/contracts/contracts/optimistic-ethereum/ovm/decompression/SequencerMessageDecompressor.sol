@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 
 /* Library Imports */
 import { ECDSAUtils } from "../../utils/libraries/ECDSAUtils.sol";
-import { OVMUtils } from "../../utils/libraries/OVMUtils.sol";
+import { ExecutionManagerWrapper } from "../../utils/libraries/ExecutionManagerWrapper.sol";
 
 /* Contract Imports */
 import { ExecutionManager } from "../ExecutionManager.sol";
@@ -99,7 +99,7 @@ contract SequencerMessageDecompressor {
                 s
             );
 
-            OVMUtils.ovmCALL(
+            ExecutionManagerWrapper.ovmCALL(
                 msg.sender,
                 target,
                 callbytes
