@@ -5,7 +5,7 @@ const VM = require('ethereumjs-ovm').default
 const BN = require('bn.js')
 
 // tslint:disable-next-line:no-shadowed-variable
-const wrap = (provider: any, opts: any) => {
+const wrap = (provider: any, opts: any = {}) => {
   const gasLimit = opts.gasLimit || 100_000_000
   const blockchain = provider.engine.manager.state.blockchain
 
