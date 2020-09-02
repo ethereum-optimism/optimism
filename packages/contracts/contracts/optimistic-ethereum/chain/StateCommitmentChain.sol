@@ -114,6 +114,9 @@ contract StateCommitmentChain is ContractResolver {
 
         bytes32[] memory batchToAppend;
         if (_startsAtRootIndex < cumulativeNumElements) {
+            // TODO: This can be made much more efficient later by just making
+            // TODO: merkleUtils.getMerkleRootFrom32ByteLeafData take an index
+            // TODO: indicating the start of the array instead of creating a new one
             uint elementsToSkip = cumulativeNumElements - _startsAtRootIndex;
             batchToAppend = new bytes32[](_stateBatch.length - elementsToSkip);
             for (uint i = 0; i < batchToAppend.length; i++) {

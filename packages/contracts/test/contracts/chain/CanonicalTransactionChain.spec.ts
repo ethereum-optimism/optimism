@@ -723,7 +723,8 @@ describe('CanonicalTransactionChain', () => {
 
     describe('when the txs in the batch are not the next index', () => {
       it('reverts if starts at index is less than canonical chain length', async () => {
-        const blockNumber = 1
+        const blockNumber =
+          (await canonicalTxChain.provider.getBlockNumber()) - 1
         const timestamp = Math.round(new Date().getTime() / 1000) - 5
         const startsAtIndex = 0
         await canonicalTxChain
@@ -749,7 +750,8 @@ describe('CanonicalTransactionChain', () => {
       })
 
       it('reverts if starts at index is greater than canonical chain length and there are no queued batches', async () => {
-        const blockNumber = 1
+        const blockNumber =
+          (await canonicalTxChain.provider.getBlockNumber()) - 1
         const timestamp = Math.round(new Date().getTime() / 1000) - 5
         const startsAtIndex = 1
         // Should fail because the index needs to be 1
