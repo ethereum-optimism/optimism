@@ -87,7 +87,8 @@ contract SequencerMessageDecompressor {
                 isEthSignedMessage,
                 uint8(v),
                 r,
-                s
+                s,
+                ExecutionManagerWrapper.ovmCHAINID(msg.sender)
             );
 
             bytes memory callbytes = abi.encodeWithSelector(
@@ -102,7 +103,8 @@ contract SequencerMessageDecompressor {
             ExecutionManagerWrapper.ovmCALL(
                 msg.sender,
                 target,
-                callbytes
+                callbytes,
+                gasleft()
             );
         }
     }

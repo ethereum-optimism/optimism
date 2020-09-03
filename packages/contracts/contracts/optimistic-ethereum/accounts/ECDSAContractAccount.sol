@@ -10,6 +10,7 @@ import { ExecutionManager } from "../ovm/ExecutionManager.sol";
 
 /**
  * @title ECDSAContractAccount
+ * @dev NOTE: This contract must be made upgradeable!
  */
 contract ECDSAContractAccount {
     /*
@@ -19,7 +20,19 @@ contract ECDSAContractAccount {
     struct EOATransaction {
         address target;
         uint256 nonce;
+        uint256 gasLimit;
         bytes data;
+    }
+
+
+    /*
+     * Constructor
+     */
+    
+    constructor()
+        public
+    {
+        // TODO: Pay the Sequencer a fee in the ETH ERC-20 token.
     }
 
 
@@ -56,7 +69,8 @@ contract ECDSAContractAccount {
                 _isEthSignedMessage,
                 _v,
                 _r,
-                _s
+                _s,
+                ExecutionManagerWrapper.ovmCHAINID(address(executionManager))
             ) == ExecutionManagerWrapper.ovmADDRESS(address(executionManager)),
             "Provided signature is invalid."
         );
@@ -74,14 +88,16 @@ contract ECDSAContractAccount {
             _ret = abi.encode(
                 ExecutionManagerWrapper.ovmCREATE(
                     address(executionManager),
-                    decodedTx.data
+                    decodedTx.data,
+                    decodedTx.gasLimit
                 )
             );
         } else {
             _ret = ExecutionManagerWrapper.ovmCALL(
                 address(executionManager),
                 decodedTx.target,
-                decodedTx.data
+                decodedTx.data,
+                decodedTx.gasLimit
             );
         }
 
@@ -112,6 +128,7 @@ contract ECDSAContractAccount {
         return EOATransaction({
             target: RLPReader.toAddress(decoded[3]),
             nonce: RLPReader.toUint(decoded[0]),
+            gasLimit: RLPReader.toUint(decoded[2]),
             data: RLPReader.toBytes(decoded[5])
         });
     }

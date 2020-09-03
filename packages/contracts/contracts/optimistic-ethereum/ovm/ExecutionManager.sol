@@ -13,7 +13,6 @@ import { ECDSAContractAccount } from "../accounts/ECDSAContractAccount.sol";
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 import { ContractAddressGenerator } from "../utils/libraries/ContractAddressGenerator.sol";
-import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 import { EthUtils } from "../utils/libraries/EthUtils.sol";
 
 /* Testing Imports */
@@ -289,60 +288,6 @@ contract ExecutionManager is ContractResolver {
         }
     }
 
-    /**
-     * Recover the EOA of an ECDSA-signed Ethereum transaction. Note some values will be set to
-     * zero by default. Additionally, the `to=ZERO_ADDRESS` is reserved for contract creation
-     * transactions.
-     * @param _nonce The nonce of the transaction.
-     * @param _to The entrypoint / recipient of the transaction.
-     * @param _callData The calldata which will be applied to the entrypoint contract.
-     * @param _v The v value of the ECDSA signature + CHAIN_ID.
-     * @param _r The r value of the ECDSA signature.
-     * @param _s The s value of the ECDSA signature.
-     */
-    function recoverEOAAddress(
-        uint _nonce,
-        address _to,
-        bytes memory _callData,
-        uint8 _v,
-        bytes32 _r,
-        bytes32 _s
-    )
-        public
-        view
-        returns (address)
-    {
-        bytes[] memory message = new bytes[](9);
-        message[0] = RLPWriter.encodeUint(_nonce); // Nonce
-        message[1] = RLPWriter.encodeUint(0); // Gas price
-        message[2] = RLPWriter.encodeUint(gasMeterConfig.OvmTxMaxGas); // Gas limit
-
-        // To -- Special rlp encoding handling if _to is the ZERO_ADDRESS
-        if (_to == ZERO_ADDRESS) {
-            message[3] = RLPWriter.encodeUint(0);
-        } else {
-            message[3] = RLPWriter.encodeAddress(_to);
-        }
-
-        message[4] = RLPWriter.encodeUint(0); // Value
-        message[5] = RLPWriter.encodeBytes(_callData); // Data
-        message[6] = RLPWriter.encodeUint(executionContext.chainId); // ChainID
-        message[7] = RLPWriter.encodeUint(0); // Zeros for R
-        message[8] = RLPWriter.encodeUint(0); // Zeros for S
-
-        bytes memory encodedMessage = RLPWriter.encodeList(message);
-        bytes32 hash = keccak256(abi.encodePacked(encodedMessage));
-
-        /*
-         * Replay protection is used to prevent signatures on one chain from
-         * being used on other chains. To support replay protection ethereum
-         * modifies the value of v in the signature to be different for each
-         * chainID. This was implemented based on the following EIP:
-         * https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md#specification
-         */
-        return ecrecover(hash, (_v - uint8(executionContext.chainId) * 2) - 8, _r, _s);
-    }
-
 
     /*******************
      * OVM EOA Opcodes *
@@ -361,7 +306,7 @@ contract ExecutionManager is ContractResolver {
     {
         address eoa = ecrecover(
             _messageHash,
-            _v,
+            (_v - uint8(executionContext.chainId) * 2) - 8,
             _r,
             _s
         );

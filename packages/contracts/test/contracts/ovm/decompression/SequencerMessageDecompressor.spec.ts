@@ -31,13 +31,15 @@ const encodeSequencerCalldata = async (
   isEOACreation: boolean,
   isEthSignedMessage: boolean
 ) => {
+  transaction.chainId = 108
+
   const serializedTransaction = ethers.utils.serializeTransaction(transaction)
   const transactionHash = ethers.utils.keccak256(serializedTransaction)
 
-  let v
-  let r
-  let s
-  let messageHash
+  let v: string
+  let r: string
+  let s: string
+  let messageHash: string
   if (isEthSignedMessage) {
     const transactionHashBytes = ethers.utils.arrayify(transactionHash)
     const transactionSignature = await wallet.signMessage(transactionHashBytes)
@@ -65,13 +67,6 @@ const encodeSequencerCalldata = async (
   }
 
   return calldata
-}
-
-const getMappingStorageSlot = (key: string, index: number): string => {
-  const hexIndex = remove0x(
-    ethers.BigNumber.from(index).toHexString()
-  ).padStart(64, '0')
-  return ethers.utils.keccak256(key + hexIndex)
 }
 
 describe('SequencerMessageDecompressor', () => {
@@ -216,6 +211,7 @@ describe('SequencerMessageDecompressor', () => {
         {
           to: SimpleStorageAddress,
           nonce: 5,
+          gasLimit: 2000000,
           data: SimpleStorageFactory.interface.encodeFunctionData(
             'setStorage',
             [expectedKey, expectedVal]
