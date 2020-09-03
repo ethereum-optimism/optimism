@@ -261,7 +261,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       this.getMaxL1ToL2QueueTimestampSeconds(),
       this.getMaxL1ToL2QueueBlockNumber(),
       this.getLastOvmTimestampSeconds(),
-      this.getLastOvmBlockNumber()
+      this.getLastOvmBlockNumber(),
     ])
 
     const nowSeconds = Math.round(new Date().getTime() / 1000)
@@ -300,10 +300,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       )
     }
 
-    if (
-      !!safetyQueueBlockNumber &&
-      batchBlockNumber > safetyQueueBlockNumber
-    ) {
+    if (!!safetyQueueBlockNumber && batchBlockNumber > safetyQueueBlockNumber) {
       throw new RollupBatchSafetyQueueBlockNumberError(
         `Safety Queue tx must come first. Safety queue blockNumber is ${safetyQueueBlockNumber}, batch blockNumber is ${batchBlockNumber}`
       )
@@ -318,10 +315,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       )
     }
 
-    if (
-      !!l1ToL2QueueBlockNumber &&
-      batchBlockNumber > l1ToL2QueueBlockNumber
-    ) {
+    if (!!l1ToL2QueueBlockNumber && batchBlockNumber > l1ToL2QueueBlockNumber) {
       throw new RollupBatchL1ToL2QueueBlockNumberError(
         `L1 to L2 Queue tx must come first. L1 to L2 Queue blockNumber is ${l1ToL2QueueBlockNumber}, batch blockNumber is ${batchBlockNumber}`
       )
@@ -361,26 +355,36 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   }
 
   private async getMaxSafetyQueueTimestampSeconds(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(this.safetyQueueContract.peekTimestamp)
+    return this.catchQueueIsEmptyAndReturnUndefined(
+      this.safetyQueueContract.peekTimestamp
+    )
   }
 
   private async getMaxSafetyQueueBlockNumber(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(this.safetyQueueContract.peekBlockNumber)
+    return this.catchQueueIsEmptyAndReturnUndefined(
+      this.safetyQueueContract.peekBlockNumber
+    )
   }
 
   private async getMaxL1ToL2QueueTimestampSeconds(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(this.l1ToL2QueueContract.peekTimestamp)
+    return this.catchQueueIsEmptyAndReturnUndefined(
+      this.l1ToL2QueueContract.peekTimestamp
+    )
   }
 
   private async getMaxL1ToL2QueueBlockNumber(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(this.l1ToL2QueueContract.peekBlockNumber)
+    return this.catchQueueIsEmptyAndReturnUndefined(
+      this.l1ToL2QueueContract.peekBlockNumber
+    )
   }
 
-  private async catchQueueIsEmptyAndReturnUndefined(func: () => Promise<number>): Promise<number> {
+  private async catchQueueIsEmptyAndReturnUndefined(
+    func: () => Promise<number>
+  ): Promise<number> {
     try {
       return await func()
     } catch (e) {
-      if (e.message.indexOf("Queue is empty") > -1) {
+      if (e.message.indexOf('Queue is empty') > -1) {
         return undefined
       }
       throw e
