@@ -3,23 +3,29 @@
  * MIT License
  */
 
+import * as bio from '@bitrelay/bufio'
 import { JsonRpcSigner, JsonRpcProvider, Web3Provider } from '@ethersproject/providers'
 import { Logger } from "@ethersproject/logger";
 import { BlockTag, Provider, TransactionRequest, TransactionResponse } from '@ethersproject/abstract-provider';
 import { Signer } from '@ethersproject/abstract-signer';
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
-import { Bytes } from '@ethersproject/bytes'
+import { Bytes, splitSignature } from '@ethersproject/bytes'
+import { serialize, UnsignedTransaction } from '@ethersproject/transactions'
 import { hexStrToBuf, isHexString } from '@eth-optimism/core-utils'
 import { ConnectionInfo, fetchJson, poll } from "@ethersproject/web";
+
 import {
   checkProperties, deepCopy, Deferrable,
   defineReadOnly, getStatic, resolveProperties,
   shallowCopy
 } from "@ethersproject/properties";
-import * as bio from '@bitrelay/bufio'
 
-import { allowedTransactionKeys, serializeEthSignTransaction,
-  ensureTransactionDefaults } from './utils'
+import {
+  allowedTransactionKeys,
+  serializeEthSignTransaction,
+  ensureTransactionDefaults
+} from './utils'
+
 import { OptimismProvider } from './provider'
 import pkg = require('../../package.json')
 
@@ -56,6 +62,7 @@ export class OptimismSigner implements JsonRpcSigner {
     this._isSigner = true
     this._optimism = optimism
     this._signer = provider.getSigner()
+    this.provider = provider
   }
 
   get signer() {
@@ -78,6 +85,7 @@ export class OptimismSigner implements JsonRpcSigner {
     return this.signer.getAddress()
   }
 
+  // This codepath expects an unsigned transaction.
   // TODO(mark): I think this codepath requires `eth_sendRawEthSignTransaction`
   public async sendUncheckedTransaction(transaction: Deferrable<TransactionRequest>): Promise<string> {
     transaction = shallowCopy(transaction);
@@ -93,7 +101,7 @@ export class OptimismSigner implements JsonRpcSigner {
     if (transaction.gasLimit == null) {
       const estimate = shallowCopy(transaction);
       estimate.from = fromAddress;
-      transaction.gasLimit = this.provider.estimateGas(estimate);
+      transaction.gasLimit = this.optimism.estimateGas(estimate);
     }
 
     // TODO(mark): Refactor this after tests
@@ -109,9 +117,9 @@ export class OptimismSigner implements JsonRpcSigner {
         tx.from = sender;
       }
 
-      const hexTx = (this.provider.constructor as any).hexlifyTransaction(tx, { from: true });
+      const hexTx = (this.optimism.constructor as any).hexlifyTransaction(tx, { from: true });
 
-      return this.provider.send("eth_sendTransaction", [ hexTx ]).then((hash) => {
+      return this.optimism.send("eth_sendTransaction", [ hexTx ]).then((hash) => {
         return hash;
       }, (error) => {
         if (error.responseText) {
@@ -139,21 +147,23 @@ export class OptimismSigner implements JsonRpcSigner {
 
   // Calls `eth_sign` on the web3 provider
   public async signTransaction(transaction: Deferrable<TransactionRequest>): Promise<string> {
-    transaction = ensureTransactionDefaults(transaction)
+    // TODO(mark): this needs to hash as well
     const ser = serializeEthSignTransaction(transaction)
-    return this.signer.signMessage(ser)
+    const sig = await this.signer.signMessage(ser);
+    const serialized = serialize(transaction as UnsignedTransaction, sig)
+    return serialized
   }
 
-  // The transaction must be signed already
+  // This depends on the transaction being signed.
   public sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
     // TODO(mark): if not signed, sign the transaction
     return this.sendUncheckedTransaction(transaction).then((hash) => {
       return poll(() => {
-        return this.provider.getTransaction(hash).then((tx: TransactionResponse) => {
+        return this.optimism.getTransaction(hash).then((tx: TransactionResponse) => {
           if (tx === null) { return undefined; }
-          return this.provider._wrapTransaction(tx, hash);
+          return this.optimism._wrapTransaction(tx, hash);
         });
-      }, { onceBlock: this.provider }).catch((error: Error) => {
+      }, { onceBlock: this.optimism }).catch((error: Error) => {
         (error as any).transactionHash = hash;
         throw error;
       });
@@ -220,12 +230,11 @@ export class OptimismSigner implements JsonRpcSigner {
     return this.optimism.estimateGas(tx);
   }
 
-  // TODO:(mark) in some cases, this should call optimism.call
   // Populates "from" if unspecified, and calls with the transation
   public async call(transaction: Deferrable<TransactionRequest>, blockTag?: BlockTag): Promise<string> {
     this._checkProvider("call");
     const tx = await resolveProperties(this.checkTransaction(transaction));
-    return this.provider.call(tx, blockTag);
+    return this.optimism.call(tx, blockTag);
   }
 
   // Calls the optimism node to get the chainid

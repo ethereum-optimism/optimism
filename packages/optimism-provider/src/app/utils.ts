@@ -4,7 +4,7 @@
  */
 import { Networkish } from "@ethersproject/networks";
 import * as bio from '@bitrelay/bufio'
-import { hexStrToBuf, isHexString } from '@eth-optimism/core-utils'
+import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
 import { arrayify, Bytes } from '@ethersproject/bytes'
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
 import { Deferrable, deepCopy } from "@ethersproject/properties";
@@ -75,12 +75,13 @@ export const allowedTransactionKeys: { [ key: string ]: boolean } = {
 
 export function serializeEthSignTransaction(transaction): Bytes {
   const bw = bio.write();
-  bw.writeU64(transaction.nonce as number)
+  bw.writeU64BE(transaction.nonce as number)
   bw.writeBytes(toBuffer(transaction.gasPrice as BigNumberish))
-  bw.writeBytes(toBuffer(transaction.gasLimit as BigNumberish))
+  bw.writeU64BE(transaction.gasLimit as number)
   bw.writeBytes(hexStrToBuf(transaction.to as string))
   bw.writeBytes(toBuffer(transaction.value as BigNumberish))
   bw.writeBytes(toBuffer(transaction.data as Buffer))
+  bw.writeBytes(toBuffer(transaction.chainId as BigNumberish))
   bw.writeU8(0)
   bw.writeU8(0)
   return bw.render()
