@@ -13,6 +13,7 @@ import { Bytes, splitSignature } from '@ethersproject/bytes'
 import { serialize, UnsignedTransaction } from '@ethersproject/transactions'
 import { hexStrToBuf, isHexString } from '@eth-optimism/core-utils'
 import { ConnectionInfo, fetchJson, poll } from "@ethersproject/web";
+import { keccak256 } from '@ethersproject/keccak256'
 
 import {
   checkProperties, deepCopy, Deferrable,
@@ -23,6 +24,7 @@ import {
 import {
   allowedTransactionKeys,
   serializeEthSignTransaction,
+  hashEthSignTransaction
 } from './utils'
 
 import { OptimismProvider } from './provider'
@@ -148,8 +150,9 @@ export class OptimismSigner implements JsonRpcSigner {
   // Calls `eth_sign` on the web3 provider
   public async signTransaction(transaction: Deferrable<TransactionRequest>): Promise<string> {
     // TODO(mark): this needs to hash as well
-    const ser = serializeEthSignTransaction(transaction)
-    const sig = await this.signer.signMessage(ser);
+    const hash = hashEthSignTransaction(transaction)
+
+    const sig = await this.signer.signMessage(hash);
 
     // Copy over "allowed" properties into new object so that
     // `serialize` doesn't throw an error. A "from" property

@@ -9,6 +9,7 @@ import { arrayify, Bytes, zeroPad } from '@ethersproject/bytes'
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
 import { Deferrable, deepCopy } from "@ethersproject/properties";
 import { TransactionRequest } from '@ethersproject/abstract-provider';
+import { keccak256 } from '@ethersproject/keccak256'
 
 const blacklist = new Set([
   'web3_sha3',
@@ -91,6 +92,18 @@ export function serializeEthSignTransaction(transaction): Bytes {
   bw.writeBytes(data)
 
   return bw.render()
+}
+
+export function hashPersonalMessage(msg: Buffer): Buffer {
+  const prefix = Buffer.from(`\u0019Ethereum Signed Message:\n${msg.length}`, 'utf-8')
+  const preimage = Buffer.concat([prefix, msg])
+  return Buffer.from(keccak256(preimage), 'hex')
+}
+
+export function hashEthSignTransaction(tx): Bytes {
+  const serialized = serializeEthSignTransaction(tx)
+  const digest = Buffer.from(keccak256(serialized), 'hex')
+  return hashPersonalMessage(digest)
 }
 
 function toBuffer(n: BigNumberish): Buffer {

@@ -8,7 +8,7 @@ import chai = require('chai')
 import chaiAsPromised = require('chai-as-promised')
 import { ganache } from '@eth-optimism/ovm-toolchain'
 import BigNumber = require('bn.js')
-import { OptimismProvider, serializeEthSignTransaction } from '../src/index'
+import { OptimismProvider, hashEthSignTransaction } from '../src/index'
 import { verifyMessage } from '@ethersproject/wallet'
 import { parse } from '@ethersproject/transactions'
 import { SignatureLike, joinSignature } from '@ethersproject/bytes'
@@ -62,10 +62,10 @@ describe('sendTransaction', () => {
     const parsed = parse(signed)
     // Join the r, s and v values
     const sig = joinSignature(parsed as SignatureLike)
-    // Serialize the transaction using the EthSign serialization
-    const message = serializeEthSignTransaction(tx)
+    // Hash the transaction using the EthSign serialization
+    const hash = hashEthSignTransaction(tx)
     // ecrecover and assert the addresses match
-    const recovered = verifyMessage(message, sig)
+    const recovered = verifyMessage(hash, sig)
     address.should.eq(recovered)
   })
 
