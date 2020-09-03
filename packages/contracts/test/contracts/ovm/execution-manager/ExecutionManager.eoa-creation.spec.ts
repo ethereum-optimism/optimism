@@ -91,6 +91,7 @@ describe('ExecutionManager -- EOA Creation Opcodes', () => {
       transaction = {
         to: ZERO_ADDRESS,
         data: '0x1234',
+        chainId: 108,
       }
     })
 
