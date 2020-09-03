@@ -52,7 +52,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
    *
    * Submits L2 batches from L2 Transactions in the DB whenever there is a batch that is ready.
    */
-  public async runTask(): Promise<boolean> {
+  public async runTask(throwOnError: boolean = false): Promise<boolean> {
     let batchSubmission: TransactionBatchSubmission
     try {
       batchSubmission = await this.dataService.getNextCanonicalChainTransactionBatchToSubmit()
@@ -62,6 +62,10 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         `Error fetching tx batch for L1 submission! Continuing...`,
         e
       )
+      if (throwOnError) {
+        // this is only used by testing
+        throw e
+      }
       return false
     }
 
@@ -99,6 +103,10 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       return this.waitForProofThatTransactionSucceeded(txHash, batchSubmission)
     } catch (e) {
       logError(log, `Error validating or submitting rollup tx batch`, e)
+      if (throwOnError) {
+        // this is only used by testing
+        throw e
+      }
       return false
     }
   }
@@ -292,7 +300,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (
-      !!safetyQueueTimestampSeconds &&
+      safetyQueueTimestampSeconds !== undefined &&
       batchTimestamp > safetyQueueTimestampSeconds
     ) {
       throw new RollupBatchSafetyQueueBlockTimestampError(
@@ -300,14 +308,17 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       )
     }
 
-    if (!!safetyQueueBlockNumber && batchBlockNumber > safetyQueueBlockNumber) {
+    if (
+      safetyQueueBlockNumber !== undefined &&
+      batchBlockNumber > safetyQueueBlockNumber
+    ) {
       throw new RollupBatchSafetyQueueBlockNumberError(
         `Safety Queue tx must come first. Safety queue blockNumber is ${safetyQueueBlockNumber}, batch blockNumber is ${batchBlockNumber}`
       )
     }
 
     if (
-      !!l1ToL2QueueTimestampSeconds &&
+      l1ToL2QueueTimestampSeconds !== undefined &&
       batchTimestamp > l1ToL2QueueTimestampSeconds
     ) {
       throw new RollupBatchL1ToL2QueueBlockTimestampError(
@@ -315,7 +326,10 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       )
     }
 
-    if (!!l1ToL2QueueBlockNumber && batchBlockNumber > l1ToL2QueueBlockNumber) {
+    if (
+      l1ToL2QueueBlockNumber !== undefined &&
+      batchBlockNumber > l1ToL2QueueBlockNumber
+    ) {
       throw new RollupBatchL1ToL2QueueBlockNumberError(
         `L1 to L2 Queue tx must come first. L1 to L2 Queue blockNumber is ${l1ToL2QueueBlockNumber}, batch blockNumber is ${batchBlockNumber}`
       )
@@ -355,26 +369,26 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   }
 
   private async getMaxSafetyQueueTimestampSeconds(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(
-      this.safetyQueueContract.peekTimestamp
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.safetyQueueContract.peekTimestamp()
     )
   }
 
   private async getMaxSafetyQueueBlockNumber(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(
-      this.safetyQueueContract.peekBlockNumber
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.safetyQueueContract.peekBlockNumber()
     )
   }
 
   private async getMaxL1ToL2QueueTimestampSeconds(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(
-      this.l1ToL2QueueContract.peekTimestamp
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.l1ToL2QueueContract.peekTimestamp()
     )
   }
 
   private async getMaxL1ToL2QueueBlockNumber(): Promise<number> {
-    return this.catchQueueIsEmptyAndReturnUndefined(
-      this.l1ToL2QueueContract.peekBlockNumber
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.l1ToL2QueueContract.peekBlockNumber()
     )
   }
 

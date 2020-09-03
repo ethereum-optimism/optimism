@@ -152,14 +152,20 @@ class MockCanonicalTransactionChain {
 }
 
 class MockQueue {
-  public timestamp: number = 0
-  public blockNumber: number = 0
+  public timestamp: number
+  public blockNumber: number
 
   public async peekBlockNumber(): Promise<number> {
+    if (this.blockNumber === undefined) {
+      throw Error(`Queue is empty`)
+    }
     return this.blockNumber
   }
 
   public async peekTimestamp(): Promise<number> {
+    if (this.timestamp === undefined) {
+      throw Error(`Queue is empty`)
+    }
     return this.timestamp
   }
 }
@@ -194,7 +200,7 @@ describe('Canonical Chain Batch Submitter', () => {
   })
 
   it('should not do anything if there are no batches', async () => {
-    const res = await batchSubmitter.runTask()
+    const res = await batchSubmitter.runTask(true)
 
     res.should.equal(false, 'Incorrect result when there are no batches')
 
@@ -230,7 +236,7 @@ describe('Canonical Chain Batch Submitter', () => {
     })
 
     await TestUtils.assertThrowsAsync(async () => {
-      await batchSubmitter.runTask()
+      await batchSubmitter.runTask(true)
     }, UnexpectedBatchStatus)
 
     dataService.txBatchesSubmitted.length.should.equal(
@@ -269,7 +275,7 @@ describe('Canonical Chain Batch Submitter', () => {
     canonicalTransactionChain.responses.push({ hash } as any)
     canonicalProvider.txReceipts.set(hash, { status: 1 } as any)
 
-    const res: boolean = await batchSubmitter.runTask()
+    const res: boolean = await batchSubmitter.runTask(true)
     res.should.equal(true, `Batch should have been submitted successfully.`)
 
     dataService.txBatchesSubmitted.length.should.equal(
@@ -317,7 +323,7 @@ describe('Canonical Chain Batch Submitter', () => {
     canonicalTransactionChain.responses.push({ hash } as any)
     canonicalProvider.txReceipts.set(hash, { status: 0 } as any)
 
-    const res: boolean = await batchSubmitter.runTask()
+    const res: boolean = await batchSubmitter.runTask(true)
     res.should.equal(false, `Batch tx should have errored out.`)
 
     dataService.txBatchesSubmitted.length.should.equal(
@@ -366,7 +372,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask()
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, FutureRollupBatchNumberError)
     })
 
@@ -376,7 +382,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask(nowSeconds + 20)
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, FutureRollupBatchTimestampError)
     })
 
@@ -388,7 +394,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask(nowSeconds - 5)
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchTimestampTooOldError)
     })
 
@@ -400,7 +406,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask()
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchBlockNumberTooOldError)
     })
 
@@ -412,7 +418,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask(nowSeconds - 1)
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchSafetyQueueBlockTimestampError)
     })
 
@@ -424,7 +430,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask(nowSeconds - 1)
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchL1ToL2QueueBlockTimestampError)
     })
 
@@ -436,7 +442,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask()
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchSafetyQueueBlockNumberError)
     })
 
@@ -448,7 +454,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask()
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchL1ToL2QueueBlockNumberError)
     })
 
@@ -460,7 +466,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask(nowSeconds - 5)
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchOvmTimestampError)
     })
 
@@ -472,7 +478,7 @@ describe('Canonical Chain Batch Submitter', () => {
       setUpTask()
 
       await TestUtils.assertThrowsAsync(async () => {
-        await batchSubmitter.runTask()
+        await batchSubmitter.runTask(true)
       }, RollupBatchOvmBlockNumberError)
     })
   })
