@@ -668,7 +668,7 @@ export class DefaultDataService implements DataService {
 
     const batch: TransactionBatchSubmission = {
       batchNumber,
-      startIndex: txIndexRes[0]['start_index'],
+      startIndex: parseInt(txIndexRes[0]['start_index'], 10),
       status: batchRes[0]['status'],
       submissionTxHash: batchRes[0]['submission_tx_hash'],
       transactions: [],
@@ -788,7 +788,7 @@ export class DefaultDataService implements DataService {
 
     return {
       batchNumber,
-      startIndex: rootIndexRes[0]['start_index'],
+      startIndex: parseInt(rootIndexRes[0]['start_index'], 10),
       status: batchRes[0]['status'],
       submissionTxHash: batchRes[0]['submission_tx_hash'],
       stateRoots: batchRes.map((x: Row) => x['state_root']),
