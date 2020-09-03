@@ -7,28 +7,25 @@ import {
   ScheduledTask,
 } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
-
+import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import {
-  TransactionBatchSubmission,
   BatchSubmissionStatus,
   L2DataService,
-  StateCommitmentBatchSubmission,
-  BatchSubmission,
+  TransactionBatchSubmission,
 } from '../../../types/data'
-import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import {
-  UnexpectedBatchStatus,
   FutureRollupBatchNumberError,
   FutureRollupBatchTimestampError,
   RollupBatchBlockNumberTooOldError,
-  RollupBatchTimestampTooOldError,
-  RollupBatchSafetyQueueBlockNumberError,
-  RollupBatchSafetyQueueBlockTimestampError,
   RollupBatchL1ToL2QueueBlockNumberError,
   RollupBatchL1ToL2QueueBlockTimestampError,
   RollupBatchOvmBlockNumberError,
   RollupBatchOvmTimestampError,
+  RollupBatchSafetyQueueBlockNumberError,
+  RollupBatchSafetyQueueBlockTimestampError,
+  RollupBatchTimestampTooOldError,
+  UnexpectedBatchStatus,
 } from '../../../types'
 
 const log = getLogger('canonical-chain-batch-submitter')
@@ -78,35 +75,54 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       return false
     }
 
-    if (batchSubmission.status !== BatchSubmissionStatus.QUEUED) {
+    if (
+      batchSubmission.status !== BatchSubmissionStatus.QUEUED &&
+      batchSubmission.status !== BatchSubmissionStatus.SUBMITTING
+    ) {
       const msg = `Received tx batch to send in ${
         batchSubmission.status
-      } instead of ${
-        BatchSubmissionStatus.QUEUED
+      } instead of ${BatchSubmissionStatus.QUEUED} or ${
+        BatchSubmissionStatus.SUBMITTING
       }. Batch Submission: ${JSON.stringify(batchSubmission)}.`
       log.error(msg)
       throw new UnexpectedBatchStatus(msg)
     }
 
-    try {
-      const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
+    if (batchSubmission.status === BatchSubmissionStatus.QUEUED) {
+      try {
+        const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
-      await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
+        await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
 
-      const txHash: string = await this.buildAndSendRollupBatchTransaction(
-        batchSubmission,
-        batchBlockNumber
-      )
-      if (!txHash) {
+        const txHash: string = await this.buildAndSendRollupBatchTransaction(
+          batchSubmission,
+          batchBlockNumber
+        )
+        if (!txHash) {
+          return false
+        }
+        batchSubmission.submissionTxHash = txHash
+      } catch (e) {
+        logError(log, `Error validating or submitting rollup tx batch`, e)
+        if (throwOnError) {
+          // this is only used by testing
+          throw e
+        }
         return false
       }
-      return this.waitForProofThatTransactionSucceeded(txHash, batchSubmission)
+    }
+
+    try {
+      return this.waitForProofThatTransactionSucceeded(
+        batchSubmission.submissionTxHash,
+        batchSubmission
+      )
     } catch (e) {
-      logError(log, `Error validating or submitting rollup tx batch`, e)
-      if (throwOnError) {
-        // this is only used by testing
-        throw e
-      }
+      logError(
+        log,
+        `Error waiting for canonical tx chain batch ${batchSubmission.batchNumber} with hash ${batchSubmission.submissionTxHash} to succeed!`,
+        e
+      )
       return false
     }
   }
@@ -131,20 +147,28 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       log.debug(
         `Submitting tx batch ${l2Batch.batchNumber} at start index ${l2Batch.startIndex} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
+
       const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
         txsCalldata,
         timestamp,
         batchBlockNumber,
         l2Batch.startIndex
       )
+
       log.debug(
-        `Tx batch ${l2Batch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
+        `Tx batch ${l2Batch.batchNumber} was sent to the canonical chain! Tx Hash: ${txRes.hash}`
       )
+
+      await this.dataService.markTransactionBatchSubmittingToL1(
+        l2Batch.batchNumber,
+        txRes.hash
+      )
+
       txHash = txRes.hash
     } catch (e) {
       logError(
         log,
-        `Error submitting tx batch ${l2Batch.batchNumber} to canonical chain!`,
+        `Error submitting tx batch ${l2Batch.batchNumber} to canonical chain! Transaction may or may not have gone through! If it did, manual intervention may be required!`,
         e
       )
       return undefined

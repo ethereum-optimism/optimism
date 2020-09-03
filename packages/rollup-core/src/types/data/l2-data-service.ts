@@ -79,6 +79,18 @@ export interface L2DataService {
   getNextCanonicalChainTransactionBatchToFinalize(): Promise<BatchSubmission>
 
   /**
+   * Marks the Canonical Chain Tx batch with the provided batch number as in the process of being submitted to the L1 chain.
+   *
+   * @param batchNumber The batch number to mark as submitting.
+   * @param l1SubmissionTxHash The tx hash of this rollup batch submission tx on L1.
+   * @throws An error if there is a DB error.
+   */
+  markTransactionBatchSubmittingToL1(
+    batchNumber: number,
+    l1SubmissionTxHash: string
+  ): Promise<void>
+
+  /**
    * Marks the Canonical Chain Tx batch with the provided batch number as submitted to the L1 chain.
    *
    * @param batchNumber The batch number to mark as submitted.
@@ -117,6 +129,18 @@ export interface L2DataService {
    * @throws An error if there is a DB error.
    */
   getNextStateCommitmentBatchToFinalize(): Promise<BatchSubmission>
+
+  /**
+   * Marks the StateCommitment batch with the provided batch number as in the process of being submitted to the L1 chain.
+   *
+   * @param batchNumber The batch number to mark as submitting.
+   * @param l1SubmissionTxHash The tx hash of this batch submission tx on L1.
+   * @throws An error if there is a DB error.
+   */
+  markStateRootBatchSubmittingToL1(
+    batchNumber: number,
+    l1SubmissionTxHash: string
+  ): Promise<void>
 
   /**
    * Marks the StateCommitment batch with the provided batch number as submitted to the L1 chain.

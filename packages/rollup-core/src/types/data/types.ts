@@ -8,6 +8,7 @@ export enum QueueOrigin {
 
 export enum BatchSubmissionStatus {
   QUEUED = 'QUEUED',
+  SUBMITTING = 'SUBMITTING',
   SENT = 'SENT',
   FINALIZED = 'FINALIZED',
 }

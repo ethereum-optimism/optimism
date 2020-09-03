@@ -22,6 +22,7 @@ interface BatchNumberHash {
 
 class MockDataService extends DefaultDataService {
   public readonly nextBatch: StateCommitmentBatchSubmission[] = []
+  public readonly stateRootBatchesSubmitting: BatchNumberHash[] = []
   public readonly stateRootBatchesSubmitted: BatchNumberHash[] = []
   public readonly stateRootBatchesFinalized: BatchNumberHash[] = []
 
@@ -33,6 +34,13 @@ class MockDataService extends DefaultDataService {
     StateCommitmentBatchSubmission
   > {
     return this.nextBatch.shift()
+  }
+
+  public async markStateRootBatchSubmittingToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    this.stateRootBatchesSubmitting.push({ batchNumber, txHash: l1TxHash })
   }
 
   public async markStateRootBatchSubmittedToL1(
@@ -68,6 +76,7 @@ class MockProvider {
 }
 
 class MockStateCommitmentChain {
+  public appendedStateBatches: string[][] = []
   public responses: TransactionResponse[] = []
 
   constructor(public readonly provider: MockProvider) {}
@@ -75,6 +84,7 @@ class MockStateCommitmentChain {
   public async appendStateBatch(
     stateRoots: string[]
   ): Promise<TransactionResponse> {
+    this.appendedStateBatches.push(stateRoots)
     const response: TransactionResponse = this.responses.shift()
     if (!response) {
       throw Error('no response')
@@ -104,6 +114,14 @@ describe('State Commitment Chain Batch Submitter', () => {
 
     res.should.equal(false, 'Incorrect result when there are no batches')
 
+    stateCommitmentChain.appendedStateBatches.length.should.equal(
+      0,
+      `No state batches should have been appended!`
+    )
+    dataService.stateRootBatchesSubmitting.length.should.equal(
+      0,
+      'No state root batches should have been marked as submitting!'
+    )
     dataService.stateRootBatchesSubmitted.length.should.equal(
       0,
       'No state root batches should have been submitted!'
@@ -126,6 +144,14 @@ describe('State Commitment Chain Batch Submitter', () => {
       await batchSubmitter.runTask()
     }, UnexpectedBatchStatus)
 
+    stateCommitmentChain.appendedStateBatches.length.should.equal(
+      0,
+      `No state batches should have been appended!`
+    )
+    dataService.stateRootBatchesSubmitting.length.should.equal(
+      0,
+      'No state root batches should have been marked as submitting!'
+    )
     dataService.stateRootBatchesSubmitted.length.should.equal(
       0,
       'No state root batches should have been submitted!'
@@ -136,7 +162,7 @@ describe('State Commitment Chain Batch Submitter', () => {
     )
   })
 
-  it('should send roots if there is a batch', async () => {
+  it('should send roots if there is a batch in QUEUED state', async () => {
     const hash: string = keccak256FromUtf8('tx hash')
     const stateRoots: string[] = [
       keccak256FromUtf8('root 1'),
@@ -156,6 +182,61 @@ describe('State Commitment Chain Batch Submitter', () => {
     const res: boolean = await batchSubmitter.runTask()
     res.should.equal(true, `Batch should have been submitted successfully.`)
 
+    stateCommitmentChain.appendedStateBatches.length.should.equal(
+      1,
+      `1 State batch should have been appended!`
+    )
+    dataService.stateRootBatchesSubmitting.length.should.equal(
+      1,
+      'No state root batches marked as submitting!'
+    )
+    dataService.stateRootBatchesSubmitted.length.should.equal(
+      1,
+      'No state root batches submitted!'
+    )
+    dataService.stateRootBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash submitted!'
+    )
+    dataService.stateRootBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number submitted!'
+    )
+
+    dataService.stateRootBatchesFinalized.length.should.equal(
+      0,
+      'No state root batches should be confirmed!'
+    )
+  })
+
+  it('should wait for tx confirmation there is a batch in SUBMITTING status', async () => {
+    const hash: string = keccak256FromUtf8('tx hash')
+    const stateRoots: string[] = [
+      keccak256FromUtf8('root 1'),
+      keccak256FromUtf8('root 2'),
+    ]
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      submissionTxHash: hash,
+      status: BatchSubmissionStatus.SUBMITTING,
+      batchNumber,
+      stateRoots,
+    })
+
+    stateCommitmentChain.responses.push({ hash } as any)
+    provider.txReceipts.set(hash, { status: 1 } as any)
+
+    const res: boolean = await batchSubmitter.runTask()
+    res.should.equal(true, `Batch should have been submitted successfully.`)
+
+    stateCommitmentChain.appendedStateBatches.length.should.equal(
+      0,
+      `Batch should not be re-submitted!`
+    )
+    dataService.stateRootBatchesSubmitting.length.should.equal(
+      0,
+      'Batch should not be marked as submitting again!'
+    )
     dataService.stateRootBatchesSubmitted.length.should.equal(
       1,
       'No state root batches submitted!'
@@ -195,6 +276,14 @@ describe('State Commitment Chain Batch Submitter', () => {
     const res: boolean = await batchSubmitter.runTask()
     res.should.equal(false, `Batch tx should have errored out.`)
 
+    stateCommitmentChain.appendedStateBatches.length.should.equal(
+      1,
+      `1 State batch should have been appended!`
+    )
+    dataService.stateRootBatchesSubmitting.length.should.equal(
+      1,
+      'No state root batches marked as submitting!'
+    )
     dataService.stateRootBatchesSubmitted.length.should.equal(
       0,
       'No state root batches should have been submitted!'

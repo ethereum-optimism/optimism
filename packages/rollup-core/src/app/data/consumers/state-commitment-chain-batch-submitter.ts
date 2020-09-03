@@ -1,7 +1,6 @@
 /* External Imports */
 import { getLogger, logError, ScheduledTask } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
-
 /* Internal Imports */
 import {
   BatchSubmissionStatus,
@@ -48,23 +47,51 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       return false
     }
 
-    if (stateBatch.status !== BatchSubmissionStatus.QUEUED) {
+    if (
+      stateBatch.status !== BatchSubmissionStatus.QUEUED &&
+      stateBatch.status !== BatchSubmissionStatus.SUBMITTING
+    ) {
       const msg = `Received state commitment batch to finalize in ${
         stateBatch.status
-      } instead of ${
-        BatchSubmissionStatus.SENT
+      } instead of ${BatchSubmissionStatus.QUEUED} or ${
+        BatchSubmissionStatus.SUBMITTING
       }. Batch Submission: ${JSON.stringify(stateBatch)}.`
       log.error(msg)
       throw new UnexpectedBatchStatus(msg)
     }
 
-    const txHash: string = await this.buildAndSendRollupBatchTransaction(
-      stateBatch
-    )
-    if (!txHash) {
+    if (stateBatch.status === BatchSubmissionStatus.QUEUED) {
+      try {
+        const txHash: string = await this.buildAndSendRollupBatchTransaction(
+          stateBatch
+        )
+        if (!txHash) {
+          return false
+        }
+        stateBatch.submissionTxHash = txHash
+      } catch (e) {
+        logError(
+          log,
+          `Error submitting state root batch number ${stateBatch.batchNumber}.`,
+          e
+        )
+        return false
+      }
+    }
+
+    try {
+      return this.waitForProofThatTransactionSucceeded(
+        stateBatch.submissionTxHash,
+        stateBatch
+      )
+    } catch (e) {
+      logError(
+        log,
+        `Error waiting for state batch ${stateBatch.batchNumber} with hash ${stateBatch.submissionTxHash} to succeed!`,
+        e
+      )
       return false
     }
-    return this.waitForProofThatTransactionSucceeded(txHash, stateBatch)
   }
 
   /**
@@ -91,11 +118,17 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       log.debug(
         `State Root batch ${stateRootBatch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
       )
+
+      await this.dataService.markStateRootBatchSubmittingToL1(
+        stateRootBatch.batchNumber,
+        txRes.hash
+      )
+
       txHash = txRes.hash
     } catch (e) {
       logError(
         log,
-        `Error submitting State Root batch ${stateRootBatch.batchNumber} to state commitment chain!`,
+        `Error submitting State Root batch ${stateRootBatch.batchNumber} to state commitment chain! If this transaction actually went through, it may require manual intervention to continue submitting batches!`,
         e
       )
       return undefined

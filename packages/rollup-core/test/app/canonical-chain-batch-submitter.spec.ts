@@ -61,6 +61,7 @@ class TestCanonicalChainBatchSubmitter extends CanonicalChainBatchSubmitter {
 
 class MockDataService extends DefaultDataService {
   public readonly nextBatch: TransactionBatchSubmission[] = []
+  public readonly txBatchesSubmitting: BatchNumberHash[] = []
   public readonly txBatchesSubmitted: BatchNumberHash[] = []
   public readonly txBatchesFinalized: BatchNumberHash[] = []
 
@@ -72,6 +73,13 @@ class MockDataService extends DefaultDataService {
     TransactionBatchSubmission
   > {
     return this.nextBatch.shift()
+  }
+
+  public async markTransactionBatchSubmittingToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    this.txBatchesSubmitting.push({ batchNumber, txHash: l1TxHash })
   }
 
   public async markTransactionBatchSubmittedToL1(
@@ -112,6 +120,7 @@ class MockProvider {
 }
 
 class MockCanonicalTransactionChain {
+  public appendedBatches: number[] = []
   public responses: TransactionResponse[] = []
   public lastOvmTimestampSeconds: number = 0
   public lastOvmBlock: number = 0
@@ -127,6 +136,7 @@ class MockCanonicalTransactionChain {
     blockNumber: number,
     startIndex: number
   ): Promise<TransactionResponse> {
+    this.appendedBatches.push(blockNumber)
     const response: TransactionResponse = this.responses.shift()
     if (!response) {
       throw Error('no response')
@@ -204,6 +214,14 @@ describe('Canonical Chain Batch Submitter', () => {
 
     res.should.equal(false, 'Incorrect result when there are no batches')
 
+    canonicalTransactionChain.appendedBatches.length.should.equal(
+      0,
+      'No batches should have been appended!'
+    )
+    dataService.txBatchesSubmitting.length.should.equal(
+      0,
+      'No tx batches should have been submitting!'
+    )
     dataService.txBatchesSubmitted.length.should.equal(
       0,
       'No tx batches should have been submitted!'
@@ -239,6 +257,14 @@ describe('Canonical Chain Batch Submitter', () => {
       await batchSubmitter.runTask(true)
     }, UnexpectedBatchStatus)
 
+    canonicalTransactionChain.appendedBatches.length.should.equal(
+      0,
+      'No batches should have been appended!'
+    )
+    dataService.txBatchesSubmitting.length.should.equal(
+      0,
+      'No tx batches should have been submitting!'
+    )
     dataService.txBatchesSubmitted.length.should.equal(
       0,
       'No tx batches should have been submitted!'
@@ -249,7 +275,7 @@ describe('Canonical Chain Batch Submitter', () => {
     )
   })
 
-  it('should send txs if there is a batch', async () => {
+  it('should send txs if there is a QUEUED batch', async () => {
     const hash: string = keccak256FromUtf8('l1 tx hash')
     const batchNumber: number = 1
     dataService.nextBatch.push({
@@ -278,6 +304,76 @@ describe('Canonical Chain Batch Submitter', () => {
     const res: boolean = await batchSubmitter.runTask(true)
     res.should.equal(true, `Batch should have been submitted successfully.`)
 
+    canonicalTransactionChain.appendedBatches.length.should.equal(
+      1,
+      'batch should have been appended!'
+    )
+    canonicalTransactionChain.appendedBatches[0].should.equal(
+      batchNumber,
+      'batch number mismatch!'
+    )
+
+    dataService.txBatchesSubmitting.length.should.equal(
+      1,
+      'No tx batches marked submitting!'
+    )
+    dataService.txBatchesSubmitted.length.should.equal(
+      1,
+      'No tx batches submitted!'
+    )
+    dataService.txBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash submitted!'
+    )
+    dataService.txBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number submitted!'
+    )
+
+    dataService.txBatchesFinalized.length.should.equal(
+      0,
+      'No tx batches should be confirmed!'
+    )
+  })
+
+  it('should wait for tx confirmation if there is a batch in SUBMITTING status', async () => {
+    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      submissionTxHash: hash,
+      status: BatchSubmissionStatus.SUBMITTING,
+      batchNumber,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    canonicalProvider.txReceipts.set(hash, { status: 1 } as any)
+
+    const res: boolean = await batchSubmitter.runTask(true)
+    res.should.equal(true, `Batch should have been submitted successfully.`)
+
+    canonicalTransactionChain.appendedBatches.length.should.equal(
+      0,
+      'No batches should have been appended!'
+    )
+
+    dataService.txBatchesSubmitting.length.should.equal(
+      0,
+      'No tx batches should be marked submitting!'
+    )
     dataService.txBatchesSubmitted.length.should.equal(
       1,
       'No tx batches submitted!'
@@ -326,14 +422,19 @@ describe('Canonical Chain Batch Submitter', () => {
     const res: boolean = await batchSubmitter.runTask(true)
     res.should.equal(false, `Batch tx should have errored out.`)
 
+    dataService.txBatchesSubmitting.length.should.equal(
+      1,
+      'Tx batch marked submitting!'
+    )
+
     dataService.txBatchesSubmitted.length.should.equal(
       0,
-      'No tx batches submitted!'
+      'Tx batches submitted!'
     )
 
     dataService.txBatchesFinalized.length.should.equal(
       0,
-      'No tx batches should be confirmed!'
+      'Tx batches should be confirmed!'
     )
   })
 
