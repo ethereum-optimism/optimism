@@ -5,7 +5,7 @@
 import { Networkish } from "@ethersproject/networks";
 import * as bio from '@bitrelay/bufio'
 import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
-import { arrayify, Bytes } from '@ethersproject/bytes'
+import { arrayify, Bytes, zeroPad } from '@ethersproject/bytes'
 import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
 import { Deferrable, deepCopy } from "@ethersproject/properties";
 import { TransactionRequest } from '@ethersproject/abstract-provider';
@@ -74,16 +74,22 @@ export const allowedTransactionKeys: { [ key: string ]: boolean } = {
 }
 
 export function serializeEthSignTransaction(transaction): Bytes {
-  const bw = bio.write();
-  bw.writeU64BE(transaction.nonce as number)
-  bw.writeBytes(toBuffer(transaction.gasPrice as BigNumberish))
-  bw.writeU64BE(transaction.gasLimit as number)
-  bw.writeBytes(hexStrToBuf(transaction.to as string))
-  bw.writeBytes(toBuffer(transaction.value as BigNumberish))
-  bw.writeBytes(toBuffer(transaction.data as Buffer))
-  bw.writeBytes(toBuffer(transaction.chainId as BigNumberish))
-  bw.writeU8(0)
-  bw.writeU8(0)
+  const nonce = zeroPad(transaction.nonce, 32)
+  const gasLimit = zeroPad(transaction.gasLimit, 32)
+  const gasPrice = zeroPad(transaction.gasPrice, 32)
+  const to = hexStrToBuf(transaction.to)
+  const data = toBuffer(transaction.data)
+
+  // 32 + 32 + 32 + 20
+  const size = 116 + data.length
+  const bw = bio.write(size);
+
+  bw.writeBytes(Buffer.from(nonce))
+  bw.writeBytes(Buffer.from(gasLimit))
+  bw.writeBytes(Buffer.from(gasPrice))
+  bw.writeBytes(to)
+  bw.writeBytes(data)
+
   return bw.render()
 }
 
@@ -92,47 +98,6 @@ function toBuffer(n: BigNumberish): Buffer {
     return hexStrToBuf(n as string)
   }
 
-  const bignum = BigNumber.from(n)
-  const uint8array = arrayify(bignum)
+  const uint8array = arrayify(n)
   return Buffer.from(uint8array)
-}
-
-
-// TODO(mark): this may be duplicate functionality to `this.checkTransaction`
-export function ensureTransactionDefaults(transaction: Deferrable<TransactionRequest>): Deferrable<TransactionRequest> {
-  transaction = deepCopy(transaction);
-
-  if (isNullorUndefined(transaction.to)) {
-    transaction.to = '0x0000000000000000000000000000000000000000'
-  }
-
-  if (isNullorUndefined(transaction.nonce)) {
-    transaction.nonce = 0
-  }
-
-  if (isNullorUndefined(transaction.gasLimit)) {
-    transaction.gasLimit = 0
-  }
-
-  if (isNullorUndefined(transaction.gasPrice)) {
-    transaction.gasPrice = 0
-  }
-
-  if (isNullorUndefined(transaction.data)) {
-    transaction.data = Buffer.alloc(0)
-  }
-
-  if (isNullorUndefined(transaction.value)) {
-    transaction.value = 0
-  }
-
-  if (isNullorUndefined(transaction.chainId)) {
-    transaction.chainId = 1
-  }
-
-  return transaction
-}
-
-function isNullorUndefined(a: any): boolean {
-  return a === null || a === undefined
 }

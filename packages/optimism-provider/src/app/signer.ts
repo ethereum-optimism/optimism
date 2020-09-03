@@ -23,7 +23,6 @@ import {
 import {
   allowedTransactionKeys,
   serializeEthSignTransaction,
-  ensureTransactionDefaults
 } from './utils'
 
 import { OptimismProvider } from './provider'
