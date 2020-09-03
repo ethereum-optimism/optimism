@@ -31,6 +31,7 @@ describe('sendTransaction', () => {
     const web3 = new Web3Provider(ganache.provider({
       mnemonic
     }))
+    // This temporarily depends on l2geth running locally
     provider = new OptimismProvider('http://127.0.0.1:8545', web3)
     //provider = new OptimismProvider('http://127.0.0.1:3000', web3)
     server = new JsonRpcServer(handlers, 'localhost', 3000)
@@ -45,10 +46,10 @@ describe('sendTransaction', () => {
     const tx = {
       to: '0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c',
       nonce: 0,
-      gasLimit: new BigNumber(0),
-      gasPrice: new BigNumber(0),
+      gasLimit: 0,
+      gasPrice: 0,
       data: '0x00',
-      value: new BigNumber(0),
+      value: 0,
       chainId: 1
     }
 
@@ -86,7 +87,6 @@ describe('sendTransaction', () => {
       chainId
     }
 
-    // this isn't preserving the gasPrice and gasLimit..
     const hex = await signer.signTransaction(tx)
 
     // This incorrectly calculates "from" since it
@@ -96,6 +96,24 @@ describe('sendTransaction', () => {
     //signed.from = address
 
     const result = await provider.send('eth_sendRawEthSignTransaction', [hex])
+    console.log(result)
+  })
+
+  it('should sendTransaction', async() => {
+    const signer = provider.getSigner();
+    const chainId = await signer.getChainId();
+
+    const tx = {
+      to: etherbase,
+      nonce: 0,
+      gasLimit: 21004,
+      gasPrice: 100,
+      data: '0x00',
+      value: 10,
+      chainId
+    }
+
+    const result = await signer.sendTransaction(tx)
     console.log(result)
   })
   */

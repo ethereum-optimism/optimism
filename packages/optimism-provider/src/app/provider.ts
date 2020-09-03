@@ -60,11 +60,15 @@ export class OptimismProvider extends JsonRpcProvider {
     return super.send(method, params)
   }
 
-  // TODO(mark): handle special case:
-  //"sendTransaction" -> "eth_sendRawTransaction"
+  public prepareRequest(method: string, params: any): [ string, any[] ] {
+      switch (method) {
+        case 'sendTransaction':
+          return ['eth_sendRawEthSignTransaction', [params.signedTransaction]]
+      }
 
-  // `perform` accepts more human-friendly method names that are usually the
-  // name of the RPC method without the `eth_` prefix.
+      return super.prepareRequest(method, params)
+  }
+
   public async perform(method: string, params: any): Promise<any> {
     return super.perform(method, params)
   }

@@ -119,6 +119,7 @@ export class OptimismSigner implements JsonRpcSigner {
 
       const hexTx = (this.optimism.constructor as any).hexlifyTransaction(tx, { from: true });
 
+      // TODO: replace this
       return this.optimism.send("eth_sendTransaction", [ hexTx ]).then((hash) => {
         return hash;
       }, (error) => {
@@ -150,38 +151,30 @@ export class OptimismSigner implements JsonRpcSigner {
     // TODO(mark): this needs to hash as well
     const ser = serializeEthSignTransaction(transaction)
     const sig = await this.signer.signMessage(ser);
-    const serialized = serialize(transaction as UnsignedTransaction, sig)
-    return serialized
+
+    // Copy over "allowed" properties into new object so that
+    // `serialize` doesn't throw an error. A "from" property
+    // may exist depending on the upstream codepath.
+    const tx = {
+      chainId: transaction.chainId,
+      data: transaction.data,
+      gasLimit: transaction.gasLimit,
+      gasPrice: transaction.gasPrice,
+      nonce: transaction.nonce,
+      to: transaction.to,
+      value: transaction.value
+    }
+
+    return serialize(tx as UnsignedTransaction, sig)
   }
 
-  // This depends on the transaction being signed.
-  public sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
-    // TODO(mark): if not signed, sign the transaction
-    return this.sendUncheckedTransaction(transaction).then((hash) => {
-      return poll(() => {
-        return this.optimism.getTransaction(hash).then((tx: TransactionResponse) => {
-          if (tx === null) { return undefined; }
-          return this.optimism._wrapTransaction(tx, hash);
-        });
-      }, { onceBlock: this.optimism }).catch((error: Error) => {
-        (error as any).transactionHash = hash;
-        throw error;
-      });
-    });
-  }
-
-  /*
-  // TODO(mark): maybe use this codepath instead
   // Populates all fields in a transaction, signs it and sends it to the network
   public async sendTransaction(transaction: Deferrable<TransactionRequest>): Promise<TransactionResponse> {
     this._checkProvider("sendTransaction");
-    return this.populateTransaction(transaction).then((tx) => {
-      return this.signTransaction(tx).then((signedTx) => {
-        return this.provider.sendTransaction(signedTx);
-      });
-    });
+    const tx = await this.populateTransaction(transaction)
+    const signed = await this.signTransaction(tx)
+    return this.optimism.sendTransaction(signed)
   }
-  */
 
   public async signMessage(message: Bytes | string): Promise<string> {
     return this.signer.signMessage(message)
