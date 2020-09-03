@@ -173,7 +173,13 @@ export class EthereumBlockProcessor {
     }
 
     for (let i = syncStart; i <= blockNumber; i++) {
-      await this.fetchAndDisseminateBlock(provider, i)
+      try {
+        await this.fetchAndDisseminateBlock(provider, i)
+      } catch (e) {
+        logError(log, `Error fetching and disseminating block. Retrying...`, e)
+        i--
+        continue
+      }
       await this.storeLastProcessedBlockNumber(i)
     }
 

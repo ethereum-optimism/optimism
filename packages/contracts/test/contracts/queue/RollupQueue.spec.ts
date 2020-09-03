@@ -129,12 +129,9 @@ describe('RollupQueue', () => {
     })
 
     it('should revert if dequeueing from empty queue', async () => {
-      await TestUtils.assertRevertsAsync(
-        'Cannot dequeue from an empty queue',
-        async () => {
-          await rollupQueue.dequeue()
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await rollupQueue.dequeue()
+      }, 'Cannot dequeue from an empty queue')
     })
 
     it('should revert if dequeueing from a once populated, now empty queue', async () => {
@@ -143,12 +140,9 @@ describe('RollupQueue', () => {
         await enqueueAndGenerateBatch(DEFAULT_TX)
         await rollupQueue.dequeue()
       }
-      await TestUtils.assertRevertsAsync(
-        'Cannot dequeue from an empty queue',
-        async () => {
-          await rollupQueue.dequeue()
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await rollupQueue.dequeue()
+      }, 'Cannot dequeue from an empty queue')
     })
   })
 
@@ -168,18 +162,12 @@ describe('RollupQueue', () => {
     })
 
     it('should revert when peeking at an empty queue', async () => {
-      await TestUtils.assertRevertsAsync(
-        'Queue is empty, no element to peek at',
-        async () => {
-          await rollupQueue.peek()
-        }
-      )
-      await TestUtils.assertRevertsAsync(
-        'Queue is empty, no element to peek at',
-        async () => {
-          await rollupQueue.peekTimestamp()
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await rollupQueue.peek()
+      }, 'Queue is empty, no element to peek at')
+      await TestUtils.assertRevertsAsync(async () => {
+        await rollupQueue.peekTimestamp()
+      }, 'Queue is empty, no element to peek at')
     })
   })
 })

@@ -52,7 +52,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
    *
    * Submits L2 batches from L2 Transactions in the DB whenever there is a batch that is ready.
    */
-  public async runTask(): Promise<boolean> {
+  public async runTask(throwOnError: boolean = false): Promise<boolean> {
     let batchSubmission: TransactionBatchSubmission
     try {
       batchSubmission = await this.dataService.getNextCanonicalChainTransactionBatchToSubmit()
@@ -62,6 +62,10 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         `Error fetching tx batch for L1 submission! Continuing...`,
         e
       )
+      if (throwOnError) {
+        // this is only used by testing
+        throw e
+      }
       return false
     }
 
@@ -84,18 +88,27 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       throw new UnexpectedBatchStatus(msg)
     }
 
-    const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
+    try {
+      const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
-    await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
+      await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
 
-    const txHash: string = await this.buildAndSendRollupBatchTransaction(
-      batchSubmission,
-      batchBlockNumber
-    )
-    if (!txHash) {
+      const txHash: string = await this.buildAndSendRollupBatchTransaction(
+        batchSubmission,
+        batchBlockNumber
+      )
+      if (!txHash) {
+        return false
+      }
+      return this.waitForProofThatTransactionSucceeded(txHash, batchSubmission)
+    } catch (e) {
+      logError(log, `Error validating or submitting rollup tx batch`, e)
+      if (throwOnError) {
+        // this is only used by testing
+        throw e
+      }
       return false
     }
-    return this.waitForProofThatTransactionSucceeded(txHash, batchSubmission)
   }
 
   /**
@@ -116,12 +129,13 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       const timestamp = l2Batch.transactions[0].timestamp
 
       log.debug(
-        `Submitting tx batch ${l2Batch.batchNumber} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
+        `Submitting tx batch ${l2Batch.batchNumber} at start index ${l2Batch.startIndex} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
       const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
         txsCalldata,
         timestamp,
-        batchBlockNumber
+        batchBlockNumber,
+        l2Batch.startIndex
       )
       log.debug(
         `Tx batch ${l2Batch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
@@ -286,7 +300,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (
-      safetyQueueTimestampSeconds !== 0 &&
+      safetyQueueTimestampSeconds !== undefined &&
       batchTimestamp > safetyQueueTimestampSeconds
     ) {
       throw new RollupBatchSafetyQueueBlockTimestampError(
@@ -295,7 +309,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (
-      safetyQueueBlockNumber !== 0 &&
+      safetyQueueBlockNumber !== undefined &&
       batchBlockNumber > safetyQueueBlockNumber
     ) {
       throw new RollupBatchSafetyQueueBlockNumberError(
@@ -304,7 +318,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (
-      l1ToL2QueueTimestampSeconds !== 0 &&
+      l1ToL2QueueTimestampSeconds !== undefined &&
       batchTimestamp > l1ToL2QueueTimestampSeconds
     ) {
       throw new RollupBatchL1ToL2QueueBlockTimestampError(
@@ -313,7 +327,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (
-      l1ToL2QueueBlockNumber !== 0 &&
+      l1ToL2QueueBlockNumber !== undefined &&
       batchBlockNumber > l1ToL2QueueBlockNumber
     ) {
       throw new RollupBatchL1ToL2QueueBlockNumberError(
@@ -355,19 +369,40 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   }
 
   private async getMaxSafetyQueueTimestampSeconds(): Promise<number> {
-    return this.safetyQueueContract.peekTimestamp()
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.safetyQueueContract.peekTimestamp()
+    )
   }
 
   private async getMaxSafetyQueueBlockNumber(): Promise<number> {
-    return this.safetyQueueContract.peekBlockNumber()
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.safetyQueueContract.peekBlockNumber()
+    )
   }
 
   private async getMaxL1ToL2QueueTimestampSeconds(): Promise<number> {
-    return this.l1ToL2QueueContract.peekTimestamp()
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.l1ToL2QueueContract.peekTimestamp()
+    )
   }
 
   private async getMaxL1ToL2QueueBlockNumber(): Promise<number> {
-    return this.l1ToL2QueueContract.peekBlockNumber()
+    return this.catchQueueIsEmptyAndReturnUndefined(async () =>
+      this.l1ToL2QueueContract.peekBlockNumber()
+    )
+  }
+
+  private async catchQueueIsEmptyAndReturnUndefined(
+    func: () => Promise<number>
+  ): Promise<number> {
+    try {
+      return await func()
+    } catch (e) {
+      if (e.message.indexOf('Queue is empty') > -1) {
+        return undefined
+      }
+      throw e
+    }
   }
 
   private async getLastOvmTimestampSeconds(): Promise<number> {

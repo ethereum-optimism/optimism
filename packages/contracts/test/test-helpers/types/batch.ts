@@ -143,7 +143,7 @@ export class TxChainBatch extends ChainBatch {
     timestamp: number, // Ethereum timestamp this batch was submitted in
     blockNumber: number, // Same as above w/ blockNumber
     isL1ToL2Tx: boolean,
-    batchIndex: number, // index in batchs array (first batch has batchIndex of 0)
+    batchIndex: number, // index in batches array (first batch has batchIndex of 0)
     cumulativePrevElements: number,
     elements: any[],
     sender?: string

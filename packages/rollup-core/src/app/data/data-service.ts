@@ -346,10 +346,32 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async updateBlockToProcessed(blockHash: string): Promise<void> {
-    return this.rdb.execute(`
-    UPDATE l1_block 
-    SET processed = TRUE 
-    WHERE block_hash = '${add0x(blockHash)}'`)
+    return this.rdb.execute(
+      `UPDATE l1_block 
+        SET processed = TRUE 
+        WHERE block_hash = '${add0x(blockHash)}'`
+    )
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async getL1RollupStateRootCount(): Promise<number> {
+    const res: Row[] = await this.rdb.select(
+      `SELECT COUNT(id) as l1_state_root_count
+      FROM l1_rollup_state_root
+      WHERE removed = false`
+    )
+
+    if (!res || !res.length || !res[0]) {
+      const msg: string = `Got result ${JSON.stringify(
+        res
+      )} from L1 Rollup State Root Count query!`
+      log.error(msg)
+      throw Error(msg)
+    }
+
+    return parseInt(res[0]['l1_state_root_count'], 10)
   }
 
   /*******************
@@ -612,7 +634,7 @@ export class DefaultDataService implements DataService {
   public async getNextCanonicalChainTransactionBatchToSubmit(): Promise<
     TransactionBatchSubmission
   > {
-    const res = await this.rdb.select(
+    const batchRes = await this.rdb.select(
       `SELECT cc.batch_number, cc.status, cc.submission_tx_hash, tx.block_number, tx.block_timestamp, tx.tx_index, tx.tx_hash, tx.sender, tx.l1_message_sender, tx.target, tx.calldata, tx.nonce, tx.signature, tx.state_root
       FROM l2_tx_output tx
         INNER JOIN canonical_chain_batch cc ON tx.canonical_chain_batch_number = cc.batch_number 
@@ -624,18 +646,34 @@ export class DefaultDataService implements DataService {
       ORDER BY block_number ASC, tx_index ASC`
     )
 
-    if (!res || !res.length || !res[0]) {
+    if (!batchRes || !batchRes.length || !batchRes[0]) {
       log.debug(`No canonical chain tx batch to submit.`)
       return undefined
     }
 
+    const batchNumber: number = batchRes[0]['batch_number']
+
+    const txIndexRes = await this.rdb.select(
+      `SELECT COUNT(*) as start_index
+      FROM l2_tx_output
+      WHERE canonical_chain_batch_number < ${batchNumber}`
+    )
+
+    if (!txIndexRes || !txIndexRes.length || !txIndexRes[0]) {
+      log.error(
+        `Could not fetch start index for next canonical tx chain batch to submit!`
+      )
+      return undefined
+    }
+
     const batch: TransactionBatchSubmission = {
-      submissionTxHash: res[0]['submission_tx_hash'],
-      status: res[0]['status'],
-      batchNumber: res[0]['batch_number'],
+      batchNumber,
+      startIndex: parseInt(txIndexRes[0]['start_index'], 10),
+      status: batchRes[0]['status'],
+      submissionTxHash: batchRes[0]['submission_tx_hash'],
       transactions: [],
     }
-    for (const row of res) {
+    for (const row of batchRes) {
       batch.transactions.push({
         timestamp: row['block_timestamp'],
         blockNumber: row['block_number'],
@@ -716,10 +754,11 @@ export class DefaultDataService implements DataService {
   public async getNextStateCommitmentBatchToSubmit(): Promise<
     StateCommitmentBatchSubmission
   > {
-    const res = await this.rdb.select(
+    const batchRes = await this.rdb.select(
       `SELECT scc.batch_number, scc.status, scc.submission_tx_hash, tx.state_root
-      FROM l2_tx_output tx
-        INNER JOIN state_commitment_chain_batch scc ON tx.state_commitment_chain_batch_number = scc.batch_number 
+      FROM 
+            l2_tx_output tx
+            INNER JOIN state_commitment_chain_batch scc ON tx.state_commitment_chain_batch_number = scc.batch_number
       WHERE batch_number = (
             SELECT MIN(batch_number)
             FROM state_commitment_chain_batch
@@ -728,15 +767,31 @@ export class DefaultDataService implements DataService {
       ORDER BY block_number ASC, tx_index ASC`
     )
 
-    if (!res || !res.length || !res[0]) {
+    if (!batchRes || !batchRes.length || !batchRes[0]) {
+      return undefined
+    }
+
+    const batchNumber: number = batchRes[0]['batch_number']
+
+    const rootIndexRes = await this.rdb.select(
+      `SELECT COUNT(*) as start_index
+      FROM l2_tx_output
+      WHERE state_commitment_chain_batch_number < ${batchNumber}`
+    )
+
+    if (!rootIndexRes || !rootIndexRes.length || !rootIndexRes[0]) {
+      log.error(
+        `Could not fetch start index for next state commitment batch to submit!`
+      )
       return undefined
     }
 
     return {
-      submissionTxHash: res[0]['submission_tx_hash'],
-      status: res[0]['status'],
-      batchNumber: res[0]['batch_number'],
-      stateRoots: res.map((x: Row) => x['state_root']),
+      batchNumber,
+      startIndex: parseInt(rootIndexRes[0]['start_index'], 10),
+      status: batchRes[0]['status'],
+      submissionTxHash: batchRes[0]['submission_tx_hash'],
+      stateRoots: batchRes.map((x: Row) => x['state_root']),
     }
   }
 
