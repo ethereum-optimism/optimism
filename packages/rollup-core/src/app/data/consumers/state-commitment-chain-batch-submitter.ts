@@ -1,6 +1,14 @@
 /* External Imports */
-import { getLogger, logError, ScheduledTask } from '@eth-optimism/core-utils'
-import { Contract } from 'ethers'
+import {
+  getLogger,
+  getSignedTransaction,
+  isTxSubmitted,
+  keccak256,
+  logError,
+  ScheduledTask,
+} from '@eth-optimism/core-utils'
+import { Contract, Wallet } from 'ethers'
+
 /* Internal Imports */
 import {
   BatchSubmissionStatus,
@@ -19,6 +27,7 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
   constructor(
     private readonly dataService: L2DataService,
     private readonly stateCommitmentChain: Contract,
+    private readonly submitterWallet: Wallet,
     periodMilliseconds = 10_000
   ) {
     super(periodMilliseconds)
@@ -60,7 +69,14 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       throw new UnexpectedBatchStatus(msg)
     }
 
-    if (stateBatch.status === BatchSubmissionStatus.QUEUED) {
+    const shouldSend =
+      stateBatch.status === BatchSubmissionStatus.QUEUED ||
+      !(await isTxSubmitted(
+        this.stateCommitmentChain.provider,
+        stateBatch.submissionTxHash
+      ))
+
+    if (shouldSend) {
       try {
         const txHash: string = await this.buildAndSendRollupBatchTransaction(
           stateBatch
@@ -108,27 +124,44 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       const stateRoots: string[] = stateRootBatch.stateRoots
 
       log.debug(
-        `Appending state root batch number: ${stateRootBatch.batchNumber} with ${stateRoots.length} state roots.`
+        `Appending state root batch number: ${stateRootBatch.batchNumber} with ${stateRoots.length} state roots at index ${stateRootBatch.startIndex}.`
       )
 
-      const txRes: TransactionResponse = await this.stateCommitmentChain.appendStateBatch(
-        stateRoots,
-        stateRootBatch.startIndex
-      )
-      log.debug(
-        `State Root batch ${stateRootBatch.batchNumber} appended with at least one confirmation! Tx Hash: ${txRes.hash}`
+      const signedTx: string = await getSignedTransaction(
+        this.stateCommitmentChain,
+        'appendStateBatch',
+        [stateRoots, stateRootBatch.startIndex],
+        this.submitterWallet
       )
 
+      txHash = keccak256(signedTx)
       await this.dataService.markStateRootBatchSubmittingToL1(
         stateRootBatch.batchNumber,
-        txRes.hash
+        txHash
       )
 
-      txHash = txRes.hash
+      log.debug(
+        `Marked tx ${txHash} for state batch ${stateRootBatch.batchNumber} as submitting.`
+      )
+
+      const txRes: TransactionResponse = await this.stateCommitmentChain.provider.sendTransaction(
+        signedTx
+      )
+
+      log.debug(
+        `Tx batch ${stateRootBatch.batchNumber} was sent to the state commitment chain! Tx Hash: ${txRes.hash}`
+      )
+
+      if (txHash !== txRes.hash) {
+        log.warn(
+          `Received tx hash not the same as calculated hash! Received: ${txRes.hash}, calculated: ${txHash}`
+        )
+        txHash = txRes.hash
+      }
     } catch (e) {
       logError(
         log,
-        `Error submitting State Root batch ${stateRootBatch.batchNumber} to state commitment chain! If this transaction actually went through, it may require manual intervention to continue submitting batches!`,
+        `Error submitting State Root batch ${stateRootBatch.batchNumber} to state commitment chain!`,
         e
       )
       return undefined

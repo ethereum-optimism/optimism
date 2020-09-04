@@ -1,12 +1,15 @@
 /* External Imports */
 import {
   getLogger,
+  getSignedTransaction,
+  isTxSubmitted,
+  keccak256,
   logError,
   numberToHexString,
   remove0x,
   ScheduledTask,
 } from '@eth-optimism/core-utils'
-import { Contract } from 'ethers'
+import { Contract, Wallet } from 'ethers'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 /* Internal Imports */
 import {
@@ -39,6 +42,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     private readonly canonicalTransactionChain: Contract,
     private readonly l1ToL2QueueContract: Contract,
     private readonly safetyQueueContract: Contract,
+    private readonly submitterWallet: Wallet,
     periodMilliseconds = 10_000
   ) {
     super(periodMilliseconds)
@@ -88,7 +92,14 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       throw new UnexpectedBatchStatus(msg)
     }
 
-    if (batchSubmission.status === BatchSubmissionStatus.QUEUED) {
+    const shouldSend =
+      batchSubmission.status === BatchSubmissionStatus.QUEUED ||
+      !(await isTxSubmitted(
+        this.canonicalTransactionChain.provider,
+        batchSubmission.submissionTxHash
+      ))
+
+    if (shouldSend) {
       try {
         const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
@@ -148,27 +159,41 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         `Submitting tx batch ${l2Batch.batchNumber} at start index ${l2Batch.startIndex} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
 
-      const txRes: TransactionResponse = await this.canonicalTransactionChain.appendSequencerBatch(
-        txsCalldata,
-        timestamp,
-        batchBlockNumber,
-        l2Batch.startIndex
+      const signedTx: string = await getSignedTransaction(
+        this.canonicalTransactionChain,
+        'appendSequencerBatch',
+        [txsCalldata, timestamp, batchBlockNumber, l2Batch.startIndex],
+        this.submitterWallet
+      )
+
+      txHash = keccak256(signedTx)
+      await this.dataService.markTransactionBatchSubmittingToL1(
+        l2Batch.batchNumber,
+        txHash
+      )
+
+      log.debug(
+        `Marked tx ${txHash} for canonical tx batch ${l2Batch.batchNumber} as submitting.`
+      )
+
+      const txRes: TransactionResponse = await this.canonicalTransactionChain.provider.sendTransaction(
+        signedTx
       )
 
       log.debug(
         `Tx batch ${l2Batch.batchNumber} was sent to the canonical chain! Tx Hash: ${txRes.hash}`
       )
 
-      await this.dataService.markTransactionBatchSubmittingToL1(
-        l2Batch.batchNumber,
-        txRes.hash
-      )
-
-      txHash = txRes.hash
+      if (txHash !== txRes.hash) {
+        log.warn(
+          `Received tx hash not the same as calculated hash! Received: ${txRes.hash}, calculated: ${txHash}`
+        )
+        txHash = txRes.hash
+      }
     } catch (e) {
       logError(
         log,
-        `Error submitting tx batch ${l2Batch.batchNumber} to canonical chain! Transaction may or may not have gone through! If it did, manual intervention may be required!`,
+        `Error submitting tx batch ${l2Batch.batchNumber} to canonical chain!`,
         e
       )
       return undefined

@@ -332,6 +332,7 @@ const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
     canonicalTxChainContract,
     l1ToL2TransactionChainContract,
     safetyQueueContract,
+    getSequencerWallet(),
     period
   )
 }
@@ -406,6 +407,7 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
       getContractDefinition('StateCommitmentChain').abi,
       getStateRootSubmissionWallet()
     ),
+    getStateRootSubmissionWallet(),
     period
   )
 }
