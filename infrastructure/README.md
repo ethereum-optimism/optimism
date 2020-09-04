@@ -180,7 +180,15 @@ kubectl list secrets
 
 and look for "omgnetwork-certs-"
 
-#### Update value overrides
+#### Generate Storage Classes
+
+In `infrastructure`, execute:
+
+```bash
+./scripts/gen_storage.sh
+```
+
+#### Update Value Overrides
 
 In `infrastructure`, execute:
 
