@@ -49,7 +49,8 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
      */
     function sendMessage(
         address _target,
-        bytes memory _message
+        bytes memory _message,
+        uint256 _gasLimit
     )
         public
     {
@@ -60,7 +61,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
             messageNonce
         );
 
-        _sendXDomainMessage(xDomainCalldata);
+        _sendXDomainMessage(xDomainCalldata, _gasLimit);
 
         messageNonce += 1;
         sentMessages[keccak256(xDomainCalldata)] = true;
@@ -129,9 +130,11 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
     /**
      * Sends a cross domain message.
      * @param _message Message to send.
+     * @param _gasLimit Gas limit for the provided message.
      */
     function _sendXDomainMessage(
-        bytes memory _message
+        bytes memory _message,
+        uint256 _gasLimit
     )
         internal
     {

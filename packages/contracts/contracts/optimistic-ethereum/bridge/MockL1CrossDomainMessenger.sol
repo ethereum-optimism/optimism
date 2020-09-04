@@ -1,13 +1,17 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+/* Interface Imports */
+import { IL2CrossDomainMessenger } from "./L2CrossDomainMessenger.interface.sol";
+
 /* Contract Imports */
+import { BaseMockCrossDomainMessenger } from "./BaseMockCrossDomainMessenger.sol";
 import { L1CrossDomainMessenger } from "./L1CrossDomainMessenger.sol";
 
 /**
  * @title MockL1CrossDomainMessenger
  */
-contract MockL1CrossDomainMessenger is L1CrossDomainMessenger {
+contract MockL1CrossDomainMessenger is BaseMockCrossDomainMessenger, L1CrossDomainMessenger {
     /*
      * Internal Functions
      */
@@ -29,15 +33,21 @@ contract MockL1CrossDomainMessenger is L1CrossDomainMessenger {
     }
 
     /**
-     * Sends a cross domain message.
-     * .inheritdoc L1CrossDomainMessenger
+     * Internal relay function.
      */
-    function _sendXDomainMessage(
+    function _relayXDomainMessageToTarget(
+        address _target,
+        address _sender,
         bytes memory _message,
-        uint32 _gasLimit
+        uint256 _messageNonce
     )
         internal
     {
-        return;
+        IL2CrossDomainMessenger(targetMessengerAddress).relayMessage(
+            _target,
+            _sender,
+            _message,
+            _messageNonce
+        );
     }
 }

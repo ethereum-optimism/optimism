@@ -1,10 +1,20 @@
 /* External Imports */
-import { providers, Wallet } from 'ethers-v5'
+import { ethers, providers, Wallet, Contract } from 'ethers-v5'
 import { defaultAccounts } from 'ethereum-waffle-v3'
 import Ganache from 'ganache-core'
 
 /* Internal Imports */
 import { ganache } from '../ganache'
+import { initCrossDomainMessengersVX } from './waffle-vx'
+
+export const initCrossDomainMessengers = async (
+  provider: any
+): Promise<{
+  l1CrossDomainMessenger: Contract
+  l2CrossDomainMessenger: Contract
+}> => {
+  return initCrossDomainMessengersVX(ethers, provider)
+}
 
 interface MockProviderOptions {
   ganacheOptions: Ganache.IProviderOptions
