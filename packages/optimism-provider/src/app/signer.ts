@@ -37,7 +37,7 @@ import {
 import {
   allowedTransactionKeys,
   serializeEthSignTransaction,
-  hashEthSignTransaction,
+  sighashEthSign,
 } from './utils'
 
 import { OptimismProvider } from './provider'
@@ -201,9 +201,7 @@ export class OptimismSigner implements JsonRpcSigner {
   public async signTransaction(
     transaction: Deferrable<TransactionRequest>
   ): Promise<string> {
-    const hash = hashEthSignTransaction(transaction)
-    // TODO(mark): does this hash the message or does
-    // it expect a hash? Its being passed a hash right now.
+    const hash = sighashEthSign(transaction)
     const sig = await this.signer.signMessage(hash)
 
     if (transaction.chainId == null) {

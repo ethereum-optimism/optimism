@@ -96,19 +96,13 @@ export function serializeEthSignTransaction(transaction): Bytes {
   return bw.render()
 }
 
-export function hashPersonalMessage(msg: Buffer): Buffer {
-  const prefix = Buffer.from(
-    `\u0019Ethereum Signed Message:\n${msg.length}`,
-    'utf-8'
-  )
-  const preimage = Buffer.concat([prefix, msg])
-  return Buffer.from(keccak256(preimage), 'hex')
-}
-
-export function hashEthSignTransaction(tx): Buffer {
-  const serialized = serializeEthSignTransaction(tx)
-  const digest = Buffer.from(keccak256(serialized), 'hex')
-  return hashPersonalMessage(digest)
+// Use this function as input to `eth_sign`. It does not
+// add the prefix because `eth_sign` does that. It does
+// serialize the transaction and hash the serialized
+// transaction.
+export function sighashEthSign(transaction) {
+    const serialized = serializeEthSignTransaction(transaction)
+    return keccak256(serialized)
 }
 
 function toBuffer(n: BigNumberish): Buffer {
