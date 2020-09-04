@@ -4,7 +4,7 @@
 
 import { SimpleServer, isHexString } from '@eth-optimism/core-utils'
 import { OptimismProvider } from '../src/index'
-import { ContractFactory } from 'ethers';
+import { ContractFactory } from 'ethers'
 import chai = require('chai')
 import assert = require('assert')
 import chaiAsPromised = require('chai-as-promised')
@@ -37,7 +37,7 @@ describe('RPC', () => {
   })
 
   it('should send a rpc request', async () => {
-    const res = await provider.send('eth_blockNumber', []);
+    const res = await provider.send('eth_blockNumber', [])
     res.should.be.a('string')
     assert(isHexString(res))
   })

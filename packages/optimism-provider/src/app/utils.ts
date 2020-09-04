@@ -2,13 +2,13 @@
  * Optimism Copyright 2020
  * MIT License
  */
-import { Networkish } from "@ethersproject/networks";
+import { Networkish } from '@ethersproject/networks'
 import * as bio from '@bitrelay/bufio'
 import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
 import { arrayify, Bytes, zeroPad } from '@ethersproject/bytes'
-import { BigNumberish, BigNumber } from "@ethersproject/bignumber";
-import { Deferrable, deepCopy } from "@ethersproject/properties";
-import { TransactionRequest } from '@ethersproject/abstract-provider';
+import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { Deferrable, deepCopy } from '@ethersproject/properties'
+import { TransactionRequest } from '@ethersproject/abstract-provider'
 import { keccak256 } from '@ethersproject/keccak256'
 
 const blacklist = new Set([
@@ -48,7 +48,7 @@ const blacklist = new Set([
   'shh_uninstallFilter',
   'shh_getFilterChanges',
   'shh_getMessages',
-]);
+])
 
 export function isBlacklistedMethod(method: string) {
   return blacklist.has(method)
@@ -64,14 +64,14 @@ export function isUrl(n: string): boolean {
   return false
 }
 
-export const allowedTransactionKeys: { [ key: string ]: boolean } = {
-    chainId: true,
-    data: true,
-    gasLimit: true,
-    gasPrice:true,
-    nonce: true,
-    to: true,
-    value: true
+export const allowedTransactionKeys: { [key: string]: boolean } = {
+  chainId: true,
+  data: true,
+  gasLimit: true,
+  gasPrice: true,
+  nonce: true,
+  to: true,
+  value: true,
 }
 
 export function serializeEthSignTransaction(transaction): Bytes {
@@ -83,7 +83,7 @@ export function serializeEthSignTransaction(transaction): Bytes {
 
   // 32 + 32 + 32 + 20
   const size = 116 + data.length
-  const bw = bio.write(size);
+  const bw = bio.write(size)
 
   bw.writeBytes(Buffer.from(nonce))
   bw.writeBytes(Buffer.from(gasLimit))
@@ -95,7 +95,10 @@ export function serializeEthSignTransaction(transaction): Bytes {
 }
 
 export function hashPersonalMessage(msg: Buffer): Buffer {
-  const prefix = Buffer.from(`\u0019Ethereum Signed Message:\n${msg.length}`, 'utf-8')
+  const prefix = Buffer.from(
+    `\u0019Ethereum Signed Message:\n${msg.length}`,
+    'utf-8'
+  )
   const preimage = Buffer.concat([prefix, msg])
   return Buffer.from(keccak256(preimage), 'hex')
 }

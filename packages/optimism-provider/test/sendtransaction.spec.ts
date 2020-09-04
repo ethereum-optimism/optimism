@@ -18,19 +18,20 @@ import { mnemonic, etherbase } from './common'
 chai.use(chaiAsPromised)
 const should = chai.should()
 
-
 describe('sendTransaction', () => {
   let provider
   let server
 
   const handlers = {
-    eth_chainId: () => '0x1'
+    eth_chainId: () => '0x1',
   }
 
   before(async () => {
-    const web3 = new Web3Provider(ganache.provider({
-      mnemonic
-    }))
+    const web3 = new Web3Provider(
+      ganache.provider({
+        mnemonic,
+      })
+    )
     // This temporarily depends on l2geth running locally
     provider = new OptimismProvider('http://127.0.0.1:8545', web3)
     //provider = new OptimismProvider('http://127.0.0.1:3000', web3)
@@ -50,10 +51,10 @@ describe('sendTransaction', () => {
       gasPrice: 0,
       data: '0x00',
       value: 0,
-      chainId: 1
+      chainId: 1,
     }
 
-    const signer = provider.getSigner();
+    const signer = provider.getSigner()
     // Get the address represting the keypair used to sign the tx
     const address = await signer.getAddress()
     // Sign tx, get a RLP encoded hex string of the signed tx

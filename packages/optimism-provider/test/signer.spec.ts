@@ -25,7 +25,7 @@ describe('Signer', () => {
     const signer = provider.getSigner()
     const addr = await signer.getAddress()
 
-    const message = 'foobar';
+    const message = 'foobar'
     const sig = await signer.signMessage(message)
     const recovered = verifyMessage(message, sig)
 
