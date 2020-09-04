@@ -92,14 +92,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       throw new UnexpectedBatchStatus(msg)
     }
 
-    const shouldSend =
-      batchSubmission.status === BatchSubmissionStatus.QUEUED ||
-      !(await isTxSubmitted(
-        this.canonicalTransactionChain.provider,
-        batchSubmission.submissionTxHash
-      ))
-
-    if (shouldSend) {
+    if (await this.shouldSubmitBatch(batchSubmission)) {
       try {
         const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
@@ -138,6 +131,36 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
   }
 
+  protected async shouldSubmitBatch(batchSubmission): Promise<boolean> {
+    return (
+      batchSubmission.status === BatchSubmissionStatus.QUEUED ||
+      !(await isTxSubmitted(
+        this.canonicalTransactionChain.provider,
+        batchSubmission.submissionTxHash
+      ))
+    )
+  }
+
+  protected async getSignedRollupBatchTx(
+    txsCalldata: string[],
+    timestamp: number,
+    batchBlockNumber: number,
+    startIndex: number
+  ): Promise<string> {
+    return getSignedTransaction(
+      this.canonicalTransactionChain,
+      'appendSequencerBatch',
+      [txsCalldata, timestamp, batchBlockNumber, startIndex],
+      this.submitterWallet
+    )
+  }
+
+  protected async getBatchSubmissionBlockNumber(): Promise<number> {
+    // TODO: This will eventually be part of the output metadata from L2 tx outputs
+    //  Need to update geth to have this functionality so this is a mock for now
+    return (await this.getL1BlockNumber()) - 10
+  }
+
   /**
    * Builds and sends a Rollup Batch transaction to L1, returning its tx hash.
    *
@@ -159,11 +182,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         `Submitting tx batch ${l2Batch.batchNumber} at start index ${l2Batch.startIndex} with ${l2Batch.transactions.length} transactions to canonical chain. Timestamp: ${timestamp}`
       )
 
-      const signedTx: string = await getSignedTransaction(
-        this.canonicalTransactionChain,
-        'appendSequencerBatch',
-        [txsCalldata, timestamp, batchBlockNumber, l2Batch.startIndex],
-        this.submitterWallet
+      const signedTx: string = await this.getSignedRollupBatchTx(
+        txsCalldata,
+        timestamp,
+        batchBlockNumber,
+        l2Batch.startIndex
       )
 
       txHash = keccak256(signedTx)
@@ -278,12 +301,6 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       return false
     }
     return true
-  }
-
-  protected async getBatchSubmissionBlockNumber(): Promise<number> {
-    // TODO: This will eventually be part of the output metadata from L2 tx outputs
-    //  Need to update geth to have this functionality so this is a mock for now
-    return (await this.getL1BlockNumber()) - 10
   }
 
   private async validateBatchSubmission(

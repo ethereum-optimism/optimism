@@ -69,14 +69,7 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       throw new UnexpectedBatchStatus(msg)
     }
 
-    const shouldSend =
-      stateBatch.status === BatchSubmissionStatus.QUEUED ||
-      !(await isTxSubmitted(
-        this.stateCommitmentChain.provider,
-        stateBatch.submissionTxHash
-      ))
-
-    if (shouldSend) {
+    if (await this.shouldSubmitBatch(stateBatch)) {
       try {
         const txHash: string = await this.buildAndSendRollupBatchTransaction(
           stateBatch
@@ -110,6 +103,28 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
     }
   }
 
+  protected async shouldSubmitBatch(batchSubmission): Promise<boolean> {
+    return (
+      batchSubmission.status === BatchSubmissionStatus.QUEUED ||
+      !(await isTxSubmitted(
+        this.stateCommitmentChain.provider,
+        batchSubmission.submissionTxHash
+      ))
+    )
+  }
+
+  protected async getSignedRollupBatchTx(
+    stateRoots: string[],
+    startIndex: number
+  ): Promise<string> {
+    return getSignedTransaction(
+      this.stateCommitmentChain,
+      'appendStateBatch',
+      [stateRoots, startIndex],
+      this.submitterWallet
+    )
+  }
+
   /**
    * Builds and sends a Rollup State Root Batch transaction to L1, returning its tx hash.
    *
@@ -127,11 +142,9 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
         `Appending state root batch number: ${stateRootBatch.batchNumber} with ${stateRoots.length} state roots at index ${stateRootBatch.startIndex}.`
       )
 
-      const signedTx: string = await getSignedTransaction(
-        this.stateCommitmentChain,
-        'appendStateBatch',
-        [stateRoots, stateRootBatch.startIndex],
-        this.submitterWallet
+      const signedTx: string = await this.getSignedRollupBatchTx(
+        stateRoots,
+        stateRootBatch.startIndex
       )
 
       txHash = keccak256(signedTx)

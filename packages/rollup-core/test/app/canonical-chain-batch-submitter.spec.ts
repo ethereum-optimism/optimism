@@ -1,5 +1,10 @@
 /* External Imports */
-import { keccak256FromUtf8, sleep, TestUtils } from '@eth-optimism/core-utils'
+import {
+  keccak256,
+  keccak256FromUtf8,
+  sleep,
+  TestUtils,
+} from '@eth-optimism/core-utils'
 import { TransactionReceipt, TransactionResponse } from 'ethers/providers'
 import { Contract, Wallet } from 'ethers'
 
@@ -26,6 +31,7 @@ import {
   RollupBatchTimestampTooOldError,
   UnexpectedBatchStatus,
 } from '../../src/types'
+import has = Reflect.has
 
 interface BatchNumberHash {
   batchNumber: number
@@ -34,6 +40,10 @@ interface BatchNumberHash {
 
 class TestCanonicalChainBatchSubmitter extends CanonicalChainBatchSubmitter {
   public batchSubmissionBlockNumberOverride: number
+  public signedRollupBatchTxOverride: string = Buffer.from(
+    `signed tx`,
+    'utf-8'
+  ).toString('hex')
 
   constructor(
     dataService: L2DataService,
@@ -47,6 +57,7 @@ class TestCanonicalChainBatchSubmitter extends CanonicalChainBatchSubmitter {
       canonicalTransactionChain,
       l1ToL2QueueContract,
       safetyQueueContract,
+      Wallet.createRandom(),
       periodMilliseconds
     )
   }
@@ -56,6 +67,15 @@ class TestCanonicalChainBatchSubmitter extends CanonicalChainBatchSubmitter {
       return this.batchSubmissionBlockNumberOverride
     }
     return super.getBatchSubmissionBlockNumber()
+  }
+
+  protected async getSignedRollupBatchTx(
+    txsCalldata: string[],
+    timestamp: number,
+    batchBlockNumber: number,
+    startIndex: number
+  ): Promise<string> {
+    return this.signedRollupBatchTxOverride
   }
 }
 
@@ -98,11 +118,23 @@ class MockDataService extends DefaultDataService {
 }
 
 class MockProvider {
+  public readonly submittedTxs: string[] = []
   public txReceipts: Map<string, TransactionReceipt> = new Map<
     string,
     TransactionReceipt
   >()
+
+  public txResponses: Map<string, TransactionResponse> = new Map<
+    string,
+    TransactionResponse
+  >()
+
+  public txExists: boolean = true
   public blockNumberOverride: number
+
+  public async getTransaction(hash: string): Promise<any> {
+    return this.txExists ? this.txResponses.get(hash) : false
+  }
 
   public async waitForTransaction(
     hash: string,
@@ -117,10 +149,18 @@ class MockProvider {
   public async getBlockNumber(): Promise<number> {
     return this.blockNumberOverride || this.txReceipts.size
   }
+
+  public async sendTransaction(signedTx: string): Promise<TransactionResponse> {
+    const hash: string = keccak256(signedTx)
+    this.submittedTxs.push(hash)
+    if (!this.txResponses.has(hash)) {
+      throw Error(`tx threw`)
+    }
+    return this.txResponses.get(hash)
+  }
 }
 
 class MockCanonicalTransactionChain {
-  public appendedBatches: number[] = []
   public responses: TransactionResponse[] = []
   public lastOvmTimestampSeconds: number = 0
   public lastOvmBlock: number = 0
@@ -129,20 +169,6 @@ class MockCanonicalTransactionChain {
   public forceInclusionBlocks: number = 0
 
   constructor(public readonly provider: MockProvider) {}
-
-  public async appendSequencerBatch(
-    calldata: string,
-    timestamp: number,
-    blockNumber: number,
-    startIndex: number
-  ): Promise<TransactionResponse> {
-    this.appendedBatches.push(blockNumber)
-    const response: TransactionResponse = this.responses.shift()
-    if (!response) {
-      throw Error('no response')
-    }
-    return response
-  }
 
   public async lastOVMTimestamp(): Promise<number> {
     return this.lastOvmTimestampSeconds
@@ -214,7 +240,7 @@ describe('Canonical Chain Batch Submitter', () => {
 
     res.should.equal(false, 'Incorrect result when there are no batches')
 
-    canonicalTransactionChain.appendedBatches.length.should.equal(
+    canonicalProvider.submittedTxs.length.should.equal(
       0,
       'No batches should have been appended!'
     )
@@ -257,7 +283,7 @@ describe('Canonical Chain Batch Submitter', () => {
       await batchSubmitter.runTask(true)
     }, UnexpectedBatchStatus)
 
-    canonicalTransactionChain.appendedBatches.length.should.equal(
+    canonicalProvider.submittedTxs.length.should.equal(
       0,
       'No batches should have been appended!'
     )
@@ -276,7 +302,7 @@ describe('Canonical Chain Batch Submitter', () => {
   })
 
   it('should send txs if there is a QUEUED batch', async () => {
-    const hash: string = keccak256FromUtf8('l1 tx hash')
+    const hash: string = keccak256(batchSubmitter.signedRollupBatchTxOverride)
     const batchNumber: number = 1
     dataService.nextBatch.push({
       submissionTxHash: undefined,
@@ -300,16 +326,17 @@ describe('Canonical Chain Batch Submitter', () => {
 
     canonicalTransactionChain.responses.push({ hash } as any)
     canonicalProvider.txReceipts.set(hash, { status: 1 } as any)
+    canonicalProvider.txResponses.set(hash, { hash } as any)
 
     const res: boolean = await batchSubmitter.runTask(true)
     res.should.equal(true, `Batch should have been submitted successfully.`)
 
-    canonicalTransactionChain.appendedBatches.length.should.equal(
+    canonicalProvider.submittedTxs.length.should.equal(
       1,
       'batch should have been appended!'
     )
-    canonicalTransactionChain.appendedBatches[0].should.equal(
-      batchNumber,
+    canonicalProvider.submittedTxs[0].should.equal(
+      hash,
       'batch number mismatch!'
     )
 
@@ -336,8 +363,8 @@ describe('Canonical Chain Batch Submitter', () => {
     )
   })
 
-  it('should wait for tx confirmation if there is a batch in SUBMITTING status', async () => {
-    const hash: string = keccak256FromUtf8('l1 tx hash')
+  it('should submit tx if there is a batch in SUBMITTING that has not been submitted', async () => {
+    const hash: string = keccak256(batchSubmitter.signedRollupBatchTxOverride)
     const batchNumber: number = 1
     dataService.nextBatch.push({
       submissionTxHash: hash,
@@ -361,11 +388,71 @@ describe('Canonical Chain Batch Submitter', () => {
 
     canonicalTransactionChain.responses.push({ hash } as any)
     canonicalProvider.txReceipts.set(hash, { status: 1 } as any)
+    canonicalProvider.txResponses.set(hash, { hash } as any)
+    canonicalProvider.txExists = false
 
     const res: boolean = await batchSubmitter.runTask(true)
     res.should.equal(true, `Batch should have been submitted successfully.`)
 
-    canonicalTransactionChain.appendedBatches.length.should.equal(
+    canonicalProvider.submittedTxs.length.should.equal(
+      1,
+      'No batches should have been appended!'
+    )
+
+    dataService.txBatchesSubmitting.length.should.equal(
+      1,
+      'No tx batches should be marked submitting!'
+    )
+    dataService.txBatchesSubmitted.length.should.equal(
+      1,
+      'No tx batches submitted!'
+    )
+    dataService.txBatchesSubmitted[0].txHash.should.equal(
+      hash,
+      'Incorrect tx hash submitted!'
+    )
+    dataService.txBatchesSubmitted[0].batchNumber.should.equal(
+      batchNumber,
+      'Incorrect tx batch number submitted!'
+    )
+
+    dataService.txBatchesFinalized.length.should.equal(
+      0,
+      'No tx batches should be confirmed!'
+    )
+  })
+
+  it('should wait for tx confirmation if there is a batch in SUBMITTING that has been submitted', async () => {
+    const hash: string = keccak256(batchSubmitter.signedRollupBatchTxOverride)
+    const batchNumber: number = 1
+    dataService.nextBatch.push({
+      submissionTxHash: hash,
+      status: BatchSubmissionStatus.SUBMITTING,
+      batchNumber,
+      transactions: [
+        {
+          timestamp: 1,
+          blockNumber: 2,
+          transactionHash: keccak256FromUtf8('l2 tx hash'),
+          transactionIndex: 0,
+          to: Wallet.createRandom().address,
+          from: Wallet.createRandom().address,
+          nonce: 1,
+          calldata: keccak256FromUtf8('some calldata'),
+          stateRoot: keccak256FromUtf8('l2 state root'),
+          signature: 'ab'.repeat(65),
+        },
+      ],
+    })
+
+    canonicalTransactionChain.responses.push({ hash } as any)
+    canonicalProvider.txReceipts.set(hash, { status: 1 } as any)
+    canonicalProvider.txResponses.set(hash, { hash } as any)
+
+    const res: boolean = await batchSubmitter.runTask(true)
+    res.should.equal(true, `Batch should have been submitted successfully.`)
+
+    canonicalProvider.submittedTxs.length.should.equal(
       0,
       'No batches should have been appended!'
     )
