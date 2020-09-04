@@ -103,7 +103,7 @@ export function hashPersonalMessage(msg: Buffer): Buffer {
   return Buffer.from(keccak256(preimage), 'hex')
 }
 
-export function hashEthSignTransaction(tx): Bytes {
+export function hashEthSignTransaction(tx): Buffer {
   const serialized = serializeEthSignTransaction(tx)
   const digest = Buffer.from(keccak256(serialized), 'hex')
   return hashPersonalMessage(digest)

@@ -201,10 +201,14 @@ export class OptimismSigner implements JsonRpcSigner {
   public async signTransaction(
     transaction: Deferrable<TransactionRequest>
   ): Promise<string> {
-    // TODO(mark): this needs to hash as well
     const hash = hashEthSignTransaction(transaction)
-
+    // TODO(mark): does this hash the message or does
+    // it expect a hash? Its being passed a hash right now.
     const sig = await this.signer.signMessage(hash)
+
+    if (transaction.chainId == null) {
+      transaction.chainId = await this.getChainId()
+    }
 
     // Copy over "allowed" properties into new object so that
     // `serialize` doesn't throw an error. A "from" property
