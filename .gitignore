@@ -32,3 +32,5 @@ credentials.json
 *.pem
 *.crt
 *.key
+.srl
+.certs/

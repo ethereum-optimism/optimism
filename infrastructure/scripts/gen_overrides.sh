@@ -89,7 +89,7 @@ validate_config() {
 gen_overrides() {
 	echo "> Generate Overrides" >&2
 
-    read -r -d '' CONFIG<<EOF
+  read -r -d '' CONFIG<<EOF
     ui = ${VAULT_UI_ENABLED}
 log_level = "${VAULT_LOG_LEVEL}"
 cluster_name = "${CLUSTER}"
@@ -150,14 +150,15 @@ storage "raft" {
 }
 EOF
 
-    cd k8s
+  cd k8s
+
 	yq w -i vault-overrides.yaml server.auditStorage.size ${VAULT_AUDIT_SIZE}
 	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_REGION ${REGION}
 	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_PROJECT ${PROJECT}
 	yq w -i vault-overrides.yaml server.ha.raft.config "${CONFIG}"
 	yq w -i vault-overrides.yaml server.ha.replicas ${VAULT_REPLICAS}
 
-    cd ..
+  cd ..
 }
 
 ##

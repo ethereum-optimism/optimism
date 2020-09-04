@@ -131,7 +131,7 @@ This script will activate the KMS service account in the `gcloud` tool using the
 
 ### Helm / Deployment
 
-Deploying services to a Kubernetes cluster typically require the use of (helm)[https://helm.sh] to manage the cluster configuration and dependencies. This guide shows how to use the official (Hashicorp)[https://www.hashicorp.com] _helm chart_ to deploy a Vault cluster.
+Deploying services to a Kubernetes cluster typically require the use of [helm](https://helm.sh) to manage the cluster configuration and dependencies. This guide shows how to use the official [Hashicorp](https://www.hashicorp.com) _helm chart_ to deploy a Vault cluster.
 
 #### Installing Helm and Supporting Tools
 
@@ -141,7 +141,7 @@ If you are running on MacOS, you can install helm by executing:
 brew install helm yq
 ```
 
-If you are running on Linux or Windows, see the (Helm Download Page)[https://github.com/helm/helm/releases/latest]. You'll also want to install the yq utility.
+If you are running on Linux or Windows, see the [Helm Download Page](https://github.com/helm/helm/releases/latest). You'll also want to install the yq utility.
 
 #### Establish hashicorp registry
 

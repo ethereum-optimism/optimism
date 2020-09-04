@@ -1,14 +1,18 @@
 global:
   tlsDisable: false
-  certSecretName: omgnetwork-certs-k7hc7k9k42
+  certSecretName: omgnetwork-certs-ck6hgfbb79
 injector:
   enabled: false
 server:
   auditStorage:
     enabled: true
     size: 10Gi
-    storageClass: default
     accessMode: ReadWriteOnce
+  service:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      cloud.google.com/load-balancer-type: Internal
   ha:
     enabled: true
     replicas: 5
@@ -18,7 +22,7 @@ server:
       config: |-
         ui = false
         log_level = "info"
-        cluster_name = "vault-cluster-0829"
+        cluster_name = "omgnetwork-cluster"
 
         listener "tcp" {
             tls_disable = {{ .Values.global.tlsDisable }}
@@ -30,8 +34,8 @@ server:
         }
 
         seal "gcpckms" {
-            region      = "us-west4"
-            project     = "vault-cluster-0829"
+            region      = "us-central1"
+            project     = "omgnetwork-288020"
             key_ring    = "omgnetwork-vault-keyring"
             crypto_key  = "omgnetwork-vault-unseal-key"
         }
@@ -79,14 +83,14 @@ server:
     tag: "1.5.2" # TODO: will change to the appropriate tag for omgnetwork/vault
     pullPolicy: IfNotPresent
   extraEnvironmentVars:
-    GOOGLE_REGION: us-west4
-    GOOGLE_PROJECT: vault-cluster-0829
+    GOOGLE_REGION: us-central1
+    GOOGLE_PROJECT: omgnetwork-288020
     GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
   extraVolumes:
     - type: secret
       name: "kms-creds"
     - type: secret
-      name: omgnetwork-certs-k7hc7k9k42
+      name: omgnetwork-certs-ck6hgfbb79
   affinity: null
   dev:
     enabled: false
