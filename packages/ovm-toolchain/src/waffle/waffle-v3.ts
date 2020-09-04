@@ -7,6 +7,8 @@ import Ganache from 'ganache-core'
 import { ganache } from '../ganache'
 import { initCrossDomainMessengersVX } from './waffle-vx'
 
+export { waitForCrossDomainMessages } from './waffle-vx'
+
 export const initCrossDomainMessengers = async (
   provider: any
 ): Promise<{

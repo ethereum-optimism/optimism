@@ -1,5 +1,14 @@
+/* External Imports */
 import { getContractDefinition } from '@eth-optimism/rollup-contracts'
 
+/**
+ * Generates an ethers contract from a definition pulled from the optimism
+ * contracts package.
+ * @param ethers Ethers instance.
+ * @param name Name of the contract to generate
+ * @param args Constructor arguments to the contract.
+ * @returns Ethers contract object.
+ */
 const getContractFromDefinition = (
   ethers: any,
   name: string,
@@ -15,6 +24,12 @@ const getContractFromDefinition = (
   return contractFactory.deploy(...args)
 }
 
+/**
+ * Initializes the cross domain messengers.
+ * @param ethers Ethers instance to use.
+ * @param provider Provider to attach messengers to.
+ * @returns Both cross domain messenger objects.
+ */
 export const initCrossDomainMessengersVX = async (
   ethers: any,
   provider: any
@@ -48,6 +63,10 @@ export const initCrossDomainMessengersVX = async (
   }
 }
 
+/**
+ * Relays all messages to their respective targets.
+ * @param provider Ethers provider with attached messengers.
+ */
 export const waitForCrossDomainMessages = async (
   provider: any
 ): Promise<void> => {
