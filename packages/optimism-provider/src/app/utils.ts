@@ -80,9 +80,10 @@ export function serializeEthSignTransaction(transaction): Bytes {
   const gasPrice = zeroPad(transaction.gasPrice, 32)
   const to = hexStrToBuf(transaction.to)
   const data = toBuffer(transaction.data)
+  const chainId = zeroPad(transaction.chainId, 32)
 
-  // 32 + 32 + 32 + 20
-  const size = 116 + data.length
+  // 32 + 32 + 32 + 20 + 32
+  const size = 148 + data.length
   const bw = bio.write(size)
 
   bw.writeBytes(Buffer.from(nonce))
@@ -90,6 +91,7 @@ export function serializeEthSignTransaction(transaction): Bytes {
   bw.writeBytes(Buffer.from(gasPrice))
   bw.writeBytes(to)
   bw.writeBytes(data)
+  bw.writeBytes(Buffer.from(chainId))
 
   return bw.render()
 }
