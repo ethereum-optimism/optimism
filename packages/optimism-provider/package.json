@@ -16,7 +16,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@bitrelay/bufio": "^3.0.2",
     "@eth-optimism/core-utils": "0.0.1-alpha.27",
     "@ethersproject/logger": "^5.0.4",
     "ethers": "^5.0.8"
