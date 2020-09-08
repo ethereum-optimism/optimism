@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - YAS-642/integration-tests-repo
 
 jobs:
   build:
