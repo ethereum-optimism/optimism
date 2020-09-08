@@ -70,8 +70,8 @@ export const initCrossDomainMessengersVX = async (
 export const waitForCrossDomainMessages = async (
   provider: any
 ): Promise<void> => {
-  let l1CrossDomainMessenger = provider.__l1CrossDomainMessenger
-  let l2CrossDomainMessenger = provider.__l2CrossDomainMessenger
+  const l1CrossDomainMessenger = provider.__l1CrossDomainMessenger
+  const l2CrossDomainMessenger = provider.__l2CrossDomainMessenger
 
   if (!l1CrossDomainMessenger || !l2CrossDomainMessenger) {
     throw new Error(

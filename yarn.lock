@@ -54,6 +54,23 @@
     level "^6.0.0"
     memdown "^4.0.0"
 
+"@eth-optimism/core-db@^0.0.1-alpha.28":
+  version "0.0.1-alpha.28"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-db/-/core-db-0.0.1-alpha.28.tgz#d4500f4b067d3d5b44031bd6e551626f02f26457"
+  integrity sha512-KTT4DXUvBE0FjFnKCTWATywN9/wWrVfrr76CL8jyjLWS49WyoAvJm9raAOB28SefsK8VvvWzlz5vR/8GbZgknA==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.0.1-alpha.28"
+    abstract-leveldown "^6.2.2"
+    async-lock "^1.2.2"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    debug "^4.1.1"
+    ethers "^4.0.39"
+    level "^6.0.0"
+    memdown "^4.0.0"
+    pg "^8.3.0"
+    pg-pool "^3.2.1"
+
 "@eth-optimism/core-utils@^0.0.1-alpha.27":
   version "0.0.1-alpha.27"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.0.1-alpha.27.tgz#b43c8b5cd8ee89de7294c5f93aef5c47ee846cf5"
@@ -74,6 +91,56 @@
     memdown "^4.0.0"
     ts-md5 "^1.2.4"
     uuid "^3.3.3"
+
+"@eth-optimism/core-utils@^0.0.1-alpha.28":
+  version "0.0.1-alpha.28"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.0.1-alpha.28.tgz#4414daafab9cf8446c3000e610312895b4c1e4ca"
+  integrity sha512-qDJEi4F3gfBv7H0qvjIsTaNg50nrjLwZCeHZofgZTgP49KACOTo8VhpzIRcYc8JU5YErRxMKwuu2wi298d/24w==
+  dependencies:
+    abstract-leveldown "^6.2.2"
+    async-lock "^1.2.2"
+    axios "^0.19.0"
+    bn.js "^4.11.8"
+    body-parser "^1.19.0"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    debug "^4.1.1"
+    dotenv "^8.2.0"
+    ethereumjs-util "^6.2.0"
+    ethers "^4.0.37"
+    express "^4.17.1"
+    memdown "^4.0.0"
+    ts-md5 "^1.2.4"
+    uuid "^3.3.3"
+
+"@eth-optimism/rollup-contracts@^0.0.1-alpha.29":
+  version "0.0.1-alpha.29"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-contracts/-/rollup-contracts-0.0.1-alpha.29.tgz#606b15e4e68e572a295b478a5c5862ce6b0c02fe"
+  integrity sha512-Jfs4Cr9SJpOcF0Pv9StPDigxRW3HobP7znobZGnxoe7m5yz6bEUHQljce5JvccCliCrbtYS/GLhXjCa8hOJ5sA==
+  dependencies:
+    "@eth-optimism/core-db" "^0.0.1-alpha.28"
+    "@eth-optimism/core-utils" "^0.0.1-alpha.28"
+    "@eth-optimism/solc" "^0.5.16-alpha.0"
+    "@eth-optimism/solc-transpiler" "^0.0.1-alpha.27"
+    "@nomiclabs/buidler" "^1.3.8"
+    "@nomiclabs/buidler-ethers" "^2.0.0"
+    "@nomiclabs/buidler-solpp" "^1.3.3"
+    "@nomiclabs/buidler-waffle" "^2.0.0"
+    "@nomiclabs/ethereumjs-vm" "^4.1.1"
+    "@types/lodash" "^4.14.157"
+    chai "^4.2.0"
+    chai-as-promised "^7.1.1"
+    chai-bignumber "^3.0.0"
+    ethereum-waffle "^3.0.0"
+    ethereumjs-abi "^0.6.8"
+    ethers "5.0.0"
+    lodash "^4.17.15"
+    merkle-patricia-tree "git+https://github.com/kfichter/merkle-patricia-tree"
+    random-bytes-seed "^1.0.3"
+    rlp "^2.2.5"
+    seedrandom "^3.0.5"
+    ts-node "^8.10.2"
+    typescript "^3.9.5"
 
 "@eth-optimism/rollup-core@^0.0.1-alpha.28":
   version "0.0.1-alpha.28"
@@ -8818,6 +8885,18 @@ merkle-patricia-tree@2.3.2, merkle-patricia-tree@^2.1.2, merkle-patricia-tree@^2
 merkle-patricia-tree@^3.0.0, "merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree":
   version "3.0.0"
   resolved "git+https://github.com/kfichter/merkle-patricia-tree#ebd10c405be8ae909f1f82dea275a0e9ec1c8e46"
+  dependencies:
+    ethereumjs-util "^7.0.0"
+    level-mem "^5.0.1"
+    level-ws "^2.0.0"
+    readable-stream "^3.6.0"
+    rlp "^2.2.4"
+    semaphore-async-await "^1.5.1"
+
+"merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree.git":
+  version "3.0.0"
+  uid ebd10c405be8ae909f1f82dea275a0e9ec1c8e46
+  resolved "git+https://github.com/kfichter/merkle-patricia-tree.git#ebd10c405be8ae909f1f82dea275a0e9ec1c8e46"
   dependencies:
     ethereumjs-util "^7.0.0"
     level-mem "^5.0.1"
