@@ -71,52 +71,71 @@ describe('sendTransaction', () => {
     address.should.eq(recovered)
   })
 
-  /*
-  This depends on a running geth2 node or the endpoint
-  being added to optimism-ganache
-
-  it('should sendRawEthSignTransaction', async () => {
+  it('should send eth_sendRawEthSignTransaction', async () => {
     const signer = provider.getSigner();
     const chainId = await signer.getChainId();
 
+    const address = await signer.getAddress()
+    const nonce = await provider.getTransactionCount(address)
+
     const tx = {
       to: etherbase,
-      nonce: 0,
+      nonce,
       gasLimit: 21004,
-      gasPrice: 100,
-      data: '0x00',
-      value: 10,
+      gasPrice: 0,
+      data: '0x',
+      value: 0,
       chainId
     }
 
     const hex = await signer.signTransaction(tx)
 
-    // This incorrectly calculates "from" since it
-    // uses EIP155 signature hashing.
-    const address = await signer.getAddress()
-    //const signed = parse(hex)
-    //signed.from = address
+    const txid = await provider.send('eth_sendRawEthSignTransaction', [hex])
+    const transaction = await provider.getTransaction(txid)
 
-    const result = await provider.send('eth_sendRawEthSignTransaction', [hex])
-    console.log(result)
+    // The correct signature hashing was performed
+    address.should.eq(transaction.from)
+
+    // The correct transaction is being returned
+    tx.to.should.eq(transaction.to)
+    tx.value.should.eq(transaction.value.toNumber())
+    tx.nonce.should.eq(transaction.nonce)
+    tx.gasLimit.should.eq(transaction.gasLimit.toNumber())
+    tx.gasPrice.should.eq(transaction.gasPrice.toNumber())
+    tx.data.should.eq(transaction.data)
+
+    // Fetching the transaction receipt works correctly
+    const receipt = await provider.getTransactionReceipt(txid)
+    address.should.eq(receipt.from)
+    tx.to.should.eq(receipt.to)
   })
 
   it('should sendTransaction', async() => {
     const signer = provider.getSigner();
     const chainId = await signer.getChainId();
 
+    const address = await signer.getAddress()
+    const nonce = await provider.getTransactionCount(address)
+
     const tx = {
       to: etherbase,
-      nonce: 0,
+      nonce,
       gasLimit: 21004,
-      gasPrice: 100,
-      data: '0x00',
-      value: 10,
+      gasPrice: 0,
+      data: '0x',
+      value: 0,
       chainId
     }
 
     const result = await signer.sendTransaction(tx)
-    console.log(result)
+
+    // "from" is calculated client side here, so
+    // make sure that it is computed correctly.
+    result.from.should.eq(address)
+
+    tx.nonce.should.eq(result.nonce)
+    tx.gasLimit.should.eq(result.gasLimit.toNumber())
+    tx.gasPrice.should.eq(result.gasPrice.toNumber())
+    tx.data.should.eq(result.data)
   })
-  */
 })

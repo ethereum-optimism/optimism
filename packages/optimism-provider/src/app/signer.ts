@@ -20,7 +20,7 @@ import { Signer } from '@ethersproject/abstract-signer'
 import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
 import { Bytes, splitSignature } from '@ethersproject/bytes'
 import { serialize, UnsignedTransaction } from '@ethersproject/transactions'
-import { hexStrToBuf, isHexString } from '@eth-optimism/core-utils'
+import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
 import { ConnectionInfo, fetchJson, poll } from '@ethersproject/web'
 import { keccak256 } from '@ethersproject/keccak256'
 

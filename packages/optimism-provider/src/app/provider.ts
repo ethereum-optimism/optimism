@@ -13,7 +13,9 @@ import {
 } from '@ethersproject/providers'
 import { defineReadOnly, getStatic } from '@ethersproject/properties'
 import { ConnectionInfo } from '@ethersproject/web'
+import { verifyMessage } from '@ethersproject/wallet'
 import { Provider } from '@ethersproject/abstract-provider'
+import { joinSignature, SignatureLike } from '@ethersproject/bytes'
 import { OptimismSigner } from './signer'
 import * as utils from './utils'
 import { getNetwork, getUrl } from './network'
@@ -36,6 +38,17 @@ export class OptimismProvider extends JsonRpcProvider {
 
     super(connectionInfo)
     this._ethereum = provider
+
+    // Handle properly deriving "from" on the transaction
+    const format = this.formatter.transaction;
+    this.formatter.transaction = (transaction) => {
+      const tx = format(transaction)
+      const sig = joinSignature(tx as SignatureLike)
+      const hash = utils.sighashEthSign(tx)
+      // need to concat and hash with
+      tx.from = verifyMessage(hash, sig)
+      return tx
+    }
   }
 
   public get ethereum() {

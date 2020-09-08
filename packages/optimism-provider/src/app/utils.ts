@@ -2,8 +2,8 @@
  * Optimism Copyright 2020
  * MIT License
  */
+
 import { Networkish } from '@ethersproject/networks'
-import * as bio from '@bitrelay/bufio'
 import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
 import { arrayify, Bytes, zeroPad } from '@ethersproject/bytes'
 import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
@@ -82,27 +82,24 @@ export function serializeEthSignTransaction(transaction): Bytes {
   const data = toBuffer(transaction.data)
   const chainId = zeroPad(transaction.chainId, 32)
 
-  // 32 + 32 + 32 + 20 + 32
-  const size = 148 + data.length
-  const bw = bio.write(size)
-
-  bw.writeBytes(Buffer.from(nonce))
-  bw.writeBytes(Buffer.from(gasLimit))
-  bw.writeBytes(Buffer.from(gasPrice))
-  bw.writeBytes(to)
-  bw.writeBytes(data)
-  bw.writeBytes(Buffer.from(chainId))
-
-  return bw.render()
+  return Buffer.concat([
+    Buffer.from(nonce),
+    Buffer.from(gasLimit),
+    Buffer.from(gasPrice),
+    to,
+    data,
+    Buffer.from(chainId)
+  ]);
 }
 
 // Use this function as input to `eth_sign`. It does not
 // add the prefix because `eth_sign` does that. It does
 // serialize the transaction and hash the serialized
 // transaction.
-export function sighashEthSign(transaction) {
+export function sighashEthSign(transaction): Buffer {
     const serialized = serializeEthSignTransaction(transaction)
-    return keccak256(serialized)
+    const hash = remove0x(keccak256(serialized))
+    return Buffer.from(hash, 'hex')
 }
 
 function toBuffer(n: BigNumberish): Buffer {
