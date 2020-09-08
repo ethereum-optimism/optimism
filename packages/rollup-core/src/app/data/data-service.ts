@@ -641,7 +641,7 @@ export class DefaultDataService implements DataService {
       WHERE batch_number = (
             SELECT MIN(batch_number)
             FROM canonical_chain_batch
-            WHERE status = '${BatchSubmissionStatus.QUEUED}'
+            WHERE status IN ('${BatchSubmissionStatus.QUEUED}', '${BatchSubmissionStatus.SUBMITTING}')
           )
       ORDER BY block_number ASC, tx_index ASC`
     )
@@ -723,6 +723,20 @@ export class DefaultDataService implements DataService {
   /**
    * @inheritDoc
    */
+  public async markTransactionBatchSubmittingToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    return this.rdb.execute(
+      `UPDATE canonical_chain_batch
+      SET status = '${BatchSubmissionStatus.SUBMITTING}', submission_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}`
+    )
+  }
+
+  /**
+   * @inheritDoc
+   */
   public async markTransactionBatchSubmittedToL1(
     batchNumber: number,
     l1TxHash: string
@@ -762,7 +776,7 @@ export class DefaultDataService implements DataService {
       WHERE batch_number = (
             SELECT MIN(batch_number)
             FROM state_commitment_chain_batch
-            WHERE status = '${BatchSubmissionStatus.QUEUED}'
+            WHERE status IN ('${BatchSubmissionStatus.QUEUED}', '${BatchSubmissionStatus.SUBMITTING}')
           )
       ORDER BY block_number ASC, tx_index ASC`
     )
@@ -819,6 +833,20 @@ export class DefaultDataService implements DataService {
       status: res[0]['status'],
       batchNumber: res[0]['batch_number'],
     }
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public async markStateRootBatchSubmittingToL1(
+    batchNumber: number,
+    l1TxHash: string
+  ): Promise<void> {
+    return this.rdb.execute(
+      `UPDATE state_commitment_chain_batch
+      SET status = '${BatchSubmissionStatus.SUBMITTING}', submission_tx_hash = '${l1TxHash}'
+      WHERE batch_number = ${batchNumber}`
+    )
   }
 
   /**
