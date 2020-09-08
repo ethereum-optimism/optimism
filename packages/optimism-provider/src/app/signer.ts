@@ -3,7 +3,6 @@
  * MIT License
  */
 
-import * as bio from '@bitrelay/bufio'
 import {
   JsonRpcSigner,
   JsonRpcProvider,
