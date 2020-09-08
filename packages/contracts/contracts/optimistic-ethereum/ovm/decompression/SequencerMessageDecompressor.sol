@@ -18,14 +18,14 @@ contract SequencerMessageDecompressor {
     function()
         external
     {
-        bool isEOACreation;
+        bytes1 transactionType;
         bytes1 v;
         bytes32 r;
         bytes32 s;
         assembly {
             // Set up our pointers.
-            let ptr_isEOACreation := mload(0x40)
-            mstore(0x40, add(ptr_isEOACreation, 1))
+            let ptr_transactionType := mload(0x40)
+            mstore(0x40, add(ptr_transactionType, 1))
             let ptr_v := mload(0x40)
             mstore(0x40, add(ptr_v, 1))
             let ptr_r := mload(0x40)
@@ -34,19 +34,19 @@ contract SequencerMessageDecompressor {
             mstore(0x40, add(ptr_s, 32))
 
             // Copy calldata into our pointers.
-            calldatacopy(ptr_isEOACreation, 0, 1)
+            calldatacopy(ptr_transactionType, 0, 1)
             calldatacopy(ptr_v, 1, 1)
             calldatacopy(ptr_r, 2, 32)
             calldatacopy(ptr_s, 34, 32)
 
             // Load results into our variables.
-            isEOACreation := byte(0, mload(ptr_isEOACreation))
+            transactionType := mload(ptr_transactionType)
             v := mload(ptr_v)
             r := mload(ptr_r)
             s := mload(ptr_s)
         }
 
-        if (isEOACreation) {
+        if (uint8(transactionType) == 0) {
             bytes32 messageHash;
             assembly {
                 // Set up our pointers.
@@ -62,25 +62,22 @@ contract SequencerMessageDecompressor {
 
             ExecutionManager(msg.sender).ovmCREATEEOA(messageHash, uint8(v), r, s);
         } else {
-            bool isEthSignedMessage;
             bytes memory message;
             assembly {
                 // Set up our pointers.
-                let ptr_isEthSignedMessage := mload(0x40)
-                mstore(0x40, add(ptr_isEthSignedMessage, 32))
                 let ptr_message := mload(0x40)
-                let size_message := sub(calldatasize, 67)
+                let size_message := sub(calldatasize, 66)
                 mstore(ptr_message, size_message)
                 mstore(0x40, add(ptr_message, add(size_message, 32)))
 
                 // Copy calldata into our pointers.
-                calldatacopy(ptr_isEthSignedMessage, 66, 1)
-                calldatacopy(add(ptr_message, 0x20), 67, size_message)
+                calldatacopy(add(ptr_message, 0x20), 66, size_message)
 
                 // Load results into our variables.
-                isEthSignedMessage := byte(0, mload(ptr_isEthSignedMessage))
                 message := ptr_message       
             }
+
+            bool isEthSignedMessage = uint8(transactionType) == 2;
 
             address target = ECDSAUtils.recover(
                 message,

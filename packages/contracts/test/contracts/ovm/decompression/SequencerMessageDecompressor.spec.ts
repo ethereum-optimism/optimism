@@ -11,36 +11,44 @@ import {
   makeAddressResolver,
   getWallets,
   ZERO_ADDRESS,
-  signTransaction,
   getSignedComponents,
   getRawSignedComponents,
   deployAndRegister,
   getDefaultGasMeterParams,
-  GAS_LIMIT,
   manuallyDeployOvmContract,
   executeTransaction,
 } from '../../../test-helpers'
 
-const boolToByte = (value: boolean): string => {
-  return value ? '01' : '00'
-}
-
 const encodeSequencerCalldata = async (
   wallet: Wallet,
   transaction: UnsignedTransaction,
-  isEOACreation: boolean,
-  isEthSignedMessage: boolean
+  transactionType: number
 ) => {
   transaction.chainId = 108
 
-  const serializedTransaction = ethers.utils.serializeTransaction(transaction)
+  let serializedTransaction: string
+  if (transactionType === 2) {
+    serializedTransaction = ethers.utils.defaultAbiCoder.encode(
+      ['uint256', 'uint256', 'uint256', 'address', 'bytes'],
+      [
+        transaction.nonce,
+        transaction.gasLimit,
+        transaction.gasPrice,
+        transaction.to,
+        transaction.data,
+      ]
+    )
+  } else {
+    serializedTransaction = ethers.utils.serializeTransaction(transaction)
+  }
+
   const transactionHash = ethers.utils.keccak256(serializedTransaction)
 
   let v: string
   let r: string
   let s: string
   let messageHash: string
-  if (isEthSignedMessage) {
+  if (transactionType === 2) {
     const transactionHashBytes = ethers.utils.arrayify(transactionHash)
     const transactionSignature = await wallet.signMessage(transactionHashBytes)
     ;[v, r, s] = getRawSignedComponents(transactionSignature).map(
@@ -57,13 +65,11 @@ const encodeSequencerCalldata = async (
     messageHash = transactionHash
   }
 
-  let calldata = `0x${boolToByte(isEOACreation)}${v}${r}${s}`
-  if (isEOACreation) {
+  let calldata = `0x0${transactionType}${v}${r}${s}`
+  if (transactionType === 0) {
     calldata = `${calldata}${remove0x(messageHash)}`
   } else {
-    calldata = `${calldata}${boolToByte(isEthSignedMessage)}${remove0x(
-      serializedTransaction
-    )}`
+    calldata = `${calldata}${remove0x(serializedTransaction)}`
   }
 
   return calldata
@@ -149,7 +155,7 @@ describe('SequencerMessageDecompressor', () => {
   })
 
   describe('fallback()', async () => {
-    it('should call ovmCREATEEOA if the first byte is non-zero', async () => {
+    it('should call ovmCREATEEOA if the transaction type is zero', async () => {
       const calldata = await encodeSequencerCalldata(
         wallet,
         {
@@ -157,8 +163,7 @@ describe('SequencerMessageDecompressor', () => {
           nonce: 1,
           data: '0x',
         },
-        true,
-        false
+        0
       )
 
       await executeTransaction(
@@ -183,7 +188,7 @@ describe('SequencerMessageDecompressor', () => {
       expect(codeContractBytecode).to.equal(ecdsaPrototypeBytecode)
     })
 
-    it('should call an ECDSAContractAccount if the first byte is zero', async () => {
+    it('should call an ECDSAContractAccount when the transaction type is 1', async () => {
       const ovmCREATEEOAcalldata = await encodeSequencerCalldata(
         wallet,
         {
@@ -191,8 +196,7 @@ describe('SequencerMessageDecompressor', () => {
           nonce: 1,
           data: '0x',
         },
-        true,
-        false
+        0
       )
 
       await executeTransaction(
@@ -217,8 +221,60 @@ describe('SequencerMessageDecompressor', () => {
             [expectedKey, expectedVal]
           ),
         },
-        false,
-        false
+        1
+      )
+
+      await executeTransaction(
+        ExecutionManger,
+        wallet,
+        SequencerMessageDecompressorAddress,
+        calldata,
+        true
+      )
+
+      const codeContractAddress = await StateManager.ovmAddressToCodeContractAddress(
+        SimpleStorageAddress
+      )
+      const SimpleStorage = SimpleStorageFactory.attach(codeContractAddress)
+      const actualVal = await SimpleStorage.getStorage(expectedKey)
+      expect(actualVal).to.equal(expectedVal)
+    })
+
+    it('should call an ECDSAContractAccount when the transaction type is 2', async () => {
+      const ovmCREATEEOAcalldata = await encodeSequencerCalldata(
+        wallet,
+        {
+          to: wallet.address,
+          nonce: 1,
+          data: '0x',
+        },
+        0
+      )
+
+      await executeTransaction(
+        ExecutionManger,
+        wallet,
+        SequencerMessageDecompressorAddress,
+        ovmCREATEEOAcalldata,
+        true
+      )
+
+      const expectedKey = ethers.utils.keccak256('0x1234')
+      const expectedVal = ethers.utils.keccak256('0x5678')
+
+      const calldata = await encodeSequencerCalldata(
+        wallet,
+        {
+          to: SimpleStorageAddress,
+          nonce: 5,
+          gasLimit: 2000000,
+          gasPrice: 0,
+          data: SimpleStorageFactory.interface.encodeFunctionData(
+            'setStorage',
+            [expectedKey, expectedVal]
+          ),
+        },
+        2
       )
 
       await executeTransaction(

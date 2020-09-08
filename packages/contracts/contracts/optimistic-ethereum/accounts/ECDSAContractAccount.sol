@@ -8,6 +8,8 @@ import { RLPReader } from "../utils/libraries/RLPReader.sol";
 /* Contract Imports */
 import { ExecutionManager } from "../ovm/ExecutionManager.sol";
 
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title ECDSAContractAccount
  * @dev NOTE: This contract must be made upgradeable!
@@ -21,6 +23,7 @@ contract ECDSAContractAccount {
         address target;
         uint256 nonce;
         uint256 gasLimit;
+        uint256 gasPrice;
         bytes data;
     }
 
@@ -75,7 +78,7 @@ contract ECDSAContractAccount {
             "Provided signature is invalid."
         );
 
-        EOATransaction memory decodedTx = _decodeTransaction(_transaction);
+        EOATransaction memory decodedTx = _decodeTransaction(_transaction, _isEthSignedMessage);
 
         uint256 expectedNonce = executionManager.ovmGETNONCE() + 1;
         require(
@@ -112,10 +115,12 @@ contract ECDSAContractAccount {
     /**
      * Decodes an ABI encoded EOA transaction.
      * @param _transaction Encoded transaction.
+     * @param _isEthSignedMessage Whether or not this was signed with the Ethereum message prefix.
      * @return Decoded transaction as a struct.
      */
     function _decodeTransaction(
-        bytes memory _transaction
+        bytes memory _transaction,
+        bool _isEthSignedMessage
     )
         internal
         pure
@@ -123,13 +128,32 @@ contract ECDSAContractAccount {
             EOATransaction memory _decoded
         )
     {
-        RLPReader.RLPItem[] memory decoded = RLPReader.toList(RLPReader.toRlpItem(_transaction));
+        if (_isEthSignedMessage) {
+            (
+                uint256 nonce,
+                uint256 gasLimit,
+                uint256 gasPrice,
+                address target,
+                bytes memory data
+            ) = abi.decode(_transaction, (uint256, uint256, uint256, address, bytes));
 
-        return EOATransaction({
-            target: RLPReader.toAddress(decoded[3]),
-            nonce: RLPReader.toUint(decoded[0]),
-            gasLimit: RLPReader.toUint(decoded[2]),
-            data: RLPReader.toBytes(decoded[5])
-        });
+            return EOATransaction({
+                target: target,
+                nonce: nonce,
+                gasLimit: gasLimit,
+                gasPrice: gasPrice,
+                data: data
+            });
+        } else {
+            RLPReader.RLPItem[] memory decoded = RLPReader.toList(RLPReader.toRlpItem(_transaction));
+
+            return EOATransaction({
+                target: RLPReader.toAddress(decoded[3]),
+                nonce: RLPReader.toUint(decoded[0]),
+                gasLimit: RLPReader.toUint(decoded[2]),
+                gasPrice: RLPReader.toUint(decoded[1]),
+                data: RLPReader.toBytes(decoded[5])
+            });
+        }
     }
 }

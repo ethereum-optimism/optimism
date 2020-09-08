@@ -29,9 +29,10 @@ library ECDSAUtils {
         )
     {
         bytes32 messageHash = _isEthSignedMessage ? getEthSignedMessageHash(_message) : getNativeMessageHash(_message);
+        uint8 v = _isEthSignedMessage ? _v : (_v - uint8(_chainId) * 2) - 8;
         return ecrecover(
             messageHash,
-            (_v - uint8(_chainId) * 2) - 8,
+            v,
             _r,
             _s
         );
