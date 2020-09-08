@@ -4,6 +4,10 @@ import {
   TransactionRequest,
   TransactionResponse,
 } from 'ethers/providers'
+import { getLogger } from './log'
+import { Logger } from '../types'
+
+const log: Logger = getLogger('core-utils/ethereum')
 
 /**
  * Populates and signs a transaction for the function call specified by the provided contract, function name, and args.
@@ -23,7 +27,12 @@ export const getSignedTransaction = async (
   let tx: TransactionRequest
   let nonce
   ;[tx, nonce] = await Promise.all([
-    populateFunctionCallTx(contract, functionName, functionArgs),
+    populateFunctionCallTx(
+      contract,
+      functionName,
+      functionArgs,
+      wallet.address
+    ),
     wallet.getTransactionCount('pending'),
   ])
 
@@ -37,12 +46,14 @@ export const getSignedTransaction = async (
  * @param contract The contract with a connected provider.
  * @param functionName The function name to be invoked by the returned TransactionRequest
  * @param functionArgs The arguments for the contract function to invoke
+ * @param fromAddress The caller address for the tx
  * @returns the constructed TransactionRequest.
  */
 export const populateFunctionCallTx = async (
   contract: Contract,
   functionName: string,
-  functionArgs: any[]
+  functionArgs: any[],
+  fromAddress?: string
 ): Promise<TransactionRequest> => {
   const data: string = contract.interface.functions[functionName].encode(
     functionArgs
@@ -52,10 +63,21 @@ export const populateFunctionCallTx = async (
     data,
   }
 
+  const estimateTx = { ...tx }
+  if (!!fromAddress) {
+    estimateTx.from = fromAddress
+  }
+
+  log.debug(
+    `Getting gas limit and gas price for tx to ${
+      contract.address
+    } function ${functionName}, with args ${JSON.stringify(functionArgs)}`
+  )
+
   let gasLimit
   let gasPrice
   ;[gasLimit, gasPrice] = await Promise.all([
-    contract.provider.estimateGas(tx),
+    contract.provider.estimateGas(estimateTx),
     contract.provider.getGasPrice(),
   ])
 

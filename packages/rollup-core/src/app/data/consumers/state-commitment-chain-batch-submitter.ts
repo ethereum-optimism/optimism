@@ -1,5 +1,6 @@
 /* External Imports */
 import {
+  add0x,
   getLogger,
   getSignedTransaction,
   isTxSubmitted,
@@ -147,7 +148,7 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
         stateRootBatch.startIndex
       )
 
-      txHash = keccak256(signedTx)
+      txHash = keccak256(signedTx, true)
       await this.dataService.markStateRootBatchSubmittingToL1(
         stateRootBatch.batchNumber,
         txHash

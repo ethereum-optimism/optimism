@@ -189,7 +189,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         l2Batch.startIndex
       )
 
-      txHash = keccak256(signedTx)
+      txHash = keccak256(signedTx, true)
       await this.dataService.markTransactionBatchSubmittingToL1(
         l2Batch.batchNumber,
         txHash
