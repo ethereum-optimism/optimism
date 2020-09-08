@@ -1,6 +1,8 @@
 pragma solidity ^0.5.0;
 
 /* Library Imports */
+import { DataTypes } from "../../utils/libraries/DataTypes.sol";
+import { TransactionParser } from "../../utils/libraries/TransactionParser.sol";
 import { ECDSAUtils } from "../../utils/libraries/ECDSAUtils.sol";
 import { ExecutionManagerWrapper } from "../../utils/libraries/ExecutionManagerWrapper.sol";
 
@@ -79,8 +81,17 @@ contract SequencerMessageDecompressor {
 
             bool isEthSignedMessage = uint8(transactionType) == 2;
 
+            DataTypes.EOATransaction memory decodedTx = TransactionParser.decodeEOATransaction(
+                message
+            );
+
+            bytes memory encodedTx = TransactionParser.encodeEOATransaction(
+                decodedTx,
+                isEthSignedMessage
+            );
+
             address target = ECDSAUtils.recover(
-                message,
+                encodedTx,
                 isEthSignedMessage,
                 uint8(v),
                 r,

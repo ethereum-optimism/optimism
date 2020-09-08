@@ -1,6 +1,8 @@
 pragma solidity ^0.5.0;
 
 /* Library Imports */
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { TransactionParser } from "../utils/libraries/TransactionParser.sol";
 import { ECDSAUtils } from "../utils/libraries/ECDSAUtils.sol";
 import { ExecutionManagerWrapper } from "../utils/libraries/ExecutionManagerWrapper.sol";
 import { RLPReader } from "../utils/libraries/RLPReader.sol";
@@ -8,26 +10,11 @@ import { RLPReader } from "../utils/libraries/RLPReader.sol";
 /* Contract Imports */
 import { ExecutionManager } from "../ovm/ExecutionManager.sol";
 
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title ECDSAContractAccount
  * @dev NOTE: This contract must be made upgradeable!
  */
 contract ECDSAContractAccount {
-    /*
-     * Data Structures
-     */
-
-    struct EOATransaction {
-        address target;
-        uint256 nonce;
-        uint256 gasLimit;
-        uint256 gasPrice;
-        bytes data;
-    }
-
-
     /*
      * Constructor
      */
@@ -64,11 +51,19 @@ contract ECDSAContractAccount {
             bytes memory _ret
         )
     {
+        DataTypes.EOATransaction memory decodedTx = TransactionParser.decodeEOATransaction(
+            _transaction
+        );
+        bytes memory encodedTx = TransactionParser.encodeEOATransaction(
+            decodedTx,
+            _isEthSignedMessage
+        );
+
         ExecutionManager executionManager = ExecutionManager(msg.sender);
 
         require(
             ECDSAUtils.recover(
-                _transaction,
+                encodedTx,
                 _isEthSignedMessage,
                 _v,
                 _r,
@@ -78,8 +73,6 @@ contract ECDSAContractAccount {
             "Provided signature is invalid."
         );
 
-        EOATransaction memory decodedTx = _decodeTransaction(_transaction, _isEthSignedMessage);
-
         uint256 expectedNonce = executionManager.ovmGETNONCE() + 1;
         require(
             decodedTx.nonce == expectedNonce,
@@ -87,7 +80,7 @@ contract ECDSAContractAccount {
         );
         executionManager.ovmSETNONCE(expectedNonce);
 
-        if (decodedTx.target == address(0)) {
+        if (decodedTx.to == address(0)) {
             _ret = abi.encode(
                 ExecutionManagerWrapper.ovmCREATE(
                     address(executionManager),
@@ -98,62 +91,12 @@ contract ECDSAContractAccount {
         } else {
             _ret = ExecutionManagerWrapper.ovmCALL(
                 address(executionManager),
-                decodedTx.target,
+                decodedTx.to,
                 decodedTx.data,
                 decodedTx.gasLimit
             );
         }
 
         return _ret;
-    }
-
-
-    /*
-     * Internal Functions
-     */
-
-    /**
-     * Decodes an ABI encoded EOA transaction.
-     * @param _transaction Encoded transaction.
-     * @param _isEthSignedMessage Whether or not this was signed with the Ethereum message prefix.
-     * @return Decoded transaction as a struct.
-     */
-    function _decodeTransaction(
-        bytes memory _transaction,
-        bool _isEthSignedMessage
-    )
-        internal
-        pure
-        returns (
-            EOATransaction memory _decoded
-        )
-    {
-        if (_isEthSignedMessage) {
-            (
-                uint256 nonce,
-                uint256 gasLimit,
-                uint256 gasPrice,
-                address target,
-                bytes memory data
-            ) = abi.decode(_transaction, (uint256, uint256, uint256, address, bytes));
-
-            return EOATransaction({
-                target: target,
-                nonce: nonce,
-                gasLimit: gasLimit,
-                gasPrice: gasPrice,
-                data: data
-            });
-        } else {
-            RLPReader.RLPItem[] memory decoded = RLPReader.toList(RLPReader.toRlpItem(_transaction));
-
-            return EOATransaction({
-                target: RLPReader.toAddress(decoded[3]),
-                nonce: RLPReader.toUint(decoded[0]),
-                gasLimit: RLPReader.toUint(decoded[2]),
-                gasPrice: RLPReader.toUint(decoded[1]),
-                data: RLPReader.toBytes(decoded[5])
-            });
-        }
     }
 }

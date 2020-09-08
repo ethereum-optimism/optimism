@@ -2,6 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
+import { BytesLib } from "./BytesLib.sol";
 import { DataTypes } from "./DataTypes.sol";
 import { RLPWriter } from "./RLPWriter.sol";
 
@@ -57,5 +58,64 @@ library TransactionParser {
         raw[7] = RLPWriter.encodeBool(_transactionData.allowRevert);
 
         return RLPWriter.encodeList(raw);
+    }
+
+    function encodeEOATransaction(
+        DataTypes.EOATransaction memory _transaction,
+        bool _isEthSignedMessage
+    )
+        internal
+        pure
+        returns (
+            bytes memory
+        )
+    {
+        if (_isEthSignedMessage) {
+            return abi.encode(
+                _transaction.nonce,
+                _transaction.gasLimit,
+                _transaction.gasPrice,
+                _transaction.to,
+                _transaction.data
+            );
+        } else {
+            bytes[] memory raw = new bytes[](9);
+
+            raw[0] = RLPWriter.encodeUint(_transaction.nonce);
+            raw[1] = RLPWriter.encodeUint(_transaction.gasPrice);
+            raw[2] = RLPWriter.encodeUint(_transaction.gasLimit);
+            raw[3] = RLPWriter.encodeAddress(_transaction.to);
+            raw[4] = RLPWriter.encodeUint(0);
+            raw[5] = RLPWriter.encodeBytes(_transaction.data);
+            raw[6] = RLPWriter.encodeUint(108);
+            raw[7] = RLPWriter.encodeBytes(bytes(''));
+            raw[8] = RLPWriter.encodeBytes(bytes(''));
+
+            return RLPWriter.encodeList(raw);
+        }
+    }
+
+    function decodeEOATransaction(
+        bytes memory _transaction
+    )
+        internal
+        pure
+        returns (
+            DataTypes.EOATransaction memory
+        )
+    {
+        bytes32 nonce = BytesLib.toBytes32(BytesLib.slice(_transaction, 0, 2)) >> 30 * 8;
+        bytes32 gasLimit = BytesLib.toBytes32(BytesLib.slice(_transaction, 2, 3)) >> 29 * 8;
+        bytes32 gasPrice = BytesLib.toBytes32(BytesLib.slice(_transaction, 5, 1)) >> 31 * 8;
+        address to = BytesLib.toAddress(BytesLib.slice(_transaction, 6, 20));
+        bytes memory data = BytesLib.slice(_transaction, 26);
+
+        return DataTypes.EOATransaction({
+            nonce: uint256(nonce),
+            gasLimit: uint256(gasLimit),
+            gasPrice: uint256(gasPrice),
+            to: to,
+            data: data
+        });
     }
 }

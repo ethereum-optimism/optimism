@@ -3,7 +3,12 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { ContractFactory, Wallet, UnsignedTransaction, Contract } from 'ethers'
-import { remove0x } from '@eth-optimism/core-utils'
+import { zeroPad } from '@ethersproject/bytes'
+import {
+  remove0x,
+  numberToHexString,
+  hexStrToBuf,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import {
@@ -19,9 +24,32 @@ import {
   executeTransaction,
 } from '../../../test-helpers'
 
+const serializeEthSignTransaction = (transaction: any): string => {
+  const nonce = zeroPad(transaction.nonce, 2)
+  const gasLimit = zeroPad(transaction.gasLimit, 3)
+  const gasPrice = zeroPad(transaction.gasPrice, 1)
+  const to = hexStrToBuf(transaction.to)
+  const data = hexStrToBuf(transaction.data)
+
+  return Buffer.concat([
+    Buffer.from(nonce),
+    Buffer.from(gasLimit),
+    Buffer.from(gasPrice),
+    to,
+    data,
+  ]).toString('hex')
+}
+
 const encodeSequencerCalldata = async (
   wallet: Wallet,
-  transaction: UnsignedTransaction,
+  transaction: {
+    nonce: number
+    gasLimit: number
+    gasPrice: number
+    to: string
+    data: string
+    chainId?: number
+  },
   transactionType: number
 ) => {
   transaction.chainId = 108
@@ -65,11 +93,13 @@ const encodeSequencerCalldata = async (
     messageHash = transactionHash
   }
 
+  const encodedTransaction = serializeEthSignTransaction(transaction)
+
   let calldata = `0x0${transactionType}${v}${r}${s}`
   if (transactionType === 0) {
     calldata = `${calldata}${remove0x(messageHash)}`
   } else {
-    calldata = `${calldata}${remove0x(serializedTransaction)}`
+    calldata = `${calldata}${encodedTransaction}`
   }
 
   return calldata
@@ -161,6 +191,8 @@ describe('SequencerMessageDecompressor', () => {
         {
           to: wallet.address,
           nonce: 1,
+          gasLimit: 2000000,
+          gasPrice: 0,
           data: '0x',
         },
         0
@@ -194,6 +226,8 @@ describe('SequencerMessageDecompressor', () => {
         {
           to: wallet.address,
           nonce: 1,
+          gasLimit: 2000000,
+          gasPrice: 0,
           data: '0x',
         },
         0
@@ -216,6 +250,7 @@ describe('SequencerMessageDecompressor', () => {
           to: SimpleStorageAddress,
           nonce: 5,
           gasLimit: 2000000,
+          gasPrice: 0,
           data: SimpleStorageFactory.interface.encodeFunctionData(
             'setStorage',
             [expectedKey, expectedVal]
@@ -246,6 +281,8 @@ describe('SequencerMessageDecompressor', () => {
         {
           to: wallet.address,
           nonce: 1,
+          gasLimit: 2000000,
+          gasPrice: 0,
           data: '0x',
         },
         0

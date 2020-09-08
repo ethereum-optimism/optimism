@@ -103,4 +103,12 @@ library DataTypes {
         uint256 gasLimit;
         bool allowRevert;
     }
+
+    struct EOATransaction {
+        uint256 nonce;
+        uint256 gasLimit;
+        uint256 gasPrice;
+        address to;
+        bytes data;
+    }
 }
