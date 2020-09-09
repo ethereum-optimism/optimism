@@ -60,6 +60,12 @@ library TransactionParser {
         return RLPWriter.encodeList(raw);
     }
 
+    /**
+     * Encodes an EOA transaction back into the original transaction.
+     * @param _transaction EOA transaction to encode.
+     * @param _isEthSignedMessage Whether or not this was an eth signed message.
+     * @return Encoded transaction.
+     */
     function encodeEOATransaction(
         DataTypes.EOATransaction memory _transaction,
         bool _isEthSignedMessage
@@ -75,6 +81,7 @@ library TransactionParser {
                 _transaction.nonce,
                 _transaction.gasLimit,
                 _transaction.gasPrice,
+                _transaction.chainId,
                 _transaction.to,
                 _transaction.data
             );
@@ -87,7 +94,7 @@ library TransactionParser {
             raw[3] = RLPWriter.encodeAddress(_transaction.to);
             raw[4] = RLPWriter.encodeUint(0);
             raw[5] = RLPWriter.encodeBytes(_transaction.data);
-            raw[6] = RLPWriter.encodeUint(108);
+            raw[6] = RLPWriter.encodeUint(_transaction.chainId);
             raw[7] = RLPWriter.encodeBytes(bytes(''));
             raw[8] = RLPWriter.encodeBytes(bytes(''));
 
@@ -95,6 +102,33 @@ library TransactionParser {
         }
     }
 
+    /**
+     * Decodes and then re-encodes an EOA transaction.
+     * @param _transaction Compactly encoded EOA transaction.
+     * @param _isEthSignedMessage Whether or not this is an eth signed message.
+     * @return Transaction with original encoding.
+     */
+    function encodeEOATransaction(
+        bytes memory _transaction,
+        bool _isEthSignedMessage
+    )
+        internal
+        pure
+        returns (
+            bytes memory
+        )
+    {
+        return encodeEOATransaction(
+            decodeEOATransaction(_transaction),
+            _isEthSignedMessage
+        );
+    }
+
+    /**
+     * Decodes a compactly encoded EOA transaction.
+     * @param _transaction Compactly encoded transaction.
+     * @return Transaction as a convenient struct.
+     */
     function decodeEOATransaction(
         bytes memory _transaction
     )
@@ -104,16 +138,18 @@ library TransactionParser {
             DataTypes.EOATransaction memory
         )
     {
-        bytes32 nonce = BytesLib.toBytes32(BytesLib.slice(_transaction, 0, 2)) >> 30 * 8;
-        bytes32 gasLimit = BytesLib.toBytes32(BytesLib.slice(_transaction, 2, 3)) >> 29 * 8;
-        bytes32 gasPrice = BytesLib.toBytes32(BytesLib.slice(_transaction, 5, 1)) >> 31 * 8;
-        address to = BytesLib.toAddress(BytesLib.slice(_transaction, 6, 20));
-        bytes memory data = BytesLib.slice(_transaction, 26);
+        uint256 nonce = BytesLib.toUintN(BytesLib.slice(_transaction, 0, 2));
+        uint256 gasLimit = BytesLib.toUintN(BytesLib.slice(_transaction, 2, 3));
+        uint256 gasPrice = BytesLib.toUintN(BytesLib.slice(_transaction, 5, 1));
+        uint256 chainId = BytesLib.toUintN(BytesLib.slice(_transaction, 6, 4));
+        address to = BytesLib.toAddress(BytesLib.slice(_transaction, 10, 20));
+        bytes memory data = BytesLib.slice(_transaction, 30);
 
         return DataTypes.EOATransaction({
-            nonce: uint256(nonce),
-            gasLimit: uint256(gasLimit),
-            gasPrice: uint256(gasPrice),
+            nonce: nonce,
+            gasLimit: gasLimit,
+            gasPrice: gasPrice,
+            chainId: chainId,
             to: to,
             data: data
         });

@@ -24,10 +24,29 @@ import {
   executeTransaction,
 } from '../../../test-helpers'
 
-const serializeEthSignTransaction = (transaction: any): string => {
+interface EOATransaction {
+  nonce: number
+  gasLimit: number
+  gasPrice: number
+  to: string
+  data: string
+  chainId: number
+}
+
+interface SignatureParameters {
+  messageHash: string
+  v: string
+  r: string
+  s: string
+}
+
+const encodeCompactTransaction = (
+  transaction: any
+): string => {
   const nonce = zeroPad(transaction.nonce, 2)
   const gasLimit = zeroPad(transaction.gasLimit, 3)
   const gasPrice = zeroPad(transaction.gasPrice, 1)
+  const chainId = zeroPad(transaction.chainId, 4)
   const to = hexStrToBuf(transaction.to)
   const data = hexStrToBuf(transaction.data)
 
@@ -35,69 +54,97 @@ const serializeEthSignTransaction = (transaction: any): string => {
     Buffer.from(nonce),
     Buffer.from(gasLimit),
     Buffer.from(gasPrice),
+    chainId,
     to,
     data,
   ]).toString('hex')
 }
 
+const serializeEthSignTransaction = (
+  transaction: EOATransaction
+): string => {
+  return ethers.utils.defaultAbiCoder.encode(
+    ['uint256', 'uint256', 'uint256', 'uint256', 'address', 'bytes'],
+    [
+      transaction.nonce,
+      transaction.gasLimit,
+      transaction.gasPrice,
+      transaction.chainId,
+      transaction.to,
+      transaction.data,
+    ]
+  )
+}
+
+const serializeNativeTransaction = (
+  transaction: EOATransaction
+): string => {
+  return ethers.utils.serializeTransaction(transaction)
+}
+
+const signEthSignMessage = async (
+  wallet: Wallet,
+  transaction: EOATransaction
+): Promise<SignatureParameters> => {
+  const serializedTransaction = serializeEthSignTransaction(transaction)
+  const transactionHash = ethers.utils.keccak256(serializedTransaction)
+  const transactionHashBytes = ethers.utils.arrayify(transactionHash)
+  const transactionSignature = await wallet.signMessage(transactionHashBytes)
+
+  const messageHash = ethers.utils.hashMessage(transactionHashBytes)
+  const [v, r, s] = getRawSignedComponents(transactionSignature).map(
+    (component) => {
+      return remove0x(component)
+    }
+  )
+
+  return {
+    messageHash,
+    v,
+    r,
+    s
+  }
+}
+
+const signNativeTransaction = async (
+  wallet: Wallet,
+  transaction: EOATransaction
+): Promise<SignatureParameters> => {
+  const serializedTransaction = serializeNativeTransaction(transaction)
+  const transactionSignature = await wallet.signTransaction(transaction)
+
+  const messageHash = ethers.utils.keccak256(serializedTransaction)
+  const [v, r, s] = getSignedComponents(transactionSignature).map((component) => {
+    return remove0x(component)
+  })
+  
+  return {
+    messageHash,
+    v,
+    r,
+    s
+  }
+}
+
+const signTransaction = async (
+  wallet: Wallet,
+  transaction: EOATransaction,
+  transactionType: number
+): Promise<SignatureParameters> => {
+  return transactionType === 2 ? signEthSignMessage(wallet, transaction) : signNativeTransaction(wallet, transaction)
+}
+
 const encodeSequencerCalldata = async (
   wallet: Wallet,
-  transaction: {
-    nonce: number
-    gasLimit: number
-    gasPrice: number
-    to: string
-    data: string
-    chainId?: number
-  },
+  transaction: EOATransaction,
   transactionType: number
 ) => {
-  transaction.chainId = 108
+  const sig = await signTransaction(wallet, transaction, transactionType)
+  const encodedTransaction = encodeCompactTransaction(transaction)
 
-  let serializedTransaction: string
-  if (transactionType === 2) {
-    serializedTransaction = ethers.utils.defaultAbiCoder.encode(
-      ['uint256', 'uint256', 'uint256', 'address', 'bytes'],
-      [
-        transaction.nonce,
-        transaction.gasLimit,
-        transaction.gasPrice,
-        transaction.to,
-        transaction.data,
-      ]
-    )
-  } else {
-    serializedTransaction = ethers.utils.serializeTransaction(transaction)
-  }
-
-  const transactionHash = ethers.utils.keccak256(serializedTransaction)
-
-  let v: string
-  let r: string
-  let s: string
-  let messageHash: string
-  if (transactionType === 2) {
-    const transactionHashBytes = ethers.utils.arrayify(transactionHash)
-    const transactionSignature = await wallet.signMessage(transactionHashBytes)
-    ;[v, r, s] = getRawSignedComponents(transactionSignature).map(
-      (component) => {
-        return remove0x(component)
-      }
-    )
-    messageHash = ethers.utils.hashMessage(transactionHashBytes)
-  } else {
-    const transactionSignature = await wallet.signTransaction(transaction)
-    ;[v, r, s] = getSignedComponents(transactionSignature).map((component) => {
-      return remove0x(component)
-    })
-    messageHash = transactionHash
-  }
-
-  const encodedTransaction = serializeEthSignTransaction(transaction)
-
-  let calldata = `0x0${transactionType}${v}${r}${s}`
+  let calldata = `0x0${transactionType}${sig.v}${sig.r}${sig.s}`
   if (transactionType === 0) {
-    calldata = `${calldata}${remove0x(messageHash)}`
+    calldata = `${calldata}${remove0x(sig.messageHash)}`
   } else {
     calldata = `${calldata}${encodedTransaction}`
   }
@@ -194,6 +241,7 @@ describe('SequencerMessageDecompressor', () => {
           gasLimit: 2000000,
           gasPrice: 0,
           data: '0x',
+          chainId: 108,
         },
         0
       )
@@ -229,6 +277,7 @@ describe('SequencerMessageDecompressor', () => {
           gasLimit: 2000000,
           gasPrice: 0,
           data: '0x',
+          chainId: 108,
         },
         0
       )
@@ -251,6 +300,7 @@ describe('SequencerMessageDecompressor', () => {
           nonce: 5,
           gasLimit: 2000000,
           gasPrice: 0,
+          chainId: 108,
           data: SimpleStorageFactory.interface.encodeFunctionData(
             'setStorage',
             [expectedKey, expectedVal]
@@ -284,6 +334,7 @@ describe('SequencerMessageDecompressor', () => {
           gasLimit: 2000000,
           gasPrice: 0,
           data: '0x',
+          chainId: 108,
         },
         0
       )
@@ -306,6 +357,7 @@ describe('SequencerMessageDecompressor', () => {
           nonce: 5,
           gasLimit: 2000000,
           gasPrice: 0,
+          chainId: 108,
           data: SimpleStorageFactory.interface.encodeFunctionData(
             'setStorage',
             [expectedKey, expectedVal]

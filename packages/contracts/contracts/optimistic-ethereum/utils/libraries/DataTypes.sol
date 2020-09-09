@@ -108,6 +108,7 @@ library DataTypes {
         uint256 nonce;
         uint256 gasLimit;
         uint256 gasPrice;
+        uint256 chainId;
         address to;
         bytes data;
     }

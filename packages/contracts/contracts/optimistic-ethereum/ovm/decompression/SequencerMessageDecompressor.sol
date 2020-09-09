@@ -1,6 +1,7 @@
 pragma solidity ^0.5.0;
 
 /* Library Imports */
+import { BytesLib } from "../../utils/libraries/BytesLib.sol";
 import { DataTypes } from "../../utils/libraries/DataTypes.sol";
 import { TransactionParser } from "../../utils/libraries/TransactionParser.sol";
 import { ECDSAUtils } from "../../utils/libraries/ECDSAUtils.sol";
@@ -14,79 +15,60 @@ import { ExecutionManager } from "../ExecutionManager.sol";
  */
 contract SequencerMessageDecompressor {
     /*
+     * Data Structures
+     */
+    
+    enum TransactionType {
+        EOA_CONTRACT_CREATION,
+        NATIVE_ETH_TRANSACTION,
+        ETH_SIGNED_MESSAGE
+    }
+
+
+    /*
      * Fallback Function
      */
 
+    /**
+     * We use the fallback here to parse the compressed encoding used by the
+     * Sequencer.
+     *
+     * Calldata format:
+     * - [ 1 byte   ] Transaction type (00 for EOA create, 01 for native tx, 02 for eth signed tx)
+     * - [ 1 byte   ] Signature `v` parameter
+     * - [ 32 bytes ] Signature `r` parameter
+     * - [ 32 bytes ] Signature `s` parameter
+     * - [ ?? bytes ] :
+     *      IF transaction type == 00
+     *      - [ 32 bytes ] Hash of the signed message
+     *      ELSE
+     *      - [ 2 bytes  ] Transaction nonce
+     *      - [ 3 bytes  ] Transaction gas limit
+     *      - [ 1 byte   ] Transaction gas price
+     *      - [ 4 bytes  ] Transaction chain ID
+     *      - [ 20 bytes ] Transaction target address
+     *      - [ ?? bytes ] Transaction data
+     */
     function()
         external
     {
-        bytes1 transactionType;
-        bytes1 v;
-        bytes32 r;
-        bytes32 s;
-        assembly {
-            // Set up our pointers.
-            let ptr_transactionType := mload(0x40)
-            mstore(0x40, add(ptr_transactionType, 1))
-            let ptr_v := mload(0x40)
-            mstore(0x40, add(ptr_v, 1))
-            let ptr_r := mload(0x40)
-            mstore(0x40, add(ptr_r, 32))
-            let ptr_s := mload(0x40)
-            mstore(0x40, add(ptr_s, 32))
+        TransactionType transactionType = _getTransactionType(BytesLib.toUintN(BytesLib.slice(msg.data, 0, 1)));
+        uint8 v = uint8(BytesLib.toUintN(BytesLib.slice(msg.data, 1, 1)));
+        bytes32 r = BytesLib.toBytes32(BytesLib.slice(msg.data, 2, 32));
+        bytes32 s = BytesLib.toBytes32(BytesLib.slice(msg.data, 34, 32));
 
-            // Copy calldata into our pointers.
-            calldatacopy(ptr_transactionType, 0, 1)
-            calldatacopy(ptr_v, 1, 1)
-            calldatacopy(ptr_r, 2, 32)
-            calldatacopy(ptr_s, 34, 32)
-
-            // Load results into our variables.
-            transactionType := mload(ptr_transactionType)
-            v := mload(ptr_v)
-            r := mload(ptr_r)
-            s := mload(ptr_s)
-        }
-
-        if (uint8(transactionType) == 0) {
-            bytes32 messageHash;
-            assembly {
-                // Set up our pointers.
-                let ptr_messageHash := mload(0x40)
-                mstore(0x40, add(ptr_messageHash, 32))
-
-                // Copy calldata into our pointers.
-                calldatacopy(ptr_messageHash, 66, 32)
-
-                // Load results into our variables.
-                messageHash := mload(ptr_messageHash)
-            }
-
+        if (transactionType == TransactionType.EOA_CONTRACT_CREATION) {
+            // Pull out the message hash so we can verify the signature.
+            bytes32 messageHash = BytesLib.toBytes32(BytesLib.slice(msg.data, 66, 32));
             ExecutionManager(msg.sender).ovmCREATEEOA(messageHash, uint8(v), r, s);
         } else {
-            bytes memory message;
-            assembly {
-                // Set up our pointers.
-                let ptr_message := mload(0x40)
-                let size_message := sub(calldatasize, 66)
-                mstore(ptr_message, size_message)
-                mstore(0x40, add(ptr_message, add(size_message, 32)))
+            // Remainder is the message to execute.
+            bytes memory message = BytesLib.slice(msg.data, 66);
+            bool isEthSignedMessage = transactionType == TransactionType.ETH_SIGNED_MESSAGE;
 
-                // Copy calldata into our pointers.
-                calldatacopy(add(ptr_message, 0x20), 66, size_message)
-
-                // Load results into our variables.
-                message := ptr_message       
-            }
-
-            bool isEthSignedMessage = uint8(transactionType) == 2;
-
-            DataTypes.EOATransaction memory decodedTx = TransactionParser.decodeEOATransaction(
-                message
-            );
-
+            // Need to re-encode the message based on the original encoding.
             bytes memory encodedTx = TransactionParser.encodeEOATransaction(
-                decodedTx,
+                message,
                 isEthSignedMessage
             );
 
@@ -114,6 +96,39 @@ contract SequencerMessageDecompressor {
                 callbytes,
                 gasleft()
             );
+        }
+    }
+
+    
+    /*
+     * Internal Functions
+     */
+    
+    /**
+     * Converts a uint256 into a TransactionType enum.
+     * @param _transactionType Transaction type index.
+     * @return Transaction type enum value.
+     */
+    function _getTransactionType(
+        uint256 _transactionType
+    )
+        internal
+        pure
+        returns (
+            TransactionType
+        )
+    {
+        require(
+            _transactionType <= 2,
+            "Transaction type must be 0, 1, or 2"
+        );
+
+        if (_transactionType == 0) {
+            return TransactionType.EOA_CONTRACT_CREATION;
+        } else if (_transactionType == 1) {
+            return TransactionType.NATIVE_ETH_TRANSACTION;
+        } else {
+            return TransactionType.ETH_SIGNED_MESSAGE;
         }
     }
 }

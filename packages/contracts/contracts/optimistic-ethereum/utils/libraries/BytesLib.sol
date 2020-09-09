@@ -170,20 +170,6 @@ library BytesLib {
         return slice(_bytes, _start, _bytes.length - _start);
     }
 
-    function toBytes20(
-        bytes memory _bytes
-    )
-        internal
-        pure
-        returns (bytes20)
-    {
-        bytes20 ret;
-        assembly {
-            ret := mload(add(_bytes, 32))
-        }
-        return ret;
-    }
-
     function toBytes32(
         bytes memory _bytes
     )
@@ -208,6 +194,16 @@ library BytesLib {
         return uint256(toBytes32(_bytes));
     }
 
+    function toUintN(
+        bytes memory _bytes
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        return uint256(toBytes32(_bytes) >> (32 - _bytes.length) * 8);
+    }
+
     function toAddress(
         bytes memory _bytes
     )
@@ -215,7 +211,7 @@ library BytesLib {
         pure
         returns (address)
     {
-        return address(toBytes20(_bytes));
+        return address(bytes20(toBytes32(_bytes)));
     }
 
     function toNibbles(
