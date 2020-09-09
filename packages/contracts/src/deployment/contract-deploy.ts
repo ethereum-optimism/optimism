@@ -1,13 +1,15 @@
 /* External Imports */
 import { getLogger, remove0x, ZERO_ADDRESS } from '@eth-optimism/core-utils'
 
-import { Contract, ethers } from 'ethers'
+import { Contract, ContractFactory, ethers } from 'ethers'
 /* Internal Imports */
 import { getContractFactory, getContractInterface } from '../contract-imports'
 import { mergeDefaultConfig } from './default-config'
 import {
   AddressResolverMapping,
   ContractDeployOptions,
+  ContractFactoryName,
+  DeployResult,
   factoryToContractName,
   RollupDeployConfig,
 } from './types'
@@ -68,6 +70,13 @@ export const deployAndRegister = async (
   const deployTxReceipt = await addressResolver.provider.getTransactionReceipt(
     deployTxHash
   )
+
+  if (!deployTxReceipt.status) {
+    const msg: string = `Failed to deploy ${name}! Deployment tx ${deployTxHash} failed.`
+    log.error(msg)
+    throw Error(msg)
+  }
+
   log.info(`Deployed ${name} at address ${deployedContract.address}.`)
   log.debug(
     `${name} deploy tx (hash: ${deployTxHash}) used ${deployTxReceipt.gasUsed.toNumber()} gas.`
@@ -88,11 +97,11 @@ export const deployAndRegister = async (
 /**
  * Deploys all contracts according to a config.
  * @param config Contract deployment config.
- * @return AddressResolver and all other contracts.
+ * @return DeployResult of the AddressResolverMapping, all other contracts, and info on failed deployments.
  */
 export const deployAllContracts = async (
   config: RollupDeployConfig
-): Promise<AddressResolverMapping> => {
+): Promise<DeployResult> => {
   log.debug(
     `Attempting to deploy all L1 rollup contracts with the following rollup options: \n${JSON.stringify(
       config.rollupOptions
@@ -128,6 +137,7 @@ export const deployAllContracts = async (
     config.rollupOptions
   )
 
+  const failedDeployments: ContractFactoryName[] = []
   const contracts: any = {}
   for (const name of Object.keys(deployConfig)) {
     if (!config.dependencies || config.dependencies.includes(name as any)) {
@@ -146,16 +156,21 @@ export const deployAllContracts = async (
         continue
       }
 
-      contracts[contractName] = await deployAndRegister(
-        addressResolver,
-        name,
-        deployConfig[name]
-      )
+      try {
+        contracts[contractName] = await deployAndRegister(
+          addressResolver,
+          name,
+          deployConfig[name]
+        )
+      } catch (e) {
+        failedDeployments.push(name as any)
+      }
     }
   }
 
   return {
     addressResolver,
     contracts,
+    failedDeployments,
   }
 }
