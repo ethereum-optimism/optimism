@@ -204,7 +204,6 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
-#### Start the Pods using the Helm Chart
 
 Execute:
 
@@ -229,20 +228,12 @@ Before you initialize vault, you'll see errors like this:
 2020-08-21T03:26:41.684Z [WARN]  failed to unseal core: error="fetching stored unseal keys failed: failed to decrypt encrypted stored keys: failed to decrypt envelope: rpc error: code = InvalidArgument desc = Decryption failed: verify that 'name' refers to the correct CryptoKey."
 ```
 
-#### Set up k8s Port Forwarding
-
-In one terminal, execute:
-
-```bash
-kubectl port-forward vault-0 8200:8200
-```
-
 #### Access Vault using the CLI
 
 In another terminal, execute:
 
 ```bash
-export VAULT_ADDR=https://localhost:8200
+export VAULT_ADDR=https://<load-balancer>:8200
 export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
 
 vault status
