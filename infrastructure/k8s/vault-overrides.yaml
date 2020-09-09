@@ -1,6 +1,6 @@
 global:
   tlsDisable: false
-  certSecretName: omgnetwork-certs-ck6hgfbb79
+  certSecretName: omgnetwork-certs-d4kfc88gc5
 injector:
   enabled: false
 server:
@@ -96,7 +96,7 @@ server:
     - type: secret
       name: "kms-creds"
     - type: secret
-      name: omgnetwork-certs-ck6hgfbb79
+      name: omgnetwork-certs-d4kfc88gc5
   affinity: null
   dev:
     enabled: false

@@ -175,7 +175,7 @@ For Minikube, use: `-d vault-internal`
 The `gen-certs.sh` script updates `k8s/vault-overrides.yaml` with the name of the secret that was generated with the new certs material. To see the created secret, execute:
 
 ```bash
-kubectl list secrets
+kubectl get secrets
 ```
 
 and look for "omgnetwork-certs-"
