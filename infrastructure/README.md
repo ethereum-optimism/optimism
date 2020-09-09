@@ -254,6 +254,39 @@ vault status
 vault audit enable file file_path=/vault/audit/audit.log
 ```
 
+#### Backup Vault RAFT Data to a Snapshot File
+
+Determining how many backup files you want to keep is a business decision. There are different strategies for maintaining a set of backup snapshots that can be employed.
+
+*Time-based strategy*. The snapshot filename is derived from the formatted timestamp. In this strategy, you'll have to determine how many snapshots to maintain and how to rotate them out when they're no longer appropriate.
+
+```bash
+vault operator raft snapshot save snapshot-$(date +%Y%m%d-%H%M%S).raft
+```
+
+*Rotational strategy*. In this example, a maximum of 5 snapshots are maintained at any given time.
+
+```bash
+rm -f snapshot-4.raft
+
+for i in 3 2 1; do
+  let NEXT=$i+1
+  mv -f snapshot-${i}.raft snapshot-${NEXT}.raft 2> /dev/null
+done
+
+mv -f snapshot.raft snapshot-1.raft 2> /dev/null
+
+vault operator raft snapshot save snapshot.raft
+```
+
+#### Restore Vault RAFT Data from a Snapshot File
+
+When you need to restore your Vault cluster back to a known-good state, identify the snapshot-file you want to restore and execute this command:
+
+```bash
+vault operator raft snapshot restore snapshot-file.raft
+```
+
 ### Uninstalling Vault
 
 When you're done, you can uninstall vault.
