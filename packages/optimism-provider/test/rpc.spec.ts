@@ -10,9 +10,6 @@ import assert = require('assert')
 import chaiAsPromised = require('chai-as-promised')
 import { ganache } from '@eth-optimism/ovm-toolchain'
 
-// debugging
-import { JsonRpcProvider } from '@ethersproject/providers'
-
 chai.use(chaiAsPromised)
 const should = chai.should()
 
@@ -26,9 +23,6 @@ describe('RPC', () => {
   // Set up the provider and the RPC server
   before(async () => {
     provider = new OptimismProvider('http://localhost:3000')
-    //provider = new OptimismProvider('http://127.0.0.1:8545')
-    //provider = new OptimismProvider('http://192.168.1.112:8545')
-    //provider = new JsonRpcProvider('http://192.168.1.112:8545')
     await server.listen(3000)
   })
 

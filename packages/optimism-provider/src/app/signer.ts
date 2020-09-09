@@ -108,8 +108,6 @@ export class OptimismSigner implements JsonRpcSigner {
     return this.signer.getAddress()
   }
 
-  // This codepath expects an unsigned transaction.
-  // TODO(mark): I think this codepath requires `eth_sendRawEthSignTransaction`
   public async sendUncheckedTransaction(
     transaction: Deferrable<TransactionRequest>
   ): Promise<string> {
@@ -150,7 +148,6 @@ export class OptimismSigner implements JsonRpcSigner {
         from: true,
       })
 
-      // TODO: replace this
       return this.optimism.send('eth_sendTransaction', [hexTx]).then(
         (hash) => {
           return hash

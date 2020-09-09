@@ -32,9 +32,7 @@ describe('sendTransaction', () => {
         mnemonic,
       })
     )
-    // This temporarily depends on l2geth running locally
     provider = new OptimismProvider('http://127.0.0.1:8545', web3)
-    //provider = new OptimismProvider('http://127.0.0.1:3000', web3)
     server = new JsonRpcServer(handlers, 'localhost', 3000)
     await server.listen()
   })
