@@ -78,17 +78,17 @@ export function serializeEthSignTransaction(transaction): Bytes {
   const nonce = zeroPad(transaction.nonce, 32)
   const gasLimit = zeroPad(transaction.gasLimit, 32)
   const gasPrice = zeroPad(transaction.gasPrice, 32)
+  const chainId = zeroPad(transaction.chainId, 32)
   const to = hexStrToBuf(transaction.to)
   const data = toBuffer(transaction.data)
-  const chainId = zeroPad(transaction.chainId, 32)
 
   return Buffer.concat([
     Buffer.from(nonce),
     Buffer.from(gasLimit),
     Buffer.from(gasPrice),
+    Buffer.from(chainId),
     to,
-    data,
-    Buffer.from(chainId)
+    data
   ]);
 }
 
