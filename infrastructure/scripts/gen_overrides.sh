@@ -34,9 +34,9 @@ set -o pipefail
 ###
 
 DOMAIN="vault-internal.default.svc.cluster.local"
-REGION=${GCP_REGION}
+REGION=${GCP_REGION:-}
 PROJECT=${GCP_PROJECT:-}
-CLUSTER=${GKE_CLUSTER_NAME}
+CLUSTER=${GKE_CLUSTER_NAME:-}
 
 VAULT_UI_ENABLED="false"
 VAULT_LOG_LEVEL="info"
