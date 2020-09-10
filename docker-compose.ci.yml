@@ -12,7 +12,7 @@ services:
       - docker-compose.ci.env
 
   integration_tests:
-    image: <AWS_CI_AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/optimism/rollup-microservices:latest
+    image: <AWS_CI_AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/optimism/integration-tests:latest
     env_file:
       - docker-compose.ci.env
 
