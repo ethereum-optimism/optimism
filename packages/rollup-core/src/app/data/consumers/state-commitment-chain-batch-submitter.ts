@@ -202,14 +202,18 @@ export class StateCommitmentChainBatchSubmitter extends ScheduledTask {
       )
       if (!receipt.status) {
         log.error(
-          `Error submitting State Root batch # ${stateRootBatch.batchNumber} to L1!. Batch: ${stateRootBatch}`
+          `Error submitting State Root batch # ${
+            stateRootBatch.batchNumber
+          } to L1!. Batch: ${JSON.stringify(stateRootBatch)}`
         )
         return false
       }
     } catch (e) {
       logError(
         log,
-        `Error submitting State Root batch # ${stateRootBatch.batchNumber} to L1!. Batch: ${stateRootBatch}`,
+        `Error submitting State Root batch # ${
+          stateRootBatch.batchNumber
+        } to L1!. Batch: ${JSON.stringify(stateRootBatch)}`,
         e
       )
       return false
