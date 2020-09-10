@@ -1,6 +1,12 @@
 /**
- * Optimism Copyright 2020
+ * Copyright 2020, Optimism PBC
  * MIT License
+ * https://github.com/ethereum-optimism
+ *
+ * This code is based on ethers.js
+ * Copyright (c) 2019 Richard Moore
+ * MIT License
+ * https://github.com/ethers-io/ethers.js
  */
 
 import {
@@ -127,7 +133,6 @@ export class OptimismSigner implements JsonRpcSigner {
       transaction.gasLimit = this.optimism.estimateGas(estimate)
     }
 
-    // TODO(mark): Refactor this after tests
     return resolveProperties({
       tx: resolveProperties(transaction),
       sender: fromAddress,

@@ -1,6 +1,7 @@
 /**
- * Optimism Copyright 2020
+ * Copyright 2020, Optimism PBC
  * MIT License
+ * https://github.com/ethereum-optimism
  */
 
 import { Logger } from '@ethersproject/logger'
@@ -24,10 +25,12 @@ import pkg = require('../../package.json')
 const version = pkg.version
 const logger = new Logger(version)
 
-// TODO edge cases
-// static getNetwork
-// it shouldn't call `get_getChainId` before every call
-// when calling the hosted node
+/**
+ * The OptimismProvider is an ethers.js JsonRpcProvider that
+ * utilizes a new signature hashing scheme meant for usage with
+ * the Optimism node. Transactions that are signed with this scheme
+ * are sent to a new endpoint `eth_sendRawEthSignTransaction`.
+ */
 
 export class OptimismProvider extends JsonRpcProvider {
   private readonly _ethereum: Web3Provider

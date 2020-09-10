@@ -1,5 +1,7 @@
 /**
- * Optimism Copyright 2020.
+ * Copyright 2020, Optimism PBC
+ * MIT License
+ * https://github.com/ethereum-optimism
  */
 
 import { isHexString } from '@eth-optimism/core-utils'

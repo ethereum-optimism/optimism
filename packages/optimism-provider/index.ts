@@ -1,5 +1,7 @@
 /**
- * Copyright Optimism 2020
+ * Copyright 2020, Optimism PBC
+ * MIT License
+ * https://github.com/ethereum-optimism
  */
 
 export * from './src/app'

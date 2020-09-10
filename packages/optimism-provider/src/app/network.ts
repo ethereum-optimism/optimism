@@ -1,10 +1,19 @@
 /**
+ * Copyright 2020, Optimism PBC
+ * MIT License
+ * https://github.com/ethereum-optimism
  *
+ * This code is based on ethers.js
+ * Copyright (c) 2019 Richard Moore
+ * MIT License
+ * https://github.com/ethers-io/ethers.js
  */
 
-// This file is copied from ethers because optimism may not be available on
-// every testnet. The networks that optimism is available on should be added to
-// the networks list below.
+/**
+ * This file is copied from ethers and implements a custom `network` list.
+ * As Optimism is available on more networks, add additional entries to
+ * the `network` list below.
+ */
 
 import { Network, Networkish } from '@ethersproject/networks'
 import { Logger } from '@ethersproject/logger'
