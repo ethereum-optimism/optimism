@@ -24,7 +24,7 @@ const log = getLogger('deploy-l1-rollup-contracts')
  * Deploys all L1 contracts according to the environment variable configuration.
  * Please see README for more info.
  */
-export const deployContracts = async (): Promise<AddressResolverMapping> => {
+export const deployContracts = async (): Promise<DeployResult> => {
   let res: DeployResult
   try {
     const signer: Signer = getL1DeploymentSigner()

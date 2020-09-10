@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, logError, remove0x } from '@eth-optimism/core-utils'
 import {
   BaseDB,
   DB,
@@ -10,7 +10,10 @@ import {
   RDB,
   SequentialProcessingDataService,
 } from '@eth-optimism/core-db'
-import { getContractDefinition } from '@eth-optimism/rollup-contracts'
+import {
+  DeployResult,
+  getContractDefinition,
+} from '@eth-optimism/rollup-contracts'
 import {
   CalldataTxEnqueuedLogHandler,
   CanonicalChainBatchCreator,
@@ -46,6 +49,7 @@ import {
 import { Contract, ethers } from 'ethers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
+import { deployContracts } from '@eth-optimism/rollup-contracts/build/src/deployment/deploy-l1-rollup-contracts'
 
 const log = getLogger('service-entrypoint')
 
@@ -55,6 +59,11 @@ const log = getLogger('service-entrypoint')
  * @returns The services being run.
  */
 export const runServices = async (): Promise<any[]> => {
+  if (Environment.shouldDeployContracts()) {
+    log.info(`Configured to deploy contracts. Deploying contracts...`)
+    await deployContractsAndValidateDeployment()
+  }
+
   log.info(`Running services!`)
   const services: any[] = []
   let l1ChainDataPersister: L1ChainDataPersister
@@ -491,6 +500,74 @@ const createL2BlockSubscriber = (
 /*********************
  * HELPER SINGLETONS *
  *********************/
+
+const assertContractPresenceAndAddressMatch = (
+  contract: any,
+  expectedAddress: string,
+  contractName: string
+): void => {
+  if (!contract) {
+    const msg: string = `Contract ${contractName} was not deployed successfully!`
+    log.error(msg)
+    throw Error(msg)
+  }
+
+  if (remove0x(contract.address) !== remove0x(expectedAddress)) {
+    const msg: string = `Contract ${contractName} does not have expected address. Expected ${expectedAddress}, got ${contract.address}.`
+    log.error(msg)
+    throw Error(msg)
+  }
+}
+
+const deployContractsAndValidateDeployment = async (): Promise<void> => {
+  let blockNumber: number
+  let retries: number = 30
+  while (retries > 0) {
+    try {
+      blockNumber = await getL1Provider().getBlockNumber()
+      break
+    } catch (e) {
+      log.info(`Waiting for L1 node to be up... ${--retries} attempts left.`)
+    }
+  }
+
+  if (blockNumber !== 0) {
+    const msg: string = `L1 node returned block number ${blockNumber} when 0 was expected. Aborting deploy!`
+    log.error(msg)
+    throw Error(msg)
+  }
+
+  let res: DeployResult
+  try {
+    res = await deployContracts()
+  } catch (e) {
+    logError(log, `Error deploying contracts!`, e)
+    throw e
+  }
+
+  assertContractPresenceAndAddressMatch(
+    res.contracts.canonicalTransactionChain,
+    Environment.canonicalTransactionChainContractAddress(),
+    'CanonicalTransactionChain'
+  )
+  assertContractPresenceAndAddressMatch(
+    res.contracts.stateCommitmentChain,
+    Environment.stateCommitmentChainContractAddress(),
+    'StateCommitmentChain'
+  )
+  assertContractPresenceAndAddressMatch(
+    res.contracts.l1ToL2TransactionQueue,
+    Environment.l1ToL2TransactionQueueContractAddress(),
+    'L1ToL2TransactionQueue'
+  )
+  assertContractPresenceAndAddressMatch(
+    res.contracts.safetyTransactionQueue,
+    Environment.safetyTransactionQueueContractAddress(),
+    'SafetyTransactionQueue'
+  )
+
+  log.info(`Contracts Deployed Successfully!`)
+}
 
 let l1BlockProcessorDb: DB
 const getL1BlockProcessorDB = (): DB => {

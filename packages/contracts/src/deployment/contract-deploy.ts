@@ -163,6 +163,7 @@ export const deployAllContracts = async (
           deployConfig[name]
         )
       } catch (e) {
+        contracts[contractName] = undefined
         failedDeployments.push(name as any)
       }
     }

@@ -272,14 +272,18 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       )
       if (!receipt.status) {
         log.error(
-          `Error submitting tx batch # ${txBatch.batchNumber} to L1!. Batch: ${txBatch}`
+          `Error submitting tx batch # ${
+            txBatch.batchNumber
+          } to L1!. Batch: ${JSON.stringify(txBatch)}`
         )
         return false
       }
     } catch (e) {
       logError(
         log,
-        `Error submitting tx batch # ${txBatch.batchNumber} to L1!. Batch: ${txBatch}`,
+        `Error submitting tx batch # ${
+          txBatch.batchNumber
+        } to L1!. Batch: ${JSON.stringify(txBatch)}`,
         e
       )
       return false
