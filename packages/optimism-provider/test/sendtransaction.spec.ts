@@ -71,7 +71,7 @@ describe('sendTransaction', () => {
     address.should.eq(recovered)
   })
 
-  it('should send eth_sendRawEthSignTransaction', async () => {
+  xit('should send eth_sendRawEthSignTransaction', async () => {
     const signer = provider.getSigner();
     const chainId = await signer.getChainId();
 
@@ -110,7 +110,7 @@ describe('sendTransaction', () => {
     tx.to.should.eq(receipt.to)
   })
 
-  it('should sendTransaction', async() => {
+  xit('should sendTransaction', async() => {
     const signer = provider.getSigner();
     const chainId = await signer.getChainId();
 
