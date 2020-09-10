@@ -5,7 +5,7 @@
     "packages/core-db/*",
     "packages/core-utils/*",
     "packages/ovm-toolchain/*",
-    "packages/optimism-provider/*",
+    "packages/provider/*",
     "packages/rollup-core/*",
     "packages/rollup-services/*"
   ],
