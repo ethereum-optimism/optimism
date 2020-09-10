@@ -9,8 +9,8 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
-    "test:debug": "mocha debug --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000",
+    "test:debug": "mocha debug --require ts-node/register 'test/**/*.spec.ts' --timeout 5000"
   },
   "keywords": [],
   "author": "",
