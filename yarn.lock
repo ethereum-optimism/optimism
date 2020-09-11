@@ -400,7 +400,7 @@
   dependencies:
     "@ethersproject/logger" "^5.0.5"
 
-"@ethersproject/providers@^5.0.0", "@ethersproject/providers@^5.0.6":
+"@ethersproject/providers@^5.0.0", "@ethersproject/providers@^5.0.6", "@ethersproject/providers@^5.0.7":
   version "5.0.7"
   resolved "https://registry.yarnpkg.com/@ethersproject/providers/-/providers-5.0.7.tgz#8dfb9eacb36d3c05c08831f71ad43fb46d2aaec6"
   integrity sha512-lT+w/w2PKX9oyddX0DTBYl2CVHJTJONZP5HLJ3MzVvSA5dTOdiJ9Sx5rpqR7Tw+mxVA9xPjanoNCaPPIT7cykQ==
@@ -480,7 +480,7 @@
     "@ethersproject/constants" "^5.0.3"
     "@ethersproject/logger" "^5.0.5"
 
-"@ethersproject/transactions@^5.0.0", "@ethersproject/transactions@^5.0.0-beta.135", "@ethersproject/transactions@^5.0.3":
+"@ethersproject/transactions@^5.0.0", "@ethersproject/transactions@^5.0.0-beta.135", "@ethersproject/transactions@^5.0.3", "@ethersproject/transactions@^5.0.4":
   version "5.0.4"
   resolved "https://registry.yarnpkg.com/@ethersproject/transactions/-/transactions-5.0.4.tgz#76d7afdb0667efde22b054de3a8dc5b440eb6cd2"
   integrity sha512-QvS5CzxmL46D9Y3OlddurYgEIi5mb0eAgrKm5pM074Uz/1qxCYr+Ah12I4hpaciZtCq4Fe12YWZqUFb1vGcH6Q==
@@ -525,7 +525,7 @@
     "@ethersproject/transactions" "^5.0.3"
     "@ethersproject/wordlists" "^5.0.3"
 
-"@ethersproject/web@^5.0.0", "@ethersproject/web@^5.0.4":
+"@ethersproject/web@^5.0.0", "@ethersproject/web@^5.0.4", "@ethersproject/web@^5.0.5":
   version "5.0.5"
   resolved "https://registry.yarnpkg.com/@ethersproject/web/-/web-5.0.5.tgz#dd0531bf2fbf44c37ce8b547e40c183cf88c3e09"
   integrity sha512-3lffVNOKv/ypW42eY0xhc+UXF+lFUgP1QfIZhWDTJ4xSY6tuNayXKXYq+AqjLXwxwIHzD0TOpe4j46IXJx2NXA==
@@ -5219,7 +5219,7 @@ ethereum-cryptography@^0.1.2, ethereum-cryptography@^0.1.3:
     "@ethereum-waffle/provider" "^2.5.1"
     ethers "^4.0.45"
 
-"ethereum-waffle-v3@npm:ethereum-waffle@3", ethereum-waffle@^3.0.0, ethereum-waffle@^3.0.2:
+"ethereum-waffle-v3@npm:ethereum-waffle@3", ethereum-waffle@^3.0.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/ethereum-waffle/-/ethereum-waffle-3.1.0.tgz#ae6a006fd859c97694e9c7248aa8c7623113b932"
   integrity sha512-QSEzYhxBAjJAgVXZcR1lMB4Px1lAtf8M3QQPIflasNwHpw/VZWaYqN4o2fl615iPtOc3FFtMu1JSEbiuYojk/w==
@@ -5444,7 +5444,7 @@ ethereumjs-util@^4.3.0:
     ethereum-cryptography "^0.1.3"
     rlp "^2.0.0"
 
-ethereumjs-util@^5.0.0, ethereumjs-util@^5.0.1, ethereumjs-util@^5.1.1, ethereumjs-util@^5.1.2, ethereumjs-util@^5.1.3, ethereumjs-util@^5.1.5, ethereumjs-util@^5.2.0:
+ethereumjs-util@^5.0.0, ethereumjs-util@^5.0.1, ethereumjs-util@^5.1.1, ethereumjs-util@^5.1.2, ethereumjs-util@^5.1.3, ethereumjs-util@^5.1.5:
   version "5.2.1"
   resolved "https://registry.yarnpkg.com/ethereumjs-util/-/ethereumjs-util-5.2.1.tgz#a833f0e5fca7e5b361384dc76301a721f537bf65"
   integrity sha512-v3kT+7zdyCm1HIqWlLNrHGqHGLpGYIhjeHxQjnDXjLT2FyGJDsd3LWMYUo7pAFRrk86CR3nUJfhC81CCoJNNGQ==
@@ -5667,7 +5667,7 @@ ethers@5.0.0:
     "@ethersproject/web" "^5.0.0"
     "@ethersproject/wordlists" "^5.0.0"
 
-ethers@^5.0.0, ethers@^5.0.1, ethers@^5.0.8:
+ethers@^5.0.0, ethers@^5.0.1:
   version "5.0.12"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-5.0.12.tgz#8986cf53a425d1a00af6bda886e9098b0448d1fb"
   integrity sha512-mgF1ZLd1y5r+hS1IPATKwKx5k/PCSqz4PEQjMR+er+Hhu6IefVVcoYATUMjmK4FG+3PAkorRMA9rJ4Y/fdW0UA==
@@ -8277,15 +8277,6 @@ level-ws@0.0.0:
     readable-stream "~1.0.15"
     xtend "~2.1.1"
 
-level-ws@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/level-ws/-/level-ws-1.0.0.tgz#19a22d2d4ac57b18cc7c6ecc4bd23d899d8f603b"
-  integrity sha512-RXEfCmkd6WWFlArh3X8ONvQPm8jNpfA0s/36M4QzLqrLEIt1iJE9WBHLZ5vZJK6haMjJPJGJCQWfjMNnRcq/9Q==
-  dependencies:
-    inherits "^2.0.3"
-    readable-stream "^2.2.8"
-    xtend "^4.0.1"
-
 level-ws@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/level-ws/-/level-ws-2.0.0.tgz#207a07bcd0164a0ec5d62c304b4615c54436d339"
@@ -8852,20 +8843,7 @@ merkle-patricia-tree@2.3.2, merkle-patricia-tree@^2.1.2, merkle-patricia-tree@^2
     rlp "^2.0.0"
     semaphore ">=1.0.1"
 
-merkle-patricia-tree@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/merkle-patricia-tree/-/merkle-patricia-tree-3.0.0.tgz#448d85415565df72febc33ca362b8b614f5a58f8"
-  integrity sha512-soRaMuNf/ILmw3KWbybaCjhx86EYeBbD8ph0edQCTed0JN/rxDt1EBN52Ajre3VyGo+91f8+/rfPIRQnnGMqmQ==
-  dependencies:
-    async "^2.6.1"
-    ethereumjs-util "^5.2.0"
-    level-mem "^3.0.1"
-    level-ws "^1.0.0"
-    readable-stream "^3.0.6"
-    rlp "^2.0.0"
-    semaphore ">=1.0.1"
-
-"merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree":
+merkle-patricia-tree@^3.0.0, "merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree":
   version "3.0.0"
   resolved "git+https://github.com/kfichter/merkle-patricia-tree#ebd10c405be8ae909f1f82dea275a0e9ec1c8e46"
   dependencies:
@@ -10747,7 +10725,7 @@ read@1, read@~1.0.1:
   dependencies:
     mute-stream "~0.0.4"
 
-"readable-stream@1 || 2", readable-stream@^2.0.0, readable-stream@^2.0.1, readable-stream@^2.0.2, readable-stream@^2.0.5, readable-stream@^2.0.6, readable-stream@^2.1.5, readable-stream@^2.2.2, readable-stream@^2.2.8, readable-stream@^2.2.9, readable-stream@^2.3.0, readable-stream@^2.3.3, readable-stream@^2.3.5, readable-stream@^2.3.6, readable-stream@~2.3.6:
+"readable-stream@1 || 2", readable-stream@^2.0.0, readable-stream@^2.0.1, readable-stream@^2.0.2, readable-stream@^2.0.5, readable-stream@^2.0.6, readable-stream@^2.1.5, readable-stream@^2.2.2, readable-stream@^2.2.9, readable-stream@^2.3.0, readable-stream@^2.3.3, readable-stream@^2.3.5, readable-stream@^2.3.6, readable-stream@~2.3.6:
   version "2.3.7"
   resolved "https://registry.yarnpkg.com/readable-stream/-/readable-stream-2.3.7.tgz#1eca1cf711aef814c04f62252a36a62f6cb23b57"
   integrity sha512-Ebho8K4jIbHAxnuxi7o42OrZgF/ZTNcsZj6nRKyUmkhLFq8CHItp/fy6hQZuZmP/n3yZ9VBUbp4zz/mX8hmYPw==
@@ -10760,7 +10738,7 @@ read@1, read@~1.0.1:
     string_decoder "~1.1.1"
     util-deprecate "~1.0.1"
 
-"readable-stream@2 || 3", readable-stream@^3.0.2, readable-stream@^3.0.6, readable-stream@^3.1.0, readable-stream@^3.4.0, readable-stream@^3.6.0:
+"readable-stream@2 || 3", readable-stream@^3.0.2, readable-stream@^3.1.0, readable-stream@^3.4.0, readable-stream@^3.6.0:
   version "3.6.0"
   resolved "https://registry.yarnpkg.com/readable-stream/-/readable-stream-3.6.0.tgz#337bbda3adc0706bd3e024426a286d4b4b2c9198"
   integrity sha512-BViHy7LKeTz4oNnkcLJ+lVSL6vpiFeX6/d3oSH8zCW7UxP2onchk+vTGB143xuFjHS3deTgkKoXXymXqymiIdA==
