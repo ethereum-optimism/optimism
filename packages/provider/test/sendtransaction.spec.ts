@@ -34,8 +34,8 @@ describe('sendTransaction', () => {
         mnemonic,
       })
     )
-    provider = new OptimismProvider('http://127.0.0.1:8545', web3)
-    server = new JsonRpcServer(handlers, 'localhost', 3000)
+    provider = new OptimismProvider('http://127.0.0.1:3002', web3)
+    server = new JsonRpcServer(handlers, 'localhost', 3002)
     await server.listen()
   })
 

@@ -23,8 +23,8 @@ describe('RPC', () => {
 
   // Set up the provider and the RPC server
   before(async () => {
-    provider = new OptimismProvider('http://localhost:3000')
-    await server.listen(3000)
+    provider = new OptimismProvider('http://localhost:3001')
+    await server.listen(3001)
   })
 
   after(async () => {
