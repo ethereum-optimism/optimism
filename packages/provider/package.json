@@ -1,7 +1,7 @@
 {
-  "name": "optimism-provider",
+  "name": "@eth-optimism/provider",
   "version": "0.0.0",
-  "description": "",
+  "description": "Web3 provider for Optimism",
   "main": "index.js",
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
@@ -13,7 +13,7 @@
     "test:debug": "mocha debug --require ts-node/register 'test/**/*.spec.ts' --timeout 5000"
   },
   "keywords": [],
-  "author": "",
+  "author": "Optimism",
   "license": "MIT",
   "dependencies": {
     "@eth-optimism/core-utils": "0.0.1-alpha.27",
