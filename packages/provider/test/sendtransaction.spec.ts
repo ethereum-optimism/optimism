@@ -72,8 +72,8 @@ describe('sendTransaction', () => {
   })
 
   xit('should send eth_sendRawEthSignTransaction', async () => {
-    const signer = provider.getSigner();
-    const chainId = await signer.getChainId();
+    const signer = provider.getSigner()
+    const chainId = await signer.getChainId()
 
     const address = await signer.getAddress()
     const nonce = await provider.getTransactionCount(address)
@@ -85,7 +85,7 @@ describe('sendTransaction', () => {
       gasPrice: 0,
       data: '0x',
       value: 0,
-      chainId
+      chainId,
     }
 
     const hex = await signer.signTransaction(tx)
@@ -110,9 +110,9 @@ describe('sendTransaction', () => {
     tx.to.should.eq(receipt.to)
   })
 
-  xit('should sendTransaction', async() => {
-    const signer = provider.getSigner();
-    const chainId = await signer.getChainId();
+  xit('should sendTransaction', async () => {
+    const signer = provider.getSigner()
+    const chainId = await signer.getChainId()
 
     const address = await signer.getAddress()
     const nonce = await provider.getTransactionCount(address)
@@ -124,7 +124,7 @@ describe('sendTransaction', () => {
       gasPrice: 0,
       data: '0x',
       value: 0,
-      chainId
+      chainId,
     }
 
     const result = await signer.sendTransaction(tx)

@@ -89,8 +89,8 @@ export function serializeEthSignTransaction(transaction): Bytes {
     Buffer.from(gasPrice),
     Buffer.from(chainId),
     to,
-    data
-  ]);
+    data,
+  ])
 }
 
 // Use this function as input to `eth_sign`. It does not
@@ -98,9 +98,9 @@ export function serializeEthSignTransaction(transaction): Bytes {
 // serialize the transaction and hash the serialized
 // transaction.
 export function sighashEthSign(transaction): Buffer {
-    const serialized = serializeEthSignTransaction(transaction)
-    const hash = remove0x(keccak256(serialized))
-    return Buffer.from(hash, 'hex')
+  const serialized = serializeEthSignTransaction(transaction)
+  const hash = remove0x(keccak256(serialized))
+  return Buffer.from(hash, 'hex')
 }
 
 function toBuffer(n: BigNumberish): Buffer {

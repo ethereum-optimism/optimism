@@ -43,7 +43,7 @@ export class OptimismProvider extends JsonRpcProvider {
     this._ethereum = provider
 
     // Handle properly deriving "from" on the transaction
-    const format = this.formatter.transaction;
+    const format = this.formatter.transaction
     this.formatter.transaction = (transaction) => {
       const tx = format(transaction)
       const sig = joinSignature(tx as SignatureLike)

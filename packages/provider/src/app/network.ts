@@ -110,6 +110,7 @@ export function getNetwork(network: Networkish): Network {
   // class and move the _defaultProvider internal to this file (extend Network)
   let defaultProvider: DefaultProviderFunc = network._defaultProvider || null
   if (defaultProvider == null && standard._defaultProvider) {
+    // tslint:disable-next-line:prefer-conditional-expression
     if (isRenetworkable(standard._defaultProvider)) {
       defaultProvider = standard._defaultProvider.renetwork(network)
     } else {

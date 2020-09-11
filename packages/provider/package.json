@@ -17,13 +17,24 @@
   "license": "MIT",
   "dependencies": {
     "@eth-optimism/core-utils": "0.0.1-alpha.27",
-    "ethers": "^5.0.8"
+    "@ethersproject/abstract-provider": "^5.0.3",
+    "@ethersproject/abstract-signer": "^5.0.3",
+    "@ethersproject/bignumber": "^5.0.6",
+    "@ethersproject/bytes": "^5.0.4",
+    "@ethersproject/keccak256": "^5.0.3",
+    "@ethersproject/logger": "^5.0.5",
+    "@ethersproject/networks": "^5.0.3",
+    "@ethersproject/properties": "^5.0.3",
+    "@ethersproject/providers": "^5.0.7",
+    "@ethersproject/transactions": "^5.0.4",
+    "@ethersproject/wallet": "^5.0.3",
+    "@ethersproject/web": "^5.0.5",
+    "bn.js": "^5.1.3"
   },
   "devDependencies": {
     "@eth-optimism/ovm-toolchain": "0.0.1-alpha.1",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "ethereum-waffle": "^3.0.2",
     "mocha": "^8.1.2",
     "ts-node": "^8.2.0",
     "typescript": "^3.5.1"
