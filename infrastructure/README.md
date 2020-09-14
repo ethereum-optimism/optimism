@@ -143,15 +143,32 @@ brew install helm yq
 
 If you are running on Linux or Windows, see the [Helm Download Page](https://github.com/helm/helm/releases/latest). You'll also want to install the yq utility.
 
-#### Establish hashicorp registry
+#### Establish Remote Registries
 
-In order to use the official Hashicorp helm chart, we need to add it to the local helm registry by executing:
+In order to use the official Hashicorp and Datadog Helm repositories, we need to add it to the local helm registry by executing:
 
 ```bash
-helm repo add hashicorp http://helm.releases.hashicorp.com
+helm repo add hashicorp https://helm.releases.hashicorp.com
+helm repo add datadog https://helm.datadoghq.com
+helm repo add stable https://kubernetes-charts.storage.googleapis.com
+helm repo update
 ```
 
-#### Generate Self-Signed Certs
+#### Datadog
+
+In the [Datadog overrides file](./k8s/datadog-overrides.yaml), insert your Datadog API and App key into the YAML file at `.datadog.apiKey` and `.datadog.appKey` respectively.
+
+From the `infrastructure` folder, execute the following command to deploy the Datadog Helm chart:
+
+```sh
+helm upgrade --atomic --cleanup-on-fail --install --values ./k8s/datadog-overrides.yaml datadog datadog/datadog
+```
+
+With the existing overrides (in addition to your API and app keys), this Helm chart instantiates a DaemonSet for the Datadog agent pods that will be responsible for collecting and forwarding Vault server and audit logs into your Datadog dashboards.
+
+#### Vault
+
+##### Generate Self-Signed Certs
 
 In `./infrastructure`, execute:
 
@@ -170,7 +187,7 @@ For Minikube, use: `-d vault-internal`
 
 ---
 
-#### Create a kubernetes secret with the cert
+##### Create a kubernetes secret with the cert
 
 The `gen-certs.sh` script updates `k8s/vault-overrides.yaml` with the name of the secret that was generated with the new certs material. To see the created secret, execute:
 
@@ -180,7 +197,7 @@ kubectl get secrets
 
 and look for "omgnetwork-certs-"
 
-#### Generate Storage Classes
+##### Generate Storage Classes
 
 In `infrastructure`, execute:
 
@@ -188,7 +205,7 @@ In `infrastructure`, execute:
 ./scripts/gen_storage.sh
 ```
 
-#### Update Value Overrides
+##### Update Value Overrides
 
 In `infrastructure`, execute:
 
@@ -204,7 +221,7 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
-#### Start the Pods using the Helm Chart
+##### Start the Pods using the Helm Chart
 
 Execute:
 

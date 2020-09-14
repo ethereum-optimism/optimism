@@ -1,0 +1,13 @@
+datadog:
+  apiKey: ""
+  appKey: ""
+
+  kubeStateMetricsEnabled: false
+
+  logs:
+    enabled: true
+    containerCollectAll: true
+
+  env:
+    - name: DD_CONTAINER_EXCLUDE
+      value: "image:datadog/cluster-agent"
