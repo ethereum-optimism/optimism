@@ -41,11 +41,3 @@ services:
 volumes:
   l1-node-data:
   l2-node-data:
-
-
-
-
-
-
-
-
