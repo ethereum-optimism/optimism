@@ -10,6 +10,15 @@ jobs:
           command: |
             make docker-build
           no_output_timeout: 2400s
+      - run:
+          name: Save Docker image
+          command: |
+            mkdir -p /tmp/workspace
+            docker save -o /tmp/workspace/omgnetwork_vault-latest.tar omgnetwork/vault:latest
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - "omgnetwork_vault-latest.tar"
 
   publish:
     machine:
@@ -18,6 +27,8 @@ jobs:
       GCR_PREFIX: gcr.io/omisego-development
       IMMUTABILITY_IMAGE: omgnetwork/vault
     steps:
+      - attach_workspace:
+          at: /tmp/workspace
       - checkout
       - run:
           name: Install GCloud SDK
@@ -31,6 +42,7 @@ jobs:
             export SEMVER=$(cat ./VERSION)
             echo $GCLOUD_SERVICE_KEY | gcloud auth activate-service-account --key-file=-
             gcloud -q auth configure-docker
+            docker load -i /tmp/workspace/omgnetwork_vault-latest.tar
             docker tag $IMMUTABILITY_IMAGE:latest $GCR_PREFIX/$IMMUTABILITY_IMAGE:$SEMVER
             docker push $GCR_PREFIX/$IMMUTABILITY_IMAGE:$SEMVER
 
@@ -42,10 +54,10 @@ workflows:
       - publish:
           requires: [build]
           # filters: &master_and_version_branches_and_all_tags
-          # branches:
-          #   only:
-          #     - master
-          #     - /^v[0-9]+\.[0-9]+/
-          # tags:
-          #   only:
-          #     - /.+/
+          #   branches:
+          #     only:
+          #       - master
+          #       - /^v[0-9]+\.[0-9]+/
+          #   tags:
+          #     only:
+          #       - /.+/
