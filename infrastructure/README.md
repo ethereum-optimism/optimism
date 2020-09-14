@@ -221,7 +221,10 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
+<<<<<<< HEAD
 ##### Start the Pods using the Helm Chart
+=======
+>>>>>>> 1526b2980e828e9057bfe4cbaf0a629887648fc5
 
 Execute:
 
@@ -246,20 +249,12 @@ Before you initialize vault, you'll see errors like this:
 2020-08-21T03:26:41.684Z [WARN]  failed to unseal core: error="fetching stored unseal keys failed: failed to decrypt encrypted stored keys: failed to decrypt envelope: rpc error: code = InvalidArgument desc = Decryption failed: verify that 'name' refers to the correct CryptoKey."
 ```
 
-#### Set up k8s Port Forwarding
-
-In one terminal, execute:
-
-```bash
-kubectl port-forward vault-0 8200:8200
-```
-
 #### Access Vault using the CLI
 
 In another terminal, execute:
 
 ```bash
-export VAULT_ADDR=https://localhost:8200
+export VAULT_ADDR=https://<load-balancer>:8200
 export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
 
 vault status
@@ -278,6 +273,39 @@ vault status
 
 ```bash
 vault audit enable file file_path=/vault/audit/audit.log
+```
+
+#### Backup Vault RAFT Data to a Snapshot File
+
+Determining how many backup files you want to keep is a business decision. There are different strategies for maintaining a set of backup snapshots that can be employed.
+
+*Time-based strategy*. The snapshot filename is derived from the formatted timestamp. In this strategy, you'll have to determine how many snapshots to maintain and how to rotate them out when they're no longer appropriate.
+
+```bash
+vault operator raft snapshot save snapshot-$(date +%Y%m%d-%H%M%S).raft
+```
+
+*Rotational strategy*. In this example, a maximum of 5 snapshots are maintained at any given time.
+
+```bash
+rm -f snapshot-4.raft
+
+for i in 3 2 1; do
+  let NEXT=$i+1
+  mv -f snapshot-${i}.raft snapshot-${NEXT}.raft 2> /dev/null
+done
+
+mv -f snapshot.raft snapshot-1.raft 2> /dev/null
+
+vault operator raft snapshot save snapshot.raft
+```
+
+#### Restore Vault RAFT Data from a Snapshot File
+
+When you need to restore your Vault cluster back to a known-good state, identify the snapshot-file you want to restore and execute this command:
+
+```bash
+vault operator raft snapshot restore snapshot-file.raft
 ```
 
 ### Uninstalling Vault

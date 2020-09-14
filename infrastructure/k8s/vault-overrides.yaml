@@ -28,7 +28,7 @@ server:
       config: |-
         ui = false
         log_level = "info"
-        cluster_name = "omgnetwork-cluster"
+        cluster_name = "vault-cluster-0829"
 
         listener "tcp" {
             tls_disable = {{ .Values.global.tlsDisable }}
