@@ -58,9 +58,10 @@ const appendTransactionBatch = async (
   const blockNumber = await canonicalTransactionChain.provider.getBlockNumber()
   const timestamp = Math.floor(Date.now() / 1000)
 
+  const startsAtIndex = await canonicalTransactionChain.cumulativeNumElements()
   await canonicalTransactionChain
     .connect(sequencer)
-    .appendSequencerBatch(batch, timestamp, blockNumber)
+    .appendSequencerBatch(batch, timestamp, blockNumber, startsAtIndex)
 
   return [timestamp, blockNumber]
 }
@@ -98,7 +99,8 @@ const appendAndGenerateStateBatch = async (
   batchIndex: number = 0,
   cumulativePrevElements: number = 0
 ): Promise<StateChainBatch> => {
-  await stateCommitmentChain.appendStateBatch(batch)
+  const startsAtIndex = await stateCommitmentChain.cumulativeNumElements()
+  await stateCommitmentChain.appendStateBatch(batch, startsAtIndex)
 
   const localBatch = new StateChainBatch(
     batchIndex,
