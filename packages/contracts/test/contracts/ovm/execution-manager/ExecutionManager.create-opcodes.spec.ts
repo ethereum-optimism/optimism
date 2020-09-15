@@ -117,16 +117,13 @@ describe('ExecutionManager -- Create opcodes', () => {
       const data = add0x(
         methodIds.ovmCREATE + encodeRawArguments([deployInvalidTx.data])
       )
-      await TestUtils.assertRevertsAsync(
-        'Contract init (creation) code is not safe',
-        async () => {
-          await executionManager.provider.call({
-            to: executionManager.address,
-            data,
-            gasLimit: GAS_LIMIT,
-          })
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await executionManager.provider.call({
+          to: executionManager.address,
+          data,
+          gasLimit: GAS_LIMIT,
+        })
+      }, 'Contract init (creation) code is not safe')
     })
   })
 
@@ -165,16 +162,13 @@ describe('ExecutionManager -- Create opcodes', () => {
         methodIds.ovmCREATE2 + encodeRawArguments([0, deployInvalidTx.data])
       )
 
-      await TestUtils.assertRevertsAsync(
-        'Contract init (creation) code is not safe',
-        async () => {
-          await executionManager.provider.call({
-            to: executionManager.address,
-            data,
-            gasLimit: GAS_LIMIT,
-          })
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await executionManager.provider.call({
+          to: executionManager.address,
+          data,
+          gasLimit: GAS_LIMIT,
+        })
+      }, 'Contract init (creation) code is not safe')
     })
   })
 })

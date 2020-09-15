@@ -47,6 +47,11 @@ export class Environment {
     return !!process.env.IS_SEQUENCER_STACK || defaultValue
   }
 
+  // TEST CONFIG
+  public static shouldDeployContracts(defaultValue: boolean = false): boolean {
+    return !!process.env.SHOULD_DEPLOY_CONTRACTS || defaultValue
+  }
+
   // Microservices to run config
   public static runL1ChainDataPersister(
     defaultValue: boolean = false

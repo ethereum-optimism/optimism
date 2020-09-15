@@ -12,17 +12,13 @@ import * as SimpleSafeMathJSON from '../../temp/build/waffle/SimpleSafeMath.json
 import * as SimpleUnsafeMathJSON from '../../temp/build/waffle/SimpleUnsafeMath.json'
 import * as SafeMathUserJSON from '../../temp/build/waffle/SafeMathUser.json'
 
-const overrides = {
-  gasLimit: 100000000,
-}
-
 const CONTRACT_PATH_PREFIX = 'test/common/contracts/libraries/'
 
 describe('Library Support', () => {
   let provider: any
   let wallet: Wallet
   before(async () => {
-    provider = new waffleV2.MockProvider(overrides)
+    provider = new waffleV2.MockProvider()
     ;[wallet] = provider.getWallets()
   })
 
@@ -31,8 +27,7 @@ describe('Library Support', () => {
     const deployedSafeMath = await deployContract(
       wallet,
       SimpleSafeMathJSON,
-      [],
-      overrides
+      []
     )
     link(
       SafeMathUserJSON,
@@ -43,8 +38,7 @@ describe('Library Support', () => {
     const deployedUnsafeMath = await deployContract(
       wallet,
       SimpleUnsafeMathJSON,
-      [],
-      overrides
+      []
     )
     link(
       SafeMathUserJSON,
@@ -52,12 +46,7 @@ describe('Library Support', () => {
       deployedUnsafeMath.address
     )
 
-    deployedLibUser = await deployContract(
-      wallet,
-      SafeMathUserJSON,
-      [],
-      overrides
-    )
+    deployedLibUser = await deployContract(wallet, SafeMathUserJSON, [])
   })
 
   it('should allow us to transpile, link, and query contract methods which use a single library', async () => {

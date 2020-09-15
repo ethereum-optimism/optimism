@@ -1,16 +1,11 @@
 /* External Imports */
 import {
   BaseQueuedPersistedProcessor,
-  DB,
   EthereumListener,
+  RDB,
+  SequentialProcessingDataService,
 } from '@eth-optimism/core-db'
-import {
-  BigNumber,
-  getLogger,
-  hexStrToString,
-  Logger,
-  strToHexStr,
-} from '@eth-optimism/core-utils'
+import { BigNumber, getLogger, Logger } from '@eth-optimism/core-utils'
 
 import { Block } from 'ethers/providers'
 
@@ -22,8 +17,12 @@ const log: Logger = getLogger('chain-data-persister')
 export abstract class ChainDataProcessor
   extends BaseQueuedPersistedProcessor<Block>
   implements EthereumListener<Block> {
-  protected constructor(db: DB, persistenceKey: string, startIndex: number) {
-    super(db, persistenceKey, startIndex)
+  protected constructor(
+    processingDataService: SequentialProcessingDataService,
+    persistenceKey: string,
+    startIndex: number
+  ) {
+    super(processingDataService, persistenceKey, startIndex)
   }
 
   /**
@@ -45,13 +44,13 @@ export abstract class ChainDataProcessor
   /**
    * @inheritDoc
    */
-  protected async deserializeItem(itemBuffer: Buffer): Promise<Block> {
-    if (!itemBuffer || itemBuffer.length === 0) {
-      log.error(`Deserialized empty block ${itemBuffer}. Returning undefined.`)
+  protected async deserializeItem(itemString: string): Promise<Block> {
+    if (!itemString || itemString.length === 0) {
+      log.error(`Deserialized empty block ${itemString}. Returning undefined.`)
       return undefined
     }
 
-    return JSON.parse(itemBuffer.toString('utf-8'), (key, val) => {
+    return JSON.parse(itemString, (key, val) => {
       if (key === 'gasLimit' || key === 'gasUsed') {
         return !!val ? new BigNumber(val, 'hex') : undefined
       }
@@ -62,21 +61,18 @@ export abstract class ChainDataProcessor
   /**
    * @inheritDoc
    */
-  protected async serializeItem(item: Block): Promise<Buffer> {
-    return Buffer.from(
-      JSON.stringify(item, (key, val) => {
-        if (key === 'gasLimit' || key === 'gasUsed') {
-          try {
-            return val.toHexString()
-          } catch (e) {
-            log.debug(`Error converting key ${key} to hex. Val: ${val}.`)
-            // need to use null because undefined will omit the value.
-            return null
-          }
+  protected async serializeItem(item: Block): Promise<string> {
+    return JSON.stringify(item, (key, val) => {
+      if (key === 'gasLimit' || key === 'gasUsed') {
+        try {
+          return val.toHexString()
+        } catch (e) {
+          log.debug(`Error converting key ${key} to hex. Val: ${val}.`)
+          // need to use null because undefined will omit the value.
+          return null
         }
-        return val
-      }),
-      'utf-8'
-    )
+      }
+      return val
+    })
   }
 }

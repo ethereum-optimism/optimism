@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-db",
-  "version": "0.0.1-alpha.26",
+  "version": "0.0.1-alpha.28",
   "description": "Optimism DB Utils",
   "main": "build/index.js",
   "files": [
@@ -12,7 +12,8 @@
     "clean": "rimraf build/",
     "fix": "prettier --config ../../prettier-config.json --write 'index.ts' '{src,test}/**/*.ts'",
     "lint": "tslint --format stylish --project .",
-    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit"
+    "test": "mocha --require ts-node/register 'test/**/*.spec.ts' --timeout 5000 --exit",
+    "test:db": "mocha --require ts-node/register 'test/**/*.dbspec.ts' --timeout 5000 --exit"
   },
   "keywords": [
     "plasma",
@@ -29,7 +30,7 @@
     "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.0.1-alpha.26",
+    "@eth-optimism/core-utils": "^0.0.1-alpha.28",
     "abstract-leveldown": "^6.2.2",
     "async-lock": "^1.2.2",
     "chai": "^4.2.0",

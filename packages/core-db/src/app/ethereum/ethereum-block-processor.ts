@@ -50,13 +50,29 @@ export class EthereumBlockProcessor {
     this.subscriptions.add(handler)
 
     provider.on('block', async (blockNumber) => {
-      log.debug(`Block [${blockNumber}] was mined!`)
+      try {
+        if (blockNumber < this.earliestBlock) {
+          log.debug(
+            `Received block [${blockNumber}] which is before earliest block [${this.earliestBlock}]. Ignoring...`
+          )
+          return
+        }
 
-      await this.fetchAndDisseminateBlock(provider, blockNumber)
-      this.currentBlockNumber = blockNumber
+        log.debug(`Block [${blockNumber}] was mined!`)
 
-      if (!syncPastBlocks || this.syncCompleted) {
-        await this.storeLastProcessedBlockNumber(this.currentBlockNumber)
+        await this.fetchAndDisseminateBlock(provider, blockNumber)
+        this.currentBlockNumber = blockNumber
+
+        if (!syncPastBlocks || this.syncCompleted) {
+          await this.storeLastProcessedBlockNumber(this.currentBlockNumber)
+        }
+      } catch (e) {
+        logError(
+          log,
+          `Error thrown processing block ${blockNumber}. Exiting since throwing will not be caught.`,
+          e
+        )
+        process.exit(1)
       }
     })
 
@@ -107,9 +123,8 @@ export class EthereumBlockProcessor {
           `Error waiting for ${this.confirmsUntilFinal} confirms on block ${blockNumber}`,
           e
         )
-        // TODO: If this is not a re-org, this may require a restart or some other action.
-        //  Monitor what actually happens and re-throw here if necessary.
-        return
+        // Cannot silently fail here because syncing will move on as if this block was processed.
+        throw e
       }
 
       log.debug(
@@ -124,7 +139,13 @@ export class EthereumBlockProcessor {
         // purposefully ignore promise
         h.handle(block)
       } catch (e) {
-        // should be logged in handler
+        // Cannot silently fail here because syncing will move on as if the block was processed
+        logError(
+          log,
+          `Error in subscriber handling block number ${blockNumber}. Re-throwing because we cannot proceed skipping a block.`,
+          e
+        )
+        throw e
       }
     })
   }
@@ -135,22 +156,34 @@ export class EthereumBlockProcessor {
    * @param provider The provider with the connection to the blockchain.
    */
   private async syncBlocks(provider: Provider): Promise<void> {
-    log.debug(`Syncing blocks`)
-    const lastSyncedBlockNumber = await this.getLastSyncedBlockNumber()
+    log.debug(`Syncing blocks.`)
+    const lastSynced = await this.getLastSyncedBlockNumber()
+    const syncStart = Math.max(lastSynced + 1, this.earliestBlock)
+
+    log.debug(
+      `Starting sync with block ${syncStart}. Last synced: ${lastSynced}, earliest block: ${this.earliestBlock}.`
+    )
+
     const blockNumber = await this.getBlockNumber(provider)
 
-    if (blockNumber === lastSyncedBlockNumber) {
+    if (blockNumber === syncStart) {
       log.debug(`Up to date, not syncing.`)
       this.finishSync(blockNumber, blockNumber)
       return
     }
 
-    for (let i = lastSyncedBlockNumber + 1; i <= blockNumber; i++) {
-      await this.fetchAndDisseminateBlock(provider, i)
+    for (let i = syncStart; i <= blockNumber; i++) {
+      try {
+        await this.fetchAndDisseminateBlock(provider, i)
+      } catch (e) {
+        logError(log, `Error fetching and disseminating block. Retrying...`, e)
+        i--
+        continue
+      }
       await this.storeLastProcessedBlockNumber(i)
     }
 
-    this.finishSync(lastSyncedBlockNumber + 1, blockNumber)
+    this.finishSync(syncStart, blockNumber)
   }
 
   private finishSync(syncStart: number, currentBlock: number): void {

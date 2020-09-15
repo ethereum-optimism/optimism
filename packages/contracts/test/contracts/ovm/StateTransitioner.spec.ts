@@ -564,17 +564,14 @@ describe('StateTransitioner', () => {
 
       it('should correctly reject inclusion of a contract with an invalid nonce', async () => {
         await ethers.provider.send('evm_revert', [initializedDummyTxSnapshot])
-        await TestUtils.assertRevertsAsync(
-          'Invalid account state provided.',
-          async () => {
-            await stateTransitioner.proveContractInclusion(
-              fraudTester.address,
-              fraudTester.address,
-              123, // Wrong nonce.
-              test.stateTrieWitness
-            )
-          }
-        )
+        await TestUtils.assertRevertsAsync(async () => {
+          await stateTransitioner.proveContractInclusion(
+            fraudTester.address,
+            fraudTester.address,
+            123, // Wrong nonce.
+            test.stateTrieWitness
+          )
+        }, 'Invalid account state provided.')
 
         expect(
           await stateManager.isVerifiedContract(fraudTester.address)
@@ -615,18 +612,15 @@ describe('StateTransitioner', () => {
           test.stateTrieWitness
         )
 
-        await TestUtils.assertRevertsAsync(
-          'Invalid account state provided.',
-          async () => {
-            await stateTransitioner.proveStorageSlotInclusion(
-              fraudTester.address,
-              DUMMY_ACCOUNT_STORAGE()[0].key,
-              DUMMY_ACCOUNT_STORAGE()[1].val, // Different value.
-              test.stateTrieWitness,
-              test.storageTrieWitness
-            )
-          }
-        )
+        await TestUtils.assertRevertsAsync(async () => {
+          await stateTransitioner.proveStorageSlotInclusion(
+            fraudTester.address,
+            DUMMY_ACCOUNT_STORAGE()[0].key,
+            DUMMY_ACCOUNT_STORAGE()[1].val, // Different value.
+            test.stateTrieWitness,
+            test.storageTrieWitness
+          )
+        }, 'Invalid account state provided.')
 
         expect(
           await stateManager.isVerifiedStorage(
@@ -640,14 +634,11 @@ describe('StateTransitioner', () => {
 
   describe('applyTransaction(...)', async () => {
     it('should fail if supplied less gas than might be needed to executeTransaction(...)', async () => {
-      TestUtils.assertRevertsAsync(
-        'Insufficient gas supplied to ensure L1 execution will not run out of gas before OVM transaction gas limit.',
-        async () => {
-          await stateTransitioner.applyTransaction(dummyTransactionData, {
-            gasLimit: GAS_LIMIT / 2,
-          })
-        }
-      )
+      TestUtils.assertRevertsAsync(async () => {
+        await stateTransitioner.applyTransaction(dummyTransactionData, {
+          gasLimit: GAS_LIMIT / 2,
+        })
+      }, 'Insufficient gas supplied to ensure L1 execution will not run out of gas before OVM transaction gas limit.')
     })
     it('should succeed if no state is accessed', async () => {
       ;[
@@ -808,14 +799,11 @@ describe('StateTransitioner', () => {
         test.stateTrieWitness
       )
 
-      await TestUtils.assertRevertsAsync(
-        'Detected an invalid state access.',
-        async () => {
-          await stateTransitioner.applyTransaction(transactionData, {
-            gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
-          })
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
+      }, 'Detected an invalid state access.')
 
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(
         STATE_TRANSITIONER_PHASES.PRE_EXECUTION
@@ -841,14 +829,11 @@ describe('StateTransitioner', () => {
         )
       )
 
-      await TestUtils.assertRevertsAsync(
-        'Detected an invalid state access.',
-        async () => {
-          await stateTransitioner.applyTransaction(transactionData, {
-            gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
-          })
-        }
-      )
+      await TestUtils.assertRevertsAsync(async () => {
+        await stateTransitioner.applyTransaction(transactionData, {
+          gasLimit: SUFFICIENT_APPLY_TRANSACTION_GAS,
+        })
+      }, 'Detected an invalid state access.')
 
       expect(await stateTransitioner.currentTransitionPhase()).to.equal(
         STATE_TRANSITIONER_PHASES.PRE_EXECUTION

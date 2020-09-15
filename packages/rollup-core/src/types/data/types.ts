@@ -8,6 +8,7 @@ export enum QueueOrigin {
 
 export enum BatchSubmissionStatus {
   QUEUED = 'QUEUED',
+  SUBMITTING = 'SUBMITTING',
   SENT = 'SENT',
   FINALIZED = 'FINALIZED',
 }
@@ -31,9 +32,10 @@ export interface GethSubmissionRecord {
 }
 
 export interface BatchSubmission {
-  submissionTxHash: string
-  status: BatchSubmissionStatus
   batchNumber: number
+  startIndex?: number
+  status: BatchSubmissionStatus
+  submissionTxHash: string
 }
 
 export interface TransactionBatchSubmission extends BatchSubmission {

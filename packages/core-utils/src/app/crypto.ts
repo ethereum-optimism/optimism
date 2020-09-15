@@ -29,9 +29,13 @@ export const Md5Hash = (preimage: string): string => {
  * @param value Value to hash
  * @returns the hash of the value.
  */
-export const keccak256 = (value: string): string => {
+export const keccak256 = (
+  value: string,
+  returnPrefixed: boolean = false
+): string => {
   const preimage = add0x(value)
-  return remove0x(ethers.utils.keccak256(preimage))
+  const hash = ethers.utils.keccak256(preimage)
+  return returnPrefixed ? hash : remove0x(hash)
 }
 
 /**

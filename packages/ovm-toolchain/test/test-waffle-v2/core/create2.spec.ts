@@ -23,9 +23,6 @@ const getCreate2Address = (
   return getAddress(`0x${keccak256(sanitizedInputs).slice(-40)}`)
 }
 
-const overrides = {
-  gasLimit: 20000000,
-}
 const DEFAULT_SALT =
   '0x1234123412341234123412341234123412341234123412341234123412341234'
 
@@ -33,20 +30,20 @@ describe('Create2 Support', () => {
   let wallet: Wallet
   let provider: any
   before(async () => {
-    provider = new waffleV2.MockProvider(overrides)
+    provider = new waffleV2.MockProvider()
     ;[wallet] = provider.getWallets()
   })
 
   let simpleCreate2: Contract
   beforeEach(async () => {
-    simpleCreate2 = await deployContract(wallet, SimpleCreate2, [], overrides)
+    simpleCreate2 = await deployContract(wallet, SimpleCreate2, [])
   })
 
   it('should calculate address correctly for invalid bytecode', async () => {
     const bytecode = '0x00'
     const salt = DEFAULT_SALT
 
-    await simpleCreate2.create2(bytecode, salt, overrides)
+    await simpleCreate2.create2(bytecode, salt)
     const address = await simpleCreate2.contractAddress()
     const expectedAddress = getCreate2Address(
       simpleCreate2.address,
@@ -61,7 +58,7 @@ describe('Create2 Support', () => {
     const bytecode = add0x(SimpleStorage.bytecode)
     const salt = DEFAULT_SALT
 
-    await simpleCreate2.create2(bytecode, salt, overrides)
+    await simpleCreate2.create2(bytecode, salt)
     const address = await simpleCreate2.contractAddress()
     const expectedAddress = getCreate2Address(
       simpleCreate2.address,

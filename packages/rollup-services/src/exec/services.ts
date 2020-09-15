@@ -1,13 +1,19 @@
 /* External Imports */
-import { getLogger } from '@eth-optimism/core-utils'
+import { getLogger, logError, remove0x } from '@eth-optimism/core-utils'
 import {
   BaseDB,
   DB,
+  DefaultSequentialProcessingDataService,
   EthereumBlockProcessor,
   getLevelInstance,
   PostgresDB,
+  RDB,
+  SequentialProcessingDataService,
 } from '@eth-optimism/core-db'
-import { getContractDefinition } from '@eth-optimism/rollup-contracts'
+import {
+  DeployResult,
+  getContractDefinition,
+} from '@eth-optimism/rollup-contracts'
 import {
   CalldataTxEnqueuedLogHandler,
   CanonicalChainBatchCreator,
@@ -43,6 +49,7 @@ import {
 import { Contract, ethers } from 'ethers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
+import { deployContracts } from '@eth-optimism/rollup-contracts/build/src/deployment/deploy-l1-rollup-contracts'
 
 const log = getLogger('service-entrypoint')
 
@@ -52,6 +59,11 @@ const log = getLogger('service-entrypoint')
  * @returns The services being run.
  */
 export const runServices = async (): Promise<any[]> => {
+  if (Environment.shouldDeployContracts()) {
+    log.info(`Configured to deploy contracts. Deploying contracts...`)
+    await deployContractsAndValidateDeployment()
+  }
+
   log.info(`Running services!`)
   const services: any[] = []
   let l1ChainDataPersister: L1ChainDataPersister
@@ -108,7 +120,7 @@ export const runServices = async (): Promise<any[]> => {
     services.push(l1ChainDataPersister)
     const lastProcessedBlock = await l1ChainDataPersister.getLastIndexProcessed()
     const l1Processor: EthereumBlockProcessor = createL1BlockSubscriber(
-      lastProcessedBlock
+      lastProcessedBlock + 1
     )
     log.info(`Starting to sync L1 chain`)
     subscriptions.push(
@@ -119,7 +131,7 @@ export const runServices = async (): Promise<any[]> => {
     services.push(l2ChainDataPersister)
     const lastProcessedBlock = await l2ChainDataPersister.getLastIndexProcessed()
     const l2Processor: EthereumBlockProcessor = createL2BlockSubscriber(
-      lastProcessedBlock
+      lastProcessedBlock + 1
     )
     log.info(`Starting to sync L2 chain`)
     subscriptions.push(
@@ -154,7 +166,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
     `Creating L1 Chain Data Persister with earliest block ${Environment.l1EarliestBlock()}`
   )
   return L1ChainDataPersister.create(
-    getL1BlockProcessorDB(),
+    getProcessingDataService(),
     getDataService(),
     getL1Provider(),
     [
@@ -212,7 +224,7 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
  */
 const createL2ChainDataPersister = async (): Promise<L2ChainDataPersister> => {
   return L2ChainDataPersister.create(
-    getL2Db(),
+    getProcessingDataService(),
     getDataService(),
     getL2Provider()
   )
@@ -290,23 +302,48 @@ const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
  * @returns The CanonicalChainBatchSubmitter.
  */
 const createCanonicalChainBatchSubmitter = (): CanonicalChainBatchSubmitter => {
-  const contractAddress: string = Environment.getOrThrow(
+  const canonicalTxChainAddress: string = Environment.getOrThrow(
     Environment.canonicalTransactionChainContractAddress
+  )
+  const l1ToL2TransactionQueueAddress: string = Environment.getOrThrow(
+    Environment.l1ToL2TransactionQueueContractAddress
+  )
+  const safetyQueueAddress: string = Environment.getOrThrow(
+    Environment.safetyTransactionQueueContractAddress
   )
   const period: number = Environment.getOrThrow(
     Environment.canonicalChainBatchSubmitterPeriodMillis
   )
   log.info(
-    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${contractAddress}, and period of ${period} millis.`
+    `Creating CanonicalChainBatchSubmitter with the canonical chain contract address of ${canonicalTxChainAddress}, l1 to l2 contract address of ${l1ToL2TransactionQueueAddress}, safety queue contract address of ${safetyQueueAddress}, and period of ${period} millis.`
   )
 
-  const contract: Contract = new Contract(
-    contractAddress,
+  const canonicalTxChainContract: Contract = new Contract(
+    canonicalTxChainAddress,
     getContractDefinition('CanonicalTransactionChain').abi,
     getSequencerWallet()
   )
 
-  return new CanonicalChainBatchSubmitter(getDataService(), contract, period)
+  const l1ToL2TransactionChainContract: Contract = new Contract(
+    l1ToL2TransactionQueueAddress,
+    getContractDefinition('L1ToL2TransactionQueue').abi,
+    getSequencerWallet()
+  )
+
+  const safetyQueueContract: Contract = new Contract(
+    safetyQueueAddress,
+    getContractDefinition('SafetyTransactionQueue').abi,
+    getSequencerWallet()
+  )
+
+  return new CanonicalChainBatchSubmitter(
+    getDataService(),
+    canonicalTxChainContract,
+    l1ToL2TransactionChainContract,
+    safetyQueueContract,
+    getSequencerWallet(),
+    period
+  )
 }
 
 /**
@@ -379,6 +416,7 @@ const createStateCommitmentChainBatchSubmitter = (): StateCommitmentChainBatchSu
       getContractDefinition('StateCommitmentChain').abi,
       getStateRootSubmissionWallet()
     ),
+    getStateRootSubmissionWallet(),
     period
   )
 }
@@ -452,12 +490,84 @@ const createL2BlockSubscriber = (
   log.info(
     `Starting subscription to L2 node starting at block ${lastBlockProcessed}`
   )
-  return new EthereumBlockProcessor(getL2Db(), lastBlockProcessed, 1)
+  return new EthereumBlockProcessor(
+    getL2BlockProcessorDB(),
+    lastBlockProcessed,
+    1
+  )
 }
 
 /*********************
  * HELPER SINGLETONS *
  *********************/
+
+const assertContractPresenceAndAddressMatch = (
+  contract: any,
+  expectedAddress: string,
+  contractName: string
+): void => {
+  if (!contract) {
+    const msg: string = `Contract ${contractName} was not deployed successfully!`
+    log.error(msg)
+    throw Error(msg)
+  }
+
+  if (remove0x(contract.address) !== remove0x(expectedAddress)) {
+    const msg: string = `Contract ${contractName} does not have expected address. Expected ${expectedAddress}, got ${contract.address}.`
+    log.error(msg)
+    throw Error(msg)
+  }
+}
+
+const deployContractsAndValidateDeployment = async (): Promise<void> => {
+  let blockNumber: number
+  let retries: number = 30
+  while (retries > 0) {
+    try {
+      blockNumber = await getL1Provider().getBlockNumber()
+      break
+    } catch (e) {
+      log.info(`Waiting for L1 node to be up... ${--retries} attempts left.`)
+    }
+  }
+
+  if (blockNumber !== 0) {
+    const msg: string = `L1 node returned block number ${blockNumber} when 0 was expected. Aborting deploy!`
+    log.error(msg)
+    throw Error(msg)
+  }
+
+  let res: DeployResult
+  try {
+    res = await deployContracts()
+  } catch (e) {
+    logError(log, `Error deploying contracts!`, e)
+    throw e
+  }
+
+  assertContractPresenceAndAddressMatch(
+    res.contracts.canonicalTransactionChain,
+    Environment.canonicalTransactionChainContractAddress(),
+    'CanonicalTransactionChain'
+  )
+  assertContractPresenceAndAddressMatch(
+    res.contracts.stateCommitmentChain,
+    Environment.stateCommitmentChainContractAddress(),
+    'StateCommitmentChain'
+  )
+  assertContractPresenceAndAddressMatch(
+    res.contracts.l1ToL2TransactionQueue,
+    Environment.l1ToL2TransactionQueueContractAddress(),
+    'L1ToL2TransactionQueue'
+  )
+  assertContractPresenceAndAddressMatch(
+    res.contracts.safetyTransactionQueue,
+    Environment.safetyTransactionQueueContractAddress(),
+    'SafetyTransactionQueue'
+  )
+
+  log.info(`Contracts Deployed Successfully!`)
+}
 
 let l1BlockProcessorDb: DB
 const getL1BlockProcessorDB = (): DB => {
@@ -475,38 +585,54 @@ const getL1BlockProcessorDB = (): DB => {
   return l1BlockProcessorDb
 }
 
-let l2Db: DB
-const getL2Db = (): DB => {
-  if (!l2Db) {
+let l2BlockProcessorDb: DB
+const getL2BlockProcessorDB = (): DB => {
+  if (!l2BlockProcessorDb) {
     clearDataIfNecessary(
       Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
     )
-    l2Db = new BaseDB(
+    l2BlockProcessorDb = new BaseDB(
       getLevelInstance(
         Environment.getOrThrow(Environment.l2ChainDataPersisterLevelDbPath)
       ),
       256
     )
   }
-  return l2Db
+  return l2BlockProcessorDb
+}
+
+let rdb: RDB
+const getRDBInstance = (): RDB => {
+  if (!rdb) {
+    rdb = new PostgresDB(
+      Environment.getOrThrow(Environment.postgresHost),
+      Environment.getOrThrow(Environment.postgresPort),
+      Environment.getOrThrow(Environment.postgresUser),
+      Environment.getOrThrow(Environment.postgresPassword),
+      Environment.postgresDatabase('rollup'),
+      Environment.postgresPoolSize(20),
+      Environment.postgresUseSsl(false)
+    )
+  }
+  return rdb
 }
 
 let dataService: DataService
 const getDataService = (): DataService => {
   if (!dataService) {
-    dataService = new DefaultDataService(
-      new PostgresDB(
-        Environment.getOrThrow(Environment.postgresHost),
-        Environment.getOrThrow(Environment.postgresPort),
-        Environment.getOrThrow(Environment.postgresUser),
-        Environment.getOrThrow(Environment.postgresPassword),
-        Environment.postgresDatabase('rollup'),
-        Environment.postgresPoolSize(20),
-        Environment.postgresUseSsl(false)
-      )
-    )
+    dataService = new DefaultDataService(getRDBInstance())
   }
   return dataService
+}
+
+let processingDataService: SequentialProcessingDataService
+const getProcessingDataService = (): SequentialProcessingDataService => {
+  if (!processingDataService) {
+    processingDataService = new DefaultSequentialProcessingDataService(
+      getRDBInstance()
+    )
+  }
+  return processingDataService
 }
 
 let l2NodeService: L2NodeService

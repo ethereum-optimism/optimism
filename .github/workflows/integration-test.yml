@@ -1,0 +1,44 @@
+name: Setup & Run Integration Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Setup & Run Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v1
+
+      - name: Replace Placeholder With AWS Account ID
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_CI_AWS_ACCOUNT_ID }}
+        run: |
+          ./.github/scripts/replace-aws-account-id.sh
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_CI_USER_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_CI_USER_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Run Tests with Docker Compose
+        run: |
+          docker-compose -f docker-compose.ci.yml up --abort-on-container-exit --exit-code-from integration_tests
+
+      - name: Logout of Amazon ECR
+        if: always()
+        run: docker logout ${{ steps.login-ecr.outputs.registry }}

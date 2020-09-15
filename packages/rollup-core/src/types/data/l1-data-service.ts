@@ -112,4 +112,11 @@ export interface L1DataService {
    * @throws An error if there is a DB error.
    */
   markQueuedGethSubmissionSubmittedToGeth(queueIndex: number): Promise<void>
+
+  /**
+   * Gets the total count of L1 RollupStateRoots.
+   *
+   * @returns The number of L1 RollupStateRoots in the DB.
+   */
+  getL1RollupStateRootCount(): Promise<number>
 }

@@ -25,10 +25,11 @@
     "build:waffle": "waffle \"test/config/waffle-config.json\"",
     "build:typescript": "tsc -p .",
     "clean": "rimraf build/",
-    "test": "yarn run test:truffle && yarn run test:waffle-v2",
+    "test": "yarn run test:truffle && yarn run test:waffle-v2 && yarn run test:buidler",
     "test:truffle": "truffle test \"test/test-truffle/erc20.spec.js\" --config \"test/config/truffle-config.js\"",
     "test:waffle-v2": "waffle \"test/config/waffle-config.json\" && mocha --require source-map-support/register --require ts-node/register \"test/test-waffle-v2/**/*.spec.ts\" --timeout 10000",
-    "test:buidler": "buidler test"
+    "test:buidler": "buidler test --ovm",
+    "test:buidler:native": "buidler test --ovm --native"
   },
   "keywords": [
     "optimistic",
@@ -71,6 +72,8 @@
     "@eth-optimism/rollup-contracts": "^0.0.1-alpha.29",
     "@eth-optimism/solc-transpiler": "^0.0.1-alpha.28",
     "@nomiclabs/buidler": "^1.4.4",
+    "bn.js": "^5.1.3",
+    "child_process": "^1.0.2",
     "ethereum-waffle-v2": "npm:ethereum-waffle@2",
     "ethereum-waffle-v3": "npm:ethereum-waffle@3",
     "ethereumjs-ovm": "git+https://github.com/ethereum-optimism/ethereumjs-vm",

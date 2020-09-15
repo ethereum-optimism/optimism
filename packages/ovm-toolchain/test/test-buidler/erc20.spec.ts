@@ -5,10 +5,6 @@ import { expect } from '../common/setup'
 const { ethers } = require('@nomiclabs/buidler')
 import { Contract, Signer } from 'ethers-v5'
 
-const overrides = {
-  gasLimit: 10000000,
-}
-
 describe('ERC20 smart contract', () => {
   let wallet1: Signer
   let wallet2: Signer
@@ -29,8 +25,7 @@ describe('ERC20 smart contract', () => {
       10000,
       COIN_NAME,
       NUM_DECIMALS,
-      TICKER,
-      overrides
+      TICKER
     )
   })
 
@@ -51,7 +46,7 @@ describe('ERC20 smart contract', () => {
   })
 
   it('transfers: should transfer 10000 to walletTo with wallet having 10000', async () => {
-    await ERC20Token.transfer(await wallet2.getAddress(), 10000, overrides)
+    await ERC20Token.transfer(await wallet2.getAddress(), 10000)
     const walletToBalance = await ERC20Token.balanceOf(
       await wallet2.getAddress()
     )

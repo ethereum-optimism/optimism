@@ -3,6 +3,7 @@ import {
   add0x,
   keccak256FromUtf8,
   remove0x,
+  TestUtils,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 
@@ -22,6 +23,7 @@ import {
   SequencerBatchAppendedLogHandler,
   StateBatchAppendedLogHandler,
   CHAIN_ID,
+  StateRootsMissingError,
 } from '../../src'
 import {
   arrayify,
@@ -82,6 +84,7 @@ const createTx = (
 }
 
 class MockDataService extends DefaultDataService {
+  public rollupStateRootCount: number = 0
   public createdL1ToL2Batches: number = 0
   public createdSafetyQueueBatches: number = 0
   public rollupTransactionsInserted: RollupTransaction[][] = []
@@ -132,6 +135,10 @@ class MockDataService extends DefaultDataService {
   ): Promise<number> {
     this.txHashToRollupRootsInserted.set(l1TxHash, stateRoots)
     return undefined
+  }
+
+  public async getL1RollupStateRootCount(): Promise<number> {
+    return this.rollupStateRootCount
   }
 }
 
@@ -305,6 +312,8 @@ describe('Log Handlers', () => {
 
   it('should parse and insert Sequencer Batch', async () => {
     const timestamp = 1
+    const blockNumber = 1
+    const txStartIndex = 0
 
     const target: string = 'bb'.repeat(20)
     const nonce: string = '00'.repeat(32)
@@ -314,7 +323,10 @@ describe('Log Handlers', () => {
     const signature = await getTxSignature(target, nonce, gasLimit, calldata)
 
     let data = `0x${target}${nonce}${gasLimit}${remove0x(signature)}${calldata}`
-    data = abi.encode(['bytes[]', 'uint256'], [[data, data, data], timestamp])
+    data = abi.encode(
+      ['bytes[]', 'uint256', 'uint256', 'uint256'],
+      [[data, data, data], timestamp, blockNumber, txStartIndex]
+    )
 
     const l = createLog('00'.repeat(64))
     const tx = createTx(`0x22222222${remove0x(data)}`)
@@ -374,6 +386,8 @@ describe('Log Handlers', () => {
 
     it('should parse and insert Sequencer Batch without creating a geth submission', async () => {
       const timestamp = 1
+      const blockNumber = 1
+      const txStartIndex = 0
 
       const target: string = 'bb'.repeat(20)
       const nonce: string = '00'.repeat(32)
@@ -385,7 +399,10 @@ describe('Log Handlers', () => {
       let data = `0x${target}${nonce}${gasLimit}${remove0x(
         signature
       )}${calldata}`
-      data = abi.encode(['bytes[]', 'uint256'], [[data, data, data], timestamp])
+      data = abi.encode(
+        ['bytes[]', 'uint256', 'uint256', 'uint256'],
+        [[data, data, data], timestamp, blockNumber, txStartIndex]
+      )
 
       const l = createLog('00'.repeat(64))
       const tx = createTx(`0x22222222${remove0x(data)}`)
@@ -443,13 +460,14 @@ describe('Log Handlers', () => {
 
   it('should parse and insert State Batch', async () => {
     const timestamp = 1
+    const rootStartIndex = 0
 
     const roots: string[] = [
       keccak256FromUtf8('1'),
       keccak256FromUtf8('2'),
       keccak256FromUtf8('3'),
     ]
-    const data = abi.encode(['bytes32[]'], [roots])
+    const data = abi.encode(['bytes32[]', 'uint256'], [roots, rootStartIndex])
 
     const l = createLog('00'.repeat(64))
     const tx = createTx(`0x22222222${remove0x(data)}`)
@@ -471,5 +489,56 @@ describe('Log Handlers', () => {
       const received = dataService.txHashToRollupRootsInserted.get(tx.hash)[i]
       received.should.equal(roots[i], `Root ${i} mismatch!`)
     }
+  })
+
+  it('should parse and insert State Batch disregarding redundant roots', async () => {
+    const timestamp = 1
+    const rootStartIndex = 0
+
+    dataService.rollupStateRootCount = 2
+
+    const roots: string[] = [
+      keccak256FromUtf8('1'),
+      keccak256FromUtf8('2'),
+      keccak256FromUtf8('3'),
+    ]
+    const data = abi.encode(['bytes32[]', 'uint256'], [roots, rootStartIndex])
+
+    const l = createLog('00'.repeat(64))
+    const tx = createTx(`0x22222222${remove0x(data)}`)
+
+    await StateBatchAppendedLogHandler(dataService, l, tx)
+
+    dataService.txHashToRollupRootsInserted.size.should.equal(
+      1,
+      `No root batch inserted!`
+    )
+    dataService.txHashToRollupRootsInserted
+      .get(tx.hash)
+      .length.should.equal(1, `State root inserted count mismatch!`)
+
+    const received = dataService.txHashToRollupRootsInserted.get(tx.hash)[0]
+    received.should.equal(roots[2], `Root mismatch!`)
+  })
+
+  it('should throw if root is in the future, indicating we are missing roots', async () => {
+    const timestamp = 1
+    const rootStartIndex = 2
+
+    dataService.rollupStateRootCount = 0
+
+    const roots: string[] = [
+      keccak256FromUtf8('1'),
+      keccak256FromUtf8('2'),
+      keccak256FromUtf8('3'),
+    ]
+    const data = abi.encode(['bytes32[]', 'uint256'], [roots, rootStartIndex])
+
+    const l = createLog('00'.repeat(64))
+    const tx = createTx(`0x22222222${remove0x(data)}`)
+
+    await TestUtils.assertThrowsAsync(async () => {
+      await StateBatchAppendedLogHandler(dataService, l, tx)
+    }, StateRootsMissingError)
   })
 })
