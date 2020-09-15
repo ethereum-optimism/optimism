@@ -149,9 +149,12 @@ describe('L2CrossDomainMessenger', () => {
 
       const messageNonce = await L2CrossDomainMessenger.messageNonce()
 
+      const messageGasLimit = 1_000_000
+
       await L2CrossDomainMessenger.sendMessage(
         CrossDomainSimpleStorage.address,
-        calldata
+        calldata,
+        messageGasLimit
       )
 
       const xDomainCalldata = getXDomainCalldata(
