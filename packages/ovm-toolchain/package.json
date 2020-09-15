@@ -69,6 +69,7 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.0.1-alpha.27",
+    "@eth-optimism/rollup-contracts": "^0.0.1-alpha.29",
     "@eth-optimism/solc-transpiler": "^0.0.1-alpha.28",
     "@nomiclabs/buidler": "^1.4.4",
     "bn.js": "^5.1.3",
