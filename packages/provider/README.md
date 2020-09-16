@@ -19,10 +19,10 @@ const web3 = new Web3Provider()
 const provider = new OptimismProvider('http://localhost:8545', web3)
 ```
 
-## Rinkeby Testnet
+## Gorli Testnet
 
-To connect to the Rinkeby testnet:
+To connect to the Gorli testnet:
 
 ```js
-const provider = new OptimismProvider('rinkeby')
+const provider = new OptimismProvider('gorli')
 ```
