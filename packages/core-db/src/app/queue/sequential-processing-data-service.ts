@@ -59,7 +59,7 @@ export class DefaultSequentialProcessingDataService
     const res = await this.rdb.select(
       `SELECT MAX(sequence_number) as last_processed
       FROM sequential_processing
-      WHERE 
+      WHERE
         sequence_key = '${sequenceKey}'
         AND processed = TRUE`
     )
@@ -112,7 +112,7 @@ export class DefaultSequentialProcessingDataService
     await this.rdb.execute(
       `UPDATE sequential_processing
       SET processed = TRUE
-      WHERE 
+      WHERE
         sequence_key = '${sequenceKey}'
         AND sequence_number = ${index}`
     )

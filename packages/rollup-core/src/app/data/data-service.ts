@@ -94,7 +94,7 @@ export class DefaultDataService implements DataService {
     txContext?: any
   ): Promise<void> {
     return this.rdb.execute(
-      `${l1BlockInsertStatement} 
+      `${l1BlockInsertStatement}
       VALUES (${getL1BlockInsertValue(block, processed)})`,
       txContext
     )
@@ -114,7 +114,7 @@ export class DefaultDataService implements DataService {
       (tx, index) => `(${getL1TransactionInsertValue(tx, index)})`
     )
     return this.rdb.execute(
-      `${l1TxInsertStatement} 
+      `${l1TxInsertStatement}
       VALUES ${values.join(',')}`,
       txContext
     )
@@ -347,8 +347,8 @@ export class DefaultDataService implements DataService {
    */
   public async updateBlockToProcessed(blockHash: string): Promise<void> {
     return this.rdb.execute(
-      `UPDATE l1_block 
-        SET processed = TRUE 
+      `UPDATE l1_block
+        SET processed = TRUE
         WHERE block_hash = '${add0x(blockHash)}'`
     )
   }
@@ -383,7 +383,7 @@ export class DefaultDataService implements DataService {
    */
   public async insertL2TransactionOutput(tx: TransactionOutput): Promise<void> {
     return this.rdb.execute(
-      `${l2TransactionOutputInsertStatement} 
+      `${l2TransactionOutputInsertStatement}
       VALUES (${getL2TransactionOutputInsertValue(tx)})
       ON CONFLICT (tx_hash) DO NOTHING` // makes it so if we're inserting data that already exists, it doesn't fail. If tx_hash is not unique, we have bigger problems =|
     )
@@ -424,10 +424,10 @@ export class DefaultDataService implements DataService {
       const batchNumber = await this.insertNewCanonicalChainBatch(txContext)
       await this.rdb.execute(
         `UPDATE l2_tx_output tx
-        SET 
+        SET
             canonical_chain_batch_number = ${batchNumber},
             canonical_chain_batch_index = t.row_number
-        FROM 
+        FROM
           (
             SELECT id, row_number() over (ORDER BY id) -1 as row_number
             FROM l2_tx_output
@@ -438,7 +438,7 @@ export class DefaultDataService implements DataService {
             ORDER BY block_number ASC, tx_index ASC
             LIMIT ${maxBatchSize}
           ) t
-        WHERE tx.id = t.id 
+        WHERE tx.id = t.id
           `,
         txContext
       )
@@ -463,7 +463,7 @@ export class DefaultDataService implements DataService {
   > {
     const res = await this.rdb.select(
       `SELECT (l1.batch_number - l2.batch_number) as l1_lead
-      FROM 
+      FROM
         (
           SELECT COALESCE(NULLIF(MAX(batch_number), 0), COUNT(*)) as batch_number
           FROM l1_rollup_state_root_batch
@@ -496,18 +496,18 @@ export class DefaultDataService implements DataService {
       (await this.getMaxStateCommitmentChainBatchNumber()) + 1
     const batchSizeRes = await this.rdb.select(
       `SELECT l1.batch_size as l1_batch_size, l2.batch_size as l2_batch_size
-        FROM 
+        FROM
           (
             SELECT COUNT(*) as batch_size
             FROM l1_rollup_state_root
-            WHERE batch_number = ${nextBatchNumber} 
+            WHERE batch_number = ${nextBatchNumber}
           ) l1,
           (
             SELECT COUNT(*) as batch_size
             FROM l2_tx_output
-            WHERE 
+            WHERE
               state_commitment_chain_batch_number IS NULL
-          ) l2  
+          ) l2
       `
     )
 
@@ -544,7 +544,7 @@ export class DefaultDataService implements DataService {
       }
       await this.rdb.execute(
         `UPDATE l2_tx_output as tx
-        SET 
+        SET
             state_commitment_chain_batch_number = ${batchNumber},
             state_commitment_chain_batch_index = t.row_number
         FROM (
@@ -607,7 +607,7 @@ export class DefaultDataService implements DataService {
       )
       await this.rdb.execute(
         `UPDATE l2_tx_output as tx
-        SET 
+        SET
             state_commitment_chain_batch_number = ${batchNumber},
             state_commitment_chain_batch_index = t.row_number
         FROM (
@@ -703,7 +703,7 @@ export class DefaultDataService implements DataService {
   > {
     const res = await this.rdb.select(
       `SELECT batch_number, status, submission_tx_hash
-      FROM canonical_chain_batch 
+      FROM canonical_chain_batch
       WHERE status = '${BatchSubmissionStatus.SENT}'
       ORDER BY batch_number ASC
       LIMIT 1`
@@ -771,7 +771,7 @@ export class DefaultDataService implements DataService {
   > {
     const batchRes = await this.rdb.select(
       `SELECT scc.batch_number, scc.status, scc.submission_tx_hash, tx.state_root
-      FROM 
+      FROM
             l2_tx_output tx
             INNER JOIN state_commitment_chain_batch scc ON tx.state_commitment_chain_batch_number = scc.batch_number
       WHERE batch_number = (
@@ -818,7 +818,7 @@ export class DefaultDataService implements DataService {
   > {
     const res = await this.rdb.select(
       `SELECT batch_number, status, submission_tx_hash
-      FROM state_commitment_chain_batch 
+      FROM state_commitment_chain_batch
       WHERE status = '${BatchSubmissionStatus.SENT}'
       ORDER BY batch_number ASC
       LIMIT 1`
@@ -872,7 +872,7 @@ export class DefaultDataService implements DataService {
     l1TxHash: string
   ): Promise<void> {
     return this.rdb.execute(
-      `UPDATE state_commitment_chain_batch 
+      `UPDATE state_commitment_chain_batch
       SET status = '${BatchSubmissionStatus.FINALIZED}', submission_tx_hash = '${l1TxHash}'
       WHERE batch_number = ${batchNumber}`
     )
@@ -960,7 +960,7 @@ export class DefaultDataService implements DataService {
       try {
         queueIndex = (await this.getMaxGethSubmissionQueueIndex()) + 1
         await this.rdb.execute(
-          `INSERT INTO geth_submission_queue(l1_tx_hash, queue_index) 
+          `INSERT INTO geth_submission_queue(l1_tx_hash, queue_index)
             VALUES ('${l1TxHash}', ${queueIndex})`,
           txContext
         )
@@ -992,7 +992,7 @@ export class DefaultDataService implements DataService {
       try {
         batchNumber = (await this.getMaxL1StateRootBatchNumber()) + 1
         await this.rdb.execute(
-          `INSERT INTO l1_rollup_state_root_batch(l1_tx_hash, batch_number) 
+          `INSERT INTO l1_rollup_state_root_batch(l1_tx_hash, batch_number)
             VALUES ('${l1TxHash}', ${batchNumber})`,
           txContext
         )
@@ -1025,7 +1025,7 @@ export class DefaultDataService implements DataService {
         batchNumber =
           (await this.getMaxCanonicalChainBatchNumber(txContext)) + 1
         await this.rdb.execute(
-          `INSERT INTO canonical_chain_batch(batch_number) 
+          `INSERT INTO canonical_chain_batch(batch_number)
             VALUES (${batchNumber})`,
           txContext
         )
@@ -1086,7 +1086,7 @@ export class DefaultDataService implements DataService {
       try {
         batchNumber = (await this.getMaxStateCommitmentChainBatchNumber()) + 1
         await this.rdb.execute(
-          `INSERT INTO state_commitment_chain_batch(batch_number, status) 
+          `INSERT INTO state_commitment_chain_batch(batch_number, status)
             VALUES (${batchNumber}, '${
             final
               ? BatchSubmissionStatus.FINALIZED
@@ -1111,7 +1111,7 @@ export class DefaultDataService implements DataService {
    */
   protected async getMaxStateCommitmentChainBatchNumber(): Promise<number> {
     const rows = await this.rdb.select(
-      `SELECT MAX(batch_number) as batch_number 
+      `SELECT MAX(batch_number) as batch_number
         FROM state_commitment_chain_batch`
     )
     if (
@@ -1133,7 +1133,7 @@ export class DefaultDataService implements DataService {
    */
   protected async getMaxGethSubmissionQueueIndex(): Promise<number> {
     const rows = await this.rdb.select(
-      `SELECT MAX(queue_index) as queue_index 
+      `SELECT MAX(queue_index) as queue_index
         FROM geth_submission_queue`
     )
     if (
@@ -1155,7 +1155,7 @@ export class DefaultDataService implements DataService {
    */
   protected async getMaxL1StateRootBatchNumber(): Promise<number> {
     const rows = await this.rdb.select(
-      `SELECT MAX(batch_number) as batch_number 
+      `SELECT MAX(batch_number) as batch_number
         FROM l1_rollup_state_root_batch`
     )
     if (

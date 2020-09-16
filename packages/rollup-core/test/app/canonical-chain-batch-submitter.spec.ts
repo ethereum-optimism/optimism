@@ -275,6 +275,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
+          type: 0,
         },
       ],
     })
@@ -320,6 +321,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
+          type: 0,
         },
       ],
     })
@@ -382,6 +384,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
+          type: 0,
         },
       ],
     })
@@ -441,6 +444,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
+          type: 0,
         },
       ],
     })
@@ -499,6 +503,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
+          type: 0,
         },
       ],
     })
@@ -545,6 +550,7 @@ describe('Canonical Chain Batch Submitter', () => {
             calldata: keccak256FromUtf8('some calldata'),
             stateRoot: keccak256FromUtf8('l2 state root'),
             signature: 'ab'.repeat(65),
+            type: 0,
           },
         ],
       })
