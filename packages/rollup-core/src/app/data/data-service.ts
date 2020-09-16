@@ -688,6 +688,7 @@ export class DefaultDataService implements DataService {
         gasLimit: row['gas_limit'],
         l1MessageSender: row['l1_message_sender'] || undefined, // should never be present in this case
         signature: row['signature'],
+        type: row['tx_type'],
       })
     }
 
