@@ -143,9 +143,10 @@ export function getUrl(
   // List of publically available urls to use
   // TODO(mark): in this case, turn off calls for `eth_getChainId`
   switch (network ? network.name : 'unknown') {
+    case 'ropsten':
+        host = 'ropsten.optimism.io'
+        break;
     case 'main':
-      host = '' // TODO: once the url of mainnet is known
-      break
     default:
       logger.throwError('unsupported network', Logger.errors.INVALID_ARGUMENT, {
         argument: 'network',
@@ -154,7 +155,7 @@ export function getUrl(
   }
 
   const connection: ConnectionInfo = {
-    url: `http://${host}`,
+    url: `https://${host}`,
   }
 
   return connection
