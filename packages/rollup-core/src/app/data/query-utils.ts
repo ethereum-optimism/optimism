@@ -63,7 +63,7 @@ export const getL1RollupStateRootInsertValue = (
   )}`
 }
 
-export const l2TransactionOutputInsertStatement = `INSERT INTO l2_tx_output(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, gas_limit, gas_price, signature, state_root, l1_rollup_tx_id) `
+export const l2TransactionOutputInsertStatement = `INSERT INTO l2_tx_output(block_number, block_timestamp, tx_index, tx_hash, sender, l1_message_sender, target, calldata, nonce, gas_limit, gas_price, signature, state_root, l1_rollup_tx_id, tx_type) `
 export const getL2TransactionOutputInsertValue = (
   tx: TransactionOutput
 ): string => {
@@ -77,7 +77,7 @@ export const getL2TransactionOutputInsertValue = (
     tx.gasLimit
   )}, ${bigNumberOrNull(tx.gasPrice)}, ${stringOrNull(
     tx.signature
-  )}, ${stringOrNull(tx.stateRoot)}, ${numOrNull(tx.l1RollupTransactionId)}`
+  )}, ${stringOrNull(tx.stateRoot)}, ${numOrNull(tx.l1RollupTransactionId)}, ${numOrNull(tx.type)}`
 }
 
 export const bigNumberOrNull = (bigNumber: any): string => {

@@ -10,7 +10,7 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { L2DataService, TransactionOutput } from '../../../types'
+import { L2DataService, TransactionOutput, OptimismTransactionResponse } from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 import { monkeyPatchL2Provider } from '../../utils'
 import { BigNumber, remove0x } from '@eth-optimism/core-utils/build'
@@ -135,6 +135,7 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       stateRoot: block['stateRoot'], // should be added by rollup-core/app/utils.ts: monkeyPatchL2Provider
       gasLimit: L2ChainDataPersister.parseBigNumber(response.gasLimit),
       gasPrice: L2ChainDataPersister.parseBigNumber(response.gasPrice),
+      type: (response as OptimismTransactionResponse).type,
     }
 
     if (!!response['l1MessageSender']) {

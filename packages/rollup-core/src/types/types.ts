@@ -44,6 +44,7 @@ export interface TransactionOutput {
   nonce: number
   calldata: string
   from: string
+  type: number,
   l1RollupTransactionId?: number
   gasLimit?: BigNumber
   gasPrice?: BigNumber
@@ -144,4 +145,8 @@ export interface L1BlockPersistenceInfo {
   txPersisted: boolean
   rollupTxsPersisted: boolean
   rollupStateRootsPersisted: boolean
+}
+
+export interface OptimismTransactionResponse extends TransactionResponse {
+  type: number
 }
