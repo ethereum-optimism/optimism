@@ -6,7 +6,6 @@ SERVICES=("compute.googleapis.com" "cloudkms.googleapis.com" "containerregistry.
 SECONDARY=("container.googleapis.com")
 
 MODE="enable"
-GCP_PROJECT=""
 
 while getopts "hd" opt; do
   case "$opt" in

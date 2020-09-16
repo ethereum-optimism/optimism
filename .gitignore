@@ -29,6 +29,9 @@ docker/config/*.csr
 docker/config/*.srl
 *.key.json
 credentials.json
+cluster-keys.json
 *.pem
 *.crt
 *.key
+.srl
+.certs/

@@ -131,7 +131,7 @@ This script will activate the KMS service account in the `gcloud` tool using the
 
 ### Helm / Deployment
 
-Deploying services to a Kubernetes cluster typically require the use of (helm)[https://helm.sh] to manage the cluster configuration and dependencies. This guide shows how to use the official (Hashicorp)[https://www.hashicorp.com] _helm chart_ to deploy a Vault cluster.
+Deploying services to a Kubernetes cluster typically require the use of [helm](https://helm.sh) to manage the cluster configuration and dependencies. This guide shows how to use the official [Hashicorp](https://www.hashicorp.com) _helm chart_ to deploy a Vault cluster.
 
 #### Installing Helm and Supporting Tools
 
@@ -141,17 +141,34 @@ If you are running on MacOS, you can install helm by executing:
 brew install helm yq
 ```
 
-If you are running on Linux or Windows, see the (Helm Download Page)[https://github.com/helm/helm/releases/latest]. You'll also want to install the yq utility.
+If you are running on Linux or Windows, see the [Helm Download Page](https://github.com/helm/helm/releases/latest). You'll also want to install the yq utility.
 
-#### Establish hashicorp registry
+#### Establish Remote Registries
 
-In order to use the official Hashicorp helm chart, we need to add it to the local helm registry by executing:
+In order to use the official Hashicorp and Datadog Helm repositories, we need to add it to the local helm registry by executing:
 
 ```bash
-helm repo add hashicorp http://helm.releases.hashicorp.com
+helm repo add hashicorp https://helm.releases.hashicorp.com
+helm repo add datadog https://helm.datadoghq.com
+helm repo add stable https://kubernetes-charts.storage.googleapis.com
+helm repo update
 ```
 
-#### Generate Self-Signed Certs
+#### Datadog
+
+In the [Datadog overrides file](./k8s/datadog-overrides.yaml), insert your Datadog API and App key into the YAML file at `.datadog.apiKey` and `.datadog.appKey` respectively.
+
+From the `infrastructure` folder, execute the following command to deploy the Datadog Helm chart:
+
+```sh
+helm upgrade --atomic --cleanup-on-fail --install --values ./k8s/datadog-overrides.yaml datadog datadog/datadog
+```
+
+With the existing overrides (in addition to your API and app keys), this Helm chart instantiates a DaemonSet for the Datadog agent pods that will be responsible for collecting and forwarding Vault server and audit logs into your Datadog dashboards.
+
+#### Vault
+
+##### Generate Self-Signed Certs
 
 In `./infrastructure`, execute:
 
@@ -170,17 +187,25 @@ For Minikube, use: `-d vault-internal`
 
 ---
 
-#### Create a kubernetes secret with the cert
+##### Create a kubernetes secret with the cert
 
 The `gen-certs.sh` script updates `k8s/vault-overrides.yaml` with the name of the secret that was generated with the new certs material. To see the created secret, execute:
 
 ```bash
-kubectl list secrets
+kubectl get secrets
 ```
 
 and look for "omgnetwork-certs-"
 
-#### Update value overrides
+##### Generate Storage Classes
+
+In `infrastructure`, execute:
+
+```bash
+./scripts/gen_storage.sh
+```
+
+##### Update Value Overrides
 
 In `infrastructure`, execute:
 
@@ -196,7 +221,10 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
-#### Start the Pods using the Helm Chart
+<<<<<<< HEAD
+##### Start the Pods using the Helm Chart
+=======
+>>>>>>> 1526b2980e828e9057bfe4cbaf0a629887648fc5
 
 Execute:
 
@@ -221,20 +249,12 @@ Before you initialize vault, you'll see errors like this:
 2020-08-21T03:26:41.684Z [WARN]  failed to unseal core: error="fetching stored unseal keys failed: failed to decrypt encrypted stored keys: failed to decrypt envelope: rpc error: code = InvalidArgument desc = Decryption failed: verify that 'name' refers to the correct CryptoKey."
 ```
 
-#### Set up k8s Port Forwarding
-
-In one terminal, execute:
-
-```bash
-kubectl port-forward vault-0 8200:8200
-```
-
 #### Access Vault using the CLI
 
 In another terminal, execute:
 
 ```bash
-export VAULT_ADDR=https://localhost:8200
+export VAULT_ADDR=https://<load-balancer>:8200
 export VAULT_CACERT=$K8S/certs/ca-chain.cert.pem
 
 vault status
@@ -253,6 +273,39 @@ vault status
 
 ```bash
 vault audit enable file file_path=/vault/audit/audit.log
+```
+
+#### Backup Vault RAFT Data to a Snapshot File
+
+Determining how many backup files you want to keep is a business decision. There are different strategies for maintaining a set of backup snapshots that can be employed.
+
+*Time-based strategy*. The snapshot filename is derived from the formatted timestamp. In this strategy, you'll have to determine how many snapshots to maintain and how to rotate them out when they're no longer appropriate.
+
+```bash
+vault operator raft snapshot save snapshot-$(date +%Y%m%d-%H%M%S).raft
+```
+
+*Rotational strategy*. In this example, a maximum of 5 snapshots are maintained at any given time.
+
+```bash
+rm -f snapshot-4.raft
+
+for i in 3 2 1; do
+  let NEXT=$i+1
+  mv -f snapshot-${i}.raft snapshot-${NEXT}.raft 2> /dev/null
+done
+
+mv -f snapshot.raft snapshot-1.raft 2> /dev/null
+
+vault operator raft snapshot save snapshot.raft
+```
+
+#### Restore Vault RAFT Data from a Snapshot File
+
+When you need to restore your Vault cluster back to a known-good state, identify the snapshot-file you want to restore and execute this command:
+
+```bash
+vault operator raft snapshot restore snapshot-file.raft
 ```
 
 ### Uninstalling Vault

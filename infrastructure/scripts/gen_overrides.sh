@@ -19,7 +19,8 @@ set -o pipefail
 ###   --ui                       The Vault UI will be enabled (disabled is default)
 ###   --log-level                The Vault Server log level (info is default)
 ###   --num-replicas             How many Vault Server replicas should be created (default is 5)
-###   --audit-vol-size           How big should the audit volume be (default is 10Gi)
+###   --data-vol-size            How big should the data volume be (default is 200Gi)
+###   --audit-vol-size           How big should the audit volume be (default is 100Gi)
 ### 
 ### Notes:
 ###   The default for -d/--domain-name is vault-internal.default.svc.cluster.local. You
@@ -33,14 +34,15 @@ set -o pipefail
 ###
 
 DOMAIN="vault-internal.default.svc.cluster.local"
-REGION=${GCP_REGION}
+REGION=${GCP_REGION:-}
 PROJECT=${GCP_PROJECT:-}
-CLUSTER=${GKE_CLUSTER_NAME}
+CLUSTER=${GKE_CLUSTER_NAME:-}
 
 VAULT_UI_ENABLED="false"
 VAULT_LOG_LEVEL="info"
 VAULT_REPLICAS="5"
-VAULT_AUDIT_SIZE="10Gi"
+VAULT_DATA_SIZE="200Gi"
+VAULT_AUDIT_SIZE="100Gi"
 
 # usage displays some helpful information about the script and any errors that need
 # to be emitted
@@ -89,7 +91,7 @@ validate_config() {
 gen_overrides() {
 	echo "> Generate Overrides" >&2
 
-    read -r -d '' CONFIG<<EOF
+  read -r -d '' CONFIG<<EOF
     ui = ${VAULT_UI_ENABLED}
 log_level = "${VAULT_LOG_LEVEL}"
 cluster_name = "${CLUSTER}"
@@ -150,14 +152,20 @@ storage "raft" {
 }
 EOF
 
-    cd k8s
+  cd k8s
+
 	yq w -i vault-overrides.yaml server.auditStorage.size ${VAULT_AUDIT_SIZE}
+	yq w -i vault-overrides.yaml server.dataStorage.size ${VAULT_DATA_SIZE}
 	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_REGION ${REGION}
 	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_PROJECT ${PROJECT}
 	yq w -i vault-overrides.yaml server.ha.raft.config "${CONFIG}"
 	yq w -i vault-overrides.yaml server.ha.replicas ${VAULT_REPLICAS}
+	yq w -i vault-overrides.yaml server.resources.requests.memory 256Mi
+	yq w -i vault-overrides.yaml server.resources.requests.cpu 250m
+	yq w -i vault-overrides.yaml server.resources.limits.memory 256Mi
+	yq w -i vault-overrides.yaml server.resources.limits.cpu 250m
 
-    cd ..
+  cd ..
 }
 
 ##

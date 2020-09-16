@@ -19,16 +19,6 @@ variable "router_asn" {
   type        = number
 }
 
-variable "datadog_api_key" {
-  description = "Datadog API key"
-  type        = string
-}
-
-variable "datadog_app_key" {
-  description = "Datadog APP key"
-  type        = string
-}
-
 variable "omgnetwork_vpc_uri" {
   description = "URI of the client VPC to be peered to the Vault VPC"
   type        = string

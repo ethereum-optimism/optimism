@@ -1,14 +1,24 @@
 global:
   tlsDisable: false
-  certSecretName: omgnetwork-certs-k7hc7k9k42
+  certSecretName: omgnetwork-certs-d67f2d4m49
 injector:
   enabled: false
 server:
+  dataStorage:
+    enabled: true
+    size: 200Gi
+    storageClassName: vault-data
+    accessMode: ReadWriteOnce
   auditStorage:
     enabled: true
-    size: 10Gi
-    storageClass: default
+    size: 100Gi
+    storageClass: vault-audit
     accessMode: ReadWriteOnce
+  service:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      cloud.google.com/load-balancer-type: Internal
   ha:
     enabled: true
     replicas: 5
@@ -30,8 +40,8 @@ server:
         }
 
         seal "gcpckms" {
-            region      = "us-west4"
-            project     = "vault-cluster-0829"
+            region      = "us-central1"
+            project     = "omgnetwork-test-cluster"
             key_ring    = "omgnetwork-vault-keyring"
             crypto_key  = "omgnetwork-vault-unseal-key"
         }
@@ -76,21 +86,28 @@ server:
         }
   image:
     repository: vault # TODO: will change to the omgnetwork/vault image
-    tag: "1.5.2" # TODO: will change to the appropriate tag for omgnetwork/vault
+    tag: "1.5.3" # TODO: will change to the appropriate tag for omgnetwork/vault
     pullPolicy: IfNotPresent
   extraEnvironmentVars:
-    GOOGLE_REGION: us-west4
-    GOOGLE_PROJECT: vault-cluster-0829
+    GOOGLE_REGION: us-central1
+    GOOGLE_PROJECT: omgnetwork-test-cluster
     GOOGLE_APPLICATION_CREDENTIALS: /vault/userconfig/kms-creds/kms_account.key.json
   extraVolumes:
     - type: secret
       name: "kms-creds"
     - type: secret
-      name: omgnetwork-certs-k7hc7k9k42
+      name: omgnetwork-certs-d67f2d4m49
   affinity: null
   dev:
     enabled: false
   standalone:
     enabled: false
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 256Mi
+      cpu: 250m
 ui:
   enabled: true
