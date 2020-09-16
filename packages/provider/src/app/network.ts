@@ -144,8 +144,8 @@ export function getUrl(
   // TODO(mark): in this case, turn off calls for `eth_getChainId`
   switch (network ? network.name : 'unknown') {
     case 'rinkeby':
-        host = 'rinkeby.optimism.io'
-        break;
+      host = 'rinkeby.optimism.io'
+      break
     case 'main':
     default:
       logger.throwError('unsupported network', Logger.errors.INVALID_ARGUMENT, {
