@@ -106,7 +106,7 @@ export const createTxOutput = (
   data: string = defaultData,
   to: string = defaultTo,
   nonce: number = defaultNonceNum,
-  type: number = defaultType,
+  type: number = defaultType
 ): TransactionOutput => {
   return {
     calldata: data,
