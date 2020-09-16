@@ -77,7 +77,9 @@ export const getL2TransactionOutputInsertValue = (
     tx.gasLimit
   )}, ${bigNumberOrNull(tx.gasPrice)}, ${stringOrNull(
     tx.signature
-  )}, ${stringOrNull(tx.stateRoot)}, ${numOrNull(tx.l1RollupTransactionId)}, ${numOrNull(tx.type)}`
+  )}, ${stringOrNull(tx.stateRoot)}, ${numOrNull(
+    tx.l1RollupTransactionId
+  )}, ${numOrNull(tx.type)}`
 }
 
 export const bigNumberOrNull = (bigNumber: any): string => {

@@ -10,7 +10,11 @@ import {
 } from 'ethers/providers'
 
 /* Internal Imports */
-import { L2DataService, TransactionOutput, OptimismTransactionResponse } from '../../../types'
+import {
+  L2DataService,
+  TransactionOutput,
+  OptimismTransactionResponse,
+} from '../../../types'
 import { ChainDataProcessor } from './chain-data-processor'
 import { monkeyPatchL2Provider } from '../../utils'
 import { BigNumber, remove0x } from '@eth-optimism/core-utils/build'

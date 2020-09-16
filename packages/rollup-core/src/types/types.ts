@@ -44,7 +44,7 @@ export interface TransactionOutput {
   nonce: number
   calldata: string
   from: string
-  type: number,
+  type: number
   l1RollupTransactionId?: number
   gasLimit?: BigNumber
   gasPrice?: BigNumber
