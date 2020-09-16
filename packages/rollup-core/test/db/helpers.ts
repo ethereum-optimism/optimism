@@ -32,6 +32,7 @@ export const defaultNonceString: string = '0x01'
 export const defaultNonceNum: number = 1
 export const defaultSignature: string = `${blockHash}${remove0x(parentHash)}99`
 export const defaultStateRoot: string = keccak256FromUtf8(blockHash)
+export const defaultType: number = 0
 
 export const gasUsed = new BigNum(1)
 export const gasLimit = new BigNum(2)
@@ -104,7 +105,8 @@ export const createTxOutput = (
   signature: string = defaultSignature,
   data: string = defaultData,
   to: string = defaultTo,
-  nonce: number = defaultNonceNum
+  nonce: number = defaultNonceNum,
+  type: number = defaultType,
 ): TransactionOutput => {
   return {
     calldata: data,
@@ -120,6 +122,7 @@ export const createTxOutput = (
     l1MessageSender,
     signature: defaultSignature,
     stateRoot,
+    type,
   }
 }
 
