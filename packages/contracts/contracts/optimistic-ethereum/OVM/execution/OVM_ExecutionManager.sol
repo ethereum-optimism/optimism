@@ -693,12 +693,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // existence.
         (bool success, bytes memory returndata) = _target.call{gas: _gasLimit}(_data);
 
+        // Assuming there were no reverts, the message record should be accurate here. We'll update
+        // this value in the case of a revert.
+        uint256 nuisanceGasLeft = messageRecord.nuisanceGasLeft;
+
         // Reverts at this point are completely OK, but we need to make a few updates based on the
         // information passed through the revert.
         if (success == false) {
             (
                 RevertFlag flag,
-                uint256 nuisanceGasLeft,
+                uint256 nuisanceGasLeftPostRevert,
                 uint256 ovmGasRefund,
             ) = _decodeRevertData(returndata);
 
@@ -718,14 +722,17 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             ) {
                 transactionRecord.ovmGasRefund = ovmGasRefund;
             }
-
+            
             // Reverts mean we need to use up whatever "nuisance gas" was used by the call.
             // EXCEEDS_NUISANCE_GAS explicitly reduces the remaining nuisance gas for this message
             // to zero. OUT_OF_GAS is a "pseudo" flag given that messages return no data when they
             // run out of gas, so we have to treat this like EXCEEDS_NUISANCE_GAS. All other flags
             // will simply pass up the remaining nuisance gas.
-            messageRecord.nuisanceGasLeft = prevNuisanceGasLeft - (nuisanceGasLimit - nuisanceGasLeft);
+            nuisanceGasLeft = nuisanceGasLeftPostRevert;
         }
+
+        // We need to reset the nuisance gas back to its original value minus the amount used here.
+        messageRecord.nuisanceGasLeft = prevNuisanceGasLeft - (nuisanceGasLimit - nuisanceGasLeft);
 
         // Switch back to the original message context now that we're out of the call.
         _switchMessageContext(_nextMessageContext, prevMessageContext);
@@ -1108,6 +1115,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // Avoid unnecessary the SSTORE.
         if (_prevMessageContext.ovmCALLER != _nextMessageContext.ovmCALLER) {
             messageContext.ovmCALLER = _nextMessageContext.ovmCALLER;
+        }
+
+        // Avoid unnecessary the SSTORE.
+        if (_prevMessageContext.ovmADDRESS != _nextMessageContext.ovmADDRESS) {
+            messageContext.ovmADDRESS = _nextMessageContext.ovmADDRESS;
         }
 
         // Avoid unnecessary the SSTORE.

@@ -8,6 +8,8 @@ import {
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
 
+import './test/helpers/buidler/modify-compiler'
+
 const config: BuidlerConfig = {
   networks: {
     buidlerevm: {

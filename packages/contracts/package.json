@@ -7,7 +7,7 @@
     "build": "yarn run build:contracts",
     "build:contracts": "buidler compile",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_ExecutionManager/opcodes/OVM_ExecutionManager.opcodes.calling.spec.ts\""
+    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_test.spec.ts\""
   },
   "devDependencies": {
     "@nomiclabs/buidler": "^1.4.4",
@@ -20,6 +20,7 @@
     "chai": "^4.2.0",
     "ethereum-waffle": "3.0.0",
     "ethers": "5.0.0",
+    "fs-extra": "^9.0.1",
     "mocha": "^8.1.1",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.2"
