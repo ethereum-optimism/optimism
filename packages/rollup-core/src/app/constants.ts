@@ -35,6 +35,12 @@ export const DEFAULT_UNSAFE_OPCODES: EVMOpcode[] = [
   Opcode.TIMESTAMP,
 ]
 
+export const TRANSACTION_TYPES = {
+  EOA_CONTRACT_CREATION: 'EOA_CONTRACT_CREATION',
+  EIP155: 'EIP155',
+  ETH_SIGNED_MESSAGE: 'ETH_SIGNED_MESSAGE',
+}
+
 // use whitelist-mask-generator.spec.ts to re-generate this
 export const DEFAULT_OPCODE_WHITELIST_MASK =
   '0x600a0000000000000000001fffffffffffffffff0fcf000063f000013fff0fff'

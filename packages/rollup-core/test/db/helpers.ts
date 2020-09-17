@@ -19,6 +19,7 @@ import {
   DataService,
   QueueOrigin,
 } from '../../src/types/data'
+import { TRANSACTION_TYPES } from '../../src/app/constants'
 import { RollupTransaction, TransactionOutput } from '../../src/types'
 
 export const blockHash = keccak256FromUtf8('block hash')
@@ -32,7 +33,7 @@ export const defaultNonceString: string = '0x01'
 export const defaultNonceNum: number = 1
 export const defaultSignature: string = `${blockHash}${remove0x(parentHash)}99`
 export const defaultStateRoot: string = keccak256FromUtf8(blockHash)
-export const defaultType: number = 0
+export const defaultType: string = TRANSACTION_TYPES.ETH_SIGNED_MESSAGE
 
 export const gasUsed = new BigNum(1)
 export const gasLimit = new BigNum(2)
@@ -106,7 +107,7 @@ export const createTxOutput = (
   data: string = defaultData,
   to: string = defaultTo,
   nonce: number = defaultNonceNum,
-  type: number = defaultType
+  type: string = defaultType
 ): TransactionOutput => {
   return {
     calldata: data,

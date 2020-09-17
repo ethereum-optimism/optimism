@@ -39,7 +39,7 @@ CREATE TABLE l2_tx_output (
   calldata TEXT NOT NULL,
   signature CHARACTER(132) NOT NULL,
   state_root CHARACTER(66) NOT NULL,
-  tx_type INT NOT NULL,
+  tx_type TEXT NOT NULL,
   l1_rollup_tx_id BIGINT DEFAULT NULL,
   canonical_chain_batch_number BIGINT DEFAULT NULL,
   canonical_chain_batch_index INT DEFAULT NULL,

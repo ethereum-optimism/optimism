@@ -13,6 +13,7 @@ import {
   DefaultDataService,
   CanonicalChainBatchSubmitter,
 } from '../../src/app/data'
+import { TRANSACTION_TYPES } from '../../src/app/constants'
 import {
   TransactionBatchSubmission,
   BatchSubmissionStatus,
@@ -275,7 +276,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
-          type: 0,
+          type: TRANSACTION_TYPES.ETH_SIGNED_MESSAGE,
         },
       ],
     })
@@ -321,7 +322,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
-          type: 0,
+          type: TRANSACTION_TYPES.ETH_SIGNED_MESSAGE,
         },
       ],
     })
@@ -384,7 +385,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
-          type: 0,
+          type: TRANSACTION_TYPES.ETH_SIGNED_MESSAGE,
         },
       ],
     })
@@ -444,7 +445,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
-          type: 0,
+          type: TRANSACTION_TYPES.ETH_SIGNED_MESSAGE,
         },
       ],
     })
@@ -503,7 +504,7 @@ describe('Canonical Chain Batch Submitter', () => {
           calldata: keccak256FromUtf8('some calldata'),
           stateRoot: keccak256FromUtf8('l2 state root'),
           signature: 'ab'.repeat(65),
-          type: 0,
+          type: TRANSACTION_TYPES.ETH_SIGNED_MESSAGE,
         },
       ],
     })
@@ -550,7 +551,7 @@ describe('Canonical Chain Batch Submitter', () => {
             calldata: keccak256FromUtf8('some calldata'),
             stateRoot: keccak256FromUtf8('l2 state root'),
             signature: 'ab'.repeat(65),
-            type: 0,
+            type: TRANSACTION_TYPES.ETH_SIGNED_MESSAGE,
           },
         ],
       })

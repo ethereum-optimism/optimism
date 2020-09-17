@@ -79,7 +79,7 @@ export const getL2TransactionOutputInsertValue = (
     tx.signature
   )}, ${stringOrNull(tx.stateRoot)}, ${numOrNull(
     tx.l1RollupTransactionId
-  )}, ${numOrNull(tx.type)}`
+  )}, ${stringOrNull(tx.type)}`
 }
 
 export const bigNumberOrNull = (bigNumber: any): string => {

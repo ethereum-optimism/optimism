@@ -122,7 +122,7 @@ export class L2ChainDataPersister extends ChainDataProcessor {
    */
   public static getTransactionAndRoot(
     block: Block,
-    response: TransactionResponse,
+    response: OptimismTransactionResponse,
     receipt: TransactionReceipt
   ): TransactionOutput {
     log.debug(`Block data: ${JSON.stringify(block)}`)
@@ -139,7 +139,7 @@ export class L2ChainDataPersister extends ChainDataProcessor {
       stateRoot: block['stateRoot'], // should be added by rollup-core/app/utils.ts: monkeyPatchL2Provider
       gasLimit: L2ChainDataPersister.parseBigNumber(response.gasLimit),
       gasPrice: L2ChainDataPersister.parseBigNumber(response.gasPrice),
-      type: (response as OptimismTransactionResponse).type,
+      type: response.type,
     }
 
     if (!!response['l1MessageSender']) {
