@@ -21,6 +21,7 @@
     "ethereum-waffle": "3.0.0",
     "ethers": "5.0.0",
     "fs-extra": "^9.0.1",
+    "lodash": "^4.17.20",
     "mocha": "^8.1.1",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.2"
