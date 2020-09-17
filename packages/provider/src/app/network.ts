@@ -143,8 +143,8 @@ export function getUrl(
   // List of publically available urls to use
   // TODO(mark): in this case, turn off calls for `eth_getChainId`
   switch (network ? network.name : 'unknown') {
-    case 'gorli':
-      host = 'gorli.optimism.io'
+    case 'goerli':
+      host = 'goerli.optimism.io'
       break
     case 'main':
     default:
