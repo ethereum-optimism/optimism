@@ -18,3 +18,11 @@ const web3 = new Web3Provider()
 // Accepts either a URL or a network name (main, kovan)
 const provider = new OptimismProvider('http://localhost:8545', web3)
 ```
+
+## Goerli Testnet
+
+To connect to the Goerli testnet:
+
+```js
+const provider = new OptimismProvider('goerli')
+```
