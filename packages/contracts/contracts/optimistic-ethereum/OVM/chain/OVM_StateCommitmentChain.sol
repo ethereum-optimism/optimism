@@ -3,7 +3,7 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
@@ -13,20 +13,44 @@ import { iOVM_FraudVerifier } from "../../iOVM/execution/iOVM_FraudVerifier.sol"
 /* Contract Imports */
 import { OVM_BaseChain } from "./OVM_BaseChain.sol";
 
+/**
+ * @title OVM_StateCommitmentChain
+ */
 contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain {
+    
+    /*******************************************
+     * Contract Variables: Contract References *
+     *******************************************/
+
     iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
     iOVM_FraudVerifier internal ovmFraudVerifier;
 
+
+    /***************
+     * Constructor *
+     ***************/
+
+    /**
+     * @param _ovmCanonicalTransactionChain Address of the OVM_CanonicalTransactionChain.
+     * @param _ovmFraudVerifier Address of the OVM_FraudVerifier.
+     */
     constructor(
         address _ovmCanonicalTransactionChain,
         address _ovmFraudVerifier
-    )
-        Lib_ContractProxyResolver(_libContractProxyManager)
-    {
+    ) {
         ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(_ovmCanonicalTransactionChain);
         ovmFraudVerifier = iOVM_FraudVerifier(_ovmFraudVerifier);
     }
 
+
+    /****************************************
+     * Public Functions: Batch Manipulation *
+     ****************************************/
+
+    /**
+     * Appends a batch of state roots to the chain.
+     * @param _batch Batch of state roots.
+     */
     function appendStateBatch(
         bytes32[] memory _batch
     )
@@ -51,8 +75,12 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain {
         _appendBatch(elements);
     }
 
+    /**
+     * Deletes all state roots after (and including) a given batch.
+     * @param _batchHeader Header of the batch to start deleting from.
+     */
     function deleteStateBatch(
-        Lib_OVMDataTypes.OVMChainBatchHeader memory _batchHeader
+        Lib_OVMCodec.ChainBatchHeader memory _batchHeader
     )
         override
         public

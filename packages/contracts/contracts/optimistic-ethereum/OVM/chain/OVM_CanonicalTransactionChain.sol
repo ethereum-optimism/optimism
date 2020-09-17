@@ -3,42 +3,64 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
-import { Lib_MerkleUtils } from "../../../libraries/utils/Lib_MerkleUtils.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
 
 /* Interface Imports */
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_BaseQueue } from "../../iOVM/queue/iOVM_BaseQueue.sol";
+import { iOVM_L1ToL2TransactionQueue } from "../../iOVM/queue/iOVM_L1ToL2TransactionQueue.sol";
 
 /* Contract Imports */
 import { OVM_BaseChain } from "./OVM_BaseChain.sol";
 
+/**
+ * @title OVM_CanonicalTransactionChain
+ */
 contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_BaseChain {
-    iOVM_BaseQueue internal ovmL1ToL2TransactionQueue;
+
+    /*******************************************
+     * Contract Variables: Contract References *
+     *******************************************/
+    
+    iOVM_L1ToL2TransactionQueue internal ovmL1ToL2TransactionQueue;
     address internal sequencer;
+
+
+    /*******************************************
+     * Contract Variables: Internal Accounting *
+     *******************************************/
+
     uint256 internal forceInclusionPeriodSeconds;
     uint256 internal lastOVMTimestamp;
 
+
+    /***************
+     * Constructor *
+     ***************/
+
+    /**
+     * @param _ovmL1ToL2TransactionQueue Address of the OVM_L1ToL2TransactionQueue.
+     * @param _sequencer Address of the current sequencer.
+     * @param _forceInclusionPeriodSeconds Period during which only the sequencer can submit.
+     */
     constructor(
         address _ovmL1ToL2TransactionQueue,
         address _sequencer,
-        uint256 _forceInclusionPeriodSeconds,
-    )
-        Lib_ContractProxyResolver(_libContractProxyManager)
-    {
-        ovmL1ToL2TransactionQueue = iOVM_BaseQueue(_ovmL1ToL2TransactionQueue);
+        uint256 _forceInclusionPeriodSeconds
+    ) {
+        ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(_ovmL1ToL2TransactionQueue);
         sequencer = _sequencer;
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
     }
 
-    modifier onlySequencer() {
-        require(
-            msg.sender == sequencer,
-            "Function can only be called by the sequencer."
-        );
-        _;
-    }
 
+    /****************************************
+     * Public Functions: Batch Manipulation *
+     ****************************************/
+
+    /**
+     * Appends a batch from the L1ToL2TransactionQueue.
+     */
     function appendQueueBatch()
         override
         public
@@ -59,14 +81,23 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         ovmL1ToL2TransactionQueue.dequeue();
     }
 
+    /**
+     * Appends a sequencer batch.
+     * @param _batch Batch of transactions to append.
+     * @param _timestamp Timestamp for the provided batch.
+     */
     function appendSequencerBatch(
         bytes[] memory _batch,
         uint256 _timestamp
     )
         override
         public
-        onlySequencer
     {
+        require(
+            msg.sender == sequencer,
+            "Function can only be called by the sequencer."
+        );
+
         require(
             _timestamp >= lastOVMTimestamp,
             "Batch timestamp must be later than the last OVM timestamp."
@@ -87,6 +118,16 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         _appendQueueBatch(queueElement, _batch.length);
     }
 
+
+    /******************************************
+     * Internal Functions: Batch Manipulation *
+     ******************************************/
+
+    /**
+     * Appends a queue batch to the chain.
+     * @param _queueElement Queue element to append.
+     * @param _batchSize Number of elements in the batch.
+     */
     function _appendQueueBatch(
         Lib_OVMCodec.QueueElement memory _queueElement,
         uint256 _batchSize

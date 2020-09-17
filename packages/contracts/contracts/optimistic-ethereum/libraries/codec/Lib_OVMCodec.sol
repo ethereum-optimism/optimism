@@ -22,6 +22,13 @@ library Lib_OVMCodec {
         address ethAddress;
     }
 
+    struct EVMAccount {
+        uint256 nonce;
+        uint256 balance;
+        bytes32 storageRoot;
+        bytes32 codeHash;
+    }
+
     struct ChainBatchHeader {
         uint256 batchIndex;
         bytes32 batchRoot;
