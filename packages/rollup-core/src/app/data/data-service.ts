@@ -480,17 +480,26 @@ export class DefaultDataService implements DataService {
     let totalCalldataBytes: number = 0
     let lastId = -1
     for (const row of res) {
-      totalCalldataBytes += parseInt(row['calldata_bytes'], 10)
+      const rowBytes: number = parseInt(row['calldata_bytes'], 10)
+      totalCalldataBytes += rowBytes
       if (totalCalldataBytes > maxBatchCalldataBytes) {
         if (lastId === -1) {
           const msg: string = `L2 Tx with ID ${row['id']} has ${totalCalldataBytes} bytes of calldata, which is bigger than the limit of ${maxBatchCalldataBytes}! Cannot roll up this transaction!`
           log.error(msg)
           throw Error(msg)
         }
+        log.debug(
+          `Building Canonical Chain Batch with ${totalCalldataBytes -
+            rowBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastId}`
+        )
         return lastId
       }
       lastId = parseInt(row['id'], 10)
     }
+
+    log.debug(
+      `Building Canonical Chain Batch with ${totalCalldataBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastId}`
+    )
 
     return lastId
   }

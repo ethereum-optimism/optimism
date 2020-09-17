@@ -152,7 +152,7 @@ export abstract class BaseQueuedPersistedProcessor<T>
 
           if (lastProcessed !== index - 1) {
             this.log(
-              `Told to process ${index} but last index processed was ${lastProcessed}, so will process.`
+              `Told to process ${index} but last index processed was ${lastProcessed}, so will not process.`
             )
             return false
           }
