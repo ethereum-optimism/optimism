@@ -398,7 +398,7 @@ export class DefaultDataService implements DataService {
   ): Promise<number> {
     // TODO: ADD SOME SIZE LIMIT
     const txRes = await this.rdb.select(
-      `SELECT SUM((LENGTH(calldata)-2) / 2) as batch_calldata, block_timestamp
+      `SELECT SUM(GREATEST(LENGTH(calldata)-2, 0) / 2) as batch_calldata, block_timestamp
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
@@ -411,6 +411,7 @@ export class DefaultDataService implements DataService {
     if (
       !txRes ||
       !txRes.length ||
+      !txRes[0]['block_timestamp'] ||
       (txRes.length < 2 &&
         parseInt(txRes[0]['batch_calldata'], 10) < minBatchCalldataBytes)
     ) {
@@ -462,7 +463,7 @@ export class DefaultDataService implements DataService {
     maxBatchCalldataBytes: number
   ): Promise<number> {
     const res: Row[] = await this.rdb.select(
-      `SELECT id, (LENGTH(calldata)-2) / 2 as calldata_bytes
+      `SELECT id, GREATEST(LENGTH(calldata)-2, 0) / 2 as calldata_bytes
       FROM l2_tx_output
       WHERE 
             block_timestamp = ${batchTimestamp}

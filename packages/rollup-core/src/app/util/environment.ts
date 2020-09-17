@@ -300,7 +300,7 @@ export class Environment {
 
   // Batch Sizes
   public static canonicalChainBatchMinCalldataBytes(
-    defaultValue: number = 1
+    defaultValue: number = 0
   ): number {
     return process.env.CANONICAL_CHAIN_BATCH_MIN_CALLDATA_BYTES
       ? parseInt(process.env.CANONICAL_CHAIN_BATCH_MIN_CALLDATA_BYTES, 10)
