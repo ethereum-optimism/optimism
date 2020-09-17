@@ -3,13 +3,16 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 
 /* Interface Imports */
-import { iOVM_DataTypes } from "../../iOVM/codec/iOVM_DataTypes.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol";
+
+/* Contract Imports */
+import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
 
 /**
  * @title OVM_ExecutionManager
@@ -93,7 +96,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * @param _ovmStateManager iOVM_StateManager implementation providing account state.
      */
     function run(
-        iOVM_DataTypes.OVMTransactionData memory _transaction,
+        Lib_OVMCodec.Transaction memory _transaction,
         address _ovmStateManager
     )
         override
@@ -235,7 +238,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // Generate the correct CREATE address.
         address contractAddress = Lib_EthUtils.getAddressForCREATE(
             creator,
-            _getAccount(creator).nonce
+            _getAccountNonce(creator)
         );
 
         _createContract(
@@ -279,6 +282,101 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         );
 
         return contractAddress;
+    }
+
+
+    /*******************************
+     * Account Abstraction Opcodes *
+     ******************************/
+
+    /**
+     * Retrieves the nonce of the current ovmADDRESS.
+     * @return _nonce Nonce of the current contract.
+     */
+    function ovmGETNONCE()
+        override
+        public
+        returns (
+            uint256 _nonce
+        )
+    {
+        return _getAccountNonce(ovmADDRESS());
+    }
+
+    /**
+     * Sets the nonce of the current ovmADDRESS.
+     * @param _nonce New nonce for the current contract.
+     */
+    function ovmSETNONCE(
+        uint256 _nonce
+    )
+        override
+        public
+    {
+        if (_nonce <= ovmGETNONCE()) {
+            return;
+        }
+
+        _setAccountNonce(ovmADDRESS(), _nonce);
+    }
+
+    /**
+     * Creates a new EOA contract account, for account abstraction.
+     * @dev Essentially functions like ovmCREATE or ovmCREATE2, but we can bypass a lot of checks
+     *      because the contract we're creating is trusted (no need to do safety checking or to
+     *      handle unexpected reverts). Doesn't need to return an address because the address is
+     *      assumed to be the user's actual address.
+     * @param _messageHash Hash of a message signed by some user, for verification.
+     * @param _v Signature `v` parameter.
+     * @param _r Signature `r` parameter.
+     * @param _s Signature `s` parameter.
+     */
+    function ovmCREATEEOA(
+        bytes32 _messageHash,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    )
+        override
+        public
+    {
+        // Recover the EOA address from the message hash and signature parameters. Since we do the
+        // hashing in advance, we don't have handle different message hashing schemes. Even if this
+        // function were to return the wrong address (rather than explicitly returning the zero
+        // address), the rest of the transaction would simply fail (since there's no EOA account to
+        // actually execute the transaction).
+        address eoa = ecrecover(
+            _messageHash,
+            (_v - uint8(ovmCHAINID()) * 2) - 8,
+            _r,
+            _s
+        );
+
+        // Invalid signature is a case we proactively handle with a revert. We could alternatively
+        // have this function return a `success` boolean, but this is just easier.
+        if (eoa == address(0)) {
+            ovmREVERT(bytes("Signature provided for EOA contract creation is invalid."));
+        }
+
+        // If the user already has an EOA account, then there's no need to perform this operation.
+        if (_hasAccount(eoa) == true) {
+            return;
+        }
+
+        // We always need to initialize the contract with the default account values.
+        _initPendingAccount(eoa);
+
+        // Now actually create the account and get its bytecode. We're not worried about reverts
+        // (other than out of gas, which we can't capture anyway) because this contract is trusted.
+        OVM_ECDSAContractAccount eoaContractAccount = new OVM_ECDSAContractAccount();
+        bytes memory deployedCode = Lib_EthUtils.getCode(address(eoaContractAccount));
+
+        // Commit the account with its final values.
+        _commitPendingAccount(
+            eoa,
+            address(eoaContractAccount),
+            keccak256(deployedCode)
+        );
     }
 
 
@@ -470,7 +568,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         uint256 length = _length == 1 ? 2 : _length;
 
         return Lib_EthUtils.getCode(
-            _getAccount(_contract).ethAddress,
+            _getAccountEthAddress(_contract),
             _offset,
             _length
         );
@@ -491,7 +589,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         )
     {
         return Lib_EthUtils.getCodeSize(
-            _getAccount(_contract).ethAddress
+            _getAccountEthAddress(_contract)
         );
     }
 
@@ -510,7 +608,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         )
     {
         return Lib_EthUtils.getCodeHash(
-            _getAccount(_contract).ethAddress
+            _getAccountEthAddress(_contract)
         );
     }
 
@@ -599,7 +697,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         internal
     {
         // We always update the nonce of the creating account, even if the creation fails.
-        _incrementAccountNonce(ovmADDRESS());
+        _setAccountNonce(ovmADDRESS(), 1);
 
         // We're stepping into a CREATE or CREATE2, so we need to update ADDRESS to point
         // to the contract's associated address.
@@ -648,7 +746,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         return _handleExternalInteraction(
             _nextMessageContext,
             _gasLimit,
-            _getAccount(_contract).ethAddress,
+            _getAccountEthAddress(_contract),
             _calldata
         );
     }
@@ -749,54 +847,69 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      ******************************************/
 
     /**
-     * Retrieves an account from the OVM_StateManager.
-     * @param _address Address of the account to retrieve.
-     * @return _account Retrieved account object.
+     * Checks whether an account exists within the OVM_StateManager.
+     * @param _address Address of the account to check.
+     * @return _exists Whether or not the account exists.
      */
-    function _getAccount(
+    function _hasAccount(
         address _address
     )
         internal
         returns (
-            iOVM_DataTypes.OVMAccount memory _account
+            bool _exists
         )
     {
-        // We need to make sure that the transaction isn't trying to access an account that hasn't
-        // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
-        _checkInvalidStateAccess(
-            ovmStateManager.hasAccount(_address)
-        );
-
-        // Check whether the account has been loaded before and mark it as loaded if not. We need
-        // this because "nuisance gas" only applies to the first time that an account is loaded.
-        (
-            bool _wasAccountAlreadyLoaded
-        ) = ovmStateManager.testAndSetAccountLoaded(_address);
-
-        // Actually retrieve the account.
-        iOVM_DataTypes.OVMAccount memory account = ovmStateManager.getAccount(_address);
-
-        // If we hadn't already loaded the account, then we'll need to charge "nuisance gas" based
-        // on the size of the contract code.
-        if (_wasAccountAlreadyLoaded == false) {
-            _useNuisanceGas(
-                Lib_EthUtils.getCodeSize(account.ethAddress) * NUISANCE_GAS_PER_CONTRACT_BYTE
-            );
-        }
-
-        return account;
+        _checkAccountLoad(_address);
+        return ovmStateManager.hasAccount(_address);
     }
 
     /**
-     * Increments the nonce of an account.
-     * @param _address Address of the account to bump.
+     * Sets the nonce of an account.
+     * @param _address Address of the account to modify.
+     * @param _nonce New account nonce.
      */
-    function _incrementAccountNonce(
-        address _address
+    function _setAccountNonce(
+        address _address,
+        uint256 _nonce
     )
         internal
     {
-        ovmStateManager.incrementAccountNonce(_address);
+        _checkAccountChange(_address);
+        ovmStateManager.setAccountNonce(_address, _nonce);
+    }
+
+    /**
+     * Gets the nonce of an account.
+     * @param _address Address of the account to access.
+     * @return _nonce Nonce of the account.
+     */
+    function _getAccountNonce(
+        address _address
+    )
+        internal
+        returns (
+            uint256 _nonce
+        )
+    {
+        _checkAccountLoad(_address);
+        return ovmStateManager.getAccountNonce(_address);
+    }
+
+    /**
+     * Retrieves the Ethereum address of an account.
+     * @param _address Address of the account to access.
+     * @return _ethAddress Corresponding Ethereum address.
+     */
+    function _getAccountEthAddress(
+        address _address
+    )
+        internal
+        returns (
+            address _ethAddress
+        )
+    {
+        _checkAccountLoad(_address);
+        ovmStateManager.getAccountEthAddress(_address);
     }
 
     /**
@@ -808,6 +921,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        _checkAccountChange(_address);
         ovmStateManager.initPendingAccount(_address);
     }
 
@@ -826,21 +940,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        // Check whether the account has been changed before and mark it as changed if not. We need
-        // this because "nuisance gas" only applies to the first time that an account is changed.
-        (
-            bool _wasAccountAlreadyChanged
-        ) = ovmStateManager.testAndSetAccountChanged(_address);
-
-        // If we hadn't already changed the account, then we'll need to charge "nuisance gas" based
-        // on the size of the contract code.
-        if (_wasAccountAlreadyChanged == false) {
-            _useNuisanceGas(
-                Lib_EthUtils.getCodeSize(_ethAddress) * NUISANCE_GAS_PER_CONTRACT_BYTE
-            );
-        }
-
-        // Actually commit the contract.
+        _checkAccountChange(_address);
         ovmStateManager.commitPendingAccount(
             _address,
             _ethAddress,
@@ -863,6 +963,95 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes32 _value
         )
     {
+        _checkContractStorageLoad(_contract, _key);
+        return ovmStateManager.getContractStorage(_contract, _key);
+    }
+  
+    /**
+     * Sets the value of a storage slot.
+     * @param _contract Address of the contract to modify.
+     * @param _key 32 byte key of the storage slot.
+     * @param _value 32 byte storage slot value.
+     */
+    function _putContractStorage(
+        address _contract,
+        bytes32 _key,
+        bytes32 _value
+    )
+        internal
+    {
+        _checkContractStorageChange(_contract, _key);
+        ovmStateManager.putContractStorage(_contract, _key, _value);
+    }
+
+    /**
+     * Validation whenever a contract needs to be loaded. Checks that the account exists, charges
+     * nuisance gas if the account hasn't been loaded before.
+     * @param _address Address of the account to load.
+     */
+    function _checkAccountLoad(
+        address _address
+    )
+        internal
+    {
+        // We need to make sure that the transaction isn't trying to access an account that hasn't
+        // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
+        _checkInvalidStateAccess(
+            ovmStateManager.hasAccount(_address)
+        );
+
+        // Check whether the account has been loaded before and mark it as loaded if not. We need
+        // this because "nuisance gas" only applies to the first time that an account is loaded.
+        (
+            bool _wasAccountAlreadyLoaded
+        ) = ovmStateManager.testAndSetAccountLoaded(_address);
+
+        // If we hadn't already loaded the account, then we'll need to charge "nuisance gas" based
+        // on the size of the contract code.
+        if (_wasAccountAlreadyLoaded == false) {
+            _useNuisanceGas(
+                Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE
+            );
+        }
+    }
+
+    /**
+     * Validation whenever a contract needs to be changed. Checks that the account exists, charges
+     * nuisance gas if the account hasn't been changed before.
+     * @param _address Address of the account to change.
+     */
+    function _checkAccountChange(
+        address _address
+    )
+        internal
+    {
+        // Check whether the account has been changed before and mark it as changed if not. We need
+        // this because "nuisance gas" only applies to the first time that an account is changed.
+        (
+            bool _wasAccountAlreadyChanged
+        ) = ovmStateManager.testAndSetAccountChanged(_address);
+
+        // If we hadn't already changed the account, then we'll need to charge "nuisance gas" based
+        // on the size of the contract code.
+        if (_wasAccountAlreadyChanged == false) {
+            _useNuisanceGas(
+                Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE
+            );
+        }
+    }
+
+    /**
+     * Validation whenever a slot needs to be loaded. Checks that the account exists, charges
+     * nuisance gas if the slot hasn't been loaded before.
+     * @param _contract Address of the account to load from.
+     * @param _key 32 byte key to load.
+     */
+    function _checkContractStorageLoad(
+        address _contract,
+        bytes32 _key
+    )
+        internal
+    {
         // We need to make sure that the transaction isn't trying to access storage that hasn't
         // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
         _checkInvalidStateAccess(
@@ -880,21 +1069,17 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         if (_wasContractStorageAlreadyLoaded == false) {
             _useNuisanceGas(NUISANCE_GAS_SLOAD);
         }
-
-        // Actually retrieve the storage slot.
-        return ovmStateManager.getContractStorage(_contract, _key);
     }
-  
+
     /**
-     * Sets the value of a storage slot.
-     * @param _contract Address of the contract to modify.
-     * @param _key 32 byte key of the storage slot.
-     * @param _value 32 byte storage slot value.
+     * Validation whenever a slot needs to be changed. Checks that the account exists, charges
+     * nuisance gas if the slot hasn't been changed before.
+     * @param _contract Address of the account to change.
+     * @param _key 32 byte key to change.
      */
-    function _putContractStorage(
+    function _checkContractStorageChange(
         address _contract,
-        bytes32 _key,
-        bytes32 _value
+        bytes32 _key
     )
         internal
     {
@@ -909,9 +1094,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         if (_wasContractStorageAlreadyChanged == false) {
             _useNuisanceGas(NUISANCE_GAS_SSTORE);
         }
-
-        // Actually modify the storage slot.
-        ovmStateManager.putContractStorage(_contract, _key, _value);
     }
 
 

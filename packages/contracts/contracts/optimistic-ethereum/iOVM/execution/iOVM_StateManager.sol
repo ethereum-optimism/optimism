@@ -2,25 +2,48 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-/* Interface Imports */
-import { iOVM_DataTypes } from "../codec/iOVM_DataTypes.sol";
+/* Library Imports */
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
+/**
+ * @title iOVM_StateManager
+ */
 interface iOVM_StateManager {
-    function putAccount(address _address, iOVM_DataTypes.OVMAccount memory _account) external;
-    function getAccount(address _address) external returns (iOVM_DataTypes.OVMAccount memory _account);
+
+    /*******************
+     * Data Structures *
+     *******************/
+
+    enum ItemState {
+        ITEM_UNTOUCHED,
+        ITEM_LOADED,
+        ITEM_CHANGED
+    }
+
+
+    /************************************
+     * Public Functions: Account Access *
+     ************************************/
+
+    function putAccount(address _address, Lib_OVMCodec.Account memory _account) external;
+    function getAccount(address _address) external returns (Lib_OVMCodec.Account memory _account);
     function hasAccount(address _address) external returns (bool _exists);
-    function incrementAccountNonce(address _address) external;
-    
+    function setAccountNonce(address _address, uint256 _nonce) external;
+    function getAccountNonce(address _address) external returns (uint256 _nonce);
+    function getAccountEthAddress(address _address) external returns (address _ethAddress);
     function initPendingAccount(address _address) external;
     function commitPendingAccount(address _address, address _ethAddress, bytes32 _codeHash) external;
+    function testAndSetAccountLoaded(address _address) external returns (bool _wasAccountAlreadyLoaded);
+    function testAndSetAccountChanged(address _address) external returns (bool _wasAccountAlreadyChanged);
+
+    
+    /************************************
+     * Public Functions: Storage Access *
+     ************************************/
 
     function putContractStorage(address _contract, bytes32 _key, bytes32 _value) external;
     function getContractStorage(address _contract, bytes32 _key) external returns (bytes32 _value);
     function hasContractStorage(address _contract, bytes32 _key) external returns (bool _exists);
-
-    function testAndSetAccountLoaded(address _address) external returns (bool _wasAccountAlreadyLoaded);
-    function testAndSetAccountChanged(address _address) external returns (bool _wasAccountAlreadyChanged);
-
     function testAndSetContractStorageLoaded(address _contract, bytes32 _key) external returns (bool _wasContractStorageAlreadyLoaded);
     function testAndSetContractStorageChanged(address _contract, bytes32 _key) external returns (bool _wasContractStorageAlreadyChanged);
 }

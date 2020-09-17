@@ -2,10 +2,14 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-/* Interface Imports */
-import { iOVM_DataTypes } from "../codec/iOVM_DataTypes.sol";
+/* Library Imports */
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 interface iOVM_ExecutionManager {
+    /*******************
+     * Data Structures *
+     *******************/
+
     enum RevertFlag {
         DID_NOT_REVERT,
         OUT_OF_GAS,
@@ -42,8 +46,13 @@ interface iOVM_ExecutionManager {
         RevertFlag revertFlag;
     }
 
+
+    /************************************
+     * Transaction Execution Entrypoint *
+     ************************************/
+
     function run(
-        iOVM_DataTypes.OVMTransactionData calldata _transaction,
+        Lib_OVMCodec.Transaction calldata _transaction,
         address _txStateManager
     ) external;
 
@@ -73,7 +82,15 @@ interface iOVM_ExecutionManager {
 
     function ovmCREATE(bytes memory _bytecode) external returns (address _contract);
     function ovmCREATE2(bytes memory _bytecode, bytes32 _salt) external returns (address _contract);
-    function safeCREATE(address _address, bytes memory _bytecode) external;
+
+
+    /*******************************
+     * Account Abstraction Opcodes *
+     ******************************/
+    
+    function ovmGETNONCE() external returns (uint256 _nonce);
+    function ovmSETNONCE(uint256 _nonce) external;
+    function ovmCREATEEOA(bytes32 _messageHash, uint8 _v, bytes32 _r, bytes32 _s) external;
 
 
     /****************************
@@ -100,4 +117,11 @@ interface iOVM_ExecutionManager {
     function ovmEXTCODECOPY(address _contract, uint256 _offset, uint256 _length) external returns (bytes memory _code);
     function ovmEXTCODESIZE(address _contract) external returns (uint256 _size);
     function ovmEXTCODEHASH(address _contract) external returns (bytes32 _hash);
+
+
+    /**************************************
+     * Public Functions: Execution Safety *
+     **************************************/
+    
+    function safeCREATE(address _address, bytes memory _bytecode) external;
 }
