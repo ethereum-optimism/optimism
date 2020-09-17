@@ -909,7 +909,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         )
     {
         _checkAccountLoad(_address);
-        ovmStateManager.getAccountEthAddress(_address);
+        return ovmStateManager.getAccountEthAddress(_address);
     }
 
     /**
