@@ -279,19 +279,19 @@ const createQueuedGethSubmitter = async (): Promise<QueuedGethSubmitter> => {
  * @returns The CanonicalChainBatchCreator.
  */
 const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
-  const minSize: number = Environment.canonicalChainMinBatchSize(10)
-  const maxSize: number = Environment.canonicalChainMaxBatchSize(100)
+  const minBatchCalldataBytese: number = Environment.canonicalChainBatchMinCalldataBytes()
+  const maxBatchCalldataBytes: number = Environment.canonicalChainBatchMaxCalldataBytes()
   const period: number = Environment.getOrThrow(
     Environment.canonicalChainBatchCreatorPeriodMillis
   )
   log.info(
-    `Creating CanonicalChainBatchCreator with a min/max batch size of [${minSize}/${maxSize}] and period of ${period} millis`
+    `Creating CanonicalChainBatchCreator with a min/max batch size of [${minBatchCalldataBytese}/${maxBatchCalldataBytes}] and period of ${period} millis`
   )
 
   return new CanonicalChainBatchCreator(
     getDataService(),
-    minSize,
-    maxSize,
+    minBatchCalldataBytese,
+    maxBatchCalldataBytes,
     period
   )
 }

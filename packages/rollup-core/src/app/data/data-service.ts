@@ -393,31 +393,36 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async tryBuildCanonicalChainBatchNotPresentOnL1(
-    minBatchSize: number,
-    maxBatchSize: number
+    minBatchCalldataBytes: number,
+    maxBatchCalldataBytes: number
   ): Promise<number> {
     // TODO: ADD SOME SIZE LIMIT
     const txRes = await this.rdb.select(
-      `SELECT DISTINCT COUNT(*) as total, block_timestamp
+      `SELECT SUM((LENGTH(calldata)-2) / 2) as batch_calldata, block_timestamp
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
               AND l1_rollup_tx_id IS NULL
             GROUP BY block_timestamp
             ORDER BY block_timestamp ASC
-            LIMIT 2
-      `
+            LIMIT 2`
     )
 
     if (
       !txRes ||
       !txRes.length ||
-      (txRes.length < 2 && parseInt(txRes[0]['total'], 10) < minBatchSize)
+      (txRes.length < 2 &&
+        parseInt(txRes[0]['batch_calldata'], 10) < minBatchCalldataBytes)
     ) {
       return -1
     }
 
     const batchTimestamp = parseInt(txRes[0]['block_timestamp'], 10)
+
+    const maxTxId = await this.getMaxL2TxOutputIdForCanonicalChainBatch(
+      batchTimestamp,
+      maxBatchCalldataBytes
+    )
 
     const txContext = await this.rdb.startTransaction()
     try {
@@ -435,8 +440,8 @@ export class DefaultDataService implements DataService {
               canonical_chain_batch_number IS NULL
               AND l1_rollup_tx_id IS NULL
               AND block_timestamp = ${batchTimestamp}
+              AND id <= ${maxTxId}
             ORDER BY block_number ASC, tx_index ASC
-            LIMIT ${maxBatchSize}
           ) t
         WHERE tx.id = t.id 
           `,
@@ -450,6 +455,43 @@ export class DefaultDataService implements DataService {
       await this.rdb.rollback(txContext)
       throw Error(e)
     }
+  }
+
+  public async getMaxL2TxOutputIdForCanonicalChainBatch(
+    batchTimestamp: number,
+    maxBatchCalldataBytes: number
+  ): Promise<number> {
+    const res: Row[] = await this.rdb.select(
+      `SELECT id, (LENGTH(calldata)-2) / 2 as calldata_bytes
+      FROM l2_tx_output
+      WHERE 
+            block_timestamp = ${batchTimestamp}
+            AND canonical_chain_batch_number IS NULL
+      ORDER BY id ASC`
+    )
+
+    if (!res || !res.length) {
+      const msg: string = `Was told to get max L2 Tx Output ID for batch timestamp ${batchTimestamp}, but no records found!`
+      log.error(msg)
+      throw Error(msg)
+    }
+
+    let totalCalldataBytes: number = 0
+    let lastId = -1
+    for (const row of res) {
+      totalCalldataBytes += parseInt(row['calldata_bytes'], 10)
+      if (totalCalldataBytes > maxBatchCalldataBytes) {
+        if (lastId === -1) {
+          const msg: string = `L2 Tx with ID ${row['id']} has ${totalCalldataBytes} bytes of calldata, which is bigger than the limit of ${maxBatchCalldataBytes}! Cannot roll up this transaction!`
+          log.error(msg)
+          throw Error(msg)
+        }
+        return lastId
+      }
+      lastId = parseInt(row['id'], 10)
+    }
+
+    return lastId
   }
 
   /**

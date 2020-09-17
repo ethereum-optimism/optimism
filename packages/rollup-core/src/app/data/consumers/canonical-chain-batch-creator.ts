@@ -12,8 +12,8 @@ const log = getLogger('l2-batch-creator')
 export class CanonicalChainBatchCreator extends ScheduledTask {
   constructor(
     private readonly dataService: DataService,
-    private readonly minBatchSize: number,
-    private readonly maxBatchSize: number,
+    private readonly minBatchCalldataBytes: number,
+    private readonly maxBatchCalldataBytes: number,
     periodMilliseconds = 10_000
   ) {
     super(periodMilliseconds)
@@ -29,8 +29,8 @@ export class CanonicalChainBatchCreator extends ScheduledTask {
   public async runTask(): Promise<boolean> {
     try {
       const l2OnlyBatchBuilt: number = await this.dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        this.minBatchSize,
-        this.maxBatchSize
+        this.minBatchCalldataBytes,
+        this.maxBatchCalldataBytes
       )
       if (l2OnlyBatchBuilt !== undefined && l2OnlyBatchBuilt >= 0) {
         log.debug(

@@ -316,8 +316,8 @@ export const insertTxOutput = async (
   let txBatchNumber: number
   if (!!desiredTxBatchStatus) {
     txBatchNumber = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-      1,
-      1
+      remove0x(defaultData).length / 2,
+      (remove0x(defaultData).length / 2) * 10
     )
     txBatchNumber.should.be.gte(0, 'canonical chain batch not built')
 
