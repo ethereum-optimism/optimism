@@ -9,6 +9,4 @@ RUN apt update -y \
 RUN git clone https://github.com/omgnetwork/plasma-contracts.git \
         && cd plasma-contracts/plasma_framework \
         && npm install \
-        && npm install typescript \
-        && npx truffle compile \
-        && npm run test
+        && npm install typescript

@@ -33,9 +33,8 @@ services:
         done;
         cd plasma-contracts/plasma_framework
         rm -rf build
-        truffle compile
         sed -i 's/127.0.0.1/ganache/g'  truffle-config.js
-        truffle migrate --network local 2>&1 | tee /truffleshuffle/migrate.out
+        npx truffle migrate --network local 2>&1 | tee /truffleshuffle/migrate.out
         grep '\"plasma_framework\":' /truffleshuffle/migrate.out > /truffleshuffle/addresses_json.out
         jq -r '.plasma_framework' /truffleshuffle/addresses_json.out > /truffleshuffle/plasma_framework_addr.out
         chown nobody:nogroup /truffleshuffle/*.out
