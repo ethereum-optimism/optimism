@@ -20,10 +20,7 @@ import { Logger } from '@ethersproject/logger'
 import { ConnectionInfo } from '@ethersproject/web'
 import { isUrl } from './utils'
 
-import pkg = require('../../package.json')
-
-const version = pkg.version
-const logger = new Logger(version)
+const logger = new Logger('')
 
 type DefaultProviderFunc = (providers: any, options?: any) => any
 

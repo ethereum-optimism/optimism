@@ -21,9 +21,7 @@ import { OptimismSigner } from './signer'
 import * as utils from './utils'
 import { getNetwork, getUrl } from './network'
 
-import pkg = require('../../package.json')
-const version = pkg.version
-const logger = new Logger(version)
+const logger = new Logger('')
 
 /**
  * The OptimismProvider is an ethers.js JsonRpcProvider that
