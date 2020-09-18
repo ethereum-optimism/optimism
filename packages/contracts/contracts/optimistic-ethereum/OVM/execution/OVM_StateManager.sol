@@ -17,7 +17,7 @@ contract OVM_StateManager is iOVM_StateManager {
      * Contract Constants *
      **********************/
     
-    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH = 0x6969696969696969696969696969696969696969696969696969696969696969;
+    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH = 0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000;
 
 
     /*******************************************
