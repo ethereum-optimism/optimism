@@ -86,7 +86,8 @@ export class DefaultSequentialProcessingDataService
         VALUES('${sequenceKey}', ${index}, '${itemData}', ${
           processed ? 'TRUE' : 'FALSE'
         })
-        ON CONFLICT ON CONSTRAINT sequential_processing_sequence_key_sequence_number_key DO NOTHING`
+        ON CONFLICT ON CONSTRAINT sequential_processing_sequence_key_sequence_number_key DO UPDATE
+        SET data_to_process = '${itemData}'`
       )
     } catch (e) {
       logError(

@@ -36,6 +36,7 @@ import {
   l1TxInsertStatement,
   l2TransactionOutputInsertStatement,
 } from './query-utils'
+import { ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA } from '../constants'
 
 const log = getLogger('data-service')
 
@@ -396,9 +397,12 @@ export class DefaultDataService implements DataService {
     minBatchCalldataBytes: number,
     maxBatchCalldataBytes: number
   ): Promise<number> {
-    // TODO: ADD SOME SIZE LIMIT
+    // TODO: ********************** calc tx size based on what we roll up **************
+
     const txRes = await this.rdb.select(
-      `SELECT SUM(GREATEST(LENGTH(calldata)-2, 0) / 2) as batch_calldata, block_timestamp
+      `SELECT 
+                SUM(GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA}) as batch_calldata, 
+                block_timestamp
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
@@ -463,12 +467,15 @@ export class DefaultDataService implements DataService {
     maxBatchCalldataBytes: number
   ): Promise<number> {
     const res: Row[] = await this.rdb.select(
-      `SELECT id, GREATEST(LENGTH(calldata)-2, 0) / 2 as calldata_bytes
+      `SELECT 
+            id, 
+            GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA} as calldata_bytes
       FROM l2_tx_output
       WHERE 
             block_timestamp = ${batchTimestamp}
             AND canonical_chain_batch_number IS NULL
-      ORDER BY id ASC`
+      ORDER BY id ASC
+      `
     )
 
     if (!res || !res.length) {
