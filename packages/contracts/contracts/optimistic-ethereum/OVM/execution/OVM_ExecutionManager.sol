@@ -34,7 +34,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     GlobalContext internal globalContext;
     TransactionContext internal transactionContext;
     MessageContext internal messageContext;
-
     TransactionRecord internal transactionRecord;
     MessageRecord internal messageRecord;
 
@@ -117,6 +116,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmCALLER()
         override
         public
+        view
         returns (
             address _CALLER
         )
@@ -131,6 +131,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmADDRESS()
         override
         public
+        view
         returns (
             address _ADDRESS
         )
@@ -145,6 +146,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmORIGIN()
         override
         public
+        view
         returns (
             address _ORIGIN
         )
@@ -159,6 +161,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmTIMESTAMP()
         override
         public
+        view
         returns (
             uint256 _TIMESTAMP
         )
@@ -173,6 +176,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmGASLIMIT()
         override
         public
+        view
         returns (
             uint256 _GASLIMIT
         )
@@ -187,6 +191,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmCHAINID()
         override
         public
+        view
         returns (
             uint256 _CHAINID
         )
@@ -359,7 +364,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         }
 
         // If the user already has an EOA account, then there's no need to perform this operation.
-        if (_hasAccount(eoa) == true) {
+        if (_hasEmptyAccount(eoa) == false) {
             return;
         }
 
@@ -570,7 +575,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         return Lib_EthUtils.getCode(
             _getAccountEthAddress(_contract),
             _offset,
-            _length
+            length
         );
     }
 
@@ -641,6 +646,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // call this function.
         if (msg.sender != address(this)) {
             return;
+        }
+
+        // We need to be sure that the user isn't trying to use a contract creation to overwrite
+        // some existing contract. On L1, users will prove that no contract exists at the address
+        // and the OVM_FraudVerifier will populate the code hash of this address with a special
+        // value that represents "known to be an empty account."
+        if (_hasEmptyAccount(_address) == false) {
+            _revertWithFlag(RevertFlag.CREATE_COLLISION);
         }
 
         // Check the creation bytecode against the OVM_SafetyChecker.
@@ -864,6 +877,23 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     }
 
     /**
+     * Checks whether a known empty account exists within the OVM_StateManager.
+     * @param _address Address of the account to check.
+     * @return _exists Whether or not the account empty exists.
+     */
+    function _hasEmptyAccount(
+        address _address
+    )
+        internal
+        returns (
+            bool _exists
+        )
+    {
+        _checkAccountLoad(_address);
+        return ovmStateManager.hasEmptyAccount(_address);
+    }
+
+    /**
      * Sets the nonce of an account.
      * @param _address Address of the account to modify.
      * @param _nonce New account nonce.
@@ -921,7 +951,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        _checkAccountChange(_address);
+        // Although it seems like `_checkAccountChange` would be more appropriate here, we don't
+        // actually consider an account "changed" until it's inserted into the state (in this case
+        // by `_commitPendingAccount`).
+        _checkAccountLoad(_address);
         ovmStateManager.initPendingAccount(_address);
     }
 
@@ -1034,6 +1067,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // If we hadn't already changed the account, then we'll need to charge "nuisance gas" based
         // on the size of the contract code.
         if (_wasAccountAlreadyChanged == false) {
+            ovmStateManager.incrementTotalUncommittedAccounts();
             _useNuisanceGas(
                 Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE
             );
@@ -1092,6 +1126,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // If we hadn't already changed the account, then we'll need to charge some fixed amount of
         // "nuisance gas".
         if (_wasContractStorageAlreadyChanged == false) {
+            ovmStateManager.incrementTotalUncommittedContractStorage();
             _useNuisanceGas(NUISANCE_GAS_SSTORE);
         }
     }

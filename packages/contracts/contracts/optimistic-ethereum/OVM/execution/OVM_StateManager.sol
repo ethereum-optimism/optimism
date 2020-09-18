@@ -13,6 +13,13 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
  */
 contract OVM_StateManager is iOVM_StateManager {
 
+    /**********************
+     * Contract Constants *
+     **********************/
+    
+    bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH = 0x6969696969696969696969696969696969696969696969696969696969696969;
+
+
     /*******************************************
      * Contract Variables: Contract References *
      *******************************************/
@@ -111,7 +118,7 @@ contract OVM_StateManager is iOVM_StateManager {
     function getAccount(address _address)
         override
         public
-        authenticated
+        view
         returns (
             Lib_OVMCodec.Account memory _account
         )
@@ -129,12 +136,30 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
-        authenticated
+        view
         returns (
             bool _exists
         )
     {
         return accounts[_address].codeHash != bytes32(0);
+    }
+
+    /**
+     * Checks whether the state has a given known empty account.
+     * @param _address Address of the account to check.
+     * @return _exists Whether or not the state has the empty account.
+     */
+    function hasEmptyAccount(
+        address _address
+    )
+        override
+        public
+        view
+        returns (
+            bool _exists
+        )
+    {
+        return accounts[_address].codeHash == EMPTY_ACCOUNT_CODE_HASH;
     }
 
     /**
@@ -163,7 +188,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
-        authenticated
+        view
         returns (
             uint256 _nonce
         )
@@ -181,7 +206,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
-        authenticated
+        view
         returns (
             address _ethAddress
         )
@@ -261,16 +286,10 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _wasAccountAlreadyChanged
         )
     {
-        bool wasAccountAlreadyChanged = _testAndSetItemState(
+        return _testAndSetItemState(
             keccak256(abi.encodePacked(_address)),
             ItemState.ITEM_CHANGED
         );
-
-        if (!wasAccountAlreadyChanged) {
-            totalUncommittedAccounts += 1;
-        }
-
-        return wasAccountAlreadyChanged;
     }
 
     /**
@@ -300,13 +319,24 @@ contract OVM_StateManager is iOVM_StateManager {
     }
 
     /**
+     * Increments the total number of uncommitted accounts.
+     */
+    function incrementTotalUncommittedAccounts()
+        override
+        public
+        authenticated
+    {
+        totalUncommittedAccounts += 1;
+    }
+
+    /**
      * Gets the total number of uncommitted accounts.
      * @return _total Total uncommitted accounts.
      */
     function getTotalUncommittedAccounts()
         override
         public
-        authenticated
+        view
         returns (
             uint256 _total
         )
@@ -350,7 +380,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
-        authenticated
+        view
         returns (
             bytes32 _value
         )
@@ -370,7 +400,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
-        authenticated
+        view
         returns (
             bool _exists
         )
@@ -418,16 +448,10 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _wasContractStorageAlreadyChanged
         )
     {
-        bool wasContractStorageAlreadyChanged = _testAndSetItemState(
+        return _testAndSetItemState(
             keccak256(abi.encodePacked(_contract, _key)),
             ItemState.ITEM_CHANGED
         );
-
-        if (!wasContractStorageAlreadyChanged) {
-            totalUncommittedContractStorage += 1;
-        }
-
-        return wasContractStorageAlreadyChanged;
     }
 
     /**
@@ -459,13 +483,24 @@ contract OVM_StateManager is iOVM_StateManager {
     }
 
     /**
+     * Increments the total number of uncommitted storage slots.
+     */
+    function incrementTotalUncommittedContractStorage()
+        override
+        public
+        authenticated
+    {
+        totalUncommittedContractStorage += 1;
+    }
+
+    /**
      * Gets the total number of uncommitted storage slots.
      * @return _total Total uncommitted storage slots.
      */
     function getTotalUncommittedContractStorage()
         override
         public
-        authenticated
+        view
         returns (
             uint256 _total
         )

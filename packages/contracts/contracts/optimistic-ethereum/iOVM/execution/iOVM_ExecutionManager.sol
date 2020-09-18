@@ -16,7 +16,8 @@ interface iOVM_ExecutionManager {
         INTENTIONAL_REVERT,
         EXCEEDS_NUISANCE_GAS,
         INVALID_STATE_ACCESS,
-        UNSAFE_BYTECODE
+        UNSAFE_BYTECODE,
+        CREATE_COLLISION
     }
 
     struct GlobalContext {
@@ -61,12 +62,12 @@ interface iOVM_ExecutionManager {
      * Context Opcodes *
      *******************/
 
-    function ovmCALLER() external returns (address _caller);
-    function ovmADDRESS() external returns (address _address);
-    function ovmORIGIN() external returns (address _origin);
-    function ovmTIMESTAMP() external returns (uint256 _timestamp);
-    function ovmGASLIMIT() external returns (uint256 _gasLimit);
-    function ovmCHAINID() external returns (uint256 _chainId);
+    function ovmCALLER() external view returns (address _caller);
+    function ovmADDRESS() external view returns (address _address);
+    function ovmORIGIN() external view returns (address _origin);
+    function ovmTIMESTAMP() external view returns (uint256 _timestamp);
+    function ovmGASLIMIT() external view returns (uint256 _gasLimit);
+    function ovmCHAINID() external view returns (uint256 _chainId);
 
 
     /*******************

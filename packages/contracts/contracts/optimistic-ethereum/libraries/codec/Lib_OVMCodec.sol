@@ -106,6 +106,11 @@ library Lib_OVMCodec {
         });
     }
 
+    /**
+     * Encodes a standard OVM transaction.
+     * @param _transaction OVM transaction to encode.
+     * @return _encoded Encoded transaction bytes.
+     */
     function encodeTransaction(
         Transaction memory _transaction
     )
@@ -126,6 +131,11 @@ library Lib_OVMCodec {
         );
     }
 
+    /**
+     * Hashes a standard OVM transaction.
+     * @param _transaction OVM transaction to encode.
+     * @return _hash Hashed transaction
+     */
     function hashTransaction(
         Transaction memory _transaction
     )
