@@ -2,7 +2,7 @@ import '../setup'
 
 /* External Imports */
 import { PostgresDB, Row } from '@eth-optimism/core-db'
-import { keccak256FromUtf8 } from '@eth-optimism/core-utils'
+import { keccak256FromUtf8, remove0x } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { DefaultDataService } from '../../src/app/data'
@@ -11,8 +11,11 @@ import {
   createRollupTx,
   createTx,
   createTxOutput,
+  defaultData,
   defaultStateRoot,
+  defaultTxSizeInBytes,
   deleteAllData,
+  getTxSizeInBytes,
   insertTxOutput,
   l1Block,
   verifyL1BlockRes,
@@ -26,6 +29,7 @@ import {
   TransactionBatchSubmission,
 } from '../../src/types/data'
 import { VerificationCandidate } from '../../src/types'
+import { ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA } from '../../src/app'
 
 describe('L2 Data Service (will fail if postgres is not running with expected schema)', () => {
   let dataService: DefaultDataService
@@ -68,8 +72,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
   describe('tryBuildCanonicalChainBatchNotPresentOnL1', () => {
     it('Should not build a batch without tx outputs', async () => {
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        defaultTxSizeInBytes,
+        defaultTxSizeInBytes * 10
       )
       batchNum.should.equal(-1, `No batch should have been built`)
 
@@ -77,13 +81,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       res.length.should.equal(0, `No batch should exist`)
     })
 
-    it('Should not build a batch without fewer than min tx outputs', async () => {
+    it('Should not build a batch with lower than min tx output calldata', async () => {
       const tx = createTxOutput(keccak256FromUtf8('tx'))
       await insertTxOutput(dataService, tx)
 
+      const txSize = getTxSizeInBytes(tx)
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        2,
-        10
+        txSize + 1,
+        txSize * 10
       )
       batchNum.should.equal(-1, `No batch should have been built`)
 
@@ -91,13 +96,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       res.length.should.equal(0, `No batch should exist`)
     })
 
-    it('Should build a batch with min tx outputs', async () => {
+    it('Should build a batch with min tx output calldata', async () => {
       const tx = createTxOutput(keccak256FromUtf8('tx'))
       await insertTxOutput(dataService, tx)
 
+      const txSize = getTxSizeInBytes(tx)
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
@@ -123,16 +129,17 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
     })
 
-    it('Should build a batch with more than min tx outputs', async () => {
+    it('Should build a batch with more than min tx output calldata', async () => {
       const tx = createTxOutput(keccak256FromUtf8('tx'))
       await insertTxOutput(dataService, tx)
 
       const tx2 = createTxOutput(keccak256FromUtf8('tx 2'))
       await insertTxOutput(dataService, tx2)
 
+      const txSize = Math.min(getTxSizeInBytes(tx), getTxSizeInBytes(tx2))
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
@@ -193,9 +200,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       tx.l1RollupTransactionId = parseInt(rollupTxRes[0]['id'], 10)
       await insertTxOutput(dataService, tx)
 
+      const txSize = getTxSizeInBytes(tx)
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(-1, `Batch should not have been built`)
 
@@ -217,9 +225,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       await insertTxOutput(dataService, tx1)
       await insertTxOutput(dataService, tx2)
 
+      const txSize = Math.min(getTxSizeInBytes(tx1), getTxSizeInBytes(tx2))
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
@@ -254,9 +263,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       await insertTxOutput(dataService, tx1)
       await insertTxOutput(dataService, tx2)
 
+      const txSize = Math.min(getTxSizeInBytes(tx1), getTxSizeInBytes(tx2))
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
@@ -275,8 +285,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       txRes.length.should.equal(1, `Should have batched 1 transaction`)
 
       const secondBatchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       secondBatchNum.should.equal(1, `Batch should have been built`)
 
@@ -302,7 +312,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
     })
 
-    it('Should cut off a batch at the max size', async () => {
+    it('Should cut off a batch at the max calldata batch size', async () => {
       const tx1 = createTxOutput(
         keccak256FromUtf8('tx 1'),
         defaultStateRoot,
@@ -316,9 +326,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       await insertTxOutput(dataService, tx1)
       await insertTxOutput(dataService, tx2)
 
+      const txSize = Math.min(getTxSizeInBytes(tx1), getTxSizeInBytes(tx2))
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        1
+        txSize,
+        txSize
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
@@ -337,8 +348,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       txRes.length.should.equal(1, `Should have batched 1 transaction`)
 
       const secondBatchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       secondBatchNum.should.equal(1, `Batch should have been built`)
 
@@ -959,9 +970,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
       await dataService.insertL2TransactionOutput(tx)
 
+      const txSize =
+        remove0x(tx.calldata).length / 2 +
+        ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch 0 should have been built`)
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
@@ -998,9 +1012,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
       await dataService.insertL2TransactionOutput(tx)
 
+      const txSize = getTxSizeInBytes(tx)
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch 0 should have been built`)
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
@@ -1037,9 +1052,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
       await dataService.insertL2TransactionOutput(tx)
 
+      const txSize = getTxSizeInBytes(tx)
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch 0 should have been built`)
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()
@@ -1073,9 +1089,10 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
       await dataService.insertL2TransactionOutput(tx)
 
+      const txSize = getTxSizeInBytes(tx)
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        1,
-        10
+        txSize,
+        txSize * 10
       )
       batchNum.should.equal(0, `Batch 0 should have been built`)
       const batch: TransactionBatchSubmission = await dataService.getNextCanonicalChainTransactionBatchToSubmit()

@@ -47,6 +47,11 @@ export class Environment {
     return !!process.env.IS_SEQUENCER_STACK || defaultValue
   }
 
+  // TEST CONFIG
+  public static shouldDeployContracts(defaultValue: boolean = false): boolean {
+    return !!process.env.SHOULD_DEPLOY_CONTRACTS || defaultValue
+  }
+
   // Microservices to run config
   public static runL1ChainDataPersister(
     defaultValue: boolean = false
@@ -294,15 +299,19 @@ export class Environment {
   }
 
   // Batch Sizes
-  public static canonicalChainMinBatchSize(defaultValue?: number): number {
-    return process.env.CANONICAL_CHAIN_MIN_BATCH_SIZE
-      ? parseInt(process.env.CANONICAL_CHAIN_MIN_BATCH_SIZE, 10)
+  public static canonicalChainBatchMinCalldataBytes(
+    defaultValue: number = 0
+  ): number {
+    return process.env.CANONICAL_CHAIN_BATCH_MIN_CALLDATA_BYTES
+      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_MIN_CALLDATA_BYTES, 10)
       : defaultValue
   }
 
-  public static canonicalChainMaxBatchSize(defaultValue?: number): number {
-    return process.env.CANONICAL_CHAIN_MAX_BATCH_SIZE
-      ? parseInt(process.env.CANONICAL_CHAIN_MAX_BATCH_SIZE, 10)
+  public static canonicalChainBatchMaxCalldataBytes(
+    defaultValue: number = 125_000
+  ): number {
+    return process.env.CANONICAL_CHAIN_BATCH_MAX_CALLDATA_BYTES
+      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_MAX_CALLDATA_BYTES, 10)
       : defaultValue
   }
 

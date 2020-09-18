@@ -1,0 +1,43 @@
+version: "3"
+
+services:
+  microservices:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - l1-node-data:/mnt/l1-node:rw
+      - l2-node-data:/mnt/l2-node:rw
+    env_file:
+      - docker-compose.ci.env
+
+  integration_tests:
+    image: <AWS_CI_AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/optimism/integration-tests:latest
+    env_file:
+      - docker-compose.ci.env
+
+  l1_chain:
+    image: trufflesuite/ganache-cli:latest
+    entrypoint: node /app/ganache-core.docker.cli.js -p 9545 --gasPrice="0x0" --callGasLimit="0x1fffffffffffff" --gasLimit="0x1fffffffffffff" --account="0xdf8b81d840b9cafc8cd68cf94f093726b174b5f109eba11a3f2a559e5f9e8bce,1000000000000000000000" --account="0x06caa6f48604a58872e27db8c2980584e20faab37613f51383bb5be62db80c50,100000000000000000000"
+    ports:
+      - 9545:9545
+
+  postgres:
+    image: <AWS_CI_AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/optimism/postgres:latest
+    env_file:
+      - docker-compose.ci.env
+    ports:
+      - 5432:5432
+
+  geth_l2:
+    image: <AWS_CI_AWS_ACCOUNT_ID>.dkr.ecr.us-east-2.amazonaws.com/optimism/geth:latest
+    volumes:
+      - l2-node-data:/mnt/l2-node/l2:rw
+    env_file:
+      - docker-compose.ci.env
+    ports:
+      - 8545:8545
+
+volumes:
+  l1-node-data:
+  l2-node-data:

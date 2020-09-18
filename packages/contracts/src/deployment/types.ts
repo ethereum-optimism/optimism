@@ -68,6 +68,10 @@ export interface AddressResolverMapping {
   contracts: ContractMapping
 }
 
+export interface DeployResult extends AddressResolverMapping {
+  failedDeployments: ContractFactoryName[]
+}
+
 export const factoryToContractName = {
   GasConsumer: 'gasConsumer',
   L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
