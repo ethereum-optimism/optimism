@@ -1,8 +1,11 @@
 {
   "name": "@eth-optimism/provider",
-  "version": "0.0.0",
+  "version": "0.0.1-alpha.2",
   "description": "Web3 provider for Optimism",
-  "main": "index.js",
+  "main": "build/index.js",
+  "files": [
+    "build/**/*.js"
+  ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn fix && yarn lint",
     "build": "tsc -p .",
