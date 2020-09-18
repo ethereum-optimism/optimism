@@ -109,7 +109,7 @@ library Lib_OVMCodec {
     function encodeTransaction(
         Transaction memory _transaction
     )
-        public
+        internal
         pure
         returns (
             bytes memory _encoded
@@ -129,7 +129,7 @@ library Lib_OVMCodec {
     function hashTransaction(
         Transaction memory _transaction
     )
-        public
+        internal
         pure
         returns (
             bytes32 _hash

@@ -5,10 +5,20 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
+/* Interface Imports */
+import { iOVM_StateTransitioner } from "./iOVM_StateTransitioner.sol";
+
 /**
  * @title iOVM_FraudVerifier
  */
 interface iOVM_FraudVerifier {
+
+    /***************************************
+     * Public Functions: Transition Status *
+     ***************************************/
+
+    function getStateTransitioner(bytes32 _preStateRoot) external view returns (iOVM_StateTransitioner _transitioner);
+
 
     /****************************************
      * Public Functions: Fraud Verification *

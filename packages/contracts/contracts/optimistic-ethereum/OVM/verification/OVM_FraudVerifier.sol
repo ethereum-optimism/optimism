@@ -51,6 +51,29 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier, Proxy_Resolver {
     }
 
 
+    /***************************************
+     * Public Functions: Transition Status *
+     ***************************************/
+
+    /**
+     * Retrieves the state transitioner for a given root.
+     * @param _preStateRoot State root to query a transitioner for.
+     * @return _transitioner Corresponding state transitioner contract.
+     */
+    function getStateTransitioner(
+        bytes32 _preStateRoot
+    )
+        override
+        public
+        view
+        returns (
+            iOVM_StateTransitioner _transitioner
+        )
+    {
+        return transitioners[_preStateRoot];
+    }
+
+
     /****************************************
      * Public Functions: Fraud Verification *
      ****************************************/
