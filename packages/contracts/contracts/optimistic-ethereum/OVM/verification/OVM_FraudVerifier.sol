@@ -9,10 +9,10 @@ import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
-import { iOVM_FraudVerifier } from "../../iOVM/execution/iOVM_FraudVerifier.sol";
+import { iOVM_FraudVerifier } from "../../iOVM/verification/iOVM_FraudVerifier.sol";
+import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
+import { iOVM_StateTransitionerFactory } from "../../iOVM/verification/iOVM_StateTransitionerFactory.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
-import { iOVM_StateTransitioner } from "../../iOVM/execution/iOVM_StateTransitioner.sol";
-import { iOVM_StateTransitionerFactory } from "../../iOVM/execution/iOVM_StateTransitionerFactory.sol";
 import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManagerFactory.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";

@@ -2,8 +2,8 @@
 pragma solidity ^0.7.0;
 
 /* Interface Imports */
-import { iOVM_StateTransitioner } from "../../iOVM/execution/iOVM_StateTransitioner.sol";
-import { iOVM_StateTransitionerFactory } from "../../iOVM/execution/iOVM_StateTransitionerFactory.sol";
+import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
+import { iOVM_StateTransitionerFactory } from "../../iOVM/verification/iOVM_StateTransitionerFactory.sol";
 
 /* Contract Imports */
 import { OVM_StateTransitioner } from "./OVM_StateTransitioner.sol";

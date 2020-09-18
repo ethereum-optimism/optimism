@@ -11,10 +11,10 @@ import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
 import { Lib_EthMerkleTrie } from "../../libraries/trie/Lib_EthMerkleTrie.sol";
 
 /* Interface Imports */
+import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManagerFactory.sol";
-import { iOVM_StateTransitioner } from "../../iOVM/execution/iOVM_StateTransitioner.sol";
 
 /**
  * @title OVM_StateTransitioner

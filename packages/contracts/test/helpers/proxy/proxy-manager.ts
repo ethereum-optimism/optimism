@@ -2,27 +2,6 @@
 import { ethers } from '@nomiclabs/buidler'
 import { Contract } from 'ethers'
 
-const getLibraryConfig = (ProxyManager: Contract): any => {
-  return [
-    {
-      name: 'Lib_ByteUtils',
-      params: []
-    },
-    {
-      name: 'Lib_EthUtils',
-      params: [ProxyManager.address]
-    },
-    {
-      name: 'Lib_RLPReader',
-      params: []
-    },
-    {
-      name: 'Lib_RLPWriter',
-      params: []
-    }
-  ]
-}
-
 export const makeProxies = async (
   Proxy_Manager: Contract,
   names: string[]
@@ -61,34 +40,7 @@ export const setProxyTarget = async (
 }
 
 export const getProxyManager = async (): Promise<Contract> => {
-  const Factory__Proxy_Manager = await ethers.getContractFactory(
+  return (await ethers.getContractFactory(
     'Proxy_Manager'
-  )
-
-  const Proxy_Manager = await Factory__Proxy_Manager.deploy()
-
-  const libraryConfig = getLibraryConfig(Proxy_Manager)
-
-  await makeProxies(
-    Proxy_Manager,
-    libraryConfig.map((config) => {
-      return config.name
-    })
-  )
-
-  for (const config of libraryConfig) {
-    const Factory__Lib_Contract = await ethers.getContractFactory(
-      config.name
-    )
-    const Lib_Contract = await Factory__Lib_Contract.deploy(
-      ...config.params
-    )
-
-    await Proxy_Manager.setTarget(
-      config.name,
-      Lib_Contract.address
-    )
-  }
-
-  return Proxy_Manager
+  )).deploy()
 }
