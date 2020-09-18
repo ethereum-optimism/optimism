@@ -43,7 +43,7 @@ interface iOVM_StateTransitioner {
      *******************************/
 
     function applyTransaction(
-        Lib_OVMCodec.TransactionData calldata _transaction
+        Lib_OVMCodec.Transaction calldata _transaction
     ) external;
 
 

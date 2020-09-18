@@ -17,8 +17,16 @@ contract OVM_StateTransitionerFactory is iOVM_StateTransitionerFactory {
      * Public Functions: Contract Creation *
      ***************************************/
 
+    /**
+     * Creates a new OVM_StateTransitioner
+     * @param _proxyManager Address of the Proxy_Manager.
+     * @param _stateTransitionIndex Index of the state transition being verified.
+     * @param _preStateRoot State root before the transition was executed.
+     * @param _transactionHash Hash of the executed transaction.
+     * @return _ovmStateTransitioner New OVM_StateTransitioner instance.
+     */
     function create(
-        address _libContractProxyManager,
+        address _proxyManager,
         uint256 _stateTransitionIndex,
         bytes32 _preStateRoot,
         bytes32 _transactionHash
@@ -30,7 +38,7 @@ contract OVM_StateTransitionerFactory is iOVM_StateTransitionerFactory {
         )
     {
         return new OVM_StateTransitioner(
-            _libContractProxyManager,
+            _proxyManager,
             _stateTransitionIndex,
             _preStateRoot,
             _transactionHash

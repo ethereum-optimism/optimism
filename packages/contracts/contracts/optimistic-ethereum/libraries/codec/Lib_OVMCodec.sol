@@ -105,4 +105,36 @@ library Lib_OVMCodec {
             data: Lib_RLPReader.toBytes(decoded[5])
         });
     }
+
+    function encodeTransaction(
+        Transaction memory _transaction
+    )
+        public
+        pure
+        returns (
+            bytes memory _encoded
+        )
+    {
+        return abi.encodePacked(
+            _transaction.timestamp,
+            _transaction.queueOrigin,
+            _transaction.entrypoint,
+            _transaction.origin,
+            _transaction.msgSender,
+            _transaction.gasLimit,
+            _transaction.data
+        );
+    }
+
+    function hashTransaction(
+        Transaction memory _transaction
+    )
+        public
+        pure
+        returns (
+            bytes32 _hash
+        )
+    {
+        return keccak256(encodeTransaction(_transaction));
+    }
 }

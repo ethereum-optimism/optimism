@@ -2,6 +2,9 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+/* Proxy Imports */
+import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
+
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
@@ -15,7 +18,7 @@ import { OVM_BaseQueue } from "./OVM_BaseQueue.sol";
 /**
  * @title OVM_L1ToL2TransactionQueue
  */
-contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueue {
+contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueue, Proxy_Resolver {
 
     /*******************************************
      * Contract Variables: Contract References *
@@ -29,12 +32,14 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
      ***************/
 
     /**
-     * @param _ovmCanonicalTransactionChain Address of the OVM_CanonicalTransactionChain.
+     * @param _proxyManager Address of the Proxy_Manager.
      */
     constructor(
-        address _ovmCanonicalTransactionChain
-    ) {
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(_ovmCanonicalTransactionChain);
+        address _proxyManager
+    )
+        Proxy_Resolver(_proxyManager)
+    {
+        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
     }
 
 

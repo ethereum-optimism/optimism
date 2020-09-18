@@ -13,6 +13,14 @@ import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
  */
 contract OVM_StateManager is iOVM_StateManager {
 
+    /*******************************************
+     * Contract Variables: Contract References *
+     *******************************************/
+
+    address internal owner;
+    address internal ovmExecutionManager;
+
+
     /****************************************
      * Contract Variables: Internal Storage *
      ****************************************/
@@ -21,6 +29,58 @@ contract OVM_StateManager is iOVM_StateManager {
     mapping (address => mapping (bytes32 => bytes32)) internal contractStorage;
     mapping (address => mapping (bytes32 => bool)) internal verifiedContractStorage;
     mapping (bytes32 => ItemState) internal itemStates;
+    uint256 internal totalUncommittedAccounts;
+    uint256 internal totalUncommittedContractStorage;
+
+
+    /***************
+     * Constructor *
+     ***************/
+
+    /**
+     * @param _owner Address of the owner of this contract.
+     */
+    constructor(
+        address _owner
+    ) {
+        owner = _owner;
+    }
+
+
+    /**********************
+     * Function Modifiers *
+     **********************/
+
+    /**
+     * Simple authentication, this contract should only be accessible to the owner or to the
+     * OVM_ExecutionManager during the transaction execution process.
+     */
+    modifier authenticated() {
+        require(
+            msg.sender == owner || msg.sender == ovmExecutionManager,
+            "Function can only be called by authenticated addresses"
+        );
+        _;
+    }
+
+
+    /***************************
+     * Public Functions: Setup *
+     ***************************/
+    
+    /**
+     * Sets the address of the OVM_ExecutionManager.
+     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
+     */
+    function setExecutionManager(
+        address _ovmExecutionManager
+    )
+        override
+        public
+        authenticated
+    {
+        ovmExecutionManager = _ovmExecutionManager;
+    }
 
 
     /************************************
@@ -38,6 +98,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
     {
         accounts[_address] = _account;
     }
@@ -50,6 +111,7 @@ contract OVM_StateManager is iOVM_StateManager {
     function getAccount(address _address)
         override
         public
+        authenticated
         returns (
             Lib_OVMCodec.Account memory _account
         )
@@ -67,6 +129,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bool _exists
         )
@@ -85,6 +148,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
     {
         accounts[_address].nonce = _nonce;
     }
@@ -99,6 +163,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             uint256 _nonce
         )
@@ -116,6 +181,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             address _ethAddress
         )
@@ -132,6 +198,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
     {
         Lib_OVMCodec.Account storage account = accounts[_address];
         account.nonce = 1;
@@ -151,6 +218,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
     {
         Lib_OVMCodec.Account storage account = accounts[_address];
         account.ethAddress = _ethAddress;
@@ -167,11 +235,12 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bool _wasAccountAlreadyLoaded
         )
     {
-        return _testItemState(
+        return _testAndSetItemState(
             keccak256(abi.encodePacked(_address)),
             ItemState.ITEM_LOADED
         );
@@ -187,14 +256,62 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bool _wasAccountAlreadyChanged
         )
     {
-        return _testItemState(
+        bool wasAccountAlreadyChanged = _testAndSetItemState(
             keccak256(abi.encodePacked(_address)),
             ItemState.ITEM_CHANGED
         );
+
+        if (!wasAccountAlreadyChanged) {
+            totalUncommittedAccounts += 1;
+        }
+
+        return wasAccountAlreadyChanged;
+    }
+
+    /**
+     * Attempts to mark an account as committed.
+     * @param _address Address of the account to commit.
+     * @return _wasAccountCommitted Whether or not the account was committed.
+     */
+    function commitAccount(
+        address _address
+    )
+        override
+        public
+        authenticated
+        returns (
+            bool _wasAccountCommitted
+        )
+    {
+        bytes32 item = keccak256(abi.encodePacked(_address));
+        if (itemStates[item] != ItemState.ITEM_CHANGED) {
+            return false;
+        }
+
+        itemStates[item] = ItemState.ITEM_COMMITTED;
+        totalUncommittedAccounts -= 1;
+
+        return true;
+    }
+
+    /**
+     * Gets the total number of uncommitted accounts.
+     * @return _total Total uncommitted accounts.
+     */
+    function getTotalUncommittedAccounts()
+        override
+        public
+        authenticated
+        returns (
+            uint256 _total
+        )
+    {
+        return totalUncommittedAccounts;
     }
     
 
@@ -215,6 +332,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
     {
         contractStorage[_contract][_key] = _value;
         verifiedContractStorage[_contract][_key] = true;
@@ -232,6 +350,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bytes32 _value
         )
@@ -251,6 +370,7 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bool _exists
         )
@@ -270,11 +390,12 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bool _wasContractStorageAlreadyLoaded
         )
     {
-        return _testItemState(
+        return _testAndSetItemState(
             keccak256(abi.encodePacked(_contract, _key)),
             ItemState.ITEM_LOADED
         );
@@ -292,14 +413,64 @@ contract OVM_StateManager is iOVM_StateManager {
     )
         override
         public
+        authenticated
         returns (
             bool _wasContractStorageAlreadyChanged
         )
     {
-        return _testItemState(
+        bool wasContractStorageAlreadyChanged = _testAndSetItemState(
             keccak256(abi.encodePacked(_contract, _key)),
             ItemState.ITEM_CHANGED
         );
+
+        if (!wasContractStorageAlreadyChanged) {
+            totalUncommittedContractStorage += 1;
+        }
+
+        return wasContractStorageAlreadyChanged;
+    }
+
+    /**
+     * Attempts to mark a storage slot as committed.
+     * @param _contract Address of the account to commit.
+     * @param _key 32 byte slot key to commit.
+     * @return _wasContractStorageCommitted Whether or not the slot was committed.
+     */
+    function commitContractStorage(
+        address _contract,
+        bytes32 _key
+    )
+        override
+        public
+        authenticated
+        returns (
+            bool _wasContractStorageCommitted
+        )
+    {
+        bytes32 item = keccak256(abi.encodePacked(_contract, _key));
+        if (itemStates[item] != ItemState.ITEM_CHANGED) {
+            return false;
+        }
+
+        itemStates[item] = ItemState.ITEM_COMMITTED;
+        totalUncommittedContractStorage -= 1;
+
+        return true;
+    }
+
+    /**
+     * Gets the total number of uncommitted storage slots.
+     * @return _total Total uncommitted storage slots.
+     */
+    function getTotalUncommittedContractStorage()
+        override
+        public
+        authenticated
+        returns (
+            uint256 _total
+        )
+    {
+        return totalUncommittedContractStorage;
     }
 
 
@@ -314,7 +485,7 @@ contract OVM_StateManager is iOVM_StateManager {
      * @param _minItemState Minumum state that must be satisfied by the item.
      * @return _wasItemState Whether or not the item was already in the state.
      */
-    function _testItemState(
+    function _testAndSetItemState(
         bytes32 _item,
         ItemState _minItemState
     )
@@ -323,8 +494,7 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _wasItemState
         )
     {
-        ItemState itemState = itemStates[_item];
-        bool wasItemState = itemState >= _minItemState;
+        bool wasItemState = itemStates[_item] >= _minItemState;
 
         if (wasItemState == false) {
             itemStates[_item] = _minItemState;

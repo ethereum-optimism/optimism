@@ -2,10 +2,13 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+/* Proxy Imports */
+import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
+
 /* Library Imports */
-import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
-import { Lib_EthUtils } from "../../../libraries/utils/Lib_EthUtils.sol";
-import { Lib_EthMerkleTrie } from "../../../libraries/trie/Lib_EthMerkleTrie.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
+import { Lib_EthMerkleTrie } from "../../libraries/trie/Lib_EthMerkleTrie.sol";
 
 /* Interface Imports */
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
@@ -16,7 +19,7 @@ import { iOVM_StateTransitioner } from "../../iOVM/execution/iOVM_StateTransitio
 /**
  * @title OVM_StateTransitioner
  */
-contract OVM_StateTransitioner is iOVM_StateTransitioner {
+contract OVM_StateTransitioner is iOVM_StateTransitioner, Proxy_Resolver {
 
     /*******************
      * Data Structures *
@@ -44,8 +47,8 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
     bytes32 internal preStateRoot;
     bytes32 internal postStateRoot;
     TransitionPhase internal phase;
-    uint256 public stateTransitionIndex;
-    bytes32 public transactionHash;
+    uint256 internal stateTransitionIndex;
+    bytes32 internal transactionHash;
 
 
     /***************
@@ -53,26 +56,26 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
      ***************/
 
     /**
-     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
-     * @param _ovmStateManagerFactory Address of the OVM_StateManagerFactory.
+     * @param _proxyManager Address of the Proxy_Manager.
      * @param _stateTransitionIndex Index of the state transition being verified.
      * @param _preStateRoot State root before the transition was executed.
      * @param _transactionHash Hash of the executed transaction.
      */
     constructor(
-        address _ovmExecutionManager,
-        address _ovmStateManagerFactory,
+        address _proxyManager,
         uint256 _stateTransitionIndex,
         bytes32 _preStateRoot,
         bytes32 _transactionHash
-    ) {
+    )
+        Proxy_Resolver(_proxyManager)
+    {
         stateTransitionIndex = _stateTransitionIndex;
         preStateRoot = _preStateRoot;
         postStateRoot = _preStateRoot;
         transactionHash = _transactionHash;
 
-        ovmExecutionManager = iOVM_ExecutionManager(_ovmExecutionManager);
-        ovmStateManager = iOVM_StateManagerFactory(_ovmStateManagerFactory).create();
+        ovmExecutionManager = iOVM_ExecutionManager(resolve("OVM_ExecutionManager"));
+        ovmStateManager = iOVM_StateManagerFactory(resolve("OVM_StateManagerFactory")).create(address(this));
     }
 
 
@@ -116,7 +119,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
 
     /**
      * Retrieves the state root after execution.
-     * @return _preStateRoot State root after execution.
+     * @return _postStateRoot State root after execution.
      */
     function getPostStateRoot()
         override
@@ -189,9 +192,9 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
      * Allows a user to prove the initial state of a contract storage slot.
      * @param _ovmContractAddress Address of the contract on the OVM.
      * @param _key Claimed account slot key.
-     * @param _key Claimed account slot value.
+     * @param _value Claimed account slot value.
      * @param _stateTrieWitness Proof of the account state.
-     * @param _stateTrieWitness Proof of the storage slot.
+     * @param _storageTrieWitness Proof of the storage slot.
      */
     function proveStorageSlot(
         address _ovmContractAddress,
@@ -244,13 +247,14 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
         public
     {
         require(
-            libOVMCodec.hash(_transaction) == transactionHash,
+            Lib_OVMCodec.hashTransaction(_transaction) == transactionHash,
             "Invalid transaction provided."
         );
 
         // TODO: Set state manager for EM here.
 
-        ovmExecutionManager.run(_transaction);
+        ovmStateManager.setExecutionManager(resolveTarget("OVM_ExecutionManager"));
+        ovmExecutionManager.run(_transaction, address(ovmStateManager));
 
         phase = TransitionPhase.POST_EXECUTION;
     }
@@ -276,8 +280,8 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
     {
         require(
-            ovmStateManager.isUncommittedAccount(_ovmContractAddress) == true,
-            "Provided account is not uncommitted."
+            ovmStateManager.commitAccount(_ovmContractAddress) == true,
+            "Cannot commit an account that has not been changed."
         );
 
         postStateRoot = Lib_EthMerkleTrie.updateAccountState(
@@ -286,17 +290,15 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
             _stateTrieWitness,
             postStateRoot
         );
-
-        ovmStateManager.commitAccount(_ovmContractAddress);
     }
 
     /**
      * Allows a user to commit the final state of a contract storage slot.
      * @param _ovmContractAddress Address of the contract on the OVM.
      * @param _key Claimed account slot key.
-     * @param _key Claimed account slot value.
+     * @param _value Claimed account slot value.
      * @param _stateTrieWitness Proof of the account state.
-     * @param _stateTrieWitness Proof of the storage slot.
+     * @param _storageTrieWitness Proof of the storage slot.
      */
     function commitStorageSlot(
         address _ovmContractAddress,
@@ -310,8 +312,8 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
     {
         require(
-            ovmStateManager.isUncommittedStorage(_ovmContractAddress, _key, _value) == true,
-            "Provided storage slot is not uncommitted."
+            ovmStateManager.commitContractStorage(_ovmContractAddress, _key) == true,
+            "Cannot commit a storage slot that has not been changed."
         );
 
         postStateRoot = Lib_EthMerkleTrie.updateAccountStorageSlotValue(
@@ -322,8 +324,6 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
             _storageTrieWitness,
             postStateRoot
         );
-
-        ovmStateManager.commitStorage(_ovmContractAddress, _key, _value);
     }
 
 
@@ -340,12 +340,12 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner {
         onlyDuringPhase(TransitionPhase.POST_EXECUTION)
     {
         require(
-            ovmStateManager.totalUncommittedAccounts() == 0,
+            ovmStateManager.getTotalUncommittedAccounts() == 0,
             "All accounts must be committed before completing a transition."
         );
 
         require(
-            ovmStateManager.totalUncommittedStorage() == 0,
+            ovmStateManager.getTotalUncommittedContractStorage() == 0,
             "All storage must be committed before completing a transition."
         );
 

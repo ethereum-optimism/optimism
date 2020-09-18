@@ -17,8 +17,16 @@ interface iOVM_StateManager {
     enum ItemState {
         ITEM_UNTOUCHED,
         ITEM_LOADED,
-        ITEM_CHANGED
+        ITEM_CHANGED,
+        ITEM_COMMITTED
     }
+
+
+    /***************************
+     * Public Functions: Setup *
+     ***************************/
+    
+    function setExecutionManager(address _ovmExecutionManager) external;
 
 
     /************************************
@@ -35,6 +43,8 @@ interface iOVM_StateManager {
     function commitPendingAccount(address _address, address _ethAddress, bytes32 _codeHash) external;
     function testAndSetAccountLoaded(address _address) external returns (bool _wasAccountAlreadyLoaded);
     function testAndSetAccountChanged(address _address) external returns (bool _wasAccountAlreadyChanged);
+    function commitAccount(address _address) external returns (bool _wasAccountCommitted);
+    function getTotalUncommittedAccounts() external returns (uint256 _total);
 
     
     /************************************
@@ -46,4 +56,6 @@ interface iOVM_StateManager {
     function hasContractStorage(address _contract, bytes32 _key) external returns (bool _exists);
     function testAndSetContractStorageLoaded(address _contract, bytes32 _key) external returns (bool _wasContractStorageAlreadyLoaded);
     function testAndSetContractStorageChanged(address _contract, bytes32 _key) external returns (bool _wasContractStorageAlreadyChanged);
+    function commitContractStorage(address _contract, bytes32 _key) external returns (bool _wasContractStorageCommitted);
+    function getTotalUncommittedContractStorage() external returns (uint256 _total);
 }

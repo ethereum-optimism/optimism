@@ -4,8 +4,10 @@ pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_SecureMerkleTrie } from "./Lib_SecureMerkleTrie.sol";
-import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 import { Lib_OVMCodec } from "../codec/Lib_OVMCodec.sol";
+import { Lib_ByteUtils } from "../utils/Lib_ByteUtils.sol";
+import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
+import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 
 /**
  * @title Lib_EthMerkleTrie
@@ -16,6 +18,7 @@ library Lib_EthMerkleTrie {
      * Contract Constants *
      **********************/
 
+    bytes constant private RLP_NULL_BYTES = hex'80';
     bytes32 constant private BYTES32_NULL = bytes32('');
     uint256 constant private UINT256_NULL = uint256(0);
 
@@ -56,7 +59,7 @@ library Lib_EthMerkleTrie {
         );
 
         // Verify inclusion of the given k/v pair in the storage trie.
-        return verifyInclusionProof(
+        return Lib_SecureMerkleTrie.verifyInclusionProof(
             abi.encodePacked(_key),
             abi.encodePacked(_value),
             _storageTrieWitness,
@@ -96,7 +99,7 @@ library Lib_EthMerkleTrie {
         );
 
         // Generate a new storage root.
-        accountState.storageRoot = update(
+        accountState.storageRoot = Lib_SecureMerkleTrie.update(
             abi.encodePacked(_key),
             abi.encodePacked(_value),
             _storageTrieWitness,
@@ -677,13 +680,13 @@ library Lib_EthMerkleTrie {
         view
         returns (Lib_OVMCodec.EVMAccount memory)
     {
-        Lib_RLPReader.RLPItem[] memory accountState = libRLPReader.toList(libRLPReader.toRlpItem(_encodedAccountState));
+        Lib_RLPReader.RLPItem[] memory accountState = Lib_RLPReader.toList(Lib_RLPReader.toRlpItem(_encodedAccountState));
 
         return Lib_OVMCodec.EVMAccount({
-            nonce: libRLPReader.toUint(accountState[0]),
-            balance: libRLPReader.toUint(accountState[1]),
-            storageRoot: libByteUtils.toBytes32(libRLPReader.toBytes(accountState[2])),
-            codeHash: libByteUtils.toBytes32(libRLPReader.toBytes(accountState[3]))
+            nonce: Lib_RLPReader.toUint(accountState[0]),
+            balance: Lib_RLPReader.toUint(accountState[1]),
+            storageRoot: Lib_ByteUtils.toBytes32(Lib_RLPReader.toBytes(accountState[2])),
+            codeHash: Lib_ByteUtils.toBytes32(Lib_RLPReader.toBytes(accountState[3]))
         });
     }
 
@@ -704,12 +707,12 @@ library Lib_EthMerkleTrie {
         // Unfortunately we can't create this array outright because
         // RLPWriter.encodeList will reject fixed-size arrays. Assigning
         // index-by-index circumvents this issue.
-        raw[0] = libRLPWriter.encodeUint(_accountState.nonce);
-        raw[1] = libRLPWriter.encodeUint(_accountState.balance);
-        raw[2] = _accountState.storageRoot == 0 ? RLP_NULL_BYTES : libRLPWriter.encodeBytes(abi.encodePacked(_accountState.storageRoot));
-        raw[3] = _accountState.codeHash == 0 ? RLP_NULL_BYTES : libRLPWriter.encodeBytes(abi.encodePacked(_accountState.codeHash));
+        raw[0] = Lib_RLPWriter.encodeUint(_accountState.nonce);
+        raw[1] = Lib_RLPWriter.encodeUint(_accountState.balance);
+        raw[2] = _accountState.storageRoot == 0 ? RLP_NULL_BYTES : Lib_RLPWriter.encodeBytes(abi.encodePacked(_accountState.storageRoot));
+        raw[3] = _accountState.codeHash == 0 ? RLP_NULL_BYTES : Lib_RLPWriter.encodeBytes(abi.encodePacked(_accountState.codeHash));
 
-        return libRLPWriter.encodeList(raw);
+        return Lib_RLPWriter.encodeList(raw);
     }
 
     /**
@@ -738,7 +741,7 @@ library Lib_EthMerkleTrie {
         (
             bool exists,
             bytes memory encodedAccountState
-        ) = get(
+        ) = Lib_SecureMerkleTrie.get(
             abi.encodePacked(_address),
             _stateTrieWitness,
             _stateTrieRoot
@@ -768,7 +771,7 @@ library Lib_EthMerkleTrie {
     {
         bytes memory encodedAccountState = encodeAccountState(_accountState);
 
-        return update(
+        return Lib_SecureMerkleTrie.update(
             abi.encodePacked(_address),
             encodedAccountState,
             _stateTrieWitness,

@@ -2,6 +2,9 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+/* Proxy Imports */
+import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
+
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
@@ -16,7 +19,7 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
 /**
  * @title OVM_CanonicalTransactionChain
  */
-contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_BaseChain {
+contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_BaseChain, Proxy_Resolver {
 
     /*******************************************
      * Contract Variables: Contract References *
@@ -39,17 +42,18 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
      ***************/
 
     /**
-     * @param _ovmL1ToL2TransactionQueue Address of the OVM_L1ToL2TransactionQueue.
-     * @param _sequencer Address of the current sequencer.
+     * @param _proxyManager Address of the Proxy_Manager.
      * @param _forceInclusionPeriodSeconds Period during which only the sequencer can submit.
      */
     constructor(
-        address _ovmL1ToL2TransactionQueue,
-        address _sequencer,
+        address _proxyManager,
         uint256 _forceInclusionPeriodSeconds
-    ) {
-        ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(_ovmL1ToL2TransactionQueue);
-        sequencer = _sequencer;
+    )
+        Proxy_Resolver(_proxyManager)
+    {
+        ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
+        sequencer = resolve("Sequencer");
+
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
     }
 

@@ -13,7 +13,9 @@ interface iOVM_StateManagerFactory {
      * Public Functions: Contract Creation *
      ***************************************/
 
-    function create()
+    function create(
+        address _owner
+    )
         external
         returns (
             iOVM_StateManager _ovmStateManager

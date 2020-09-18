@@ -2,6 +2,9 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
+/* Proxy Imports */
+import { Proxy_Resolver } from "../../proxy/Proxy_Resolver.sol";
+
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
@@ -14,7 +17,7 @@ import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManager
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 
-contract OVM_FraudVerifier is iOVM_FraudVerifier {
+contract OVM_FraudVerifier is iOVM_FraudVerifier, Proxy_Resolver {
 
     /*******************************************
      * Contract Variables: Contract References *
@@ -22,8 +25,6 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
 
     iOVM_StateCommitmentChain internal ovmStateCommitmentChain;
     iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
-    iOVM_ExecutionManager internal ovmExecutionManager;
-    iOVM_StateManagerFactory internal ovmStateManagerFactory;
 
     
     /*******************************************
@@ -38,21 +39,15 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
      ***************/
 
     /**
-     * @param _ovmStateCommitmentChain Address of the OVM_StateCommitmentChain.
-     * @param _ovmCanonicalTransactionChain Address of the OVM_CanonicalTransactionChain.
-     * @param _ovmExecutionManager Address of the OVM_ExecutionManager.
-     * @param _ovmStateManagerFactory Address of the OVM_StateManagerFactory.
+     * @param _proxyManager Address of the Proxy_Manager.
      */
     constructor(
-        address _ovmStateCommitmentChain,
-        address _ovmCanonicalTransactionChain,
-        address _ovmExecutionManager,
-        address _ovmStateManagerFactory,
-    ) {
-        ovmStateCommitmentChain = iOVM_StateCommitmentChain(_ovmStateCommitmentChain);
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(_ovmCanonicalTransactionChain);
-        ovmExecutionManager = iOVM_ExecutionManager(_ovmExecutionManager);
-        ovmStateManagerFactory = iOVM_StateManagerFactory(_ovmStateManagerFactory);
+        address _proxyManager
+    )
+        Proxy_Resolver(_proxyManager)
+    {
+        ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
+        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
     }
 
 
@@ -73,7 +68,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
         bytes32 _preStateRoot,
         Lib_OVMCodec.ChainBatchHeader memory _preStateRootBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _preStateRootProof,
-        Lib_OVMCodec.TransactionData memory _transaction,
+        Lib_OVMCodec.Transaction memory _transaction,
         Lib_OVMCodec.ChainBatchHeader memory _transactionBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _transactionProof
     )
@@ -105,10 +100,10 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
         transitioners[_preStateRoot] = iOVM_StateTransitionerFactory(
             resolve("OVM_StateTransitionerFactory")
         ).create(
-            address(libContractProxyManager),
+            address(proxyManager),
             _preStateRootProof.index,
             _preStateRoot,
-            Lib_OVMCodec.hash(_transaction)
+            Lib_OVMCodec.hashTransaction(_transaction)
         );
     }
 
@@ -163,7 +158,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
         );
 
         require(
-            _postStateRoot != transitioner.postStateRoot(),
+            _postStateRoot != transitioner.getPostStateRoot(),
             "State transition has not been proven fraudulent."
         );
 
@@ -212,7 +207,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
             bool _verified
         )
     {
-        return ovmStateCommitmentChain.ovmBaseChain().verifyElement(
+        return ovmStateCommitmentChain.verifyElement(
             abi.encodePacked(_stateRoot),
             _stateRootBatchHeader,
             _stateRootProof
@@ -227,7 +222,7 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
      * @return _verified Whether or not the transaction was included.
      */
     function _verifyTransaction(
-        Lib_OVMCodec.TransactionData memory _transaction,
+        Lib_OVMCodec.Transaction memory _transaction,
         Lib_OVMCodec.ChainBatchHeader memory _transactionBatchHeader,
         Lib_OVMCodec.ChainInclusionProof memory _transactionProof
     )
@@ -237,8 +232,8 @@ contract OVM_FraudVerifier is iOVM_FraudVerifier {
             bool _verified
         )
     {
-        return ovmCanonicalTransactionChain.ovmBaseChain().verifyElement(
-            Lib_OVMCodec.encode(_transaction),
+        return ovmCanonicalTransactionChain.verifyElement(
+            Lib_OVMCodec.encodeTransaction(_transaction),
             _transactionBatchHeader,
             _transactionProof
         );

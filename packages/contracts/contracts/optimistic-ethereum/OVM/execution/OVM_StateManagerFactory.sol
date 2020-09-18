@@ -17,13 +17,20 @@ contract OVM_StateManagerFactory is iOVM_StateManagerFactory {
      * Public Functions: Contract Creation *
      ***************************************/
 
-    function create()
+    /**
+     * Creates a new OVM_StateManager
+     * @param _owner Owner of the created contract.
+     * @return _ovmStateManager New OVM_StateManager instance.
+     */
+    function create(
+        address _owner
+    )
         override
         public
         returns (
             iOVM_StateManager _ovmStateManager
         )
     {
-        return new OVM_StateManager();
+        return new OVM_StateManager(_owner);
     }
 }
