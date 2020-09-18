@@ -111,7 +111,6 @@ export class EthereumBlockProcessor {
       log.debug(
         `Waiting for ${this.confirmsUntilFinal} confirms before disseminating block ${blockNumber}`
       )
-      // TODO: What happens on re-org? I think we're stuck waiting on this confirmation that will never come forever.
       try {
         const receipt: TransactionReceipt = await provider.waitForTransaction(
           (block.transactions[0] as any).hash,
