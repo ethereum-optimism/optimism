@@ -46,10 +46,7 @@ import {
 } from './utils'
 
 import { OptimismProvider } from './provider'
-import pkg = require('../../package.json')
-
-const version = pkg.version
-const logger = new Logger(version)
+const logger = new Logger('')
 
 /**
  * OptimismSigner must be passed a Web3Provider that is responsible for key
