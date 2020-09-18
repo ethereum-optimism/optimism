@@ -1,6 +1,6 @@
 /* External Imports */
 import { getLogger, logError } from '@eth-optimism/core-utils'
-import { Block, Provider } from 'ethers/providers'
+import { Block, Provider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
 import { EthereumListener } from '../../types/ethereum'
@@ -90,7 +90,7 @@ export class EthereumBlockProcessor {
   }
 
   /**
-   * Fetches and broadcasts the Block for the provided block number.
+   * Fetches the Block, waits for finalization, and broadcasts the Block for the provided block number.
    *
    * @param provider The provider with the connection to the blockchain
    * @param blockNumber The block number
@@ -111,12 +111,17 @@ export class EthereumBlockProcessor {
       log.debug(
         `Waiting for ${this.confirmsUntilFinal} confirms before disseminating block ${blockNumber}`
       )
-      // TODO: What happens on re-org? I think we're stuck waiting on this confirmation that will never come forever.
       try {
-        await provider.waitForTransaction(
+        const receipt: TransactionReceipt = await provider.waitForTransaction(
           (block.transactions[0] as any).hash,
           this.confirmsUntilFinal
         )
+        if (receipt.blockHash !== block.hash) {
+          log.info(
+            `Re-org processing block number ${blockNumber}. Re-fetching block.`
+          )
+          return this.fetchAndDisseminateBlock(provider, blockNumber)
+        }
       } catch (e) {
         logError(
           log,
