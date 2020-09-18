@@ -3,7 +3,7 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { Lib_OVMCodec } from "../../../libraries/codec/Lib_OVMCodec.sol";
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
 import { iOVM_FraudVerifier } from "../../iOVM/execution/iOVM_FraudVerifier.sol";

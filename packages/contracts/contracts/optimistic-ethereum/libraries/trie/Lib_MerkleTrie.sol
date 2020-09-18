@@ -77,7 +77,9 @@ library Lib_MerkleTrie {
     )
         internal
         view
-        returns (bool)
+        returns (
+            bool
+        )
     {
         return verifyProof(_key, _value, _proof, _root, true);
     }
@@ -102,7 +104,9 @@ library Lib_MerkleTrie {
     )
         internal
         view
-        returns (bool)
+        returns (
+            bool
+        )
     {
         return verifyProof(_key, _value, _proof, _root, false);
     }
@@ -126,7 +130,9 @@ library Lib_MerkleTrie {
     )
         internal
         view
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, ) = walkNodePath(proof, _key, _root);
@@ -150,7 +156,10 @@ library Lib_MerkleTrie {
     )
         internal
         view
-        returns (bool, bytes memory)
+        returns (
+            bool,
+            bytes memory
+        )
     {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, ) = walkNodePath(proof, _key, _root);
@@ -176,7 +185,9 @@ library Lib_MerkleTrie {
     )
         internal
         view
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         return keccak256(makeLeafNode(
             _key,
@@ -212,7 +223,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bool)
+        returns (
+            bool
+        )
     {
         TrieNode[] memory proof = parseProof(_proof);
         (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = walkNodePath(proof, _key, _root);
@@ -370,7 +383,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode[] memory)
+        returns (
+            TrieNode[] memory
+        )
     {
         bytes memory keyRemainder = _keyRemainder;
 
@@ -494,7 +509,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         bytes memory key = libByteUtils.toNibbles(_key);
 
@@ -555,7 +572,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode[] memory)
+        returns (
+            TrieNode[] memory
+        )
     {
         Lib_RLPReader.RLPItem[] memory nodes = libRLPReader.toList(libRLPReader.toRlpItem(_proof));
         TrieNode[] memory proof = new TrieNode[](nodes.length);
@@ -583,7 +602,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         bytes memory nodeID;
 
@@ -608,7 +629,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         return libByteUtils.toNibbles(libRLPReader.toBytes(_node.decoded[0]));
     }
@@ -624,7 +647,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         return removeHexPrefix(getNodePath(_node));
     }
@@ -639,7 +664,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         return libRLPReader.toBytes(_node.decoded[_node.decoded.length - 1]);
     }
@@ -655,7 +682,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         if (_encoded.length < 32) {
             return _encoded;
@@ -674,7 +703,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (NodeType)
+        returns (
+            NodeType
+        )
     {
         if (_node.decoded.length == BRANCH_NODE_LENGTH) {
             return NodeType.BranchNode;
@@ -705,7 +736,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (uint256)
+        returns (
+            uint256
+        )
     {
         uint256 i = 0;
         while (_a.length > i && _b.length > i && _a[i] == _b[i]) {
@@ -724,7 +757,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes memory encoded = libRLPWriter.encodeList(_raw);
 
@@ -744,7 +779,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes[] memory raw = new bytes[](_items.length);
         for (uint256 i = 0; i < _items.length; i++) {
@@ -765,7 +802,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = addHexPrefix(_key, false);
@@ -789,7 +828,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = addHexPrefix(_key, true);
@@ -805,7 +846,9 @@ library Lib_MerkleTrie {
     function makeEmptyBranchNode()
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes[] memory raw = new bytes[](BRANCH_NODE_LENGTH);
         for (uint256 i = 0; i < raw.length; i++) {
@@ -826,7 +869,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes memory encoded = libRLPWriter.encodeBytes(_value);
         _branch.decoded[_branch.decoded.length - 1] = libRLPReader.toRlpItem(encoded);
@@ -847,7 +892,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode memory)
+        returns (
+            TrieNode memory
+        )
     {
         bytes memory encoded = _value.length < 32 ? _value : libRLPWriter.encodeBytes(_value);
         _branch.decoded[_index] = libRLPReader.toRlpItem(encoded);
@@ -866,7 +913,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         uint8 prefix = _isLeaf ? uint8(0x02) : uint8(0x00);
         uint8 offset = uint8(_key.length % 2);
@@ -885,7 +934,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (bytes memory)
+        returns (
+            bytes memory
+        )
     {
         if (uint8(_path[0]) % 2 == 0) {
             return libByteUtils.slice(_path, 2);
@@ -912,7 +963,9 @@ library Lib_MerkleTrie {
     )
         private
         view
-        returns (TrieNode[] memory)
+        returns (
+            TrieNode[] memory
+        )
     {
         TrieNode[] memory ret = new TrieNode[](_aLength + _bLength);
 

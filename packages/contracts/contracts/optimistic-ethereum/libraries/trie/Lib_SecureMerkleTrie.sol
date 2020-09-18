@@ -32,9 +32,11 @@ library Lib_SecureMerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         view
-        returns (bool)
+        returns (
+            bool
+        )
     {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.verifyInclusionProof(key, _value, _proof, _root);
@@ -58,9 +60,11 @@ library Lib_SecureMerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         view
-        returns (bool)
+        returns (
+            bool
+        )
     {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.verifyExclusionProof(key, _value, _proof, _root);
@@ -83,9 +87,11 @@ library Lib_SecureMerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         view
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.update(key, _value, _proof, _root);
@@ -103,9 +109,12 @@ library Lib_SecureMerkleTrie {
         bytes memory _proof,
         bytes32 _root
     )
-        public
+        internal
         view
-        returns (bool, bytes memory)
+        returns (
+            bool,
+            bytes memory
+        )
     {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.get(key, _proof, _root);
@@ -121,9 +130,11 @@ library Lib_SecureMerkleTrie {
         bytes memory _key,
         bytes memory _value
     )
-        public
+        internal
         view
-        returns (bytes32)
+        returns (
+            bytes32
+        )
     {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.getSingleNodeRootHash(key, _value);
@@ -136,7 +147,13 @@ library Lib_SecureMerkleTrie {
 
     function _getSecureKey(
         bytes memory _key
-    ) private pure returns (bytes memory) {
+    )
+        private
+        pure
+        returns (
+            bytes memory
+        )
+    {
         return abi.encodePacked(keccak256(_key));
     }
 }
