@@ -397,8 +397,6 @@ export class DefaultDataService implements DataService {
     minBatchCalldataBytes: number,
     maxBatchCalldataBytes: number
   ): Promise<number> {
-    // TODO: ********************** calc tx size based on what we roll up **************
-
     const txRes = await this.rdb.select(
       `SELECT 
                 SUM(GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA}) as batch_calldata, 

@@ -108,7 +108,7 @@ export const runServices = async (): Promise<any[]> => {
     services.push(await createFraudDetector())
   }
 
-  if (!services.length) {
+  if (!services.length && !l1ChainDataPersister && !l2ChainDataPersister) {
     log.error(`No services configured! Exiting =|`)
     process.exit(1)
   }
