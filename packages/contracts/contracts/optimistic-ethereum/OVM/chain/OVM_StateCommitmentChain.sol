@@ -90,7 +90,7 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, P
     {
         require(
             msg.sender == address(ovmFraudVerifier),
-            "State batches can only be deleted by the fraud verifier"
+            "State batches can only be deleted by the OVM_FraudVerifier."
         );
 
         _deleteBatch(_batchHeader);

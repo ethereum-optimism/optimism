@@ -10,7 +10,6 @@ import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 /* Interface Imports */
 import { iOVM_L1ToL2TransactionQueue } from "../../iOVM/queue/iOVM_L1ToL2TransactionQueue.sol";
-import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 
 /* Contract Imports */
 import { OVM_BaseQueue } from "./OVM_BaseQueue.sol";
@@ -24,7 +23,7 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
      * Contract Variables: Contract References *
      *******************************************/
 
-    iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
+    address internal ovmCanonicalTransactionChain;
 
 
     /***************
@@ -39,7 +38,7 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
     )
         Proxy_Resolver(_proxyManager)
     {
-        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
+        ovmCanonicalTransactionChain = resolve("OVM_CanonicalTransactionChain");
     }
 
 
@@ -72,7 +71,7 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
         )
     {
         require(
-            msg.sender == address(ovmCanonicalTransactionChain),
+            msg.sender == ovmCanonicalTransactionChain,
             "Sender is not allowed to enqueue."
         );
 

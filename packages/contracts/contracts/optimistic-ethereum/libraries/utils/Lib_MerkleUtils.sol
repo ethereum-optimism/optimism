@@ -9,7 +9,7 @@ library Lib_MerkleUtils {
     function getMerkleRoot(
         bytes32[] memory _hashes
     )
-        public
+        internal
         view
         returns (
             bytes32 _root
@@ -61,7 +61,7 @@ library Lib_MerkleUtils {
     function getMerkleRoot(
         bytes[] memory _elements
     )
-        public
+        internal
         view
         returns (
             bytes32 _root
@@ -81,7 +81,7 @@ library Lib_MerkleUtils {
         uint256 _path,
         bytes32[] memory _siblings
     )
-        public
+        internal
         pure
         returns (
             bool _verified
@@ -106,7 +106,7 @@ library Lib_MerkleUtils {
     function _getDefaultHashes(
         uint256 _length
     )
-        internal
+        private
         pure
         returns (
             bytes32[] memory _defaultHashes
@@ -126,7 +126,7 @@ library Lib_MerkleUtils {
         bytes32 _leftChildHash,
         bytes32 _rightChildHash
     )
-        internal
+        private
         pure
         returns (
             bytes32 _hash

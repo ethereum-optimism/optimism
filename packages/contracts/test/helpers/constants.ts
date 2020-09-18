@@ -19,3 +19,5 @@ export const NULL_BYTES32 = makeHexString('00', 32)
 export const NON_NULL_BYTES32 = makeHexString('11', 32)
 export const ZERO_ADDRESS = makeAddress('00')
 export const NON_ZERO_ADDRESS = makeAddress('11')
+
+export const FORCE_INCLUSION_PERIOD_SECONDS = 600

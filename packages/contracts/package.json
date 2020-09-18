@@ -7,7 +7,7 @@
     "build": "yarn run build:contracts",
     "build:contracts": "buidler compile",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_test.spec.ts\""
+    "test:contracts": "buidler test \"test/contracts/OVM/chain/OVM_StateCommitmentChain.spec.ts\""
   },
   "devDependencies": {
     "@nomiclabs/buidler": "^1.4.4",

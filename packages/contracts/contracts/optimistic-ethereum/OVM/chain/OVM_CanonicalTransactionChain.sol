@@ -26,7 +26,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
      *******************************************/
     
     iOVM_L1ToL2TransactionQueue internal ovmL1ToL2TransactionQueue;
-    address internal sequencer;
 
 
     /*******************************************
@@ -52,8 +51,6 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         Proxy_Resolver(_proxyManager)
     {
         ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
-        sequencer = resolve("Sequencer");
-
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
     }
 
@@ -70,7 +67,7 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         public
     {
         require(
-            ovmL1ToL2TransactionQueue.size() > 0 == true,
+            ovmL1ToL2TransactionQueue.size() > 0,
             "No batches are currently queued to be appended."
         );
 
@@ -98,12 +95,17 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
         public
     {
         require(
-            msg.sender == sequencer,
-            "Function can only be called by the sequencer."
+            msg.sender == resolve("Sequencer"),
+            "Function can only be called by the Sequencer."
         );
 
         require(
-            _timestamp >= lastOVMTimestamp,
+            _batch.length > 0,
+            "Cannot submit an empty batch."
+        );
+
+        require(
+            _timestamp > lastOVMTimestamp,
             "Batch timestamp must be later than the last OVM timestamp."
         );
 
