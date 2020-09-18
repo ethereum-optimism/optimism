@@ -1,3 +1,13 @@
+variable "datadog_api_key" {
+  description = "Datadog account API key"
+  type        = string
+}
+
+variable "datadog_app_key" {
+  description = "Datadog application key"
+  type        = string
+}
+
 variable "gcp_project" {
   description = "Name of GCP project used to provision infrastructure into"
   type        = string

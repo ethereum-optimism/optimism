@@ -1,5 +1,8 @@
 terraform {
   required_providers {
+    datadog = {
+      source = "terraform-providers/datadog"
+    }
     google = {
       source = "hashicorp/google"
     }
