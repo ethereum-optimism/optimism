@@ -16,7 +16,7 @@ const blockKey: Buffer = Buffer.from('latestBlock')
  */
 export class EthereumBlockProcessor {
   private readonly subscriptions: Set<EthereumListener<Block>>
-  private currentBlockNumber: number
+  private currentFinalizedBlockNumber: number
 
   private syncInProgress: boolean
   private syncCompleted: boolean
@@ -27,10 +27,13 @@ export class EthereumBlockProcessor {
     private readonly confirmsUntilFinal: number = 1
   ) {
     this.subscriptions = new Set<EthereumListener<Block>>()
-    this.currentBlockNumber = 0
+    this.currentFinalizedBlockNumber = 0
 
     this.syncInProgress = false
     this.syncCompleted = false
+    if (earliestBlock < 0) {
+      throw Error('Earliest block must be >= 0')
+    }
   }
 
   /**
@@ -51,25 +54,33 @@ export class EthereumBlockProcessor {
 
     provider.on('block', async (blockNumber) => {
       try {
-        if (blockNumber < this.earliestBlock) {
+        const finalizedBlockNumber = this.getBlockFinalizedBy(blockNumber)
+
+        if (finalizedBlockNumber < this.earliestBlock) {
           log.debug(
-            `Received block [${blockNumber}] which is before earliest block [${this.earliestBlock}]. Ignoring...`
+            `Received block [${blockNumber}] which finalizes a block ${finalizedBlockNumber}, before earliest block [${this.earliestBlock}]. Ignoring...`
           )
           return
         }
 
-        log.debug(`Block [${blockNumber}] was mined!`)
+        log.debug(
+          `Block [${blockNumber}] was mined! Finalizing block ${finalizedBlockNumber}`
+        )
 
-        await this.fetchAndDisseminateBlock(provider, blockNumber)
-        this.currentBlockNumber = blockNumber
+        await this.fetchAndDisseminateBlock(provider, finalizedBlockNumber)
+        this.currentFinalizedBlockNumber = finalizedBlockNumber
 
         if (!syncPastBlocks || this.syncCompleted) {
-          await this.storeLastProcessedBlockNumber(this.currentBlockNumber)
+          await this.storeLastProcessedBlockNumber(
+            this.currentFinalizedBlockNumber
+          )
         }
       } catch (e) {
         logError(
           log,
-          `Error thrown processing block ${blockNumber}. Exiting since throwing will not be caught.`,
+          `Error thrown processing block ${blockNumber}, finalizing block ${this.getBlockFinalizedBy(
+            blockNumber
+          )}. Exiting since throwing will not be caught.`,
           e
         )
         process.exit(1)
@@ -100,61 +111,8 @@ export class EthereumBlockProcessor {
     blockNumber: number
   ): Promise<void> {
     log.debug(`Fetching block [${blockNumber}].`)
-    let block: Block = await provider.getBlock(blockNumber, true)
+    const block: Block = await provider.getBlock(blockNumber, true)
     log.debug(`Received block: ${block.number}.`)
-
-    if (
-      this.confirmsUntilFinal > 1 &&
-      !!block.transactions &&
-      !!block.transactions.length
-    ) {
-      log.debug(
-        `Waiting for ${this.confirmsUntilFinal} confirms before disseminating block ${blockNumber}`
-      )
-      try {
-        let refetchedHash: string
-        if (block.transactions.length > 0) {
-          const receipt: TransactionReceipt = await provider.waitForTransaction(
-            (block.transactions[0] as any).hash,
-            this.confirmsUntilFinal
-          )
-          refetchedHash = receipt.blockHash
-        } else {
-          while (
-            (await provider.getBlockNumber()) <
-            blockNumber + this.confirmsUntilFinal
-          ) {
-            log.debug(
-              `Waiting for empty block ${blockNumber} to be final. Sleeping...`
-            )
-            await sleep(15_000)
-          }
-          const refetched = await provider.getBlock(blockNumber)
-          refetchedHash = refetched.hash
-        }
-
-        if (refetchedHash !== block.hash) {
-          log.info(
-            `Re-org processing block number ${blockNumber}. Re-fetching block.`
-          )
-          return this.fetchAndDisseminateBlock(provider, blockNumber)
-        }
-      } catch (e) {
-        logError(
-          log,
-          `Error waiting for ${this.confirmsUntilFinal} confirms on block ${blockNumber}`,
-          e
-        )
-        // Cannot silently fail here because syncing will move on as if this block was processed.
-        throw e
-      }
-
-      log.debug(
-        `Received ${this.confirmsUntilFinal} confirms for block ${blockNumber}. Refetching block`
-      )
-
-      block = await provider.getBlock(blockNumber, true)
-    }
 
     this.subscriptions.forEach((h) => {
       try {
@@ -186,15 +144,17 @@ export class EthereumBlockProcessor {
       `Starting sync with block ${syncStart}. Last synced: ${lastSynced}, earliest block: ${this.earliestBlock}.`
     )
 
-    const blockNumber = await this.getBlockNumber(provider)
+    const mostRecentFinalBlock = this.getBlockFinalizedBy(
+      await this.getBlockNumber(provider)
+    )
 
-    if (blockNumber === syncStart) {
+    if (mostRecentFinalBlock <= syncStart) {
       log.debug(`Up to date, not syncing.`)
-      this.finishSync(blockNumber, blockNumber)
+      this.finishSync(mostRecentFinalBlock, mostRecentFinalBlock)
       return
     }
 
-    for (let i = syncStart; i <= blockNumber; i++) {
+    for (let i = syncStart; i <= mostRecentFinalBlock; i++) {
       try {
         await this.fetchAndDisseminateBlock(provider, i)
       } catch (e) {
@@ -205,7 +165,7 @@ export class EthereumBlockProcessor {
       await this.storeLastProcessedBlockNumber(i)
     }
 
-    this.finishSync(syncStart, blockNumber)
+    this.finishSync(syncStart, mostRecentFinalBlock)
   }
 
   private finishSync(syncStart: number, currentBlock: number): void {
@@ -234,12 +194,22 @@ export class EthereumBlockProcessor {
    * @returns The current block number
    */
   private async getBlockNumber(provider: Provider): Promise<number> {
-    if (this.currentBlockNumber === 0) {
-      this.currentBlockNumber = await provider.getBlockNumber()
+    if (this.currentFinalizedBlockNumber === 0) {
+      this.currentFinalizedBlockNumber = await provider.getBlockNumber()
     }
 
-    log.debug(`Current block number: ${this.currentBlockNumber}`)
-    return this.currentBlockNumber
+    log.debug(`Current block number: ${this.currentFinalizedBlockNumber}`)
+    return this.currentFinalizedBlockNumber
+  }
+
+  /**
+   * Gets the block number finalized by the block with the provided number.
+   *
+   * @param finalizingBlock The block number that finalizes the returned block number
+   * @returns The block number finalized by the provided block number.
+   */
+  private getBlockFinalizedBy(finalizingBlock: number): number {
+    return finalizingBlock - (this.confirmsUntilFinal - 1)
   }
 
   /**
