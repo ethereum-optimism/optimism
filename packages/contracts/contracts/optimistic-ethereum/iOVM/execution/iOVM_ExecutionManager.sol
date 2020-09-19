@@ -6,9 +6,9 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 interface iOVM_ExecutionManager {
-    /*******************
-     * Data Structures *
-     *******************/
+    /**********
+     * Enums *
+     *********/
 
     enum RevertFlag {
         DID_NOT_REVERT,
@@ -18,6 +18,31 @@ interface iOVM_ExecutionManager {
         INVALID_STATE_ACCESS,
         UNSAFE_BYTECODE,
         CREATE_COLLISION
+    }
+
+    enum GasMetadataKey {
+        CURRENT_EPOCH_START_TIMESTAMP,
+        CUMULATIVE_SEQUENCER_QUEUE_GAS,
+        CUMULATIVE_L1TOL2_QUEUE_GAS,
+        PREV_EPOCH_SEQUENCER_QUEUE_GAS,
+        PREV_EPOCH_L1TOL2_QUEUE_GAS
+    }
+
+    enum QueueOrigin {
+        SEQUENCER_QUEUE,
+        L1TOL2_QUEUE
+    }
+
+    
+    /***********
+     * Structs *
+     ***********/
+
+    struct GasMeterConfig {
+        uint256 minTransactionGasLimit;
+        uint256 maxTransactionGasLimit;
+        uint256 maxGasPerQueuePerEpoch;
+        uint256 secondsPerEpoch;
     }
 
     struct GlobalContext {

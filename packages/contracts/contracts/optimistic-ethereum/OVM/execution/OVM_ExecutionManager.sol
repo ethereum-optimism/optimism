@@ -31,6 +31,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Execution Context Variables *
      *******************************/
 
+    GasMeterConfig internal gasMeterConfig;
     GlobalContext internal globalContext;
     TransactionContext internal transactionContext;
     MessageContext internal messageContext;
@@ -42,6 +43,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Gas Metering Constants *
      **************************/
 
+    address constant GAS_METADATA_ADDRESS = 0x06a506A506a506A506a506a506A506A506A506A5;
     uint256 constant NUISANCE_GAS_SLOAD = 20000;
     uint256 constant NUISANCE_GAS_SSTORE = 20000;
     uint256 constant NUISANCE_GAS_PER_CONTRACT_BYTE = 100;
@@ -101,7 +103,31 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         override
         public
     {
+        // Initialize the transaction context.
+        transactionContext.ovmTIMESTAMP = _transaction.timestamp;
+        transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
+        transactionContext.ovmQUEUEORIGIN = _transaction.queueOrigin;
+
+        // Check whether we need to start a new epoch, do so if necessary.
+        _checkNeedsNewEpoch(_transaction.timestamp);
+
+        // Make sure the transaction's gas limit is valid. We don't revert here because we reserve
+        // reverts for INVALID_STATE_ACCESS.
+        if (_isValidGasLimit(_transaction.gasLimit, _transaction.queueOrigin) == false) {
+            return;
+        }
         
+        // Run the transaction, make sure to meter the gas usage.
+        uint256 gasLimit = gasleft();
+        ovmCALL(
+            _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
+            _transaction.entrypoint,
+            _transaction.data
+        );
+        uint256 gasUsed = gasLimit - gasleft();
+
+        // Update the cumulative gas based on the amount of gas used.
+        _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
     }
 
 
@@ -1311,6 +1337,155 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         }
 
         messageRecord.nuisanceGasLeft -= _amount;
+    }
+
+
+    /************************************
+     * Internal Functions: Gas Metering *
+     ************************************/
+    
+    /**
+     * Checks whether a transaction needs to start a new epoch and does so if necessary.
+     * @param _timestamp Transaction timestamp.
+     */
+    function _checkNeedsNewEpoch(
+        uint256 _timestamp
+    )
+        internal
+    {
+        if (
+            _timestamp >= (
+                _getGasMetadata(GasMetadataKey.CURRENT_EPOCH_START_TIMESTAMP)
+                + gasMeterConfig.secondsPerEpoch
+            )
+        ) {
+            _putGasMetadata(
+                GasMetadataKey.CURRENT_EPOCH_START_TIMESTAMP,
+                _timestamp
+            );
+
+            _putGasMetadata(
+                GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS,
+                _getGasMetadata(
+                    GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS
+                )
+            );
+
+            _putGasMetadata(
+                GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS,
+                _getGasMetadata(
+                    GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the gas limit for a given transaction.
+     * @param _gasLimit Gas limit provided by the transaction.
+     * @param _queueOrigin Queue from which the transaction orginated.
+     * @return _valid Whether or not the gas limit is valid.
+     */
+    function _isValidGasLimit(
+        uint256 _gasLimit,
+        uint256 _queueOrigin
+    )
+        internal
+        returns (
+            bool _valid
+        )
+    {
+        if (_gasLimit > gasMeterConfig.maxTransactionGasLimit) {
+            return false;
+        }
+
+        if (_gasLimit < gasMeterConfig.minTransactionGasLimit) {
+            return false;
+        }
+
+        GasMetadataKey cumulativeGasKey;
+        GasMetadataKey prevEpochGasKey;
+        if (_queueOrigin == uint256(QueueOrigin.SEQUENCER_QUEUE)) {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS;
+            prevEpochGasKey = GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS;
+        } else {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS;
+            prevEpochGasKey = GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS;
+        }
+
+        return (
+            (
+                _getGasMetadata(cumulativeGasKey)
+                - _getGasMetadata(prevEpochGasKey)
+                + _gasLimit
+            ) > gasMeterConfig.maxGasPerQueuePerEpoch
+        );
+    }
+
+    /**
+     * Updates the cumulative gas after a transaction.
+     * @param _gasUsed Gas used by the transaction.
+     * @param _queueOrigin Queue from which the transaction orginated.
+     */
+    function _updateCumulativeGas(
+        uint256 _gasUsed,
+        uint256 _queueOrigin
+    )
+        internal
+    {
+        GasMetadataKey cumulativeGasKey;
+        if (_queueOrigin == uint256(QueueOrigin.SEQUENCER_QUEUE)) {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS;
+        } else {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS;
+        }
+
+        _putGasMetadata(
+            cumulativeGasKey,
+            (
+                _getGasMetadata(cumulativeGasKey)
+                + gasMeterConfig.minTransactionGasLimit
+                + _gasUsed
+                - transactionRecord.ovmGasRefund
+            )
+        );
+    }
+
+    /**
+     * Retrieves the value of a gas metadata key.
+     * @param _key Gas metadata key to retrieve.
+     * @return _value Value stored at the given key.
+     */
+    function _getGasMetadata(
+        GasMetadataKey _key
+    )
+        internal
+        returns (
+            uint256 _value
+        )
+    {
+        return uint256(_getContractStorage(
+            GAS_METADATA_ADDRESS,
+            bytes32(uint256(_key))
+        ));
+    }
+
+    /**
+     * Sets the value of a gas metadata key.
+     * @param _key Gas metadata key to set.
+     * @param _value Value to store at the given key.
+     */
+    function _putGasMetadata(
+        GasMetadataKey _key,
+        uint256 _value
+    )
+        internal
+    {
+        _putContractStorage(
+            GAS_METADATA_ADDRESS,
+            bytes32(uint256(_key)),
+            bytes32(uint256(_value))
+        );
     }
 
 
