@@ -209,6 +209,9 @@ export class EthereumBlockProcessor {
    * @returns The block number finalized by the provided block number.
    */
   private getBlockFinalizedBy(finalizingBlock: number): number {
+    if (this.confirmsUntilFinal <= 1) {
+      return finalizingBlock
+    }
     return finalizingBlock - (this.confirmsUntilFinal - 1)
   }
 
