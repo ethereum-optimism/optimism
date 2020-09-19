@@ -32,7 +32,7 @@ const deployContract = async (
 
   const deployResult = await config.signer.sendTransaction({
     data: rawTx.data,
-    gasLimit: 9_500_000,
+    gasLimit: 7_500_000,
     gasPrice: 2_000_000_000,
     value: 0,
     nonce: await config.signer.getTransactionCount('pending'),

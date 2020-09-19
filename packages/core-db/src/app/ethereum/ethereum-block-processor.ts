@@ -1,5 +1,5 @@
 /* External Imports */
-import { getLogger, logError } from '@eth-optimism/core-utils'
+import { getLogger, logError, sleep } from '@eth-optimism/core-utils'
 import { Block, Provider, TransactionReceipt } from 'ethers/providers'
 
 /* Internal Imports */
@@ -112,11 +112,28 @@ export class EthereumBlockProcessor {
         `Waiting for ${this.confirmsUntilFinal} confirms before disseminating block ${blockNumber}`
       )
       try {
-        const receipt: TransactionReceipt = await provider.waitForTransaction(
-          (block.transactions[0] as any).hash,
-          this.confirmsUntilFinal
-        )
-        if (receipt.blockHash !== block.hash) {
+        let refetchedHash: string
+        if (block.transactions.length > 0) {
+          const receipt: TransactionReceipt = await provider.waitForTransaction(
+            (block.transactions[0] as any).hash,
+            this.confirmsUntilFinal
+          )
+          refetchedHash = receipt.blockHash
+        } else {
+          while (
+            (await provider.getBlockNumber()) <
+            blockNumber + this.confirmsUntilFinal
+          ) {
+            log.debug(
+              `Waiting for empty block ${blockNumber} to be final. Sleeping...`
+            )
+            await sleep(15_000)
+          }
+          const refetched = await provider.getBlock(blockNumber)
+          refetchedHash = refetched.hash
+        }
+
+        if (refetchedHash !== block.hash) {
           log.info(
             `Re-org processing block number ${blockNumber}. Re-fetching block.`
           )
