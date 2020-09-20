@@ -139,16 +139,14 @@ export class EthereumBlockProcessor {
     log.debug(`Syncing blocks.`)
     const lastSynced = await this.getLastSyncedBlockNumber()
     const syncStart = Math.max(lastSynced + 1, this.earliestBlock)
+    const mostRecentBlock = await this.getBlockNumber(provider)
+    const mostRecentFinalBlock = this.getBlockFinalizedBy(mostRecentBlock)
 
     log.debug(
-      `Starting sync with block ${syncStart}. Last synced: ${lastSynced}, earliest block: ${this.earliestBlock}.`
+      `Starting sync with block ${syncStart}. Last synced: ${lastSynced}, earliest block: ${this.earliestBlock}, most recent un-finalized block: ${mostRecentBlock}, most recent finalized block: ${mostRecentFinalBlock}.`
     )
 
-    const mostRecentFinalBlock = this.getBlockFinalizedBy(
-      await this.getBlockNumber(provider)
-    )
-
-    if (mostRecentFinalBlock <= syncStart) {
+    if (mostRecentFinalBlock < syncStart) {
       log.debug(`Up to date, not syncing.`)
       this.finishSync(mostRecentFinalBlock, mostRecentFinalBlock)
       return
@@ -156,6 +154,7 @@ export class EthereumBlockProcessor {
 
     for (let i = syncStart; i <= mostRecentFinalBlock; i++) {
       try {
+        log.debug(`Syncing past blocks: Fetching and disseminating block ${i}`)
         await this.fetchAndDisseminateBlock(provider, i)
       } catch (e) {
         logError(log, `Error fetching and disseminating block. Retrying...`, e)

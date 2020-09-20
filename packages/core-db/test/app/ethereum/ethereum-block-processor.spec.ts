@@ -75,7 +75,17 @@ describe('Block Subscription', () => {
 
       const blocks: Block[] = await blockListener.waitForSyncToComplete()
 
-      blocks.length.should.equal(0)
+      blocks.length.should.equal(1, 'There should only be one block synced!')
+      blocks[0].number.should.equal(1, 'Block 1 should have been finalized!')
+      blocks[0].transactions.length.should.equal(
+        1,
+        'There should be 1 transactions in block 1'
+      )
+      const deployToAddressEmpty = !(blocks[0].transactions[0] as any).to
+      deployToAddressEmpty.should.equal(
+        true,
+        'The "to" address for the deploy tx should be null'
+      )
     }).timeout(timeout)
 
     it('processes blocks starting at 1', async () => {
@@ -83,7 +93,7 @@ describe('Block Subscription', () => {
       await blockProcessor.subscribe(provider, blockListener)
 
       let blocks: Block[] = await blockListener.waitForSyncToComplete()
-      blocks.length.should.equal(0)
+      blocks.length.should.equal(1, 'Block 1 should have arrived')
 
       await tokenContract.transfer(
         ownerWallet.address,
@@ -249,6 +259,48 @@ describe('Block Subscription', () => {
           'The "to" address for the deploy tx should be null'
         )
       }).timeout(timeout)
+
+      describe('Future earliest block', () => {
+        it('does not finalize blocks before the earliest block', async () => {
+          tokenContract = await deployTokenContract(ownerWallet, initialSupply)
+
+          blockProcessor = new EthereumBlockProcessor(db, 1, confirmsUntilFinal)
+          await blockProcessor.subscribe(provider, blockListener)
+
+          const blocks: Block[] = await blockListener.waitForSyncToComplete()
+          blocks.length.should.equal(0)
+        }).timeout(timeout)
+
+        it('finalizes blocks after the earliest block', async () => {
+          tokenContract = await deployTokenContract(ownerWallet, initialSupply)
+
+          await tokenContract.transfer(
+            ownerWallet.address,
+            recipientWallet.address,
+            sendAmount * 2
+          )
+
+          blockProcessor = new EthereumBlockProcessor(db, 1, confirmsUntilFinal)
+          await blockProcessor.subscribe(provider, blockListener)
+
+          const blocks: Block[] = await blockListener.waitForSyncToComplete()
+          blocks.length.should.equal(1, `Incorrect number of blocks received!`)
+
+          blocks[0].number.should.equal(
+            1,
+            'Block 1 should have been finalized!'
+          )
+          blocks[0].transactions.length.should.equal(
+            1,
+            'There should be 1 transactions in block 1'
+          )
+          const deployToAddressEmpty = !(blocks[0].transactions[0] as any).to
+          deployToAddressEmpty.should.equal(
+            true,
+            'The "to" address for the deploy tx should be null'
+          )
+        })
+      })
     })
   })
 })
