@@ -132,6 +132,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
 
         // Update the cumulative gas based on the amount of gas used.
         _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
+
+	// Wipe the execution context.
+	_resetContext();
     }
 
 
@@ -1522,6 +1525,28 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         if (_prevMessageContext.isStatic != _nextMessageContext.isStatic) {
             messageContext.isStatic = _nextMessageContext.isStatic;
         }
+    }
+
+    /**
+     * Resets the transaction and message context.
+     */
+    function _resetContext()
+    	internal
+    {
+	transactionContext.ovmORIGIN = address(0);
+	transactionContext.ovmTIMESTAMP = 0;
+	transactionContext.ovmGASLIMIT = 0;
+	transactionContext.ovmTXGASLIMIT = 0;
+	transactionContext.ovmQUEUEORIGIN = 0;
+
+	transactionRecord.ovmGasRefund = 0;
+
+	messageContext.ovmCALLER = address(0);
+	messageContext.ovmADDRESS = address(0);
+	messageContext.isStatic = false;
+
+	messageRecord.nuisanceGasLeft = 0;
+	messageRecord.revertFlag = RevertFlag.DID_NOT_REVERT;
     }
 
     /**
