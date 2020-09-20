@@ -3,6 +3,9 @@ import { expect } from '../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 
+import L2ToL1MessagePasser = require('../../artifacts/L2ToL1MessagePasser.json')
+import L1MessageSender = require('../../artifacts/L1MessageSender.json')
+
 /* Internal Imports */
 import { deployAllContracts } from '../../src'
 import {
@@ -10,6 +13,7 @@ import {
   factoryToContractName,
 } from '../../src/deployment/types'
 import { Signer, Transaction } from 'ethers'
+import { keccak256 } from '@ethersproject/keccak256'
 import {
   GAS_LIMIT,
   DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
@@ -56,7 +60,8 @@ describe.skip('L2Geth Dumper Input Generator', () => {
       simplifiedTxs: SimplifiedTx[]
       walletAddress: string
       executionManagerAddress: string
-      stateManagerAddress: string
+      stateManagerAddress: string,
+      codeHashes: Object,
     }
 
     const getSimplifiedTx = (tx: Transaction): SimplifiedTx => {
@@ -75,6 +80,17 @@ describe.skip('L2Geth Dumper Input Generator', () => {
       walletAddress: await wallet.getAddress(),
       executionManagerAddress: resolver.contracts.executionManager.address,
       stateManagerAddress: resolver.contracts.stateManager.address,
+      codeHashes: {
+          l2ToL1MessagePasser: keccak256(L2ToL1MessagePasser.deployedBytecode),
+          l1MessageSender: keccak256(L1MessageSender.deployedBytecode)
+      }
+    }
+
+    for (const [name, contract] of Object.entries(resolver.contracts)) {
+        const address = contract.address
+        const code = await contract.provider.getCode(address)
+        const hash = keccak256(code)
+        gethDumpInput.codeHashes[name] = hash
     }
 
     // Write all the simplified transactions data to a file
