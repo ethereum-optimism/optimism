@@ -116,6 +116,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         if (_isValidGasLimit(_transaction.gasLimit, _transaction.queueOrigin) == false) {
             return;
         }
+
+	// Store our OVM_StateManager instance (significantly easier than attempting to pass the address
+	// around in calldata).
+	ovmStateManager = iOVM_StateManager(_ovmStateManager);
         
         // Run the transaction, make sure to meter the gas usage.
         uint256 gasLimit = gasleft();
@@ -648,7 +652,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Public Functions: Execution Safety *
      **************************************/
 
-
     /**
      * Performs the logic to create a contract and revert under various potential conditions.
      * @dev This function is implemented as `public` because we need to be able to revert a
@@ -739,9 +742,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         _setAccountNonce(ovmADDRESS(), 1);
 
         // We're stepping into a CREATE or CREATE2, so we need to update ADDRESS to point
-        // to the contract's associated address.
+        // to the contract's associated address and CALLER to point to the previous ADDRESS.
         MessageContext memory nextMessageContext = messageContext;
-        nextMessageContext.ovmADDRESS = _contractAddress;
+ 	nextMessageContext.ovmCALLER = messageContext.ovmADDRESS;
+	nextMessageContext.ovmADDRESS = _contractAddress;
 
         // Run `safeCREATE` in a new EVM message so that our changes can be reflected even if
         // `safeCREATE` reverts.
