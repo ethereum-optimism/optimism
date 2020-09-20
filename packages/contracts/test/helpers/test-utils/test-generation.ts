@@ -37,22 +37,22 @@ export class DefaultTestGenerator implements TestCallGenerator {
     protected ovmCreateHelper: Interface,
     protected ovmRevertHelper: Contract,
     protected ovmInvalidHelper: Contract,
-    protected step: TestStep,
+    protected step: TestStep
   ) {}
 
   getFunctionParams(): any[] {
-      return this.step.functionParams
+    return this.step.functionParams
   }
 
   getReturnValues(): any[] {
-      return this.step.expectedReturnValues
+    return this.step.expectedReturnValues
   }
 
   getCalldata(): string {
-      return this.ovmExecutionManager.interface.encodeFunctionData(
-          this.step.functionName,
-          this.getFunctionParams()
-      )
+    return this.ovmExecutionManager.interface.encodeFunctionData(
+      this.step.functionName,
+      this.getFunctionParams()
+    )
   }
 
   shouldCallSucceed(): boolean {
@@ -82,47 +82,44 @@ export class DefaultTestGenerator implements TestCallGenerator {
   }
 
   interpretActualReturnData(data: string, succeeded: boolean): string {
-    let interpretation: string = 'call to EM.' + this.step.functionName + ' returned values:'
-    interpretation += succeeded ? 
-      this.ovmExecutionManager.interface.decodeFunctionResult(
-        this.step.functionName,
-        data
-      )
-      :
-      decodeRevertData(data)
+    let interpretation: string =
+      'call to EM.' + this.step.functionName + ' returned values:'
+    interpretation += succeeded
+      ? this.ovmExecutionManager.interface.decodeFunctionResult(
+          this.step.functionName,
+          data
+        )
+      : decodeRevertData(data)
     return interpretation
   }
 }
 
 export class ovmCALLGenerator extends DefaultTestGenerator {
   getCalleeGenerators(): TestCallGenerator[] {
-      return (this.step.functionParams[2] as TestStep[]).map((step) => {
-          return getTestGenerator(
-              step,
-              this.ovmExecutionManager,
-              this.ovmCallHelper,
-              this.ovmCreateStorer,
-              this.ovmCreateHelper,
-              this.ovmRevertHelper,
-              this.ovmInvalidHelper
-          )
-      })
+    return (this.step.functionParams[2] as TestStep[]).map((step) => {
+      return getTestGenerator(
+        step,
+        this.ovmExecutionManager,
+        this.ovmCallHelper,
+        this.ovmCreateStorer,
+        this.ovmCreateHelper,
+        this.ovmRevertHelper,
+        this.ovmInvalidHelper
+      )
+    })
   }
 
   getFunctionParams(): any[] {
     return [
       this.step.functionParams[0],
       this.step.functionParams[1],
-      this.ovmCallHelper.interface.encodeFunctionData(
-        'runSteps',
-        [
-          this.getCalleeGenerators().map((calleeGenerator) => {
-            return calleeGenerator.getCalldata()
-          }),
-          !this.step.expectedReturnStatus,
-          this.ovmCreateStorer.address
-        ]
-      )
+      this.ovmCallHelper.interface.encodeFunctionData('runSteps', [
+        this.getCalleeGenerators().map((calleeGenerator) => {
+          return calleeGenerator.getCalldata()
+        }),
+        !this.step.expectedReturnStatus,
+        this.ovmCreateStorer.address,
+      ]),
     ]
   }
 
@@ -130,34 +127,36 @@ export class ovmCALLGenerator extends DefaultTestGenerator {
     if (this.step.expectedReturnValues.length <= 1) {
       return [
         !this.step.expectedReturnValues[0],
-        this.ovmCallHelper.interface.encodeFunctionResult(
-        'runSteps',
-          [
-            this.getCalleeGenerators().map((calleeGenerator) => {
-              return {
-                success: calleeGenerator.shouldCallSucceed(),
-                data: calleeGenerator.getReturnData()
-              }
-            })
-          ]
-        )
+        this.ovmCallHelper.interface.encodeFunctionResult('runSteps', [
+          this.getCalleeGenerators().map((calleeGenerator) => {
+            return {
+              success: calleeGenerator.shouldCallSucceed(),
+              data: calleeGenerator.getReturnData(),
+            }
+          }),
+        ]),
       ]
     } else {
       return this.step.expectedReturnValues
     }
-    
   }
 
   interpretActualReturnData(data: string, success: boolean): string {
-    if (!success) { 
+    if (!success) {
       return 'ovmCALL-type reverted with flag:' + decodeRevertData(data)
     }
 
-    if (this.step.expectedReturnValues.length >1) {
-      return 'ovmCALL-type returned successfully with overridden return data: ' + data
+    if (this.step.expectedReturnValues.length > 1) {
+      return (
+        'ovmCALL-type returned successfully with overridden return data: ' +
+        data
+      )
     }
-    
-    const resultOfOvmCALL = this.ovmExecutionManager.interface.decodeFunctionResult(this.step.functionName, data)
+
+    const resultOfOvmCALL = this.ovmExecutionManager.interface.decodeFunctionResult(
+      this.step.functionName,
+      data
+    )
     const resultOfSubcalls = this.ovmCallHelper.interface.decodeFunctionResult(
       'runSteps',
       resultOfOvmCALL[1]
@@ -168,63 +167,81 @@ export class ovmCALLGenerator extends DefaultTestGenerator {
       const generator = calleeGenerators[i]
       const EMsuccess = result[0]
       const EMdata = result[1]
-      return 'subcall ' + i + '(' + generator.getFunctionName() + ') had return status: ' + EMsuccess + ' and appears to have done: ' + generator.interpretActualReturnData(EMdata, EMsuccess)
+      return (
+        'subcall ' +
+        i +
+        '(' +
+        generator.getFunctionName() +
+        ') had return status: ' +
+        EMsuccess +
+        ' and appears to have done: ' +
+        generator.interpretActualReturnData(EMdata, EMsuccess)
+      )
     })
 
-    return 'ovmCALL returned ' + resultOfOvmCALL[0] + ' \n      with subcalls:' + JSON.stringify(interpretedResults) + '\n'
+    return (
+      'ovmCALL returned ' +
+      resultOfOvmCALL[0] +
+      ' \n      with subcalls:' +
+      JSON.stringify(interpretedResults) +
+      '\n'
+    )
   }
 }
 
 export class ovmCREATEGenerator extends DefaultTestGenerator {
   getInitcodeGenerators(): TestCallGenerator[] {
-      return (this.step.functionParams[2] as TestStep[]).map((step) => {
-          return getTestGenerator(
-              step,
-              this.ovmExecutionManager,
-              this.ovmCallHelper,
-              this.ovmCreateStorer,
-              this.ovmCreateHelper,
-              this.ovmRevertHelper,
-              this.ovmInvalidHelper
-          )
-      })
+    return (this.step.functionParams[2] as TestStep[]).map((step) => {
+      return getTestGenerator(
+        step,
+        this.ovmExecutionManager,
+        this.ovmCallHelper,
+        this.ovmCreateStorer,
+        this.ovmCreateHelper,
+        this.ovmRevertHelper,
+        this.ovmInvalidHelper
+      )
+    })
   }
 
   getFunctionParams(): any[] {
     return [
       getInitcode('Helper_CodeContractForCreates') +
-      this.ovmCreateHelper.encodeDeploy([
-        this.getInitcodeGenerators().map((initcodeGenerator) => {
-          return initcodeGenerator.getCalldata()
-        }),
-        !this.step.expectedReturnStatus,
-        this.step.functionParams[0],
-        this.ovmCreateStorer.address
-      ]).slice(2)
+        this.ovmCreateHelper
+          .encodeDeploy([
+            this.getInitcodeGenerators().map((initcodeGenerator) => {
+              return initcodeGenerator.getCalldata()
+            }),
+            !this.step.expectedReturnStatus,
+            this.step.functionParams[0],
+            this.ovmCreateStorer.address,
+          ])
+          .slice(2),
     ]
   }
 
   getReturnData(): string {
-    const expectedDirectEMReturnData = this.step.expectedReturnStatus ? 
-      this.ovmExecutionManager.interface.encodeFunctionResult(
-        this.step.functionName,
-        this.getReturnValues()
-      )
-      :
-      encodeRevertData(
-        this.step.expectedReturnValues[0],
-        this.step.expectedReturnValues[1],
-        this.step.expectedReturnValues[2],
-        this.step.expectedReturnValues[3]
-      )
+    const expectedDirectEMReturnData = this.step.expectedReturnStatus
+      ? this.ovmExecutionManager.interface.encodeFunctionResult(
+          this.step.functionName,
+          this.getReturnValues()
+        )
+      : encodeRevertData(
+          this.step.expectedReturnValues[0],
+          this.step.expectedReturnValues[1],
+          this.step.expectedReturnValues[2],
+          this.step.expectedReturnValues[3]
+        )
 
     const responsesShouldBeReverted = !this.step.functionParams[1]
-    const expectedStoredValues = responsesShouldBeReverted ? [] : this.getInitcodeGenerators().map((initcodeGenerator) => {
-      return {
-        success: initcodeGenerator.shouldCallSucceed(), // TODO: figure out if we need this and expose in generator interface if so.
-        data: initcodeGenerator.getReturnData()
-      }
-    })
+    const expectedStoredValues = responsesShouldBeReverted
+      ? []
+      : this.getInitcodeGenerators().map((initcodeGenerator) => {
+          return {
+            success: initcodeGenerator.shouldCallSucceed(), // TODO: figure out if we need this and expose in generator interface if so.
+            data: initcodeGenerator.getReturnData(),
+          }
+        })
 
     const expectedReturnData = abi.encode(
       ['bytes', 'bytes'],
@@ -232,24 +249,21 @@ export class ovmCREATEGenerator extends DefaultTestGenerator {
         expectedDirectEMReturnData,
         this.ovmCreateStorer.interface.encodeFunctionResult(
           'getLastResponses',
-          [
-            expectedStoredValues
-          ]
-        )
+          [expectedStoredValues]
+        ),
       ]
     )
     return expectedReturnData
   }
 
   interpretActualReturnData(data: string, success: boolean): string {
-    const ovmCREATEDataAndInitcodeResults = abi.decode(
-      ['bytes', 'bytes'],
-      data
-    )
+    const ovmCREATEDataAndInitcodeResults = abi.decode(['bytes', 'bytes'], data)
     const ovmCREATEData = ovmCREATEDataAndInitcodeResults[0]
 
-    if (!success) { 
-      return 'ovmCREATE reverted with: ' + decodeRevertData(ovmCREATEData.toString())
+    if (!success) {
+      return (
+        'ovmCREATE reverted with: ' + decodeRevertData(ovmCREATEData.toString())
+      )
     }
 
     // const decodedDataFromOvmCREATE = this.ovmExecutionManager.interface.decodeFunctionResult(this.step.functionName, ovmCREATEData)
@@ -261,7 +275,17 @@ export class ovmCREATEGenerator extends DefaultTestGenerator {
     )[0]
 
     const interpretedInitcodeResults = initcodeResults.map((result, i) => {
-      return '\n       initcode subcall ' + i + ' had response status ' + result[0] + ' and appears to have done: ' + this.getInitcodeGenerators()[i].interpretActualReturnData(result[1], result[0])
+      return (
+        '\n       initcode subcall ' +
+        i +
+        ' had response status ' +
+        result[0] +
+        ' and appears to have done: ' +
+        this.getInitcodeGenerators()[i].interpretActualReturnData(
+          result[1],
+          result[0]
+        )
+      )
     })
     return JSON.stringify(interpretedInitcodeResults)
   }
@@ -269,24 +293,18 @@ export class ovmCREATEGenerator extends DefaultTestGenerator {
 
 class ovmCALLToRevertGenerator extends DefaultTestGenerator {
   getCalldata(): string {
-    return this.ovmExecutionManager.interface.encodeFunctionData(
-      'ovmCALL',
-      [
-        this.step.functionParams[0],
-        this.step.functionParams[1],
-        this.ovmRevertHelper.interface.encodeFunctionData(
-          'doRevert',
-          [
-            encodeRevertData(
-              this.step.functionParams[2][0],
-              this.step.functionParams[2][1],
-              this.step.functionParams[2][2],
-              this.step.functionParams[2][3]
-            )
-          ]
-        )
-      ]
-    )
+    return this.ovmExecutionManager.interface.encodeFunctionData('ovmCALL', [
+      this.step.functionParams[0],
+      this.step.functionParams[1],
+      this.ovmRevertHelper.interface.encodeFunctionData('doRevert', [
+        encodeRevertData(
+          this.step.functionParams[2][0],
+          this.step.functionParams[2][1],
+          this.step.functionParams[2][2],
+          this.step.functionParams[2][3]
+        ),
+      ]),
+    ])
   }
 
   getReturnData(): string {
@@ -309,15 +327,19 @@ class ovmCALLToRevertGenerator extends DefaultTestGenerator {
 
   interpretActualReturnData(data: string, success: boolean): string {
     if (success) {
-      return 'ovmCALL to revert heler, which succeeded with return params:' + JSON.stringify(
-        this.ovmExecutionManager.interface.decodeFunctionResult(
-          'ovmCALL',
-          data
+      return (
+        'ovmCALL to revert heler, which succeeded with return params:' +
+        JSON.stringify(
+          this.ovmExecutionManager.interface.decodeFunctionResult(
+            'ovmCALL',
+            data
+          )
         )
       )
     } else {
-      return 'ovmCALL to revert helper did itself revert with flag:' + JSON.stringify(
-        decodeRevertData(data)
+      return (
+        'ovmCALL to revert helper did itself revert with flag:' +
+        JSON.stringify(decodeRevertData(data))
       )
     }
   }
@@ -330,17 +352,14 @@ class ovmSTATICCALLToRevertGenerator extends DefaultTestGenerator {
       [
         this.step.functionParams[0],
         this.step.functionParams[1],
-        this.ovmRevertHelper.interface.encodeFunctionData(
-          'doRevert',
-          [
-            encodeRevertData(
-              this.step.functionParams[2][0],
-              this.step.functionParams[2][1],
-              this.step.functionParams[2][2],
-              this.step.functionParams[2][3]
-            )
-          ]
-        )
+        this.ovmRevertHelper.interface.encodeFunctionData('doRevert', [
+          encodeRevertData(
+            this.step.functionParams[2][0],
+            this.step.functionParams[2][1],
+            this.step.functionParams[2][2],
+            this.step.functionParams[2][3]
+          ),
+        ]),
       ]
     )
   }
@@ -365,15 +384,19 @@ class ovmSTATICCALLToRevertGenerator extends DefaultTestGenerator {
 
   interpretActualReturnData(data: string, success: boolean): string {
     if (success) {
-      return 'ovmCALL to revert heler, which succeeded with return params:' + JSON.stringify(
-        this.ovmExecutionManager.interface.decodeFunctionResult(
-          'ovmCALL',
-          data
+      return (
+        'ovmCALL to revert heler, which succeeded with return params:' +
+        JSON.stringify(
+          this.ovmExecutionManager.interface.decodeFunctionResult(
+            'ovmCALL',
+            data
+          )
         )
       )
     } else {
-      return 'ovmCALL to revert helper did itself revert with flag:' + JSON.stringify(
-        decodeRevertData(data)
+      return (
+        'ovmCALL to revert helper did itself revert with flag:' +
+        JSON.stringify(decodeRevertData(data))
       )
     }
   }
@@ -381,17 +404,11 @@ class ovmSTATICCALLToRevertGenerator extends DefaultTestGenerator {
 
 class ovmCALLToInvalidGenerator extends DefaultTestGenerator {
   getCalldata(): string {
-    return this.ovmExecutionManager.interface.encodeFunctionData(
-      'ovmCALL',
-      [
-        this.step.functionParams[0],
-        this.step.functionParams[1],
-        this.ovmInvalidHelper.interface.encodeFunctionData(
-          'doInvalid',
-          []
-        )
-      ]
-    )
+    return this.ovmExecutionManager.interface.encodeFunctionData('ovmCALL', [
+      this.step.functionParams[0],
+      this.step.functionParams[1],
+      this.ovmInvalidHelper.interface.encodeFunctionData('doInvalid', []),
+    ])
   }
 
   getReturnData(): string {
@@ -414,15 +431,19 @@ class ovmCALLToInvalidGenerator extends DefaultTestGenerator {
 
   interpretActualReturnData(data: string, success: boolean): string {
     if (success) {
-      return 'ovmCALL to InvalidJump/OutOfGas heler, which succeeded with return params:' + JSON.stringify(
-        this.ovmExecutionManager.interface.decodeFunctionResult(
-          'ovmCALL',
-          data
+      return (
+        'ovmCALL to InvalidJump/OutOfGas heler, which succeeded with return params:' +
+        JSON.stringify(
+          this.ovmExecutionManager.interface.decodeFunctionResult(
+            'ovmCALL',
+            data
+          )
         )
       )
     } else {
-      return 'ovmCALL to InvalidJump/OutOfGas helper did itself revert with flag:' + JSON.stringify(
-        decodeRevertData(data)
+      return (
+        'ovmCALL to InvalidJump/OutOfGas helper did itself revert with flag:' +
+        JSON.stringify(decodeRevertData(data))
       )
     }
   }
@@ -430,12 +451,9 @@ class ovmCALLToInvalidGenerator extends DefaultTestGenerator {
 
 class ovmCREATEToInvalidGenerator extends DefaultTestGenerator {
   getCalldata(): string {
-    return this.ovmExecutionManager.interface.encodeFunctionData(
-      'ovmCREATE',
-      [
-        getInitcode('Helper_CodeContractForInvalidInCreation')
-      ]
-    )
+    return this.ovmExecutionManager.interface.encodeFunctionData('ovmCREATE', [
+      getInitcode('Helper_CodeContractForInvalidInCreation'),
+    ])
   }
 
   getReturnData(): string {
@@ -457,32 +475,35 @@ class ovmCREATEToInvalidGenerator extends DefaultTestGenerator {
       ['bytes', 'bytes'],
       [
         expectedEMResponse,
-        this.ovmCreateStorer.interface.encodeFunctionResult('getLastResponses', [[]])
+        this.ovmCreateStorer.interface.encodeFunctionResult(
+          'getLastResponses',
+          [[]]
+        ),
       ]
     )
   }
 
   interpretActualReturnData(data: string, success: boolean): string {
-    const EMResponse = abi.decode(
-      ['bytes', 'bytes'],
-      data
-    )[0]
+    const EMResponse = abi.decode(['bytes', 'bytes'], data)[0]
     console.log(`EMResponse is ${EMResponse}, success is ${success}`)
     if (success) {
-      return 'ovmCREATE to InvalidJump/OutOfGas IN CONSTRUCTOR heler, which succeeded returning address:' + JSON.stringify(
-        this.ovmExecutionManager.interface.decodeFunctionResult(
-          'ovmCREATE',
-          EMResponse
+      return (
+        'ovmCREATE to InvalidJump/OutOfGas IN CONSTRUCTOR heler, which succeeded returning address:' +
+        JSON.stringify(
+          this.ovmExecutionManager.interface.decodeFunctionResult(
+            'ovmCREATE',
+            EMResponse
+          )
         )
       )
     } else {
-      return 'ovmCALL to InvalidJump/OutOfGas IN CONSTRUCTOR heler did itself revert with flag:' + JSON.stringify(
-        decodeRevertData(EMResponse)
+      return (
+        'ovmCALL to InvalidJump/OutOfGas IN CONSTRUCTOR heler did itself revert with flag:' +
+        JSON.stringify(decodeRevertData(EMResponse))
       )
     }
   }
 }
-
 
 export const getTestGenerator = (
   step: TestStep,
@@ -546,16 +567,16 @@ export const getTestGenerator = (
         ovmInvalidHelper,
         step
       )
-      case 'ovmCREATEToInvalid':
-        return new ovmCREATEToInvalidGenerator(
-          ovmExecutionManager,
-          ovmCallHelper,
-          ovmCreateStorer,
-          ovmCreateHelper,
-          ovmRevertHelper,
-          ovmInvalidHelper,
-          step
-        )
+    case 'ovmCREATEToInvalid':
+      return new ovmCREATEToInvalidGenerator(
+        ovmExecutionManager,
+        ovmCallHelper,
+        ovmCreateStorer,
+        ovmCreateHelper,
+        ovmRevertHelper,
+        ovmInvalidHelper,
+        step
+      )
     default:
       return new DefaultTestGenerator(
         ovmExecutionManager,
@@ -566,5 +587,5 @@ export const getTestGenerator = (
         ovmInvalidHelper,
         step
       )
-    }
+  }
 }

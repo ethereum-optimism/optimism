@@ -24,7 +24,7 @@ export const bindMockWatcherToVM = (): void => {
 
   // Set up some things we'll need for later.
   let txid: string
-  let messages: Array<{
+  const messages: Array<{
     address: string
     sighash: string
     calldata: string
@@ -34,7 +34,7 @@ export const bindMockWatcherToVM = (): void => {
 
   // Modify the vm.runTx function to capture an ID for each transaction.
   const originalRunTx = vm.runTx.bind(vm)
-  const modifiedRunTx = async (opts: any): Promise<any> => {
+  function modifiedRunTx(opts: any): Promise<any> {
     // Buidler runs transactions multiple times (e.g., for gas estimation).
     // Here we're computing a unique ID for each transaction (based on sender,
     // nonce, and transaction data) so that we don't log calls multiple times.
@@ -54,7 +54,7 @@ export const bindMockWatcherToVM = (): void => {
 
   // Modify the pre-message handler to capture calldata.
   const originalBeforeMessageHandler = vmTracer['_beforeMessageHandler' as any]
-  const modifiedBeforeMessageHandler = async (message: any, next: any) => {
+  function modifiedBeforeMessageHandler(message: any, next: any) {
     // We only care about capturing if we're sending to one of our mocks.
     const address = message.to
       ? toHexString(message.to).toLowerCase()
@@ -93,7 +93,7 @@ export const bindMockWatcherToVM = (): void => {
 
   // Modify the post-message handler to insert the correct return data.
   const originalAfterMessageHandler = vmTracer['_afterMessageHandler' as any]
-  const modifiedAfterMessageHandler = async (result: any, next: any) => {
+  function modifiedAfterMessageHandler(result: any, next: any) {
     // We don't need to do anything if we haven't stored any mock messages.
     if (messages.length > 0) {
       // We need to look at the messages backwards since the first result will
@@ -106,13 +106,11 @@ export const bindMockWatcherToVM = (): void => {
       // Compute our return values.
       const inputParams = contract.__spec
         ? contract.__spec.interface.decodeFunctionData(
-          fn.functionName,
-          contract.__spec.interface.getSighash(fn.functionName) + message.calldata.slice(2)
-        )
-        : ethers.utils.defaultAbiCoder.decode(
-          fn.inputTypes,
-          message.calldata
-        )
+            fn.functionName,
+            contract.__spec.interface.getSighash(fn.functionName) +
+              message.calldata.slice(2)
+          )
+        : ethers.utils.defaultAbiCoder.decode(fn.inputTypes, message.calldata)
 
       const returnValues = Array.isArray(fn.returnValues)
         ? fn.returnValues
@@ -120,9 +118,9 @@ export const bindMockWatcherToVM = (): void => {
       const returnBuffer = fromHexString(
         contract.__spec
           ? contract.__spec.interface.encodeFunctionResult(
-            fn.functionName,
-            returnValues
-          )
+              fn.functionName,
+              returnValues
+            )
           : ethers.utils.defaultAbiCoder.encode(fn.outputTypes, returnValues)
       )
 
@@ -175,18 +173,20 @@ export const bindMockContractToVM = (
       }
     }
 
-    const sighash = mock.interface.getSighash(functionName)
-    return calls[sighash] || []
+    const sig = mock.interface.getSighash(functionName)
+    return calls[sig] || []
   }
 
   if (!Array.isArray(spec)) {
     ;(mock as any).__spec = spec
-
-    ;(mock as any).__sigmap = Object.keys(mock.interface.functions).reduce((sigmap, fn) => {
-      fn = fn.split('(')[0]
-      sigmap[spec.interface.getSighash(fn)] = mock.interface.getSighash(fn)
-      return sigmap
-    }, {})
+    ;(mock as any).__sigmap = Object.keys(mock.interface.functions).reduce(
+      (sigmap, fn) => {
+        fn = fn.split('(')[0]
+        sigmap[spec.interface.getSighash(fn)] = mock.interface.getSighash(fn)
+        return sigmap
+      },
+      {}
+    )
   }
 
   ;(mock as any).getCallCount = (functionName: string): number => {
@@ -204,11 +204,9 @@ export const bindMockContractToVM = (
     const iface = mock.__spec ? mock.__spec.interface : mock.interface
     const calldata = iface.getSighash(functionName) + calls[callIndex].slice(10)
 
-    return iface
-      .decodeFunctionData(functionName, calldata)
-      .map((element) => {
-        return element
-      })
+    return iface.decodeFunctionData(functionName, calldata).map((element) => {
+      return element
+    })
   }
   ;(mock as any).setReturnValues = (
     functionName: string,

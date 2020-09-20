@@ -19,10 +19,7 @@ export const makeProxies = async (
       Proxy_Manager.address
     )
 
-    await Proxy_Manager.setProxy(
-      name,
-      Proxy_Forwarder.address
-    )
+    await Proxy_Manager.setProxy(name, Proxy_Forwarder.address)
   }
 }
 
@@ -32,15 +29,10 @@ export const setProxyTarget = async (
   target: Contract
 ): Promise<void> => {
   await makeProxies(Proxy_Manager, [name])
-  
-  await Proxy_Manager.setTarget(
-    name,
-    target.address
-  )
+
+  await Proxy_Manager.setTarget(name, target.address)
 }
 
 export const getProxyManager = async (): Promise<Contract> => {
-  return (await ethers.getContractFactory(
-    'Proxy_Manager'
-  )).deploy()
+  return (await ethers.getContractFactory('Proxy_Manager')).deploy()
 }

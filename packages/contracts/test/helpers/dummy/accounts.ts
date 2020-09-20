@@ -5,7 +5,7 @@ import { makeAddress } from '../byte-utils'
 import { OVMAccount } from '../types/ovm-types'
 
 export const DUMMY_ACCOUNTS: Array<{
-  address: string,
+  address: string
   data: OVMAccount
 }> = [
   {
@@ -27,5 +27,5 @@ export const DUMMY_ACCOUNTS: Array<{
       codeHash: DUMMY_BYTES32[3],
       ethAddress: NON_ZERO_ADDRESS,
     },
-  }
+  },
 ]

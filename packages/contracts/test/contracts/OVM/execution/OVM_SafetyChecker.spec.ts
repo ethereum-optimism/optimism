@@ -21,9 +21,9 @@ describe('OVM_SafetyChecker', () => {
     for (const testName of Object.keys(SAFETY_CHECKER_TEST_JSON)) {
       const test = SAFETY_CHECKER_TEST_JSON[testName]
       it(`should correctly classify: ${testName}`, async () => {
-        expect(
-          await OVM_SafetyChecker.isBytecodeSafe(test.in)
-        ).to.equal(test.out)
+        expect(await OVM_SafetyChecker.isBytecodeSafe(test.in)).to.equal(
+          test.out
+        )
       })
     }
   })

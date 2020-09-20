@@ -22,11 +22,9 @@ const setPlaceholderStrings = (
   ovmStateManager: Contract,
   ovmSafetyChecker: Contract,
   ovmCallHelper: Contract,
-  ovmRevertHelper: Contract,
+  ovmRevertHelper: Contract
 ): any => {
-  const setPlaceholder = (
-    kv: string
-  ): string => {
+  const setPlaceholder = (kv: string): string => {
     if (kv === '$OVM_EXECUTION_MANAGER') {
       return ovmExecutionManager.address
     } else if (kv === '$OVM_STATE_MANAGER') {
@@ -82,13 +80,13 @@ const setPlaceholderStrings = (
   return test
 }
 
-const fixtureDeployContracts = async (): Promise <{
-  OVM_SafetyChecker: Contract,
-  OVM_StateManager: Contract,
-  OVM_ExecutionManager: Contract,
-  OVM_CallHelper: Contract,
-  OVM_RevertHelper: Contract,
-  OVM_CreateStorer: Contract,
+const fixtureDeployContracts = async (): Promise<{
+  OVM_SafetyChecker: Contract
+  OVM_StateManager: Contract
+  OVM_ExecutionManager: Contract
+  OVM_CallHelper: Contract
+  OVM_RevertHelper: Contract
+  OVM_CreateStorer: Contract
   OVM_InvalidHelper: Contract
 }> => {
   const Factory__OVM_SafetyChecker = await ethers.getContractFactory(
@@ -115,8 +113,12 @@ const fixtureDeployContracts = async (): Promise <{
   )
 
   const OVM_SafetyChecker = await Factory__OVM_SafetyChecker.deploy()
-  const OVM_ExecutionManager = await Factory__OVM_ExecutionManager.deploy(OVM_SafetyChecker.address)
-  const OVM_StateManager = await Factory__OVM_StateManager.deploy(OVM_ExecutionManager.address)
+  const OVM_ExecutionManager = await Factory__OVM_ExecutionManager.deploy(
+    OVM_SafetyChecker.address
+  )
+  const OVM_StateManager = await Factory__OVM_StateManager.deploy(
+    OVM_ExecutionManager.address
+  )
   const OVM_CallHelper = await Factory__Helper_CodeContractForCalls.deploy()
   const OVM_RevertHelper = await Factory__Helper_CodeContractForReverts.deploy()
   const OVM_CreateStorer = await Factory__Helper_CreateEMResponsesStorer.deploy()
@@ -129,32 +131,28 @@ const fixtureDeployContracts = async (): Promise <{
     OVM_CallHelper,
     OVM_RevertHelper,
     OVM_CreateStorer,
-    OVM_InvalidHelper
+    OVM_InvalidHelper,
   }
 }
 
-export const runExecutionManagerTest = (
-  test: TestDefinition
-): void => {
+export const runExecutionManagerTest = (test: TestDefinition): void => {
   test.preState = test.preState || {}
   test.postState = test.postState || {}
 
   describe(`Standard test: ${test.name}`, () => {
     test.parameters.map((parameters) => {
       if (isTestDefinition(parameters)) {
-        runExecutionManagerTest(
-          {
-            ...parameters,
-            preState: {
-              ...test.preState,
-              ...parameters.preState
-            },
-            postState: {
-              ...test.postState,
-              ...parameters.postState
-            }
-          }
-        )
+        runExecutionManagerTest({
+          ...parameters,
+          preState: {
+            ...test.preState,
+            ...parameters.preState,
+          },
+          postState: {
+            ...test.postState,
+            ...parameters.postState,
+          },
+        })
       } else {
         let OVM_SafetyChecker: Contract
         let OVM_StateManager: Contract
@@ -196,28 +194,33 @@ export const runExecutionManagerTest = (
         })
 
         beforeEach(async () => {
-          await OVM_ExecutionManager.__setContractStorage(replacedTest.preState.ExecutionManager)
-          await OVM_StateManager.__setContractStorage(replacedTest.preState.StateManager)
+          await OVM_ExecutionManager.__setContractStorage(
+            replacedTest.preState.ExecutionManager
+          )
+          await OVM_StateManager.__setContractStorage(
+            replacedTest.preState.StateManager
+          )
         })
 
         afterEach(async () => {
           await OVM_ExecutionManager.__checkContractStorage({
-            ...replacedTest.postState.ExecutionManager
+            ...replacedTest.postState.ExecutionManager,
           })
           await OVM_StateManager.__checkContractStorage({
-            ...replacedTest.postState.StateManager
+            ...replacedTest.postState.StateManager,
           })
         })
 
         parameters.steps.map((step, idx) => {
-          const scopedFunction = (!!test.focus) ? it.only : it
+          const scopedFunction = !!test.focus ? it.only : it
           scopedFunction(`should run test: ${test.name} ${idx}`, async () => {
             const testGenerator = getTestGenerator(
               replacedParams.steps[idx],
               OVM_ExecutionManager,
               OVM_CallHelper,
               OVM_CreateStorer,
-              (await ethers.getContractFactory('Helper_CodeContractForCreates')).interface,
+              (await ethers.getContractFactory('Helper_CodeContractForCreates'))
+                .interface,
               OVM_RevertHelper,
               OVM_InvalidHelper
             )
@@ -225,21 +228,28 @@ export const runExecutionManagerTest = (
             const callResult = await OVM_ExecutionManager.provider.call({
               to: OVM_ExecutionManager.address,
               data: testGenerator.getCalldata(),
-              gasLimit: GAS_LIMIT
+              gasLimit: GAS_LIMIT,
             })
-    
+
             await OVM_ExecutionManager.signer.sendTransaction({
               to: OVM_ExecutionManager.address,
               data: testGenerator.getCalldata(),
-              gasLimit: GAS_LIMIT
+              gasLimit: GAS_LIMIT,
             })
 
-            const interpretation = testGenerator.interpretActualReturnData(callResult, true)
+            const interpretation = testGenerator.interpretActualReturnData(
+              callResult,
+              true
+            )
             console.log('interpretation of actual results:\n' + interpretation) // in future we can add conditional here but for now always assume succeed
 
-            
-            const interpretationOfExpected = testGenerator.interpretActualReturnData(testGenerator.getReturnData(), true)
-            console.log('interpretation of expected: \n' + interpretationOfExpected)
+            const interpretationOfExpected = testGenerator.interpretActualReturnData(
+              testGenerator.getReturnData(),
+              true
+            )
+            console.log(
+              'interpretation of expected: \n' + interpretationOfExpected
+            )
 
             expect(callResult).to.equal(testGenerator.getReturnData()) //, 'got bad response, looks like it did:\n' + testGenerator.interpretActualReturnData(callResult))
           })

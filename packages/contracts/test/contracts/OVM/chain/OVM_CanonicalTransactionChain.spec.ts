@@ -12,7 +12,7 @@ import {
   setProxyTarget,
   NON_NULL_BYTES32,
   FORCE_INCLUSION_PERIOD_SECONDS,
-  ZERO_ADDRESS
+  ZERO_ADDRESS,
 } from '../../../helpers'
 
 const getEthTime = async (): Promise<number> => {
@@ -85,10 +85,10 @@ describe('OVM_CanonicalTransactionChain', () => {
           const timestamp = await getEthTime()
           Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
             {
-              timestamp: timestamp,
+              timestamp,
               batchRoot: NON_NULL_BYTES32,
-              isL1ToL2Batch: true
-            }
+              isL1ToL2Batch: true,
+            },
           ])
           await setEthTime(timestamp + FORCE_INCLUSION_PERIOD_SECONDS / 2)
         })
@@ -96,7 +96,9 @@ describe('OVM_CanonicalTransactionChain', () => {
         it('should revert', async () => {
           await expect(
             OVM_CanonicalTransactionChain.appendQueueBatch()
-          ).to.be.revertedWith('Cannot append until the inclusion delay period has elapsed.')
+          ).to.be.revertedWith(
+            'Cannot append until the inclusion delay period has elapsed.'
+          )
         })
       })
 
@@ -105,25 +107,24 @@ describe('OVM_CanonicalTransactionChain', () => {
           const timestamp = await getEthTime()
           Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
             {
-              timestamp: timestamp,
+              timestamp,
               batchRoot: NON_NULL_BYTES32,
-              isL1ToL2Batch: true
-            }
+              isL1ToL2Batch: true,
+            },
           ])
           Mock__OVM_L1ToL2TransactionQueue.setReturnValues('dequeue', [
             {
-              timestamp: timestamp,
+              timestamp,
               batchRoot: NON_NULL_BYTES32,
-              isL1ToL2Batch: true
-            }
+              isL1ToL2Batch: true,
+            },
           ])
           await setEthTime(timestamp + FORCE_INCLUSION_PERIOD_SECONDS)
         })
 
         it('should append the top element of the queue and attempt to dequeue', async () => {
-          await expect(
-            OVM_CanonicalTransactionChain.appendQueueBatch()
-          ).to.not.be.reverted
+          await expect(OVM_CanonicalTransactionChain.appendQueueBatch()).to.not
+            .be.reverted
 
           // TODO: Check that the batch root was inserted.
 
@@ -138,28 +139,19 @@ describe('OVM_CanonicalTransactionChain', () => {
   describe('appendSequencerBatch()', () => {
     describe('when the sender is not the sequencer', () => {
       before(async () => {
-        await Proxy_Manager.setProxy(
-          'Sequencer',
-          ZERO_ADDRESS
-        )
+        await Proxy_Manager.setProxy('Sequencer', ZERO_ADDRESS)
       })
 
       it('should revert', async () => {
         await expect(
-          OVM_CanonicalTransactionChain.appendSequencerBatch(
-            [],
-            0
-          )
+          OVM_CanonicalTransactionChain.appendSequencerBatch([], 0)
         ).to.be.revertedWith('Function can only be called by the Sequencer.')
       })
     })
 
     describe('when the sender is the sequencer', () => {
       before(async () => {
-        await Proxy_Manager.setProxy(
-          'Sequencer',
-          await signer.getAddress()
-        )
+        await Proxy_Manager.setProxy('Sequencer', await signer.getAddress())
       })
 
       describe('when the given batch is empty', () => {
@@ -167,10 +159,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
         it('should revert', async () => {
           await expect(
-            OVM_CanonicalTransactionChain.appendSequencerBatch(
-              batch,
-              0
-            )
+            OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 0)
           ).to.be.revertedWith('Cannot submit an empty batch.')
         })
       })
@@ -179,7 +168,7 @@ describe('OVM_CanonicalTransactionChain', () => {
         const batch = [NON_NULL_BYTES32]
 
         describe('when the timestamp is not greater than the previous OVM timestamp', () => {
-          const timestamp = 0;
+          const timestamp = 0
 
           it('should revert', async () => {
             await expect(
@@ -187,12 +176,14 @@ describe('OVM_CanonicalTransactionChain', () => {
                 batch,
                 timestamp
               )
-            ).to.be.revertedWith('Batch timestamp must be later than the last OVM timestamp.')
+            ).to.be.revertedWith(
+              'Batch timestamp must be later than the last OVM timestamp.'
+            )
           })
         })
 
         describe('when the timestamp is greater than the previous OVM timestamp', () => {
-          const timestamp = 1000;
+          const timestamp = 1000
 
           describe('when the queue is not empty', () => {
             before(() => {
@@ -205,8 +196,8 @@ describe('OVM_CanonicalTransactionChain', () => {
                   {
                     timestamp: timestamp / 2,
                     batchRoot: NON_NULL_BYTES32,
-                    isL1ToL2Batch: true
-                  }
+                    isL1ToL2Batch: true,
+                  },
                 ])
               })
 
@@ -216,7 +207,9 @@ describe('OVM_CanonicalTransactionChain', () => {
                     batch,
                     timestamp
                   )
-                ).to.be.revertedWith('Older queue batches must be processed before a newer sequencer batch.')
+                ).to.be.revertedWith(
+                  'Older queue batches must be processed before a newer sequencer batch.'
+                )
               })
             })
 
@@ -224,10 +217,10 @@ describe('OVM_CanonicalTransactionChain', () => {
               before(() => {
                 Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
                   {
-                    timestamp: timestamp,
+                    timestamp,
                     batchRoot: NON_NULL_BYTES32,
-                    isL1ToL2Batch: true
-                  }
+                    isL1ToL2Batch: true,
+                  },
                 ])
               })
 
@@ -268,9 +261,9 @@ describe('OVM_CanonicalTransactionChain', () => {
   describe('getTotalElements()', () => {
     describe('when no batch elements have been inserted', () => {
       it('should return zero', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalElements()
-        ).to.equal(0)
+        expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(
+          0
+        )
       })
     })
 
@@ -284,9 +277,9 @@ describe('OVM_CanonicalTransactionChain', () => {
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalElements()
-        ).to.equal(1)
+        expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(
+          1
+        )
       })
     })
 
@@ -294,16 +287,13 @@ describe('OVM_CanonicalTransactionChain', () => {
       const batch = Array(64).fill(NON_NULL_BYTES32)
       beforeEach(async () => {
         Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
-        await OVM_CanonicalTransactionChain.appendSequencerBatch(
-          batch,
-          1000
-        )
+        await OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 1000)
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalElements()
-        ).to.equal(64)
+        expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(
+          64
+        )
       })
     })
 
@@ -311,20 +301,14 @@ describe('OVM_CanonicalTransactionChain', () => {
       const batch = Array(32).fill(NON_NULL_BYTES32)
       beforeEach(async () => {
         Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
-        await OVM_CanonicalTransactionChain.appendSequencerBatch(
-          batch,
-          1000
-        )
-        await OVM_CanonicalTransactionChain.appendSequencerBatch(
-          batch,
-          2000
-        )
+        await OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 1000)
+        await OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 2000)
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalElements()
-        ).to.equal(64)
+        expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(
+          64
+        )
       })
     })
   })
@@ -332,9 +316,9 @@ describe('OVM_CanonicalTransactionChain', () => {
   describe('getTotalBatches()', () => {
     describe('when no batches have been inserted', () => {
       it('should return zero', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalBatches()
-        ).to.equal(0)
+        expect(await OVM_CanonicalTransactionChain.getTotalBatches()).to.equal(
+          0
+        )
       })
     })
 
@@ -348,9 +332,9 @@ describe('OVM_CanonicalTransactionChain', () => {
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalBatches()
-        ).to.equal(1)
+        expect(await OVM_CanonicalTransactionChain.getTotalBatches()).to.equal(
+          1
+        )
       })
     })
 
@@ -366,9 +350,9 @@ describe('OVM_CanonicalTransactionChain', () => {
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_CanonicalTransactionChain.getTotalBatches()
-        ).to.equal(8)
+        expect(await OVM_CanonicalTransactionChain.getTotalBatches()).to.equal(
+          8
+        )
       })
     })
   })

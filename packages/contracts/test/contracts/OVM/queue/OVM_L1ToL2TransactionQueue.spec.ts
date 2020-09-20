@@ -5,9 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { Contract, ContractFactory, Signer } from 'ethers'
 
 /* Internal Imports */
-import {
-  getProxyManager, ZERO_ADDRESS, NULL_BYTES32
-} from '../../../helpers'
+import { getProxyManager, ZERO_ADDRESS, NULL_BYTES32 } from '../../../helpers'
 
 const parseQueueElement = (result: any[]): any => {
   return {
@@ -57,13 +55,15 @@ describe('OVM_L1ToL2TransactionQueue', () => {
   describe('enqueue()', () => {
     it('should allow users to enqueue an element', async () => {
       const [element] = makeQueueElements(1)
-      await expect(OVM_L1ToL2TransactionQueue.enqueue(element)).to.not.be.reverted
+      await expect(OVM_L1ToL2TransactionQueue.enqueue(element)).to.not.be
+        .reverted
     })
 
     it('should allow users to enqueue more than one element', async () => {
       const elements = makeQueueElements(10)
-      for (let i = 0; i < elements.length; i++) {
-        await expect(OVM_L1ToL2TransactionQueue.enqueue(elements[i])).to.not.be.reverted
+      for (const element of elements) {
+        await expect(OVM_L1ToL2TransactionQueue.enqueue(element)).to.not.be
+          .reverted
       }
     })
   })
@@ -78,10 +78,12 @@ describe('OVM_L1ToL2TransactionQueue', () => {
       })
 
       it('should revert', async () => {
-        await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.be.revertedWith('Sender is not allowed to enqueue.')
+        await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.be.revertedWith(
+          'Sender is not allowed to enqueue.'
+        )
       })
     })
-  
+
     describe('when the sender is the OVM_CanonicalTransactionChain', () => {
       before(async () => {
         await Proxy_Manager.setProxy(
@@ -91,7 +93,9 @@ describe('OVM_L1ToL2TransactionQueue', () => {
       })
 
       it('should revert if the queue is empty', async () => {
-        await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.be.revertedWith('Queue is empty.')
+        await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.be.revertedWith(
+          'Queue is empty.'
+        )
       })
 
       it('should allow users to dequeue an element', async () => {
@@ -102,10 +106,10 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
       it('should allow users to dequeue more than one element', async () => {
         const elements = makeQueueElements(10)
-        for (let i = 0; i < elements.length; i++) {
-          await OVM_L1ToL2TransactionQueue.enqueue(elements[i])
+        for (const element of elements) {
+          await OVM_L1ToL2TransactionQueue.enqueue(element)
         }
-        for (let i = 0; i < elements.length; i++) {
+        for (const element of elements) {
           await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.not.be.reverted
         }
       })
@@ -136,8 +140,8 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
     it('should decrease when elements are dequeued', async () => {
       const elements = makeQueueElements(10)
-      for (let i = 0; i < elements.length; i++) {
-        await OVM_L1ToL2TransactionQueue.enqueue(elements[i])
+      for (const element of elements) {
+        await OVM_L1ToL2TransactionQueue.enqueue(element)
       }
       for (let i = 0; i < elements.length; i++) {
         await OVM_L1ToL2TransactionQueue.dequeue()
@@ -156,7 +160,9 @@ describe('OVM_L1ToL2TransactionQueue', () => {
     })
 
     it('should revert when the queue is empty', async () => {
-      await expect(OVM_L1ToL2TransactionQueue.peek()).to.be.revertedWith('Queue is empty.')
+      await expect(OVM_L1ToL2TransactionQueue.peek()).to.be.revertedWith(
+        'Queue is empty.'
+      )
     })
 
     it('should return the front element if only one exists', async () => {
@@ -168,8 +174,8 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
     it('should return the front if more than one exists', async () => {
       const elements = makeQueueElements(10)
-      for (let i = 0; i < elements.length; i++) {
-        await OVM_L1ToL2TransactionQueue.enqueue(elements[i])
+      for (const element of elements) {
+        await OVM_L1ToL2TransactionQueue.enqueue(element)
         const front = await OVM_L1ToL2TransactionQueue.peek()
         expect(parseQueueElement(front)).to.deep.equal(elements[0])
       }
@@ -177,8 +183,8 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
     it('should return the new front when elements are dequeued', async () => {
       const elements = makeQueueElements(10)
-      for (let i = 0; i < elements.length; i++) {
-        await OVM_L1ToL2TransactionQueue.enqueue(elements[i])
+      for (const element of elements) {
+        await OVM_L1ToL2TransactionQueue.enqueue(elements)
       }
       for (let i = 0; i < elements.length - 1; i++) {
         const front = await OVM_L1ToL2TransactionQueue.peek()

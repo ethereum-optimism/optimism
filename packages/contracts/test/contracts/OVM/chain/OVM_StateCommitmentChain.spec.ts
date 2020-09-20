@@ -11,7 +11,7 @@ import {
   getMockContract,
   setProxyTarget,
   NON_NULL_BYTES32,
-  ZERO_ADDRESS
+  ZERO_ADDRESS,
 } from '../../../helpers'
 
 describe('OVM_StateCommitmentChain', () => {
@@ -55,7 +55,7 @@ describe('OVM_StateCommitmentChain', () => {
   describe('appendStateBatch', () => {
     describe('when the provided batch is empty', () => {
       const batch = []
-      
+
       it('should revert', async () => {
         await expect(
           OVM_StateCommitmentChain.appendStateBatch(batch)
@@ -68,25 +68,32 @@ describe('OVM_StateCommitmentChain', () => {
 
       describe('when submitting more elements than present in the OVM_CanonicalTransactionChain', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length - 1])
+          Mock__OVM_CanonicalTransactionChain.setReturnValues(
+            'getTotalElements',
+            [batch.length - 1]
+          )
         })
 
         it('should revert', async () => {
           await expect(
             OVM_StateCommitmentChain.appendStateBatch(batch)
-          ).to.be.revertedWith('Number of state roots cannot exceed the number of canonical transactions.')
+          ).to.be.revertedWith(
+            'Number of state roots cannot exceed the number of canonical transactions.'
+          )
         })
       })
 
       describe('when not submitting more elements than present in the OVM_CanonicalTransactionChain', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length])
+          Mock__OVM_CanonicalTransactionChain.setReturnValues(
+            'getTotalElements',
+            [batch.length]
+          )
         })
 
         it('should append the state batch', async () => {
-          await expect(
-            OVM_StateCommitmentChain.appendStateBatch(batch)
-          ).to.not.be.reverted
+          await expect(OVM_StateCommitmentChain.appendStateBatch(batch)).to.not
+            .be.reverted
 
           // TODO: Check for correct insertion.
         })
@@ -102,26 +109,27 @@ describe('OVM_StateCommitmentChain', () => {
       batchRoot: NON_NULL_BYTES32,
       batchSize: 0,
       prevTotalElements: 0,
-      extraData: '0x'
+      extraData: '0x',
     }
 
     beforeEach(async () => {
-      Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length])
+      Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [
+        batch.length,
+      ])
       await OVM_StateCommitmentChain.appendStateBatch(batch)
     })
 
     describe('when the sender is not the OVM_FraudVerifier', () => {
       before(async () => {
-        await Proxy_Manager.setProxy(
-          'OVM_FraudVerifier',
-          ZERO_ADDRESS
-        )
+        await Proxy_Manager.setProxy('OVM_FraudVerifier', ZERO_ADDRESS)
       })
 
       it('should revert', async () => {
         await expect(
           OVM_StateCommitmentChain.deleteStateBatch(batchHeader)
-        ).to.be.revertedWith('State batches can only be deleted by the OVM_FraudVerifier.')
+        ).to.be.revertedWith(
+          'State batches can only be deleted by the OVM_FraudVerifier.'
+        )
       })
     })
 
@@ -138,7 +146,7 @@ describe('OVM_StateCommitmentChain', () => {
           await expect(
             OVM_StateCommitmentChain.deleteStateBatch({
               ...batchHeader,
-              batchIndex: 1
+              batchIndex: 1,
             })
           ).to.be.revertedWith('Invalid batch index.')
         })
@@ -150,7 +158,7 @@ describe('OVM_StateCommitmentChain', () => {
             await expect(
               OVM_StateCommitmentChain.deleteStateBatch({
                 ...batchHeader,
-                extraData: '0x1234'
+                extraData: '0x1234',
               })
             ).to.be.revertedWith('Invalid batch header.')
           })
@@ -158,9 +166,8 @@ describe('OVM_StateCommitmentChain', () => {
 
         describe('when the provided batch header is valid', () => {
           it('should remove the batch and all following batches', async () => {
-            await expect(
-              OVM_StateCommitmentChain.deleteStateBatch(batchHeader)
-            ).to.not.be.reverted
+            await expect(OVM_StateCommitmentChain.deleteStateBatch(batchHeader))
+              .to.not.be.reverted
 
             // TODO: Check that it deleted the batches.
           })
@@ -172,52 +179,53 @@ describe('OVM_StateCommitmentChain', () => {
   describe('getTotalElements', () => {
     describe('when no batch elements have been inserted', () => {
       it('should return zero', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalElements()
-        ).to.equal(0)
+        expect(await OVM_StateCommitmentChain.getTotalElements()).to.equal(0)
       })
     })
 
     describe('when one batch element has been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length])
+        Mock__OVM_CanonicalTransactionChain.setReturnValues(
+          'getTotalElements',
+          [batch.length]
+        )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalElements()
-        ).to.equal(1)
+        expect(await OVM_StateCommitmentChain.getTotalElements()).to.equal(1)
       })
     })
 
     describe('when 64 batch elements have been inserted in one batch', () => {
       beforeEach(async () => {
         const batch = Array(64).fill(NON_NULL_BYTES32)
-        Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length])
+        Mock__OVM_CanonicalTransactionChain.setReturnValues(
+          'getTotalElements',
+          [batch.length]
+        )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalElements()
-        ).to.equal(64)
+        expect(await OVM_StateCommitmentChain.getTotalElements()).to.equal(64)
       })
     })
 
     describe('when 32 batch elements have been inserted in each of two batches', () => {
       beforeEach(async () => {
         const batch = Array(32).fill(NON_NULL_BYTES32)
-        Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length * 2])
+        Mock__OVM_CanonicalTransactionChain.setReturnValues(
+          'getTotalElements',
+          [batch.length * 2]
+        )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalElements()
-        ).to.equal(64)
+        expect(await OVM_StateCommitmentChain.getTotalElements()).to.equal(64)
       })
     })
   })
@@ -225,39 +233,39 @@ describe('OVM_StateCommitmentChain', () => {
   describe('getTotalBatches()', () => {
     describe('when no batches have been inserted', () => {
       it('should return zero', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalBatches()
-        ).to.equal(0)
+        expect(await OVM_StateCommitmentChain.getTotalBatches()).to.equal(0)
       })
     })
 
     describe('when one batch has been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length])
+        Mock__OVM_CanonicalTransactionChain.setReturnValues(
+          'getTotalElements',
+          [batch.length]
+        )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalBatches()
-        ).to.equal(1)
+        expect(await OVM_StateCommitmentChain.getTotalBatches()).to.equal(1)
       })
     })
 
     describe('when 8 batches have been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [batch.length * 8])
+        Mock__OVM_CanonicalTransactionChain.setReturnValues(
+          'getTotalElements',
+          [batch.length * 8]
+        )
         for (let i = 0; i < 8; i++) {
           await OVM_StateCommitmentChain.appendStateBatch(batch)
         }
       })
 
       it('should return the number of inserted batch elements', async () => {
-        expect(
-          await OVM_StateCommitmentChain.getTotalBatches()
-        ).to.equal(8)
+        expect(await OVM_StateCommitmentChain.getTotalBatches()).to.equal(8)
       })
     })
   })

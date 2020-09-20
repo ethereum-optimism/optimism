@@ -1,9 +1,6 @@
 import { usePlugin, BuidlerConfig } from '@nomiclabs/buidler/config'
 
-import {
-  DEFAULT_ACCOUNTS_BUIDLER,
-  GAS_LIMIT,
-} from './test/helpers/constants'
+import { DEFAULT_ACCOUNTS_BUIDLER, GAS_LIMIT } from './test/helpers/constants'
 
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
@@ -21,7 +18,7 @@ const config: BuidlerConfig = {
     timeout: 50000,
   },
   solc: {
-    version: "0.7.0",
+    version: '0.7.0',
     optimizer: { enabled: true, runs: 200 },
   },
 }

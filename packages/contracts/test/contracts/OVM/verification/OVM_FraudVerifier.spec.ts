@@ -5,19 +5,27 @@ import { ethers } from '@nomiclabs/buidler'
 import { ContractFactory, Contract, Signer, BigNumber } from 'ethers'
 
 /* Internal Imports */
-import { getProxyManager, getMockContract, MockContract, ZERO_ADDRESS, NULL_BYTES32, NON_NULL_BYTES32, setProxyTarget} from '../../../helpers'
+import {
+  getProxyManager,
+  getMockContract,
+  MockContract,
+  ZERO_ADDRESS,
+  NULL_BYTES32,
+  NON_NULL_BYTES32,
+  setProxyTarget,
+} from '../../../helpers'
 
 const DUMMY_BATCH_HEADER = {
   batchIndex: 0,
   batchRoot: NULL_BYTES32,
   batchSize: 0,
   prevTotalElements: 0,
-  extraData: NULL_BYTES32
+  extraData: NULL_BYTES32,
 }
 
 const DUMMY_BATCH_PROOF = {
   index: 0,
-  siblings: [NULL_BYTES32]
+  siblings: [NULL_BYTES32],
 }
 
 const DUMMY_OVM_TRANSACTION = {
@@ -27,7 +35,7 @@ const DUMMY_OVM_TRANSACTION = {
   origin: ZERO_ADDRESS,
   msgSender: ZERO_ADDRESS,
   gasLimit: 0,
-  data: NULL_BYTES32
+  data: NULL_BYTES32,
 }
 
 describe('OVM_FraudVerifier', () => {
@@ -44,7 +52,7 @@ describe('OVM_FraudVerifier', () => {
     Mock__OVM_StateCommitmentChain = await getMockContract(
       await ethers.getContractFactory('OVM_StateCommitmentChain')
     )
-    
+
     Mock__OVM_CanonicalTransactionChain = await getMockContract(
       await ethers.getContractFactory('OVM_CanonicalTransactionChain')
     )
@@ -82,18 +90,22 @@ describe('OVM_FraudVerifier', () => {
     )
 
     Mock__OVM_StateTransitionerFactory.setReturnValues('create', [
-      Mock__OVM_StateTransitioner.address
+      Mock__OVM_StateTransitioner.address,
     ])
   })
 
   let Factory__OVM_FraudVerifier: ContractFactory
   before(async () => {
-    Factory__OVM_FraudVerifier = await ethers.getContractFactory('OVM_FraudVerifier')
+    Factory__OVM_FraudVerifier = await ethers.getContractFactory(
+      'OVM_FraudVerifier'
+    )
   })
 
   let OVM_FraudVerifier: Contract
   beforeEach(async () => {
-    OVM_FraudVerifier = await Factory__OVM_FraudVerifier.deploy(Proxy_Manager.address)
+    OVM_FraudVerifier = await Factory__OVM_FraudVerifier.deploy(
+      Proxy_Manager.address
+    )
   })
 
   describe('initializeFraudVerification', () => {
@@ -123,7 +135,9 @@ describe('OVM_FraudVerifier', () => {
 
       describe('when provided an invalid transaction inclusion proof', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [false])
+          Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [
+            false,
+          ])
         })
 
         it('should revert', async () => {
@@ -142,12 +156,14 @@ describe('OVM_FraudVerifier', () => {
 
       describe('when provided a valid transaction inclusion proof', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [true])
+          Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [
+            true,
+          ])
         })
 
         it('should deploy a new state transitioner', async () => {
           await expect(
-              OVM_FraudVerifier.initializeFraudVerification(
+            OVM_FraudVerifier.initializeFraudVerification(
               NULL_BYTES32,
               DUMMY_BATCH_HEADER,
               DUMMY_BATCH_PROOF,
@@ -165,11 +181,12 @@ describe('OVM_FraudVerifier', () => {
     })
   })
 
-  
   describe('finalizeFraudVerification', () => {
     beforeEach(async () => {
       Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [true])
-      Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [true])
+      Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [
+        true,
+      ])
       await OVM_FraudVerifier.initializeFraudVerification(
         NULL_BYTES32,
         DUMMY_BATCH_HEADER,
@@ -195,7 +212,9 @@ describe('OVM_FraudVerifier', () => {
             DUMMY_BATCH_HEADER,
             DUMMY_BATCH_PROOF
           )
-        ).to.be.revertedWith('State transition process must be completed prior to finalization.')
+        ).to.be.revertedWith(
+          'State transition process must be completed prior to finalization.'
+        )
       })
     })
 
@@ -207,7 +226,7 @@ describe('OVM_FraudVerifier', () => {
       describe('when provided an invalid post-state root index', () => {
         const batchProof = {
           ...DUMMY_BATCH_PROOF,
-          index: DUMMY_BATCH_PROOF.index + 2
+          index: DUMMY_BATCH_PROOF.index + 2,
         }
 
         it('should revert', async () => {
@@ -227,12 +246,14 @@ describe('OVM_FraudVerifier', () => {
       describe('when provided a valid post-state root index', () => {
         const batchProof = {
           ...DUMMY_BATCH_PROOF,
-          index: DUMMY_BATCH_PROOF.index + 1
+          index: DUMMY_BATCH_PROOF.index + 1,
         }
 
         describe('when provided an invalid pre-state root inclusion proof', () => {
           beforeEach(() => {
-            Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [false])
+            Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [
+              false,
+            ])
           })
 
           it('should revert', async () => {
@@ -251,14 +272,19 @@ describe('OVM_FraudVerifier', () => {
 
         describe('when provided a valid pre-state root inclusion proof', () => {
           before(() => {
-            Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [true])
+            Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [
+              true,
+            ])
           })
 
           describe('when provided an invalid post-state root inclusion proof', () => {
             beforeEach(() => {
-              Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', (stateRoot: string, ...args: any) => {
-                return [stateRoot !== NON_NULL_BYTES32]
-              })
+              Mock__OVM_StateCommitmentChain.setReturnValues(
+                'verifyElement',
+                (stateRoot: string, ...args: any) => {
+                  return [stateRoot !== NON_NULL_BYTES32]
+                }
+              )
             })
 
             it('should revert', async () => {
@@ -277,12 +303,17 @@ describe('OVM_FraudVerifier', () => {
 
           describe('when provided a valid post-state root inclusion proof', () => {
             before(() => {
-              Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [true])
+              Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [
+                true,
+              ])
             })
 
             describe('when the provided post-state root does not differ from the computed one', () => {
               before(() => {
-                Mock__OVM_StateTransitioner.setReturnValues('getPostStateRoot', [NON_NULL_BYTES32])
+                Mock__OVM_StateTransitioner.setReturnValues(
+                  'getPostStateRoot',
+                  [NON_NULL_BYTES32]
+                )
               })
 
               it('should revert', async () => {
@@ -295,13 +326,18 @@ describe('OVM_FraudVerifier', () => {
                     DUMMY_BATCH_HEADER,
                     batchProof
                   )
-                ).to.be.revertedWith('State transition has not been proven fraudulent.')
+                ).to.be.revertedWith(
+                  'State transition has not been proven fraudulent.'
+                )
               })
             })
 
             describe('when the provided post-state root differs from the computed one', () => {
               before(() => {
-                Mock__OVM_StateTransitioner.setReturnValues('getPostStateRoot', [NULL_BYTES32])
+                Mock__OVM_StateTransitioner.setReturnValues(
+                  'getPostStateRoot',
+                  [NULL_BYTES32]
+                )
               })
 
               it('should succeed and attempt to delete a state batch', async () => {
@@ -313,12 +349,19 @@ describe('OVM_FraudVerifier', () => {
                   DUMMY_BATCH_HEADER,
                   batchProof
                 )
-                
+
                 expect(
-                  Mock__OVM_StateCommitmentChain.getCallData('deleteStateBatch', 0)
-                ).to.deep.equal([Object.values(DUMMY_BATCH_HEADER).map((value) => {
-                  return Number.isInteger(value) ? BigNumber.from(value) : value
-                })])
+                  Mock__OVM_StateCommitmentChain.getCallData(
+                    'deleteStateBatch',
+                    0
+                  )
+                ).to.deep.equal([
+                  Object.values(DUMMY_BATCH_HEADER).map((value) => {
+                    return Number.isInteger(value)
+                      ? BigNumber.from(value)
+                      : value
+                  }),
+                ])
               })
             })
           })

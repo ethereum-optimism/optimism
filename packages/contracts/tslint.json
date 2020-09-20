@@ -1,0 +1,37 @@
+{
+  "extends": [
+    "tslint:latest",
+    "tslint-config-prettier",
+    "tslint-plugin-prettier"
+  ],
+  "rulesDirectory": [
+    "tslint-no-focused-test"
+  ],
+  "rules": {
+    "ban-types": false,
+    "comment-format": false,
+    "interface-name": false,
+    "max-classes-per-file": false,
+    "member-ordering": false,
+    "no-bitwise": false,
+    "no-empty-interface": false,
+    "no-implicit-dependencies": [true, "dev"],
+    "no-string-literal": false,
+    "no-submodule-imports": false,
+    "no-unused-expression": false,
+    "object-literal-sort-keys": false,
+    "ordered-imports": false,
+    "prettier": [true, "prettier-config.json"],
+    "semicolon": false,
+    "variable-name": false,
+    "no-focused-test": true,
+    "no-console": false,
+    "array-type": false,
+    "class-name": false
+  },
+  "linterOptions": {
+    "exclude": [
+      "**/node_modules/**/*"
+    ]
+  } 
+}

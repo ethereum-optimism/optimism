@@ -6,60 +6,60 @@ import {
   NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
-  DUMMY_BYTECODE
+  DUMMY_BYTECODE,
 } from '../../../../helpers'
 
 const test_ovmREVERT: TestDefinition = {
-  name: "basic ovmREVERT unit tests",
+  name: 'basic ovmREVERT unit tests',
   preState: {
     ExecutionManager: {
-      ovmStateManager: "$OVM_STATE_MANAGER",
-      ovmSafetyChecker: "$OVM_SAFETY_CHECKER",
+      ovmStateManager: '$OVM_STATE_MANAGER',
+      ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT
-      }
+        nuisanceGasLeft: GAS_LIMIT,
+      },
     },
     StateManager: {
-      owner: "$OVM_EXECUTION_MANAGER",
+      owner: '$OVM_EXECUTION_MANAGER',
       accounts: {
-        "$DUMMY_OVM_ADDRESS_1": {
+        $DUMMY_OVM_ADDRESS_1: {
           codeHash: NON_NULL_BYTES32,
-          ethAddress: "$OVM_CALL_HELPER"
+          ethAddress: '$OVM_CALL_HELPER',
         },
-      }
-    }
+      },
+    },
   },
   parameters: [
     {
-      name: "ovmREVERT inside ovmCALL should cause EM to revert",
+      name: 'ovmREVERT inside ovmCALL should cause EM to revert',
       parameters: [
         {
           steps: [
             {
-              functionName: "ovmCALL",
+              functionName: 'ovmCALL',
               functionParams: [
                 GAS_LIMIT / 2,
-                "$DUMMY_OVM_ADDRESS_1",
+                '$DUMMY_OVM_ADDRESS_1',
                 [
                   {
-                    functionName: "ovmREVERT",
-                    functionParams: [ "0xdeadbeef" ],
+                    functionName: 'ovmREVERT',
+                    functionParams: ['0xdeadbeef'],
                     expectedReturnStatus: false,
                     expectedReturnValues: [
                       REVERT_FLAGS.INTENTIONAL_REVERT,
-                      "0xdeadbeef",
+                      '0xdeadbeef',
                       GAS_LIMIT / 2,
-                      0
-                    ]
-                  }
-                ]
+                      0,
+                    ],
+                  },
+                ],
               ],
               expectedReturnStatus: true,
-              expectedReturnValues: []
-            }
-          ]
-        }
-      ]
+              expectedReturnValues: [],
+            },
+          ],
+        },
+      ],
     },
     // TODO: fix this.  only way to do it is manually set up and call ovmREVERT directly inside a context which mirrors that during creation.
     // {
@@ -100,7 +100,7 @@ const test_ovmREVERT: TestDefinition = {
     //     }
     //   ]
     // }
-  ]
+  ],
 }
 
 runExecutionManagerTest(test_ovmREVERT)

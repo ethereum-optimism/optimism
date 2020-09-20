@@ -7,7 +7,9 @@
     "build": "yarn run build:contracts",
     "build:contracts": "buidler compile",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_ExecutionManager/ovmSTATICCALL.spec.ts\""
+    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_ExecutionManager/ovmSTATICCALL.spec.ts\"",
+    "lint": "tslint --format stylish --project .",
+    "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\""
   },
   "devDependencies": {
     "@nomiclabs/buidler": "^1.4.4",
@@ -23,7 +25,12 @@
     "fs-extra": "^9.0.1",
     "lodash": "^4.17.20",
     "mocha": "^8.1.1",
+    "prettier": "^2.1.2",
     "ts-node": "^9.0.0",
+    "tslint": "^6.1.3",
+    "tslint-config-prettier": "^1.18.0",
+    "tslint-no-focused-test": "^0.5.0",
+    "tslint-plugin-prettier": "^2.3.0",
     "typescript": "^4.0.2"
   }
 }

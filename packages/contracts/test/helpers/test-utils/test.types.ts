@@ -5,7 +5,12 @@ export type SolidityFunctionParameter = string | number | BigNumber
 
 export interface TestStep {
   functionName: string
-  functionParams: Array<SolidityFunctionParameter | SolidityFunctionParameter[] | TestStep[] | boolean>
+  functionParams: Array<
+    | SolidityFunctionParameter
+    | SolidityFunctionParameter[]
+    | TestStep[]
+    | boolean
+  >
   expectedReturnStatus: boolean
   expectedReturnValues: any[]
 }
@@ -18,14 +23,14 @@ export interface TestDefinition {
   name: string
   focus?: boolean
   preState?: {
-    ExecutionManager?: any,
+    ExecutionManager?: any
     StateManager?: any
-  },
-  parameters: Array<TestParameters | TestDefinition>,
+  }
+  parameters: Array<TestParameters | TestDefinition>
   postState?: {
-    ExecutionManager?: any,
+    ExecutionManager?: any
     StateManager?: any
-  },
+  }
 }
 
 export const isTestDefinition = (
