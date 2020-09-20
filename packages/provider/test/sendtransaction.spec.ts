@@ -15,7 +15,7 @@ import { verifyMessage } from '@ethersproject/wallet'
 import { parse } from '@ethersproject/transactions'
 import { SignatureLike, joinSignature } from '@ethersproject/bytes'
 
-import { mnemonic, etherbase } from './common'
+import { mnemonic } from './common'
 
 chai.use(chaiAsPromised)
 const should = chai.should()
@@ -69,73 +69,5 @@ describe('sendTransaction', () => {
     // this concats the prefix and hashes the message
     const recovered = verifyMessage(hash, sig)
     address.should.eq(recovered)
-  })
-
-  xit('should send eth_sendRawEthSignTransaction', async () => {
-    const signer = provider.getSigner()
-    const chainId = await signer.getChainId()
-
-    const address = await signer.getAddress()
-    const nonce = await provider.getTransactionCount(address)
-
-    const tx = {
-      to: etherbase,
-      nonce,
-      gasLimit: 21004,
-      gasPrice: 0,
-      data: '0x',
-      value: 0,
-      chainId,
-    }
-
-    const hex = await signer.signTransaction(tx)
-
-    const txid = await provider.send('eth_sendRawEthSignTransaction', [hex])
-    const transaction = await provider.getTransaction(txid)
-
-    // The correct signature hashing was performed
-    address.should.eq(transaction.from)
-
-    // The correct transaction is being returned
-    tx.to.should.eq(transaction.to)
-    tx.value.should.eq(transaction.value.toNumber())
-    tx.nonce.should.eq(transaction.nonce)
-    tx.gasLimit.should.eq(transaction.gasLimit.toNumber())
-    tx.gasPrice.should.eq(transaction.gasPrice.toNumber())
-    tx.data.should.eq(transaction.data)
-
-    // Fetching the transaction receipt works correctly
-    const receipt = await provider.getTransactionReceipt(txid)
-    address.should.eq(receipt.from)
-    tx.to.should.eq(receipt.to)
-  })
-
-  xit('should sendTransaction', async () => {
-    const signer = provider.getSigner()
-    const chainId = await signer.getChainId()
-
-    const address = await signer.getAddress()
-    const nonce = await provider.getTransactionCount(address)
-
-    const tx = {
-      to: etherbase,
-      nonce,
-      gasLimit: 21004,
-      gasPrice: 0,
-      data: '0x',
-      value: 0,
-      chainId,
-    }
-
-    const result = await signer.sendTransaction(tx)
-
-    // "from" is calculated client side here, so
-    // make sure that it is computed correctly.
-    result.from.should.eq(address)
-
-    tx.nonce.should.eq(result.nonce)
-    tx.gasLimit.should.eq(result.gasLimit.toNumber())
-    tx.gasPrice.should.eq(result.gasPrice.toNumber())
-    tx.data.should.eq(result.data)
   })
 })
