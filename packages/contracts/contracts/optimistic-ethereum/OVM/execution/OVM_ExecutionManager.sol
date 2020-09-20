@@ -117,9 +117,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             return;
         }
 
-	// Store our OVM_StateManager instance (significantly easier than attempting to pass the address
-	// around in calldata).
-	ovmStateManager = iOVM_StateManager(_ovmStateManager);
+	    // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
+	    // around in calldata).
+	    ovmStateManager = iOVM_StateManager(_ovmStateManager);
         
         // Run the transaction, make sure to meter the gas usage.
         uint256 gasLimit = gasleft();
@@ -133,8 +133,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // Update the cumulative gas based on the amount of gas used.
         _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
 
-	// Wipe the execution context.
-	_resetContext();
+	    // Wipe the execution context.
+	    _resetContext();
     }
 
 
@@ -747,8 +747,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // We're stepping into a CREATE or CREATE2, so we need to update ADDRESS to point
         // to the contract's associated address and CALLER to point to the previous ADDRESS.
         MessageContext memory nextMessageContext = messageContext;
- 	nextMessageContext.ovmCALLER = messageContext.ovmADDRESS;
-	nextMessageContext.ovmADDRESS = _contractAddress;
+        nextMessageContext.ovmCALLER = messageContext.ovmADDRESS;
+        nextMessageContext.ovmADDRESS = _contractAddress;
 
         // Run `safeCREATE` in a new EVM message so that our changes can be reflected even if
         // `safeCREATE` reverts.
@@ -1533,20 +1533,20 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function _resetContext()
     	internal
     {
-	transactionContext.ovmORIGIN = address(0);
-	transactionContext.ovmTIMESTAMP = 0;
-	transactionContext.ovmGASLIMIT = 0;
-	transactionContext.ovmTXGASLIMIT = 0;
-	transactionContext.ovmQUEUEORIGIN = 0;
+        transactionContext.ovmORIGIN = address(0);
+        transactionContext.ovmTIMESTAMP = 0;
+        transactionContext.ovmGASLIMIT = 0;
+        transactionContext.ovmTXGASLIMIT = 0;
+        transactionContext.ovmQUEUEORIGIN = 0;
 
-	transactionRecord.ovmGasRefund = 0;
+        transactionRecord.ovmGasRefund = 0;
 
-	messageContext.ovmCALLER = address(0);
-	messageContext.ovmADDRESS = address(0);
-	messageContext.isStatic = false;
+        messageContext.ovmCALLER = address(0);
+        messageContext.ovmADDRESS = address(0);
+        messageContext.isStatic = false;
 
-	messageRecord.nuisanceGasLeft = 0;
-	messageRecord.revertFlag = RevertFlag.DID_NOT_REVERT;
+        messageRecord.nuisanceGasLeft = 0;
+        messageRecord.revertFlag = RevertFlag.DID_NOT_REVERT;
     }
 
     /**
