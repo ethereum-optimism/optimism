@@ -228,6 +228,7 @@ contract OVM_StateManager is iOVM_StateManager {
         Lib_OVMCodec.Account storage account = accounts[_address];
         account.nonce = 1;
         account.codeHash = keccak256(hex'80');
+        account.isFresh = true;
     }
 
     /**
@@ -405,9 +406,9 @@ contract OVM_StateManager is iOVM_StateManager {
             bool _exists
         )
     {
-        return verifiedContractStorage[_contract][_key];
+        return verifiedContractStorage[_contract][_key] || accounts[_contract].isFresh;
     }
-    
+
     /**
      * Checks whether a storage slot has already been retrieved, and marks it as retrieved if not.
      * @param _contract Address of the contract to check.

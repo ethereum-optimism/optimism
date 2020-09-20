@@ -20,6 +20,7 @@ library Lib_OVMCodec {
         bytes32 storageRoot;
         bytes32 codeHash;
         address ethAddress;
+        bool isFresh;
     }
 
     struct EVMAccount {

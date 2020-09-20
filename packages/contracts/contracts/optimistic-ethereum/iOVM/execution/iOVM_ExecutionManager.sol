@@ -17,7 +17,9 @@ interface iOVM_ExecutionManager {
         EXCEEDS_NUISANCE_GAS,
         INVALID_STATE_ACCESS,
         UNSAFE_BYTECODE,
-        CREATE_COLLISION
+        CREATE_COLLISION,
+        STATIC_VIOLATION,
+        CREATE_EXCEPTION
     }
 
     enum GasMetadataKey {
@@ -65,6 +67,7 @@ interface iOVM_ExecutionManager {
         address ovmCALLER;
         address ovmADDRESS;
         bool isStatic;
+        bool isCreation;
     }
 
     struct MessageRecord {

@@ -2,18 +2,18 @@
 pragma solidity ^0.7.0;
 
 contract Helper_ModifiableStorage {
-    address private target;
+    mapping (address => address) private target;
 
     constructor(
         address _target
     ) {
-        target = _target;
+        target[address(this)] = _target;
     }
 
     fallback()
         external
     {
-        (bool success, bytes memory returndata) = target.delegatecall(msg.data);
+        (bool success, bytes memory returndata) = target[address(this)].delegatecall(msg.data);
 
         if (success) {
             assembly {
