@@ -103,10 +103,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         override
         public
     {
-        // Initialize the transaction context.
-        transactionContext.ovmTIMESTAMP = _transaction.timestamp;
-        transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
-        transactionContext.ovmQUEUEORIGIN = _transaction.queueOrigin;
+	    // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
+	    // around in calldata).
+	    ovmStateManager = iOVM_StateManager(_ovmStateManager);
 
         // Check whether we need to start a new epoch, do so if necessary.
         _checkNeedsNewEpoch(_transaction.timestamp);
@@ -117,10 +116,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             return;
         }
 
-	    // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
-	    // around in calldata).
-	    ovmStateManager = iOVM_StateManager(_ovmStateManager);
-        
+	    // Initialize the execution context.
+	    _initContext(_transaction);
+
         // Run the transaction, make sure to meter the gas usage.
         uint256 gasLimit = gasleft();
         ovmCALL(
@@ -1525,6 +1523,21 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         if (_prevMessageContext.isStatic != _nextMessageContext.isStatic) {
             messageContext.isStatic = _nextMessageContext.isStatic;
         }
+    }
+
+    /**
+     * Initializes the execution context.
+     * @param _transaction OVM transaction being executed.
+     */
+    function _initContext(
+        Lib_OVMCodec.Transaction memory _transaction
+    )
+    	internal
+    {
+        transactionContext.ovmTIMESTAMP = _transaction.timestamp;
+        transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
+        transactionContext.ovmQUEUEORIGIN = _transaction.queueOrigin;
+        transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
     }
 
     /**
