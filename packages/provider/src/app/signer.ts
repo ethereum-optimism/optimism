@@ -71,6 +71,11 @@ export class OptimismSigner implements JsonRpcSigner {
       addressOrIndex = 0
     }
 
+    this._isSigner = true
+    this._optimism = optimism
+    this.provider = provider
+    this._signer = this.provider.getSigner()
+
     if (typeof addressOrIndex === 'string') {
       this._address = this.provider.formatter.address(addressOrIndex)
       this._index = null
@@ -84,11 +89,6 @@ export class OptimismSigner implements JsonRpcSigner {
         addressOrIndex
       )
     }
-
-    this._isSigner = true
-    this._optimism = optimism
-    this._signer = provider.getSigner()
-    this.provider = provider
   }
 
   get signer() {
