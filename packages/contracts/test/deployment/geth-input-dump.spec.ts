@@ -60,8 +60,8 @@ describe.skip('L2Geth Dumper Input Generator', () => {
       simplifiedTxs: SimplifiedTx[]
       walletAddress: string
       executionManagerAddress: string
-      stateManagerAddress: string,
-      codeHashes: Object,
+      stateManagerAddress: string
+      codeHashes: Object
     }
 
     const getSimplifiedTx = (tx: Transaction): SimplifiedTx => {
@@ -81,16 +81,16 @@ describe.skip('L2Geth Dumper Input Generator', () => {
       executionManagerAddress: resolver.contracts.executionManager.address,
       stateManagerAddress: resolver.contracts.stateManager.address,
       codeHashes: {
-          l2ToL1MessagePasser: keccak256(L2ToL1MessagePasser.deployedBytecode),
-          l1MessageSender: keccak256(L1MessageSender.deployedBytecode)
-      }
+        l2ToL1MessagePasser: keccak256(L2ToL1MessagePasser.deployedBytecode),
+        l1MessageSender: keccak256(L1MessageSender.deployedBytecode),
+      },
     }
 
     for (const [name, contract] of Object.entries(resolver.contracts)) {
-        const address = contract.address
-        const code = await contract.provider.getCode(address)
-        const hash = keccak256(code)
-        gethDumpInput.codeHashes[name] = hash
+      const address = contract.address
+      const code = await contract.provider.getCode(address)
+      const hash = keccak256(code)
+      gethDumpInput.codeHashes[name] = hash
     }
 
     // Write all the simplified transactions data to a file
