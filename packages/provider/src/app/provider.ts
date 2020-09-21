@@ -32,6 +32,7 @@ const logger = new Logger('')
 
 export class OptimismProvider extends JsonRpcProvider {
   private readonly _ethereum: Web3Provider
+  public readonly _ethersType: string
 
   constructor(network?: Networkish, provider?: Web3Provider) {
     const net = getNetwork(network)
@@ -39,6 +40,7 @@ export class OptimismProvider extends JsonRpcProvider {
 
     super(connectionInfo)
     this._ethereum = provider
+    this._ethersType = 'Provider'
 
     // Handle properly deriving "from" on the transaction
     const format = this.formatter.transaction
