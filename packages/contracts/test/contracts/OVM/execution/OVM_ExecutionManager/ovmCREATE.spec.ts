@@ -493,6 +493,7 @@ const test_ovmCREATE: TestDefinition = {
     },
     {
       name: 'ovmCREATE => ovmCALL(ADDRESS_NONEXIST)',
+      expectInvalidStateAccess: true,
       steps: [
         {
           functionName: 'ovmCREATE',
@@ -519,7 +520,7 @@ const test_ovmCREATE: TestDefinition = {
     },
     {
       name: 'ovmCREATE => ovmCREATE => ovmCALL(ADDRESS_NONEXIST)',
-      focus: true,
+      expectInvalidStateAccess: true,
       steps: [
         {
           functionName: 'ovmCREATE',

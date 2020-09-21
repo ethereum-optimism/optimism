@@ -105,19 +105,20 @@ export class ExecutionManagerTestRunner {
           )
         })
 
-        if (parameter.focus) {
-          it.only(`should execute: ${parameter.name}`, async () => {
+        const itfn = parameter.focus ? it.only : it
+        itfn(`should execute: ${parameter.name}`, async () => {
+          try {
             for (const step of replacedParameter.steps) {
               await this.runTestStep(step)
             }
-          })
-        } else {
-          it(`should execute: ${parameter.name}`, async () => {
-            for (const step of replacedParameter.steps) {
-              await this.runTestStep(step)
+          } catch (err) {
+            if (parameter.expectInvalidStateAccess) {
+              expect(err.toString()).to.contain('VM Exception while processing transaction: revert')
+            } else {
+              throw err
             }
-          })
-        }
+          }
+        })
       })
     })
   }

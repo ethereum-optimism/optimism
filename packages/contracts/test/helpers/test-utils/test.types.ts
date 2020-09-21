@@ -216,8 +216,9 @@ interface TestState {
 
 export interface TestParameter {
   name: string
-  focus?: boolean
   steps: TestStep[]
+  expectInvalidStateAccess?: boolean
+  focus?: boolean
 }
 
 export interface TestDefinition {
