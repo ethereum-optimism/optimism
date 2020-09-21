@@ -3,7 +3,7 @@ import { expect } from '../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, BigNumber, ContractFactory } from 'ethers'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, merge } from 'lodash'
 
 /* Internal Imports */
 import {
@@ -55,14 +55,8 @@ export class ExecutionManagerTestRunner {
       test.subTests?.map((subTest) => {
         this.run({
           ...subTest,
-          preState: {
-            ...test.preState,
-            ...subTest.preState,
-          },
-          postState: {
-            ...test.postState,
-            ...subTest.postState,
-          },
+          preState: merge(cloneDeep(test.preState), cloneDeep(subTest.preState)),	
+          postState: merge(cloneDeep(test.postState), cloneDeep(subTest.postState))
         })
       })
 
