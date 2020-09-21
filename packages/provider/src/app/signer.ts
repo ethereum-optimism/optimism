@@ -57,6 +57,7 @@ export class OptimismSigner implements JsonRpcSigner {
   private _signer: JsonRpcSigner
   public readonly provider: Web3Provider
   private readonly _optimism: OptimismProvider
+  public readonly _ethersType: string
 
   public readonly _isSigner: boolean
   public readonly _index: number
@@ -75,6 +76,7 @@ export class OptimismSigner implements JsonRpcSigner {
     this._optimism = optimism
     this.provider = provider
     this._signer = this.provider.getSigner()
+    this._ethersType = 'Signer'
 
     if (typeof addressOrIndex === 'string') {
       this._address = this.provider.formatter.address(addressOrIndex)
