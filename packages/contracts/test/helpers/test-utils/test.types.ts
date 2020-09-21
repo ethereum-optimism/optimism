@@ -1,40 +1,230 @@
 /* External Imports */
 import { BigNumber } from 'ethers'
 
-export type SolidityFunctionParameter = string | number | BigNumber
+export type ContextOpcode =
+  | 'ovmCALLER'
+  | 'ovmADDRESS'
+  | 'ovmORIGIN'
+  | 'ovmTIMESTAMP'
+  | 'ovmGASLIMIT'
+  | 'ovmCHAINID'
 
-export interface TestStep {
-  functionName: string
-  functionParams: Array<
-    | SolidityFunctionParameter
-    | SolidityFunctionParameter[]
-    | TestStep[]
-    | boolean
-  >
-  expectedReturnStatus: boolean
-  expectedReturnValues: any[]
+type CallOpcode = 'ovmCALL' | 'ovmSTATICCALL' | 'ovmDELEGATECALL'
+
+type RevertFlagError = {
+  flag: number
+  nuisanceGasLeft?: number
+  ovmGasRefund?: number
+  data?: string
 }
 
-export interface TestParameters {
+interface TestStep_evm {
+  functionName: 'evmRETURN' | 'evmREVERT' | 'evmINVALID'
+  returnData?: string | RevertFlagError
+}
+
+interface TestStep_Context {
+  functionName: ContextOpcode
+  expectedReturnValue: string | number | BigNumber
+}
+
+interface TestStep_REVERT {
+  functionName: 'ovmREVERT'
+  revertData?: string
+  expectedReturnStatus: boolean
+  expectedReturnValue?: string
+}
+
+interface TestStep_EXTCODESIZE {
+  functionName: 'ovmEXTCODESIZE'
+  functionParams: {
+    address: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: number | RevertFlagError
+}
+
+interface TestStep_EXTCODEHASH {
+  functionName: 'ovmEXTCODEHASH'
+  functionParams: {
+    address: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: string | RevertFlagError
+}
+
+interface TestStep_EXTCODECOPY {
+  functionName: 'ovmEXTCODECOPY'
+  functionParams: {
+    address: string
+    offset: number
+    length: number
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: string | RevertFlagError
+}
+
+interface TestStep_SSTORE {
+  functionName: 'ovmSSTORE'
+  functionParams: {
+    key: string
+    value: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue?: RevertFlagError
+}
+
+interface TestStep_SLOAD {
+  functionName: 'ovmSLOAD'
+  functionParams: {
+    key: string
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: string | RevertFlagError
+}
+
+interface TestStep_CALL {
+  functionName: CallOpcode
+  functionParams: {
+    gasLimit: number | BigNumber
+    target: string
+    calldata?: string
+    subSteps?: TestStep[]
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue?: string | RevertFlagError
+}
+
+interface TestStep_CREATE {
+  functionName: 'ovmCREATE'
+  functionParams: {
+    bytecode?: string
+    subSteps?: TestStep[]
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: string | RevertFlagError
+}
+
+interface TestStep_CREATE2 {
+  functionName: 'ovmCREATE2'
+  functionParams: {
+    salt: string
+    bytecode?: string
+    subSteps?: TestStep[]
+  }
+  expectedReturnStatus: boolean
+  expectedReturnValue: string | RevertFlagError
+}
+
+export type TestStep =
+  | TestStep_Context
+  | TestStep_SSTORE
+  | TestStep_SLOAD
+  | TestStep_CALL
+  | TestStep_CREATE
+  | TestStep_CREATE2
+  | TestStep_EXTCODESIZE
+  | TestStep_EXTCODEHASH
+  | TestStep_EXTCODECOPY
+  | TestStep_REVERT
+  | TestStep_evm
+
+export interface ParsedTestStep {
+  functionName: string
+  functionData: string
+  expectedReturnStatus: boolean
+  expectedReturnData: string
+}
+
+export const isRevertFlagError = (
+  expectedReturnValue: any
+): expectedReturnValue is RevertFlagError => {
+  return (
+    typeof expectedReturnValue === 'object' &&
+    expectedReturnValue !== null &&
+    expectedReturnValue.flag !== undefined
+  )
+}
+
+export const isTestStep_evm = (step: TestStep): step is TestStep_evm => {
+  return ['evmRETURN', 'evmREVERT', 'evmINVALID'].includes(step.functionName)
+}
+
+export const isTestStep_Context = (
+  step: TestStep
+): step is TestStep_Context => {
+  return [
+    'ovmCALLER',
+    'ovmADDRESS',
+    'ovmORIGIN',
+    'ovmTIMESTAMP',
+    'ovmGASLIMIT',
+    'ovmCHAINID',
+  ].includes(step.functionName)
+}
+
+export const isTestStep_SSTORE = (step: TestStep): step is TestStep_SSTORE => {
+  return step.functionName == 'ovmSSTORE'
+}
+
+export const isTestStep_SLOAD = (step: TestStep): step is TestStep_SLOAD => {
+  return step.functionName == 'ovmSLOAD'
+}
+
+export const isTestStep_EXTCODESIZE = (
+  step: TestStep
+): step is TestStep_EXTCODESIZE => {
+  return step.functionName == 'ovmEXTCODESIZE'
+}
+
+export const isTestStep_EXTCODEHASH = (
+  step: TestStep
+): step is TestStep_EXTCODEHASH => {
+  return step.functionName == 'ovmEXTCODEHASH'
+}
+
+export const isTestStep_EXTCODECOPY = (
+  step: TestStep
+): step is TestStep_EXTCODECOPY => {
+  return step.functionName == 'ovmEXTCODECOPY'
+}
+
+export const isTestStep_REVERT = (step: TestStep): step is TestStep_REVERT => {
+  return step.functionName == 'ovmREVERT'
+}
+
+export const isTestStep_CALL = (step: TestStep): step is TestStep_CALL => {
+  return ['ovmCALL', 'ovmSTATICCALL', 'ovmDELEGATECALL'].includes(
+    step.functionName
+  )
+}
+
+export const isTestStep_CREATE = (step: TestStep): step is TestStep_CREATE => {
+  return step.functionName == 'ovmCREATE'
+}
+
+export const isTestStep_CREATE2 = (
+  step: TestStep
+): step is TestStep_CREATE2 => {
+  return step.functionName == 'ovmCREATE2'
+}
+
+interface TestState {
+  ExecutionManager: any
+  StateManager: any
+}
+
+export interface TestParameter {
+  name: string
+  focus?: boolean
   steps: TestStep[]
 }
 
 export interface TestDefinition {
   name: string
   focus?: boolean
-  preState?: {
-    ExecutionManager?: any
-    StateManager?: any
-  }
-  parameters: Array<TestParameters | TestDefinition>
-  postState?: {
-    ExecutionManager?: any
-    StateManager?: any
-  }
-}
-
-export const isTestDefinition = (
-  parameters: TestParameters | TestDefinition
-): parameters is TestDefinition => {
-  return (parameters as TestDefinition).name !== undefined
+  preState?: Partial<TestState>
+  postState?: Partial<TestState>
+  parameters?: TestParameter[]
+  subTests?: TestDefinition[]
 }

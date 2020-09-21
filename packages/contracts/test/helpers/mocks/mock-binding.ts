@@ -93,7 +93,7 @@ export const bindMockWatcherToVM = (): void => {
 
   // Modify the post-message handler to insert the correct return data.
   const originalAfterMessageHandler = vmTracer['_afterMessageHandler' as any]
-  function modifiedAfterMessageHandler(result: any, next: any) {
+  async function modifiedAfterMessageHandler(result: any, next: any) {
     // We don't need to do anything if we haven't stored any mock messages.
     if (messages.length > 0) {
       // We need to look at the messages backwards since the first result will

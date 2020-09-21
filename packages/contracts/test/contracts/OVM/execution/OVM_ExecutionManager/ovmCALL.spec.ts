@@ -1,12 +1,10 @@
 /* Internal Imports */
 import {
-  runExecutionManagerTest,
+  ExecutionManagerTestRunner,
   TestDefinition,
   GAS_LIMIT,
-  NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
-  DUMMY_BYTECODE,
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
@@ -43,236 +41,203 @@ const test_ovmCALL: TestDefinition = {
   },
   parameters: [
     {
+      name: 'ovmCALL(ADDRESS_1) => ovmADDRESS',
       steps: [
         {
           functionName: 'ovmCALL',
-          functionParams: [
-            GAS_LIMIT / 2,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
               {
-                functionName: 'ovmCALL',
-                functionParams: [
-                  GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    {
-                      functionName: 'ovmCALLER',
-                      functionParams: [],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: ['$DUMMY_OVM_ADDRESS_1'],
-                    },
-                    {
-                      functionName: 'ovmADDRESS',
-                      functionParams: [],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: ['$DUMMY_OVM_ADDRESS_2'],
-                    },
-                    {
-                      functionName: 'ovmSSTORE',
-                      functionParams: [NON_NULL_BYTES32, NON_NULL_BYTES32],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [],
-                    },
-                    {
-                      functionName: 'ovmSLOAD',
-                      functionParams: [NON_NULL_BYTES32],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [NON_NULL_BYTES32],
-                    },
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [],
-              },
-              {
-                functionName: 'ovmCALL',
-                functionParams: [
-                  GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    {
-                      functionName: 'ovmSLOAD',
-                      functionParams: [NON_NULL_BYTES32],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [NON_NULL_BYTES32],
-                    },
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [],
+                functionName: 'ovmADDRESS',
+                expectedReturnValue: '$DUMMY_OVM_ADDRESS_1',
               },
             ],
-          ],
+          },
           expectedReturnStatus: true,
-          expectedReturnValues: [],
         },
       ],
     },
     {
+      name: 'ovmCALL(ADDRESS_1) => ovmSSTORE',
       steps: [
         {
           functionName: 'ovmCALL',
-          functionParams: [
-            GAS_LIMIT / 2,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
               {
-                functionName: 'ovmCALL',
-                functionParams: [
-                  GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    {
-                      functionName: 'ovmCALLER',
-                      functionParams: [],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: ['$DUMMY_OVM_ADDRESS_1'],
-                    },
-                    {
-                      functionName: 'ovmADDRESS',
-                      functionParams: [],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: ['$DUMMY_OVM_ADDRESS_2'],
-                    },
-                    {
-                      functionName: 'ovmSSTORE',
-                      functionParams: [NON_NULL_BYTES32, NON_NULL_BYTES32],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [],
-                    },
-                    {
-                      functionName: 'ovmSLOAD',
-                      functionParams: [NON_NULL_BYTES32],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [NON_NULL_BYTES32],
-                    },
-                  ],
-                ],
+                functionName: 'ovmSSTORE',
+                functionParams: {
+                  key: NON_NULL_BYTES32,
+                  value: NON_NULL_BYTES32,
+                },
                 expectedReturnStatus: true,
-                expectedReturnValues: [],
               },
             ],
-          ],
+          },
           expectedReturnStatus: true,
-          expectedReturnValues: [],
         },
       ],
     },
     {
+      name:
+        'ovmCALL(ADDRESS_1) => ovmSSTORE + ovmSLOAD, ovmCALL(ADDRESS_1) => ovmSLOAD',
       steps: [
         {
           functionName: 'ovmCALL',
-          functionParams: [
-            GAS_LIMIT / 2,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
               {
-                functionName: 'ovmCALL',
-                functionParams: [GAS_LIMIT / 2, '$DUMMY_OVM_ADDRESS_3', []],
+                functionName: 'ovmSSTORE',
+                functionParams: {
+                  key: NON_NULL_BYTES32,
+                  value: NON_NULL_BYTES32,
+                },
                 expectedReturnStatus: true,
-                expectedReturnValues: [true, '0x'],
+              },
+              {
+                functionName: 'ovmSLOAD',
+                functionParams: {
+                  key: NON_NULL_BYTES32,
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: NON_NULL_BYTES32,
               },
             ],
-          ],
+          },
           expectedReturnStatus: true,
-          expectedReturnValues: [],
+        },
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmSLOAD',
+                functionParams: {
+                  key: NON_NULL_BYTES32,
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: NON_NULL_BYTES32,
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+        },
+      ],
+    },
+    {
+      name:
+        'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_2) => ovmADDRESS + ovmCALLER',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmCALL',
+                functionParams: {
+                  gasLimit: GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  subSteps: [
+                    {
+                      functionName: 'ovmADDRESS',
+                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_2',
+                    },
+                    {
+                      functionName: 'ovmCALLER',
+                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_1',
+                    },
+                  ],
+                },
+                expectedReturnStatus: true,
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+        },
+      ],
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => ovmCALL(ADDRESS_3)',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmCALL',
+                functionParams: {
+                  gasLimit: GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_3',
+                  calldata: '0x',
+                },
+                expectedReturnStatus: true,
+              },
+            ],
+          },
+          expectedReturnStatus: true,
+          expectedReturnValue: '0x',
+        },
+      ],
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => INTENTIONAL_REVERT',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'evmREVERT',
+                returnData: {
+                  flag: REVERT_FLAGS.INTENTIONAL_REVERT,
+                  data: DUMMY_REVERT_DATA,
+                },
+              },
+            ],
+          },
+          expectedReturnStatus: false,
+          expectedReturnValue: DUMMY_REVERT_DATA,
+        },
+      ],
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => EXCEEDS_NUISANCE_GAS',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'evmREVERT',
+                returnData: {
+                  flag: REVERT_FLAGS.EXCEEDS_NUISANCE_GAS,
+                },
+              },
+            ],
+          },
+          expectedReturnStatus: false,
+          expectedReturnValue: '0x',
         },
       ],
     },
   ],
 }
 
-const test_ovmCALL_revert: TestDefinition = {
-  name: 'Basic reverts in a code contract called via ovmCALL',
-  preState: {
-    ExecutionManager: {
-      ovmStateManager: '$OVM_STATE_MANAGER',
-      ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
-      messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
-      },
-    },
-    StateManager: {
-      owner: '$OVM_EXECUTION_MANAGER',
-      accounts: {
-        $DUMMY_OVM_ADDRESS_1: {
-          codeHash: NON_NULL_BYTES32,
-          ethAddress: '$OVM_CALL_HELPER',
-        },
-        $DUMMY_OVM_ADDRESS_2: {
-          codeHash: NON_NULL_BYTES32,
-          ethAddress: '$OVM_REVERT_HELPER',
-        },
-        $DUMMY_OVM_ADDRESS_3: {
-          codeHash: NON_NULL_BYTES32,
-          ethAddress: '$OVM_REVERT_HELPER',
-        },
-        $DUMMY_OVM_ADDRESS_4: {
-          codeHash: VERIFIED_EMPTY_CONTRACT_HASH,
-          ethAddress: '0x' + '00'.repeat(20),
-        },
-      },
-    },
-  },
-  parameters: [
-    {
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: [
-            GAS_LIMIT / 2,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
-              {
-                functionName: 'ovmCALLToRevert',
-                functionParams: [
-                  GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    REVERT_FLAGS.INTENTIONAL_REVERT,
-                    DUMMY_REVERT_DATA,
-                    GAS_LIMIT / 2,
-                    0,
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [false, DUMMY_REVERT_DATA],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
-    },
-    {
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: [
-            GAS_LIMIT / 2,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
-              {
-                functionName: 'ovmCALLToRevert',
-                functionParams: [
-                  GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [REVERT_FLAGS.EXCEEDS_NUISANCE_GAS, '0x', 0, 0],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [false, '0x'],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
-    },
-  ],
-}
-
-runExecutionManagerTest(test_ovmCALL)
-runExecutionManagerTest(test_ovmCALL_revert)
+const runner = new ExecutionManagerTestRunner()
+runner.run(test_ovmCALL)

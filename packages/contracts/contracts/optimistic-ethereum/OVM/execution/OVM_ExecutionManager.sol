@@ -14,6 +14,9 @@ import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol"
 /* Contract Imports */
 import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
 
+/* Logging */
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title OVM_ExecutionManager
  */
@@ -724,7 +727,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         address ethAddress = Lib_EthUtils.createContract(_bytecode);
 
         // Now reset this flag so we go back to normal revert behavior.
-        messageContext.isCreation = true;
+        messageContext.isCreation = false;
 
         // Contract creation returns the zero address when it fails, which should only be possible
         // if the user intentionally runs out of gas. However, we might still have a bit of gas
@@ -1250,6 +1253,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // Running out of gas will return no data, so simulating it shouldn't either.
         if (_flag == RevertFlag.OUT_OF_GAS) {
             return bytes('');
+        }
+
+        // INVALID_STATE_ACCESS doesn't need to return any data other than the flag.
+        if (_flag == RevertFlag.INVALID_STATE_ACCESS) {
+            return abi.encode(
+                _flag,
+                0,
+                0,
+                bytes('')
+            );
         }
 
         // Just ABI encode the rest of the parameters.
