@@ -19,3 +19,6 @@ export const NULL_BYTES32 = makeHexString('00', 32)
 export const NON_NULL_BYTES32 = makeHexString('11', 32)
 export const ZERO_ADDRESS = makeAddress('00')
 export const NON_ZERO_ADDRESS = makeAddress('11')
+
+export const VERIFIED_EMPTY_CONTRACT_HASH =
+  '0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000'

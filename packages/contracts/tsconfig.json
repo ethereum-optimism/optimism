@@ -1,9 +1,24 @@
 {
   "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2017",
+    "declaration": true,
+    "noImplicitAny": false,
+    "removeComments": true,
+    "noLib": false,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
     "outDir": "./build",
     "baseUrl": "./",
     "resolveJsonModule": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "lib": [
+      "es7"
+    ],
+    "typeRoots": [
+      "node_modules/@types"
+    ]
   },
   "include": ["*.ts", "**/*.ts", "artifacts/*.json"],
   "exclude": ["./build", "node_modules"],

@@ -14,6 +14,9 @@ import { iOVM_SafetyChecker } from "../../iOVM/execution/iOVM_SafetyChecker.sol"
 /* Contract Imports */
 import { OVM_ECDSAContractAccount } from "../accounts/OVM_ECDSAContractAccount.sol";
 
+/* Logging */
+import { console } from "@nomiclabs/buidler/console.sol";
+
 /**
  * @title OVM_ExecutionManager
  */
@@ -31,10 +34,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Execution Context Variables *
      *******************************/
 
+    GasMeterConfig internal gasMeterConfig;
     GlobalContext internal globalContext;
     TransactionContext internal transactionContext;
     MessageContext internal messageContext;
-
     TransactionRecord internal transactionRecord;
     MessageRecord internal messageRecord;
 
@@ -43,6 +46,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Gas Metering Constants *
      **************************/
 
+    address constant GAS_METADATA_ADDRESS = 0x06a506A506a506A506a506a506A506A506A506A5;
     uint256 constant NUISANCE_GAS_SLOAD = 20000;
     uint256 constant NUISANCE_GAS_SSTORE = 20000;
     uint256 constant NUISANCE_GAS_PER_CONTRACT_BYTE = 100;
@@ -75,14 +79,24 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     modifier netGasCost(
         uint256 _cost
     ) {
-        uint256 preExecutionGas = gasleft();
+        uint256 gasProvided = gasleft();
         _;
-        uint256 postExecutionGas = gasleft();
+        uint256 gasUsed = gasProvided - gasleft();
 
         // We want to refund everything *except* the specified cost.
-        transactionRecord.ovmGasRefund += (
-            (preExecutionGas - postExecutionGas) - _cost
-        );
+        if (_cost < gasUsed) {
+            transactionRecord.ovmGasRefund += gasUsed - _cost;
+        }
+    }
+
+    /**
+     * Makes sure we're not inside a static context.
+     */
+    modifier notStatic() {
+        if (messageContext.isStatic == true) {
+            _revertWithFlag(RevertFlag.STATIC_VIOLATION);
+        }
+        _;
     }
 
 
@@ -102,7 +116,36 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         override
         public
     {
-        
+	    // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
+	    // around in calldata).
+	    ovmStateManager = iOVM_StateManager(_ovmStateManager);
+
+        // Check whether we need to start a new epoch, do so if necessary.
+        _checkNeedsNewEpoch(_transaction.timestamp);
+
+        // Make sure the transaction's gas limit is valid. We don't revert here because we reserve
+        // reverts for INVALID_STATE_ACCESS.
+        if (_isValidGasLimit(_transaction.gasLimit, _transaction.queueOrigin) == false) {
+            return;
+        }
+
+	    // Initialize the execution context.
+	    _initContext(_transaction);
+
+        // Run the transaction, make sure to meter the gas usage.
+        uint256 gasProvided = gasleft();
+        ovmCALL(
+            _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
+            _transaction.entrypoint,
+            _transaction.data
+        );
+        uint256 gasUsed = gasProvided - gasleft();
+
+        // Update the cumulative gas based on the amount of gas used.
+        _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
+
+	    // Wipe the execution context.
+	    _resetContext();
     }
 
 
@@ -117,6 +160,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmCALLER()
         override
         public
+        view
         returns (
             address _CALLER
         )
@@ -131,6 +175,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmADDRESS()
         override
         public
+        view
         returns (
             address _ADDRESS
         )
@@ -145,6 +190,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmORIGIN()
         override
         public
+        view
         returns (
             address _ORIGIN
         )
@@ -159,6 +205,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmTIMESTAMP()
         override
         public
+        view
         returns (
             uint256 _TIMESTAMP
         )
@@ -173,6 +220,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmGASLIMIT()
         override
         public
+        view
         returns (
             uint256 _GASLIMIT
         )
@@ -187,6 +235,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function ovmCHAINID()
         override
         public
+        view
         returns (
             uint256 _CHAINID
         )
@@ -227,6 +276,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         override
         public
+        notStatic
         netGasCost(40000 + _bytecode.length * 100)
         returns (
             address _contract
@@ -241,12 +291,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             _getAccountNonce(creator)
         );
 
-        _createContract(
+        return _createContract(
             contractAddress,
             _bytecode
         );
-
-        return contractAddress;
     }
 
     /**
@@ -261,6 +309,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         override
         public
+        notStatic
         netGasCost(40000 + _bytecode.length * 100)
         returns (
             address _contract
@@ -276,12 +325,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             _salt
         );
 
-        _createContract(
+        return _createContract(
             contractAddress,
             _bytecode
         );
-
-        return contractAddress;
     }
 
 
@@ -339,6 +386,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         override
         public
+        notStatic
     {
         // Recover the EOA address from the message hash and signature parameters. Since we do the
         // hashing in advance, we don't have handle different message hashing schemes. Even if this
@@ -359,7 +407,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         }
 
         // If the user already has an EOA account, then there's no need to perform this operation.
-        if (_hasAccount(eoa) == true) {
+        if (_hasEmptyAccount(eoa) == false) {
             return;
         }
 
@@ -409,12 +457,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
+        nextMessageContext.isCreation = false;
+        bool isStaticEntrypoint = false;
 
         return _callContract(
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata
+            _calldata,
+            isStaticEntrypoint
         );
     }
 
@@ -444,12 +495,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _address;
         nextMessageContext.isStatic = true;
+        nextMessageContext.isCreation = false;
+        bool isStaticEntrypoint = true;
 
         return _callContract(
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata
+            _calldata,
+            isStaticEntrypoint
         );
     }
 
@@ -476,12 +530,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     {
         // DELEGATECALL does not change anything about the message context.
         MessageContext memory nextMessageContext = messageContext;
+        nextMessageContext.isCreation = false;
+        bool isStaticEntrypoint = false;
 
         return _callContract(
             nextMessageContext,
             _gasLimit,
             _address,
-            _calldata
+            _calldata,
+            isStaticEntrypoint
         );
     }
 
@@ -525,6 +582,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         override
         public
+        notStatic
         netGasCost(60000)
     {
         // We always SSTORE to the storage of ADDRESS.
@@ -570,7 +628,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         return Lib_EthUtils.getCode(
             _getAccountEthAddress(_contract),
             _offset,
-            _length
+            length
         );
     }
 
@@ -617,7 +675,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Public Functions: Execution Safety *
      **************************************/
 
-
     /**
      * Performs the logic to create a contract and revert under various potential conditions.
      * @dev This function is implemented as `public` because we need to be able to revert a
@@ -643,6 +700,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             return;
         }
 
+        // We need to be sure that the user isn't trying to use a contract creation to overwrite
+        // some existing contract. On L1, users will prove that no contract exists at the address
+        // and the OVM_FraudVerifier will populate the code hash of this address with a special
+        // value that represents "known to be an empty account."
+        if (_hasEmptyAccount(_address) == false) {
+            _revertWithFlag(RevertFlag.CREATE_COLLISION);
+        }
+
         // Check the creation bytecode against the OVM_SafetyChecker.
         if (ovmSafetyChecker.isBytecodeSafe(_bytecode) == false) {
             _revertWithFlag(RevertFlag.UNSAFE_BYTECODE);
@@ -651,11 +716,26 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // We always need to initialize the contract with the default account values.
         _initPendingAccount(_address);
 
+        // We're going into a contract creation, so we need to set this flag to get the correct
+        // revert behavior.
+        messageContext.isCreation = true;
+
         // Actually deploy the contract and retrieve its address. This step is hiding a lot of
         // complexity because we need to ensure that contract creation *never* reverts by itself.
         // We cover this partially by storing a revert flag and returning (instead of reverting)
         // when we know that we're inside a contract's creation code.
         address ethAddress = Lib_EthUtils.createContract(_bytecode);
+
+        // Now reset this flag so we go back to normal revert behavior.
+        messageContext.isCreation = false;
+
+        // Contract creation returns the zero address when it fails, which should only be possible
+        // if the user intentionally runs out of gas. However, we might still have a bit of gas
+        // left over since contract calls can only be passed 63/64ths of total gas,  so we need to
+        // explicitly handle this case here.
+        if (ethAddress == address(0)) {
+            _revertWithFlag(RevertFlag.CREATE_EXCEPTION);
+        }
 
         // Here we pull out the revert flag that would've been set during creation code. Now that
         // we're out of creation code again, we can just revert normally while passing the flag
@@ -689,24 +769,29 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Creates a new contract and associates it with some contract address.
      * @param _contractAddress Address to associate the created contract with.
      * @param _bytecode Bytecode to be used to create the contract.
+     * @return _created Final OVM contract address.
      */
     function _createContract(
         address _contractAddress,
         bytes memory _bytecode
     )
         internal
+        returns (
+            address _created
+        )
     {
         // We always update the nonce of the creating account, even if the creation fails.
         _setAccountNonce(ovmADDRESS(), 1);
 
         // We're stepping into a CREATE or CREATE2, so we need to update ADDRESS to point
-        // to the contract's associated address.
+        // to the contract's associated address and CALLER to point to the previous ADDRESS.
         MessageContext memory nextMessageContext = messageContext;
+        nextMessageContext.ovmCALLER = messageContext.ovmADDRESS;
         nextMessageContext.ovmADDRESS = _contractAddress;
 
         // Run `safeCREATE` in a new EVM message so that our changes can be reflected even if
         // `safeCREATE` reverts.
-        _handleExternalInteraction(
+        (bool _success, ) = _handleExternalInteraction(
             nextMessageContext,
             gasleft(),
             address(this),
@@ -714,12 +799,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
                 "safeCREATE(address,bytes)",
                 _contractAddress,
                 _bytecode
-            )
+            ),
+            false
         );
 
         // Need to make sure that this flag is reset so that it isn't propagated to creations in
         // some parent EVM message.
         messageRecord.revertFlag = RevertFlag.DID_NOT_REVERT;
+
+        // Yellow paper requires that address returned is zero if the contract deployment fails.
+        return _success ? _contractAddress : address(0);
     }
 
     /**
@@ -728,6 +817,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _contract Address used to resolve the deployed contract.
      * @param _calldata Data to send along with the call.
+     * @param _isStaticEntrypoint Whether or not this is coming from ovmSTATICCALL.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
      */
@@ -735,7 +825,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         MessageContext memory _nextMessageContext,
         uint256 _gasLimit,
         address _contract,
-        bytes memory _calldata
+        bytes memory _calldata,
+        bool _isStaticEntrypoint
     )
         internal
         returns (
@@ -747,7 +838,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             _nextMessageContext,
             _gasLimit,
             _getAccountEthAddress(_contract),
-            _calldata
+            _calldata,
+            _isStaticEntrypoint
         );
     }
 
@@ -757,6 +849,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * @param _gasLimit Amount of gas to be passed into this call.
      * @param _target Address of the contract to call.
      * @param _data Data to send along with the call.
+     * @param _isStaticEntrypoint Whether or not this is coming from ovmSTATICCALL.
      * @return _success Whether or not the call returned (rather than reverted).
      * @return _returndata Data returned by the call.
      */
@@ -764,7 +857,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         MessageContext memory _nextMessageContext,
         uint256 _gasLimit,
         address _target,
-        bytes memory _data
+        bytes memory _data,
+        bool _isStaticEntrypoint
     )
         internal
         returns (
@@ -791,6 +885,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // existence.
         (bool success, bytes memory returndata) = _target.call{gas: _gasLimit}(_data);
 
+        // Switch back to the original message context now that we're out of the call.
+        _switchMessageContext(_nextMessageContext, prevMessageContext);
+
         // Assuming there were no reverts, the message record should be accurate here. We'll update
         // this value in the case of a revert.
         uint256 nuisanceGasLeft = messageRecord.nuisanceGasLeft;
@@ -802,12 +899,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
                 RevertFlag flag,
                 uint256 nuisanceGasLeftPostRevert,
                 uint256 ovmGasRefund,
+                bytes memory returndataFromFlag
             ) = _decodeRevertData(returndata);
 
             // INVALID_STATE_ACCESS is the only flag that triggers an immediate abort of the
             // parent EVM message. This behavior is necessary because INVALID_STATE_ACCESS must
             // halt any further transaction execution that could impact the execution result.
             if (flag == RevertFlag.INVALID_STATE_ACCESS) {
+                _revertWithFlag(flag);
+            }
+
+            // STATIC_VIOLATION should be passed all the way back up to the previous ovmSTATICCALL
+            // in the call stack.
+            if (
+                flag == RevertFlag.STATIC_VIOLATION
+                && _isStaticEntrypoint == false
+            ) {
                 _revertWithFlag(flag);
             }
 
@@ -820,7 +927,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             ) {
                 transactionRecord.ovmGasRefund = ovmGasRefund;
             }
-            
+
+            // INTENTIONAL_REVERT needs to pass up the user-provided return data encoded into the
+            // flag, *not* the full encoded flag. All other revert types return no data.
+            if (flag == RevertFlag.INTENTIONAL_REVERT) {
+                returndata = returndataFromFlag;
+            } else {
+                returndata = hex'';
+            }
+
             // Reverts mean we need to use up whatever "nuisance gas" was used by the call.
             // EXCEEDS_NUISANCE_GAS explicitly reduces the remaining nuisance gas for this message
             // to zero. OUT_OF_GAS is a "pseudo" flag given that messages return no data when they
@@ -831,9 +946,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
 
         // We need to reset the nuisance gas back to its original value minus the amount used here.
         messageRecord.nuisanceGasLeft = prevNuisanceGasLeft - (nuisanceGasLimit - nuisanceGasLeft);
-
-        // Switch back to the original message context now that we're out of the call.
-        _switchMessageContext(_nextMessageContext, prevMessageContext);
 
         return (
             success,
@@ -861,6 +973,23 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     {
         _checkAccountLoad(_address);
         return ovmStateManager.hasAccount(_address);
+    }
+
+    /**
+     * Checks whether a known empty account exists within the OVM_StateManager.
+     * @param _address Address of the account to check.
+     * @return _exists Whether or not the account empty exists.
+     */
+    function _hasEmptyAccount(
+        address _address
+    )
+        internal
+        returns (
+            bool _exists
+        )
+    {
+        _checkAccountLoad(_address);
+        return ovmStateManager.hasEmptyAccount(_address);
     }
 
     /**
@@ -921,7 +1050,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        _checkAccountChange(_address);
+        // Although it seems like `_checkAccountChange` would be more appropriate here, we don't
+        // actually consider an account "changed" until it's inserted into the state (in this case
+        // by `_commitPendingAccount`).
+        _checkAccountLoad(_address);
         ovmStateManager.initPendingAccount(_address);
     }
 
@@ -994,11 +1126,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        // We need to make sure that the transaction isn't trying to access an account that hasn't
-        // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
-        _checkInvalidStateAccess(
-            ovmStateManager.hasAccount(_address)
-        );
+        // See `_checkContractStorageLoad` for more information.
+        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
+        // See `_checkContractStorageLoad` for more information.
+        if (ovmStateManager.hasAccount(_address) == false) {
+            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
+        }
 
         // Check whether the account has been loaded before and mark it as loaded if not. We need
         // this because "nuisance gas" only applies to the first time that an account is loaded.
@@ -1034,6 +1170,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // If we hadn't already changed the account, then we'll need to charge "nuisance gas" based
         // on the size of the contract code.
         if (_wasAccountAlreadyChanged == false) {
+            ovmStateManager.incrementTotalUncommittedAccounts();
             _useNuisanceGas(
                 Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE
             );
@@ -1052,11 +1189,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        // Another case of hidden complexity. If we didn't enforce this requirement, then a
+        // contract could pass in just enough gas to cause the INVALID_STATE_ACCESS check to fail
+        // on L1 but not on L2. A contract could use this behavior to prevent the
+        // OVM_ExecutionManager from detecting an invalid state access. Reverting with OUT_OF_GAS
+        // allows us to also charge for the full message nuisance gas, because you deserve that for
+        // trying to break the contract in this way.
+        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
         // We need to make sure that the transaction isn't trying to access storage that hasn't
         // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
-        _checkInvalidStateAccess(
-            ovmStateManager.hasContractStorage(_contract, _key)
-        );
+        // We know that we have enough gas to do this check because of the above test.
+        if (ovmStateManager.hasContractStorage(_contract, _key) == false) {
+            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
+        }
 
         // Check whether the slot has been loaded before and mark it as loaded if not. We need
         // this because "nuisance gas" only applies to the first time that a slot is loaded.
@@ -1083,6 +1231,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        // See `_checkContractStorageLoad` for more information.
+        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
+        // See `_checkContractStorageLoad` for more information.
+        if (ovmStateManager.hasContractStorage(_contract, _key) == false) {
+            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
+        }
+
         // Check whether the slot has been changed before and mark it as changed if not. We need
         // this because "nuisance gas" only applies to the first time that a slot is changed.
         (
@@ -1092,6 +1250,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // If we hadn't already changed the account, then we'll need to charge some fixed amount of
         // "nuisance gas".
         if (_wasContractStorageAlreadyChanged == false) {
+            ovmStateManager.incrementTotalUncommittedContractStorage();
             _useNuisanceGas(NUISANCE_GAS_SSTORE);
         }
     }
@@ -1119,6 +1278,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // Running out of gas will return no data, so simulating it shouldn't either.
         if (_flag == RevertFlag.OUT_OF_GAS) {
             return bytes('');
+        }
+
+        // INVALID_STATE_ACCESS doesn't need to return any data other than the flag.
+        if (_flag == RevertFlag.INVALID_STATE_ACCESS) {
+            return abi.encode(
+                _flag,
+                0,
+                0,
+                bytes('')
+            );
         }
 
         // Just ABI encode the rest of the parameters.
@@ -1179,7 +1348,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // *single* byte, something the OVM_ExecutionManager will not return in any other case.
         // We're thereby allowed to communicate failure without allowing contracts to trick us into
         // thinking there was a failure.
-        if (_inCreationContext()) {
+        if (messageContext.isCreation) {
             messageRecord.revertFlag = _flag;
 
             assembly {
@@ -1209,30 +1378,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         internal
     {
         _revertWithFlag(_flag, bytes(''));
-    }
-
-    /**
-     * Checks for an attempt to access some inaccessible state.
-     * @param _condition Result of some function that checks for bad access.
-     */
-    function _checkInvalidStateAccess(
-        bool _condition
-    )
-        internal
-    {
-        // Another case of hidden complexity. If we didn't enforce this requirement, then a
-        // contract could pass in just enough gas to cause this to fail on L1 but not on L2.
-        // A contract could use this behavior to prevent the OVM_ExecutionManager from detecting
-        // an invalid state access. Reverting with OUT_OF_GAS allows us to also charge for the
-        // full message nuisance gas as to generally disincentivize this attack.
-        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
-            _revertWithFlag(RevertFlag.OUT_OF_GAS);
-        }
-
-        // We have enough gas to comfortably run this revert, so do it.
-        if (_condition == false) {
-            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
-        }
     }
 
 
@@ -1279,6 +1424,155 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     }
 
 
+    /************************************
+     * Internal Functions: Gas Metering *
+     ************************************/
+    
+    /**
+     * Checks whether a transaction needs to start a new epoch and does so if necessary.
+     * @param _timestamp Transaction timestamp.
+     */
+    function _checkNeedsNewEpoch(
+        uint256 _timestamp
+    )
+        internal
+    {
+        if (
+            _timestamp >= (
+                _getGasMetadata(GasMetadataKey.CURRENT_EPOCH_START_TIMESTAMP)
+                + gasMeterConfig.secondsPerEpoch
+            )
+        ) {
+            _putGasMetadata(
+                GasMetadataKey.CURRENT_EPOCH_START_TIMESTAMP,
+                _timestamp
+            );
+
+            _putGasMetadata(
+                GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS,
+                _getGasMetadata(
+                    GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS
+                )
+            );
+
+            _putGasMetadata(
+                GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS,
+                _getGasMetadata(
+                    GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS
+                )
+            );
+        }
+    }
+
+    /**
+     * Validates the gas limit for a given transaction.
+     * @param _gasLimit Gas limit provided by the transaction.
+     * @param _queueOrigin Queue from which the transaction orginated.
+     * @return _valid Whether or not the gas limit is valid.
+     */
+    function _isValidGasLimit(
+        uint256 _gasLimit,
+        uint256 _queueOrigin
+    )
+        internal
+        returns (
+            bool _valid
+        )
+    {
+        if (_gasLimit > gasMeterConfig.maxTransactionGasLimit) {
+            return false;
+        }
+
+        if (_gasLimit < gasMeterConfig.minTransactionGasLimit) {
+            return false;
+        }
+
+        GasMetadataKey cumulativeGasKey;
+        GasMetadataKey prevEpochGasKey;
+        if (_queueOrigin == uint256(QueueOrigin.SEQUENCER_QUEUE)) {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS;
+            prevEpochGasKey = GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS;
+        } else {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS;
+            prevEpochGasKey = GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS;
+        }
+
+        return (
+            (
+                _getGasMetadata(cumulativeGasKey)
+                - _getGasMetadata(prevEpochGasKey)
+                + _gasLimit
+            ) > gasMeterConfig.maxGasPerQueuePerEpoch
+        );
+    }
+
+    /**
+     * Updates the cumulative gas after a transaction.
+     * @param _gasUsed Gas used by the transaction.
+     * @param _queueOrigin Queue from which the transaction orginated.
+     */
+    function _updateCumulativeGas(
+        uint256 _gasUsed,
+        uint256 _queueOrigin
+    )
+        internal
+    {
+        GasMetadataKey cumulativeGasKey;
+        if (_queueOrigin == uint256(QueueOrigin.SEQUENCER_QUEUE)) {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS;
+        } else {
+            cumulativeGasKey = GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS;
+        }
+
+        _putGasMetadata(
+            cumulativeGasKey,
+            (
+                _getGasMetadata(cumulativeGasKey)
+                + gasMeterConfig.minTransactionGasLimit
+                + _gasUsed
+                - transactionRecord.ovmGasRefund
+            )
+        );
+    }
+
+    /**
+     * Retrieves the value of a gas metadata key.
+     * @param _key Gas metadata key to retrieve.
+     * @return _value Value stored at the given key.
+     */
+    function _getGasMetadata(
+        GasMetadataKey _key
+    )
+        internal
+        returns (
+            uint256 _value
+        )
+    {
+        return uint256(_getContractStorage(
+            GAS_METADATA_ADDRESS,
+            bytes32(uint256(_key))
+        ));
+    }
+
+    /**
+     * Sets the value of a gas metadata key.
+     * @param _key Gas metadata key to set.
+     * @param _value Value to store at the given key.
+     */
+    function _putGasMetadata(
+        GasMetadataKey _key,
+        uint256 _value
+    )
+        internal
+    {
+        _putContractStorage(
+            GAS_METADATA_ADDRESS,
+            bytes32(uint256(_key)),
+            bytes32(uint256(_value))
+        );
+    }
+
+
     /*****************************************
      * Internal Functions: Execution Context *
      *****************************************/
@@ -1308,23 +1602,47 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         if (_prevMessageContext.isStatic != _nextMessageContext.isStatic) {
             messageContext.isStatic = _nextMessageContext.isStatic;
         }
+
+        // Avoid unnecessary the SSTORE.
+        if (_prevMessageContext.isCreation != _nextMessageContext.isCreation) {
+            messageContext.isCreation = _nextMessageContext.isCreation;
+        }
     }
 
     /**
-     * Checks whether we're inside contract creation code.
-     * @return _inCreation Whether or not we're in a contract creation.
+     * Initializes the execution context.
+     * @param _transaction OVM transaction being executed.
      */
-    function _inCreationContext()
-        internal
-        returns (
-            bool _inCreation
-        )
+    function _initContext(
+        Lib_OVMCodec.Transaction memory _transaction
+    )
+    	internal
     {
-        // An interesting "hack" of sorts. Since the contract doesn't exist yet, it won't have any
-        // stored contract code. A simple-but-elegant way to detect this condition.
-        return (
-            ovmADDRESS() != address(0)
-            && ovmEXTCODESIZE(ovmADDRESS()) == 0
-        );
+        transactionContext.ovmTIMESTAMP = _transaction.timestamp;
+        transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
+        transactionContext.ovmQUEUEORIGIN = _transaction.queueOrigin;
+        transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
+    }
+
+    /**
+     * Resets the transaction and message context.
+     */
+    function _resetContext()
+    	internal
+    {
+        transactionContext.ovmORIGIN = address(0);
+        transactionContext.ovmTIMESTAMP = 0;
+        transactionContext.ovmGASLIMIT = 0;
+        transactionContext.ovmTXGASLIMIT = 0;
+        transactionContext.ovmQUEUEORIGIN = 0;
+
+        transactionRecord.ovmGasRefund = 0;
+
+        messageContext.ovmCALLER = address(0);
+        messageContext.ovmADDRESS = address(0);
+        messageContext.isStatic = false;
+
+        messageRecord.nuisanceGasLeft = 0;
+        messageRecord.revertFlag = RevertFlag.DID_NOT_REVERT;
     }
 }

@@ -5,11 +5,7 @@ import { ethers } from '@nomiclabs/buidler'
 import { Contract, ContractFactory } from 'ethers'
 
 /* Internal Imports */
-import {
-  DUMMY_ACCOUNTS,
-  DUMMY_BYTES32,
-  toOVMAccount
-} from '../../../helpers'
+import { DUMMY_ACCOUNTS, DUMMY_BYTES32, toOVMAccount } from '../../../helpers'
 
 describe('OVM_StateManager', () => {
   let Factory__OVM_StateManager: ContractFactory
@@ -58,7 +54,9 @@ describe('OVM_StateManager', () => {
 
       expect(
         toOVMAccount(
-          await OVM_StateManager.callStatic.getAccount(DUMMY_ACCOUNTS[0].address)
+          await OVM_StateManager.callStatic.getAccount(
+            DUMMY_ACCOUNTS[0].address
+          )
         )
       ).to.deep.equal(DUMMY_ACCOUNTS[0].data)
     })
@@ -76,7 +74,9 @@ describe('OVM_StateManager', () => {
 
       expect(
         toOVMAccount(
-          await OVM_StateManager.callStatic.getAccount(DUMMY_ACCOUNTS[0].address)
+          await OVM_StateManager.callStatic.getAccount(
+            DUMMY_ACCOUNTS[0].address
+          )
         )
       ).to.deep.equal(DUMMY_ACCOUNTS[1].data)
     })
@@ -107,7 +107,7 @@ describe('OVM_StateManager', () => {
         OVM_StateManager.putContractStorage(
           DUMMY_ACCOUNTS[0].address,
           DUMMY_BYTES32[0],
-          DUMMY_BYTES32[1],
+          DUMMY_BYTES32[1]
         )
       ).to.not.be.reverted
     })
@@ -116,14 +116,14 @@ describe('OVM_StateManager', () => {
       await OVM_StateManager.putContractStorage(
         DUMMY_ACCOUNTS[0].address,
         DUMMY_BYTES32[0],
-        DUMMY_BYTES32[1],
+        DUMMY_BYTES32[1]
       )
 
       await expect(
         OVM_StateManager.putContractStorage(
           DUMMY_ACCOUNTS[0].address,
           DUMMY_BYTES32[0],
-          DUMMY_BYTES32[2],
+          DUMMY_BYTES32[2]
         )
       ).to.not.be.reverted
     })
@@ -134,7 +134,7 @@ describe('OVM_StateManager', () => {
       await OVM_StateManager.putContractStorage(
         DUMMY_ACCOUNTS[0].address,
         DUMMY_BYTES32[0],
-        DUMMY_BYTES32[1],
+        DUMMY_BYTES32[1]
       )
 
       expect(
@@ -149,13 +149,13 @@ describe('OVM_StateManager', () => {
       await OVM_StateManager.putContractStorage(
         DUMMY_ACCOUNTS[0].address,
         DUMMY_BYTES32[0],
-        DUMMY_BYTES32[1],
+        DUMMY_BYTES32[1]
       )
 
       await OVM_StateManager.putContractStorage(
         DUMMY_ACCOUNTS[0].address,
         DUMMY_BYTES32[0],
-        DUMMY_BYTES32[2],
+        DUMMY_BYTES32[2]
       )
 
       expect(

@@ -8,13 +8,13 @@
 ## Test Cases
  - CALL-types
      - for all: call an undeployed contract and make sure it errors or whatevs (or maybe that's just a unit test)
-     - ovmCALL 
+ALL DONE     - ovmCALL 
          - -> ovmCALLER
          - -> ovmADDRESS
          - -> SLOAD
          - -> SSTORE
          - -> CREATE/2
-     - ovmSTATICCALL 
+ALL DONE     - ovmSTATICCALL 
          - -> ovmCALLER
          - -> ovmADDRESS
          - -> SLOAD
@@ -22,27 +22,31 @@
          - -> CREATE/2 (fail)
          - -> ovmCALL -> ovmSSTORE
          - -> ovmCALL -> ovmCREATE
-         - -> ovmSTATICCALL -> RETURN -> SLOAD (fails)
+         - -> ovmSTATICCALL -> RETURN -> SSTORE (fails)
      - ovmDELEGATECALL 
-         - -> ovmCALLER
-         - -> ovmADDRESS
-         - -> SLOAD
-         - -> SSTORE
-         - -> CREATE/2
-         - -> ovmDELEGATECALL -> ovmCALLER
-         - -> ovmDELEGATECALL -> ovmADDRESS
+DONE         - -> ovmCALLER
+DONE         - -> ovmADDRESS
+DONE         - -> SLOAD
+DONE         - -> SSTORE
+DONE         - -> CREATE/2
+DONE         - -> ovmDELEGATECALL -> ovmCALLER
+DONE         - -> ovmDELEGATECALL -> ovmADDRESS
+DONE         - -> ovmDELEGATECALL -> ovmCREATE
  - Code-related
+    - TODO: fill this in
 
  - CREATE-types
      - do we just duplicate these exactly for CREATE and CREATE2?  Probably
-     - ovmCREATE -> success -> ovmEXTCODE{SIZE,HASH,COPY}
-     - ovmCREATE -> fail (ovmREVERT, NOT out of gas/invalid jump) -> ovmEXTCODE{SIZE,HASH,COPY}
+DONE     - ovmCREATE -> success -> ovmEXTCODE{SIZE,HASH,COPY}
+DONE     - ovmCREATE -> fail (ovmREVERT, NOT out of gas/invalid jump) -> ovmEXTCODE{SIZE,HASH,COPY}
      - ovmCREATE -> fail -> ovmCALL what was attempted to be created (fail)
      - ovmCREATE -> ovmCREATE (during constructor) -> success -> success (check right address for inner deployment)
-     - ovmCREATE -> ovmCALL(in constructor) -> ovmSSTORE, return -> ovmREVERT (deployment fails, storage not modified, but state access gas correctly increased)
+DONE     - ovmCREATE -> ovmCALL(in constructor) -> ovmSSTORE, return -> ovmREVERT (deployment fails, storage not modified, but state access gas correctly increased)
+DONE    - ovmCREATE -> INVALID -> returns 0 address
      - ovmCREATE -> ovmCREATE (during constructor) -> success -> fail (outer contract)
      - "creator" does ovmCREATE -> invalid jumpdest -> creator out-of-gasses (or at least, appears to--really it will revert with no data, so there will be some gas left)
      - "creator" does ovmCREATE -> initcode does ovmCREATE -> invalid jumpdest -> creator out-of-gasses (or at least, appears to--really it will revert with no data, so there will be some gas left) AKA same as above but nested CREATEs
+     - CREATE collisions: TODO fill in what this needs
 
 - OVM gas metering
     - do everything for both queue origins/flip flopped roles:
@@ -52,6 +56,7 @@
 
 - out of gas
     - ovmCALL -> [ovmCALL(gas()/2) -> out of gas] -> SSTORE (does not out of gas parent)
+    - ovmCREATE -> ovmCALL(in constructor) -> ovmSSTORE, return -> ovmREVERT (deployment fails, storage not modified, but state access gas correctly increased)
 
 
 - State access limiting logic
@@ -70,9 +75,9 @@
 - Explicit invalid state access tests
     - CALL -> CALL, ISA
     - CALL -> CALL, CALL, ISA
-    - CREATE -> CREATE, ISA
+DONE    - CREATE -> CREATE, ISA
     - CREATE -> CREATE -> CREATE ISA
-    - CREATE -> CALL, ISA
-    - CALL -> CREATE, ISA
+DONE    - CREATE -> CALL, ISA
+DONE    - CALL -> CREATE, ISA
     - CALL -> CREATE -> CALL, ISA
     - CREATE -> CALL -> CREATE, ISA

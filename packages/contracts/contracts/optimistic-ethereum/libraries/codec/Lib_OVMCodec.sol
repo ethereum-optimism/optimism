@@ -20,6 +20,14 @@ library Lib_OVMCodec {
         bytes32 storageRoot;
         bytes32 codeHash;
         address ethAddress;
+        bool isFresh;
+    }
+
+    struct EVMAccount {
+        uint256 nonce;
+        uint256 balance;
+        bytes32 storageRoot;
+        bytes32 codeHash;
     }
 
     struct ChainBatchHeader {
@@ -97,5 +105,47 @@ library Lib_OVMCodec {
             target: Lib_RLPReader.toAddress(decoded[3]),
             data: Lib_RLPReader.toBytes(decoded[5])
         });
+    }
+
+    /**
+     * Encodes a standard OVM transaction.
+     * @param _transaction OVM transaction to encode.
+     * @return _encoded Encoded transaction bytes.
+     */
+    function encodeTransaction(
+        Transaction memory _transaction
+    )
+        internal
+        pure
+        returns (
+            bytes memory _encoded
+        )
+    {
+        return abi.encodePacked(
+            _transaction.timestamp,
+            _transaction.queueOrigin,
+            _transaction.entrypoint,
+            _transaction.origin,
+            _transaction.msgSender,
+            _transaction.gasLimit,
+            _transaction.data
+        );
+    }
+
+    /**
+     * Hashes a standard OVM transaction.
+     * @param _transaction OVM transaction to encode.
+     * @return _hash Hashed transaction
+     */
+    function hashTransaction(
+        Transaction memory _transaction
+    )
+        internal
+        pure
+        returns (
+            bytes32 _hash
+        )
+    {
+        return keccak256(encodeTransaction(_transaction));
     }
 }

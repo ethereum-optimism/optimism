@@ -6,11 +6,7 @@ import { FunctionFragment, ParamType } from 'ethers/lib/utils'
 /* Internal Imports */
 import { MockContract, MockContractFunction } from './mock-contract.types'
 import { bindMockContractToVM, bindMockWatcherToVM } from './mock-binding'
-import {
-  SolidityCompiler,
-  getDefaultCompiler,
-  compile,
-} from '../compilation'
+import { SolidityCompiler, getDefaultCompiler, compile } from '../compilation'
 
 /**
  * Generates contract code for a mock contract.
@@ -210,12 +206,12 @@ export const getMockContract = async (
     originalDefinePropertyFn(object, name, props)
   }
 
-  const MockContract = (await MockContractFactory.deploy()) as MockContract
+  const mock = (await MockContractFactory.deploy()) as MockContract
 
   Object.defineProperty = originalDefinePropertyFn
 
   bindMockWatcherToVM()
-  bindMockContractToVM(MockContract, fns, spec)
+  bindMockContractToVM(mock, fns, spec)
 
-  return MockContract
+  return mock
 }

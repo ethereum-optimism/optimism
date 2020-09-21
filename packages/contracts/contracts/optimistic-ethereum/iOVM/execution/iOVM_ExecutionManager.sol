@@ -6,9 +6,9 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 
 interface iOVM_ExecutionManager {
-    /*******************
-     * Data Structures *
-     *******************/
+    /**********
+     * Enums *
+     *********/
 
     enum RevertFlag {
         DID_NOT_REVERT,
@@ -16,7 +16,35 @@ interface iOVM_ExecutionManager {
         INTENTIONAL_REVERT,
         EXCEEDS_NUISANCE_GAS,
         INVALID_STATE_ACCESS,
-        UNSAFE_BYTECODE
+        UNSAFE_BYTECODE,
+        CREATE_COLLISION,
+        STATIC_VIOLATION,
+        CREATE_EXCEPTION
+    }
+
+    enum GasMetadataKey {
+        CURRENT_EPOCH_START_TIMESTAMP,
+        CUMULATIVE_SEQUENCER_QUEUE_GAS,
+        CUMULATIVE_L1TOL2_QUEUE_GAS,
+        PREV_EPOCH_SEQUENCER_QUEUE_GAS,
+        PREV_EPOCH_L1TOL2_QUEUE_GAS
+    }
+
+    enum QueueOrigin {
+        SEQUENCER_QUEUE,
+        L1TOL2_QUEUE
+    }
+
+    
+    /***********
+     * Structs *
+     ***********/
+
+    struct GasMeterConfig {
+        uint256 minTransactionGasLimit;
+        uint256 maxTransactionGasLimit;
+        uint256 maxGasPerQueuePerEpoch;
+        uint256 secondsPerEpoch;
     }
 
     struct GlobalContext {
@@ -39,6 +67,7 @@ interface iOVM_ExecutionManager {
         address ovmCALLER;
         address ovmADDRESS;
         bool isStatic;
+        bool isCreation;
     }
 
     struct MessageRecord {
@@ -61,12 +90,12 @@ interface iOVM_ExecutionManager {
      * Context Opcodes *
      *******************/
 
-    function ovmCALLER() external returns (address _caller);
-    function ovmADDRESS() external returns (address _address);
-    function ovmORIGIN() external returns (address _origin);
-    function ovmTIMESTAMP() external returns (uint256 _timestamp);
-    function ovmGASLIMIT() external returns (uint256 _gasLimit);
-    function ovmCHAINID() external returns (uint256 _chainId);
+    function ovmCALLER() external view returns (address _caller);
+    function ovmADDRESS() external view returns (address _address);
+    function ovmORIGIN() external view returns (address _origin);
+    function ovmTIMESTAMP() external view returns (uint256 _timestamp);
+    function ovmGASLIMIT() external view returns (uint256 _gasLimit);
+    function ovmCHAINID() external view returns (uint256 _chainId);
 
 
     /*******************
