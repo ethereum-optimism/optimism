@@ -113,7 +113,9 @@ export class ExecutionManagerTestRunner {
             }
           } catch (err) {
             if (parameter.expectInvalidStateAccess) {
-              expect(err.toString()).to.contain('VM Exception while processing transaction: revert')
+              expect(err.toString()).to.contain(
+                'VM Exception while processing transaction: revert'
+              )
             } else {
               throw err
             }
