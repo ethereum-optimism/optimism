@@ -8,17 +8,20 @@ import { cloneDeep } from 'lodash'
 /* Internal Imports */
 import {
   TestDefinition,
+  ParsedTestStep,
+  TestParameter,
   TestStep,
+  TestStep_CALL,
+  TestStep_Run,
+  isRevertFlagError,
   isTestStep_SSTORE,
   isTestStep_SLOAD,
   isTestStep_CALL,
   isTestStep_CREATE,
   isTestStep_CREATE2,
   isTestStep_Context,
-  ParsedTestStep,
-  isRevertFlagError,
-  TestParameter,
   isTestStep_evm,
+  isTestStep_Run,
   isTestStep_EXTCODESIZE,
   isTestStep_EXTCODEHASH,
   isTestStep_EXTCODECOPY,
@@ -190,15 +193,47 @@ export class ExecutionManagerTestRunner {
     return ret
   }
 
-  private async runTestStep(step: TestStep) {
-    await this.contracts.OVM_ExecutionManager.ovmCALL(
-      GAS_LIMIT / 2,
-      this.contracts.Helper_TestRunner.address,
-      this.contracts.Helper_TestRunner.interface.encodeFunctionData(
-        'runSingleTestStep',
-        [this.parseTestStep(step)]
+  private async runTestStep(step: TestStep | TestStep_Run) {
+    if (isTestStep_Run(step)) {
+      let calldata: string
+      if (step.functionParams.data) {
+        calldata = step.functionParams.data
+      } else {
+        const runStep: TestStep_CALL = {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: GAS_LIMIT,
+            target: this.contracts.Helper_TestRunner.address,
+            subSteps: step.functionParams.subSteps
+          },
+          expectedReturnStatus: true
+        }
+
+        calldata = this.encodeFunctionData(runStep)
+      }
+
+      await this.contracts.OVM_ExecutionManager.run(
+        {
+          timestamp: step.functionParams.timestamp,
+          queueOrigin: step.functionParams.queueOrigin,
+          entrypoint: step.functionParams.entrypoint,
+          origin: step.functionParams.origin,
+          msgSender: step.functionParams.msgSender,
+          gasLimit: step.functionParams.gasLimit,
+          data: calldata
+        },
+        this.contracts.OVM_StateManager.address
       )
-    )
+    } else {
+      await this.contracts.OVM_ExecutionManager.ovmCALL(
+        GAS_LIMIT / 2,
+        this.contracts.Helper_TestRunner.address,
+        this.contracts.Helper_TestRunner.interface.encodeFunctionData(
+          'runSingleTestStep',
+          [this.parseTestStep(step)]
+        )
+      )
+    }
   }
 
   private parseTestStep(step: TestStep): ParsedTestStep {

@@ -83,7 +83,7 @@ interface TestStep_SLOAD {
   expectedReturnValue: string | RevertFlagError
 }
 
-interface TestStep_CALL {
+export interface TestStep_CALL {
   functionName: CallOpcode
   functionParams: {
     gasLimit: number | BigNumber
@@ -114,6 +114,20 @@ interface TestStep_CREATE2 {
   }
   expectedReturnStatus: boolean
   expectedReturnValue: string | RevertFlagError
+}
+
+export interface TestStep_Run {
+  functionName: 'run',
+  functionParams: {
+    timestamp: number
+    queueOrigin: number
+    entrypoint: string
+    origin: string
+    msgSender: string
+    gasLimit: number
+    data?: string
+    subSteps?: TestStep[]
+  }
 }
 
 export type TestStep =
@@ -164,33 +178,33 @@ export const isTestStep_Context = (
 }
 
 export const isTestStep_SSTORE = (step: TestStep): step is TestStep_SSTORE => {
-  return step.functionName == 'ovmSSTORE'
+  return step.functionName === 'ovmSSTORE'
 }
 
 export const isTestStep_SLOAD = (step: TestStep): step is TestStep_SLOAD => {
-  return step.functionName == 'ovmSLOAD'
+  return step.functionName === 'ovmSLOAD'
 }
 
 export const isTestStep_EXTCODESIZE = (
   step: TestStep
 ): step is TestStep_EXTCODESIZE => {
-  return step.functionName == 'ovmEXTCODESIZE'
+  return step.functionName === 'ovmEXTCODESIZE'
 }
 
 export const isTestStep_EXTCODEHASH = (
   step: TestStep
 ): step is TestStep_EXTCODEHASH => {
-  return step.functionName == 'ovmEXTCODEHASH'
+  return step.functionName === 'ovmEXTCODEHASH'
 }
 
 export const isTestStep_EXTCODECOPY = (
   step: TestStep
 ): step is TestStep_EXTCODECOPY => {
-  return step.functionName == 'ovmEXTCODECOPY'
+  return step.functionName === 'ovmEXTCODECOPY'
 }
 
 export const isTestStep_REVERT = (step: TestStep): step is TestStep_REVERT => {
-  return step.functionName == 'ovmREVERT'
+  return step.functionName === 'ovmREVERT'
 }
 
 export const isTestStep_CALL = (step: TestStep): step is TestStep_CALL => {
@@ -200,13 +214,19 @@ export const isTestStep_CALL = (step: TestStep): step is TestStep_CALL => {
 }
 
 export const isTestStep_CREATE = (step: TestStep): step is TestStep_CREATE => {
-  return step.functionName == 'ovmCREATE'
+  return step.functionName === 'ovmCREATE'
 }
 
 export const isTestStep_CREATE2 = (
   step: TestStep
 ): step is TestStep_CREATE2 => {
-  return step.functionName == 'ovmCREATE2'
+  return step.functionName === 'ovmCREATE2'
+}
+
+export const isTestStep_Run = (
+  step: TestStep | TestStep_Run
+): step is TestStep_Run => {
+  return step.functionName === 'run'
 }
 
 interface TestState {
@@ -216,7 +236,7 @@ interface TestState {
 
 export interface TestParameter {
   name: string
-  steps: TestStep[]
+  steps: Array<TestStep | TestStep_Run>
   expectInvalidStateAccess?: boolean
   focus?: boolean
 }

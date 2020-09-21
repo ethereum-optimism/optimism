@@ -1216,6 +1216,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        // We need to make sure that the transaction isn't trying to access storage that hasn't
+        // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
+        _checkInvalidStateAccess(
+            ovmStateManager.hasContractStorage(_contract, _key)
+        );
+
         // Check whether the slot has been changed before and mark it as changed if not. We need
         // this because "nuisance gas" only applies to the first time that a slot is changed.
         (

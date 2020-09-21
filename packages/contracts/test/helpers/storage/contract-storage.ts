@@ -166,29 +166,57 @@ export const setContractStorage = async (
     const inputSlots = parseInputSlots(layout, layoutMap.type)
 
     const slot = parseInt(layoutMap.slot, 10)
-    const depth = (layoutMap.type.match(/t_mapping/g) || []).length
+    let depth = (layoutMap.type.match(/t_mapping/g) || []).length
 
     if (typeof value !== 'object') {
       const slotHash = getStorageSlotHash(slot, depth, value)
       await contract.__setStorageSlot(slotHash, toHexString32(value as string))
     } else {
-      for (const [subKey, subValue] of Object.entries(value)) {
-        const baseSlotHash = getStorageSlotHash(slot, depth, {
-          [subKey]: subValue,
-        })
-        const slotValues = getFlattenedValues(depth, {
-          [subKey]: subValue,
-        })
+      if (key === 'contractStorage' || key === 'verifiedContractStorage') {
+        for (const [subKey1, subValue1] of Object.entries(value)) {
+          for (const [subKey, subValue] of Object.entries(subValue1)) {
+            const baseSlotHash = getStorageSlotHash(slot, depth, {
+              [subKey1]: {
+                [subKey]: subValue,
+              }
+            })
+            const slotValues = getFlattenedValues(depth, {
+              [subKey1]: {
+                [subKey]: subValue,
+              }
+            })
+    
+            for (const slotValue of slotValues) {
+              const slotIndex = inputSlots.find((inputSlot) => {
+                return inputSlot.label === slotValue.label
+              }).slot
+              const slotHash = toHexString32(
+                BigNumber.from(baseSlotHash).add(slotIndex)
+              )
+    
+              await contract.__setStorageSlot(slotHash, slotValue.value)
+            }
+          }
+        }
+      } else {
+        for (const [subKey, subValue] of Object.entries(value)) {
+          const baseSlotHash = getStorageSlotHash(slot, depth, {
+            [subKey]: subValue,
+          })
+          const slotValues = getFlattenedValues(depth, {
+            [subKey]: subValue,
+          })
 
-        for (const slotValue of slotValues) {
-          const slotIndex = inputSlots.find((inputSlot) => {
-            return inputSlot.label === slotValue.label
-          }).slot
-          const slotHash = toHexString32(
-            BigNumber.from(baseSlotHash).add(slotIndex)
-          )
+          for (const slotValue of slotValues) {
+            const slotIndex = inputSlots.find((inputSlot) => {
+              return inputSlot.label === slotValue.label
+            }).slot
+            const slotHash = toHexString32(
+              BigNumber.from(baseSlotHash).add(slotIndex)
+            )
 
-          await contract.__setStorageSlot(slotHash, slotValue.value)
+            await contract.__setStorageSlot(slotHash, slotValue.value)
+          }
         }
       }
     }
@@ -223,28 +251,62 @@ export const checkContractStorage = async (
         )
       }
     } else {
-      for (const [subKey, subValue] of Object.entries(value)) {
-        const baseSlotHash = getStorageSlotHash(slot, depth, {
-          [subKey]: subValue,
-        })
-        const slotValues = getFlattenedValues(depth, {
-          [subKey]: subValue,
-        })
+      if (key === 'contractStorage' || key === 'verifiedContractStorage') {
+        for (const [subKey1, subValue1] of Object.entries(value)) {
+          for (const [subKey, subValue] of Object.entries(subValue1)) {
+            const baseSlotHash = getStorageSlotHash(slot, depth, {
+              [subKey1]: {
+                [subKey]: subValue,
+              }
+            })
+            const slotValues = getFlattenedValues(depth, {
+              [subKey1]: {
+                [subKey]: subValue,
+              }
+            })
+    
+            for (const slotValue of slotValues) {
+              const slotIndex = inputSlots.find((inputSlot) => {
+                return inputSlot.label === slotValue.label
+              }).slot
+              const slotHash = toHexString32(
+                BigNumber.from(baseSlotHash).add(slotIndex)
+              )
 
-        for (const slotValue of slotValues) {
-          const slotIndex = inputSlots.find((inputSlot) => {
-            return inputSlot.label === slotValue.label
-          }).slot
-          const slotHash = toHexString32(
-            BigNumber.from(baseSlotHash).add(slotIndex)
-          )
+              const retSlotValue = await contract.__getStorageSlot(slotHash)
+  
+              if (retSlotValue !== slotValue.value) {
+                throw new Error(
+                  `Resulting state of ${slotValue.label} (${retSlotValue}) did not match expected state (${slotValue.value}).`
+                )
+              }
+            }
+          }
+        }
+      } else {
+        for (const [subKey, subValue] of Object.entries(value)) {
+          const baseSlotHash = getStorageSlotHash(slot, depth, {
+            [subKey]: subValue,
+          })
+          const slotValues = getFlattenedValues(depth, {
+            [subKey]: subValue,
+          })
 
-          const retSlotValue = await contract.__getStorageSlot(slotHash)
-
-          if (retSlotValue !== slotValue.value) {
-            throw new Error(
-              `Resulting state of ${slotValue.label} (${retSlotValue}) did not match expected state (${slotValue.value}).`
+          for (const slotValue of slotValues) {
+            const slotIndex = inputSlots.find((inputSlot) => {
+              return inputSlot.label === slotValue.label
+            }).slot
+            const slotHash = toHexString32(
+              BigNumber.from(baseSlotHash).add(slotIndex)
             )
+
+            const retSlotValue = await contract.__getStorageSlot(slotHash)
+
+            if (retSlotValue !== slotValue.value) {
+              throw new Error(
+                `Resulting state of ${slotValue.label} (${retSlotValue}) did not match expected state (${slotValue.value}).`
+              )
+            }
           }
         }
       }

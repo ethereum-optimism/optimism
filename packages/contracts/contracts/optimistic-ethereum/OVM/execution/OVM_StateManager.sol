@@ -366,7 +366,14 @@ contract OVM_StateManager is iOVM_StateManager {
         authenticated
     {
         contractStorage[_contract][_key] = _value;
-        verifiedContractStorage[_contract][_key] = true;
+
+        // Only used when initially populating the contract storage. OVM_ExecutionManager will
+        // perform a `hasContractStorage` INVALID_STATE_ACCESS check before putting any contract
+        // storage because writing to zero when the actual value is nonzero causes a gas
+        // discrepancy.
+        if (verifiedContractStorage[_contract][_key] == false) {
+            verifiedContractStorage[_contract][_key] = true;
+        }
     }
 
     /**

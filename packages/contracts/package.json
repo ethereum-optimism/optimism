@@ -7,7 +7,7 @@
     "build": "yarn run build:contracts",
     "build:contracts": "buidler compile",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_ExecutionManager/ovmDELEGATECALL.spec.ts\"",
+    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_ExecutionManager/run.spec.ts\"",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\""
   },
