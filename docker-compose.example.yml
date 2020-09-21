@@ -32,7 +32,7 @@ services:
       - POSTGRES_CONNECTION_POOL_SIZE                                                   # The connection pool size for postgres (defaults to 20)
       - POSTGRES_USE_SSL                                                                # Set to anything to indicate that SSL should be used in the connection
       # L1 Node
-      - L1_NODE_INFURA_NETWORK=rinkeby                                                  # The Infura network for the connection to the L1 node
+      - L1_NODE_INFURA_NETWORK=goerli                                                  # The Infura network for the connection to the L1 node
       - L1_NODE_INFURA_PROJECT_ID=91981cfffb524ceca0c2e5b18905f9f5                      # The Infura project ID for the connection to the L1 node
       - L1_NODE_WEB3_URL                                                                # The URL of the L1 node
       - FINALITY_DELAY_IN_BLOCKS=1                                                      # The number of block confirmations required to consider a transaction final on L1
