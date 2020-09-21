@@ -327,11 +327,13 @@ export class ExecutionManagerTestRunner {
     if (isTestStep_CALL(step)) {
       if (step.expectedReturnValue === '0x00') {
         return step.expectedReturnValue
-      } else {
+      } else if (typeof step.expectedReturnValue === 'string' || step.expectedReturnValue === undefined) {
         returnData = [
           step.expectedReturnStatus,
           step.expectedReturnValue || '0x',
         ]
+      } else {
+        returnData = [step.expectedReturnValue.ovmSuccess, step.expectedReturnValue.returnData]
       }
     } else if (BigNumber.isBigNumber(step.expectedReturnValue)) {
       returnData = [step.expectedReturnValue.toHexString()]

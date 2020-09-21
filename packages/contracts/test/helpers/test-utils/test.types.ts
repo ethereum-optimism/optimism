@@ -92,7 +92,7 @@ export interface TestStep_CALL {
     subSteps?: TestStep[]
   }
   expectedReturnStatus: boolean
-  expectedReturnValue?: string | RevertFlagError
+  expectedReturnValue?: string | RevertFlagError |  {ovmSuccess: boolean, returnData: string}
 }
 
 interface TestStep_CREATE {
