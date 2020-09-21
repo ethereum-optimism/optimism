@@ -204,9 +204,9 @@ export class ExecutionManagerTestRunner {
           functionParams: {
             gasLimit: GAS_LIMIT,
             target: this.contracts.Helper_TestRunner.address,
-            subSteps: step.functionParams.subSteps
+            subSteps: step.functionParams.subSteps,
           },
-          expectedReturnStatus: true
+          expectedReturnStatus: true,
         }
 
         calldata = this.encodeFunctionData(runStep)
@@ -220,7 +220,7 @@ export class ExecutionManagerTestRunner {
           origin: step.functionParams.origin,
           msgSender: step.functionParams.msgSender,
           gasLimit: step.functionParams.gasLimit,
-          data: calldata
+          data: calldata,
         },
         this.contracts.OVM_StateManager.address
       )

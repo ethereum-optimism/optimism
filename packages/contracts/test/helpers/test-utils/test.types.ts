@@ -117,7 +117,7 @@ interface TestStep_CREATE2 {
 }
 
 export interface TestStep_Run {
-  functionName: 'run',
+  functionName: 'run'
   functionParams: {
     timestamp: number
     queueOrigin: number

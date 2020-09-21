@@ -178,14 +178,14 @@ export const setContractStorage = async (
             const baseSlotHash = getStorageSlotHash(slot, depth, {
               [subKey1]: {
                 [subKey]: subValue,
-              }
+              },
             })
             const slotValues = getFlattenedValues(depth, {
               [subKey1]: {
                 [subKey]: subValue,
-              }
+              },
             })
-    
+
             for (const slotValue of slotValues) {
               const slotIndex = inputSlots.find((inputSlot) => {
                 return inputSlot.label === slotValue.label
@@ -193,7 +193,7 @@ export const setContractStorage = async (
               const slotHash = toHexString32(
                 BigNumber.from(baseSlotHash).add(slotIndex)
               )
-    
+
               await contract.__setStorageSlot(slotHash, slotValue.value)
             }
           }
@@ -257,14 +257,14 @@ export const checkContractStorage = async (
             const baseSlotHash = getStorageSlotHash(slot, depth, {
               [subKey1]: {
                 [subKey]: subValue,
-              }
+              },
             })
             const slotValues = getFlattenedValues(depth, {
               [subKey1]: {
                 [subKey]: subValue,
-              }
+              },
             })
-    
+
             for (const slotValue of slotValues) {
               const slotIndex = inputSlots.find((inputSlot) => {
                 return inputSlot.label === slotValue.label
@@ -274,7 +274,7 @@ export const checkContractStorage = async (
               )
 
               const retSlotValue = await contract.__getStorageSlot(slotHash)
-  
+
               if (retSlotValue !== slotValue.value) {
                 throw new Error(
                   `Resulting state of ${slotValue.label} (${retSlotValue}) did not match expected state (${slotValue.value}).`

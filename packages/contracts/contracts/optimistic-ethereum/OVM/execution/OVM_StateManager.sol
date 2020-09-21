@@ -18,6 +18,7 @@ contract OVM_StateManager is iOVM_StateManager {
      **********************/
     
     bytes32 constant internal EMPTY_ACCOUNT_CODE_HASH = 0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000;
+    bytes32 constant internal STORAGE_XOR_VALUE =       0xFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEFFEEDFACECAFEBEEF;
 
 
     /*******************************************
@@ -365,7 +366,10 @@ contract OVM_StateManager is iOVM_StateManager {
         public
         authenticated
     {
-        contractStorage[_contract][_key] = _value;
+        // A hilarious optimization. `SSTORE`ing a value of `bytes32(0)` is common enough that it's
+        // worth populating this with a non-zero value in advance (during the fraud proof
+        // initialization phase) to cut the execution-time cost down to 5000 gas.
+        contractStorage[_contract][_key] = _value ^ STORAGE_XOR_VALUE;
 
         // Only used when initially populating the contract storage. OVM_ExecutionManager will
         // perform a `hasContractStorage` INVALID_STATE_ACCESS check before putting any contract
@@ -397,7 +401,8 @@ contract OVM_StateManager is iOVM_StateManager {
             bytes32 _value
         )
     {
-        return contractStorage[_contract][_key];
+        // See `putContractStorage` for more information about the XOR here.
+        return contractStorage[_contract][_key] ^ STORAGE_XOR_VALUE;
     }
 
     /**

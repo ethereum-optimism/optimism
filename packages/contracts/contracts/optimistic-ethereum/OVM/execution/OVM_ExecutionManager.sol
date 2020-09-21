@@ -79,14 +79,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     modifier netGasCost(
         uint256 _cost
     ) {
-        uint256 preExecutionGas = gasleft();
+        uint256 gasProvided = gasleft();
         _;
-        uint256 postExecutionGas = gasleft();
+        uint256 gasUsed = gasProvided - gasleft();
 
         // We want to refund everything *except* the specified cost.
-        transactionRecord.ovmGasRefund += (
-            (preExecutionGas - postExecutionGas) - _cost
-        );
+        if (_cost < gasUsed) {
+            transactionRecord.ovmGasRefund += gasUsed - _cost;
+        }
     }
 
     /**
@@ -133,13 +133,13 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
 	    _initContext(_transaction);
 
         // Run the transaction, make sure to meter the gas usage.
-        uint256 gasLimit = gasleft();
+        uint256 gasProvided = gasleft();
         ovmCALL(
             _transaction.gasLimit - gasMeterConfig.minTransactionGasLimit,
             _transaction.entrypoint,
             _transaction.data
         );
-        uint256 gasUsed = gasLimit - gasleft();
+        uint256 gasUsed = gasProvided - gasleft();
 
         // Update the cumulative gas based on the amount of gas used.
         _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
@@ -1126,11 +1126,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        // We need to make sure that the transaction isn't trying to access an account that hasn't
-        // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
-        _checkInvalidStateAccess(
-            ovmStateManager.hasAccount(_address)
-        );
+        // See `_checkContractStorageLoad` for more information.
+        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
+        // See `_checkContractStorageLoad` for more information.
+        if (ovmStateManager.hasAccount(_address) == false) {
+            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
+        }
 
         // Check whether the account has been loaded before and mark it as loaded if not. We need
         // this because "nuisance gas" only applies to the first time that an account is loaded.
@@ -1185,11 +1189,22 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        // Another case of hidden complexity. If we didn't enforce this requirement, then a
+        // contract could pass in just enough gas to cause the INVALID_STATE_ACCESS check to fail
+        // on L1 but not on L2. A contract could use this behavior to prevent the
+        // OVM_ExecutionManager from detecting an invalid state access. Reverting with OUT_OF_GAS
+        // allows us to also charge for the full message nuisance gas, because you deserve that for
+        // trying to break the contract in this way.
+        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
         // We need to make sure that the transaction isn't trying to access storage that hasn't
         // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
-        _checkInvalidStateAccess(
-            ovmStateManager.hasContractStorage(_contract, _key)
-        );
+        // We know that we have enough gas to do this check because of the above test.
+        if (ovmStateManager.hasContractStorage(_contract, _key) == false) {
+            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
+        }
 
         // Check whether the slot has been loaded before and mark it as loaded if not. We need
         // this because "nuisance gas" only applies to the first time that a slot is loaded.
@@ -1216,11 +1231,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        // We need to make sure that the transaction isn't trying to access storage that hasn't
-        // been provided to the OVM_StateManager. We'll immediately abort if this is the case.
-        _checkInvalidStateAccess(
-            ovmStateManager.hasContractStorage(_contract, _key)
-        );
+        // See `_checkContractStorageLoad` for more information.
+        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
+            _revertWithFlag(RevertFlag.OUT_OF_GAS);
+        }
+
+        // See `_checkContractStorageLoad` for more information.
+        if (ovmStateManager.hasContractStorage(_contract, _key) == false) {
+            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
+        }
 
         // Check whether the slot has been changed before and mark it as changed if not. We need
         // this because "nuisance gas" only applies to the first time that a slot is changed.
@@ -1359,30 +1378,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         internal
     {
         _revertWithFlag(_flag, bytes(''));
-    }
-
-    /**
-     * Checks for an attempt to access some inaccessible state.
-     * @param _condition Result of some function that checks for bad access.
-     */
-    function _checkInvalidStateAccess(
-        bool _condition
-    )
-        internal
-    {
-        // Another case of hidden complexity. If we didn't enforce this requirement, then a
-        // contract could pass in just enough gas to cause this to fail on L1 but not on L2.
-        // A contract could use this behavior to prevent the OVM_ExecutionManager from detecting
-        // an invalid state access. Reverting with OUT_OF_GAS allows us to also charge for the
-        // full message nuisance gas as to generally disincentivize this attack.
-        if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
-            _revertWithFlag(RevertFlag.OUT_OF_GAS);
-        }
-
-        // We have enough gas to comfortably run this revert, so do it.
-        if (_condition == false) {
-            _revertWithFlag(RevertFlag.INVALID_STATE_ACCESS);
-        }
     }
 
 

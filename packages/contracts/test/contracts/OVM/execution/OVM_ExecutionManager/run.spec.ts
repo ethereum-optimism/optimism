@@ -18,7 +18,7 @@ enum GasMetadataKey {
   CUMULATIVE_SEQUENCER_QUEUE_GAS,
   CUMULATIVE_L1TOL2_QUEUE_GAS,
   PREV_EPOCH_SEQUENCER_QUEUE_GAS,
-  PREV_EPOCH_L1TOL2_QUEUE_GAS
+  PREV_EPOCH_L1TOL2_QUEUE_GAS,
 }
 
 const keyToBytes32 = (key: GasMetadataKey): string => {
@@ -57,8 +57,8 @@ const test_run: TestDefinition = {
           [keyToBytes32(GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS)]: 0,
           [keyToBytes32(GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS)]: 0,
           [keyToBytes32(GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS)]: 0,
-          [keyToBytes32(GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS)]: 0
-        }
+          [keyToBytes32(GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS)]: 0,
+        },
       },
       verifiedContractStorage: {
         [GAS_METADATA_ADDRESS]: {
@@ -67,8 +67,8 @@ const test_run: TestDefinition = {
           [keyToBytes32(GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS)]: true,
           [keyToBytes32(GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS)]: true,
           [keyToBytes32(GasMetadataKey.PREV_EPOCH_L1TOL2_QUEUE_GAS)]: true,
-        }
-      }
+        },
+      },
     },
   },
   parameters: [
@@ -100,12 +100,12 @@ const test_run: TestDefinition = {
                 },
                 expectedReturnStatus: true,
               },
-            ]
-          }
-        }
+            ],
+          },
+        },
       ],
     },
-  ]
+  ],
 }
 
 const runner = new ExecutionManagerTestRunner()
