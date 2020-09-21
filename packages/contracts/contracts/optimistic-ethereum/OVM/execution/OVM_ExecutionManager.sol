@@ -116,9 +116,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         override
         public
     {
-	    // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
-	    // around in calldata).
-	    ovmStateManager = iOVM_StateManager(_ovmStateManager);
+        // Store our OVM_StateManager instance (significantly easier than attempting to pass the address
+        // around in calldata).
+        ovmStateManager = iOVM_StateManager(_ovmStateManager);
 
         // Check whether we need to start a new epoch, do so if necessary.
         _checkNeedsNewEpoch(_transaction.timestamp);
@@ -129,8 +129,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             return;
         }
 
-	    // Initialize the execution context.
-	    _initContext(_transaction);
+        // Initialize the execution context.
+        _initContext(_transaction);
 
         // Run the transaction, make sure to meter the gas usage.
         uint256 gasProvided = gasleft();
@@ -144,8 +144,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // Update the cumulative gas based on the amount of gas used.
         _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
 
-	    // Wipe the execution context.
-	    _resetContext();
+        // Wipe the execution context.
+        _resetContext();
     }
 
 
@@ -1616,7 +1616,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function _initContext(
         Lib_OVMCodec.Transaction memory _transaction
     )
-    	internal
+        internal
     {
         transactionContext.ovmTIMESTAMP = _transaction.timestamp;
         transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
@@ -1628,7 +1628,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      * Resets the transaction and message context.
      */
     function _resetContext()
-    	internal
+        internal
     {
         transactionContext.ovmORIGIN = address(0);
         transactionContext.ovmTIMESTAMP = 0;
