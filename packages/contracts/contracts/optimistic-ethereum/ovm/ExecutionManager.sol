@@ -25,7 +25,7 @@ import { console } from "@nomiclabs/buidler/console.sol";
  *         backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is ContractResolver {
-    
+
     /*
      * Events
      */
@@ -110,7 +110,7 @@ contract ExecutionManager is ContractResolver {
     {
         // Deploy a default state manager
         StateManager stateManager = resolveStateManager();
-        
+
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
             stateManager.associateCodeContract(address(i), address(i));
@@ -121,8 +121,8 @@ contract ExecutionManager is ContractResolver {
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
-        
-        executionContext.chainId = 108;
+
+        executionContext.chainId = 420;
 
         // TODO start off the initial gas rate limit epoch once we configure a start time
         gasMeterConfig = _gasMeterConfig;
@@ -309,7 +309,7 @@ contract ExecutionManager is ContractResolver {
             )
             // subtract initial gas to get the gas consumed by execution itself
             gasConsumedByExecution := sub(gasConsumedByExecution, gas())
-            
+
             ovmCallReturnDataSize := returndatasize
             result := mload(0x40)
             let resultData := add(result, 0x20)
@@ -517,7 +517,7 @@ contract ExecutionManager is ContractResolver {
         public
         view
     {
-        uint chainId = 108;
+        uint chainId = 420;
 
         assembly {
             let chainIdMemory := mload(0x40)
@@ -1345,7 +1345,7 @@ contract ExecutionManager is ContractResolver {
         address _ovmTxOrigin,
         address _l1MsgSender,
         uint _ovmTxgasLimit
-    ) 
+    )
         internal
     {
         // First zero out the context for good measure (Note ZERO_ADDRESS is
