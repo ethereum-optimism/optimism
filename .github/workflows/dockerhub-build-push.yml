@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - testnet
-      - add_publish_to_dockerhub_github_action
 
 jobs:
   build:
