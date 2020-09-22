@@ -7,10 +7,10 @@ docker-build:
 	docker build --build-arg always_upgrade="$(DATE)" -t omgnetwork/vault:latest .
 	docker tag omgnetwork/vault:latest omgnetwork/vault:$(IMG_VERSION)
 
-run:
+test:
 	docker-compose -f docker/docker-compose.yml up
 
-test:
-	docker-compose -f docker/docker-compose.yml up --build
+run:
+	docker-compose -f docker/lean-docker-compose.yml up
 
 all: docker-build run
