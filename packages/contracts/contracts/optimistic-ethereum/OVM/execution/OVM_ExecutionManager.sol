@@ -487,8 +487,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _returndata
         )
     {
-        console.log("ovmCALL to");
-        console.logAddress(_address);
         // CALL updates the CALLER and ADDRESS.
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
@@ -728,10 +726,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         override
         public
-    {
-        console.log("in safecreate with nuisance gas:");
-        console.log(messageRecord.nuisanceGasLeft);
-        
+    {   
         // Since this function is public, anyone can attempt to directly call it. We need to make
         // sure that the OVM_ExecutionManager itself is the only party that can actually try to
         // call this function.
@@ -773,7 +768,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // left over since contract calls can only be passed 63/64ths of total gas,  so we need to
         // explicitly handle this case here.
         if (ethAddress == address(0)) {
-            console.log("detected the create exception");
             _revertWithFlag(RevertFlag.CREATE_EXCEPTION);
         }
 
@@ -820,8 +814,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             address _created
         )
     {
-        console.log("createContract with addy");
-        console.logAddress(_contractAddress);
         // We always update the nonce of the creating account, even if the creation fails.
         _setAccountNonce(ovmADDRESS(), 1);
 
@@ -876,8 +868,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _returndata
         )
     {
-        console.log("_callContract with nuisance gas:");
-        console.log(messageRecord.nuisanceGasLeft);
         return _handleExternalInteraction(
             _nextMessageContext,
             _gasLimit,
@@ -910,8 +900,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _returndata
         )
     {
-        console.log("starting _handleExternalInteraction with gasLeft");
-        console.log(gasleft());
         // We need to switch over to our next message context for the duration of this call.
         MessageContext memory prevMessageContext = messageContext;
         _switchMessageContext(prevMessageContext, _nextMessageContext);
@@ -947,9 +935,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
                 uint256 ovmGasRefund,
                 bytes memory returndataFromFlag
             ) = _decodeRevertData(returndata);
-
-            console.log("unsuccessfull safecreate with nuisance gas left post-revert:");
-            console.log(nuisanceGasLeftPostRevert);
 
             // INVALID_STATE_ACCESS is the only flag that triggers an immediate abort of the
             // parent EVM message. This behavior is necessary because INVALID_STATE_ACCESS must
@@ -1175,7 +1160,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        console.log("checking account load");
         // See `_checkContractStorageLoad` for more information.
         if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
             _revertWithFlag(RevertFlag.OUT_OF_GAS);
@@ -1195,14 +1179,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // If we hadn't already loaded the account, then we'll need to charge "nuisance gas" based
         // on the size of the contract code.
         if (_wasAccountAlreadyLoaded == false) {
-            console.log("was not already loaded");
             _useNuisanceGas(
                 (Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE) + MIN_NUISANCE_GAS_PER_CONTRACT
             );
-            console.log("got code size:");
-            console.log(Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)));
         }
-        console.log("was already loaded");
     }
 
     /**
@@ -1386,8 +1366,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         }
 
         // ABI decode the incoming data.
-        console.log("raw revert data:");
-        console.logBytes(_revertdata);
         return abi.decode(_revertdata, (RevertFlag, uint256, uint256, bytes));
     }
 
@@ -1436,7 +1414,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        console.log("reverting with no info other than flag");
         _revertWithFlag(_flag, bytes(''));
     }
 
@@ -1474,8 +1451,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        console.log("using nuisance gas of amount:");
-        console.log(_amount);
         // Essentially the same as a standard OUT_OF_GAS, except we also retain a record of the gas
         // refund to be given at the end of the transaction.
         if (messageRecord.nuisanceGasLeft < _amount) {
@@ -1680,8 +1655,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
-        console.log("setting number to:");
-        console.log(_transaction.number);
         transactionContext.ovmTIMESTAMP = _transaction.timestamp;
         transactionContext.ovmNUMBER = _transaction.number;
         transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
