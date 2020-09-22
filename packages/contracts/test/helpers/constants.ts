@@ -13,7 +13,8 @@ export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
   }
 })
 
-export const GAS_LIMIT = 1_000_000_000
+export const GAS_LIMIT = 10_000_000
+export const RUN_OVM_TEST_GAS = 20_000_000
 
 export const NULL_BYTES32 = makeHexString('00', 32)
 export const NON_NULL_BYTES32 = makeHexString('11', 32)
@@ -22,3 +23,13 @@ export const NON_ZERO_ADDRESS = makeAddress('11')
 
 export const VERIFIED_EMPTY_CONTRACT_HASH =
   '0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000'
+
+export const NUISANCE_GAS_COSTS = {
+  NUISANCE_GAS_SLOAD: 20000,
+  NUISANCE_GAS_SSTORE: 20000,
+  NUISANCE_GAS_PER_CONTRACT_BYTE: 100,
+  MIN_GAS_FOR_INVALID_STATE_ACCESS: 30000,
+}
+
+  // TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
+export  const Helper_TestRunner_BYTELEN = 3686

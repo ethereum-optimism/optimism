@@ -6,13 +6,15 @@ import {
     NON_NULL_BYTES32,
     REVERT_FLAGS,
     VERIFIED_EMPTY_CONTRACT_HASH,
+    NUISANCE_GAS_COSTS,
+    Helper_TestRunner_BYTELEN,
   } from '../../../../helpers'
   
   const DUMMY_REVERT_DATA =
     '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
   
   const test_nuisanceGas: TestDefinition = {
-    name: 'Basic tests for ovmCALL',
+    name: 'Basic tests for nuisance gas',
     preState: {
       ExecutionManager: {
         ovmStateManager: '$OVM_STATE_MANAGER',
@@ -41,7 +43,7 @@ import {
     },
     subTests: [
         {
-            name: 'Nuisance gas is consumed up to ovmCALL gas limit',
+            name: 'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE',
             postState: {
                 ExecutionManager: {
                     messageRecord: {
@@ -51,33 +53,15 @@ import {
             },
             parameters: [
                 {
-                    name: 'ovmCALL => ovmCALL(evmINVALID)',
+                    name: 'single ovmCALL',
                     focus: true,
                     steps: [
                         {
                           functionName: 'ovmCALL',
                           functionParams: {
                             gasLimit: GAS_LIMIT / 2,
-                            target: '$DUMMY_OVM_ADDRESS_1',
-                            subSteps: [
-                              {
-                                functionName: 'ovmCALL',
-                                functionParams: {
-                                    gasLimit: GAS_LIMIT,
-                                    target: '$DUMMY_OVM_ADDRESS_2',
-                                    subSteps: [
-                                        {
-                                            functionName: 'evmINVALID',
-                                        }
-                                    ]
-                                },
-                                expectedReturnStatus: true,
-                                expectedReturnValue: {
-                                    ovmSuccess: false,
-                                    returnData: '0x'
-                                }
-                              },
-                            ],
+                            target: '$DUMMY_OVM_ADDRESS_2',
+                            subSteps: []
                           },
                           expectedReturnStatus: true,
                         },
