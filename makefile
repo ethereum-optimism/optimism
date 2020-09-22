@@ -8,6 +8,9 @@ docker-build:
 	docker tag omgnetwork/vault:latest omgnetwork/vault:$(IMG_VERSION)
 
 run:
+	docker-compose -f docker/docker-compose.yml up
+
+test:
 	docker-compose -f docker/docker-compose.yml up --build
 
 all: docker-build run
