@@ -2,7 +2,7 @@
 import {
     runExecutionManagerTest,
     TestDefinition,
-    GAS_LIMIT,
+    OVM_TX_GAS_LIMIT,
     NULL_BYTES32,
     NON_NULL_BYTES32,
     REVERT_FLAGS,

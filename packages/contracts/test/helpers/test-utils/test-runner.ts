@@ -29,7 +29,7 @@ import {
 } from './test.types'
 import { encodeRevertData } from '../codec'
 import { getModifiableStorageFactory } from '../storage/contract-storage'
-import { GAS_LIMIT, RUN_OVM_TEST_GAS, NON_NULL_BYTES32 } from '../constants'
+import { OVM_TX_GAS_LIMIT, RUN_OVM_TEST_GAS, NON_NULL_BYTES32 } from '../constants'
 
 export class ExecutionManagerTestRunner {
   private snapshot: string
@@ -196,7 +196,7 @@ export class ExecutionManagerTestRunner {
         const runStep: TestStep_CALL = {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: this.contracts.Helper_TestRunner.address,
             subSteps: step.functionParams.subSteps,
           },
@@ -221,7 +221,7 @@ export class ExecutionManagerTestRunner {
       )
     } else {
       await this.contracts.OVM_ExecutionManager.ovmCALL(
-        GAS_LIMIT,
+        OVM_TX_GAS_LIMIT,
         this.contracts.Helper_TestRunner.address,
         this.contracts.Helper_TestRunner.interface.encodeFunctionData(
           'runSingleTestStep',

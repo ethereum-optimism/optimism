@@ -2,7 +2,7 @@
 import {
   runExecutionManagerTest,
   TestDefinition,
-  GAS_LIMIT,
+  OVM_TX_GAS_LIMIT,
   NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
@@ -16,7 +16,7 @@ const test_ovmSTATICCALL: TestDefinition = {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -44,13 +44,13 @@ const test_ovmSTATICCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: [
-            GAS_LIMIT,
+            OVM_TX_GAS_LIMIT,
             '$DUMMY_OVM_ADDRESS_1',
             [
               {
                 functionName: 'ovmSTATICCALL',
                 functionParams: [
-                  GAS_LIMIT / 2,
+                  OVM_TX_GAS_LIMIT / 2,
                   '$DUMMY_OVM_ADDRESS_2',
                   [
                     {
@@ -60,7 +60,7 @@ const test_ovmSTATICCALL: TestDefinition = {
                       expectedReturnValues: [
                         REVERT_FLAGS.STATIC_VIOLATION,
                         '0x',
-                        GAS_LIMIT / 2,
+                        OVM_TX_GAS_LIMIT / 2,
                         0,
                       ],
                     },
@@ -71,7 +71,7 @@ const test_ovmSTATICCALL: TestDefinition = {
                       expectedReturnValues: [
                         REVERT_FLAGS.STATIC_VIOLATION,
                         '0x',
-                        GAS_LIMIT / 2,
+                        OVM_TX_GAS_LIMIT / 2,
                         0,
                       ],
                     },
@@ -110,19 +110,19 @@ const test_ovmSTATICCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: [
-            GAS_LIMIT,
+            OVM_TX_GAS_LIMIT,
             '$DUMMY_OVM_ADDRESS_1',
             [
               {
                 functionName: 'ovmSTATICCALL',
                 functionParams: [
-                  GAS_LIMIT,
+                  OVM_TX_GAS_LIMIT,
                   '$DUMMY_OVM_ADDRESS_2',
                   [
                     {
                       functionName: 'ovmCALL',
                       functionParams: [
-                        GAS_LIMIT,
+                        OVM_TX_GAS_LIMIT,
                         '$DUMMY_OVM_ADDRESS_2',
                         [
                           {
@@ -175,18 +175,18 @@ const test_ovmSTATICCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: [
-            GAS_LIMIT,
+            OVM_TX_GAS_LIMIT,
             '$DUMMY_OVM_ADDRESS_1',
             [
               {
                 functionName: 'ovmSTATICCALL',
                 functionParams: [
-                  GAS_LIMIT / 2,
+                  OVM_TX_GAS_LIMIT / 2,
                   '$DUMMY_OVM_ADDRESS_2',
                   [
                     {
                       functionName: 'ovmSTATICCALL',
-                      functionParams: [GAS_LIMIT, '$DUMMY_OVM_ADDRESS_2', []],
+                      functionParams: [OVM_TX_GAS_LIMIT, '$DUMMY_OVM_ADDRESS_2', []],
                       expectedReturnStatus: true,
                       expectedReturnValues: [],
                     },
@@ -197,7 +197,7 @@ const test_ovmSTATICCALL: TestDefinition = {
                       expectedReturnValues: [
                         REVERT_FLAGS.STATIC_VIOLATION,
                         '0x',
-                        GAS_LIMIT / 2,
+                        OVM_TX_GAS_LIMIT / 2,
                         33806,
                       ],
                     },
@@ -218,15 +218,15 @@ const test_ovmSTATICCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: [
-            GAS_LIMIT,
+            OVM_TX_GAS_LIMIT,
             '$DUMMY_OVM_ADDRESS_1',
             [
               {
                 functionName: 'ovmSTATICCALLToRevert',
                 functionParams: [
-                  GAS_LIMIT / 2,
+                  OVM_TX_GAS_LIMIT / 2,
                   '$DUMMY_OVM_ADDRESS_2',
-                  [REVERT_FLAGS.STATIC_VIOLATION, '0x', GAS_LIMIT / 2, 0],
+                  [REVERT_FLAGS.STATIC_VIOLATION, '0x', OVM_TX_GAS_LIMIT / 2, 0],
                 ],
                 expectedReturnStatus: true,
                 expectedReturnValues: [false, '0x'],
@@ -243,21 +243,21 @@ const test_ovmSTATICCALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: [
-            GAS_LIMIT,
+            OVM_TX_GAS_LIMIT,
             '$DUMMY_OVM_ADDRESS_1',
             [
               {
                 functionName: 'ovmSTATICCALL',
                 functionParams: [
-                  GAS_LIMIT,
+                  OVM_TX_GAS_LIMIT,
                   '$DUMMY_OVM_ADDRESS_1',
                   [
                     {
                       functionName: 'ovmSTATICCALLToRevert',
                       functionParams: [
-                        GAS_LIMIT / 2,
+                        OVM_TX_GAS_LIMIT / 2,
                         '$DUMMY_OVM_ADDRESS_2',
-                        [REVERT_FLAGS.STATIC_VIOLATION, '0x', GAS_LIMIT / 2, 0],
+                        [REVERT_FLAGS.STATIC_VIOLATION, '0x', OVM_TX_GAS_LIMIT / 2, 0],
                       ],
                       expectedReturnStatus: true,
                       expectedReturnValues: [false, '0x'],

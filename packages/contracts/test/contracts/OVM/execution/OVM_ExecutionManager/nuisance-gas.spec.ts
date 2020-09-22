@@ -2,7 +2,7 @@
 import {
     ExecutionManagerTestRunner,
     TestDefinition,
-    GAS_LIMIT,
+    OVM_TX_GAS_LIMIT,
     NON_NULL_BYTES32,
     REVERT_FLAGS,
     VERIFIED_EMPTY_CONTRACT_HASH,
@@ -20,7 +20,7 @@ import {
         ovmStateManager: '$OVM_STATE_MANAGER',
         ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
         messageRecord: {
-          nuisanceGasLeft: GAS_LIMIT,
+          nuisanceGasLeft: OVM_TX_GAS_LIMIT,
         },
       },
       StateManager: {
@@ -47,7 +47,7 @@ import {
             postState: {
                 ExecutionManager: {
                     messageRecord: {
-                        nuisanceGasLeft: GAS_LIMIT / 2
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
                     }
                 }
             },
@@ -56,14 +56,10 @@ import {
                     name: 'single ovmCALL',
                     focus: true,
                     steps: [
+                        // do a non-nuisance gas consuming opcode (test auto-wraps in ovmCALL)
                         {
-                          functionName: 'ovmCALL',
-                          functionParams: {
-                            gasLimit: GAS_LIMIT / 2,
-                            target: '$DUMMY_OVM_ADDRESS_2',
-                            subSteps: []
-                          },
-                          expectedReturnStatus: true,
+                          functionName: 'ovmADDRESS',
+                          expectedReturnValue: "$DUMMY_OVM_ADDRESS_1"
                         },
                     ],
                 }
@@ -77,7 +73,7 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {
@@ -101,7 +97,7 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {
@@ -127,7 +123,7 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {
@@ -151,13 +147,13 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {
                   functionName: 'ovmCALL',
                   functionParams: {
-                    gasLimit: GAS_LIMIT,
+                    gasLimit: OVM_TX_GAS_LIMIT,
                     target: '$DUMMY_OVM_ADDRESS_2',
                     subSteps: [
                       {
@@ -184,13 +180,13 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {
                   functionName: 'ovmCALL',
                   functionParams: {
-                    gasLimit: GAS_LIMIT,
+                    gasLimit: OVM_TX_GAS_LIMIT,
                     target: '$DUMMY_OVM_ADDRESS_3',
                     calldata: '0x',
                   },
@@ -209,7 +205,7 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {
@@ -232,7 +228,7 @@ import {
           {
             functionName: 'ovmCALL',
             functionParams: {
-              gasLimit: GAS_LIMIT,
+              gasLimit: OVM_TX_GAS_LIMIT,
               target: '$DUMMY_OVM_ADDRESS_1',
               subSteps: [
                 {

@@ -2,7 +2,7 @@
 import {
   runExecutionManagerTest,
   TestDefinition,
-  GAS_LIMIT,
+  OVM_TX_GAS_LIMIT,
   NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
@@ -17,7 +17,7 @@ const test_ovmSLOAD: TestDefinition = {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -45,7 +45,7 @@ const test_ovmSLOAD: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: [
-            GAS_LIMIT,
+            OVM_TX_GAS_LIMIT,
             '$DUMMY_OVM_ADDRESS_1',
             [
               {

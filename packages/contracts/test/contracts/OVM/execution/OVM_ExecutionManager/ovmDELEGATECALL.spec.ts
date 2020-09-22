@@ -2,7 +2,7 @@
 import {
   ExecutionManagerTestRunner,
   TestDefinition,
-  GAS_LIMIT,
+  OVM_TX_GAS_LIMIT,
   NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
@@ -20,7 +20,7 @@ const test_ovmDELEGATECALL: TestDefinition = {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -60,13 +60,13 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmDELEGATECALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
@@ -90,19 +90,19 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
                       functionName: 'ovmDELEGATECALL',
                       functionParams: {
-                        gasLimit: GAS_LIMIT,
+                        gasLimit: OVM_TX_GAS_LIMIT,
                         target: '$DUMMY_OVM_ADDRESS_2',
                         subSteps: [
                           {
@@ -130,13 +130,13 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmDELEGATECALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
@@ -171,13 +171,13 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmDELEGATECALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
@@ -205,25 +205,25 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
                       functionName: 'ovmDELEGATECALL',
                       functionParams: {
-                        gasLimit: GAS_LIMIT,
+                        gasLimit: OVM_TX_GAS_LIMIT,
                         target: '$DUMMY_OVM_ADDRESS_2',
                         subSteps: [
                           {
                             functionName: 'ovmDELEGATECALL',
                             functionParams: {
-                              gasLimit: GAS_LIMIT,
+                              gasLimit: OVM_TX_GAS_LIMIT,
                               target: '$DUMMY_OVM_ADDRESS_3',
                               subSteps: [
                                 {
@@ -255,25 +255,25 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
                       functionName: 'ovmDELEGATECALL',
                       functionParams: {
-                        gasLimit: GAS_LIMIT,
+                        gasLimit: OVM_TX_GAS_LIMIT,
                         target: '$DUMMY_OVM_ADDRESS_2',
                         subSteps: [
                           {
                             functionName: 'ovmDELEGATECALL',
                             functionParams: {
-                              gasLimit: GAS_LIMIT,
+                              gasLimit: OVM_TX_GAS_LIMIT,
                               target: '$DUMMY_OVM_ADDRESS_3',
                               subSteps: [
                                 {
@@ -305,25 +305,25 @@ const test_ovmDELEGATECALL: TestDefinition = {
         {
           functionName: 'ovmCALL',
           functionParams: {
-            gasLimit: GAS_LIMIT,
+            gasLimit: OVM_TX_GAS_LIMIT,
             target: '$DUMMY_OVM_ADDRESS_1',
             subSteps: [
               {
                 functionName: 'ovmCALL',
                 functionParams: {
-                  gasLimit: GAS_LIMIT,
+                  gasLimit: OVM_TX_GAS_LIMIT,
                   target: '$DUMMY_OVM_ADDRESS_2',
                   subSteps: [
                     {
                       functionName: 'ovmDELEGATECALL',
                       functionParams: {
-                        gasLimit: GAS_LIMIT,
+                        gasLimit: OVM_TX_GAS_LIMIT,
                         target: '$DUMMY_OVM_ADDRESS_2',
                         subSteps: [
                           {
                             functionName: 'ovmDELEGATECALL',
                             functionParams: {
-                              gasLimit: GAS_LIMIT,
+                              gasLimit: OVM_TX_GAS_LIMIT,
                               target: '$DUMMY_OVM_ADDRESS_3',
                               subSteps: [
                                 {

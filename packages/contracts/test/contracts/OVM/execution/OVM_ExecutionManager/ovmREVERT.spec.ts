@@ -2,7 +2,7 @@
 import {
   runExecutionManagerTest,
   TestDefinition,
-  GAS_LIMIT,
+  OVM_TX_GAS_LIMIT,
   NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
@@ -16,7 +16,7 @@ const test_ovmREVERT: TestDefinition = {
       ovmStateManager: '$OVM_STATE_MANAGER',
       ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
       messageRecord: {
-        nuisanceGasLeft: GAS_LIMIT,
+        nuisanceGasLeft: OVM_TX_GAS_LIMIT,
       },
     },
     StateManager: {
@@ -38,7 +38,7 @@ const test_ovmREVERT: TestDefinition = {
             {
               functionName: 'ovmCALL',
               functionParams: [
-                GAS_LIMIT / 2,
+                OVM_TX_GAS_LIMIT / 2,
                 '$DUMMY_OVM_ADDRESS_1',
                 [
                   {
@@ -48,7 +48,7 @@ const test_ovmREVERT: TestDefinition = {
                     expectedReturnValues: [
                       REVERT_FLAGS.INTENTIONAL_REVERT,
                       '0xdeadbeef',
-                      GAS_LIMIT / 2,
+                      OVM_TX_GAS_LIMIT / 2,
                       0,
                     ],
                   },

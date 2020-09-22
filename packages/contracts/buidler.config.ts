@@ -1,6 +1,6 @@
 import { usePlugin, BuidlerConfig } from '@nomiclabs/buidler/config'
 
-import { DEFAULT_ACCOUNTS_BUIDLER, GAS_LIMIT } from './test/helpers/constants'
+import { DEFAULT_ACCOUNTS_BUIDLER, RUN_OVM_TEST_GAS } from './test/helpers/constants'
 
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
@@ -11,7 +11,7 @@ const config: BuidlerConfig = {
   networks: {
     buidlerevm: {
       accounts: DEFAULT_ACCOUNTS_BUIDLER,
-      blockGasLimit: GAS_LIMIT * 2,
+      blockGasLimit: RUN_OVM_TEST_GAS * 2,
     },
   },
   mocha: {
