@@ -108,6 +108,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         data: calldata,
         chainId: CHAIN_ID,
       }
+
       const signedMessage = await signTransaction(wallet, transaction)
       const [v, r, s] = getSignedComponents(signedMessage)
 

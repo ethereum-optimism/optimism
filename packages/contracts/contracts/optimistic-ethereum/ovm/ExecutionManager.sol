@@ -175,7 +175,7 @@ contract ExecutionManager is ContractResolver {
         address _ovmEntrypoint,
         bytes memory _callBytes,
         uint _ovmTxGasLimit,
-        uint8 _v,
+        uint256 _v,
         bytes32 _r,
         bytes32 _s
     )
@@ -356,7 +356,7 @@ contract ExecutionManager is ContractResolver {
         uint _nonce,
         address _to,
         bytes memory _callData,
-        uint8 _v,
+        uint256 _v,
         bytes32 _r,
         bytes32 _s
     )
@@ -392,7 +392,8 @@ contract ExecutionManager is ContractResolver {
          * chainID. This was implemented based on the following EIP:
          * https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md#specification
          */
-        return ecrecover(hash, (_v - uint8(executionContext.chainId) * 2) - 8, _r, _s);
+
+        return ecrecover(hash, uint8(_v - (executionContext.chainId * 2) - 8), _r, _s);
     }
 
 

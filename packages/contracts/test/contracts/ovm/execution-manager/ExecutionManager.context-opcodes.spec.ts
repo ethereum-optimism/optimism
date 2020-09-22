@@ -17,6 +17,7 @@ import { fromPairs } from 'lodash'
 
 /* Internal Imports */
 import {
+  CHAIN_ID,
   GAS_LIMIT,
   Address,
   manuallyDeployOvmContract,
@@ -200,7 +201,6 @@ describe('Execution Manager -- Context opcodes', () => {
 
   describe('ovmCHAINID', async () => {
     it('properly retrieves CHAINID', async () => {
-      const chainId: number = 108
       const result = await executeTransaction(
         contractAddress,
         methodIds.callThroughExecutionManager,
@@ -210,7 +210,7 @@ describe('Execution Manager -- Context opcodes', () => {
       log.debug(`CHAINID result: ${result}`)
 
       should.exist(result, 'Result should exist!')
-      hexStrToNumber(result).should.be.equal(chainId, 'ChainIds do not match.')
+      hexStrToNumber(result).should.be.equal(CHAIN_ID, 'ChainIds do not match.')
     })
   })
 
