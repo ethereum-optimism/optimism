@@ -123,10 +123,13 @@ export class ExecutionManagerTestRunner {
   }
 
   private async initContracts() {
+    console.log('initcontracts')
     if (this.snapshot) {
       await ethers.provider.send('evm_revert', [this.snapshot])
+      this.snapshot = await ethers.provider.send('evm_snapshot', [])
       return
     }
+    console.log('no snapshot')
 
     this.contracts.OVM_SafetyChecker = await (
       await ethers.getContractFactory('OVM_SafetyChecker')
@@ -201,7 +204,7 @@ export class ExecutionManagerTestRunner {
           functionName: 'ovmCALL',
           functionParams: {
             gasLimit: OVM_TX_GAS_LIMIT,
-            target: this.contracts.Helper_TestRunner.address,
+            target: ExecutionManagerTestRunner.getDummyAddress("$DUMMY_OVM_ADDRESS_1"),
             subSteps: step.functionParams.subSteps,
           },
           expectedReturnStatus: true,
@@ -226,7 +229,7 @@ export class ExecutionManagerTestRunner {
     } else {
       await this.contracts.OVM_ExecutionManager.ovmCALL(
         OVM_TX_GAS_LIMIT,
-        this.contracts.Helper_TestRunner.address,
+        ExecutionManagerTestRunner.getDummyAddress("$DUMMY_OVM_ADDRESS_1"),
         this.contracts.Helper_TestRunner.interface.encodeFunctionData(
           'runSingleTestStep',
           [this.parseTestStep(step)]

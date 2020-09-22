@@ -834,6 +834,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _returndata
         )
     {
+        console.log("_callContract with nuisance gas:");
+        console.log(messageRecord.nuisanceGasLeft);
         return _handleExternalInteraction(
             _nextMessageContext,
             _gasLimit,
@@ -1126,6 +1128,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        console.log("checking account load");
         // See `_checkContractStorageLoad` for more information.
         if (gasleft() < MIN_GAS_FOR_INVALID_STATE_ACCESS) {
             _revertWithFlag(RevertFlag.OUT_OF_GAS);
@@ -1145,10 +1148,14 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // If we hadn't already loaded the account, then we'll need to charge "nuisance gas" based
         // on the size of the contract code.
         if (_wasAccountAlreadyLoaded == false) {
+            console.log("was not already loaded");
             _useNuisanceGas(
                 Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)) * NUISANCE_GAS_PER_CONTRACT_BYTE
             );
+            console.log("got code size:");
+            console.log(Lib_EthUtils.getCodeSize(_getAccountEthAddress(_address)));
         }
+        console.log("was already loaded");
     }
 
     /**
@@ -1414,6 +1421,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        console.log("using nuisance gas of amount:");
+        console.log(_amount);
         // Essentially the same as a standard OUT_OF_GAS, except we also retain a record of the gas
         // refund to be given at the end of the transaction.
         if (messageRecord.nuisanceGasLeft < _amount) {

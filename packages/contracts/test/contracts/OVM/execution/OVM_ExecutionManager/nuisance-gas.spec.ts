@@ -12,6 +12,8 @@ import {
   
   const DUMMY_REVERT_DATA =
     '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
+
+  console.log('cost multiplied:', Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE, 'bytelenL:',Helper_TestRunner_BYTELEN )
   
   const test_nuisanceGas: TestDefinition = {
     name: 'Basic tests for nuisance gas',
@@ -47,7 +49,7 @@ import {
             postState: {
                 ExecutionManager: {
                     messageRecord: {
-                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT - Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE
                     }
                 }
             },
@@ -56,10 +58,64 @@ import {
                     name: 'single ovmCALL',
                     focus: true,
                     steps: [
-                        // do a non-nuisance gas consuming opcode (test auto-wraps in ovmCALL)
+                        // do a non-nuisance-gas-consuming opcode (test runner auto-wraps in ovmCALL)
                         {
                           functionName: 'ovmADDRESS',
-                          expectedReturnValue: "$DUMMY_OVM_ADDRESS_1"
+                          expectedReturnValue: "$DUMMY_OVM_ADDRESS_1",
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            name: 'ovmCALL only consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE for same contract called twice',
+            postState: {
+                ExecutionManager: {
+                    messageRecord: {
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT - Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE
+                    }
+                }
+            },
+            parameters: [
+                {
+                    name: 'nested ovmCALL',
+                    focus: true,
+                    steps: [
+                        {
+                          functionName: 'ovmCALL',
+                          functionParams: {
+                              gasLimit: OVM_TX_GAS_LIMIT,
+                              target: "$DUMMY_OVM_ADDRESS_1",
+                              subSteps: []
+                          },
+                          expectedReturnStatus: true
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            name: 'ovmCALL only consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE twice for two separate ovmCALLS',
+            postState: {
+                ExecutionManager: {
+                    messageRecord: {
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT - 2 * ( Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE )
+                    }
+                }
+            },
+            parameters: [
+                {
+                    name: 'nested ovmCALL',
+                    // focus: true,
+                    steps: [
+                        {
+                          functionName: 'ovmCALL',
+                          functionParams: {
+                              gasLimit: OVM_TX_GAS_LIMIT,
+                              target: "$DUMMY_OVM_ADDRESS_2",
+                              subSteps: []
+                          },
+                          expectedReturnStatus: true
                         },
                     ],
                 }

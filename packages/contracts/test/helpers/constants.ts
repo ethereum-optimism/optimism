@@ -32,4 +32,4 @@ export const NUISANCE_GAS_COSTS = {
 }
 
   // TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
-export  const Helper_TestRunner_BYTELEN = 3686
+export  const Helper_TestRunner_BYTELEN = 3654
