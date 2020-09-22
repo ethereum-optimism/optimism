@@ -267,7 +267,7 @@ describe('Execution Manager -- Gas Metering', () => {
   })
   describe('Cumulative gas tracking', async () => {
     const timestamp = 1
-    it('Should properly track sequenced consumed gas', async () => {
+    xit('Should properly track sequenced consumed gas', async () => {
       const gasToConsume: number = 500_000
       const consumeTx = getConsumeGasCallback(
         timestamp,
@@ -281,7 +281,7 @@ describe('Execution Manager -- Gas Metering', () => {
         gasToConsume + OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
-    it('Should properly track queued consumed gas', async () => {
+    xit('Should properly track queued consumed gas', async () => {
       const gasToConsume: number = 700_000
       const consumeGas = getConsumeGasCallback(
         timestamp,
@@ -295,7 +295,7 @@ describe('Execution Manager -- Gas Metering', () => {
         gasToConsume + OVM_TX_BASE_GAS_FEE + CONSUME_GAS_EXECUTION_OVERHEAD
       )
     })
-    it('Should properly track both queue and sequencer consumed gas', async () => {
+    xit('Should properly track both queue and sequencer consumed gas', async () => {
       const sequencerGasToConsume = 100_000
       const queueGasToConsume = 200_000
 
@@ -327,7 +327,7 @@ describe('Execution Manager -- Gas Metering', () => {
     })
   })
   describe('Gas rate limiting over multiple transactions', async () => {
-    it('Should properly track gas over multiple transactions', async () => {
+    xit('Should properly track gas over multiple transactions', async () => {
       const timestamp = 1
       const gasToConsumeFirst = 100_000
       const gasToConsumeSecond = 200_000
