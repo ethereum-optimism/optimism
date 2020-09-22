@@ -181,7 +181,7 @@ else
     vault status
     vault secrets list
     test_banner
-    test_plugin
+#    test_plugin
 fi
 
 # Don't exit until vault dies
