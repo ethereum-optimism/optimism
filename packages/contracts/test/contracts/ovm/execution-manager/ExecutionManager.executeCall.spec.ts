@@ -162,6 +162,99 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       )
       await provider.waitForTransaction(tx.hash)
     })
+
+    it('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
+      const DeployerWhitelist = await ethers.getContractFactory(
+        'DeployerWhitelist'
+      )
+      const deployerWhitelist = await DeployerWhitelist.deploy(
+        wallet.address,
+        false
+      )
+      await resolver.addressResolver.setAddress(
+        'DeployerWhitelist',
+        deployerWhitelist.address
+      )
+
+      // Generate our tx calldata
+      const calldata = DeployerWhitelist.getDeployTransaction(
+        wallet.address,
+        false
+      ).data // use the whitelist deployment as example initcode
+      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
+      const transaction = {
+        nonce,
+        gasLimit: GAS_LIMIT,
+        gasPrice: 0,
+        to: ZERO_ADDRESS,
+        value: 0,
+        data: calldata,
+        chainId: CHAIN_ID,
+      }
+
+      // Call using Ethers and expect it to fail
+      await TestUtils.assertRevertsAsync(
+        async () =>
+          executionManager.executeTransaction(
+            getCurrentTime(),
+            0,
+            0,
+            transaction.to,
+            transaction.data,
+            wallet.address,
+            ZERO_ADDRESS,
+            GAS_LIMIT,
+            true
+          ),
+        'Sender not allowed to deploy new contracts!'
+      )
+
+      // Now add the wallet.address to the whitelist and it should work this time!
+      await deployerWhitelist.setWhitelistedDeployer(wallet.address, true)
+      await executionManager.executeTransaction(
+        getCurrentTime(),
+        0,
+        0,
+        transaction.to,
+        transaction.data,
+        wallet.address,
+        ZERO_ADDRESS,
+        GAS_LIMIT,
+        true
+      )
+
+      // And then... set it to false, try to call, and it'll fail again!
+      await deployerWhitelist.setWhitelistedDeployer(wallet.address, false)
+      await TestUtils.assertRevertsAsync(
+        async () =>
+          executionManager.executeTransaction(
+            getCurrentTime(),
+            0,
+            0,
+            transaction.to,
+            transaction.data,
+            wallet.address,
+            ZERO_ADDRESS,
+            GAS_LIMIT,
+            true
+          ),
+        'Sender not allowed to deploy new contracts!'
+      )
+
+      // Lastly let's just let everyone deploy and make sure it worked!
+      await deployerWhitelist.enableArbitraryContractDeployment()
+      await executionManager.executeTransaction(
+        getCurrentTime(),
+        0,
+        0,
+        transaction.to,
+        transaction.data,
+        wallet.address,
+        ZERO_ADDRESS,
+        GAS_LIMIT,
+        true
+      )
+    })
   })
 
   describe('executeEOACall', async () => {

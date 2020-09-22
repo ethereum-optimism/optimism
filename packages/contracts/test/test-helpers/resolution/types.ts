@@ -8,6 +8,7 @@ export interface ContractDeployConfig {
 
 type ContractFactoryName =
   | 'GasConsumer'
+  | 'DeployerWhitelist'
   | 'L1ToL2TransactionQueue'
   | 'SafetyTransactionQueue'
   | 'CanonicalTransactionChain'
@@ -20,6 +21,7 @@ type ContractFactoryName =
 
 export interface AddressResolverDeployConfig {
   GasConsumer: ContractDeployConfig
+  DeployerWhitelist: ContractDeployConfig
   L1ToL2TransactionQueue: ContractDeployConfig
   SafetyTransactionQueue: ContractDeployConfig
   CanonicalTransactionChain: ContractDeployConfig
@@ -38,6 +40,7 @@ export interface AddressResolverConfig {
 
 interface ContractMapping {
   gasConsumer: Contract
+  deployerWhitelist: Contract
   l1ToL2TransactionQueue: Contract
   safetyTransactionQueue: Contract
   canonicalTransactionChain: Contract
@@ -56,6 +59,7 @@ export interface AddressResolverMapping {
 
 export const factoryToContractName = {
   GasConsumer: 'gasConsumer',
+  DeployerWhitelist: 'deployerWhitelist',
   L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
   SafetyTransactionQueue: 'safetyTransactionQueue',
   CanonicalTransactionChain: 'canonicalTransactionChain',

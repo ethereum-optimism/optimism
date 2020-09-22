@@ -6,6 +6,7 @@ import { Contract } from 'ethers'
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
 import {
   GAS_LIMIT,
+  ZERO_ADDRESS,
   DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
   getDefaultGasMeterParams,
 } from '../constants'
@@ -25,6 +26,10 @@ export const getDefaultDeployConfig = async (
     GasConsumer: {
       factory: await ethers.getContractFactory('GasConsumer'),
       params: [],
+    },
+    DeployerWhitelist: {
+      factory: await ethers.getContractFactory('DeployerWhitelist'),
+      params: [ZERO_ADDRESS, true],
     },
     L1ToL2TransactionQueue: {
       factory: await ethers.getContractFactory('L1ToL2TransactionQueue'),

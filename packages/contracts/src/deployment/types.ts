@@ -20,10 +20,13 @@ export interface RollupOptions {
   ownerAddress: string
   sequencerAddress: string
   gasMeterConfig: GasMeterOptions
+  deployerWhitelistOwnerAddress: string
+  allowArbitraryContractDeployment: boolean
 }
 
 export type ContractFactoryName =
   | 'GasConsumer'
+  | 'DeployerWhitelist'
   | 'L1ToL2TransactionQueue'
   | 'SafetyTransactionQueue'
   | 'CanonicalTransactionChain'
@@ -37,6 +40,7 @@ export type ContractFactoryName =
 
 export interface ContractDeployConfig {
   GasConsumer: ContractDeployOptions
+  DeployerWhitelist: ContractDeployOptions
   L1ToL2TransactionQueue: ContractDeployOptions
   SafetyTransactionQueue: ContractDeployOptions
   CanonicalTransactionChain: ContractDeployOptions
@@ -51,6 +55,7 @@ export interface ContractDeployConfig {
 
 interface ContractMapping {
   gasConsumer: Contract
+  deployerWhitelist: Contract
   l1ToL2TransactionQueue: Contract
   safetyTransactionQueue: Contract
   canonicalTransactionChain: Contract
@@ -74,6 +79,7 @@ export interface DeployResult extends AddressResolverMapping {
 
 export const factoryToContractName = {
   GasConsumer: 'gasConsumer',
+  DeployerWhitelist: 'deployerWhitelist',
   L1ToL2TransactionQueue: 'l1ToL2TransactionQueue',
   SafetyTransactionQueue: 'safetyTransactionQueue',
   CanonicalTransactionChain: 'canonicalTransactionChain',

@@ -24,6 +24,11 @@ export const getDefaultContractDeployConfig = async (
       params: [],
       signer: deployerWallet,
     },
+    DeployerWhitelist: {
+      factory: await getContractFactory('DeployerWhitelist'),
+      params: [rollupOptions.deployerWhitelistOwnerAddress, rollupOptions.allowArbitraryContractDeployment],
+      signer: deployerWallet,
+    },
     L1ToL2TransactionQueue: {
       factory: getContractFactory('L1ToL2TransactionQueue'),
       params: [addressResolverAddress],

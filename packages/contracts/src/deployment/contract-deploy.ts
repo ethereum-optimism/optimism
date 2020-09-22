@@ -26,6 +26,7 @@ const deployContract = async (
 ): Promise<Contract> => {
   config.factory = config.factory.connect(config.signer)
   const rawTx = config.factory.getDeployTransaction(...config.params)
+  console.log('Deploying!')
 
   // Can't use this because it fails on ExecutionManager & FraudVerifier
   // return config.factory.deploy(...config.params)

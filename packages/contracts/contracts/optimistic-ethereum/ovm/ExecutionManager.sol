@@ -7,6 +7,7 @@ import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
 import { StateManagerGasSanitizer } from "./StateManagerGasSanitizer.sol";
+import { DeployerWhitelist } from "./precompiles/DeployerWhitelist.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -253,6 +254,9 @@ contract ExecutionManager is ContractResolver {
 
         // Check if we're creating -- ovmEntrypoint == ZERO_ADDRESS
         if (isCreate) {
+            // Require that the deployer whitelist contract approves of the deployment.
+            // TODO: Put this check inside of our default EOA contracts
+            require(resolveDeployerWhitelist().isDeployerAllowed(_fromAddress), "Sender not allowed to deploy new contracts!");
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 
@@ -1496,5 +1500,13 @@ contract ExecutionManager is ContractResolver {
         returns (StateManager)
     {
         return StateManager(resolveContract("StateManagerGasSanitizer"));
+    }
+
+    function resolveDeployerWhitelist()
+        internal
+        view
+        returns (DeployerWhitelist)
+    {
+        return DeployerWhitelist(resolveContract("DeployerWhitelist"));
     }
 }
