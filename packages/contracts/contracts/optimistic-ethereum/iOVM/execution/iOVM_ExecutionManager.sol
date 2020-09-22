@@ -54,9 +54,10 @@ interface iOVM_ExecutionManager {
     struct TransactionContext {
         address ovmORIGIN;
         uint256 ovmTIMESTAMP;
+        uint256 ovmNUMBER;
         uint256 ovmGASLIMIT;
         uint256 ovmTXGASLIMIT;
-        uint256 ovmQUEUEORIGIN;
+        uint256 ovmL1QUEUEORIGIN;
     }
 
     struct TransactionRecord {
@@ -92,12 +93,19 @@ interface iOVM_ExecutionManager {
 
     function ovmCALLER() external view returns (address _caller);
     function ovmADDRESS() external view returns (address _address);
-    function ovmORIGIN() external view returns (address _origin);
     function ovmTIMESTAMP() external view returns (uint256 _timestamp);
     function ovmGASLIMIT() external view returns (uint256 _gasLimit);
     function ovmCHAINID() external view returns (uint256 _chainId);
 
+    
+    /**********************
+     * L2 Context Opcodes *
+     **********************/
 
+    function ovmL1QUEUEORIGIN() external view returns (Lib_OVMCodec.QueueOrigin _queueOrigin);
+    function ovmL1TXORIGIN() external view returns (address _l1TxOrigin);
+
+    
     /*******************
      * Halting Opcodes *
      *******************/

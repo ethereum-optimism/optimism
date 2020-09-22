@@ -185,21 +185,6 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     }
 
     /**
-     * @notice Overrides ORIGIN.
-     * @return _ORIGIN Address of the ORIGIN within the transaction context.
-     */
-    function ovmORIGIN()
-        override
-        public
-        view
-        returns (
-            address _ORIGIN
-        )
-    {
-        return transactionContext.ovmORIGIN;
-    }
-
-    /**
      * @notice Overrides TIMESTAMP.
      * @return _TIMESTAMP Value of the TIMESTAMP within the transaction context.
      */
@@ -212,6 +197,21 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         )
     {
         return transactionContext.ovmTIMESTAMP;
+    }
+
+    /**
+     * @notice Overrides NUMBER.
+     * @return _NUMBER Value of the NUMBER within the transaction context.
+     */
+    function ovmNUMBER()
+        override
+        public
+        view
+        returns (
+            uint256 _NUMBER
+        )
+    {
+        return transactionContext.ovmNUMBER;
     }
 
     /**
@@ -244,6 +244,39 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         return globalContext.ovmCHAINID;
     }
 
+    /*********************************
+     * Opcodes: L2 Execution Context *
+     *********************************/
+
+    /**
+     * @notice Specifies from which L1 rollup queue this transaction originated from.
+     * @return _queueOrigin Address of the CALLER within the current message context.
+     */
+    function ovmL1QUEUEORIGIN()
+        override
+        public
+        view
+        returns (
+            Lib_OVMCodec.QueueOrigin _queueOrigin
+        )
+    {
+        return transactionContext.ovmL1QUEUEORIGIN;
+    }
+
+    /**
+     * @notice Specifies what L1 EOA, if any, sent this transaction.
+     * @return _l1TxOrigin Address of the EOA which send the tx into L2 from L1.
+     */
+    function ovmL1TXORIGIN()
+        override
+        public
+        view
+        returns (
+            address _l1TxOrigin
+        )
+    {
+        return transactionContext.ovmL1TXORIGIN;
+    }
 
     /********************
      * Opcodes: Halting *
@@ -1646,8 +1679,10 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         internal
     {
         transactionContext.ovmTIMESTAMP = _transaction.timestamp;
+        transactionContext.ovmNUMBER = _transaction.number;
         transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;
-        transactionContext.ovmQUEUEORIGIN = _transaction.queueOrigin;
+        transactionContext.ovmL1QUEUEORIGIN = _transaction.l1QueueOrigin;
+        transactionContext.ovmL1TXORIGIN = _transaction.l1Txorigin;
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
     }
 
@@ -1659,6 +1694,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     {
         transactionContext.ovmORIGIN = address(0);
         transactionContext.ovmTIMESTAMP = 0;
+        transactionContext.ovmNUMBER = 0;
         transactionContext.ovmGASLIMIT = 0;
         transactionContext.ovmTXGASLIMIT = 0;
         transactionContext.ovmQUEUEORIGIN = 0;

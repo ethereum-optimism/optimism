@@ -45,9 +45,10 @@ library Lib_OVMCodec {
 
     struct Transaction {
         uint256 timestamp;
-        uint256 queueOrigin;
+        uint256 number;
+        uint256 l1QueueOrigin;
+        address l1Txorigin;
         address entrypoint;
-        address origin;
         address msgSender;
         uint256 gasLimit;
         bytes data;
