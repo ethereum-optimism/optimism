@@ -178,7 +178,7 @@ const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
                         // OVM_TX_GAS_LIMIT / 2 - 2 * ( Helper_TestRunner_BYTELEN * NUISANCE_GAS_PER_CONTRACT_BYTE )
                         // This is because there is natural gas consumption between the ovmCALL(GAS/2) and ovmCREATE, which allots nuisance gas via _getNuisanceGasLimit.
                         // This means that the ovmCREATE exception, DOES consumes all nuisance gas allotted, but that allotment
-                        // is less than the full OVM_TX_GAS_LIMIT / 2 alloted to the parent call.
+                        // is less than the full OVM_TX_GAS_LIMIT / 2 which is alloted to the parent ovmCALL.
                         nuisanceGasLeft: 4603714
                     }
                 }
