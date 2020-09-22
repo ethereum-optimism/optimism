@@ -12,8 +12,6 @@ import {
   
   const DUMMY_REVERT_DATA =
     '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
-
-  console.log('cost multiplied:', Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE, 'bytelenL:',Helper_TestRunner_BYTELEN )
   
   const test_nuisanceGas: TestDefinition = {
     name: 'Basic tests for nuisance gas',
@@ -46,6 +44,7 @@ import {
     subTests: [
         {
             name: 'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE',
+            focus: true,
             postState: {
                 ExecutionManager: {
                     messageRecord: {
@@ -64,21 +63,9 @@ import {
                           expectedReturnValue: "$DUMMY_OVM_ADDRESS_1",
                         },
                     ],
-                }
-            ]
-        },
-        {
-            name: 'ovmCALL only consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE for same contract called twice',
-            postState: {
-                ExecutionManager: {
-                    messageRecord: {
-                        nuisanceGasLeft: OVM_TX_GAS_LIMIT - Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE
-                    }
-                }
-            },
-            parameters: [
+                },
                 {
-                    name: 'nested ovmCALL',
+                    name: 'nested ovmCALL, same address',
                     focus: true,
                     steps: [
                         {
@@ -95,7 +82,7 @@ import {
             ]
         },
         {
-            name: 'ovmCALL only consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE twice for two separate ovmCALLS',
+            name: 'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE twice for two unique ovmCALLS',
             postState: {
                 ExecutionManager: {
                     messageRecord: {
@@ -105,8 +92,7 @@ import {
             },
             parameters: [
                 {
-                    name: 'nested ovmCALL',
-                    // focus: true,
+                    name: 'directly nested ovmCALL',
                     steps: [
                         {
                           functionName: 'ovmCALL',
@@ -114,6 +100,89 @@ import {
                               gasLimit: OVM_TX_GAS_LIMIT,
                               target: "$DUMMY_OVM_ADDRESS_2",
                               subSteps: []
+                          },
+                          expectedReturnStatus: true
+                        },
+                    ],
+                },
+                {
+                    name: 'with a call to already loaded contract inside',
+                    steps: [
+                        {
+                          functionName: 'ovmCALL',
+                          functionParams: {
+                              gasLimit: OVM_TX_GAS_LIMIT,
+                              target: "$DUMMY_OVM_ADDRESS_2",
+                              subSteps: [
+                                  {
+                                      functionName: 'ovmCALL',
+                                      functionParams: {
+                                          gasLimit: OVM_TX_GAS_LIMIT,
+                                          target: '$DUMMY_OVM_ADDRESS_1',
+                                          subSteps: []
+                                      },
+                                      expectedReturnStatus: true
+                                  }
+                              ]
+                          },
+                          expectedReturnStatus: true
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            name: 'ovmCALL consumes all allotted nuisance gas if code contract throws unknown exception',
+            postState: {
+                ExecutionManager: {
+                    messageRecord: {
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT - ( Helper_TestRunner_BYTELEN * NUISANCE_GAS_COSTS.NUISANCE_GAS_PER_CONTRACT_BYTE ) - OVM_TX_GAS_LIMIT / 2
+                    }
+                }
+            },
+            parameters: [
+                {
+                    name: 'give 1/2 gas to evmREVERT',
+                    focus: true,
+                    steps: [
+                        {
+                          functionName: 'ovmCALL',
+                          functionParams: {
+                              gasLimit: OVM_TX_GAS_LIMIT / 2,
+                              target: "$DUMMY_OVM_ADDRESS_1",
+                              subSteps: [
+                                  {
+                                      functionName: 'evmINVALID'
+                                  }
+                              ]
+                          },
+                          expectedReturnStatus: true,
+                          expectedReturnValue: {
+                              ovmSuccess: false,
+                              returnData: '0x'
+                          }
+                        },
+                    ],
+                },
+                {
+                    name: 'with a call to already loaded contract inside',
+                    steps: [
+                        {
+                          functionName: 'ovmCALL',
+                          functionParams: {
+                              gasLimit: OVM_TX_GAS_LIMIT,
+                              target: "$DUMMY_OVM_ADDRESS_2",
+                              subSteps: [
+                                  {
+                                      functionName: 'ovmCALL',
+                                      functionParams: {
+                                          gasLimit: OVM_TX_GAS_LIMIT,
+                                          target: '$DUMMY_OVM_ADDRESS_1',
+                                          subSteps: []
+                                      },
+                                      expectedReturnStatus: true
+                                  }
+                              ]
                           },
                           expectedReturnStatus: true
                         },
