@@ -167,38 +167,6 @@ const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
                         },
                     ],
                 },
-                {
-                    name: 'guve 1/2 gas to a sub-ovmCALL which evmINVALIDs',
-                    steps: [
-                        {
-                          functionName: 'ovmCALL',
-                          functionParams: {
-                              gasLimit: OVM_TX_GAS_LIMIT / 2,
-                              target: "$DUMMY_OVM_ADDRESS_2",
-                              subSteps: [
-                                  {
-                                      functionName: 'ovmCALL',
-                                      functionParams: {
-                                          gasLimit: OVM_TX_GAS_LIMIT,
-                                          target: '$DUMMY_OVM_ADDRESS_1',
-                                          subSteps: [
-                                            {
-                                                functionName: 'evmINVALID'
-                                            }
-                                          ]
-                                      },
-                                      expectedReturnStatus: true,
-                                      expectedReturnValue: {
-                                          ovmSuccess: false,
-                                          returnData: '0x'
-                                      }                                  
-                                    }
-                              ]
-                          },
-                          expectedReturnStatus: true
-                        },
-                    ],
-                }
             ]
         },
         {
