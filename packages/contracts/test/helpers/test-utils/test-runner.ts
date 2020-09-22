@@ -147,6 +147,10 @@ export class ExecutionManagerTestRunner {
     this.snapshot = await ethers.provider.send('evm_snapshot', [])
   }
 
+  public static getDummyAddress(placeholder: string): string {
+    return '0x' + (placeholder.split('$DUMMY_OVM_ADDRESS_')[1] + '0').repeat(20)
+  }
+
   private setPlaceholderStrings(obj: any) {
     const getReplacementString = (kv: string): string => {
       if (kv === '$OVM_EXECUTION_MANAGER') {
@@ -158,7 +162,7 @@ export class ExecutionManagerTestRunner {
       } else if (kv === '$OVM_CALL_HELPER') {
         return this.contracts.Helper_TestRunner.address
       } else if (kv.startsWith('$DUMMY_OVM_ADDRESS_')) {
-        return '0x' + (kv.split('$DUMMY_OVM_ADDRESS_')[1] + '0').repeat(20)
+        return ExecutionManagerTestRunner.getDummyAddress(kv)
       } else {
         return kv
       }
