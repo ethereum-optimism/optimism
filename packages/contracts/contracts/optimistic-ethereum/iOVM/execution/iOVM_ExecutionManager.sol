@@ -29,12 +29,6 @@ interface iOVM_ExecutionManager {
         PREV_EPOCH_SEQUENCER_QUEUE_GAS,
         PREV_EPOCH_L1TOL2_QUEUE_GAS
     }
-
-    enum QueueOrigin {
-        SEQUENCER_QUEUE,
-        L1TOL2_QUEUE
-    }
-
     
     /***********
      * Structs *
@@ -52,12 +46,12 @@ interface iOVM_ExecutionManager {
     }
 
     struct TransactionContext {
-        address ovmORIGIN;
         uint256 ovmTIMESTAMP;
         uint256 ovmNUMBER;
         uint256 ovmGASLIMIT;
         uint256 ovmTXGASLIMIT;
-        uint256 ovmL1QUEUEORIGIN;
+        Lib_OVMCodec.QueueOrigin ovmL1QUEUEORIGIN;
+        address ovmL1TXORIGIN;
     }
 
     struct TransactionRecord {
@@ -94,6 +88,7 @@ interface iOVM_ExecutionManager {
     function ovmCALLER() external view returns (address _caller);
     function ovmADDRESS() external view returns (address _address);
     function ovmTIMESTAMP() external view returns (uint256 _timestamp);
+    function ovmNUMBER() external view returns (uint256 _number);
     function ovmGASLIMIT() external view returns (uint256 _gasLimit);
     function ovmCHAINID() external view returns (uint256 _chainId);
 

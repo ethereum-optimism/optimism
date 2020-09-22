@@ -126,7 +126,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
 
         // Make sure the transaction's gas limit is valid. We don't revert here because we reserve
         // reverts for INVALID_STATE_ACCESS.
-        if (_isValidGasLimit(_transaction.gasLimit, _transaction.queueOrigin) == false) {
+        if (_isValidGasLimit(_transaction.gasLimit, _transaction.l1QueueOrigin) == false) {
             return;
         }
 
@@ -143,7 +143,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         uint256 gasUsed = gasProvided - gasleft();
 
         // Update the cumulative gas based on the amount of gas used.
-        _updateCumulativeGas(gasUsed, _transaction.queueOrigin);
+        _updateCumulativeGas(gasUsed, _transaction.l1QueueOrigin);
 
         // Wipe the execution context.
         _resetContext();
@@ -1532,7 +1532,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      */
     function _isValidGasLimit(
         uint256 _gasLimit,
-        uint256 _queueOrigin
+        Lib_OVMCodec.QueueOrigin _queueOrigin
     )
         internal
         returns (
@@ -1549,7 +1549,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
 
         GasMetadataKey cumulativeGasKey;
         GasMetadataKey prevEpochGasKey;
-        if (_queueOrigin == uint256(QueueOrigin.SEQUENCER_QUEUE)) {
+        if (_queueOrigin == Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE) {
             cumulativeGasKey = GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS;
             prevEpochGasKey = GasMetadataKey.PREV_EPOCH_SEQUENCER_QUEUE_GAS;
         } else {
@@ -1573,12 +1573,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
      */
     function _updateCumulativeGas(
         uint256 _gasUsed,
-        uint256 _queueOrigin
+        Lib_OVMCodec.QueueOrigin _queueOrigin
     )
         internal
     {
         GasMetadataKey cumulativeGasKey;
-        if (_queueOrigin == uint256(QueueOrigin.SEQUENCER_QUEUE)) {
+        if (_queueOrigin == Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE) {
             cumulativeGasKey = GasMetadataKey.CUMULATIVE_SEQUENCER_QUEUE_GAS;
         } else {
             cumulativeGasKey = GasMetadataKey.CUMULATIVE_L1TOL2_QUEUE_GAS;
@@ -1692,12 +1692,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     function _resetContext()
         internal
     {
-        transactionContext.ovmORIGIN = address(0);
+        transactionContext.ovmL1TXORIGIN = address(0);
         transactionContext.ovmTIMESTAMP = 0;
         transactionContext.ovmNUMBER = 0;
         transactionContext.ovmGASLIMIT = 0;
         transactionContext.ovmTXGASLIMIT = 0;
-        transactionContext.ovmQUEUEORIGIN = 0;
+        transactionContext.ovmL1QUEUEORIGIN = Lib_OVMCodec.QueueOrigin.SEQUENCER_QUEUE;
 
         transactionRecord.ovmGasRefund = 0;
 

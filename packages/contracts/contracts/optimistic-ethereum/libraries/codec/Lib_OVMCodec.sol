@@ -43,13 +43,17 @@ library Lib_OVMCodec {
         bytes32[] siblings;
     }
 
+    enum QueueOrigin {
+        SEQUENCER_QUEUE,
+        L1TOL2_QUEUE
+    }
+
     struct Transaction {
         uint256 timestamp;
         uint256 number;
-        uint256 l1QueueOrigin;
+        QueueOrigin l1QueueOrigin;
         address l1Txorigin;
         address entrypoint;
-        address msgSender;
         uint256 gasLimit;
         bytes data;
     }
@@ -124,10 +128,10 @@ library Lib_OVMCodec {
     {
         return abi.encodePacked(
             _transaction.timestamp,
-            _transaction.queueOrigin,
+            _transaction.number,
+            _transaction.l1QueueOrigin,
+            _transaction.l1Txorigin,
             _transaction.entrypoint,
-            _transaction.origin,
-            _transaction.msgSender,
             _transaction.gasLimit,
             _transaction.data
         );
