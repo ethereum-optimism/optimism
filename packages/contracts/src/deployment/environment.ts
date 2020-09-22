@@ -75,17 +75,15 @@ export class Environment {
   public static allowArbitraryContractDeployment(
     defaultValue?: boolean
   ): boolean {
-    const allowDeployment = process.env.ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT
+    const allowDeployment = process.env.ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT.toLowerCase()
     if (typeof allowDeployment !== 'undefined') {
       if (allowDeployment !== 'true' && allowDeployment !== 'false') {
         throw new Error(
           `Invalid value for allow arbitrary contract deployment: ${process.env.ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT}`
         )
       }
-      console.log('returning allow deployment', allowDeployment)
       return allowDeployment === 'true'
     }
-    console.log('Returning default allowArb deployment value')
     return defaultValue
   }
 }
