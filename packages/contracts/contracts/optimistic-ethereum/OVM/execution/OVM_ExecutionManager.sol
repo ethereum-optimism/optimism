@@ -487,6 +487,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _returndata
         )
     {
+        console.log("ovmCALL to");
+        console.logAddress(_address);
         // CALL updates the CALLER and ADDRESS.
         MessageContext memory nextMessageContext = messageContext;
         nextMessageContext.ovmCALLER = nextMessageContext.ovmADDRESS;
@@ -1678,6 +1680,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        console.log("setting number to:");
+        console.log(_transaction.number);
         transactionContext.ovmTIMESTAMP = _transaction.timestamp;
         transactionContext.ovmNUMBER = _transaction.number;
         transactionContext.ovmTXGASLIMIT = _transaction.gasLimit;

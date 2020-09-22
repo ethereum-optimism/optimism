@@ -3,8 +3,10 @@ import { BigNumber } from 'ethers'
 
 export type ContextOpcode =
   | 'ovmCALLER'
+  | 'ovmNUMBER'
   | 'ovmADDRESS'
-  | 'ovmORIGIN'
+  | 'ovmL1TXORIGIN'
+  | 'ovmL1QUEUEORIGIN'
   | 'ovmTIMESTAMP'
   | 'ovmGASLIMIT'
   | 'ovmCHAINID'
@@ -170,10 +172,11 @@ export const isTestStep_Context = (
   return [
     'ovmCALLER',
     'ovmADDRESS',
-    'ovmORIGIN',
+    'ovmL1TXORIGIN',
     'ovmTIMESTAMP',
     'ovmGASLIMIT',
     'ovmCHAINID',
+    'ovmL1QUEUEORIGIN'
   ].includes(step.functionName)
 }
 

@@ -46,11 +46,11 @@ interface iOVM_ExecutionManager {
     }
 
     struct TransactionContext {
+        Lib_OVMCodec.QueueOrigin ovmL1QUEUEORIGIN;
         uint256 ovmTIMESTAMP;
         uint256 ovmNUMBER;
         uint256 ovmGASLIMIT;
         uint256 ovmTXGASLIMIT;
-        Lib_OVMCodec.QueueOrigin ovmL1QUEUEORIGIN;
         address ovmL1TXORIGIN;
     }
 

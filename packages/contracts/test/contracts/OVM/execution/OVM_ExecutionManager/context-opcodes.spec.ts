@@ -1,12 +1,9 @@
 /* Internal Imports */
 import {
-    runExecutionManagerTest,
+    ExecutionManagerTestRunner,
     TestDefinition,
-    OVM_TX_GAS_LIMIT,
-    NULL_BYTES32,
     NON_NULL_BYTES32,
-    REVERT_FLAGS,
-    DUMMY_BYTECODE,
+    OVM_TX_GAS_LIMIT
   } from '../../../../helpers'
 
   const globalContext = {
@@ -15,6 +12,7 @@ import {
 
   const transactionContext = {
     ovmTIMESTAMP: 12341234,
+    ovmNUMBER: 13371337,
     ovmGASLIMIT: 45674567,
     ovmTXGASLIMIT: 78907890,
     ovmL1QUEUEORIGIN: 1,
@@ -26,123 +24,105 @@ import {
       ovmADDRESS: '0x4567456745674567456745674567456745674567'
   }
   
-  const test_ovmContextOpcodes: TestDefinition = {
+  const test_contextOpcodes: TestDefinition = {
     name: 'unit tests for basic getter opcodes',
     preState: {
       ExecutionManager: {
+        ovmStateManager: '$OVM_STATE_MANAGER',
+        ovmSafetyChecker: '$OVM_SAFETY_CHECKER',
+        messageRecord: {
+          nuisanceGasLeft: OVM_TX_GAS_LIMIT,
+        },
         globalContext,
         transactionContext,
         messageContext
+      },     
+      StateManager: {
+        owner: '$OVM_EXECUTION_MANAGER',
+        accounts: {
+          $DUMMY_OVM_ADDRESS_1: {
+            codeHash: NON_NULL_BYTES32,
+            ethAddress: '$OVM_CALL_HELPER',
+          },
+        },
       },
     },
     parameters: [
-      {
-        name: 'gets ovmCALLER',
-        parameters: [
-          {
-            steps: [
-                {
-                    functionName: 'ovmCALLER',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [messageContext.ovmCALLER]
-                }
-            ],
-          },
-        ],
-      },
-      {
-        name: 'gets ovmADDRESS',
-        parameters: [
-          {
-            steps: [
-                {
-                    functionName: 'ovmADDRESS',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [messageContext.ovmADDRESS]
-                }
-            ],
-          },
-        ],
-      },
+      // TODO: re-enable when we can unwrap tests' ovmCALL
+      // {
+      //   name: 'gets ovmCALLER',
+      //   steps: [
+      //           {
+      //               functionName: 'ovmCALLER',
+      //               expectedReturnValue: messageContext.ovmCALLER
+      //           }
+      //       ],
+      // },
+      // {
+      //   name: 'gets ovmADDRESS',
+      //       steps: [
+      //           {
+      //               functionName: 'ovmADDRESS',
+      //               expectedReturnValue: messageContext.ovmADDRESS
+      //           }
+      //       ],
+      // },
       {
         name: 'gets ovmTIMESTAMP',
-        parameters: [
-          {
             steps: [
                 {
                     functionName: 'ovmTIMESTAMP',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [transactionContext.ovmTIMESTAMP]
+                    expectedReturnValue: transactionContext.ovmTIMESTAMP
                 }
             ],
-          },
-        ],
+      },
+      {
+        name: 'gets ovmNUMBER',
+            steps: [
+                {
+                    functionName: 'ovmNUMBER',
+                    expectedReturnValue: transactionContext.ovmNUMBER
+                }
+            ],
       },
       {
         name: 'gets ovmGASLIMIT',
-        parameters: [
-          {
             steps: [
                 {
                     functionName: 'ovmGASLIMIT',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [transactionContext.ovmGASLIMIT]
+                    expectedReturnValue: transactionContext.ovmGASLIMIT
                 }
             ],
-          },
-        ],
       },
       {
-        name: 'gets ovmQUEUEORIGIN',
-        parameters: [
-          {
+        name: 'gets ovmL1QUEUEORIGIN',
             steps: [
                 {
                     functionName: 'ovmL1QUEUEORIGIN',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [transactionContext.ovmL1QUEUEORIGIN]
+                    expectedReturnValue: transactionContext.ovmL1QUEUEORIGIN
                 }
             ],
-          },
-        ],
       },
       {
         name: 'gets ovmL1TXORIGIN',
-        parameters: [
-          {
             steps: [
                 {
                     functionName: 'ovmL1TXORIGIN',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [transactionContext.ovmL1TXORIGIN]
+                    expectedReturnValue: transactionContext.ovmL1TXORIGIN
                 }
             ],
-          },
-        ],
       },
       {
         name: 'gets ovmCHAINID',
-        parameters: [
+        steps: [
           {
-            steps: [
-                {
                     functionName: 'ovmCHAINID',
-                    functionParams: [],
-                    expectedReturnStatus: true,
-                    expectedReturnValues: [globalContext.ovmCHAINID]
+                    expectedReturnValue: globalContext.ovmCHAINID
                 }
             ],
           },
-        ],
-      },
     ],
   }
   
-  runExecutionManagerTest(test_ovmContextOpcodes)
-  
+  const runner = new ExecutionManagerTestRunner()
+  runner.run(test_contextOpcodes)
