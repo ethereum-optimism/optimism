@@ -21,7 +21,7 @@ export const decodeRevertData = (revertData: string): any => {
     ['uint256', 'uint256', 'uint256', 'bytes'],
     revertData
   )
-  console.log(`flag is: ${decoded[0].toNumber()}`)
+
   return (
     '[revertFlag:' +
     Object.keys(REVERT_FLAGS)[decoded[0]] +

@@ -29,7 +29,11 @@ import {
 } from './test.types'
 import { encodeRevertData } from '../codec'
 import { getModifiableStorageFactory } from '../storage/contract-storage'
-import { OVM_TX_GAS_LIMIT, RUN_OVM_TEST_GAS, NON_NULL_BYTES32 } from '../constants'
+import {
+  OVM_TX_GAS_LIMIT,
+  RUN_OVM_TEST_GAS,
+  NON_NULL_BYTES32,
+} from '../constants'
 
 export class ExecutionManagerTestRunner {
   private snapshot: string
@@ -55,8 +59,14 @@ export class ExecutionManagerTestRunner {
       test.subTests?.map((subTest) => {
         this.run({
           ...subTest,
-          preState: merge(cloneDeep(test.preState), cloneDeep(subTest.preState)),	
-          postState: merge(cloneDeep(test.postState), cloneDeep(subTest.postState))
+          preState: merge(
+            cloneDeep(test.preState),
+            cloneDeep(subTest.preState)
+          ),
+          postState: merge(
+            cloneDeep(test.postState),
+            cloneDeep(subTest.postState)
+          ),
         })
       })
 
@@ -123,13 +133,11 @@ export class ExecutionManagerTestRunner {
   }
 
   private async initContracts() {
-    console.log('initcontracts')
     if (this.snapshot) {
       await ethers.provider.send('evm_revert', [this.snapshot])
       this.snapshot = await ethers.provider.send('evm_snapshot', [])
       return
     }
-    console.log('no snapshot')
 
     this.contracts.OVM_SafetyChecker = await (
       await ethers.getContractFactory('OVM_SafetyChecker')
@@ -204,7 +212,9 @@ export class ExecutionManagerTestRunner {
           functionName: 'ovmCALL',
           functionParams: {
             gasLimit: OVM_TX_GAS_LIMIT,
-            target: ExecutionManagerTestRunner.getDummyAddress("$DUMMY_OVM_ADDRESS_1"),
+            target: ExecutionManagerTestRunner.getDummyAddress(
+              '$DUMMY_OVM_ADDRESS_1'
+            ),
             subSteps: step.functionParams.subSteps,
           },
           expectedReturnStatus: true,
@@ -224,17 +234,17 @@ export class ExecutionManagerTestRunner {
           data: calldata,
         },
         this.contracts.OVM_StateManager.address,
-        { gasLimit: RUN_OVM_TEST_GAS}
+        { gasLimit: RUN_OVM_TEST_GAS }
       )
     } else {
       await this.contracts.OVM_ExecutionManager.ovmCALL(
         OVM_TX_GAS_LIMIT,
-        ExecutionManagerTestRunner.getDummyAddress("$DUMMY_OVM_ADDRESS_1"),
+        ExecutionManagerTestRunner.getDummyAddress('$DUMMY_OVM_ADDRESS_1'),
         this.contracts.Helper_TestRunner.interface.encodeFunctionData(
           'runSingleTestStep',
           [this.parseTestStep(step)]
         ),
-        { gasLimit: RUN_OVM_TEST_GAS}
+        { gasLimit: RUN_OVM_TEST_GAS }
       )
     }
   }
@@ -336,13 +346,19 @@ export class ExecutionManagerTestRunner {
     if (isTestStep_CALL(step)) {
       if (step.expectedReturnValue === '0x00') {
         return step.expectedReturnValue
-      } else if (typeof step.expectedReturnValue === 'string' || step.expectedReturnValue === undefined) {
+      } else if (
+        typeof step.expectedReturnValue === 'string' ||
+        step.expectedReturnValue === undefined
+      ) {
         returnData = [
           step.expectedReturnStatus,
           step.expectedReturnValue || '0x',
         ]
       } else {
-        returnData = [step.expectedReturnValue.ovmSuccess, step.expectedReturnValue.returnData]
+        returnData = [
+          step.expectedReturnValue.ovmSuccess,
+          step.expectedReturnValue.returnData,
+        ]
       }
     } else if (BigNumber.isBigNumber(step.expectedReturnValue)) {
       returnData = [step.expectedReturnValue.toHexString()]

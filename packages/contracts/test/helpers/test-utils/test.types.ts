@@ -94,7 +94,10 @@ export interface TestStep_CALL {
     subSteps?: TestStep[]
   }
   expectedReturnStatus: boolean
-  expectedReturnValue?: string | RevertFlagError |  {ovmSuccess: boolean, returnData: string}
+  expectedReturnValue?:
+    | string
+    | RevertFlagError
+    | { ovmSuccess: boolean; returnData: string }
 }
 
 interface TestStep_CREATE {
@@ -176,7 +179,7 @@ export const isTestStep_Context = (
     'ovmTIMESTAMP',
     'ovmGASLIMIT',
     'ovmCHAINID',
-    'ovmL1QUEUEORIGIN'
+    'ovmL1QUEUEORIGIN',
   ].includes(step.functionName)
 }
 

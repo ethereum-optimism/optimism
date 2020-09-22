@@ -186,7 +186,11 @@ const test_ovmSTATICCALL: TestDefinition = {
                   [
                     {
                       functionName: 'ovmSTATICCALL',
-                      functionParams: [OVM_TX_GAS_LIMIT, '$DUMMY_OVM_ADDRESS_2', []],
+                      functionParams: [
+                        OVM_TX_GAS_LIMIT,
+                        '$DUMMY_OVM_ADDRESS_2',
+                        [],
+                      ],
                       expectedReturnStatus: true,
                       expectedReturnValues: [],
                     },
@@ -226,7 +230,12 @@ const test_ovmSTATICCALL: TestDefinition = {
                 functionParams: [
                   OVM_TX_GAS_LIMIT / 2,
                   '$DUMMY_OVM_ADDRESS_2',
-                  [REVERT_FLAGS.STATIC_VIOLATION, '0x', OVM_TX_GAS_LIMIT / 2, 0],
+                  [
+                    REVERT_FLAGS.STATIC_VIOLATION,
+                    '0x',
+                    OVM_TX_GAS_LIMIT / 2,
+                    0,
+                  ],
                 ],
                 expectedReturnStatus: true,
                 expectedReturnValues: [false, '0x'],
@@ -257,7 +266,12 @@ const test_ovmSTATICCALL: TestDefinition = {
                       functionParams: [
                         OVM_TX_GAS_LIMIT / 2,
                         '$DUMMY_OVM_ADDRESS_2',
-                        [REVERT_FLAGS.STATIC_VIOLATION, '0x', OVM_TX_GAS_LIMIT / 2, 0],
+                        [
+                          REVERT_FLAGS.STATIC_VIOLATION,
+                          '0x',
+                          OVM_TX_GAS_LIMIT / 2,
+                          0,
+                        ],
                       ],
                       expectedReturnStatus: true,
                       expectedReturnValues: [false, '0x'],

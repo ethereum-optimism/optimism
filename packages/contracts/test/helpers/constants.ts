@@ -32,5 +32,5 @@ export const NUISANCE_GAS_COSTS = {
   MIN_GAS_FOR_INVALID_STATE_ACCESS: 30000,
 }
 
-  // TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
-export  const Helper_TestRunner_BYTELEN = 3654
+// TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
+export const Helper_TestRunner_BYTELEN = 3654
