@@ -55,10 +55,6 @@ export const getDefaultDeployConfig = async (
       factory: await ethers.getContractFactory('FullStateManager'),
       params: [],
     },
-    StateManagerGasSanitizer: {
-      factory: await ethers.getContractFactory('StateManagerGasSanitizer'),
-      params: [addressResolver.address],
-    },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),
       params: [

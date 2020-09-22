@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 import { StateManager } from "./StateManager.sol";
 import { StateTransitioner } from "./StateTransitioner.sol";
 import { ExecutionManager } from "./ExecutionManager.sol";
-import { StateManagerGasSanitizer } from "./StateManagerGasSanitizer.sol";
+import { StateManager } from "./StateManager.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -57,13 +57,6 @@ contract PartialStateManager is ContractResolver {
         require(msg.sender == address(stateTransitioner));
         _;
     }
-
-    modifier onlyStateManagerGasSanitizer {
-        StateManagerGasSanitizer StateManagerGasSanitizer = resolveStateManagerGasSanitizer();
-        require(msg.sender == address(StateManagerGasSanitizer));
-        _;
-    }
-
 
     /*
      * Constructor
@@ -279,7 +272,7 @@ contract PartialStateManager is ContractResolver {
         bytes32 _slot
     )
         public
-        onlyStateManagerGasSanitizer
+        
         returns (bytes32)
     {
         flagIfNotVerifiedStorage(_ovmContractAddress, _slot);
@@ -316,7 +309,7 @@ contract PartialStateManager is ContractResolver {
         bytes32 _value
     )
         public
-        onlyStateManagerGasSanitizer
+        
     {
         if (!storageSlotTouched[_ovmContractAddress][_slot]) {
             updatedStorageSlotContract[updatedStorageSlotCounter] = bytes32(bytes20(_ovmContractAddress));
@@ -343,7 +336,7 @@ contract PartialStateManager is ContractResolver {
         address _ovmContractAddress
     )
         public
-        onlyStateManagerGasSanitizer
+        
         returns (uint)
     {
         flagIfNotVerifiedContract(_ovmContractAddress);
@@ -376,7 +369,7 @@ contract PartialStateManager is ContractResolver {
         uint _value
     )
         public
-        onlyStateManagerGasSanitizer
+        
     {
         // TODO: Figure out if we actually need to verify contracts here.
         //flagIfNotVerifiedContract(_ovmContractAddress);
@@ -399,7 +392,7 @@ contract PartialStateManager is ContractResolver {
         address _ovmContractAddress
     )
         public
-        onlyStateManagerGasSanitizer
+        
     {
         flagIfNotVerifiedContract(_ovmContractAddress);
 
@@ -429,7 +422,7 @@ contract PartialStateManager is ContractResolver {
         address _codeContractAddress
     )
         public
-        onlyStateManagerGasSanitizer
+        
     {
         ovmAddressToCodeContractAddress[_ovmContractAddress] = _codeContractAddress;
     }
@@ -443,7 +436,7 @@ contract PartialStateManager is ContractResolver {
         address _ovmContractAddress
     )
         public
-        onlyStateManagerGasSanitizer
+        
     {
         isVerifiedContract[_ovmContractAddress] = true;
         setOvmContractNonce(_ovmContractAddress, 0);
@@ -473,7 +466,7 @@ contract PartialStateManager is ContractResolver {
         address _ovmContractAddress
     )
         public
-        onlyStateManagerGasSanitizer
+        
         returns(address)
     {
         flagIfNotVerifiedContract(_ovmContractAddress);
@@ -587,10 +580,10 @@ contract PartialStateManager is ContractResolver {
      * Contract Resolution
      */
 
-    function resolveStateManagerGasSanitizer()
+    function resolveStateManager()
         internal
-        view returns (StateManagerGasSanitizer)
+        view returns (StateManager)
     {
-        return StateManagerGasSanitizer(resolveContract("StateManagerGasSanitizer"));
+        return StateManager(resolveContract("StateManager"));
     }
 }

@@ -49,7 +49,7 @@ const DUMMY_ACCOUNT_ADDRESSES = [
 ]
 
 // gas metering always causes some storage slots to be updated
-const DEFAULT_TX_NUM_STORAGE_UPDATES: number = 4
+const DEFAULT_TX_NUM_STORAGE_UPDATES: number = 0
 
 const SUFFICIENT_APPLY_TRANSACTION_GAS = GAS_LIMIT * 2
 
@@ -1076,7 +1076,7 @@ describe('StateTransitioner', () => {
     })
 
     describe('completeTransition(...)', async () => {
-      it('should correctly finalize when no slots are changed', async () => {
+      it.skip('should correctly finalize when no slots are changed', async () => {
         const testKey = keccak256('0xabc')
         const testKeySlot = getMappingStorageSlot(testKey, 0)
         const testVal = keccak256('0xdef')

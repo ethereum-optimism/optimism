@@ -37,7 +37,7 @@ export const deployContracts = async (): Promise<DeployResult> => {
       ownerAddress,
       sequencerAddress,
       gasMeterConfig: GAS_METER_PARAMS,
-      deployerWhitelistOwnerAddress:  ownerAddress,
+      deployerWhitelistOwnerAddress: ownerAddress,
       allowArbitraryContractDeployment: true,
     }
 

@@ -26,7 +26,10 @@ export const getDefaultContractDeployConfig = async (
     },
     DeployerWhitelist: {
       factory: await getContractFactory('DeployerWhitelist'),
-      params: [rollupOptions.deployerWhitelistOwnerAddress, rollupOptions.allowArbitraryContractDeployment],
+      params: [
+        rollupOptions.deployerWhitelistOwnerAddress,
+        rollupOptions.allowArbitraryContractDeployment,
+      ],
       signer: deployerWallet,
     },
     L1ToL2TransactionQueue: {
@@ -56,11 +59,6 @@ export const getDefaultContractDeployConfig = async (
     StateManager: {
       factory: getContractFactory('FullStateManager'),
       params: [],
-      signer: deployerWallet,
-    },
-    StateManagerGasSanitizer: {
-      factory: getContractFactory('StateManagerGasSanitizer'),
-      params: [addressResolverAddress],
       signer: deployerWallet,
     },
     ExecutionManager: {

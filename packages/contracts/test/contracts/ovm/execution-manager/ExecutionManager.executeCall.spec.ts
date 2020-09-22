@@ -89,45 +89,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
   })
 
   describe('executeNonEOACall', async () => {
-    it('fails if the provided timestamp is 0', async () => {
-      // Create the variables we will use for setStorage
-      const intParam = 0
-      const bytesParam = '0xdeadbeef'
-      // Generate our tx calldata
-      const calldata = DummyContract.interface.encodeFunctionData(
-        'dummyFunction',
-        [intParam, bytesParam]
-      )
-      const nonce = await stateManager.getOvmContractNonceView(wallet.address)
-      const transaction = {
-        nonce,
-        gasLimit: GAS_LIMIT,
-        gasPrice: 0,
-        to: dummyContractAddress,
-        value: 0,
-        data: calldata,
-        chainId: CHAIN_ID,
-      }
-      const signedMessage = await signTransaction(wallet, transaction)
-      const [v, r, s] = getSignedComponents(signedMessage)
-
-      await TestUtils.assertRevertsAsync(async () => {
-        // Call using Ethers
-        const tx = await executionManager.executeEOACall(
-          0,
-          0,
-          transaction.nonce,
-          transaction.to,
-          transaction.data,
-          GAS_LIMIT,
-          padToLength(v, 4),
-          padToLength(r, 64),
-          padToLength(s, 64)
-        )
-        await provider.waitForTransaction(tx.hash)
-      }, 'Timestamp must be greater than 0')
-    })
-
     it('properly executes a raw call -- 0 param', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
@@ -152,12 +113,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       const tx = await executionManager.executeTransaction(
         getCurrentTime(),
         0,
-        0,
         transaction.to,
         transaction.data,
         wallet.address,
         ZERO_ADDRESS,
-        GAS_LIMIT,
         true
       )
       await provider.waitForTransaction(tx.hash)
@@ -198,12 +157,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           executionManager.executeTransaction(
             getCurrentTime(),
             0,
-            0,
             transaction.to,
             transaction.data,
             wallet.address,
             ZERO_ADDRESS,
-            GAS_LIMIT,
             true
           ),
         'Sender not allowed to deploy new contracts!'
@@ -214,12 +171,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       await executionManager.executeTransaction(
         getCurrentTime(),
         0,
-        0,
         transaction.to,
         transaction.data,
         wallet.address,
         ZERO_ADDRESS,
-        GAS_LIMIT,
         true
       )
 
@@ -230,12 +185,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           executionManager.executeTransaction(
             getCurrentTime(),
             0,
-            0,
             transaction.to,
             transaction.data,
             wallet.address,
             ZERO_ADDRESS,
-            GAS_LIMIT,
             true
           ),
         'Sender not allowed to deploy new contracts!'
@@ -246,12 +199,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       await executionManager.executeTransaction(
         getCurrentTime(),
         0,
-        0,
         transaction.to,
         transaction.data,
         wallet.address,
         ZERO_ADDRESS,
-        GAS_LIMIT,
         true
       )
     })
@@ -287,7 +238,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
-        GAS_LIMIT,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -324,7 +274,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
-        GAS_LIMIT,
         v,
         r,
         s
@@ -364,7 +313,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         transaction.nonce,
         transaction.to,
         transaction.data,
-        GAS_LIMIT,
         padToLength(v, 4),
         padToLength(r, 64),
         padToLength(s, 64)
@@ -384,12 +332,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         [
           ZERO_UINT,
           ZERO_UINT,
-          ZERO_UINT,
           dummyContractAddress,
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
-          GAS_LIMIT,
           true,
         ]
       )
@@ -426,12 +372,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         [
           ZERO_UINT,
           ZERO_UINT,
-          ZERO_UINT,
           dummyContractAddress,
           internalCalldata,
           wallet.address,
           ZERO_ADDRESS,
-          GAS_LIMIT,
           true,
         ]
       )
