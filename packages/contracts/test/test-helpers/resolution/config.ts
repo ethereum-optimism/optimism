@@ -27,13 +27,13 @@ export const getDefaultDeployConfig = async (
       factory: await ethers.getContractFactory('GasConsumer'),
       params: [],
     },
-    DeployerWhitelist: {
-      factory: await ethers.getContractFactory('DeployerWhitelist'),
-      params: [ZERO_ADDRESS, true],
-    },
     L1ToL2TransactionQueue: {
       factory: await ethers.getContractFactory('L1ToL2TransactionQueue'),
       params: [addressResolver.address],
+    },
+    DeployerWhitelist: {
+      factory: await ethers.getContractFactory('DeployerWhitelist'),
+      params: [ZERO_ADDRESS, true],
     },
     SafetyTransactionQueue: {
       factory: await ethers.getContractFactory('SafetyTransactionQueue'),
