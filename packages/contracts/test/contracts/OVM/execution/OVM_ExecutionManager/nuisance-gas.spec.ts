@@ -8,10 +8,13 @@ import {
     VERIFIED_EMPTY_CONTRACT_HASH,
     NUISANCE_GAS_COSTS,
     Helper_TestRunner_BYTELEN,
+    ZERO_ADDRESS
   } from '../../../../helpers'
   
   const DUMMY_REVERT_DATA =
     '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
+
+const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
   
   const test_nuisanceGas: TestDefinition = {
     name: 'Basic tests for nuisance gas',
@@ -38,13 +41,16 @@ import {
             codeHash: VERIFIED_EMPTY_CONTRACT_HASH,
             ethAddress: '0x' + '00'.repeat(20),
           },
+          [CREATED_CONTRACT_1]: {
+            codeHash: VERIFIED_EMPTY_CONTRACT_HASH,
+            ethAddress: '0x' + '00'.repeat(20),
+          },
         },
       },
     },
     subTests: [
         {
             name: 'ovmCALL consumes nuisance gas of CODESIZE * NUISANCE_GAS_PER_CONTRACT_BYTE',
-            focus: true,
             postState: {
                 ExecutionManager: {
                     messageRecord: {
@@ -55,7 +61,6 @@ import {
             parameters: [
                 {
                     name: 'single ovmCALL',
-                    focus: true,
                     steps: [
                         // do a non-nuisance-gas-consuming opcode (test runner auto-wraps in ovmCALL)
                         {
@@ -66,7 +71,6 @@ import {
                 },
                 {
                     name: 'nested ovmCALL, same address',
-                    focus: true,
                     steps: [
                         {
                           functionName: 'ovmCALL',
@@ -106,7 +110,7 @@ import {
                     ],
                 },
                 {
-                    name: 'with a call to already loaded contract inside',
+                    name: 'with a call to previously called contract too',
                     steps: [
                         {
                           functionName: 'ovmCALL',
@@ -142,8 +146,7 @@ import {
             },
             parameters: [
                 {
-                    name: 'give 1/2 gas to evmREVERT',
-                    focus: true,
+                    name: 'give 1/2 gas to evmINVALID',
                     steps: [
                         {
                           functionName: 'ovmCALL',
@@ -165,12 +168,12 @@ import {
                     ],
                 },
                 {
-                    name: 'with a call to already loaded contract inside',
+                    name: 'guve 1/2 gas to a sub-ovmCALL which evmINVALIDs',
                     steps: [
                         {
                           functionName: 'ovmCALL',
                           functionParams: {
-                              gasLimit: OVM_TX_GAS_LIMIT,
+                              gasLimit: OVM_TX_GAS_LIMIT / 2,
                               target: "$DUMMY_OVM_ADDRESS_2",
                               subSteps: [
                                   {
@@ -178,10 +181,96 @@ import {
                                       functionParams: {
                                           gasLimit: OVM_TX_GAS_LIMIT,
                                           target: '$DUMMY_OVM_ADDRESS_1',
-                                          subSteps: []
+                                          subSteps: [
+                                            {
+                                                functionName: 'evmINVALID'
+                                            }
+                                          ]
                                       },
-                                      expectedReturnStatus: true
-                                  }
+                                      expectedReturnStatus: true,
+                                      expectedReturnValue: {
+                                          ovmSuccess: false,
+                                          returnData: '0x'
+                                      }                                  
+                                    }
+                              ]
+                          },
+                          expectedReturnStatus: true
+                        },
+                    ],
+                }
+            ]
+        },
+        {
+            name: 'ovmCREATE consumes all allotted nuisance gas if creation code throws data-less exception',
+            postState: {
+                ExecutionManager: {
+                    messageRecord: {
+                        // note: this is slightly higher than the "idealized" value which would be:
+                        // OVM_TX_GAS_LIMIT / 2 - 2 * ( Helper_TestRunner_BYTELEN * NUISANCE_GAS_PER_CONTRACT_BYTE )
+                        // This is because there is natural gas consumption between the ovmCALL(GAS/2) and ovmCREATE, which allots nuisance gas via _getNuisanceGasLimit.
+                        // This means that the ovmCREATE exception, DOES consumes all nuisance gas allotted, but that allotment
+                        // is less than the full OVM_TX_GAS_LIMIT / 2 alloted to the parent call.
+                        nuisanceGasLeft: 4603714
+                    }
+                }
+            },
+            parameters: [
+                {
+                    name: 'give 1/2 gas to ovmCALL => ovmCREATE, evmINVALID',
+                    focus: true,
+                    steps: [
+                       {
+                           functionName: 'ovmCALL',
+                           functionParams: {
+                               target: '$DUMMY_OVM_ADDRESS_1',
+                               gasLimit: OVM_TX_GAS_LIMIT / 2,
+                               subSteps: [
+                                {
+                                    functionName: 'ovmCREATE',
+                                    functionParams: {
+                                        subSteps: [
+                                            {
+                                                functionName: 'evmINVALID'
+                                            }
+                                        ]
+                                    },
+                                    expectedReturnStatus: true,
+                                    expectedReturnValue: ZERO_ADDRESS
+                                  },
+                               ]
+                           },
+                           expectedReturnStatus: true,
+                       }
+                    ],
+                },
+                {
+                    name: 'guve 1/2 gas to a sub-ovmCALL which evmREVERTs',
+                    // focus: true,
+                    steps: [
+                        {
+                          functionName: 'ovmCALL',
+                          functionParams: {
+                              gasLimit: OVM_TX_GAS_LIMIT / 2,
+                              target: "$DUMMY_OVM_ADDRESS_2",
+                              subSteps: [
+                                  {
+                                      functionName: 'ovmCALL',
+                                      functionParams: {
+                                          gasLimit: OVM_TX_GAS_LIMIT,
+                                          target: '$DUMMY_OVM_ADDRESS_1',
+                                          subSteps: [
+                                            {
+                                                functionName: 'evmINVALID'
+                                            }
+                                          ]
+                                      },
+                                      expectedReturnStatus: true,
+                                      expectedReturnValue: {
+                                          ovmSuccess: false,
+                                          returnData: '0x'
+                                      }                                  
+                                    }
                               ]
                           },
                           expectedReturnStatus: true

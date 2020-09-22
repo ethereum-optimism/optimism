@@ -693,6 +693,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         override
         public
     {
+        console.log("in safecreate with nuisance gas:");
+        console.log(messageRecord.nuisanceGasLeft);
+        
         // Since this function is public, anyone can attempt to directly call it. We need to make
         // sure that the OVM_ExecutionManager itself is the only party that can actually try to
         // call this function.
@@ -734,6 +737,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         // left over since contract calls can only be passed 63/64ths of total gas,  so we need to
         // explicitly handle this case here.
         if (ethAddress == address(0)) {
+            console.log("detected the create exception");
             _revertWithFlag(RevertFlag.CREATE_EXCEPTION);
         }
 
@@ -780,6 +784,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             address _created
         )
     {
+        console.log("createContract with addy");
+        console.logAddress(_contractAddress);
         // We always update the nonce of the creating account, even if the creation fails.
         _setAccountNonce(ovmADDRESS(), 1);
 
@@ -868,6 +874,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _returndata
         )
     {
+        console.log("starting _handleExternalInteraction with gasLeft");
+        console.log(gasleft());
         // We need to switch over to our next message context for the duration of this call.
         MessageContext memory prevMessageContext = messageContext;
         _switchMessageContext(prevMessageContext, _nextMessageContext);
@@ -903,6 +911,9 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
                 uint256 ovmGasRefund,
                 bytes memory returndataFromFlag
             ) = _decodeRevertData(returndata);
+
+            console.log("unsuccessfull safecreate with nuisance gas left post-revert:");
+            console.log(nuisanceGasLeftPostRevert);
 
             // INVALID_STATE_ACCESS is the only flag that triggers an immediate abort of the
             // parent EVM message. This behavior is necessary because INVALID_STATE_ACCESS must
@@ -1282,8 +1293,11 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
             bytes memory _revertdata
         )
     {
-        // Running out of gas will return no data, so simulating it shouldn't either.
-        if (_flag == RevertFlag.OUT_OF_GAS) {
+        // Out of gas and create exceptions will fundamentally return no data, so simulating it shouldn't either.
+        if (
+            _flag == RevertFlag.OUT_OF_GAS
+            || _flag == RevertFlag.CREATE_EXCEPTION
+        ) {
             return bytes('');
         }
 
@@ -1336,6 +1350,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
         }
 
         // ABI decode the incoming data.
+        console.log("raw revert data:");
+        console.logBytes(_revertdata);
         return abi.decode(_revertdata, (RevertFlag, uint256, uint256, bytes));
     }
 
@@ -1384,6 +1400,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager {
     )
         internal
     {
+        console.log("reverting with no info other than flag");
         _revertWithFlag(_flag, bytes(''));
     }
 
