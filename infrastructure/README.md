@@ -119,13 +119,13 @@ Due to the lifecycle restrictions on KMS resources by Google, this had to be rem
 
 Assuming you have already run the Terraform and have the `kms_account.key.json` file generated for the service account under your `./terraform` directory, you can now run:
 
-```bash
-./scripts/kms.sh -c ./terraform/kms_account.key.json -r $GCP_REGION
-```
-
 > Note:
 >
 > Before running the KMS script, ensure you have the current Kubernetes context and credentials active for the GKE cluster.
+
+```bash
+./scripts/kms.sh -c ./terraform/kms_account.key.json -r $GCP_REGION
+```
 
 This script will activate the KMS service account in the `gcloud` tool using the generate credential file path provided and create a new KMS key ring and symmetric unsealing key within that ring for you (if one or both already exist, these steps will be skipped). Once the key ring and unsealer key have been created within your GCP project, the script [injects the service account credential file into cluster secrets to be mounted into the nodes for unsealing](https://www.vaultproject.io/docs/platform/k8s/helm/run#google-kms-auto-unseal) before revoke your `gcloud` authentication session.
 
@@ -221,15 +221,14 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
-<<<<<<< HEAD
 ##### Start the Pods using the Helm Chart
-=======
->>>>>>> 1526b2980e828e9057bfe4cbaf0a629887648fc5
+
+In `k8s`, execute:
 
 Execute:
 
 ```bash
-helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault
+helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault --version 0.7.0
 ```
 
 ### Interact with Vault
@@ -307,6 +306,31 @@ When you need to restore your Vault cluster back to a known-good state, identify
 ```bash
 vault operator raft snapshot restore snapshot-file.raft
 ```
+
+#### Generating New Certificates
+
+When you need to issue a new set of certificates to the pods, you need to follow this process:
+
+In `infrastructure`, execute:
+
+---
+
+When generating certs for GKE clusters, use: `-d vault-internal.default.svc.cluster.local`
+When generating certs for Minikube, use: `-d vault-internal`
+
+---
+
+```bash
+./scripts/gen_certs.sh -d <dns-domain>
+./scripts/gen_overrides.sh
+helm upgrade --recreate-pods --atomic --cleanup-on-fail --install --values ./k8s/datadog-overrides.yaml datadog datadog/datadog
+```
+
+---
+
+If you are port-forwarding, you'll need to stop and restart the port-forwarder.
+
+---
 
 ### Uninstalling Vault
 

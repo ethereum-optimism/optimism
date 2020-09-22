@@ -10,11 +10,12 @@ set -o pipefail
 ###   gen_overrides.sh [options]
 ###
 ### Options:
-###   -d | --domain-name <name>  The DNS Domain Name of the nodes in the Vault Cluster
-###   -r | --region-name <name>  The GCP Region that the resources are operating in
-###   -p | --project-name <name> The GCP Project that the resources are operating in
-###   -c | --cluster-name <name> The GKE Cluster Name
-###   -h | --help                Show help / usage
+###   -d | --domain-name <name>   The DNS Domain Name of the nodes in the Vault Cluster
+###   -r | --region-name <name>   The GCP Region that the resources are operating in
+###   -p | --project-name <name>  The GCP Project that the resources are operating in
+###   -c | --cluster-name <name>  The GKE Cluster Name
+###   -v | --server-version <ver> The Vault Server version to install
+###   -h | --help                 Show help / usage
 ###
 ###   --ui                       The Vault UI will be enabled (disabled is default)
 ###   --log-level                The Vault Server log level (info is default)
@@ -38,6 +39,7 @@ REGION=${GCP_REGION:-}
 PROJECT=${GCP_PROJECT:-}
 CLUSTER=${GKE_CLUSTER_NAME:-}
 
+VAULT_SERVER_VERSION="1.5.3"
 VAULT_UI_ENABLED="false"
 VAULT_LOG_LEVEL="info"
 VAULT_REPLICAS="5"
@@ -154,6 +156,7 @@ EOF
 
   cd k8s
 
+	yq w -i vault-overrides.yaml server.image.tag ${VAULT_SERVER_VERSION}
 	yq w -i vault-overrides.yaml server.auditStorage.size ${VAULT_AUDIT_SIZE}
 	yq w -i vault-overrides.yaml server.dataStorage.size ${VAULT_DATA_SIZE}
 	yq w -i vault-overrides.yaml server.extraEnvironmentVars.GOOGLE_REGION ${REGION}
@@ -184,6 +187,10 @@ while [[ $# -gt 0 ]]; do
 	;;
 	-p | --project-name) 
 		PROJECT=$2
+		shift
+	;;
+	-v | --server-version) 
+		VAULT_SERVER_VERSION=$2
 		shift
 	;;
 	--ui) 
