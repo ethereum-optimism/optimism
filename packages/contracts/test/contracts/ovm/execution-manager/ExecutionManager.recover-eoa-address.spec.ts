@@ -79,6 +79,7 @@ describe('Execution Manager -- Recover EOA Address', () => {
         r,
         s
       )
+
       // Check that the recovered address matches the wallet address
       recoveredAddress.should.equal(await wallet.getAddress())
       // Done!
