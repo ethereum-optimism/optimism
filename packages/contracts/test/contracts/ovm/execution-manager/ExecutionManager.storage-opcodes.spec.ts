@@ -87,6 +87,8 @@ describe('ExecutionManager -- Storage opcodes', () => {
    */
   describe('ovmSSTORE', async () => {
     it.skip('successfully stores without throwing', async () => {
+      // Skipping because this uses events to verify success
+
       await sstore()
     })
   })
