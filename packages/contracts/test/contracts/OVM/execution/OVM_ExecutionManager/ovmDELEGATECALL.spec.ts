@@ -51,6 +51,11 @@ const test_ovmDELEGATECALL: TestDefinition = {
           ethAddress: '0x' + '00'.repeat(20),
         },
       },
+      verifiedContractStorage: {
+        $DUMMY_OVM_ADDRESS_1: {
+          [NON_NULL_BYTES32]: true
+        }
+      }
     },
   },
   parameters: [

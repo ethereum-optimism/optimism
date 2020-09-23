@@ -1,17 +1,15 @@
 /* Internal Imports */
 import {
-  runExecutionManagerTest,
+  ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
   NULL_BYTES32,
   NON_NULL_BYTES32,
-  REVERT_FLAGS,
-  DUMMY_BYTECODE,
+  getStorageXOR,
 } from '../../../../helpers'
 
 const test_ovmSLOAD: TestDefinition = {
-  name:
-    'External storage manipulation during initcode subcalls should correctly NOT be persisted if ovmREVERTed',
+  name: 'Basic tests for ovmSLOAD',
   preState: {
     ExecutionManager: {
       ovmStateManager: '$OVM_STATE_MANAGER',
@@ -32,6 +30,11 @@ const test_ovmSLOAD: TestDefinition = {
           ethAddress: '$OVM_CALL_HELPER',
         },
       },
+      contractStorage: {
+        $DUMMY_OVM_ADDRESS_1: {
+          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+        },
+      },
       verifiedContractStorage: {
         $DUMMY_OVM_ADDRESS_1: {
           [NON_NULL_BYTES32]: true,
@@ -41,27 +44,30 @@ const test_ovmSLOAD: TestDefinition = {
   },
   parameters: [
     {
+      name: 'ovmCALL => ovmSLOAD',
       steps: [
         {
           functionName: 'ovmCALL',
-          functionParams: [
-            OVM_TX_GAS_LIMIT,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
               {
                 functionName: 'ovmSLOAD',
-                functionParams: [NON_NULL_BYTES32],
+                functionParams: {
+                  key: NON_NULL_BYTES32
+                },
                 expectedReturnStatus: true,
-                expectedReturnValues: [NULL_BYTES32],
+                expectedReturnValue: NULL_BYTES32,
               },
             ],
-          ],
+          },
           expectedReturnStatus: true,
-          expectedReturnValues: [],
         },
       ],
     },
   ],
 }
 
-runExecutionManagerTest(test_ovmSLOAD)
+const runner = new ExecutionManagerTestRunner()
+runner.run(test_ovmSLOAD)

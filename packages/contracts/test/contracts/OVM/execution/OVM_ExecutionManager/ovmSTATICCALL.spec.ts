@@ -1,16 +1,17 @@
 /* Internal Imports */
 import {
-  runExecutionManagerTest,
+  ExecutionManagerTestRunner,
   TestDefinition,
   OVM_TX_GAS_LIMIT,
   NULL_BYTES32,
   NON_NULL_BYTES32,
   REVERT_FLAGS,
   DUMMY_BYTECODE,
+  getStorageXOR,
 } from '../../../../helpers'
 
 const test_ovmSTATICCALL: TestDefinition = {
-  name: 'Basic checks on staticcall',
+  name: 'Basic tests for ovmSTATICCALL',
   preState: {
     ExecutionManager: {
       ovmStateManager: '$OVM_STATE_MANAGER',
@@ -30,9 +31,24 @@ const test_ovmSTATICCALL: TestDefinition = {
           codeHash: NON_NULL_BYTES32,
           ethAddress: '$OVM_CALL_HELPER',
         },
+        $DUMMY_OVM_ADDRESS_3: {
+          codeHash: NON_NULL_BYTES32,
+          ethAddress: '$OVM_CALL_HELPER',
+        },
+      },
+      contractStorage: {
+        $DUMMY_OVM_ADDRESS_1: {
+          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+        },
+        $DUMMY_OVM_ADDRESS_3: {
+          [NON_NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+        },
       },
       verifiedContractStorage: {
-        $DUMMY_OVM_ADDRESS_2: {
+        $DUMMY_OVM_ADDRESS_1: {
+          [NON_NULL_BYTES32]: true,
+        },
+        $DUMMY_OVM_ADDRESS_3: {
           [NON_NULL_BYTES32]: true,
         },
       },
@@ -40,255 +56,285 @@ const test_ovmSTATICCALL: TestDefinition = {
   },
   parameters: [
     {
+      name: 'ovmSTATICCALL => ovmSSTORE',
+      steps: [
+        {
+          functionName: 'ovmSTATICCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmSSTORE',
+                functionParams: {
+                  key: NULL_BYTES32,
+                  value: NULL_BYTES32
+                },
+                expectedReturnStatus: false,
+                expectedReturnValue: {
+                  flag: REVERT_FLAGS.STATIC_VIOLATION,
+                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                }
+              }
+            ]
+          },
+          expectedReturnStatus: false
+        }
+      ]
+    },
+    {
+      name: 'ovmSTATICCALL => ovmSLOAD',
+      steps: [
+        {
+          functionName: 'ovmSTATICCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmSLOAD',
+                functionParams: {
+                  key: NON_NULL_BYTES32,
+                },
+                expectedReturnStatus: true,
+                expectedReturnValue: NULL_BYTES32
+              }
+            ]
+          },
+          expectedReturnStatus: true
+        }
+      ]
+    },
+    {
+      name: 'ovmSTATICCALL => ovmCREATE',
+      steps: [
+        {
+          functionName: 'ovmSTATICCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmCREATE',
+                functionParams: {
+                  bytecode: DUMMY_BYTECODE,
+                },
+                expectedReturnStatus: false,
+                expectedReturnValue: {
+                  flag: REVERT_FLAGS.STATIC_VIOLATION,
+                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                }
+              }
+            ]
+          },
+          expectedReturnStatus: false
+        }
+      ]
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALLER',
       steps: [
         {
           functionName: 'ovmCALL',
-          functionParams: [
-            OVM_TX_GAS_LIMIT,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
               {
                 functionName: 'ovmSTATICCALL',
-                functionParams: [
-                  OVM_TX_GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    {
-                      functionName: 'ovmSSTORE',
-                      functionParams: [NULL_BYTES32, NULL_BYTES32],
-                      expectedReturnStatus: false,
-                      expectedReturnValues: [
-                        REVERT_FLAGS.STATIC_VIOLATION,
-                        '0x',
-                        OVM_TX_GAS_LIMIT / 2,
-                        0,
-                      ],
-                    },
-                    {
-                      functionName: 'ovmCREATE',
-                      functionParams: [DUMMY_BYTECODE, false, []],
-                      expectedReturnStatus: false,
-                      expectedReturnValues: [
-                        REVERT_FLAGS.STATIC_VIOLATION,
-                        '0x',
-                        OVM_TX_GAS_LIMIT / 2,
-                        0,
-                      ],
-                    },
-                    {
-                      functionName: 'ovmSLOAD',
-                      functionParams: [NON_NULL_BYTES32],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [NULL_BYTES32],
-                    },
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT / 2,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  subSteps: [
                     {
                       functionName: 'ovmCALLER',
-                      functionParams: [],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: ['$DUMMY_OVM_ADDRESS_1'],
-                    },
+                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_1'
+                    }
+                  ]
+                },
+                expectedReturnStatus: true
+              }
+            ]
+          },
+          expectedReturnStatus: true
+        }
+      ]
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmADDRESS',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmSTATICCALL',
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT / 2,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  subSteps: [
                     {
                       functionName: 'ovmADDRESS',
-                      functionParams: [],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: ['$DUMMY_OVM_ADDRESS_2'],
-                    },
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
+                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_2'
+                    }
+                  ]
+                },
+                expectedReturnStatus: true
+              }
+            ]
+          },
+          expectedReturnStatus: true
+        }
+      ]
     },
     {
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSSTORE',
       steps: [
         {
           functionName: 'ovmCALL',
-          functionParams: [
-            OVM_TX_GAS_LIMIT,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
               {
                 functionName: 'ovmSTATICCALL',
-                functionParams: [
-                  OVM_TX_GAS_LIMIT,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  subSteps: [
                     {
                       functionName: 'ovmCALL',
-                      functionParams: [
-                        OVM_TX_GAS_LIMIT,
-                        '$DUMMY_OVM_ADDRESS_2',
-                        [
-                          {
-                            functionName: 'ovmSLOAD',
-                            functionParams: [NON_NULL_BYTES32],
-                            expectedReturnStatus: true,
-                            expectedReturnValues: [NULL_BYTES32],
-                          },
+                      functionParams: {
+                        gasLimit: OVM_TX_GAS_LIMIT / 2,
+                        target: '$DUMMY_OVM_ADDRESS_3',
+                        subSteps: [
                           {
                             functionName: 'ovmSSTORE',
-                            functionParams: [NULL_BYTES32, NULL_BYTES32],
+                            functionParams: {
+                              key: NULL_BYTES32,
+                              value: NULL_BYTES32
+                            },
                             expectedReturnStatus: false,
-                            expectedReturnValues: [
-                              REVERT_FLAGS.STATIC_VIOLATION,
-                              '0x',
-                              867484476,
-                              2906,
-                            ],
-                          },
+                            expectedReturnValue: {
+                              flag: REVERT_FLAGS.STATIC_VIOLATION,
+                              nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                            }
+                          }
+                        ]
+                      },
+                      expectedReturnStatus: false,
+                      expectedReturnValue: {
+                        flag: REVERT_FLAGS.STATIC_VIOLATION,
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                      }
+                    }
+                  ]
+                },
+                expectedReturnStatus: false
+              }
+            ]
+          },
+          expectedReturnStatus: true
+        }
+      ]
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSLOAD',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT / 2,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmSTATICCALL',
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT / 2,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  subSteps: [
+                    {
+                      functionName: 'ovmCALL',
+                      functionParams: {
+                        gasLimit: OVM_TX_GAS_LIMIT / 2,
+                        target: '$DUMMY_OVM_ADDRESS_3',
+                        subSteps: [
+                          {
+                            functionName: 'ovmSLOAD',
+                            functionParams: {
+                              key: NON_NULL_BYTES32,
+                            },
+                            expectedReturnStatus: true,
+                            expectedReturnValue: NULL_BYTES32
+                          }
+                        ]
+                      },
+                      expectedReturnStatus: true
+                    }
+                  ]
+                },
+                expectedReturnStatus: true
+              }
+            ]
+          },
+          expectedReturnStatus: true
+        }
+      ]
+    },
+    {
+      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmCREATE',
+      steps: [
+        {
+          functionName: 'ovmCALL',
+          functionParams: {
+            gasLimit: OVM_TX_GAS_LIMIT,
+            target: '$DUMMY_OVM_ADDRESS_1',
+            subSteps: [
+              {
+                functionName: 'ovmSTATICCALL',
+                functionParams: {
+                  gasLimit: OVM_TX_GAS_LIMIT,
+                  target: '$DUMMY_OVM_ADDRESS_2',
+                  subSteps: [
+                    {
+                      functionName: 'ovmCALL',
+                      functionParams: {
+                        gasLimit: OVM_TX_GAS_LIMIT / 2,
+                        target: '$DUMMY_OVM_ADDRESS_3',
+                        subSteps: [
                           {
                             functionName: 'ovmCREATE',
-                            functionParams: [DUMMY_BYTECODE, false, []],
+                            functionParams: {
+                              bytecode: DUMMY_BYTECODE
+                            },
                             expectedReturnStatus: false,
-                            expectedReturnValues: [
-                              REVERT_FLAGS.STATIC_VIOLATION,
-                              '0x',
-                              867484476,
-                              2906,
-                            ],
-                          },
-                        ],
-                      ],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [],
-                    },
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
-    },
-    {
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: [
-            OVM_TX_GAS_LIMIT,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
-              {
-                functionName: 'ovmSTATICCALL',
-                functionParams: [
-                  OVM_TX_GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    {
-                      functionName: 'ovmSTATICCALL',
-                      functionParams: [
-                        OVM_TX_GAS_LIMIT,
-                        '$DUMMY_OVM_ADDRESS_2',
-                        [],
-                      ],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [],
-                    },
-                    {
-                      functionName: 'ovmSSTORE',
-                      functionParams: [NULL_BYTES32, NULL_BYTES32],
+                            expectedReturnValue: {
+                              flag: REVERT_FLAGS.STATIC_VIOLATION,
+                              nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                            }
+                          }
+                        ]
+                      },
                       expectedReturnStatus: false,
-                      expectedReturnValues: [
-                        REVERT_FLAGS.STATIC_VIOLATION,
-                        '0x',
-                        OVM_TX_GAS_LIMIT / 2,
-                        33806,
-                      ],
-                    },
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
+                      expectedReturnValue: {
+                        flag: REVERT_FLAGS.STATIC_VIOLATION,
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
+                      }
+                    }
+                  ]
+                },
+                expectedReturnStatus: false
+              }
+            ]
+          },
+          expectedReturnStatus: true
+        }
+      ]
     },
-    {
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: [
-            OVM_TX_GAS_LIMIT,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
-              {
-                functionName: 'ovmSTATICCALLToRevert',
-                functionParams: [
-                  OVM_TX_GAS_LIMIT / 2,
-                  '$DUMMY_OVM_ADDRESS_2',
-                  [
-                    REVERT_FLAGS.STATIC_VIOLATION,
-                    '0x',
-                    OVM_TX_GAS_LIMIT / 2,
-                    0,
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [false, '0x'],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
-    },
-    {
-      steps: [
-        {
-          functionName: 'ovmCALL',
-          functionParams: [
-            OVM_TX_GAS_LIMIT,
-            '$DUMMY_OVM_ADDRESS_1',
-            [
-              {
-                functionName: 'ovmSTATICCALL',
-                functionParams: [
-                  OVM_TX_GAS_LIMIT,
-                  '$DUMMY_OVM_ADDRESS_1',
-                  [
-                    {
-                      functionName: 'ovmSTATICCALLToRevert',
-                      functionParams: [
-                        OVM_TX_GAS_LIMIT / 2,
-                        '$DUMMY_OVM_ADDRESS_2',
-                        [
-                          REVERT_FLAGS.STATIC_VIOLATION,
-                          '0x',
-                          OVM_TX_GAS_LIMIT / 2,
-                          0,
-                        ],
-                      ],
-                      expectedReturnStatus: true,
-                      expectedReturnValues: [false, '0x'],
-                    },
-                  ],
-                ],
-                expectedReturnStatus: true,
-                expectedReturnValues: [],
-              },
-            ],
-          ],
-          expectedReturnStatus: true,
-          expectedReturnValues: [],
-        },
-      ],
-    },
-  ],
+  ]
 }
 
-runExecutionManagerTest(test_ovmSTATICCALL)
+const runner = new ExecutionManagerTestRunner()
+runner.run(test_ovmSTATICCALL)

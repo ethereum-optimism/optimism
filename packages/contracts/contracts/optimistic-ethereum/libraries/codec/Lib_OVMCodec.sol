@@ -10,9 +10,24 @@ import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
  */
 library Lib_OVMCodec {
 
-    /*******************
-     * Data Structures *
-     *******************/
+    /*********
+     * Enums *
+     *********/
+    
+    enum EOASignatureType {
+        ETH_SIGNED_MESSAGE,
+        NATIVE_TRANSACTON
+    }
+
+    enum QueueOrigin {
+        SEQUENCER_QUEUE,
+        L1TOL2_QUEUE
+    }
+
+
+    /***********
+     * Structs *
+     ***********/
 
     struct Account {
         uint256 nonce;
@@ -43,11 +58,6 @@ library Lib_OVMCodec {
         bytes32[] siblings;
     }
 
-    enum QueueOrigin {
-        SEQUENCER_QUEUE,
-        L1TOL2_QUEUE
-    }
-
     struct Transaction {
         uint256 timestamp;
         uint256 number;
@@ -76,11 +86,6 @@ library Lib_OVMCodec {
         uint256 nonce;
         uint256 gasLimit;
         bytes data;
-    }
-    
-    enum EOASignatureType {
-        ETH_SIGNED_MESSAGE,
-        NATIVE_TRANSACTON
     }
 
 

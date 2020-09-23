@@ -376,10 +376,7 @@ contract OVM_StateManager is iOVM_StateManager {
         // storage because writing to zero when the actual value is nonzero causes a gas
         // discrepancy. Could be moved into a new `putVerifiedContractStorage` function, or
         // something along those lines.
-        if (
-            verifiedContractStorage[_contract][_key] == false
-            && accounts[_contract].isFresh == false
-        ) {
+        if (verifiedContractStorage[_contract][_key] == false) {
             verifiedContractStorage[_contract][_key] = true;
         }
     }
@@ -401,6 +398,15 @@ contract OVM_StateManager is iOVM_StateManager {
             bytes32 _value
         )
     {
+        // Storage XOR system doesn't work for newly created contracts that haven't set this
+        // storage slot value yet.
+        if (
+            verifiedContractStorage[_contract][_key] == false
+            && accounts[_contract].isFresh
+        ) {
+            return bytes32(0);
+        }
+
         // See `putContractStorage` for more information about the XOR here.
         return contractStorage[_contract][_key] ^ STORAGE_XOR_VALUE;
     }

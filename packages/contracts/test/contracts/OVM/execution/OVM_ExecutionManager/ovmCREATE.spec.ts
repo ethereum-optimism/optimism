@@ -11,11 +11,12 @@ import {
   VERIFIED_EMPTY_CONTRACT_HASH,
   DUMMY_BYTECODE_BYTELEN,
   DUMMY_BYTECODE_HASH,
+  getStorageXOR
 } from '../../../../helpers'
 
-const CREATED_CONTRACT_1 = '0xa1c4ba6fe56bda6db9df39bf45dbfc3cd104bd6f'
+const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
 const CREATED_CONTRACT_2 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'
-const NESTED_CREATED_CONTRACT = '0xb99a3d1d1e3f0bd867570da4776221c1b0b74ea3'
+const NESTED_CREATED_CONTRACT = '0xcb964b3f4162a0d4f5c997b40e19da5a546bc36f'
 const DUMMY_REVERT_DATA =
   '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
 
@@ -53,7 +54,15 @@ const test_ovmCREATE: TestDefinition = {
           ethAddress: '0x' + '00'.repeat(20),
         },
       },
+      contractStorage: {
+        $DUMMY_OVM_ADDRESS_2: {
+          [NULL_BYTES32]: getStorageXOR(NULL_BYTES32),
+        },
+      },
       verifiedContractStorage: {
+        $DUMMY_OVM_ADDRESS_1: {
+          [NON_NULL_BYTES32]: true,
+        },
         $DUMMY_OVM_ADDRESS_2: {
           [NULL_BYTES32]: true,
         },

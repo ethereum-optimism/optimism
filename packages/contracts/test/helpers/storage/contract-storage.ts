@@ -199,7 +199,7 @@ const setContractStorage = async (
 
   const slots = getStorageSlots(layout, obj)
   for (const slot of slots) {
-    contract.__setStorageSlot(slot.hash, slot.value)
+    await contract.__setStorageSlot(slot.hash, slot.value)
   }
 }
 
@@ -216,7 +216,7 @@ const checkContractStorage = async (
 
   const slots = getStorageSlots(layout, obj)
   for (const slot of slots) {
-    const value = contract.__getStorageSlot(slot.hash)
+    const value = await contract.__getStorageSlot(slot.hash)
 
     if (value !== slot.value) {
       throw new Error(

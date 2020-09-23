@@ -34,7 +34,7 @@ interface TestStep_REVERT {
   functionName: 'ovmREVERT'
   revertData?: string
   expectedReturnStatus: boolean
-  expectedReturnValue?: string
+  expectedReturnValue?: string | RevertFlagError
 }
 
 interface TestStep_EXTCODESIZE {
@@ -174,6 +174,7 @@ export const isTestStep_Context = (
 ): step is TestStep_Context => {
   return [
     'ovmCALLER',
+    'ovmNUMBER',
     'ovmADDRESS',
     'ovmL1TXORIGIN',
     'ovmTIMESTAMP',

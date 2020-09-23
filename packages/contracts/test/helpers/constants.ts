@@ -1,9 +1,10 @@
 /* External Imports */
 import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
+import xor from 'buffer-xor'
 
 /* Internal Imports */
-import { makeHexString, makeAddress } from './utils'
+import { makeHexString, makeAddress, fromHexString, toHexString } from './utils'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {
@@ -34,3 +35,8 @@ export const NUISANCE_GAS_COSTS = {
 
 // TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
 export const Helper_TestRunner_BYTELEN = 3654
+
+export const STORAGE_XOR = '0xfeedfacecafebeeffeedfacecafebeeffeedfacecafebeeffeedfacecafebeef'
+export const getStorageXOR = (key: string): string => {
+  return toHexString(xor(fromHexString(key), fromHexString(STORAGE_XOR)))
+}

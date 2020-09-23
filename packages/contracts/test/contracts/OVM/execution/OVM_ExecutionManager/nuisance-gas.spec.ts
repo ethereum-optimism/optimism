@@ -192,7 +192,7 @@ const test_nuisanceGas: TestDefinition = {
             // This is because there is natural gas consumption between the ovmCALL(GAS/2) and ovmCREATE, which allots nuisance gas via _getNuisanceGasLimit.
             // This means that the ovmCREATE exception, DOES consumes all nuisance gas allotted, but that allotment
             // is less than the full OVM_TX_GAS_LIMIT / 2 which is alloted to the parent ovmCALL.
-            nuisanceGasLeft: 4603714,
+            nuisanceGasLeft: 4531286,
           },
         },
       },

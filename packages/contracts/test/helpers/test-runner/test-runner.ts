@@ -27,7 +27,7 @@ import {
   isTestStep_EXTCODECOPY,
   isTestStep_REVERT,
 } from './test.types'
-import { encodeRevertData } from '../codec'
+import { encodeRevertData, REVERT_FLAGS } from '../codec'
 import { getModifiableStorageFactory } from '../storage'
 import {
   OVM_TX_GAS_LIMIT,
@@ -263,6 +263,12 @@ export class ExecutionManagerTestRunner {
       return false
     } else if (isTestStep_Context(step)) {
       return true
+    } else if (isTestStep_CALL(step)) {
+      if (isRevertFlagError(step.expectedReturnValue) && (step.expectedReturnValue.flag === REVERT_FLAGS.INVALID_STATE_ACCESS || step.expectedReturnValue.flag === REVERT_FLAGS.STATIC_VIOLATION)) {
+        return step.expectedReturnStatus
+      } else {
+        return true
+      }
     } else {
       return step.expectedReturnStatus
     }
@@ -329,10 +335,6 @@ export class ExecutionManagerTestRunner {
       return '0x'
     }
 
-    if (isTestStep_REVERT(step)) {
-      return step.expectedReturnValue || '0x'
-    }
-
     if (isRevertFlagError(step.expectedReturnValue)) {
       return encodeRevertData(
         step.expectedReturnValue.flag,
@@ -340,6 +342,10 @@ export class ExecutionManagerTestRunner {
         step.expectedReturnValue.nuisanceGasLeft,
         step.expectedReturnValue.ovmGasRefund
       )
+    }
+
+    if (isTestStep_REVERT(step)) {
+      return step.expectedReturnValue || '0x'
     }
 
     let returnData: any[] = []
