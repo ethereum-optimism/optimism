@@ -50,6 +50,9 @@ const config: BuidlerConfig = {
   solc: {
     optimizer: { enabled: true, runs: 200 },
   },
+  analytics: {
+    enabled: false,
+  },
 }
 
 export default config

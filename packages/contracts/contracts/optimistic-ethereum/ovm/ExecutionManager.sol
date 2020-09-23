@@ -24,7 +24,7 @@ import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
  *         backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is ContractResolver {
-    
+
     /*
      * Contract Constants
      */
@@ -65,7 +65,7 @@ contract ExecutionManager is ContractResolver {
     {
         // Deploy a default state manager
         StateManager stateManager = resolveStateManager();
-        
+
         // Associate all Ethereum precompiles
         for (uint160 i = 1; i < 20; i++) {
             stateManager.associateCodeContract(address(i), address(i));
@@ -76,8 +76,8 @@ contract ExecutionManager is ContractResolver {
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
-        
-        executionContext.chainId = 108;
+
+        executionContext.chainId = 420;
 
         // TODO start off the initial gas rate limit epoch once we configure a start time
         gasMeterConfig = _gasMeterConfig;
@@ -129,7 +129,7 @@ contract ExecutionManager is ContractResolver {
         uint _nonce,
         address _ovmEntrypoint,
         bytes memory _callBytes,
-        uint8 _v,
+        uint256 _v,
         bytes32 _r,
         bytes32 _s
     )
@@ -237,7 +237,7 @@ contract ExecutionManager is ContractResolver {
                 gas(),
                 address, 0, _callBytes, callSize, 0, 0
             )
-            
+
             ovmCallReturnDataSize := returndatasize
             result := mload(0x40)
             let resultData := add(result, 0x20)
@@ -278,7 +278,7 @@ contract ExecutionManager is ContractResolver {
         uint _nonce,
         address _to,
         bytes memory _callData,
-        uint8 _v,
+        uint256 _v,
         bytes32 _r,
         bytes32 _s
     )
@@ -314,7 +314,8 @@ contract ExecutionManager is ContractResolver {
          * chainID. This was implemented based on the following EIP:
          * https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md#specification
          */
-        return ecrecover(hash, (_v - uint8(executionContext.chainId) * 2) - 8, _r, _s);
+
+        return ecrecover(hash, uint8(_v - (executionContext.chainId * 2) - 8), _r, _s);
     }
 
 
@@ -439,7 +440,7 @@ contract ExecutionManager is ContractResolver {
         public
         view
     {
-        uint chainId = 108;
+        uint chainId = 420;
 
         assembly {
             let chainIdMemory := mload(0x40)
@@ -1167,7 +1168,7 @@ contract ExecutionManager is ContractResolver {
         address _ovmTxOrigin,
         address _l1MsgSender,
         uint _ovmTxgasLimit
-    ) 
+    )
         internal
     {
         // First zero out the context for good measure (Note ZERO_ADDRESS is

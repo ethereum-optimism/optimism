@@ -55,8 +55,8 @@ const logger = new Logger('')
  */
 export class OptimismSigner implements JsonRpcSigner {
   private _signer: JsonRpcSigner
-  public readonly provider: Web3Provider
-  private readonly _optimism: OptimismProvider
+  private readonly _web3: Web3Provider
+  public readonly provider: OptimismProvider
   public readonly _ethersType: string
 
   public readonly _isSigner: boolean
@@ -64,8 +64,8 @@ export class OptimismSigner implements JsonRpcSigner {
   public readonly _address: string
 
   constructor(
-    provider: Web3Provider,
-    optimism: OptimismProvider,
+    web3: Web3Provider,
+    provider: OptimismProvider,
     addressOrIndex: string | number
   ) {
     if (addressOrIndex == null) {
@@ -73,9 +73,9 @@ export class OptimismSigner implements JsonRpcSigner {
     }
 
     this._isSigner = true
-    this._optimism = optimism
+    this._web3 = web3
     this.provider = provider
-    this._signer = this.provider.getSigner()
+    this._signer = this._web3.getSigner()
     this._ethersType = 'Signer'
 
     if (typeof addressOrIndex === 'string') {
@@ -97,8 +97,8 @@ export class OptimismSigner implements JsonRpcSigner {
     return this._signer
   }
 
-  get optimism() {
-    return this._optimism
+  get web3() {
+    return this._web3
   }
 
   public connect(provider: Provider): JsonRpcSigner {
@@ -129,7 +129,7 @@ export class OptimismSigner implements JsonRpcSigner {
     if (transaction.gasLimit == null) {
       const estimate = shallowCopy(transaction)
       estimate.from = fromAddress
-      transaction.gasLimit = this.optimism.estimateGas(estimate)
+      transaction.gasLimit = this.provider.estimateGas(estimate)
     }
 
     return resolveProperties({
@@ -148,11 +148,11 @@ export class OptimismSigner implements JsonRpcSigner {
         tx.from = sender
       }
 
-      const hexTx = (this.optimism.constructor as any).hexlifyTransaction(tx, {
+      const hexTx = (this.provider.constructor as any).hexlifyTransaction(tx, {
         from: true,
       })
 
-      return this.optimism.send('eth_sendTransaction', [hexTx]).then(
+      return this.provider.send('eth_sendTransaction', [hexTx]).then(
         (hash) => {
           return hash
         },
@@ -231,7 +231,7 @@ export class OptimismSigner implements JsonRpcSigner {
     this._checkProvider('sendTransaction')
     const tx = await this.populateTransaction(transaction)
     const signed = await this.signTransaction(tx)
-    return this.optimism.sendTransaction(signed)
+    return this.provider.sendTransaction(signed)
   }
 
   public async signMessage(message: Bytes | string): Promise<string> {
@@ -255,7 +255,7 @@ export class OptimismSigner implements JsonRpcSigner {
   }
 
   public _checkOptimism(operation?: string): void {
-    if (!this.optimism) {
+    if (!this.provider) {
       logger.throwError(
         'missing optimism provider',
         Logger.errors.UNSUPPORTED_OPERATION,
@@ -273,13 +273,13 @@ export class OptimismSigner implements JsonRpcSigner {
   // Calls the optimism node to check the signer's address balance
   public async getBalance(blockTag?: BlockTag): Promise<BigNumber> {
     this._checkOptimism('getBalance')
-    return this.optimism.getBalance(this.getAddress(), blockTag)
+    return this.provider.getBalance(this.getAddress(), blockTag)
   }
 
   // Calls the optimism node to check the signer's address transaction count
   public async getTransactionCount(blockTag?: BlockTag): Promise<number> {
     this._checkOptimism('getTransactionCount')
-    return this.optimism.getTransactionCount(this.getAddress(), blockTag)
+    return this.provider.getTransactionCount(this.getAddress(), blockTag)
   }
 
   // Calls the optmism node to estimate a transaction's gas
@@ -288,7 +288,7 @@ export class OptimismSigner implements JsonRpcSigner {
   ): Promise<BigNumber> {
     this._checkOptimism('estimateGas')
     const tx = await resolveProperties(this.checkTransaction(transaction))
-    return this.optimism.estimateGas(tx)
+    return this.provider.estimateGas(tx)
   }
 
   // Populates "from" if unspecified, and calls with the transation
@@ -298,26 +298,26 @@ export class OptimismSigner implements JsonRpcSigner {
   ): Promise<string> {
     this._checkProvider('call')
     const tx = await resolveProperties(this.checkTransaction(transaction))
-    return this.optimism.call(tx, blockTag)
+    return this.provider.call(tx, blockTag)
   }
 
   // Calls the optimism node to get the chainid
   public async getChainId(): Promise<number> {
     this._checkOptimism('getChainId')
-    const network = await this.optimism.getNetwork()
+    const network = await this.provider.getNetwork()
     return network.chainId
   }
 
   // Calls the optimism node to get the gas price
   public async getGasPrice(): Promise<BigNumber> {
     this._checkOptimism('getGasPrice')
-    return this.optimism.getGasPrice()
+    return this.provider.getGasPrice()
   }
 
   // Resolve ENS on the optimism node, if it exists
   public async resolveName(name: string): Promise<string> {
     this._checkOptimism('resolveName')
-    return this.optimism.resolveName(name)
+    return this.provider.resolveName(name)
   }
 
   // Checks a transaction does not contain invalid keys and if
