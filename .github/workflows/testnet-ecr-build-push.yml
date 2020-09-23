@@ -33,7 +33,7 @@ jobs:
           IMAGE_TAG: testnet
         run: |
           MANIFEST=$(aws ecr batch-get-image --repository-name $ECR_REPOSITORY --image-ids imageTag=$IMAGE_TAG --query 'images[].imageManifest' --output text)
-          ROLLBACK_TAG="${IMAGE_TAG}_ROLLBACK_$(date +%Y-%m-%d_%H:%M:%S)"
+          ROLLBACK_TAG="${IMAGE_TAG}_ROLLBACK_$(date +%Y-%m-%d_%H_%M_%S)"
           aws ecr put-image --repository-name $ECR_REPOSITORY --image-tag $ROLLBACK_TAG --image-manifest "$MANIFEST"
 
       - name: Build, tag, and push image to Amazon ECR
