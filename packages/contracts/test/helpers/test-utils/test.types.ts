@@ -175,6 +175,7 @@ export const isTestStep_Context = (
   return [
     'ovmCALLER',
     'ovmADDRESS',
+    'ovmNUMBER',
     'ovmL1TXORIGIN',
     'ovmTIMESTAMP',
     'ovmGASLIMIT',
