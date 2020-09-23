@@ -16,7 +16,6 @@ import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 
 /* Testing Imports */
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
-import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title ExecutionManager
