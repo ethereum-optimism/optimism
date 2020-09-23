@@ -5,11 +5,20 @@ pragma solidity ^0.7.0;
  * @title Proxy_Manager
  */
 contract Proxy_Manager {
+
+    /*******************************************
+     * Contract Variables: Internal Accounting *
+     *******************************************/
+
     mapping (bytes32 => address) private proxyByName;
     mapping (bytes32 => address) private targetByName;
     mapping (address => bytes32) private nameByProxy;
     mapping (address => bytes32) private nameByTarget;
 
+
+    /********************
+     * Public Functions *
+     ********************/
 
     function setProxy(
         string memory _name,
@@ -151,6 +160,10 @@ contract Proxy_Manager {
         return nameByTarget[_target] != bytes32('');
     }
 
+
+    /**********************
+     * Internal Functions *
+     **********************/
 
     function _getNameHash(
         string memory _name

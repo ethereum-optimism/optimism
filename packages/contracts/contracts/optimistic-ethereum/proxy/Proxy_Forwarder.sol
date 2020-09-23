@@ -8,49 +8,67 @@ import { Proxy_Manager } from "./Proxy_Manager.sol";
  * @title Proxy_Forwarder
  */
 contract Proxy_Forwarder {
+
+    /*******************************************
+     * Contract Variables: Contract References * 
+     *******************************************/
+
     Proxy_Manager private proxyManager;
 
+
+    /***************
+     * Constructor *
+     ***************/
+
+    /**
+     * @param _proxyManager Address of the Proxy_Manager.
+     */
     constructor(
         address _proxyManager
     ) {
         proxyManager = Proxy_Manager(_proxyManager);
     }
 
+
+    /********************
+     * Public Functions *
+     ********************/
+
+    /**
+     * Forwards calls to the appropriate target.
+     */
     fallback()
         external
     {
         address target = _getTarget();
-        bytes memory data = msg.data;
 
         require(
             target != address(0),
             "Proxy does not have a target."
         );
 
-        assembly {
-            let success := call(
-                gas(),
-                target,
-                0,
-                add(data, 0x20),
-                mload(data),
-                0,
-                0
-            )
+        (bool success, bytes memory returndata) = target.call(msg.data);
 
-            let size := returndatasize()
-            let returndata := mload(0x40)
-            mstore(0x40, add(returndata, add(size, 0x20)))
-            returndatacopy(add(returndata, 0x20), 0, size)
-            
-            if iszero(success) {
-                revert(add(returndata, 0x20), size)
+        if (success == true) {
+            assembly {
+                return(add(returndata, 0x20), mload(returndata))
             }
-
-            return(add(returndata, 0x20), size)
+        } else {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
         }
     }
 
+
+    /**********************
+     * Internal Functions *
+     **********************/
+
+    /**
+     * Determines the appropriate target.
+     * @return Target to forward requests to.
+     */
     function _getTarget()
         internal
         view
