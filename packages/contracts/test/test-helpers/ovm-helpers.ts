@@ -27,6 +27,7 @@ import { encodeMethodId, encodeRawArguments } from './ethereum-helpers'
 import { getContractInterface } from '../../index'
 
 const ExecutionManagerInterface = getContractInterface('ExecutionManager')
+const StateManagerInterface = getContractInterface('StateManager')
 const logger = getLogger('contracts:test-helpers', true)
 const revertMessagePrefix: string =
   'VM Exception while processing transaction: revert '
@@ -152,62 +153,6 @@ export const getSuccessfulOvmTransactionMetadata = (
 
   return metadata
 }
-/**
- * Converts an EVM receipt to an OVM receipt.
- *
- * @param internalTxReceipt The EVM tx receipt to convert to an OVM tx receipt
- * @param ovmTxHash The OVM tx hash to replace the internal tx hash with.
- * @returns The converted receipt
- */
-export const internalTxReceiptToOvmTxReceipt = async (
-  internalTxReceipt: TransactionReceipt,
-  executionManagerAddress: string,
-  ovmTxHash?: string
-): Promise<any> => {
-  const ovmTransactionMetadata = getSuccessfulOvmTransactionMetadata(
-    internalTxReceipt
-  )
-  // Construct a new receipt
-
-  // Start off with the internalTxReceipt
-  const ovmTxReceipt: any = internalTxReceipt
-  // Add the converted logs
-  ovmTxReceipt.logs = convertInternalLogsToOvmLogs(
-    internalTxReceipt.logs,
-    executionManagerAddress
-  )
-  // Update the to and from fields if necessary
-  if (ovmTransactionMetadata.ovmTo) {
-    ovmTxReceipt.to = ovmTransactionMetadata.ovmTo
-  }
-  // Also update the contractAddress in case we deployed a new contract
-  ovmTxReceipt.contractAddress = !!ovmTransactionMetadata.ovmCreatedContractAddress
-    ? ovmTransactionMetadata.ovmCreatedContractAddress
-    : null
-
-  ovmTxReceipt.status = ovmTransactionMetadata.ovmTxSucceeded ? 1 : 0
-
-  if (!!ovmTxReceipt.transactionHash && !!ovmTxHash) {
-    ovmTxReceipt.transactionHash = ovmTxHash
-  }
-
-  if (ovmTransactionMetadata.revertMessage !== undefined) {
-    ovmTxReceipt.revertMessage = ovmTransactionMetadata.revertMessage
-  }
-
-  logger.debug('Ovm parsed logs:', ovmTxReceipt.logs)
-  const logsBloom = new BloomFilter()
-  ovmTxReceipt.logs.forEach((log, index) => {
-    logsBloom.add(hexStrToBuf(log.address))
-    log.topics.forEach((topic) => logsBloom.add(hexStrToBuf(topic)))
-    log.transactionHash = ovmTxReceipt.transactionHash
-    log.logIndex = numberToHexString(index) as any
-  })
-  ovmTxReceipt.logsBloom = bufToHexString(logsBloom.bitvector)
-
-  // Return!
-  return ovmTxReceipt
-}
 
 /**
  * Helper function for generating initcode based on a contract definition & constructor arguments
@@ -224,6 +169,20 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     ...constructorArguments
   ).data as string
 
+  const stateManagerAddress = await executionManager.getStateManagerAddress()
+  const stateManager = new Contract(
+    stateManagerAddress,
+    StateManagerInterface,
+    provider
+  )
+
+  const theNonce = await stateManager.getOvmContractNonceView(
+    await wallet.getAddress()
+  )
+  const theNewContractAddress = ethers.utils.getContractAddress({
+    from: await wallet.getAddress(),
+    nonce: theNonce,
+  })
   const receipt: TransactionReceipt = await executeTransaction(
     executionManager,
     wallet,
@@ -233,7 +192,8 @@ export const manuallyDeployOvmContractReturnReceipt = async (
     timestamp
   )
 
-  return internalTxReceiptToOvmTxReceipt(receipt, executionManager.address)
+  receipt.contractAddress = theNewContractAddress
+  return receipt
 }
 
 /**

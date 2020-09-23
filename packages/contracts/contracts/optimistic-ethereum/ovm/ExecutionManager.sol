@@ -16,7 +16,6 @@ import { RLPWriter } from "../utils/libraries/RLPWriter.sol";
 
 /* Testing Imports */
 import { StubSafetyChecker } from "./test-helpers/StubSafetyChecker.sol";
-import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title ExecutionManager
@@ -25,35 +24,6 @@ import { console } from "@nomiclabs/buidler/console.sol";
  *         backend. Only state / contracts from that backend will be accessed.
  */
 contract ExecutionManager is ContractResolver {
-
-    /*
-     * Events
-     */
-
-    event ActiveContract(
-        address _activeContract
-    );
-    event CreatedContract(
-        address _ovmContractAddress,
-        address _codeContractAddress,
-        bytes32 _codeContractHash
-    );
-    event CallingWithEOA(
-        address _ovmFromAddress,
-        address _ovmToAddress
-    );
-    event EOACreatedContract(
-        address _ovmContractAddress
-    );
-    event SetStorage(
-        address _ovmContractAddress,
-        bytes32 _slot,
-        bytes32 _value
-    );
-    event EOACallRevert(
-        bytes _revertMessage
-    );
-
 
     /*
      * Contract Constants
@@ -176,11 +146,6 @@ contract ExecutionManager is ContractResolver {
         // Require nonce to be correct
         require(_nonce == stateManager.getOvmContractNonce(eoaAddress), "Incorrect nonce!");
 
-        emit CallingWithEOA(
-            eoaAddress,
-            _ovmEntrypoint
-        );
-
         // Make the EOA call for the account
         executeTransaction(
             _timestamp,
@@ -239,9 +204,6 @@ contract ExecutionManager is ContractResolver {
                 _fromAddress,
                 stateManager.getOvmContractNonce(_fromAddress)
             );
-
-            // Emit event that we are creating a contract with an EOA
-            emit EOACreatedContract(_newOvmContractAddress);
         } else {
             methodId = METHOD_ID_OVM_CALL;
             callSize = _callBytes.length + 32 + 4;
@@ -295,9 +257,6 @@ contract ExecutionManager is ContractResolver {
         }
 
         if (!success) {
-            // We need the tx to succeed even on failure so logs, nonce, etc. are preserved.
-            // This is how we indicate that the tx "failed."
-            emit EOACallRevert(result);
             assembly {
                 return(0,0)
             }
@@ -993,8 +952,6 @@ contract ExecutionManager is ContractResolver {
         }
 
         stateManager.setStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
-        // Emit SetStorage event!
-        emit SetStorage(executionContext.ovmActiveContract, _storageSlot, _storageValue);
     }
 
     /************************
@@ -1169,14 +1126,8 @@ contract ExecutionManager is ContractResolver {
         // Associate the code contract with our ovm contract
         stateManager.associateCodeContract(_newOvmContractAddress, codeContractAddress);
 
-        // Get the code contract address to be emitted by a CreatedContract event
-        bytes32 codeContractHash = keccak256(codeContractBytecode);
-
         // Revert to the previous the context
         restoreContractContext(oldMsgSender, oldActiveContract);
-
-        // Emit CreatedContract event! We've created a new contract!
-        emit CreatedContract(_newOvmContractAddress, codeContractAddress, codeContractHash);
     }
 
     /**
@@ -1253,10 +1204,6 @@ contract ExecutionManager is ContractResolver {
         // Set our new context
         executionContext.ovmActiveContract = _newActiveContract;
         executionContext.ovmMsgSender = _oldActiveContract;
-
-        // Emit an event so we can track the active contract. This is used in
-        // order to parse transaction receipts in the fullnode.
-        emit ActiveContract(_newActiveContract);
 
         // Return old context so we can later revert to it
         return (_oldMsgSender, _oldActiveContract);
