@@ -69,4 +69,21 @@ export class Environment {
   public static addressResolverContractAddress(defaultValue?: string): string {
     return process.env.L1_ADDRESS_RESOLVER_CONTRACT_ADDRESS || defaultValue
   }
+  public static deployerWhitelistOwnerAddress(defaultValue?: string): string {
+    return process.env.DEPLOYER_WHITELIST_OWNER_ADDRESS || defaultValue
+  }
+  public static allowArbitraryContractDeployment(
+    defaultValue?: boolean
+  ): boolean {
+    const allowDeployment = process.env.ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT.toLowerCase()
+    if (typeof allowDeployment !== 'undefined') {
+      if (allowDeployment !== 'true' && allowDeployment !== 'false') {
+        throw new Error(
+          `Invalid value for allow arbitrary contract deployment: ${process.env.ALLOW_ARBITRARY_CONTRACT_DEPLOYMENT}`
+        )
+      }
+      return allowDeployment === 'true'
+    }
+    return defaultValue
+  }
 }

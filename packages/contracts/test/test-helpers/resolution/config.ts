@@ -6,6 +6,7 @@ import { Contract } from 'ethers'
 import { AddressResolverDeployConfig, AddressResolverConfig } from './types'
 import {
   GAS_LIMIT,
+  ZERO_ADDRESS,
   DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
   getDefaultGasMeterParams,
 } from '../constants'
@@ -34,6 +35,10 @@ export const getDefaultDeployConfig = async (
       factory: await ethers.getContractFactory('SafetyTransactionQueue'),
       params: [addressResolver.address],
     },
+    DeployerWhitelist: {
+      factory: await ethers.getContractFactory('DeployerWhitelist'),
+      params: [ZERO_ADDRESS, true],
+    },
     CanonicalTransactionChain: {
       factory: await ethers.getContractFactory('CanonicalTransactionChain'),
       params: [
@@ -49,10 +54,6 @@ export const getDefaultDeployConfig = async (
     StateManager: {
       factory: await ethers.getContractFactory('FullStateManager'),
       params: [],
-    },
-    StateManagerGasSanitizer: {
-      factory: await ethers.getContractFactory('StateManagerGasSanitizer'),
-      params: [addressResolver.address],
     },
     ExecutionManager: {
       factory: await ethers.getContractFactory('ExecutionManager'),

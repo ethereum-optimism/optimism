@@ -242,12 +242,10 @@ contract StateTransitioner is IStateTransitioner, ContractResolver {
         executionManager.executeTransaction.gas(gasLeft)(
             _transactionData.timestamp,
             _transactionData.blockNumber,
-            _transactionData.queueOrigin,
             _transactionData.ovmEntrypoint,
             _transactionData.callBytes,
             _transactionData.fromAddress,
             _transactionData.l1MsgSenderAddress,
-            _transactionData.gasLimit,
             _transactionData.allowRevert
         );
 

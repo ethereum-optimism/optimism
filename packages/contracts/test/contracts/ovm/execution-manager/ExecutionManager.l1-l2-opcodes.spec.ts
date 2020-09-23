@@ -31,6 +31,7 @@ import {
 
 /* Contract Imports */
 import * as ExecutionManagerJson from '../../../../artifacts/ExecutionManager.json'
+import { boolean } from '@nomiclabs/buidler/internal/core/params/argumentTypes'
 
 /* Logging */
 const log = getLogger('l2-to-l1-messaging', true)
@@ -160,12 +161,10 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         [
           getCurrentTime(),
           0,
-          0,
           callContractAddress,
           callBytes,
           ZERO_ADDRESS,
           ZERO_ADDRESS,
-          GAS_LIMIT,
           true,
         ]
       )
@@ -210,12 +209,10 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
         [
           getCurrentTime(),
           0,
-          0,
           l1MessageSenderPrecompileAddr,
           getL1MessageSenderMethodId,
           ZERO_ADDRESS,
           testL1MsgSenderAddress,
-          GAS_LIMIT,
           true,
         ],
         ['address']
@@ -247,7 +244,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           ['address']
         )
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        log.debug(e.stack)
         failed = true
       }
 
@@ -274,7 +271,7 @@ describe('Execution Manager -- L1 <-> L2 Opcodes', () => {
           ['address']
         )
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        log.debug(e.stack)
         failed = true
       }
 
