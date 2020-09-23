@@ -39,10 +39,34 @@ contract DeployerWhitelist {
         address _deployerAddress,
         bool _isWhitelisted
     )
-        public
+        external
         onlyOwner
     {
         whitelistedDeployers[_deployerAddress] = _isWhitelisted;
+    }
+
+    /**
+     * Set owner of the contract.
+     */
+    function setOwner(
+        address _newOwner
+    )
+        external
+        onlyOwner
+    {
+        owner = _newOwner;
+    }
+
+    /**
+     * Set allowArbitraryDeployment which if enabled allows anyone to deploy.
+     */
+    function setAllowArbitraryDeployment(
+        bool _allowArbitraryDeployment
+    )
+        external
+        onlyOwner
+    {
+        allowArbitraryDeployment = _allowArbitraryDeployment;
     }
 
     /**
@@ -50,10 +74,12 @@ contract DeployerWhitelist {
      * This cannot be undone!
      */
     function enableArbitraryContractDeployment()
-        public
+        external
         onlyOwner
     {
+        // Allow anyone to deploy and then burn the owner address!
         allowArbitraryDeployment = true;
+        owner = address(0);
     }
 
     /**
@@ -62,7 +88,9 @@ contract DeployerWhitelist {
     function isDeployerAllowed(
         address _deployerAddress
     )
-        public returns(bool)
+        external
+        view
+        returns(bool)
     {
         return allowArbitraryDeployment || whitelistedDeployers[_deployerAddress];
     }

@@ -574,16 +574,4 @@ contract PartialStateManager is ContractResolver {
             existsInvalidStateAccessFlag = true;
         }
     }
-
-
-    /*
-     * Contract Resolution
-     */
-
-    function resolveStateManager()
-        internal
-        view returns (StateManager)
-    {
-        return StateManager(resolveContract("StateManager"));
-    }
 }
