@@ -170,12 +170,18 @@ export const manuallyDeployOvmContractReturnReceipt = async (
   ).data as string
 
   const stateManagerAddress = await executionManager.getStateManagerAddress()
-  const stateManager = new Contract(stateManagerAddress, StateManagerInterface, provider)
+  const stateManager = new Contract(
+    stateManagerAddress,
+    StateManagerInterface,
+    provider
+  )
 
-  const theNonce = await stateManager.getOvmContractNonceView(await wallet.getAddress())
+  const theNonce = await stateManager.getOvmContractNonceView(
+    await wallet.getAddress()
+  )
   const theNewContractAddress = ethers.utils.getContractAddress({
     from: await wallet.getAddress(),
-    nonce: theNonce
+    nonce: theNonce,
   })
   const receipt: TransactionReceipt = await executeTransaction(
     executionManager,
