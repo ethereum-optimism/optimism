@@ -6,7 +6,7 @@ import { L2ToL1MessagePasser } from "./precompiles/L2ToL1MessagePasser.sol";
 import { L1MessageSender } from "./precompiles/L1MessageSender.sol";
 import { StateManager } from "./StateManager.sol";
 import { SafetyChecker } from "./SafetyChecker.sol";
-import { StateManagerGasSanitizer } from "./StateManagerGasSanitizer.sol";
+import { DeployerWhitelist } from "./precompiles/DeployerWhitelist.sol";
 
 /* Library Imports */
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
@@ -68,21 +68,6 @@ contract ExecutionManager is ContractResolver {
     // Precompile addresses
     address constant private L2_TO_L1_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
-
-    // Gas rate limiting parameters
-    // OVM address where we handle some persistent state that is used directly by the EM.  There will never be code deployed here, we just use it to persist this chain-related metadata.
-    address constant private METADATA_STORAGE_ADDRESS = ZERO_ADDRESS;
-    // Storage keys which the EM will directly use to persist the different pieces of metadata:
-    // Storage slot where we will store the cumulative sequencer tx gas spent
-    bytes32 constant private CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    // Storage slot where we will store the cumulative queued tx gas spent
-    bytes32 constant private CUMULATIVE_QUEUED_GAS_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000002;
-    // Storage slot where we will store the start of the current gas rate limit epoch
-    bytes32 constant private GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000003;
-    // Storage slot where we will store what the cumulative sequencer gas was at the start of the last epoch
-    bytes32 constant private CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000004;
-    // Storage slot where we will store what the cumulative queued gas was at the start of the last epoch
-    bytes32 constant private CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY = 0x0000000000000000000000000000000000000000000000000000000000000005;
 
     /*
      * Contract Variables
@@ -174,7 +159,6 @@ contract ExecutionManager is ContractResolver {
         uint _nonce,
         address _ovmEntrypoint,
         bytes memory _callBytes,
-        uint _ovmTxGasLimit,
         uint8 _v,
         bytes32 _r,
         bytes32 _s
@@ -200,13 +184,11 @@ contract ExecutionManager is ContractResolver {
         // Make the EOA call for the account
         executeTransaction(
             _timestamp,
-            0, // note: since executeEOACall is soon to be deprecated, not bothering to add blockNumber here.
             _queueOrigin,
             _ovmEntrypoint,
             _callBytes,
             eoaAddress,
             ZERO_ADDRESS,
-            _ovmTxGasLimit,
             false
         );
     }
@@ -215,33 +197,27 @@ contract ExecutionManager is ContractResolver {
      * Execute a transaction. Note that unsigned EOA calls are unauthenticated.
      * This means that they should not be allowed for normal execution.
      * @param _timestamp The timestamp which should be used for this call's context.
-     * @param _blockNumber The blockNumber which should be used for this call's context.
      * @param _queueOrigin The parent-chain queue from which this call originated.
      * @param _ovmEntrypoint The contract which this transaction should be executed against.
      * @param _callBytes The calldata for this ovm transaction.
      * @param _fromAddress The address which this call should originate from--the msg.sender.
-     * @param _ovmTxGasLimit The max gas this OVM transaction has been allotted.
      * @param _allowRevert Flag which controls whether or not to revert in the case of failure.
      */
     function executeTransaction(
         uint _timestamp,
-        uint _blockNumber,
         uint _queueOrigin,
         address _ovmEntrypoint,
         bytes memory _callBytes,
         address _fromAddress,
         address _l1MsgSenderAddress,
-        uint _ovmTxGasLimit,
         bool _allowRevert
     )
         public
     {
         StateManager stateManager = resolveStateManager();
 
-        require(_timestamp > 0, "Timestamp must be greater than 0");
-
         // Initialize our context
-        initializeContext(_timestamp, _blockNumber, _queueOrigin, _fromAddress, _l1MsgSenderAddress, _ovmTxGasLimit);
+        initializeContext(_timestamp, 0, _queueOrigin, _fromAddress, _l1MsgSenderAddress, 0);
 
         // Set the active contract to be our EOA address
         switchActiveContract(_fromAddress);
@@ -253,6 +229,9 @@ contract ExecutionManager is ContractResolver {
 
         // Check if we're creating -- ovmEntrypoint == ZERO_ADDRESS
         if (isCreate) {
+            // Require that the deployer whitelist contract approves of the deployment.
+            // TODO: Put this check inside of our default EOA contracts
+            require(resolveDeployerWhitelist().isDeployerAllowed(_fromAddress), "Sender not allowed to deploy new contracts!");
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 
@@ -288,27 +267,14 @@ contract ExecutionManager is ContractResolver {
             mstore8(add(_callBytes, 3), methodId)
         }
 
-        // Do pre-execution gas checks and updates
-        startNewGasEpochIfNecessary(_timestamp);
-        validateTxGasLimit(_ovmTxGasLimit, _queueOrigin);
-        StateManagerGasSanitizer(address(resolveStateManager())).resetOVMGasRefund();
-        // subtract the flat gas fee off the tx gas limit which we will pass as gas
-        _ovmTxGasLimit -= gasMeterConfig.OvmTxBaseGasFee;
-
         bool success = false;
         bytes memory result;
         uint ovmCallReturnDataSize;
-        // This uint records the current gas so we can measure how much execution took.
-        // note that later we subtract the post-call gas left, would call this a different var but we're out of stack!
-        uint gasConsumedByExecution;
         assembly {
-            gasConsumedByExecution := gas()
             success := call(
-                _ovmTxGasLimit,
+                gas(),
                 address, 0, _callBytes, callSize, 0, 0
             )
-            // subtract initial gas to get the gas consumed by execution itself
-            gasConsumedByExecution := sub(gasConsumedByExecution, gas())
             
             ovmCallReturnDataSize := returndatasize
             result := mload(0x40)
@@ -317,9 +283,6 @@ contract ExecutionManager is ContractResolver {
             mstore(result, ovmCallReturnDataSize)
             mstore(0x40, add(resultData, ovmCallReturnDataSize))
         }
-
-        // set the new cumulative gas
-        updateCumulativeGas(gasConsumedByExecution);
 
         assembly {
             let resultData := add(result, 0x20)
@@ -1171,102 +1134,10 @@ contract ExecutionManager is ContractResolver {
         return executionContext.l1MessageSender;
     }
 
-    function getCumulativeSequencedGas() public returns(uint) {
-        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY));
-    }
-
-    function getCumulativeQueuedGas() public returns(uint) {
-        return uint(StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, CUMULATIVE_QUEUED_GAS_STORAGE_KEY));
-    }
 
     /*
      * Internal Functions
      */
-
-     function startNewGasEpochIfNecessary(uint _timestamp) internal {
-        // If we are at the start of a new epoch, the current time is the new start and curent cumulative gas is the new cumulative gas at stat!
-        if (_timestamp >= gasMeterConfig.GasRateLimitEpochSeconds + getGasRateLimitEpochStart()) {
-            setGasRateLimitEpochStart(_timestamp);
-            setCumulativeSequencedGasAtEpochStart(
-                getCumulativeSequencedGas()
-            );
-            setCumulativeQueuedGasAtEpochStart(
-                getCumulativeQueuedGas()
-            );
-        }
-     }
-
-    /**
-     * Checks that an OVM tx does not violate any gas metering requirements.
-     * @param _txGasLimit The OVM transaction's gas limit.
-     * @param _txGasLimit The OVM transaction's queue origin.
-     */
-    function validateTxGasLimit(uint _txGasLimit, uint _queueOrigin) internal {
-        // Check for individual tx gas limit violations
-        if (_txGasLimit > gasMeterConfig.OvmTxMaxGas) {
-            // TODO: handle _allowRevert=true or ideally remove it altogether as it should probably always be false for Fraud Verification purposes.
-            emit EOACallRevert("Transaction gas limit exceeds max OVM tx gas limit.");
-            assembly {
-                return(0,0)
-            }
-        }
-        if (_txGasLimit < gasMeterConfig.OvmTxBaseGasFee) {
-            emit EOACallRevert("Transaction gas limit is less than the minimum (base fee) gas.");
-            assembly {
-                return(0,0)
-            }
-        }
-
-
-        // check for gas rate limit violations
-        // TODO: make queue origin an enum?  or just configure better?
-        if (_queueOrigin == 0) {
-            if (
-                getCumulativeSequencedGas()
-                - getCumulativeSequencedGasAtEpochStart()
-                + _txGasLimit
-                >
-                gasMeterConfig.MaxSequencedGasPerEpoch
-            ) {
-                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
-                assembly {
-                    return(0,0)
-                }
-            }
-        } else {
-            if (
-                getCumulativeQueuedGas()
-                - getCumulativeQueuedGasAtEpochStart()
-                + _txGasLimit
-                >
-                gasMeterConfig.MaxQueuedGasPerEpoch
-            ) {
-                emit EOACallRevert("Transaction gas limit exceeds remaining gas for this epoch and queue origin.");
-                assembly {
-                    return(0,0)
-                }
-            }
-        }
-    }
-
-    function updateCumulativeGas(uint _gasConsumed) internal {
-        uint refund = StateManagerGasSanitizer(address(resolveStateManager())).getOVMGasRefund();
-        if (executionContext.queueOrigin == 0) {
-            setCumulativeSequencedGas(
-                getCumulativeSequencedGas()
-                + gasMeterConfig.OvmTxBaseGasFee
-                + _gasConsumed
-                - refund
-            );
-        } else {
-            setCumulativeQueuedGas(
-                getCumulativeQueuedGas()
-                + gasMeterConfig.OvmTxBaseGasFee
-                + _gasConsumed
-                - refund
-            );
-        }
-    }
 
     /**
      * Create a new contract at some OVM contract address.
@@ -1411,73 +1282,6 @@ contract ExecutionManager is ContractResolver {
         return address(stateManager);
     }
 
-    /**
-     * @notice Sets the new cumulative sequenced gas as a result of tx execution.
-     */
-    function setCumulativeSequencedGas(uint _value) internal {
-        setMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_STORAGE_KEY, bytes32(_value));
-    }
-
-    /**
-     * @notice Sets the new cumulative queued gas as a result of this new tx.
-     */
-    function setCumulativeQueuedGas(uint _value) internal {
-        setMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_STORAGE_KEY, bytes32(_value));
-    }
-
-    /**
-     * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
-     */
-    function getGasRateLimitEpochStart() public returns (uint) {
-        return uint(getMetadataStorageSlot(GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY));
-    }
-
-    /**
-     * @notice Used to store the current time at the start of a new gas rate limit epoch.
-     */
-    function setGasRateLimitEpochStart(uint _value) internal {
-        setMetadataStorageSlot(GAS_RATE_LMIT_EPOCH_START_STORAGE_KEY, bytes32(_value));
-    }
-
-    /**
-     * @notice Sets the cumulative sequenced gas at the start of a new gas rate limit epoch.
-     */
-    function setCumulativeSequencedGasAtEpochStart(uint _value) internal {
-        setMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
-    }
-
-    /**
-     * @notice Gets what the cumulative sequenced gas was at the start of this gas rate limit epoch.
-     */
-    function getCumulativeSequencedGasAtEpochStart() internal returns (uint) {
-        return uint(getMetadataStorageSlot(CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY));
-    }
-
-    /**
-     * @notice Sets what the cumulative queued gas is at the start of a new gas rate limit epoch.
-     */
-    function setCumulativeQueuedGasAtEpochStart(uint _value) internal {
-        setMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY, bytes32(_value));
-    }
-
-    /**
-     * @notice Gets the cumulative queued gas was at the start of this gas rate limit epoch.
-     */
-    function getCumulativeQueuedGasAtEpochStart() internal returns (uint) {
-        return uint(getMetadataStorageSlot(CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY));
-    }
-
-    /**
-     * @notice Gets the OVM slot value for the given key at the METADATA_STORAGE_ADDRESS.
-     */
-    function getMetadataStorageSlot(bytes32 _key) internal returns (bytes32) {
-        return StateManager(resolveStateManager()).getStorage(METADATA_STORAGE_ADDRESS, _key);
-    }
-
-    function setMetadataStorageSlot(bytes32 _key, bytes32 _value) internal {
-        StateManager(resolveStateManager()).setStorage(METADATA_STORAGE_ADDRESS, _key, _value);
-    }
-
     /*
      * Contract Resolution
      */
@@ -1495,6 +1299,14 @@ contract ExecutionManager is ContractResolver {
         view
         returns (StateManager)
     {
-        return StateManager(resolveContract("StateManagerGasSanitizer"));
+        return StateManager(resolveContract("StateManager"));
+    }
+
+    function resolveDeployerWhitelist()
+        internal
+        view
+        returns (DeployerWhitelist)
+    {
+        return DeployerWhitelist(resolveContract("DeployerWhitelist"));
     }
 }

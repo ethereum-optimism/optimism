@@ -288,13 +288,11 @@ export const executeTransaction = async (
   // Actually make the call
   const tx = await executionManager.executeTransaction(
     timestamp,
-    blockNumber,
     0,
     ovmTo,
     data,
     await wallet.getAddress(),
     ZERO_ADDRESS,
-    maxTxGasLimit,
     allowRevert
   )
   // Return the parsed transaction values

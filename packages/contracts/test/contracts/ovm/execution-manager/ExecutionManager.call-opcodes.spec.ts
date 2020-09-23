@@ -456,12 +456,10 @@ describe('Execution Manager -- Call opcodes', () => {
       [
         getCurrentTime(),
         0,
-        0,
         callContractAddress,
         callBytes,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        GAS_LIMIT,
         true,
       ]
     )
@@ -486,12 +484,10 @@ describe('Execution Manager -- Call opcodes', () => {
       [
         getCurrentTime(),
         0,
-        0,
         contractAddress,
         callBytes,
         ZERO_ADDRESS,
         ZERO_ADDRESS,
-        GAS_LIMIT,
         true,
       ]
     )

@@ -53,9 +53,12 @@ export const getDefaultContractDeployConfig = async (
       params: [],
       signer: deployerWallet,
     },
-    StateManagerGasSanitizer: {
-      factory: getContractFactory('StateManagerGasSanitizer'),
-      params: [addressResolverAddress],
+    DeployerWhitelist: {
+      factory: await getContractFactory('DeployerWhitelist'),
+      params: [
+        rollupOptions.deployerWhitelistOwnerAddress,
+        rollupOptions.allowArbitraryContractDeployment,
+      ],
       signer: deployerWallet,
     },
     ExecutionManager: {

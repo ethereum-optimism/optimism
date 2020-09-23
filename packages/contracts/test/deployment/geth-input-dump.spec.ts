@@ -32,6 +32,8 @@ describe.skip('L2Geth Dumper Input Generator', () => {
       signer: wallet,
       rollupOptions: {
         forceInclusionPeriodSeconds: DEFAULT_FORCE_INCLUSION_PERIOD_SECONDS,
+        deployerWhitelistOwnerAddress: await wallet.getAddress(),
+        allowArbitraryContractDeployment: true,
         ownerAddress: await wallet.getAddress(),
         sequencerAddress: await sequencer.getAddress(),
         gasMeterConfig: getDefaultGasMeterOptions(),
