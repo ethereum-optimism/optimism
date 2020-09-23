@@ -4,13 +4,10 @@ import {
   TestDefinition,
   OVM_TX_GAS_LIMIT,
   NON_NULL_BYTES32,
-  REVERT_FLAGS,
   ZERO_ADDRESS,
   VERIFIED_EMPTY_CONTRACT_HASH,
 } from '../../../../helpers'
 
-const DUMMY_REVERT_DATA =
-  '0xdeadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420deadbeef1e5420'
 const GAS_METADATA_ADDRESS = '0x06a506a506a506a506a506a506a506a506a506a5'
 
 enum GasMetadataKey {

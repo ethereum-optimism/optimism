@@ -1,5 +1,5 @@
+/* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { hexZeroPad } from 'ethers/lib/utils'
 
 export const encodeRevertData = (
   flag: number,
@@ -15,8 +15,6 @@ export const encodeRevertData = (
 }
 
 export const decodeRevertData = (revertData: string): any => {
-  // const length: number = revertData.length/2 - 1
-  // const reencodedRevertData = '0x' + hexZeroPad('0x' + length.toString(16), 32) + revertData.slice(2)
   const decoded = ethers.utils.defaultAbiCoder.decode(
     ['uint256', 'uint256', 'uint256', 'bytes'],
     revertData

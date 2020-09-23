@@ -7,7 +7,7 @@
     "build": "yarn run build:contracts",
     "build:contracts": "buidler compile",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/OVM/execution/OVM_ExecutionManager/context-opcodes.spec.ts\"",
+    "test:contracts": "buidler test",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\""
   },
@@ -16,6 +16,7 @@
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",
     "@types/chai": "^4.2.12",
+    "@types/lodash": "^4.14.161",
     "@types/mocha": "^8.0.3",
     "@types/node": "^14.6.0",
     "assert": "^2.0.0",

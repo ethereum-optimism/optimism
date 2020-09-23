@@ -3,7 +3,7 @@ import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
 
 /* Internal Imports */
-import { makeHexString, makeAddress } from './byte-utils'
+import { makeHexString, makeAddress } from './utils'
 
 export const DEFAULT_ACCOUNTS = defaultAccounts
 export const DEFAULT_ACCOUNTS_BUIDLER = defaultAccounts.map((account) => {

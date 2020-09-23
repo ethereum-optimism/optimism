@@ -28,7 +28,7 @@ import {
   isTestStep_REVERT,
 } from './test.types'
 import { encodeRevertData } from '../codec'
-import { getModifiableStorageFactory } from '../storage/contract-storage'
+import { getModifiableStorageFactory } from '../storage'
 import {
   OVM_TX_GAS_LIMIT,
   RUN_OVM_TEST_GAS,
@@ -226,10 +226,10 @@ export class ExecutionManagerTestRunner {
       await this.contracts.OVM_ExecutionManager.run(
         {
           timestamp: step.functionParams.timestamp,
-          queueOrigin: step.functionParams.queueOrigin,
+          number: 0,
+          l1QueueOrigin: step.functionParams.queueOrigin,
+          l1Txorigin: step.functionParams.origin,
           entrypoint: step.functionParams.entrypoint,
-          origin: step.functionParams.origin,
-          msgSender: step.functionParams.msgSender,
           gasLimit: step.functionParams.gasLimit,
           data: calldata,
         },

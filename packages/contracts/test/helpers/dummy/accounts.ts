@@ -1,7 +1,7 @@
 /* Internal Imports */
 import { DUMMY_BYTES32 } from './bytes32'
 import { ZERO_ADDRESS, NON_ZERO_ADDRESS } from '../constants'
-import { makeAddress } from '../byte-utils'
+import { makeAddress } from '../utils'
 import { OVMAccount } from '../types/ovm-types'
 
 export const DUMMY_ACCOUNTS: Array<{
