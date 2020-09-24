@@ -27,13 +27,14 @@ import {
   AddressResolverMapping,
   getDefaultGasMeterParams,
 } from '../../../test-helpers'
-import {  } from 'ethers/providers'
+import {} from 'ethers/providers'
 
 /* Logging */
 const log = getLogger('execution-manager-calls', true)
 
 export const abi = new ethers.utils.AbiCoder()
-const DEPLOYER_WHITELIST_OVM_ADDRESS = '0x4200000000000000000000000000000000000002'
+const DEPLOYER_WHITELIST_OVM_ADDRESS =
+  '0x4200000000000000000000000000000000000002'
 
 /* Tests */
 describe('Execution Manager -- TX/Call Execution Functions', () => {
@@ -101,8 +102,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         [intParam, bytesParam]
       )
 
-
-
       const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
@@ -137,13 +136,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       await callDeployerWhitelist(
         wallet,
         executionManager,
-        DeployerWhitelist.interface.encodeFunctionData(
-          'initialize',
-          [
-            wallet.address,
-            false
-          ]
-        )
+        DeployerWhitelist.interface.encodeFunctionData('initialize', [
+          wallet.address,
+          false,
+        ])
       )
 
       // Generate our tx calldata
@@ -183,10 +179,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         executionManager,
         DeployerWhitelist.interface.encodeFunctionData(
           'setWhitelistedDeployer',
-          [
-            wallet.address,
-            true
-          ]
+          [wallet.address, true]
         )
       )
 
@@ -206,10 +199,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         executionManager,
         DeployerWhitelist.interface.encodeFunctionData(
           'setWhitelistedDeployer',
-          [
-            wallet.address,
-            false
-          ]
+          [wallet.address, false]
         )
       )
 
