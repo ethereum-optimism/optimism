@@ -47,34 +47,44 @@ contract OVM_L1ToL2TransactionQueue is iOVM_L1ToL2TransactionQueue, OVM_BaseQueu
      ****************************************/
 
     /**
-     * Adds an element to the queue.
-     * @param _element Queue element to add to the queue.
+     * Adds a transaction to the queue.
+     * @param _target Target contract to send the transaction to.
+     * @param _gasLimit Gas limit for the given transaction.
+     * @param _data Transaction data.
      */
     function enqueue(
-        Lib_OVMCodec.QueueElement memory _element
+        address _target,
+        uint256 _gasLimit,
+        bytes memory _data
     )
         override
         public
     {
-        _enqueue(_element);
+        Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
+            timestamp: block.timestamp,
+            batchRoot: keccak256(abi.encodePacked(
+                _target,
+                _gasLimit,
+                _data
+            )),
+            isL1ToL2Batch: true
+        });
+
+        _enqueue(element);
     }
 
     /**
      * Pops an element from the queue.
-     * @return _element Queue element popped from the queue.
      */
     function dequeue()
         override
         public
-        returns (
-            Lib_OVMCodec.QueueElement memory _element
-        )
     {
         require(
             msg.sender == ovmCanonicalTransactionChain,
             "Sender is not allowed to enqueue."
         );
 
-        return _dequeue();
+        _dequeue();
     }
 }

@@ -67,7 +67,7 @@ contract Proxy_Forwarder {
 
     /**
      * Determines the appropriate target.
-     * @return Target to forward requests to.
+     * @return _target Target to forward requests to.
      */
     function _getTarget()
         internal

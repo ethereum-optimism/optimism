@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.7.0;
 
-/*
+/**
  * @title Lib_ByteUtils
  */
 library Lib_ByteUtils {

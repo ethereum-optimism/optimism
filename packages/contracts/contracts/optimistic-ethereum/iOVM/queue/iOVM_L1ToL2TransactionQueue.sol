@@ -17,6 +17,6 @@ interface iOVM_L1ToL2TransactionQueue is iOVM_BaseQueue {
      * Public Functions: Queue Manipulation *
      ****************************************/
 
-    function enqueue(Lib_OVMCodec.QueueElement memory _element) external;
-    function dequeue() external returns (Lib_OVMCodec.QueueElement memory _element);
+    function enqueue(address _target, uint256 _gasLimit, bytes memory _data) external;
+    function dequeue() external;
 }
