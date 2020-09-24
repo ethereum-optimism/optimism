@@ -52,6 +52,17 @@ export class OptimismProvider extends JsonRpcProvider {
       tx.from = verifyMessage(hash, sig)
       return tx
     }
+
+    // TODO(mark): debugging help
+    const formatTxResponse = this.formatter.transactionResponse
+    this.formatter.transactionResponse = (transaction) => {
+      const tx = formatTxResponse(transaction)
+      tx.type = transaction.type
+      tx.queueOrigin = transaction.queueOrigin
+      tx.l1MessageSender = transaction.l1MessageSender
+      console.log(tx)
+      return tx
+    }
   }
 
   public get ethereum() {
@@ -70,6 +81,10 @@ export class OptimismProvider extends JsonRpcProvider {
         operation: 'getSigner',
       }
     )
+  }
+
+  public async getTransaction(transactionHash: string | Promise<string>) {
+    return super.getTransaction(transactionHash)
   }
 
   // `send` takes the literal RPC method name. The signer cannot use this
