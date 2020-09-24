@@ -10,7 +10,7 @@ import {
   getCurrentTime,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory } from 'ethers'
+import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
 import {
@@ -32,12 +32,14 @@ import {
 const log = getLogger('execution-manager-calls', true)
 
 export const abi = new ethers.utils.AbiCoder()
+const DEPLOYER_WHITELIST_OVM_ADDRESS =
+  '0x4200000000000000000000000000000000000002'
 
 /* Tests */
 describe('Execution Manager -- TX/Call Execution Functions', () => {
   const provider = ethers.provider
 
-  const [wallet] = getWallets()
+  let [wallet] = getWallets()
 
   let resolver: AddressResolverMapping
   before(async () => {
@@ -98,6 +100,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
+
       const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
@@ -123,16 +126,19 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
     })
 
     it('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
+      wallet = wallet.connect(executionManager.provider)
       const DeployerWhitelist = await ethers.getContractFactory(
         'DeployerWhitelist'
       )
-      const deployerWhitelist = await DeployerWhitelist.deploy(
-        wallet.address,
-        false
-      )
-      await resolver.addressResolver.setAddress(
-        'DeployerWhitelist',
-        deployerWhitelist.address
+
+      // Initialize our deployment whitelist
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData('initialize', [
+          wallet.address,
+          false,
+        ])
       )
 
       // Generate our tx calldata
@@ -167,7 +173,15 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       )
 
       // Now add the wallet.address to the whitelist and it should work this time!
-      await deployerWhitelist.setWhitelistedDeployer(wallet.address, true)
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'setWhitelistedDeployer',
+          [wallet.address, true]
+        )
+      )
+
       await executionManager.executeTransaction(
         getCurrentTime(),
         0,
@@ -179,7 +193,15 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       )
 
       // And then... set it to false, try to call, and it'll fail again!
-      await deployerWhitelist.setWhitelistedDeployer(wallet.address, false)
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'setWhitelistedDeployer',
+          [wallet.address, false]
+        )
+      )
+
       await TestUtils.assertRevertsAsync(
         async () =>
           executionManager.executeTransaction(
@@ -195,13 +217,20 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       )
 
       // Lastly let's just let everyone deploy and make sure it worked!
-      await deployerWhitelist.enableArbitraryContractDeployment()
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'enableArbitraryContractDeployment'
+        )
+      )
+
       await executionManager.executeTransaction(
         getCurrentTime(),
         0,
         transaction.to,
         transaction.data,
-        wallet.address,
+        '0x' + '1234'.repeat(10),
         ZERO_ADDRESS,
         true
       )
@@ -353,7 +382,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           chainId: CHAIN_ID,
         })
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        log.debug(e.stack)
         failed = true
       }
 
@@ -393,7 +422,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           chainId: CHAIN_ID,
         })
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        log.debug(e.stack)
         failed = true
       }
 
@@ -401,3 +430,30 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
     })
   })
 })
+
+const callDeployerWhitelist = async (
+  wallet: Wallet,
+  executionManager: Contract,
+  ovmCallData: string
+): Promise<string> => {
+  const data = executionManager.interface.encodeFunctionData(
+    'executeTransaction',
+    [
+      getCurrentTime(),
+      0,
+      DEPLOYER_WHITELIST_OVM_ADDRESS,
+      ovmCallData,
+      wallet.address,
+      ZERO_ADDRESS,
+      false,
+    ]
+  )
+
+  const receipt = await wallet.sendTransaction({
+    to: executionManager.address,
+    data,
+    gasLimit: GAS_LIMIT,
+  })
+
+  return receipt.hash
+}
