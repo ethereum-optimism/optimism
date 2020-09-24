@@ -53,7 +53,9 @@ export class OptimismProvider extends JsonRpcProvider {
     }
 
     // Handle additional data sent from RPC
-    const formatTxResponse = this.formatter.transactionResponse.bind(this.formatter)
+    const formatTxResponse = this.formatter.transactionResponse.bind(
+      this.formatter
+    )
     this.formatter.transactionResponse = (transaction) => {
       const tx = formatTxResponse(transaction) as any
       tx.type = transaction.type
