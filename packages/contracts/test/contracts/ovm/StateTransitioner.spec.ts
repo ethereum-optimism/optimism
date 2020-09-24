@@ -489,23 +489,6 @@ describe('StateTransitioner', () => {
     StateTransitioner = await ethers.getContractFactory('StateTransitioner')
     StateManager = await ethers.getContractFactory('PartialStateManager')
 
-    console.log(
-      `path is ${path.resolve(
-        __dirname,
-        '../../../contracts/test-helpers/FraudTester.sol'
-      )}`
-    )
-    console.log(
-      `compile esult is ${JSON.stringify(
-        compile(
-          solc,
-          path.resolve(
-            __dirname,
-            '../../../contracts/test-helpers/FraudTester.sol'
-          )
-        ).errors
-      )}`
-    )
     const AllFraudTestJson = compile(
       solc,
       path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol')

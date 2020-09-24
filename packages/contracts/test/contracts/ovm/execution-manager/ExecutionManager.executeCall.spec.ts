@@ -27,7 +27,6 @@ import {
   AddressResolverMapping,
   getDefaultGasMeterParams,
 } from '../../../test-helpers'
-import {} from 'ethers/providers'
 
 /* Logging */
 const log = getLogger('execution-manager-calls', true)
