@@ -91,7 +91,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
     log.debug(`Contract address: [${dummyContractAddress}]`)
   })
 
-  describe.only('executeNonEOACall', async () => {
+  describe('executeNonEOACall', async () => {
     it('properly executes a raw call -- 0 param', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
