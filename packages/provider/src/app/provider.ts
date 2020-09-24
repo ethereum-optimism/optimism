@@ -83,10 +83,6 @@ export class OptimismProvider extends JsonRpcProvider {
     )
   }
 
-  public async getTransaction(transactionHash: string | Promise<string>) {
-    return super.getTransaction(transactionHash)
-  }
-
   // `send` takes the literal RPC method name. The signer cannot use this
   // codepath, it is for querying an optimism node.
   public async send(method: string, params: any[]): Promise<any> {
