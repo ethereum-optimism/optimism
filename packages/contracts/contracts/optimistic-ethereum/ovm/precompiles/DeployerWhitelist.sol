@@ -1,6 +1,5 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
-import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title DeployerWhitelist
@@ -16,30 +15,15 @@ contract DeployerWhitelist {
     function initialize(address _owner, bool _allowArbitraryDeployment)
         public
     {
-        console.log("..........initializing............."); // WITH OVM ADDRESS:");
-        // console.logBytes32(getOvmADDRESS());
         bytes32 alreadyInitialized = get(INITIALIZED_KEY);
         if (alreadyInitialized != bytes32(0)) {
-            console.log("................already initialized, aborting............");
             return;
         }
 
-        console.log("setting initialized");
         set(INITIALIZED_KEY, bytes32(uint(1)));
-        console.log("setting owner key");
         set(OWNER_KEY, bytes32(bytes20(_owner)));
-        console.log("setting allow arbitrary");
         uint allowArbitraryDeployment = _allowArbitraryDeployment ? 1 : 0;
         set(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(allowArbitraryDeployment));
-
-        console.log("I will now immediately get all the vals to check persistence intra-transaction.");
-        console.log("getting  initialized");
-        get(INITIALIZED_KEY);
-        console.log("getting owner key");
-        get(OWNER_KEY);
-        console.log("getting allow arbitrary");
-        get(ALLOW_ARBITRARY_DEPLOYMENT);
-        console.log("...........Initialized successfully..........");
     }
 
     /*
@@ -47,16 +31,12 @@ contract DeployerWhitelist {
      */
     // Source: https://solidity.readthedocs.io/en/v0.5.3/contracts.html
     modifier onlyOwner {
-        console.log("in onlyOwner modifier, here is a get for owner key...");
         bytes32 owner = get(OWNER_KEY);
-        console.log("and here is the ovmCALLER address...");
         bytes32 ovmCALLER = getOvmCALLER();
-        console.logBytes32(ovmCALLER);
         require(
             ovmCALLER == owner,
             "Only owner can call this function."
         );
-        console.log("successfully authenticated that this is the owner.");
         _;
     }
 
@@ -125,11 +105,8 @@ contract DeployerWhitelist {
         external
         returns(bool)
     {
-        console.log("getting allowarbitrary");
         bool allowArbitraryDeployment = uint(get(ALLOW_ARBITRARY_DEPLOYMENT)) == 1;
-        console.log("getting isWhitelistedDeployer");
         bool isWhitelistedDeployer = uint(get(bytes32(bytes20(_deployerAddress)))) == 1;
-        console.log("getting isInitialized");
         bool isInitialized = uint(get(INITIALIZED_KEY)) != 0;
         
         return allowArbitraryDeployment || isWhitelistedDeployer || !isInitialized;
@@ -146,10 +123,6 @@ contract DeployerWhitelist {
     {
         bytes4 methodId = bytes4(keccak256("ovmSSTORE()"));
         msg.sender.call(abi.encodeWithSelector(methodId, _key, _value));
-        console.log("SET key");
-        console.logBytes32(_key);
-        console.log("SET value");
-        console.logBytes32(_value);
     }
 
     /**
@@ -167,18 +140,12 @@ contract DeployerWhitelist {
         assembly {
             value := mload(add(result, 0x20))
         }
-        console.log("GET key");
-        console.logBytes32(_key);
-        console.log("GET returned value");
-        console.logBytes32(value);
         return value;
     }
 
     function getOvmCALLER() internal returns(bytes32) {
         bytes4 methodId = bytes4(keccak256("ovmCALLER()"));
         (, bytes memory result) = msg.sender.call(abi.encodeWithSelector(methodId)); 
-        // console.log("result of ovmCALLER call data:");
-        // console.logBytes(result);
         
         bytes32 value;
         assembly {

@@ -87,12 +87,10 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       []
     )
 
-    console.log('successfully manually deployed DummyContract')
-
     log.debug(`Contract address: [${dummyContractAddress}]`)
   })
 
-  describe('executeNonEOACall', async () => {
+  describe.only('executeNonEOACall', async () => {
     it('properly executes a raw call -- 0 param', async () => {
       // Create the variables we will use for setStorage
       const intParam = 0
@@ -129,21 +127,11 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       await provider.waitForTransaction(tx.hash)
     })
 
-    it.only('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
+    it('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
       wallet = wallet.connect(executionManager.provider)
       const DeployerWhitelist = await ethers.getContractFactory(
         'DeployerWhitelist'
       )
-      // const deployerWhitelist = await DeployerWhitelist.deploy(
-      //   wallet.address,
-      //   false
-      // )
-      // await resolver.addressResolver.setAddress(
-      //   'DeployerWhitelist',
-      //   deployerWhitelist.address
-      // )
-
-      // await executionManager.associateDeployerPrecompile()
 
       // Initialize our deployment whitelist
       await callDeployerWhitelist(
@@ -173,7 +161,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         data: calldata,
         chainId: CHAIN_ID,
       }
-      console.log("attempting creation");
+
       // Call using Ethers and expect it to fail
       await TestUtils.assertRevertsAsync(
         async () =>
@@ -189,8 +177,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         'Sender not allowed to deploy new contracts!'
       )
 
-      console.log('setting whitelisted deployer to true')
-
       // Now add the wallet.address to the whitelist and it should work this time!
       await callDeployerWhitelist(
         wallet,
@@ -203,7 +189,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           ]
         )
       )
-      console.log('calling deploy')
 
       await executionManager.executeTransaction(
         getCurrentTime(),
@@ -216,7 +201,6 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       )
 
       // And then... set it to false, try to call, and it'll fail again!
-
       await callDeployerWhitelist(
         wallet,
         executionManager,
@@ -257,7 +241,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         0,
         transaction.to,
         transaction.data,
-        wallet.address,
+        '0x' + '1234'.repeat(10),
         ZERO_ADDRESS,
         true
       )
