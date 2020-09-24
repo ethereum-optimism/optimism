@@ -38,6 +38,7 @@ contract ExecutionManager is ContractResolver {
     // Precompile addresses
     address constant private L2_TO_L1_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
+    address constant private DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
 
     /*
      * Contract Variables
@@ -76,6 +77,7 @@ contract ExecutionManager is ContractResolver {
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
+        stateManager.associateCodeContract(DEPLOYER_WHITELIST, address(resolveDeployerWhitelist()));
 
         executionContext.chainId = 420;
 
@@ -1228,6 +1230,10 @@ contract ExecutionManager is ContractResolver {
     function getStateManagerAddress() public view returns (address) {
         StateManager stateManager = resolveStateManager();
         return address(stateManager);
+    }
+
+    function associateDeployerPrecompile() public {
+        resolveStateManager().associateCodeContract(DEPLOYER_WHITELIST, address(resolveDeployerWhitelist()));
     }
 
     /*

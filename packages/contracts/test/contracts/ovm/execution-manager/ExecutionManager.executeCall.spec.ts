@@ -10,7 +10,7 @@ import {
   getCurrentTime,
   NULL_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { Contract, ContractFactory } from 'ethers'
+import { Contract, ContractFactory, Wallet } from 'ethers'
 
 /* Internal Imports */
 import {
@@ -27,17 +27,19 @@ import {
   AddressResolverMapping,
   getDefaultGasMeterParams,
 } from '../../../test-helpers'
+import {  } from 'ethers/providers'
 
 /* Logging */
 const log = getLogger('execution-manager-calls', true)
 
 export const abi = new ethers.utils.AbiCoder()
+const DEPLOYER_WHITELIST_OVM_ADDRESS = '0x4200000000000000000000000000000000000002'
 
 /* Tests */
 describe('Execution Manager -- TX/Call Execution Functions', () => {
   const provider = ethers.provider
 
-  const [wallet] = getWallets()
+  let [wallet] = getWallets()
 
   let resolver: AddressResolverMapping
   before(async () => {
@@ -98,6 +100,9 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         'dummyFunction',
         [intParam, bytesParam]
       )
+
+
+
       const nonce = await stateManager.getOvmContractNonceView(wallet.address)
       const transaction = {
         nonce,
@@ -122,7 +127,8 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       await provider.waitForTransaction(tx.hash)
     })
 
-    it('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
+    it.only('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
+      wallet = wallet.connect(provider)
       const DeployerWhitelist = await ethers.getContractFactory(
         'DeployerWhitelist'
       )
@@ -133,6 +139,21 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       await resolver.addressResolver.setAddress(
         'DeployerWhitelist',
         deployerWhitelist.address
+      )
+
+      await executionManager.associateDeployerPrecompile()
+
+      // Initialize our deployment whitelist
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'initialize',
+          [
+            wallet.address,
+            false
+          ]
+        )
       )
 
       // Generate our tx calldata
@@ -150,11 +171,8 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         data: calldata,
         chainId: CHAIN_ID,
       }
-
       // Call using Ethers and expect it to fail
-      await TestUtils.assertRevertsAsync(
-        async () =>
-          executionManager.executeTransaction(
+      await executionManager.executeTransaction(
             getCurrentTime(),
             0,
             transaction.to,
@@ -162,49 +180,79 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
             wallet.address,
             ZERO_ADDRESS,
             true
-          ),
-        'Sender not allowed to deploy new contracts!'
       )
+      // await TestUtils.assertRevertsAsync(
+      //   async () =>
+      //     executionManager.executeTransaction(
+      //       getCurrentTime(),
+      //       0,
+      //       transaction.to,
+      //       transaction.data,
+      //       wallet.address,
+      //       ZERO_ADDRESS,
+      //       true
+      //     ),
+      //   'Sender not allowed to deploy new contracts!'
+      // )
 
-      // Now add the wallet.address to the whitelist and it should work this time!
-      await deployerWhitelist.setWhitelistedDeployer(wallet.address, true)
-      await executionManager.executeTransaction(
-        getCurrentTime(),
-        0,
-        transaction.to,
-        transaction.data,
-        wallet.address,
-        ZERO_ADDRESS,
-        true
-      )
+      // // Now add the wallet.address to the whitelist and it should work this time!
+      // await callDeployerWhitelist(
+      //   wallet,
+      //   executionManager,
+      //   DeployerWhitelist.interface.encodeFunctionData(
+      //     'setWhitelistedDeployer',
+      //     [
+      //       wallet.address,
+      //       true
+      //     ]
+      //   )
+      // )
 
-      // And then... set it to false, try to call, and it'll fail again!
-      await deployerWhitelist.setWhitelistedDeployer(wallet.address, false)
-      await TestUtils.assertRevertsAsync(
-        async () =>
-          executionManager.executeTransaction(
-            getCurrentTime(),
-            0,
-            transaction.to,
-            transaction.data,
-            wallet.address,
-            ZERO_ADDRESS,
-            true
-          ),
-        'Sender not allowed to deploy new contracts!'
-      )
+      // await executionManager.executeTransaction(
+      //   getCurrentTime(),
+      //   0,
+      //   transaction.to,
+      //   transaction.data,
+      //   wallet.address,
+      //   ZERO_ADDRESS,
+      //   true
+      // )
 
-      // Lastly let's just let everyone deploy and make sure it worked!
-      await deployerWhitelist.enableArbitraryContractDeployment()
-      await executionManager.executeTransaction(
-        getCurrentTime(),
-        0,
-        transaction.to,
-        transaction.data,
-        wallet.address,
-        ZERO_ADDRESS,
-        true
-      )
+      // // And then... set it to false, try to call, and it'll fail again!
+      // await deployerWhitelist.setWhitelistedDeployer(wallet.address, false)
+
+      // await TestUtils.assertRevertsAsync(
+      //   async () =>
+      //     executionManager.executeTransaction(
+      //       getCurrentTime(),
+      //       0,
+      //       transaction.to,
+      //       transaction.data,
+      //       wallet.address,
+      //       ZERO_ADDRESS,
+      //       true
+      //     ),
+      //   'Sender not allowed to deploy new contracts!'
+      // )
+
+      // // Lastly let's just let everyone deploy and make sure it worked!
+      // await callDeployerWhitelist(
+      //   wallet,
+      //   executionManager,
+      //   DeployerWhitelist.interface.encodeFunctionData(
+      //     'enableArbitraryContractDeployment'
+      //   )
+      // )
+
+      // await executionManager.executeTransaction(
+      //   getCurrentTime(),
+      //   0,
+      //   transaction.to,
+      //   transaction.data,
+      //   wallet.address,
+      //   ZERO_ADDRESS,
+      //   true
+      // )
     })
   })
 
@@ -401,3 +449,30 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
     })
   })
 })
+
+const callDeployerWhitelist = async (
+  wallet: Wallet,
+  executionManager: Contract,
+  ovmCallData: string
+): Promise<string> => {
+  const data = executionManager.interface.encodeFunctionData(
+    'executeTransaction',
+    [
+      getCurrentTime(),
+      0,
+      DEPLOYER_WHITELIST_OVM_ADDRESS,
+      ovmCallData,
+      ZERO_ADDRESS,
+      ZERO_ADDRESS,
+      true,
+    ]
+  )
+
+  const receipt = await wallet.sendTransaction({
+    to: executionManager.address,
+    data,
+    gasLimit: GAS_LIMIT,
+  })
+
+  return receipt.hash
+}
