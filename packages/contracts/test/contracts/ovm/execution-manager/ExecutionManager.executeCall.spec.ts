@@ -383,7 +383,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           chainId: CHAIN_ID,
         })
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        log.debug(e.stack)
         failed = true
       }
 
@@ -423,7 +423,7 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
           chainId: CHAIN_ID,
         })
       } catch (e) {
-        log.debug(JSON.stringify(e) + '  ' + e.stack)
+        log.debug(e.stack)
         failed = true
       }
 

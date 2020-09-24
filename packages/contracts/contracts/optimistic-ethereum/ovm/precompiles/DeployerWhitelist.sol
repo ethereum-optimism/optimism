@@ -15,15 +15,15 @@ contract DeployerWhitelist {
     function initialize(address _owner, bool _allowArbitraryDeployment)
         public
     {
-        bytes32 alreadyInitialized = get(INITIALIZED_KEY);
+        bytes32 alreadyInitialized = doOvmSLOAD(INITIALIZED_KEY);
         if (alreadyInitialized != bytes32(0)) {
             return;
         }
 
-        set(INITIALIZED_KEY, bytes32(uint(1)));
-        set(OWNER_KEY, bytes32(bytes20(_owner)));
+        doOvmSSTORE(INITIALIZED_KEY, bytes32(uint(1)));
+        doOvmSSTORE(OWNER_KEY, bytes32(bytes20(_owner)));
         uint allowArbitraryDeployment = _allowArbitraryDeployment ? 1 : 0;
-        set(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(allowArbitraryDeployment));
+        doOvmSSTORE(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(allowArbitraryDeployment));
     }
 
     /*
@@ -31,8 +31,8 @@ contract DeployerWhitelist {
      */
     // Source: https://solidity.readthedocs.io/en/v0.5.3/contracts.html
     modifier onlyOwner {
-        bytes32 owner = get(OWNER_KEY);
-        bytes32 ovmCALLER = getOvmCALLER();
+        bytes32 owner = doOvmSLOAD(OWNER_KEY);
+        bytes32 ovmCALLER = doOvmCALLER();
         require(
             ovmCALLER == owner,
             "Only owner can call this function."
@@ -55,11 +55,11 @@ contract DeployerWhitelist {
         onlyOwner
     {
         uint isWhitelisted = _isWhitelisted ? 1 : 0;
-        set(bytes32(bytes20(_deployerAddress)), bytes32(isWhitelisted));
+        doOvmSSTORE(bytes32(bytes20(_deployerAddress)), bytes32(isWhitelisted));
     }
 
     /**
-     * Set owner of the contract.
+     * Set owner of this contract.
      */
     function setOwner(
         address _newOwner
@@ -67,7 +67,7 @@ contract DeployerWhitelist {
         external
         onlyOwner
     {
-        set(OWNER_KEY, bytes32(bytes20(_newOwner)));
+        doOvmSSTORE(OWNER_KEY, bytes32(bytes20(_newOwner)));
     }
 
     /**
@@ -80,7 +80,7 @@ contract DeployerWhitelist {
         onlyOwner
     {
         uint allowArbitraryDeployment = _allowArbitraryDeployment ? 1 : 0;
-        set(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(allowArbitraryDeployment));
+        doOvmSSTORE(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(allowArbitraryDeployment));
     }
 
     /**
@@ -92,8 +92,8 @@ contract DeployerWhitelist {
         onlyOwner
     {
         // Allow anyone to deploy and then burn the owner address!
-        set(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(uint(1)));
-        set(OWNER_KEY, bytes32(bytes20(address(0))));
+        doOvmSSTORE(ALLOW_ARBITRARY_DEPLOYMENT, bytes32(uint(1)));
+        doOvmSSTORE(OWNER_KEY, bytes32(bytes20(address(0))));
     }
 
     /**
@@ -105,9 +105,9 @@ contract DeployerWhitelist {
         external
         returns(bool)
     {
-        bool allowArbitraryDeployment = uint(get(ALLOW_ARBITRARY_DEPLOYMENT)) == 1;
-        bool isWhitelistedDeployer = uint(get(bytes32(bytes20(_deployerAddress)))) == 1;
-        bool isInitialized = uint(get(INITIALIZED_KEY)) != 0;
+        bool allowArbitraryDeployment = uint(doOvmSLOAD(ALLOW_ARBITRARY_DEPLOYMENT)) == 1;
+        bool isWhitelistedDeployer = uint(doOvmSLOAD(bytes32(bytes20(_deployerAddress)))) == 1;
+        bool isInitialized = uint(doOvmSLOAD(INITIALIZED_KEY)) != 0;
         
         return allowArbitraryDeployment || isWhitelistedDeployer || !isInitialized;
     }
@@ -115,7 +115,7 @@ contract DeployerWhitelist {
     /**
      * Sets storage
      */
-    function set(
+    function doOvmSSTORE(
         bytes32 _key,
         bytes32 _value
     )
@@ -128,7 +128,7 @@ contract DeployerWhitelist {
     /**
      * Gets storage
      */
-    function get(
+    function doOvmSLOAD(
         bytes32 _key
     )
         public
@@ -143,7 +143,7 @@ contract DeployerWhitelist {
         return value;
     }
 
-    function getOvmCALLER() internal returns(bytes32) {
+    function doOvmCALLER() internal returns(bytes32) {
         bytes4 methodId = bytes4(keccak256("ovmCALLER()"));
         (, bytes memory result) = msg.sender.call(abi.encodeWithSelector(methodId)); 
         

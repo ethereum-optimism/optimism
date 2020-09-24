@@ -130,6 +130,14 @@ const CUMULATIVE_SEQUENCED_GAS_AT_EPOCH_START_STORAGE_KEY =
 const CUMULATIVE_QUEUED_GAS_AT_EPOCH_START_STORAGE_KEY =
   '0x0000000000000000000000000000000000000000000000000000000000000005'
 
+const DEPLOYER_WHITELIST_ADDRESS = '0x4200000000000000000000000000000000000002'
+const INITIALIZED_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000010'
+const OWNER_KEY =
+  '0x0000000000000000000000000000000000000000000000000000000000000011'
+const ALLOW_ARBITRARY_DEPLOYMENT =
+  '0x0000000000000000000000000000000000000000000000000000000000000012'
+
 const initialCumulativeSequencedGas = 0
 const initialCumulativeQueuedGas = 0
 const initialGasRateLimitEpochStart = 0
@@ -206,6 +214,10 @@ const DUMMY_INITIAL_STATE_TRIE = {
   [METADATA_STORAGE_ADDRESS]: {
     state: EMPTY_ACCOUNT_STATE(),
     storage: INITIAL_OVM_GAS_STORAGE(),
+  },
+  [DEPLOYER_WHITELIST_ADDRESS]: {
+    state: EMPTY_ACCOUNT_STATE(),
+    storage: DUMMY_ACCOUNT_STORAGE(),
   },
 }
 
@@ -477,6 +489,23 @@ describe('StateTransitioner', () => {
     StateTransitioner = await ethers.getContractFactory('StateTransitioner')
     StateManager = await ethers.getContractFactory('PartialStateManager')
 
+    console.log(
+      `path is ${path.resolve(
+        __dirname,
+        '../../../contracts/test-helpers/FraudTester.sol'
+      )}`
+    )
+    console.log(
+      `compile esult is ${JSON.stringify(
+        compile(
+          solc,
+          path.resolve(
+            __dirname,
+            '../../../contracts/test-helpers/FraudTester.sol'
+          )
+        ).errors
+      )}`
+    )
     const AllFraudTestJson = compile(
       solc,
       path.resolve(__dirname, '../../../contracts/test-helpers/FraudTester.sol')
