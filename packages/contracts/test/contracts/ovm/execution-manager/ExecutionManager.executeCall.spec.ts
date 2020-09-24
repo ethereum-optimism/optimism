@@ -87,6 +87,8 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
       []
     )
 
+    console.log('successfully manually deployed DummyContract')
+
     log.debug(`Contract address: [${dummyContractAddress}]`)
   })
 
@@ -128,20 +130,20 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
     })
 
     it.only('utilizes the DeployerWhitelist contract to disallow arbitrary contract deployment', async () => {
-      wallet = wallet.connect(provider)
+      wallet = wallet.connect(executionManager.provider)
       const DeployerWhitelist = await ethers.getContractFactory(
         'DeployerWhitelist'
       )
-      const deployerWhitelist = await DeployerWhitelist.deploy(
-        wallet.address,
-        false
-      )
-      await resolver.addressResolver.setAddress(
-        'DeployerWhitelist',
-        deployerWhitelist.address
-      )
+      // const deployerWhitelist = await DeployerWhitelist.deploy(
+      //   wallet.address,
+      //   false
+      // )
+      // await resolver.addressResolver.setAddress(
+      //   'DeployerWhitelist',
+      //   deployerWhitelist.address
+      // )
 
-      await executionManager.associateDeployerPrecompile()
+      // await executionManager.associateDeployerPrecompile()
 
       // Initialize our deployment whitelist
       await callDeployerWhitelist(
@@ -171,8 +173,11 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
         data: calldata,
         chainId: CHAIN_ID,
       }
+      console.log("attempting creation");
       // Call using Ethers and expect it to fail
-      await executionManager.executeTransaction(
+      await TestUtils.assertRevertsAsync(
+        async () =>
+          executionManager.executeTransaction(
             getCurrentTime(),
             0,
             transaction.to,
@@ -180,79 +185,82 @@ describe('Execution Manager -- TX/Call Execution Functions', () => {
             wallet.address,
             ZERO_ADDRESS,
             true
+          ),
+        'Sender not allowed to deploy new contracts!'
       )
-      // await TestUtils.assertRevertsAsync(
-      //   async () =>
-      //     executionManager.executeTransaction(
-      //       getCurrentTime(),
-      //       0,
-      //       transaction.to,
-      //       transaction.data,
-      //       wallet.address,
-      //       ZERO_ADDRESS,
-      //       true
-      //     ),
-      //   'Sender not allowed to deploy new contracts!'
-      // )
 
-      // // Now add the wallet.address to the whitelist and it should work this time!
-      // await callDeployerWhitelist(
-      //   wallet,
-      //   executionManager,
-      //   DeployerWhitelist.interface.encodeFunctionData(
-      //     'setWhitelistedDeployer',
-      //     [
-      //       wallet.address,
-      //       true
-      //     ]
-      //   )
-      // )
+      console.log('setting whitelisted deployer to true')
 
-      // await executionManager.executeTransaction(
-      //   getCurrentTime(),
-      //   0,
-      //   transaction.to,
-      //   transaction.data,
-      //   wallet.address,
-      //   ZERO_ADDRESS,
-      //   true
-      // )
+      // Now add the wallet.address to the whitelist and it should work this time!
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'setWhitelistedDeployer',
+          [
+            wallet.address,
+            true
+          ]
+        )
+      )
+      console.log('calling deploy')
 
-      // // And then... set it to false, try to call, and it'll fail again!
-      // await deployerWhitelist.setWhitelistedDeployer(wallet.address, false)
+      await executionManager.executeTransaction(
+        getCurrentTime(),
+        0,
+        transaction.to,
+        transaction.data,
+        wallet.address,
+        ZERO_ADDRESS,
+        true
+      )
 
-      // await TestUtils.assertRevertsAsync(
-      //   async () =>
-      //     executionManager.executeTransaction(
-      //       getCurrentTime(),
-      //       0,
-      //       transaction.to,
-      //       transaction.data,
-      //       wallet.address,
-      //       ZERO_ADDRESS,
-      //       true
-      //     ),
-      //   'Sender not allowed to deploy new contracts!'
-      // )
+      // And then... set it to false, try to call, and it'll fail again!
 
-      // // Lastly let's just let everyone deploy and make sure it worked!
-      // await callDeployerWhitelist(
-      //   wallet,
-      //   executionManager,
-      //   DeployerWhitelist.interface.encodeFunctionData(
-      //     'enableArbitraryContractDeployment'
-      //   )
-      // )
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'setWhitelistedDeployer',
+          [
+            wallet.address,
+            false
+          ]
+        )
+      )
 
-      // await executionManager.executeTransaction(
-      //   getCurrentTime(),
-      //   0,
-      //   transaction.to,
-      //   transaction.data,
-      //   wallet.address,
-      //   ZERO_ADDRESS,
-      //   true
-      // )
+      await TestUtils.assertRevertsAsync(
+        async () =>
+          executionManager.executeTransaction(
+            getCurrentTime(),
+            0,
+            transaction.to,
+            transaction.data,
+            wallet.address,
+            ZERO_ADDRESS,
+            true
+          ),
+        'Sender not allowed to deploy new contracts!'
+      )
+
+      // Lastly let's just let everyone deploy and make sure it worked!
+      await callDeployerWhitelist(
+        wallet,
+        executionManager,
+        DeployerWhitelist.interface.encodeFunctionData(
+          'enableArbitraryContractDeployment'
+        )
+      )
+
+      await executionManager.executeTransaction(
+        getCurrentTime(),
+        0,
+        transaction.to,
+        transaction.data,
+        wallet.address,
+        ZERO_ADDRESS,
+        true
+      )
     })
   })
 
@@ -462,9 +470,9 @@ const callDeployerWhitelist = async (
       0,
       DEPLOYER_WHITELIST_OVM_ADDRESS,
       ovmCallData,
+      wallet.address,
       ZERO_ADDRESS,
-      ZERO_ADDRESS,
-      true,
+      false,
     ]
   )
 

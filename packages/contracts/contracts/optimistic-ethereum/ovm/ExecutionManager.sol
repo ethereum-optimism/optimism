@@ -198,7 +198,10 @@ contract ExecutionManager is ContractResolver {
         if (isCreate) {
             // Require that the deployer whitelist contract approves of the deployment.
             // TODO: Put this check inside of our default EOA contracts
+
+            restoreContractContext(ZERO_ADDRESS, DEPLOYER_WHITELIST);
             require(resolveDeployerWhitelist().isDeployerAllowed(_fromAddress), "Sender not allowed to deploy new contracts!");
+            restoreContractContext(ZERO_ADDRESS, _fromAddress);
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 
@@ -1230,10 +1233,6 @@ contract ExecutionManager is ContractResolver {
     function getStateManagerAddress() public view returns (address) {
         StateManager stateManager = resolveStateManager();
         return address(stateManager);
-    }
-
-    function associateDeployerPrecompile() public {
-        resolveStateManager().associateCodeContract(DEPLOYER_WHITELIST, address(resolveDeployerWhitelist()));
     }
 
     /*
