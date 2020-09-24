@@ -119,7 +119,7 @@ contract DeployerWhitelist {
         bytes32 _key,
         bytes32 _value
     )
-        public
+        internal
     {
         bytes4 methodId = bytes4(keccak256("ovmSSTORE()"));
         msg.sender.call(abi.encodeWithSelector(methodId, _key, _value));
