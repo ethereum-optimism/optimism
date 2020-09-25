@@ -250,7 +250,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       signature =
         signature.length % 2 === 0
           ? signature
-          : `${signature.substring(0, 130)}0${signature.substring(130, 133)}`
+          : `${signature.substring(0, 128)}0${signature.substring(128, 131)}`
       const calldata: string = remove0x(tx.calldata)
       txs.push(`${tx.to}${nonce}${gasLimit}${signature}${calldata}`)
     }
