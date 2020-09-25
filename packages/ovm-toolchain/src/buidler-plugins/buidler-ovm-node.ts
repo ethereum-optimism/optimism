@@ -3,6 +3,7 @@ import { extendEnvironment } from '@nomiclabs/buidler/config'
 const VM = require('ethereumjs-ovm').default
 // tslint:disable-next-line
 const BN = require('bn.js')
+import { getLatestStateDump } from '@eth-optimism/rollup-contracts'
 
 extendEnvironment(async (bre) => {
   const config: any = bre.config
@@ -17,8 +18,11 @@ extendEnvironment(async (bre) => {
     const vm = node['_vm' as any]
     const ovm = new VM({
       ...vm.opts,
-      stateManager: vm.stateManager,
-      emGasLimit: gasLimit,
+      ovmOpts: {
+        dump: getLatestStateDump(),
+        stateManager: vm.stateManager,
+        emGasLimit: gasLimit,
+      }
     })
     await ovm.init()
     node['_vm' as any] = ovm

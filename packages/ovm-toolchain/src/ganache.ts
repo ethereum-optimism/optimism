@@ -3,6 +3,7 @@ import * as eGanache from 'ganache-core'
 const VM = require('ethereumjs-ovm').default
 // tslint:disable-next-line
 const BN = require('bn.js')
+import { getLatestStateDump } from '@eth-optimism/rollup-contracts'
 
 // tslint:disable-next-line:no-shadowed-variable
 const wrap = (provider: any, opts: any = {}) => {
@@ -22,8 +23,11 @@ const wrap = (provider: any, opts: any = {}) => {
       const vm = _original(state, activatePrecompiles)
       ovm = new VM({
         ...vm.opts,
-        stateManager: vm.stateManager,
-        emGasLimit: gasLimit,
+        ovmOpts: {
+          dump: getLatestStateDump(),
+          stateManager: vm.stateManager,
+          emGasLimit: gasLimit,
+        }
       })
       return ovm
     } else {
@@ -32,9 +36,11 @@ const wrap = (provider: any, opts: any = {}) => {
         state,
         stateManager: undefined,
         activatePrecompiles,
-        emOpts: ovm._emOpts,
-        initialized: ovm._initialized,
-        contracts: ovm._contracts,
+        ovmOpts: {
+          emGasLimit: ovm.emGasLimit,
+          initialized: ovm.initialized,
+          contracts: ovm.contracts,
+        }
       })
     }
   }

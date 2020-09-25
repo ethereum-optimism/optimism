@@ -6406,7 +6406,7 @@ ganache-cli@6.9.0:
     source-map-support "0.5.12"
     yargs "13.2.4"
 
-ganache-core@*, ganache-core@^2.10.2, ganache-core@^2.11.2:
+ganache-core@*, ganache-core@^2.10.2, ganache-core@^2.11.2, ganache-core@^2.11.3:
   version "2.11.3"
   resolved "https://registry.yarnpkg.com/ganache-core/-/ganache-core-2.11.3.tgz#c59e6c34b03279bffd32f4694ec8ed6f5f1d76a8"
   integrity sha512-SsFJUnyiZI+jW3I43XluXi3TvJC3Ke6vZkvN6NjbWpXvi6dOrmafkyq9Rq07+Qrri6BLGKWoZcG8HfH6ietuqg==
