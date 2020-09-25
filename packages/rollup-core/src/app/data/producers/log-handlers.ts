@@ -102,8 +102,8 @@ export const L1ToL2TxEnqueuedLogHandler = async (
  *   - target: 20-byte address	  0-20
  *   - nonce: 32-byte uint 	      20-52
  *   - gasLimit: 32-byte uint	    52-84
- *   - signature: 65-byte bytes   84-149
- *   - calldata: bytes    		    149-end
+ *   - signature: 66-byte bytes   84-150
+ *   - calldata: bytes    		    150-end
  *
  * @param ds The L1DataService to use for persistence.
  * @param l The log event that was emitted.
@@ -127,8 +127,8 @@ export const CalldataTxEnqueuedLogHandler = async (
     const target = add0x(l1TxCalldata.substr(0, 40))
     const nonce = new BigNumber(l1TxCalldata.substr(40, 64), 'hex')
     const gasLimit = new BigNumber(l1TxCalldata.substr(104, 64), 'hex')
-    const signature = add0x(l1TxCalldata.substr(168, 130))
-    const calldata = add0x(l1TxCalldata.substr(298))
+    const signature = add0x(l1TxCalldata.substr(168, 132))
+    const calldata = add0x(l1TxCalldata.substr(300))
 
     const unsigned: TransactionRequest = {
       to: target,
@@ -142,7 +142,7 @@ export const CalldataTxEnqueuedLogHandler = async (
 
     const r = add0x(signature.substr(2, 64))
     const s = add0x(signature.substr(66, 64))
-    const v = parseInt(signature.substr(130, 2), 16)
+    const v = parseInt(signature.substr(130, 4), 16)
     const sender: string = await getTxSigner(unsigned, r, s, v)
 
     rollupTransaction.l1BlockNumber = tx.blockNumber
@@ -261,8 +261,8 @@ export const SafetyQueueBatchAppendedLogHandler = async (
  *   - target: 20-byte address	  0-20
  *   - nonce: 32-byte uint 	      20-52
  *   - gasLimit: 32-byte uint	    52-84
- *   - signature: 65-byte bytes   84-149
- *   - calldata: bytes    		    149-end
+ *   - signature: 65-byte bytes   84-150
+ *   - calldata: bytes    		    150-end
  *
  * @param ds The L1DataService to use for persistence.
  * @param l The log event that was emitted.
@@ -295,8 +295,8 @@ export const SequencerBatchAppendedLogHandler = async (
       const target = add0x(txBytes.substr(0, 40))
       const nonce = new BigNumber(txBytes.substr(40, 64), 'hex')
       const gasLimit = new BigNumber(txBytes.substr(104, 64), 'hex')
-      const signature = add0x(txBytes.substr(168, 130))
-      const calldata = add0x(txBytes.substr(298))
+      const signature = add0x(txBytes.substr(168, 132))
+      const calldata = add0x(txBytes.substr(300))
 
       const unsigned: TransactionRequest = {
         to: target,
@@ -310,7 +310,7 @@ export const SequencerBatchAppendedLogHandler = async (
 
       const r = add0x(signature.substr(2, 64))
       const s = add0x(signature.substr(66, 64))
-      const v = parseInt(signature.substr(130, 2), 16)
+      const v = parseInt(signature.substr(130, 4), 16)
       const sender: string = await getTxSigner(unsigned, r, s, v)
 
       rollupTransactions.push({

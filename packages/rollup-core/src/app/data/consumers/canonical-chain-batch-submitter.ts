@@ -231,8 +231,8 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
    *    target: 20-byte address    0-20
    *    nonce: 32-byte uint        20-52
    *    gasLimit: 32-byte uint     52-84
-   *    signature: 65-byte bytes   84-149
-   *    calldata: bytes            149-end
+   *    signature: 66-byte bytes   84-150
+   *    calldata: bytes            150-end
    *
    * @param batch The batch to turn into ABI-encoded calldata bytes.
    * @returns The ABI-encoded bytes[] of the Rollup Transactions in the format listed above.

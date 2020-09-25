@@ -2,6 +2,7 @@
 import {
   add0x,
   keccak256FromUtf8,
+  padToLength,
   remove0x,
   TestUtils,
   ZERO_ADDRESS,
@@ -163,7 +164,7 @@ const getTxSignature = async (
   const sig = await w.sign(trans)
   const t: Transaction = parseTransaction(sig)
 
-  return add0x(`${t.r}${remove0x(t.s)}${t.v.toString(16)}`)
+  return add0x(`${t.r}${remove0x(t.s)}${padToLength(t.v.toString(16), 4)}`)
 }
 
 describe('Log Handlers', () => {
