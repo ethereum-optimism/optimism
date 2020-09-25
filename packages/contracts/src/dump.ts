@@ -33,12 +33,15 @@ const getChangedAccounts = async (cStateManager: any): Promise<string[]> => {
     })
 
     stream.on('end', () => {
-      resolve(accounts)  
+      resolve(accounts)
     })
   })
 }
 
-const getStorageDump = async (cStateManager: any, address: string): Promise<StorageDump> => {
+const getStorageDump = async (
+  cStateManager: any,
+  address: string
+): Promise<StorageDump> => {
   return new Promise<StorageDump>((resolve, reject) => {
     cStateManager._getStorageTrie(address, (err: any, trie: any) => {
       if (err) {
@@ -65,17 +68,18 @@ export const makeStateDump = async (): Promise<any> => {
     allowUnlimitedContractSize: true,
     accounts: [
       {
-        secretKey: '0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797',
-        balance: 10000000000000000000000000000000000
-      }
-    ]
+        secretKey:
+          '0x29f3edee0ad3abf8e2699402e0e28cd6492c9be7eaab00d732a791c33552f797',
+        balance: 10000000000000000000000000000000000,
+      },
+    ],
   })
 
   const provider = new ethers.providers.Web3Provider(ganache)
   const signer = provider.getSigner(0)
 
   const config: RollupDeployConfig = {
-    signer: signer,
+    signer,
     rollupOptions: {
       forceInclusionPeriodSeconds: 600,
       ownerAddress: await signer.getAddress(),
@@ -85,11 +89,11 @@ export const makeStateDump = async (): Promise<any> => {
         ovmTxMaxGas: 1_000_000_000,
         gasRateLimitEpochLength: 600,
         maxSequencedGasPerEpoch: 1_000_000_000_000,
-        maxQueuedGasPerEpoch: 1_000_000_000_000
+        maxQueuedGasPerEpoch: 1_000_000_000_000,
       },
       deployerWhitelistOwnerAddress: await signer.getAddress(),
-      allowArbitraryContractDeployment: true
-    }
+      allowArbitraryContractDeployment: true,
+    },
   }
 
   const resolver = await deployAllContracts(config)
@@ -97,14 +101,14 @@ export const makeStateDump = async (): Promise<any> => {
   const dump: StateDump = {
     contracts: {
       ovmExecutionManager: resolver.contracts.executionManager.address,
-      ovmStateManager: resolver.contracts.stateManager.address
+      ovmStateManager: resolver.contracts.stateManager.address,
     },
-    accounts: {}
+    accounts: {},
   }
 
   const pStateManager = ganache.engine.manager.state.blockchain.vm.pStateManager
   const cStateManager = pStateManager._wrapped
-  
+
   const changedAccounts = await getChangedAccounts(cStateManager)
   for (const account of changedAccounts) {
     const code = await pStateManager.getContractCode(account)
@@ -114,7 +118,7 @@ export const makeStateDump = async (): Promise<any> => {
         balance: 0,
         nonce: 0,
         code: code.toString('hex'),
-        storage: await getStorageDump(cStateManager, account)
+        storage: await getStorageDump(cStateManager, account),
       }
     }
   }

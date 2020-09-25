@@ -22,7 +22,7 @@ extendEnvironment(async (bre) => {
         dump: getLatestStateDump(),
         stateManager: vm.stateManager,
         emGasLimit: gasLimit,
-      }
+      },
     })
     await ovm.init()
     node['_vm' as any] = ovm

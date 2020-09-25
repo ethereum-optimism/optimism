@@ -27,7 +27,7 @@ const wrap = (provider: any, opts: any = {}) => {
           dump: getLatestStateDump(),
           stateManager: vm.stateManager,
           emGasLimit: gasLimit,
-        }
+        },
       })
       return ovm
     } else {
@@ -40,7 +40,7 @@ const wrap = (provider: any, opts: any = {}) => {
           emGasLimit: ovm.emGasLimit,
           initialized: ovm.initialized,
           contracts: ovm.contracts,
-        }
+        },
       })
     }
   }

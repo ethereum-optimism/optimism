@@ -38,7 +38,7 @@
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
     "fix": "yarn run fix:typescript",
-    "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\"",
+    "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins,bin}/**/*.ts\"",
     "deploy:all": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-contracts.js"
   },
   "dependencies": {
