@@ -43,4 +43,4 @@ export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
   '0x4200000000000000000000000000000000000000'
 
 // See the getTransactionBatchCalldata(...) function of canonical-chain-batch-submitter.ts for more info
-export const ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA = 149
+export const ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA = 150

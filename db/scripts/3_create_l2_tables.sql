@@ -37,7 +37,7 @@ CREATE TABLE l2_tx_output (
   gas_limit NUMERIC(78) NOT NULL,
   gas_price NUMERIC(78) NOT NULL,
   calldata TEXT NOT NULL,
-  signature CHARACTER(132) NOT NULL,
+  signature CHARACTER(134) NOT NULL,
   state_root CHARACTER(66) NOT NULL,
   l1_rollup_tx_id BIGINT DEFAULT NULL,
   canonical_chain_batch_number BIGINT DEFAULT NULL,
