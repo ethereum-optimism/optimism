@@ -110,7 +110,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         }
         batchSubmission.submissionTxHash = txHash
       } catch (e) {
-        logError(log, `Error ${validated ? 'submitting' : 'validating'} rollup tx batch`, e)
+        logError(
+          log,
+          `Error ${validated ? 'submitting' : 'validating'} rollup tx batch`,
+          e
+        )
         if (throwOnError) {
           // this is only used by testing
           throw e
