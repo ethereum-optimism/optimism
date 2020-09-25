@@ -93,10 +93,13 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (await this.shouldSubmitBatch(batchSubmission)) {
+      let validated: boolean = false
       try {
         const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
         await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
+
+        validated = true
 
         const txHash: string = await this.buildAndSendRollupBatchTransaction(
           batchSubmission,
@@ -107,7 +110,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         }
         batchSubmission.submissionTxHash = txHash
       } catch (e) {
-        logError(log, `Error validating or submitting rollup tx batch`, e)
+        logError(log, `Error ${validated ? 'submitting' : 'validating'} rollup tx batch`, e)
         if (throwOnError) {
           // this is only used by testing
           throw e
@@ -246,7 +249,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       const gasLimit: string = tx.gasLimit
         ? tx.gasLimit.toString('hex', 64)
         : '00'.repeat(32)
-      let signature: string = remove0x(tx.signature)
+      let signature: string = remove0x(tx.signature).trim()
       signature =
         signature.length % 2 === 0
           ? signature
