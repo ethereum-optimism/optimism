@@ -1,9 +1,9 @@
-import * as eGanache from 'ganache-core'
-// tslint:disable-next-line
-const VM = require('ethereumjs-ovm').default
 // tslint:disable-next-line
 const BN = require('bn.js')
-import { getLatestStateDump } from '@eth-optimism/rollup-contracts'
+import * as eGanache from 'ganache-core'
+
+/* Internal Imports */
+import { makeOVM } from '../utils/ovm'
 
 // tslint:disable-next-line:no-shadowed-variable
 const wrap = (provider: any, opts: any = {}) => {
@@ -21,27 +21,33 @@ const wrap = (provider: any, opts: any = {}) => {
   ) {
     if (ovm === undefined) {
       const vm = _original(state, activatePrecompiles)
-      ovm = new VM({
-        ...vm.opts,
-        ovmOpts: {
-          dump: getLatestStateDump(),
-          stateManager: vm.stateManager,
-          emGasLimit: gasLimit,
+      ovm = makeOVM(
+        {
+          evmOpts: vm.opts,
+          ovmOpts: {
+            emGasLimit: gasLimit
+          }
         },
-      })
+      )
+
       return ovm
     } else {
-      return new VM({
-        ...ovm.opts,
-        state,
-        stateManager: undefined,
-        activatePrecompiles,
-        ovmOpts: {
-          emGasLimit: ovm.emGasLimit,
-          initialized: ovm.initialized,
-          contracts: ovm.contracts,
-        },
-      })
+      return makeOVM(
+        {
+          evmOpts: {
+            ...ovm.opts,
+            state,
+            stateManager: undefined,
+            activatePrecompiles
+          },
+          ovmOpts: {
+            ...ovm.opts.ovmOpts,
+            emGasLimit: ovm.emGasLimit,
+            initialized: ovm.initialized,
+            contracts: ovm.contracts,
+          }
+        }
+      )
     }
   }
 
