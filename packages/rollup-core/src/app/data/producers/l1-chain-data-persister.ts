@@ -107,7 +107,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
         return this.markProcessed(index)
       }
 
-      const logs: Log[] = await this.getLogsForBlock(block.hash)
+      const logs: Log[] = await this.getLogsForBlock(block)
 
       log.debug(
         `Got ${logs.length} logs from block ${block.number}: ${JSON.stringify(
@@ -195,15 +195,19 @@ export class L1ChainDataPersister extends ChainDataProcessor {
    * @param blockHash The block hash for the block in which we're searching for logs.
    * @returns The combined array of Logs that we care about based on our topics.
    */
-  private async getLogsForBlock(blockHash: string): Promise<Log[]> {
+  private async getLogsForBlock(block: Block): Promise<Log[]> {
     if (!this.topics.length) {
       return []
     }
 
+    // TODO: Protect against reorgs which change the block number from under us
+    //       Once Ganache supports EIP-234 then we should move this back to using blockHash
+    //       https://github.com/trufflesuite/ganache-core/issues/136
     const logsArrays: Log[][] = await Promise.all(
       this.topics.map((topic) =>
         this.l1Provider.getLogs({
-          blockHash,
+          toBlock: block.number,
+          fromBlock: block.number,
           topics: [topic],
         })
       )
