@@ -21,7 +21,7 @@
     ]
   },
   "include": ["*.ts", "**/*.ts", "artifacts/*.json"],
-  "exclude": ["./build", "node_modules"],
+  "exclude": ["./build", "node_modules", "test"],
   "files": [
     "./buidler.config.ts",
     "./buidler-env.d.ts",

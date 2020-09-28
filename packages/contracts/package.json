@@ -4,12 +4,15 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "yarn run build:contracts",
+    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
+    "build:typescript": "tsc -p .",
     "build:contracts": "buidler compile",
+    "build:copy": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "test": "yarn run test:contracts",
     "test:contracts": "buidler test",
     "lint": "tslint --format stylish --project .",
-    "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\""
+    "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
+    "clean": "rm -rf ./artifacts ./build ./cache"
   },
   "devDependencies": {
     "@nomiclabs/buidler": "^1.4.4",
@@ -22,6 +25,7 @@
     "assert": "^2.0.0",
     "buffer-xor": "^2.0.2",
     "chai": "^4.2.0",
+    "copyfiles": "^2.3.0",
     "ethereum-waffle": "3.0.0",
     "ethers": "5.0.0",
     "fs-extra": "^9.0.1",
