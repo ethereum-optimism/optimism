@@ -16,17 +16,15 @@ extendEnvironment(async (bre) => {
 
     // Copy the options from the old VM instance and create a new one.
     const vm = node['_vm' as any]
-    const ovm = makeOVM(
-      {
-        evmOpts: {
-          ...vm.opts,
-          stateManager: vm.stateManager
-        },
-        ovmOpts: {
-          emGasLimit: ovmGasLimit
-        }
-      }
-    )
+    const ovm = makeOVM({
+      evmOpts: {
+        ...vm.opts,
+        stateManager: vm.stateManager,
+      },
+      ovmOpts: {
+        emGasLimit: ovmGasLimit,
+      },
+    })
 
     // Initialize the OVM and replace the old VM.
     await ovm.init()

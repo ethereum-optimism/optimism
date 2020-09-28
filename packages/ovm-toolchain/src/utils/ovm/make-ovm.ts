@@ -13,7 +13,7 @@ interface OVMOpts {
 }
 
 export const makeOVM = (args: {
-  evmOpts?: any,
+  evmOpts?: any
   ovmOpts?: Partial<OVMOpts>
 }): any => {
   return new VM({
@@ -22,6 +22,6 @@ export const makeOVM = (args: {
       dump: getLatestStateDump(),
       emGasLimit: 100_000_000,
       ...args.ovmOpts,
-    }
+    },
   })
 }

@@ -21,33 +21,29 @@ const wrap = (provider: any, opts: any = {}) => {
   ) {
     if (ovm === undefined) {
       const vm = _original(state, activatePrecompiles)
-      ovm = makeOVM(
-        {
-          evmOpts: vm.opts,
-          ovmOpts: {
-            emGasLimit: gasLimit
-          }
+      ovm = makeOVM({
+        evmOpts: vm.opts,
+        ovmOpts: {
+          emGasLimit: gasLimit,
         },
-      )
+      })
 
       return ovm
     } else {
-      return makeOVM(
-        {
-          evmOpts: {
-            ...ovm.opts,
-            state,
-            stateManager: undefined,
-            activatePrecompiles
-          },
-          ovmOpts: {
-            ...ovm.opts.ovmOpts,
-            emGasLimit: ovm.emGasLimit,
-            initialized: ovm.initialized,
-            contracts: ovm.contracts,
-          }
-        }
-      )
+      return makeOVM({
+        evmOpts: {
+          ...ovm.opts,
+          state,
+          stateManager: undefined,
+          activatePrecompiles,
+        },
+        ovmOpts: {
+          ...ovm.opts.ovmOpts,
+          emGasLimit: ovm.emGasLimit,
+          initialized: ovm.initialized,
+          contracts: ovm.contracts,
+        },
+      })
     }
   }
 
