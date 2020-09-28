@@ -78,6 +78,8 @@
     "ethereum-waffle-v3": "npm:ethereum-waffle@3",
     "ethereumjs-ovm": "git+https://github.com/ethereum-optimism/ethereumjs-vm",
     "ethers-v4": "npm:ethers@4",
-    "ethers-v5": "npm:ethers@5.0.7"
+    "ethers-v5": "npm:ethers@5.0.7",
+    "ethjs-common-v1": "npm:ethereumjs-common@1.5.0",
+    "ethjs-util-v6": "npm:ethereumjs-util@6.2.1"
   }
 }
