@@ -102,8 +102,8 @@ export class OptimismProvider extends JsonRpcProvider {
 
   public prepareRequest(method: string, params: any): [string, any[]] {
     switch (method) {
-      case 'sendTransaction':
-      case 'sendEthSignTransaction':
+      case 'sendRawEthSignTransaction':
+      case 'sendRawTransaction':
         return ['eth_sendRawEthSignTransaction', [params.signedTransaction]]
     }
 

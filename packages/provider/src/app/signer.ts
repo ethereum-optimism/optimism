@@ -23,8 +23,8 @@ import {
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
-import { Bytes, splitSignature } from '@ethersproject/bytes'
-import { serialize, UnsignedTransaction } from '@ethersproject/transactions'
+import { Bytes, splitSignature, joinSignature, SignatureLike } from '@ethersproject/bytes'
+import { serialize, UnsignedTransaction, parse } from '@ethersproject/transactions'
 import { hexStrToBuf, isHexString, remove0x } from '@eth-optimism/core-utils'
 import { ConnectionInfo, fetchJson, poll } from '@ethersproject/web'
 import { keccak256 } from '@ethersproject/keccak256'
@@ -41,7 +41,6 @@ import {
 
 import {
   allowedTransactionKeys,
-  serializeEthSignTransaction,
   sighashEthSign,
 } from './utils'
 
@@ -148,11 +147,42 @@ export class OptimismSigner implements JsonRpcSigner {
         tx.from = sender
       }
 
-      const hexTx = (this.provider.constructor as any).hexlifyTransaction(tx, {
-        from: true,
+      if (typeof tx.gasPrice !== 'undefined' && (tx.gasPrice as BigNumber)._isBigNumber) {
+        tx.gasPrice = (tx.gasPrice as BigNumber).toNumber()
+      }
+      if (typeof tx.gasLimit !== 'undefined' && (tx.gasLimit as BigNumber)._isBigNumber) {
+        tx.gasLimit = (tx.gasLimit as BigNumber).toNumber()
+      }
+      if (typeof tx.value !== 'undefined' && (tx.value as BigNumber)._isBigNumber) {
+        tx.value = (tx.value as BigNumber).toNumber()
+      }
+
+      const hexTx = (this.provider.constructor as any).hexlifyTransaction({
+        nonce: tx.nonce,
+        gasPrice: tx.gasPrice,
+        gasLimit: tx.gasLimit,
+        to: tx.to,
+        data: tx.data,
+        value: tx.value
       })
 
-      return this.provider.send('eth_sendTransaction', [hexTx]).then(
+      // Contract creation
+      if (tx.to === '0x0000000000000000000000000000000000000000') {
+        tx.to = undefined
+      }
+
+      const sig = joinSignature(tx as SignatureLike)
+      const serialized = serialize({
+        chainId: tx.chainId,
+        data: hexTx.data,
+        gasLimit: hexTx.gas,
+        gasPrice: hexTx.gasPrice,
+        nonce: hexTx.nonce,
+        to: hexTx.to,
+        value: hexTx.value,
+      }, sig)
+
+      return this.provider.send('eth_sendRawEthSignTransaction', [serialized]).then(
         (hash) => {
           return hash
         },
@@ -201,12 +231,16 @@ export class OptimismSigner implements JsonRpcSigner {
   public async signTransaction(
     transaction: Deferrable<TransactionRequest>
   ): Promise<string> {
-    const hash = sighashEthSign(transaction)
-    const sig = await this.signer.signMessage(hash)
-
     if (transaction.chainId == null) {
       transaction.chainId = await this.getChainId()
     }
+    // If `to` is not specified, assume contract creation.
+    if (transaction.to == null) {
+      transaction.to = '0x0000000000000000000000000000000000000000'
+    }
+
+    const hash = sighashEthSign(transaction)
+    const sig = await this.signMessage(hash)
 
     // Copy over "allowed" properties into new object so that
     // `serialize` doesn't throw an error. A "from" property
@@ -230,8 +264,23 @@ export class OptimismSigner implements JsonRpcSigner {
   ): Promise<TransactionResponse> {
     this._checkProvider('sendTransaction')
     const tx = await this.populateTransaction(transaction)
-    const signed = await this.signTransaction(tx)
-    return this.provider.sendTransaction(signed)
+    const hex = await this.signTransaction(tx)
+
+    const signed = parse(hex)
+    signed.from = tx.from
+
+    //return this.provider.sendTransaction(tx)
+    const hash = await this.sendUncheckedTransaction(signed)
+
+    return poll(() => {
+      return this.provider.getTransaction(hash).then((txn: TransactionResponse) => {
+        if (txn === null) { return undefined; }
+        return this.provider._wrapTransaction(txn, hash);
+      });
+    }, { onceBlock: this.provider }).catch((error: Error) => {
+      (error as any).transactionHash = hash;
+      throw error;
+    });
   }
 
   public async signMessage(message: Bytes | string): Promise<string> {
@@ -386,6 +435,8 @@ export class OptimismSigner implements JsonRpcSigner {
       tx.nonce = this.getTransactionCount('pending')
     }
 
+    // The call to estimate gas is breaking
+    // Figure out why
     if (tx.gasLimit == null) {
       tx.gasLimit = this.estimateGas(tx).catch((error) => {
         return logger.throwError(

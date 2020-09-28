@@ -73,6 +73,7 @@ export const allowedTransactionKeys: { [key: string]: boolean } = {
   nonce: true,
   to: true,
   value: true,
+  from: true,
 }
 
 export function serializeEthSignTransaction(transaction): Bytes {
@@ -80,7 +81,7 @@ export function serializeEthSignTransaction(transaction): Bytes {
   const gasLimit = zeroPad(transaction.gasLimit, 32)
   const gasPrice = zeroPad(transaction.gasPrice, 32)
   const chainId = zeroPad(transaction.chainId, 32)
-  const to = hexStrToBuf(transaction.to)
+  const to = hexStrToBuf(transaction.to) // this is empty for contract creation
   const data = toBuffer(transaction.data)
 
   return Buffer.concat([

@@ -13,8 +13,13 @@ import BigNumber = require('bn.js')
 import { OptimismProvider, sighashEthSign } from '../src/index'
 import { verifyMessage } from '@ethersproject/wallet'
 import { parse } from '@ethersproject/transactions'
+import { ContractFactory } from '@ethersproject/contracts'
 import { SignatureLike, joinSignature } from '@ethersproject/bytes'
 
+// TODO: temp
+import { JsonRpcProvider } from '@ethersproject/providers'
+
+import ERC20 = require('./data/ERC20.json')
 import { mnemonic } from './common'
 
 chai.use(chaiAsPromised)
@@ -23,6 +28,7 @@ const should = chai.should()
 describe('sendTransaction', () => {
   let provider
   let server
+  let rProvider
 
   const handlers = {
     eth_chainId: () => '0x1',
@@ -34,7 +40,9 @@ describe('sendTransaction', () => {
         mnemonic,
       })
     )
-    provider = new OptimismProvider('http://127.0.0.1:3002', web3)
+    rProvider = new JsonRpcProvider('http://127.0.0.1:8545')
+    provider = new OptimismProvider('http://127.0.0.1:8545', web3)
+
     server = new JsonRpcServer(handlers, 'localhost', 3002)
     await server.listen()
   })
@@ -69,5 +77,26 @@ describe('sendTransaction', () => {
     // this concats the prefix and hashes the message
     const recovered = verifyMessage(hash, sig)
     address.should.eq(recovered)
+  })
+
+  it('should create a contract', async () => {
+    const rSigner = await rProvider.getSigner()
+    const signer = await provider.getSigner()
+    const nonce = await signer.getTransactionCount()
+
+    // signing a contract creation tx commits to empty to
+    // this is not how my stuff is working now
+
+    const factory = new ContractFactory(ERC20.abi, ERC20.bytecode, signer)
+    const tx = await factory.deploy(1000, 'OVM', 18, 'OVM', {
+      gasLimit: 100000,
+      gasPrice: 0,
+      nonce
+    })
+
+    console.log(tx)
+
+    const address = tx.address
+    const code = await provider.getCode(address)
   })
 })
