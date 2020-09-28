@@ -84,10 +84,11 @@ export const L1ToL2TxEnqueuedLogHandler = async (
       'hex'
     ).toNumber()
     rollupTransaction.calldata = add0x(parsedLogData[3])
+    rollupTransaction.l1TxLogIndex = l.logIndex
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
     log.debug(
-      `Error parsing calldata tx from CalldataTxEnqueued event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
+      `Error parsing calldata tx from L1ToL2TxEnqueued event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
     )
   }
 
@@ -334,7 +335,7 @@ export const SequencerBatchAppendedLogHandler = async (
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
     log.debug(
-      `Error parsing calldata tx from CalldataTxEnqueued event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
+      `Error parsing calldata tx from SequencerBatchAppended event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
     )
     return
   }
@@ -375,7 +376,7 @@ export const StateBatchAppendedLogHandler = async (
   } catch (e) {
     // This is, by definition, just an ill-formatted, and therefore invalid, tx.
     log.debug(
-      `Error parsing calldata tx from CalldataTxEnqueued event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
+      `Error parsing calldata tx from StateBatchAppended event. Calldata: ${tx.data}. Error: ${e.message}. Stack: ${e.stack}.`
     )
     return
   }
