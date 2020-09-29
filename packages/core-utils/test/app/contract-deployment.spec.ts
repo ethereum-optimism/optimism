@@ -2,8 +2,8 @@ import { should } from '../setup'
 
 /* External Imports */
 import { createMockProvider, getWallets } from 'ethereum-waffle'
-import { ContractFactory, Wallet } from 'ethers'
-import { Provider } from 'ethers/providers'
+import { ContractFactory, Wallet } from 'ethers-v4'
+import { Provider } from 'ethers-v4/providers'
 
 /* Internal Imports */
 import { getDeployedContractAddress } from '../../src/app'

@@ -2,9 +2,9 @@
 
 /* External Imports */
 import { config } from 'dotenv'
-import { Contract, ContractFactory, ethers, Wallet } from 'ethers'
-import { stripZeros, hexlify, RLP, getAddress } from 'ethers/utils'
-import { Provider } from 'ethers/providers'
+import { Contract, ContractFactory, ethers, Wallet } from 'ethers-v4'
+import { stripZeros, hexlify, RLP, getAddress } from 'ethers-v4/utils'
+import { Provider } from 'ethers-v4/providers'
 
 /* Internal Imports */
 import { ContractDeploymentFunction } from '../types'
