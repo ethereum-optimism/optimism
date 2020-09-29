@@ -422,7 +422,7 @@ export class DefaultDataService implements DataService {
 
     const batchTimestamp = parseInt(txRes[0]['block_timestamp'], 10)
 
-    const maxTxId = await this.getMaxL2TxOutputIdForCanonicalChainBatch(
+    const maxBlockNumber = await this.getMaxL2TxOutputBlockNumberForCanonicalChainBatch(
       batchTimestamp,
       maxBatchCalldataBytes
     )
@@ -434,20 +434,19 @@ export class DefaultDataService implements DataService {
         `UPDATE l2_tx_output tx
         SET 
             canonical_chain_batch_number = ${batchNumber},
-            canonical_chain_batch_index = t.row_number
+            canonical_chain_batch_index = t.batch_index
         FROM 
           (
-            SELECT id, row_number() over (ORDER BY id) -1 as row_number
+            SELECT id, row_number() over (ORDER BY block_number) -1 as batch_index
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
               AND l1_rollup_tx_id IS NULL
               AND block_timestamp = ${batchTimestamp}
-              AND id <= ${maxTxId}
+              AND block_number <= ${maxBlockNumber}
             ORDER BY block_number ASC, tx_index ASC
           ) t
-        WHERE tx.id = t.id 
-          `,
+        WHERE tx.id = t.id`,
         txContext
       )
 
@@ -460,19 +459,19 @@ export class DefaultDataService implements DataService {
     }
   }
 
-  public async getMaxL2TxOutputIdForCanonicalChainBatch(
+  public async getMaxL2TxOutputBlockNumberForCanonicalChainBatch(
     batchTimestamp: number,
     maxBatchCalldataBytes: number
   ): Promise<number> {
     const res: Row[] = await this.rdb.select(
       `SELECT 
-            id, 
+            block_number, 
             GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA} as calldata_bytes
       FROM l2_tx_output
       WHERE 
             block_timestamp = ${batchTimestamp}
             AND canonical_chain_batch_number IS NULL
-      ORDER BY id ASC
+      ORDER BY block_number ASC, tx_index ASC
       `
     )
 
@@ -483,30 +482,30 @@ export class DefaultDataService implements DataService {
     }
 
     let totalCalldataBytes: number = 0
-    let lastId = -1
+    let lastBlockNumber = -1
     for (const row of res) {
       const rowBytes: number = parseInt(row['calldata_bytes'], 10)
       totalCalldataBytes += rowBytes
       if (totalCalldataBytes > maxBatchCalldataBytes) {
-        if (lastId === -1) {
-          const msg: string = `L2 Tx with ID ${row['id']} has ${totalCalldataBytes} bytes of calldata, which is bigger than the limit of ${maxBatchCalldataBytes}! Cannot roll up this transaction!`
+        if (lastBlockNumber === -1) {
+          const msg: string = `L2 Tx with block number ${row['block_number']} has ${totalCalldataBytes} bytes of calldata, which is bigger than the limit of ${maxBatchCalldataBytes}! Cannot roll up this transaction!`
           log.error(msg)
           throw Error(msg)
         }
         log.debug(
           `Building Canonical Chain Batch with ${totalCalldataBytes -
-            rowBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastId}`
+            rowBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastBlockNumber}`
         )
-        return lastId
+        return lastBlockNumber
       }
-      lastId = parseInt(row['id'], 10)
+      lastBlockNumber = parseInt(row['block_number'], 10)
     }
 
     log.debug(
-      `Building Canonical Chain Batch with ${totalCalldataBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastId}`
+      `Building Canonical Chain Batch with ${totalCalldataBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastBlockNumber}`
     )
 
-    return lastId
+    return lastBlockNumber
   }
 
   /**
@@ -670,7 +669,6 @@ export class DefaultDataService implements DataService {
         FROM (
           SELECT id, row_number
           FROM batchable_l2_only_tx_states
-          ORDER BY block_number ASC, tx_index ASC
           LIMIT ${maxBatchSize}
         ) t
         WHERE tx.id = t.id`,
