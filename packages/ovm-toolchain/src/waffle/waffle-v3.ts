@@ -7,7 +7,7 @@ import Ganache from 'ganache-core'
 import { ganache } from '../ganache'
 import {
   initCrossDomainMessengersVX,
-  waitForCrossDomainMessages
+  waitForCrossDomainMessages,
 } from './waffle-vx'
 
 export const initCrossDomainMessengers = async (
@@ -57,5 +57,5 @@ export class MockProvider extends providers.Web3Provider {
 export const waffleV3 = {
   MockProvider,
   initCrossDomainMessengers,
-  waitForCrossDomainMessages
+  waitForCrossDomainMessages,
 }
