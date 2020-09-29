@@ -18,6 +18,7 @@ import {
   getTxSizeInBytes,
   insertTxOutput,
   l1Block,
+  selectStateRootBatchRes,
   verifyL1BlockRes,
   verifyL2TxOutput,
 } from './helpers'
@@ -130,10 +131,18 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
     })
 
     it('Should build a batch with more than min tx output calldata', async () => {
-      const tx = createTxOutput(keccak256FromUtf8('tx'))
+      const tx = createTxOutput(
+        keccak256FromUtf8('tx'),
+        keccak256FromUtf8('tx'),
+        blockNumber
+      )
       await insertTxOutput(dataService, tx)
 
-      const tx2 = createTxOutput(keccak256FromUtf8('tx 2'))
+      const tx2 = createTxOutput(
+        keccak256FromUtf8('tx 2'),
+        keccak256FromUtf8('tx 2'),
+        blockNumber + 1
+      )
       await insertTxOutput(dataService, tx2)
 
       const txSize = Math.min(getTxSizeInBytes(tx), getTxSizeInBytes(tx2))
@@ -242,9 +251,69 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
 
       const txRes = await postgres.select(
-        `SELECT * FROM l2_tx_output WHERE canonical_chain_batch_number = ${batchNum}`
+        `SELECT * 
+                FROM l2_tx_output 
+                WHERE canonical_chain_batch_number = ${batchNum}
+                ORDER BY canonical_chain_batch_index ASC`
       )
       txRes.length.should.equal(2, `Should have batched 2 transactions`)
+      txRes[0]['tx_hash'].should.equal(
+        tx1.transactionHash,
+        `Tx 1 should be first tx in batch!`
+      )
+      txRes[1]['tx_hash'].should.equal(
+        tx2.transactionHash,
+        `Tx 2 should be second tx in batch!`
+      )
+    })
+
+    it('Should correctly order transactions', async () => {
+      const tx1 = createTxOutput(
+        keccak256FromUtf8('tx 1'),
+        defaultStateRoot,
+        blockNumber
+      )
+      tx1.transactionIndex = 1
+      const tx2 = createTxOutput(
+        keccak256FromUtf8('tx 2'),
+        keccak256FromUtf8(defaultStateRoot),
+        blockNumber // Note: Same block number
+      )
+      tx2.transactionIndex = 0
+      await insertTxOutput(dataService, tx1)
+      await insertTxOutput(dataService, tx2)
+
+      const txSize = Math.min(getTxSizeInBytes(tx1), getTxSizeInBytes(tx2))
+      const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
+        txSize,
+        txSize * 10
+      )
+      batchNum.should.equal(0, `Batch should have been built`)
+
+      const batchRes = await postgres.select(
+        `SELECT * FROM canonical_chain_batch`
+      )
+      batchRes.length.should.equal(1, `Batch should exist`)
+      batchRes[0]['status'].should.equal(
+        BatchSubmissionStatus.QUEUED,
+        `Wrong batch status!`
+      )
+
+      const txRes = await postgres.select(
+        `SELECT * 
+                FROM l2_tx_output 
+                WHERE canonical_chain_batch_number = ${batchNum}
+                ORDER BY canonical_chain_batch_index ASC`
+      )
+      txRes.length.should.equal(2, `Should have batched 2 transactions`)
+      txRes[0]['tx_hash'].should.equal(
+        tx2.transactionHash,
+        `Tx 2 should be first tx in batch!`
+      )
+      txRes[1]['tx_hash'].should.equal(
+        tx1.transactionHash,
+        `Tx 1 should be second tx in batch!`
+      )
     })
 
     it('Should build 2 batches, given 2 tx outputs with different timestamps', async () => {
@@ -494,7 +563,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -507,19 +576,19 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       txs.length.should.equal(2, `Both txos should have been batched!`)
       txs[0]['state_commitment_chain_batch_index'].should.equal(
         0,
-        `Incorrect tx 1 batch index!`
+        `Incorrect tx 1 index!`
       )
       txs[0]['tx_hash'].should.equal(
         tx1.transactionHash,
-        `Incorrect tx 1 batch index!`
+        `Incorrect tx 1 hash!`
       )
       txs[1]['state_commitment_chain_batch_index'].should.equal(
         1,
-        `Incorrect tx 2 batch index!`
+        `Incorrect tx 2 index!`
       )
       txs[1]['tx_hash'].should.equal(
         tx2.transactionHash,
-        `Incorrect tx 2 batch index!`
+        `Incorrect tx 2 index!`
       )
     })
 
@@ -584,16 +653,14 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
       const batchNum = await dataService.tryBuildStateCommitmentChainBatchToMatchAppendedL1Batch()
       batchNum.should.equal(0, `Batch should have been built`)
 
-      const l2TxsBatched = await postgres.select(
-        `SELECT * FROM l2_tx_output WHERE state_commitment_chain_batch_number = ${l1StateRootBatchNum} ORDER BY block_number ASC, tx_index ASC`
-      )
+      const l2TxsBatched = await selectStateRootBatchRes(postgres, batchNum)
       l2TxsBatched.length.should.equal(
         1,
         `Only one tx should have been batched!`
@@ -709,7 +776,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -725,19 +792,19 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       txs.length.should.equal(2, `Both txos should have been batched!`)
       txs[0]['state_commitment_chain_batch_index'].should.equal(
         0,
-        `Incorrect tx 1 batch index!`
+        `Incorrect tx 1 index!`
       )
       txs[0]['tx_hash'].should.equal(
         tx1.transactionHash,
-        `Incorrect tx 1 batch index!`
+        `Incorrect tx 1 hash!`
       )
       txs[1]['state_commitment_chain_batch_index'].should.equal(
         1,
-        `Incorrect tx 2 batch index!`
+        `Incorrect tx 2 index!`
       )
       txs[1]['tx_hash'].should.equal(
         tx2.transactionHash,
-        `Incorrect tx 2 batch index!`
+        `Incorrect tx 2 hash!`
       )
     })
 
@@ -752,7 +819,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -762,11 +829,12 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
-      let count = await postgres.select(
-        `SELECT * FROM l2_tx_output WHERE state_commitment_chain_batch_number = ${batchNum}`
+      let stateBatchRes = await selectStateRootBatchRes(postgres, batchNum)
+      stateBatchRes.length.should.equal(
+        1,
+        `First txo should have been batched!`
       )
-      count.length.should.equal(1, `First txo should have been batched!`)
-      count[0]['tx_hash'].should.equal(
+      stateBatchRes[0]['tx_hash'].should.equal(
         tx1.transactionHash,
         `first batch should be tx 1!`
       )
@@ -774,13 +842,112 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(1, 1)
       batchNum.should.equal(1, `Batch should have been built`)
 
-      count = await postgres.select(
-        `SELECT * FROM l2_tx_output WHERE state_commitment_chain_batch_number = ${batchNum}`
+      stateBatchRes = await selectStateRootBatchRes(postgres, batchNum)
+      stateBatchRes.length.should.equal(
+        1,
+        `Second txo should have been batched!`
       )
-      count.length.should.equal(1, `Second txo should have been batched!`)
-      count[0]['tx_hash'].should.equal(
+      stateBatchRes[0]['tx_hash'].should.equal(
         tx2.transactionHash,
         `second batch should be tx 2!`
+      )
+    })
+
+    it('Should order state commitment batches by block number and then by tx index (1 of 2)', async () => {
+      const tx1 = createTxOutput(
+        keccak256FromUtf8('tx 1'),
+        defaultStateRoot,
+        blockNumber
+      )
+      tx1.transactionIndex = 0
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
+
+      const tx2 = createTxOutput(
+        keccak256FromUtf8('tx 2'),
+        defaultStateRoot,
+        blockNumber // Intentionally the same block number
+      )
+      tx2.transactionIndex = 1
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
+
+      let batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
+        1,
+        1
+      )
+      batchNum.should.equal(0, `Batch should have been built`)
+
+      let stateBatchRes = await selectStateRootBatchRes(postgres, batchNum)
+
+      stateBatchRes.length.should.equal(
+        1,
+        `First txo should have been batched!`
+      )
+      stateBatchRes[0]['tx_hash'].should.equal(
+        tx1.transactionHash,
+        `first batch should be tx 1!`
+      )
+
+      batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(1, 1)
+      batchNum.should.equal(1, `Batch should have been built`)
+
+      stateBatchRes = await selectStateRootBatchRes(postgres, batchNum)
+
+      stateBatchRes.length.should.equal(
+        1,
+        `Second txo should have been batched!`
+      )
+      stateBatchRes[0]['tx_hash'].should.equal(
+        tx2.transactionHash,
+        `second batch should be tx 2!`
+      )
+    })
+
+    it('Should order state commitment batches by block number and then by tx index (2 of 2)', async () => {
+      const tx1 = createTxOutput(
+        keccak256FromUtf8('tx 1'),
+        defaultStateRoot,
+        blockNumber
+      )
+      tx1.transactionIndex = 1
+      await insertTxOutput(dataService, tx1, BatchSubmissionStatus.FINALIZED)
+
+      const tx2 = createTxOutput(
+        keccak256FromUtf8('tx 2'),
+        defaultStateRoot,
+        blockNumber // Intentionally the same block number
+      )
+      tx2.transactionIndex = 0
+      await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
+
+      let batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(
+        1,
+        1
+      )
+      batchNum.should.equal(0, `Batch should have been built`)
+
+      let stateBatchRes = await selectStateRootBatchRes(postgres, batchNum)
+
+      stateBatchRes.length.should.equal(
+        1,
+        `First txo should have been batched!`
+      )
+      stateBatchRes[0]['tx_hash'].should.equal(
+        tx2.transactionHash,
+        `first batch should be tx 2!`
+      )
+
+      batchNum = await dataService.tryBuildL2OnlyStateCommitmentChainBatch(1, 1)
+      batchNum.should.equal(1, `Batch should have been built`)
+
+      stateBatchRes = await selectStateRootBatchRes(postgres, batchNum)
+
+      stateBatchRes.length.should.equal(
+        1,
+        `Second txo should have been batched!`
+      )
+      stateBatchRes[0]['tx_hash'].should.equal(
+        tx1.transactionHash,
+        `second batch should be tx 1!`
       )
     })
   })
@@ -858,7 +1025,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.QUEUED)
 
@@ -946,7 +1113,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         defaultStateRoot,
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.SENT)
 

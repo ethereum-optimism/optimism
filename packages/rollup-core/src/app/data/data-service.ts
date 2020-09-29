@@ -437,7 +437,7 @@ export class DefaultDataService implements DataService {
             canonical_chain_batch_index = t.batch_index
         FROM 
           (
-            SELECT id, row_number() over (ORDER BY block_number) -1 as batch_index
+            SELECT id, row_number() over (ORDER BY block_number ASC, tx_index ASC) -1 as batch_index
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
@@ -604,7 +604,7 @@ export class DefaultDataService implements DataService {
             state_commitment_chain_batch_number = ${batchNumber},
             state_commitment_chain_batch_index = t.row_number
         FROM (
-          SELECT id, row_number() over (ORDER BY id) -1 as row_number
+          SELECT id, row_number() over (ORDER BY block_number ASC, tx_index ASC) -1 as row_number
           FROM l2_tx_output
           WHERE state_commitment_chain_batch_number IS NULL
           ORDER BY block_number ASC, tx_index ASC

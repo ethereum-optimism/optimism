@@ -1,31 +1,21 @@
 import '../setup'
 
 /* External Imports */
-import { PostgresDB, Row } from '@eth-optimism/core-db'
+import { PostgresDB } from '@eth-optimism/core-db'
 import { keccak256FromUtf8 } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { DefaultDataService } from '../../src/app/data'
 import {
   blockNumber,
-  createRollupTx,
   createTx,
   createTxOutput,
   defaultStateRoot,
   deleteAllData,
   insertTxOutput,
   l1Block,
-  verifyL1BlockRes,
-  verifyL2TxOutput,
 } from './helpers'
-import {
-  BatchSubmissionStatus,
-  QueueOrigin,
-  StateCommitmentBatchSubmission,
-  TransactionBatchSubmission,
-  VerificationStatus,
-} from '../../src/types/data'
-import { VerificationCandidate } from '../../src/types'
+import { BatchSubmissionStatus, VerificationStatus } from '../../src/types/data'
 
 describe('Verifier Data Data Service (will fail if postgres is not running with expected schema)', () => {
   let dataService: DefaultDataService
@@ -111,7 +101,7 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -156,7 +146,7 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -198,7 +188,7 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -240,7 +230,7 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
 
@@ -285,13 +275,13 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
       const tx2 = createTxOutput(
         keccak256FromUtf8('tx 2'),
         keccak256FromUtf8(defaultStateRoot),
-        blockNumber
+        blockNumber + 1
       )
       await insertTxOutput(dataService, tx2, BatchSubmissionStatus.FINALIZED)
       const tx3 = createTxOutput(
         keccak256FromUtf8('tx 3'),
         keccak256FromUtf8(defaultStateRoot),
-        blockNumber
+        blockNumber + 2
       )
       await insertTxOutput(dataService, tx3, BatchSubmissionStatus.FINALIZED)
 
@@ -307,14 +297,14 @@ describe('Verifier Data Data Service (will fail if postgres is not running with 
       const tx4 = createTxOutput(
         keccak256FromUtf8('tx 4'),
         stateRoot4,
-        blockNumber
+        blockNumber + 3
       )
       await insertTxOutput(dataService, tx4, BatchSubmissionStatus.FINALIZED)
 
       const tx5 = createTxOutput(
         keccak256FromUtf8('tx 5'),
         stateRoot5,
-        blockNumber
+        blockNumber + 4
       )
       await insertTxOutput(dataService, tx5, BatchSubmissionStatus.FINALIZED)
 
