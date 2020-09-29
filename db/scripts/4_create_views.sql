@@ -56,7 +56,7 @@ ORDER BY l1.batch_index ASC
 CREATE OR REPLACE VIEW batchable_l2_only_tx_states
 AS
 
-SELECT tx.*, row_number() over (ORDER BY tx.block_number ASC) -1 AS row_number
+SELECT tx.*, row_number() over (ORDER BY tx.block_number ASC, tx.tx_index ASC) -1 AS row_number
 FROM l2_tx_output tx
   INNER JOIN canonical_chain_batch cc
     ON tx.canonical_chain_batch_number = cc.batch_number
