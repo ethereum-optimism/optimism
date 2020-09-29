@@ -68,19 +68,19 @@ const test_ovmSTATICCALL: TestDefinition = {
                 functionName: 'ovmSSTORE',
                 functionParams: {
                   key: NULL_BYTES32,
-                  value: NULL_BYTES32
+                  value: NULL_BYTES32,
                 },
                 expectedReturnStatus: false,
                 expectedReturnValue: {
                   flag: REVERT_FLAGS.STATIC_VIOLATION,
-                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
-                }
-              }
-            ]
+                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                },
+              },
+            ],
           },
-          expectedReturnStatus: false
-        }
-      ]
+          expectedReturnStatus: false,
+        },
+      ],
     },
     {
       name: 'ovmSTATICCALL => ovmSLOAD',
@@ -97,13 +97,13 @@ const test_ovmSTATICCALL: TestDefinition = {
                   key: NON_NULL_BYTES32,
                 },
                 expectedReturnStatus: true,
-                expectedReturnValue: NULL_BYTES32
-              }
-            ]
+                expectedReturnValue: NULL_BYTES32,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
-      ]
+          expectedReturnStatus: true,
+        },
+      ],
     },
     {
       name: 'ovmSTATICCALL => ovmCREATE',
@@ -122,14 +122,14 @@ const test_ovmSTATICCALL: TestDefinition = {
                 expectedReturnStatus: false,
                 expectedReturnValue: {
                   flag: REVERT_FLAGS.STATIC_VIOLATION,
-                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
-                }
-              }
-            ]
+                  nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                },
+              },
+            ],
           },
-          expectedReturnStatus: false
-        }
-      ]
+          expectedReturnStatus: false,
+        },
+      ],
     },
     {
       name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALLER',
@@ -148,17 +148,17 @@ const test_ovmSTATICCALL: TestDefinition = {
                   subSteps: [
                     {
                       functionName: 'ovmCALLER',
-                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_1'
-                    }
-                  ]
+                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_1',
+                    },
+                  ],
                 },
-                expectedReturnStatus: true
-              }
-            ]
+                expectedReturnStatus: true,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
-      ]
+          expectedReturnStatus: true,
+        },
+      ],
     },
     {
       name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmADDRESS',
@@ -177,20 +177,21 @@ const test_ovmSTATICCALL: TestDefinition = {
                   subSteps: [
                     {
                       functionName: 'ovmADDRESS',
-                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_2'
-                    }
-                  ]
+                      expectedReturnValue: '$DUMMY_OVM_ADDRESS_2',
+                    },
+                  ],
                 },
-                expectedReturnStatus: true
-              }
-            ]
+                expectedReturnStatus: true,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
-      ]
+          expectedReturnStatus: true,
+        },
+      ],
     },
     {
-      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSSTORE',
+      name:
+        'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSSTORE',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -214,34 +215,35 @@ const test_ovmSTATICCALL: TestDefinition = {
                             functionName: 'ovmSSTORE',
                             functionParams: {
                               key: NULL_BYTES32,
-                              value: NULL_BYTES32
+                              value: NULL_BYTES32,
                             },
                             expectedReturnStatus: false,
                             expectedReturnValue: {
                               flag: REVERT_FLAGS.STATIC_VIOLATION,
-                              nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
-                            }
-                          }
-                        ]
+                              nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                            },
+                          },
+                        ],
                       },
                       expectedReturnStatus: false,
                       expectedReturnValue: {
                         flag: REVERT_FLAGS.STATIC_VIOLATION,
-                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
-                      }
-                    }
-                  ]
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                      },
+                    },
+                  ],
                 },
-                expectedReturnStatus: false
-              }
-            ]
+                expectedReturnStatus: false,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
-      ]
+          expectedReturnStatus: true,
+        },
+      ],
     },
     {
-      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSLOAD',
+      name:
+        'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmSLOAD',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -267,24 +269,25 @@ const test_ovmSTATICCALL: TestDefinition = {
                               key: NON_NULL_BYTES32,
                             },
                             expectedReturnStatus: true,
-                            expectedReturnValue: NULL_BYTES32
-                          }
-                        ]
+                            expectedReturnValue: NULL_BYTES32,
+                          },
+                        ],
                       },
-                      expectedReturnStatus: true
-                    }
-                  ]
+                      expectedReturnStatus: true,
+                    },
+                  ],
                 },
-                expectedReturnStatus: true
-              }
-            ]
+                expectedReturnStatus: true,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
-      ]
+          expectedReturnStatus: true,
+        },
+      ],
     },
     {
-      name: 'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmCREATE',
+      name:
+        'ovmCALL(ADDRESS_1) => ovmSTATICCALL(ADDRESS_2) => ovmCALL(ADDRESS_3) => ovmCREATE',
       steps: [
         {
           functionName: 'ovmCALL',
@@ -307,33 +310,33 @@ const test_ovmSTATICCALL: TestDefinition = {
                           {
                             functionName: 'ovmCREATE',
                             functionParams: {
-                              bytecode: DUMMY_BYTECODE
+                              bytecode: DUMMY_BYTECODE,
                             },
                             expectedReturnStatus: false,
                             expectedReturnValue: {
                               flag: REVERT_FLAGS.STATIC_VIOLATION,
-                              nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
-                            }
-                          }
-                        ]
+                              nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                            },
+                          },
+                        ],
                       },
                       expectedReturnStatus: false,
                       expectedReturnValue: {
                         flag: REVERT_FLAGS.STATIC_VIOLATION,
-                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2
-                      }
-                    }
-                  ]
+                        nuisanceGasLeft: OVM_TX_GAS_LIMIT / 2,
+                      },
+                    },
+                  ],
                 },
-                expectedReturnStatus: false
-              }
-            ]
+                expectedReturnStatus: false,
+              },
+            ],
           },
-          expectedReturnStatus: true
-        }
-      ]
+          expectedReturnStatus: true,
+        },
+      ],
     },
-  ]
+  ],
 }
 
 const runner = new ExecutionManagerTestRunner()

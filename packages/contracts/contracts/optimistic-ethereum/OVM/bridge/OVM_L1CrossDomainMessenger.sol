@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_EthMerkleTrie } from "../../libraries/trie/Lib_EthMerkleTrie.sol";
-import { Lib_ByteUtils } from "../../libraries/utils/Lib_ByteUtils.sol";
+import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../iOVM/bridge/iOVM_L1CrossDomainMessenger.sol";
@@ -215,7 +215,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         )
     {
         bytes32 storageKey = keccak256(
-            Lib_ByteUtils.concat(
+            Lib_BytesUtils.concat(
                 abi.encodePacked(keccak256(_xDomainCalldata)),
                 abi.encodePacked(uint256(0))
             )

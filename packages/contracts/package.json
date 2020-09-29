@@ -9,12 +9,13 @@
     "build:contracts": "buidler compile",
     "build:copy": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test",
+    "test:contracts": "buidler test \"test/contracts/OVM/chain/OVM_StateCommitmentChain.spec.ts\" --show-stack-traces",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./artifacts ./build ./cache"
   },
   "devDependencies": {
+    "@eth-optimism/smock": "^0.1.0",
     "@nomiclabs/buidler": "^1.4.4",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",

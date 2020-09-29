@@ -25,8 +25,8 @@ contract OVM_StateManager is iOVM_StateManager {
      * Contract Variables: Contract References *
      *******************************************/
 
-    address internal owner;
-    address internal ovmExecutionManager;
+    address public owner;
+    address public ovmExecutionManager;
 
 
     /****************************************

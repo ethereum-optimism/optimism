@@ -2,29 +2,39 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { Contract, ContractFactory, Signer } from 'ethers'
+import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
+import { keccak256 } from 'ethers/lib/utils'
+import _ from 'lodash'
 
 /* Internal Imports */
-import { getProxyManager, ZERO_ADDRESS, NULL_BYTES32 } from '../../../helpers'
+import {
+  ZERO_ADDRESS,
+  NON_ZERO_ADDRESS,
+  DUMMY_BYTES32,
+  remove0x,
+  getBlockTime,
+  makeAddressManager,
+} from '../../../helpers'
 
-const parseQueueElement = (result: any[]): any => {
-  return {
-    timestamp: result[0].toNumber(),
-    batchRoot: result[1],
-    isL1ToL2Batch: result[2],
-  }
+const calcBatchRoot = (element: any): string => {
+  return keccak256(
+    element.target +
+      remove0x(BigNumber.from(element.gasLimit).toHexString()).padStart(
+        64,
+        '0'
+      ) +
+      remove0x(element.data)
+  )
 }
 
 const makeQueueElements = (count: number): any => {
-  const elements = []
-  for (let i = 0; i < count; i++) {
-    elements.push({
-      timestamp: Date.now(),
-      batchRoot: NULL_BYTES32,
-      isL1ToL2Batch: false,
-    })
-  }
-  return elements
+  return [...Array(count)].map((el, idx) => {
+    return {
+      target: NON_ZERO_ADDRESS,
+      gasLimit: idx,
+      data: DUMMY_BYTES32[0],
+    }
+  })
 }
 
 describe('OVM_L1ToL2TransactionQueue', () => {
@@ -33,9 +43,9 @@ describe('OVM_L1ToL2TransactionQueue', () => {
     ;[signer] = await ethers.getSigners()
   })
 
-  let Proxy_Manager: Contract
+  let AddressManager: Contract
   before(async () => {
-    Proxy_Manager = await getProxyManager()
+    AddressManager = await makeAddressManager()
   })
 
   let Factory__OVM_L1ToL2TransactionQueue: ContractFactory
@@ -48,22 +58,31 @@ describe('OVM_L1ToL2TransactionQueue', () => {
   let OVM_L1ToL2TransactionQueue: Contract
   beforeEach(async () => {
     OVM_L1ToL2TransactionQueue = await Factory__OVM_L1ToL2TransactionQueue.deploy(
-      Proxy_Manager.address
+      AddressManager.address
     )
   })
 
   describe('enqueue()', () => {
     it('should allow users to enqueue an element', async () => {
       const [element] = makeQueueElements(1)
-      await expect(OVM_L1ToL2TransactionQueue.enqueue(element)).to.not.be
-        .reverted
+      await expect(
+        OVM_L1ToL2TransactionQueue.enqueue(
+          element.target,
+          element.gasLimit,
+          element.data
+        )
+      ).to.not.be.reverted
     })
 
     it('should allow users to enqueue more than one element', async () => {
-      const elements = makeQueueElements(10)
-      for (const element of elements) {
-        await expect(OVM_L1ToL2TransactionQueue.enqueue(element)).to.not.be
-          .reverted
+      for (const element of makeQueueElements(10)) {
+        await expect(
+          OVM_L1ToL2TransactionQueue.enqueue(
+            element.target,
+            element.gasLimit,
+            element.data
+          )
+        ).to.not.be.reverted
       }
     })
   })
@@ -71,7 +90,7 @@ describe('OVM_L1ToL2TransactionQueue', () => {
   describe('dequeue()', () => {
     describe('when the sender is not the OVM_CanonicalTransactionChain', () => {
       before(async () => {
-        await Proxy_Manager.setProxy(
+        await AddressManager.setAddress(
           'OVM_CanonicalTransactionChain',
           ZERO_ADDRESS
         )
@@ -86,7 +105,7 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
     describe('when the sender is the OVM_CanonicalTransactionChain', () => {
       before(async () => {
-        await Proxy_Manager.setProxy(
+        await AddressManager.setAddress(
           'OVM_CanonicalTransactionChain',
           await signer.getAddress()
         )
@@ -100,15 +119,25 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
       it('should allow users to dequeue an element', async () => {
         const [element] = makeQueueElements(1)
-        await OVM_L1ToL2TransactionQueue.enqueue(element)
+        await OVM_L1ToL2TransactionQueue.enqueue(
+          element.target,
+          element.gasLimit,
+          element.data
+        )
         await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.not.be.reverted
       })
 
       it('should allow users to dequeue more than one element', async () => {
         const elements = makeQueueElements(10)
+
         for (const element of elements) {
-          await OVM_L1ToL2TransactionQueue.enqueue(element)
+          await OVM_L1ToL2TransactionQueue.enqueue(
+            element.target,
+            element.gasLimit,
+            element.data
+          )
         }
+
         for (const element of elements) {
           await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.not.be.reverted
         }
@@ -118,7 +147,7 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
   describe('size()', () => {
     before(async () => {
-      await Proxy_Manager.setProxy(
+      await AddressManager.setAddress(
         'OVM_CanonicalTransactionChain',
         await signer.getAddress()
       )
@@ -132,7 +161,13 @@ describe('OVM_L1ToL2TransactionQueue', () => {
     it('should increase when new elements are enqueued', async () => {
       const elements = makeQueueElements(10)
       for (let i = 0; i < elements.length; i++) {
-        await OVM_L1ToL2TransactionQueue.enqueue(elements[i])
+        const element = elements[i]
+        await OVM_L1ToL2TransactionQueue.enqueue(
+          element.target,
+          element.gasLimit,
+          element.data
+        )
+
         const size = await OVM_L1ToL2TransactionQueue.size()
         expect(size).to.equal(i + 1)
       }
@@ -140,9 +175,15 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
     it('should decrease when elements are dequeued', async () => {
       const elements = makeQueueElements(10)
+
       for (const element of elements) {
-        await OVM_L1ToL2TransactionQueue.enqueue(element)
+        await OVM_L1ToL2TransactionQueue.enqueue(
+          element.target,
+          element.gasLimit,
+          element.data
+        )
       }
+
       for (let i = 0; i < elements.length; i++) {
         await OVM_L1ToL2TransactionQueue.dequeue()
         const size = await OVM_L1ToL2TransactionQueue.size()
@@ -153,7 +194,7 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
   describe('peek()', () => {
     before(async () => {
-      await Proxy_Manager.setProxy(
+      await AddressManager.setAddress(
         'OVM_CanonicalTransactionChain',
         await signer.getAddress()
       )
@@ -167,28 +208,75 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
     it('should return the front element if only one exists', async () => {
       const [element] = makeQueueElements(1)
-      await OVM_L1ToL2TransactionQueue.enqueue(element)
-      const front = await OVM_L1ToL2TransactionQueue.peek()
-      expect(parseQueueElement(front)).to.deep.equal(element)
+
+      const result = await OVM_L1ToL2TransactionQueue.enqueue(
+        element.target,
+        element.gasLimit,
+        element.data
+      )
+
+      const timestamp = BigNumber.from(
+        await getBlockTime(ethers.provider, result.blockNumber)
+      )
+
+      expect(
+        _.toPlainObject(await OVM_L1ToL2TransactionQueue.peek())
+      ).to.deep.include({
+        timestamp,
+        batchRoot: calcBatchRoot(element),
+        isL1ToL2Batch: true,
+      })
     })
 
     it('should return the front if more than one exists', async () => {
       const elements = makeQueueElements(10)
-      for (const element of elements) {
-        await OVM_L1ToL2TransactionQueue.enqueue(element)
-        const front = await OVM_L1ToL2TransactionQueue.peek()
-        expect(parseQueueElement(front)).to.deep.equal(elements[0])
+      const result = await OVM_L1ToL2TransactionQueue.enqueue(
+        elements[0].target,
+        elements[0].gasLimit,
+        elements[0].data
+      )
+      const timestamp = BigNumber.from(
+        await getBlockTime(ethers.provider, result.blockNumber)
+      )
+
+      for (const element of elements.slice(1)) {
+        expect(
+          _.toPlainObject(await OVM_L1ToL2TransactionQueue.peek())
+        ).to.deep.include({
+          timestamp,
+          batchRoot: calcBatchRoot(elements[0]),
+          isL1ToL2Batch: true,
+        })
       }
     })
 
     it('should return the new front when elements are dequeued', async () => {
       const elements = makeQueueElements(10)
+      const timestamps: BigNumber[] = []
+
       for (const element of elements) {
-        await OVM_L1ToL2TransactionQueue.enqueue(elements)
+        const result = await OVM_L1ToL2TransactionQueue.enqueue(
+          element.target,
+          element.gasLimit,
+          element.data
+        )
+
+        timestamps.push(
+          BigNumber.from(
+            await getBlockTime(ethers.provider, result.blockNumber)
+          )
+        )
       }
+
       for (let i = 0; i < elements.length - 1; i++) {
-        const front = await OVM_L1ToL2TransactionQueue.peek()
-        expect(parseQueueElement(front)).to.deep.equal(elements[i + 1])
+        expect(
+          _.toPlainObject(await OVM_L1ToL2TransactionQueue.peek())
+        ).to.deep.include({
+          timestamp: timestamps[i],
+          batchRoot: calcBatchRoot(elements[i]),
+          isL1ToL2Batch: true,
+        })
+
         await OVM_L1ToL2TransactionQueue.dequeue()
       }
     })

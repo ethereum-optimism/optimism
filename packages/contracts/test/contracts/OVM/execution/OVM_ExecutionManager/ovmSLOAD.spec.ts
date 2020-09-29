@@ -55,7 +55,7 @@ const test_ovmSLOAD: TestDefinition = {
               {
                 functionName: 'ovmSLOAD',
                 functionParams: {
-                  key: NON_NULL_BYTES32
+                  key: NON_NULL_BYTES32,
                 },
                 expectedReturnStatus: true,
                 expectedReturnValue: NULL_BYTES32,

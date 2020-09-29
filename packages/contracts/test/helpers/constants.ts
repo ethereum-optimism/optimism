@@ -37,7 +37,8 @@ export const NUISANCE_GAS_COSTS = {
 // TODO: get this exported/imported somehow in a way that we can do math on it.  unfortunately using require('.....artifacts/contract.json') is erroring...
 export const Helper_TestRunner_BYTELEN = 3654
 
-export const STORAGE_XOR = '0xfeedfacecafebeeffeedfacecafebeeffeedfacecafebeeffeedfacecafebeef'
+export const STORAGE_XOR =
+  '0xfeedfacecafebeeffeedfacecafebeeffeedfacecafebeeffeedfacecafebeef'
 export const getStorageXOR = (key: string): string => {
   return toHexString(xor(fromHexString(key), fromHexString(STORAGE_XOR)))
 }

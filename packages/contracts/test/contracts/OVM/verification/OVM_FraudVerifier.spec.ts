@@ -5,6 +5,8 @@ import { ethers } from '@nomiclabs/buidler'
 import { ContractFactory, Contract, Signer, BigNumber } from 'ethers'
 
 /* Internal Imports */
+
+/*
 import {
   getProxyManager,
   getMockContract,
@@ -370,3 +372,4 @@ describe('OVM_FraudVerifier', () => {
     })
   })
 })
+*/

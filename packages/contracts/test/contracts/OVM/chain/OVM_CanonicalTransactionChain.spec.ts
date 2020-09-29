@@ -3,25 +3,18 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { Signer, ContractFactory, Contract } from 'ethers'
+import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import {
-  getProxyManager,
-  MockContract,
-  getMockContract,
+  makeAddressManager,
   setProxyTarget,
+  getEthTime,
+  setEthTime,
   NON_NULL_BYTES32,
   FORCE_INCLUSION_PERIOD_SECONDS,
   ZERO_ADDRESS,
 } from '../../../helpers'
-
-const getEthTime = async (): Promise<number> => {
-  return (await ethers.provider.getBlock('latest')).timestamp
-}
-
-const setEthTime = async (time: number): Promise<void> => {
-  await ethers.provider.send('evm_setNextBlockTimestamp', [time])
-}
 
 describe('OVM_CanonicalTransactionChain', () => {
   let signer: Signer
@@ -29,19 +22,19 @@ describe('OVM_CanonicalTransactionChain', () => {
     ;[signer] = await ethers.getSigners()
   })
 
-  let Proxy_Manager: Contract
+  let AddressManager: Contract
   before(async () => {
-    Proxy_Manager = await getProxyManager()
+    AddressManager = await makeAddressManager()
   })
 
   let Mock__OVM_L1ToL2TransactionQueue: MockContract
   before(async () => {
-    Mock__OVM_L1ToL2TransactionQueue = await getMockContract(
+    Mock__OVM_L1ToL2TransactionQueue = smockit(
       await ethers.getContractFactory('OVM_L1ToL2TransactionQueue')
     )
 
     await setProxyTarget(
-      Proxy_Manager,
+      AddressManager,
       'OVM_L1ToL2TransactionQueue',
       Mock__OVM_L1ToL2TransactionQueue
     )
@@ -57,7 +50,7 @@ describe('OVM_CanonicalTransactionChain', () => {
   let OVM_CanonicalTransactionChain: Contract
   beforeEach(async () => {
     OVM_CanonicalTransactionChain = await Factory__OVM_CanonicalTransactionChain.deploy(
-      Proxy_Manager.address,
+      AddressManager.address,
       FORCE_INCLUSION_PERIOD_SECONDS
     )
   })
@@ -65,7 +58,7 @@ describe('OVM_CanonicalTransactionChain', () => {
   describe('appendQueueBatch()', () => {
     describe('when the L1ToL2TransactionQueue queue is empty', () => {
       before(() => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
       })
 
       it('should revert', async () => {
@@ -77,20 +70,24 @@ describe('OVM_CanonicalTransactionChain', () => {
 
     describe('when the L1ToL2TransactionQueue queue is not empty', () => {
       before(() => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [1])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(1)
       })
 
       describe('when the inclusion delay period has not elapsed', () => {
         beforeEach(async () => {
-          const timestamp = await getEthTime()
-          Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
+          const timestamp = await getEthTime(ethers.provider)
+          Mock__OVM_L1ToL2TransactionQueue.smocked.peek.will.return.with([
             {
               timestamp,
               batchRoot: NON_NULL_BYTES32,
               isL1ToL2Batch: true,
             },
           ])
-          await setEthTime(timestamp + FORCE_INCLUSION_PERIOD_SECONDS / 2)
+
+          await setEthTime(
+            ethers.provider,
+            timestamp + FORCE_INCLUSION_PERIOD_SECONDS / 2
+          )
         })
 
         it('should revert', async () => {
@@ -104,22 +101,20 @@ describe('OVM_CanonicalTransactionChain', () => {
 
       describe('when the inclusion delay period has elapsed', () => {
         beforeEach(async () => {
-          const timestamp = await getEthTime()
-          Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
+          const timestamp = await getEthTime(ethers.provider)
+          Mock__OVM_L1ToL2TransactionQueue.smocked.dequeue.will.return()
+          Mock__OVM_L1ToL2TransactionQueue.smocked.peek.will.return.with([
             {
               timestamp,
               batchRoot: NON_NULL_BYTES32,
               isL1ToL2Batch: true,
             },
           ])
-          Mock__OVM_L1ToL2TransactionQueue.setReturnValues('dequeue', [
-            {
-              timestamp,
-              batchRoot: NON_NULL_BYTES32,
-              isL1ToL2Batch: true,
-            },
-          ])
-          await setEthTime(timestamp + FORCE_INCLUSION_PERIOD_SECONDS)
+
+          await setEthTime(
+            ethers.provider,
+            timestamp + FORCE_INCLUSION_PERIOD_SECONDS
+          )
         })
 
         it('should append the top element of the queue and attempt to dequeue', async () => {
@@ -129,7 +124,7 @@ describe('OVM_CanonicalTransactionChain', () => {
           // TODO: Check that the batch root was inserted.
 
           expect(
-            Mock__OVM_L1ToL2TransactionQueue.getCallCount('dequeue')
+            Mock__OVM_L1ToL2TransactionQueue.smocked.dequeue.calls.length
           ).to.equal(1)
         })
       })
@@ -139,7 +134,7 @@ describe('OVM_CanonicalTransactionChain', () => {
   describe('appendSequencerBatch()', () => {
     describe('when the sender is not the sequencer', () => {
       before(async () => {
-        await Proxy_Manager.setProxy('Sequencer', ZERO_ADDRESS)
+        await AddressManager.setAddress('Sequencer', ZERO_ADDRESS)
       })
 
       it('should revert', async () => {
@@ -151,7 +146,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
     describe('when the sender is the sequencer', () => {
       before(async () => {
-        await Proxy_Manager.setProxy('Sequencer', await signer.getAddress())
+        await AddressManager.setAddress('Sequencer', await signer.getAddress())
       })
 
       describe('when the given batch is empty', () => {
@@ -187,12 +182,12 @@ describe('OVM_CanonicalTransactionChain', () => {
 
           describe('when the queue is not empty', () => {
             before(() => {
-              Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [1])
+              Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(1)
             })
 
             describe('when the first element in the queue is older than the provided batch', () => {
               before(() => {
-                Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
+                Mock__OVM_L1ToL2TransactionQueue.smocked.peek.will.return.with([
                   {
                     timestamp: timestamp / 2,
                     batchRoot: NON_NULL_BYTES32,
@@ -215,7 +210,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
             describe('when the first element in the queue is not older than the provided batch', () => {
               before(() => {
-                Mock__OVM_L1ToL2TransactionQueue.setReturnValues('peek', [
+                Mock__OVM_L1ToL2TransactionQueue.smocked.peek.will.return.with([
                   {
                     timestamp,
                     batchRoot: NON_NULL_BYTES32,
@@ -239,7 +234,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
           describe('when the queue is empty', async () => {
             before(() => {
-              Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+              Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
             })
 
             it('should insert the sequencer batch', async () => {
@@ -269,7 +264,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
     describe('when one batch element has been inserted', () => {
       beforeEach(async () => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
         await OVM_CanonicalTransactionChain.appendSequencerBatch(
           [NON_NULL_BYTES32],
           1000
@@ -286,7 +281,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     describe('when 64 batch elements have been inserted in one batch', () => {
       const batch = Array(64).fill(NON_NULL_BYTES32)
       beforeEach(async () => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
         await OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 1000)
       })
 
@@ -300,7 +295,7 @@ describe('OVM_CanonicalTransactionChain', () => {
     describe('when 32 batch elements have been inserted in each of two batches', () => {
       const batch = Array(32).fill(NON_NULL_BYTES32)
       beforeEach(async () => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
         await OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 1000)
         await OVM_CanonicalTransactionChain.appendSequencerBatch(batch, 2000)
       })
@@ -324,7 +319,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
     describe('when one batch has been inserted', () => {
       beforeEach(async () => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
         await OVM_CanonicalTransactionChain.appendSequencerBatch(
           [NON_NULL_BYTES32],
           1000
@@ -340,7 +335,7 @@ describe('OVM_CanonicalTransactionChain', () => {
 
     describe('when 8 batches have been inserted', () => {
       beforeEach(async () => {
-        Mock__OVM_L1ToL2TransactionQueue.setReturnValues('size', [0])
+        Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
         for (let i = 0; i < 8; i++) {
           await OVM_CanonicalTransactionChain.appendSequencerBatch(
             [NON_NULL_BYTES32],

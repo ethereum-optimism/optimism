@@ -3,16 +3,16 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
 import { Signer, ContractFactory, Contract } from 'ethers'
+import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import {
-  getProxyManager,
-  MockContract,
-  getMockContract,
+  makeAddressManager,
   setProxyTarget,
   NON_NULL_BYTES32,
   ZERO_ADDRESS,
 } from '../../../helpers'
+import { keccak256 } from 'ethers/lib/utils'
 
 describe('OVM_StateCommitmentChain', () => {
   let signer: Signer
@@ -20,19 +20,19 @@ describe('OVM_StateCommitmentChain', () => {
     ;[signer] = await ethers.getSigners()
   })
 
-  let Proxy_Manager: Contract
+  let AddressManager: Contract
   before(async () => {
-    Proxy_Manager = await getProxyManager()
+    AddressManager = await makeAddressManager()
   })
 
   let Mock__OVM_CanonicalTransactionChain: MockContract
   before(async () => {
-    Mock__OVM_CanonicalTransactionChain = await getMockContract(
+    Mock__OVM_CanonicalTransactionChain = smockit(
       await ethers.getContractFactory('OVM_CanonicalTransactionChain')
     )
 
     await setProxyTarget(
-      Proxy_Manager,
+      AddressManager,
       'OVM_CanonicalTransactionChain',
       Mock__OVM_CanonicalTransactionChain
     )
@@ -48,7 +48,7 @@ describe('OVM_StateCommitmentChain', () => {
   let OVM_StateCommitmentChain: Contract
   beforeEach(async () => {
     OVM_StateCommitmentChain = await Factory__OVM_StateCommitmentChain.deploy(
-      Proxy_Manager.address
+      AddressManager.address
     )
   })
 
@@ -68,9 +68,8 @@ describe('OVM_StateCommitmentChain', () => {
 
       describe('when submitting more elements than present in the OVM_CanonicalTransactionChain', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues(
-            'getTotalElements',
-            [batch.length - 1]
+          Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+            batch.length - 1
           )
         })
 
@@ -85,43 +84,39 @@ describe('OVM_StateCommitmentChain', () => {
 
       describe('when not submitting more elements than present in the OVM_CanonicalTransactionChain', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues(
-            'getTotalElements',
-            [batch.length]
+          Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+            batch.length
           )
         })
 
         it('should append the state batch', async () => {
           await expect(OVM_StateCommitmentChain.appendStateBatch(batch)).to.not
             .be.reverted
-
-          // TODO: Check for correct insertion.
         })
       })
     })
   })
 
   describe('deleteStateBatch', () => {
-    // TODO: Calculate the right header.
     const batch = [NON_NULL_BYTES32]
     const batchHeader = {
       batchIndex: 0,
-      batchRoot: NON_NULL_BYTES32,
-      batchSize: 0,
+      batchRoot: keccak256(NON_NULL_BYTES32),
+      batchSize: 1,
       prevTotalElements: 0,
       extraData: '0x',
     }
 
     beforeEach(async () => {
-      Mock__OVM_CanonicalTransactionChain.setReturnValues('getTotalElements', [
-        batch.length,
-      ])
+      Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+        batch.length
+      )
       await OVM_StateCommitmentChain.appendStateBatch(batch)
     })
 
     describe('when the sender is not the OVM_FraudVerifier', () => {
       before(async () => {
-        await Proxy_Manager.setProxy('OVM_FraudVerifier', ZERO_ADDRESS)
+        await AddressManager.setAddress('OVM_FraudVerifier', ZERO_ADDRESS)
       })
 
       it('should revert', async () => {
@@ -135,7 +130,7 @@ describe('OVM_StateCommitmentChain', () => {
 
     describe('when the sender is the OVM_FraudVerifier', () => {
       before(async () => {
-        await Proxy_Manager.setProxy(
+        await AddressManager.setAddress(
           'OVM_FraudVerifier',
           await signer.getAddress()
         )
@@ -168,8 +163,6 @@ describe('OVM_StateCommitmentChain', () => {
           it('should remove the batch and all following batches', async () => {
             await expect(OVM_StateCommitmentChain.deleteStateBatch(batchHeader))
               .to.not.be.reverted
-
-            // TODO: Check that it deleted the batches.
           })
         })
       })
@@ -186,9 +179,8 @@ describe('OVM_StateCommitmentChain', () => {
     describe('when one batch element has been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__OVM_CanonicalTransactionChain.setReturnValues(
-          'getTotalElements',
-          [batch.length]
+        Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          batch.length
         )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
@@ -201,9 +193,8 @@ describe('OVM_StateCommitmentChain', () => {
     describe('when 64 batch elements have been inserted in one batch', () => {
       beforeEach(async () => {
         const batch = Array(64).fill(NON_NULL_BYTES32)
-        Mock__OVM_CanonicalTransactionChain.setReturnValues(
-          'getTotalElements',
-          [batch.length]
+        Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          batch.length
         )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
@@ -216,9 +207,8 @@ describe('OVM_StateCommitmentChain', () => {
     describe('when 32 batch elements have been inserted in each of two batches', () => {
       beforeEach(async () => {
         const batch = Array(32).fill(NON_NULL_BYTES32)
-        Mock__OVM_CanonicalTransactionChain.setReturnValues(
-          'getTotalElements',
-          [batch.length * 2]
+        Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          batch.length * 2
         )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
         await OVM_StateCommitmentChain.appendStateBatch(batch)
@@ -240,9 +230,8 @@ describe('OVM_StateCommitmentChain', () => {
     describe('when one batch has been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__OVM_CanonicalTransactionChain.setReturnValues(
-          'getTotalElements',
-          [batch.length]
+        Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          batch.length
         )
         await OVM_StateCommitmentChain.appendStateBatch(batch)
       })
@@ -255,10 +244,10 @@ describe('OVM_StateCommitmentChain', () => {
     describe('when 8 batches have been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__OVM_CanonicalTransactionChain.setReturnValues(
-          'getTotalElements',
-          [batch.length * 8]
+        Mock__OVM_CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          batch.length * 8
         )
+
         for (let i = 0; i < 8; i++) {
           await OVM_StateCommitmentChain.appendStateBatch(batch)
         }

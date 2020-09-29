@@ -4,6 +4,7 @@ import { expect } from '../../setup'
 import { ethers } from '@nomiclabs/buidler'
 import { Contract, BigNumber, ContractFactory } from 'ethers'
 import { cloneDeep, merge } from 'lodash'
+import { smoddit, ModifiableContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
 import {
@@ -28,7 +29,6 @@ import {
   isTestStep_REVERT,
 } from './test.types'
 import { encodeRevertData, REVERT_FLAGS } from '../codec'
-import { getModifiableStorageFactory } from '../storage'
 import {
   OVM_TX_GAS_LIMIT,
   RUN_OVM_TEST_GAS,
@@ -39,8 +39,8 @@ export class ExecutionManagerTestRunner {
   private snapshot: string
   private contracts: {
     OVM_SafetyChecker: Contract
-    OVM_StateManager: Contract
-    OVM_ExecutionManager: Contract
+    OVM_StateManager: ModifiableContract
+    OVM_ExecutionManager: ModifiableContract
     Helper_TestRunner: Contract
     Factory__Helper_TestRunner_CREATE: ContractFactory
   } = {
@@ -82,8 +82,8 @@ export class ExecutionManagerTestRunner {
           replacedParameter = this.setPlaceholderStrings(parameter)
         })
 
-        beforeEach(async () => {
-          await this.contracts.OVM_StateManager.__setContractStorage({
+        beforeEach(() => {
+          this.contracts.OVM_StateManager.smodify.set({
             accounts: {
               [this.contracts.Helper_TestRunner.address]: {
                 nonce: 0,
@@ -94,22 +94,27 @@ export class ExecutionManagerTestRunner {
           })
         })
 
-        beforeEach(async () => {
-          await this.contracts.OVM_ExecutionManager.__setContractStorage(
+        beforeEach(() => {
+          this.contracts.OVM_ExecutionManager.smodify.set(
             replacedTest.preState.ExecutionManager
           )
-          await this.contracts.OVM_StateManager.__setContractStorage(
+          this.contracts.OVM_StateManager.smodify.set(
             replacedTest.preState.StateManager
           )
         })
 
         afterEach(async () => {
-          await this.contracts.OVM_ExecutionManager.__checkContractStorage(
-            replacedTest.postState.ExecutionManager
-          )
-          await this.contracts.OVM_StateManager.__checkContractStorage(
-            replacedTest.postState.StateManager
-          )
+          expect(
+            await this.contracts.OVM_ExecutionManager.smodify.check(
+              replacedTest.postState.ExecutionManager
+            )
+          ).to.equal(true)
+
+          expect(
+            await this.contracts.OVM_StateManager.smodify.check(
+              replacedTest.postState.StateManager
+            )
+          ).to.equal(true)
         })
 
         const itfn = parameter.focus ? it.only : it
@@ -143,10 +148,10 @@ export class ExecutionManagerTestRunner {
       await ethers.getContractFactory('OVM_SafetyChecker')
     ).deploy()
     this.contracts.OVM_ExecutionManager = await (
-      await getModifiableStorageFactory('OVM_ExecutionManager')
+      await smoddit('OVM_ExecutionManager')
     ).deploy(this.contracts.OVM_SafetyChecker.address)
     this.contracts.OVM_StateManager = await (
-      await getModifiableStorageFactory('OVM_StateManager')
+      await smoddit('OVM_StateManager')
     ).deploy(this.contracts.OVM_ExecutionManager.address)
     this.contracts.Helper_TestRunner = await (
       await ethers.getContractFactory('Helper_TestRunner')
@@ -264,7 +269,11 @@ export class ExecutionManagerTestRunner {
     } else if (isTestStep_Context(step)) {
       return true
     } else if (isTestStep_CALL(step)) {
-      if (isRevertFlagError(step.expectedReturnValue) && (step.expectedReturnValue.flag === REVERT_FLAGS.INVALID_STATE_ACCESS || step.expectedReturnValue.flag === REVERT_FLAGS.STATIC_VIOLATION)) {
+      if (
+        isRevertFlagError(step.expectedReturnValue) &&
+        (step.expectedReturnValue.flag === REVERT_FLAGS.INVALID_STATE_ACCESS ||
+          step.expectedReturnValue.flag === REVERT_FLAGS.STATIC_VIOLATION)
+      ) {
         return step.expectedReturnStatus
       } else {
         return true

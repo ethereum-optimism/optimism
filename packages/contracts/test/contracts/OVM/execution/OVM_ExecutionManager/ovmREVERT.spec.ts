@@ -51,7 +51,7 @@ const test_ovmREVERT: TestDefinition = {
             ],
           },
           expectedReturnStatus: false,
-          expectedReturnValue: '0xdeadbeef'
+          expectedReturnValue: '0xdeadbeef',
         },
       ],
     },

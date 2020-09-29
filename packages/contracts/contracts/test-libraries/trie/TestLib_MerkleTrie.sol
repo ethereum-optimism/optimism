@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.7.0;
+
+/* Library Imports */
+import { Lib_MerkleTrie } from "../../optimistic-ethereum/libraries/trie/Lib_MerkleTrie.sol";
+
+/**
+ * @title TestLib_MerkleTrie
+ */
+library TestLib_MerkleTrie {
+
+    function verifyInclusionProof(
+        bytes memory _key,
+        bytes memory _value,
+        bytes memory _proof,
+        bytes32 _root
+    )
+        public
+        view
+        returns (
+            bool
+        )
+    {
+        return Lib_MerkleTrie.verifyInclusionProof(
+            _key,
+            _value,
+            _proof,
+            _root
+        );
+    }
+
+    function verifyExclusionProof(
+        bytes memory _key,
+        bytes memory _value,
+        bytes memory _proof,
+        bytes32 _root
+    )
+        public
+        view
+        returns (
+            bool
+        )
+    {
+        return Lib_MerkleTrie.verifyExclusionProof(
+            _key,
+            _value,
+            _proof,
+            _root
+        );
+    }
+
+    function update(
+        bytes memory _key,
+        bytes memory _value,
+        bytes memory _proof,
+        bytes32 _root
+    )
+        public
+        view
+        returns (
+            bytes32
+        )
+    {
+        return Lib_MerkleTrie.update(
+            _key,
+            _value,
+            _proof,
+            _root
+        );
+    }
+
+    function get(
+        bytes memory _key,
+        bytes memory _proof,
+        bytes32 _root
+    )
+        public
+        view
+        returns (
+            bool,
+            bytes memory
+        )
+    {
+        return Lib_MerkleTrie.get(
+            _key,
+            _proof,
+            _root
+        );
+    }
+
+    function getSingleNodeRootHash(
+        bytes memory _key,
+        bytes memory _value
+    )
+        public
+        view
+        returns (
+            bytes32
+        )
+    {
+        return Lib_MerkleTrie.getSingleNodeRootHash(
+            _key,
+            _value
+        );
+    }
+}

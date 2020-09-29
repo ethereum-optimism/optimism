@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 /* Library Imports */
 import { Lib_SecureMerkleTrie } from "./Lib_SecureMerkleTrie.sol";
 import { Lib_OVMCodec } from "../codec/Lib_OVMCodec.sol";
-import { Lib_ByteUtils } from "../utils/Lib_ByteUtils.sol";
+import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
 import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
 import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 
@@ -685,8 +685,8 @@ library Lib_EthMerkleTrie {
         return Lib_OVMCodec.EVMAccount({
             nonce: Lib_RLPReader.toUint(accountState[0]),
             balance: Lib_RLPReader.toUint(accountState[1]),
-            storageRoot: Lib_ByteUtils.toBytes32(Lib_RLPReader.toBytes(accountState[2])),
-            codeHash: Lib_ByteUtils.toBytes32(Lib_RLPReader.toBytes(accountState[3]))
+            storageRoot: Lib_BytesUtils.toBytes32(Lib_RLPReader.toBytes(accountState[2])),
+            codeHash: Lib_BytesUtils.toBytes32(Lib_RLPReader.toBytes(accountState[3]))
         });
     }
 

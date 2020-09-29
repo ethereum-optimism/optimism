@@ -39,9 +39,9 @@ const test_ovmCALL: TestDefinition = {
       },
       verifiedContractStorage: {
         $DUMMY_OVM_ADDRESS_1: {
-          [NON_NULL_BYTES32]: true
-        }
-      }
+          [NON_NULL_BYTES32]: true,
+        },
+      },
     },
   },
   parameters: [

@@ -11,7 +11,7 @@ import {
   VERIFIED_EMPTY_CONTRACT_HASH,
   DUMMY_BYTECODE_BYTELEN,
   DUMMY_BYTECODE_HASH,
-  getStorageXOR
+  getStorageXOR,
 } from '../../../../helpers'
 
 const CREATED_CONTRACT_1 = '0x2bda4a99d5be88609d23b1e4ab5d1d34fb1c2feb'

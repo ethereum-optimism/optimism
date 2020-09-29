@@ -27,7 +27,6 @@ library Lib_RLPReader {
     uint8 constant private LIST_LONG_START    = 0xf8;
     uint8 constant private WORD_SIZE = 32;
 
-
     /*
      * Public Functions
      */
