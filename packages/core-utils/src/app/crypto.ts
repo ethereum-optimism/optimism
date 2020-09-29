@@ -1,12 +1,12 @@
 /* External Imports */
 import { Md5 } from 'ts-md5'
-import { ethers } from 'ethers'
-import { TransactionRequest } from 'ethers/providers/abstract-provider'
+import { ethers } from 'ethers-v4'
+import { TransactionRequest } from 'ethers-v4/providers/abstract-provider'
 import {
   joinSignature,
   resolveProperties,
   serializeTransaction,
-} from 'ethers/utils'
+} from 'ethers-v4/utils'
 
 /* Internal Imports */
 import { HashAlgorithm, HashFunction } from '../types'

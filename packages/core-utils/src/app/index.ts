@@ -1,5 +1,5 @@
 /* External Imports */
-import { ethers } from 'ethers'
+import { ethers } from 'ethers-v4'
 
 /* Abi */
 export const abi = new ethers.utils.AbiCoder()

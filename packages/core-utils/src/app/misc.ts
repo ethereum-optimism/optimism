@@ -3,7 +3,7 @@ import * as domain from 'domain'
 
 /* Internal Imports */
 import { BigNumber } from './number'
-import { RLP, hexlify } from 'ethers/utils'
+import { RLP, hexlify } from 'ethers-v4/utils'
 
 export const NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
 const hexRegex = /^(0x)?[0-9a-fA-F]*$/
