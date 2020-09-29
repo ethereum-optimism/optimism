@@ -1,7 +1,7 @@
-import { create2Tests } from './json/create2.test.json'
-import { rlpTests } from './json/rlp.test.json'
-import { safetyCheckerTests } from './json/safety-checker.test.json'
-
-export const RLP_TEST_JSON = rlpTests
-export const CREATE2_TEST_JSON = create2Tests
-export const SAFETY_CHECKER_TEST_JSON = safetyCheckerTests
+export { tests as Lib_RLPWriter_TEST_JSON } from './json/libraries/Lib_RLPWriter.test.json'
+export { tests as Lib_Bytes32Utils_TEST_JSON } from './json/libraries/Lib_Bytes32Utils.test.json'
+export { tests as Lib_BytesUtils_TEST_JSON } from './json/libraries/Lib_BytesUtils.test.json'
+export { tests as Lib_ECDSAUtils_TEST_JSON } from './json/libraries/Lib_ECDSAUtils.test.json'
+export { tests as Lib_MerkleUtils_TEST_JSON } from './json/libraries/Lib_MerkleUtils.test.json'
+export { tests as CREATE2_TEST_JSON } from './json/create2.test.json'
+export { tests as SAFETY_CHECKER_TEST_JSON } from './json/safety-checker.test.json'

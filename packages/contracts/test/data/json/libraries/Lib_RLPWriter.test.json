@@ -3,7 +3,7 @@
   "notes": "Removed BigInt test, since ethers does not support integers over 10^16: https://github.com/ethers-io/ethers.js/issues/418",
   "latestcommit": "b2dcd19973637ac05e17646378dac9cbb2927075",
   "date": "2020-01-08",
-  "rlpTests": {
+  "tests": {
     "emptystring": {
       "in": "",
       "out": "0x80"

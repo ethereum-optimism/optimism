@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.7.0;
+pragma experimental ABIEncoderV2;
 
 /* Library Imports */
 import { Lib_BytesUtils } from "../../optimistic-ethereum/libraries/utils/Lib_BytesUtils.sol";
@@ -39,24 +40,10 @@ library TestLib_BytesUtils {
         );
     }
 
-    function slice(
-        bytes memory _bytes,
-        uint256 _start
-    )
-        public
-        pure
-        returns (bytes memory)
-    {
-        return Lib_BytesUtils.slice(
-            _bytes,
-            _start
-        );
-    }
-
     function toBytes32(
         bytes memory _bytes
     )
-        internal
+        public
         pure
         returns (bytes32)
     {
