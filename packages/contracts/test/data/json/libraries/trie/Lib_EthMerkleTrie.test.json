@@ -1,0 +1,32 @@
+{
+    "tests": {
+        "proveAccountStorageSlotValue": {
+            "single account, single storage slot": {
+            },
+            "single account, multiple storage slots": {
+            },
+            "multiple accounts, multiple storage slots": {
+            }
+        },
+        "updateAccountStorageSlotValue": {
+            "single account, single storage slot": {
+            },
+            "single account, multiple storage slots": {
+            },
+            "multiple accounts, multiple storage slots": {
+            }
+        },
+        "proveAccountState": {
+            "account within trie with a single account": {
+            },
+            "account within trie with multiple accounts": {
+            }
+        },
+        "updateAccountState": {
+            "account within trie with a single account": {
+            },
+            "account within trie with multiple accounts": {
+            }
+        }
+    }
+}

@@ -9,7 +9,7 @@
     "build:contracts": "buidler compile",
     "build:copy": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/libraries/utils/Lib_EthUtils.spec.ts\" --show-stack-traces",
+    "test:contracts": "buidler test \"test/contracts/libraries/trie/Lib_MerkleTrie.spec.ts\" --show-stack-traces",
     "lint": "tslint --format stylish --project .",
     "fix": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./artifacts ./build ./cache"

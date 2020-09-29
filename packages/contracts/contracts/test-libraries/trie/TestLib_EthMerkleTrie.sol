@@ -58,44 +58,6 @@ library TestLib_EthMerkleTrie {
     function proveAccountState(
         address _address,
         Lib_OVMCodec.EVMAccount memory _accountState,
-        Lib_OVMCodec.ProofMatrix memory _proofMatrix,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bool)
-    {
-        return Lib_EthMerkleTrie.proveAccountState(
-            _address,
-            _accountState,
-            _proofMatrix,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function proveAccountState(
-        address _address,
-        Lib_OVMCodec.EVMAccount memory _accountState,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bool)
-    {
-        return Lib_EthMerkleTrie.proveAccountState(
-            _address,
-            _accountState,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function proveAccountState(
-        address _address,
-        Lib_OVMCodec.Account memory _accountState,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
@@ -186,44 +148,6 @@ library TestLib_EthMerkleTrie {
     function updateAccountState(
         address _address,
         Lib_OVMCodec.EVMAccount memory _accountState,
-        Lib_OVMCodec.ProofMatrix memory _proofMatrix,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bytes32)
-    {
-        return Lib_EthMerkleTrie.updateAccountState(
-            _address,
-            _accountState,
-            _proofMatrix,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function updateAccountState(
-        address _address,
-        Lib_OVMCodec.EVMAccount memory _accountState,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bytes32)
-    {
-        return Lib_EthMerkleTrie.updateAccountState(
-            _address,
-            _accountState,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function updateAccountState(
-        address _address,
-        Lib_OVMCodec.Account memory _accountState,
         bytes memory _stateTrieWitness,
         bytes32 _stateTrieRoot
     )
