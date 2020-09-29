@@ -39,78 +39,6 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@eth-optimism/core-utils@0.0.1-alpha.27":
-  version "0.0.1-alpha.27"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.0.1-alpha.27.tgz#b43c8b5cd8ee89de7294c5f93aef5c47ee846cf5"
-  integrity sha512-OLQONkCevn6xaAyFlxOrL5BkE8BycvicBk0+RDL13g4OXSl/WkLaAjzUJcxYsGDzDUaB7yPUcwLQwUaT6xmcww==
-  dependencies:
-    abstract-leveldown "^6.2.2"
-    async-lock "^1.2.2"
-    axios "^0.19.0"
-    bn.js "^4.11.8"
-    body-parser "^1.19.0"
-    chai "^4.2.0"
-    chai-as-promised "^7.1.1"
-    debug "^4.1.1"
-    dotenv "^8.2.0"
-    ethereumjs-util "^6.2.0"
-    ethers "^4.0.37"
-    express "^4.17.1"
-    memdown "^4.0.0"
-    ts-md5 "^1.2.4"
-    uuid "^3.3.3"
-
-"@eth-optimism/ovm-toolchain@0.0.1-alpha.1":
-  version "0.0.1-alpha.1"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/ovm-toolchain/-/ovm-toolchain-0.0.1-alpha.1.tgz#69ebb93723ae0bf1fd5210366afa8456c90e86ed"
-  integrity sha512-nqGWNSvIYvbHXB71ulkiZIALkcZYq43G6E5WMfTn/g/rLM7GALZuTZ6AjoFguPkYmsd9wLa9dPCWx7pKc7D/dg==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
-    "@eth-optimism/solc-transpiler" "^0.0.1-alpha.28"
-    "@nomiclabs/buidler" "^1.4.4"
-    ethereum-waffle-v2 "npm:ethereum-waffle@2"
-    ethereum-waffle-v3 "npm:ethereum-waffle@3"
-    ethereumjs-ovm "git+https://github.com/ethereum-optimism/ethereumjs-vm"
-    ethers-v4 "npm:ethers@4"
-    ethers-v5 "npm:ethers@5.0.7"
-
-"@eth-optimism/rollup-core@^0.0.1-alpha.28":
-  version "0.0.1-alpha.28"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-core/-/rollup-core-0.0.1-alpha.28.tgz#845de41ed266e0f1fd738776cb68bfe1fa391104"
-  integrity sha512-NYNIkokGCJwsZAe4pWO3FGQV4g/AmTuHZsMiYrpwIJ8+sc3cWNDWl6gyOksaofBMjRES4cGDLoU3xvO1jzI7Tw==
-  dependencies:
-    "@eth-optimism/core-db" "^0.0.1-alpha.27"
-    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
-    async-lock "^1.2.2"
-    ethereum-waffle "2.1.0"
-    ethers "^4.0.39"
-
-"@eth-optimism/rollup-dev-tools@^0.0.1-alpha.28":
-  version "0.0.1-alpha.28"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/rollup-dev-tools/-/rollup-dev-tools-0.0.1-alpha.28.tgz#17d7fa31c59a094756c04a058f72b5eb70530386"
-  integrity sha512-RGrEojvRtmYekYY5oERNRRccNJhyv8nBEzWz34/O+TQtH2lm+AxYng87DNl9VGejV5bzt/GosjhfP1aNca0A8g==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
-    "@eth-optimism/rollup-core" "^0.0.1-alpha.28"
-    async-lock "^1.2.2"
-    bn.js "^5.1.1"
-    dotenv "^8.2.0"
-    ethereumjs-abi "^0.6.8"
-    ethereumjs-tx "^2.1.2"
-    ethereumjs-vm "^4.1.3"
-    ethers "^4.0.42"
-
-"@eth-optimism/solc-transpiler@^0.0.1-alpha.28":
-  version "0.0.1-alpha.28"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/solc-transpiler/-/solc-transpiler-0.0.1-alpha.28.tgz#327743c7c0271dac13243fb4de22e1f0ee81b31c"
-  integrity sha512-UyQK6AseKfG1h1kRW+Atu9z0z0Ym3MW+ncoiRK+7TUbKyrDcKuBlLst+FXuo6fChHkw25oDfHpb3t/oTLDLlCg==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.0.1-alpha.27"
-    "@eth-optimism/rollup-dev-tools" "^0.0.1-alpha.28"
-    ethers "^4.0.45"
-    require-from-string "^2.0.2"
-    solc "^0.5.12"
-
 "@eth-optimism/solc@^0.5.16-alpha.0":
   version "0.5.16-alpha.1"
   resolved "https://registry.yarnpkg.com/@eth-optimism/solc/-/solc-0.5.16-alpha.1.tgz#04019314df03faac8bc5363e8a1c2c561d404a04"
@@ -5588,7 +5516,7 @@ ethereumjs-vm@3.0.0:
     rustbn.js "~0.2.0"
     safe-buffer "^5.1.1"
 
-ethereumjs-vm@4.2.0, ethereumjs-vm@^4.1.3:
+ethereumjs-vm@4.2.0:
   version "4.2.0"
   resolved "https://registry.yarnpkg.com/ethereumjs-vm/-/ethereumjs-vm-4.2.0.tgz#e885e861424e373dbc556278f7259ff3fca5edab"
   integrity sha512-X6qqZbsY33p5FTuZqCnQ4+lo957iUJMM6Mpa6bL4UW0dxM6WmDSHuI4j/zOp1E2TDKImBGCJA9QPfc08PaNubA==
@@ -5641,7 +5569,7 @@ ethereumjs-wallet@0.6.3:
     utf8 "^3.0.0"
     uuid "^3.3.2"
 
-"ethers-v4@npm:ethers@4", ethers@^4.0.0, ethers@^4.0.32, ethers@^4.0.37, ethers@^4.0.39, ethers@^4.0.42, ethers@^4.0.45:
+"ethers-v4@npm:ethers@4", ethers@^4.0.0, ethers@^4.0.32, ethers@^4.0.37, ethers@^4.0.39, ethers@^4.0.45:
   version "4.0.48"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-4.0.48.tgz#330c65b8133e112b0613156e57e92d9009d8fbbe"
   integrity sha512-sZD5K8H28dOrcidzx9f8KYh8083n5BexIO3+SbE4jK83L85FxtpXZBCQdXb8gkg+7sBqomcLhhkU7UHL+F7I2g==
@@ -11058,7 +10986,7 @@ require-from-string@^1.1.0:
   resolved "https://registry.yarnpkg.com/require-from-string/-/require-from-string-1.2.1.tgz#529c9ccef27380adfec9a2f965b649bbee636418"
   integrity sha1-UpyczvJzgK3+yaL5ZbZJu+5jZBg=
 
-require-from-string@^2.0.0, require-from-string@^2.0.2:
+require-from-string@^2.0.0:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/require-from-string/-/require-from-string-2.0.2.tgz#89a7fdd938261267318eafe14f9c32e598c36909"
   integrity sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==
@@ -11651,7 +11579,7 @@ solc@^0.4.20:
     semver "^5.3.0"
     yargs "^4.7.1"
 
-solc@^0.5.10, solc@^0.5.12:
+solc@^0.5.10:
   version "0.5.17"
   resolved "https://registry.yarnpkg.com/solc/-/solc-0.5.17.tgz#8a76c50e98d49ca7610cca2fdc78ff3016540c67"
   integrity sha512-qpX+PGaU0Q3c6lh2vDzMoIbhv6bIrecI4bYsx+xUs01xsGFnY6Nr0L8y/QMyutTnrHN6Lb/Yl672ZVRqxka96w==
