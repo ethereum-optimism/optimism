@@ -39,7 +39,16 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
-"@ethereum-waffle/chai@^3.0.0":
+"@eth-optimism/smock@^0.1.0":
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/smock/-/smock-0.0.1.tgz#8ea7379072eccfe5cac327e7eb78384f0e38b18c"
+  integrity sha512-lJmdXaDkAQ7Y2T9GfEzrhF6lrJ3WiEb8HJyDBjr2r3Cd4/0b2RAQj4kqkKLFZyGDMnAZ0O+XnTTyaKhBXkDSXw==
+  dependencies:
+    ethereum-waffle "^3"
+    ethers "^5"
+    fs-extra "^9.0.1"
+
+"@ethereum-waffle/chai@^3.0.0", "@ethereum-waffle/chai@^3.1.1":
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/chai/-/chai-3.1.1.tgz#2d2594e19613cdee0eaa1a38fc8dac31f66460e6"
   integrity sha512-gbpjfIz+XhM9sH8BtBiRmK+eU6WuAWPK5TqIMR7QwzcGQ4XkIoFzACRNc/kxnV5f9Townpgr7yp0yzbzJJCWiw==
@@ -47,7 +56,7 @@
     "@ethereum-waffle/provider" "^3.1.1"
     ethers "^5.0.0"
 
-"@ethereum-waffle/compiler@^3.0.0":
+"@ethereum-waffle/compiler@^3.0.0", "@ethereum-waffle/compiler@^3.1.1":
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/compiler/-/compiler-3.1.1.tgz#df3dba3c5dc556afe04f259e0789c16bc34333f5"
   integrity sha512-vneBsbR7VaqZ0cDJRc+pr7aU6ZB8uO2h4ScKsn3GQIXE1GYB4i9eUxvRkdi5t/cS7YufnmUyKQU/IyAjivDcWw==
@@ -70,7 +79,7 @@
     "@ensdomains/resolver" "^0.2.4"
     ethers "^5.0.1"
 
-"@ethereum-waffle/mock-contract@^3.0.0":
+"@ethereum-waffle/mock-contract@^3.0.0", "@ethereum-waffle/mock-contract@^3.1.1":
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/mock-contract/-/mock-contract-3.1.1.tgz#ae0fe5bcdb7a0ba64069098394ea4e54a02ed293"
   integrity sha512-by4eUeL7FGQzczi4nM94YcnYWV9EPsjx9WI9A66LzLHHPdEyIvAUZyyBQ+9hLYwUqJ78ppLoVx+xYWEagHx/jg==
@@ -3072,6 +3081,17 @@ ethereum-waffle@3.0.0:
     "@ethereum-waffle/provider" "^3.0.0"
     ethers "^5.0.1"
 
+ethereum-waffle@^3:
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/ethereum-waffle/-/ethereum-waffle-3.1.1.tgz#2a63475104281dca1fd2ffed12ab8f6605219d51"
+  integrity sha512-kiJo7PPGKsRfNiQOB8Z/ogLTHrU7Cj7VOZrdU3nyx9xXobkTFN9F9FcwdYZRg3gw3C1XnuOd18Jk2hPfuQbORA==
+  dependencies:
+    "@ethereum-waffle/chai" "^3.1.1"
+    "@ethereum-waffle/compiler" "^3.1.1"
+    "@ethereum-waffle/mock-contract" "^3.1.1"
+    "@ethereum-waffle/provider" "^3.1.1"
+    ethers "^5.0.1"
+
 ethereumjs-abi@0.6.5:
   version "0.6.5"
   resolved "https://registry.yarnpkg.com/ethereumjs-abi/-/ethereumjs-abi-0.6.5.tgz#5a637ef16ab43473fa72a29ad90871405b3f5241"
@@ -3088,15 +3108,7 @@ ethereumjs-abi@0.6.7:
     bn.js "^4.11.8"
     ethereumjs-util "^6.0.0"
 
-ethereumjs-abi@^0.6.8:
-  version "0.6.8"
-  resolved "https://registry.yarnpkg.com/ethereumjs-abi/-/ethereumjs-abi-0.6.8.tgz#71bc152db099f70e62f108b7cdfca1b362c6fcae"
-  integrity sha512-Tx0r/iXI6r+lRsdvkFDlut0N08jWMnKRZ6Gkq+Nmw75lZe4e6o3EkSnkaBP5NF6+m5PTGAr9JP43N3LyeoglsA==
-  dependencies:
-    bn.js "^4.11.8"
-    ethereumjs-util "^6.0.0"
-
-"ethereumjs-abi@git+https://github.com/ethereumjs/ethereumjs-abi.git":
+ethereumjs-abi@^0.6.8, "ethereumjs-abi@git+https://github.com/ethereumjs/ethereumjs-abi.git":
   version "0.6.8"
   resolved "git+https://github.com/ethereumjs/ethereumjs-abi.git#1ce6a1d64235fabe2aaf827fd606def55693508f"
   dependencies:
@@ -3322,7 +3334,7 @@ ethers@5.0.0:
     "@ethersproject/web" "^5.0.0"
     "@ethersproject/wordlists" "^5.0.0"
 
-ethers@^5.0.0, ethers@^5.0.1:
+ethers@^5, ethers@^5.0.0, ethers@^5.0.1:
   version "5.0.14"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-5.0.14.tgz#fc33613ff3c1eb04c481f32083f2be315079e2a2"
   integrity sha512-6WkoYwAURTr/4JiSZlrMJ9mm3pBv/bWrOu7sVXdLGw9QU4cp/GDZVrKKnh5GafMTzanuNBJoaEanPCjsbe4Mig==
@@ -3821,7 +3833,7 @@ functional-red-black-tree@^1.0.1, functional-red-black-tree@~1.0.1:
   resolved "https://registry.yarnpkg.com/functional-red-black-tree/-/functional-red-black-tree-1.0.1.tgz#1b0ab3bd553b2a0d6399d29c0e3ea0b252078327"
   integrity sha1-GwqzvVU7Kg1jmdKcDj6gslIHgyc=
 
-ganache-core@^2.10.2:
+ganache-core@^2.10.2, ganache-core@^2.12.1:
   version "2.12.1"
   resolved "https://registry.yarnpkg.com/ganache-core/-/ganache-core-2.12.1.tgz#c21e8f7eca6e15f13756a353928357e0b8960d9e"
   integrity sha512-gycoVl3TChAbL6ZZQrK1gS2cNMheX+JXVBKTpMAzuLHwb5gE1CB1s6YYN3F7rB86opaEuldCSuTJK1dv4xYRAw==

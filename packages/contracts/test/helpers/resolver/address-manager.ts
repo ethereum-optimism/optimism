@@ -7,10 +7,11 @@ export const setProxyTarget = async (
   name: string,
   target: Contract
 ): Promise<void> => {
-  const SimpleProxy = await (
+  const SimpleProxy: Contract = await (
     await ethers.getContractFactory('Helper_SimpleProxy')
-  ).deploy(target.address)
+  ).deploy()
 
+  await SimpleProxy.setTarget(target.address)
   await AddressManager.setAddress(name, SimpleProxy.address)
 }
 

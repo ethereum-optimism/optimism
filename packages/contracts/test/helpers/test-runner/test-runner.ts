@@ -144,18 +144,31 @@ export class ExecutionManagerTestRunner {
       return
     }
 
+    const AddressManager = await (
+      await ethers.getContractFactory('Lib_AddressManager')
+    ).deploy()
+
     this.contracts.OVM_SafetyChecker = await (
       await ethers.getContractFactory('OVM_SafetyChecker')
     ).deploy()
+
+    await AddressManager.setAddress(
+      'OVM_SafetyChecker',
+      this.contracts.OVM_SafetyChecker.address
+    )
+
     this.contracts.OVM_ExecutionManager = await (
       await smoddit('OVM_ExecutionManager')
-    ).deploy(this.contracts.OVM_SafetyChecker.address)
+    ).deploy(AddressManager.address)
+
     this.contracts.OVM_StateManager = await (
       await smoddit('OVM_StateManager')
     ).deploy(this.contracts.OVM_ExecutionManager.address)
+
     this.contracts.Helper_TestRunner = await (
       await ethers.getContractFactory('Helper_TestRunner')
     ).deploy()
+
     this.contracts.Factory__Helper_TestRunner_CREATE = await ethers.getContractFactory(
       'Helper_TestRunner_CREATE'
     )
