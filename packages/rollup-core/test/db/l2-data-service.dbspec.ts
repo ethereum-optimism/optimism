@@ -2,7 +2,11 @@ import '../setup'
 
 /* External Imports */
 import { PostgresDB, Row } from '@eth-optimism/core-db'
-import { keccak256FromUtf8, remove0x } from '@eth-optimism/core-utils'
+import {
+  keccak256FromUtf8,
+  remove0x,
+  roundToNearestMultipleOf32,
+} from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { DefaultDataService } from '../../src/app/data'
@@ -30,7 +34,12 @@ import {
   TransactionBatchSubmission,
 } from '../../src/types/data'
 import { VerificationCandidate } from '../../src/types'
-import { ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA } from '../../src/app'
+import {
+  L1_ROLLUP_BATCH_TX_BYTES_PER_TX,
+  L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES,
+  L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES,
+  ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
+} from '../../src/app'
 
 describe('L2 Data Service (will fail if postgres is not running with expected schema)', () => {
   let dataService: DefaultDataService
@@ -395,10 +404,15 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       await insertTxOutput(dataService, tx1)
       await insertTxOutput(dataService, tx2)
 
-      const txSize = Math.min(getTxSizeInBytes(tx1), getTxSizeInBytes(tx2))
+      const l2TxSize = getTxSizeInBytes(tx1)
+      const l1TxSize =
+        roundToNearestMultipleOf32(l2TxSize) +
+        L1_ROLLUP_BATCH_TX_BYTES_PER_TX +
+        L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES +
+        L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        txSize,
-        txSize
+        l2TxSize,
+        l1TxSize
       )
       batchNum.should.equal(0, `Batch should have been built`)
 
@@ -417,8 +431,8 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       txRes.length.should.equal(1, `Should have batched 1 transaction`)
 
       const secondBatchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(
-        txSize,
-        txSize * 10
+        l2TxSize,
+        l2TxSize * 10
       )
       secondBatchNum.should.equal(1, `Batch should have been built`)
 

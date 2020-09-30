@@ -315,3 +315,15 @@ export const runInDomain = async (
 export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
 }
+
+/**
+ * Rounds the input number up to the nearest multiple of 32.
+ * If it is already a multiple of 32, it will not be rounded.
+ *
+ * @param num The number to round.
+ * @returns The rounded number.
+ */
+export const roundToNearestMultipleOf32 = (num: number): number => {
+  const mod: number = num % 32
+  return mod === 0 ? num : num + (32 - mod)
+}

@@ -44,3 +44,32 @@ export const L2_TO_L1_MESSAGE_PASSER_OVM_ADDRESS =
 
 // See the getTransactionBatchCalldata(...) function of canonical-chain-batch-submitter.ts for more info
 export const ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA = 150
+
+/*
+Static bytes: 160
+- 4 (Method ID)
+-	32 (txs byte start)
+- 32 (timestamp)
+-	32 (block number)
+-	32 (starts at index)
+-	32 (number of txs bytes elements)
+ */
+export const L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES = 164
+
+/*
+- 32 for start of each `bytes`
+- 32 for length of each `bytes`
+ */
+export const L1_ROLLUP_BATCH_TX_BYTES_PER_TX = 64
+
+/*
+- 32 for nonce
+- 32 for gas price
+- 32 for gas limit
+- 32 for value
+- 32 for R (signature)
+- 32 for S (signature)
+- 2 (at most) for V (signature)
+- 20 for to address
+ */
+export const L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES = 214
