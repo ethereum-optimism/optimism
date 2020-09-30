@@ -48,11 +48,11 @@ export const ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA = 150
 /*
 Static bytes: 160
 - 4 (Method ID)
--	32 (txs byte start)
+- 32 (txs byte start)
 - 32 (timestamp)
--	32 (block number)
--	32 (starts at index)
--	32 (number of txs bytes elements)
+- 32 (block number)
+- 32 (starts at index)
+- 32 (number of txs bytes elements)
  */
 export const L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES = 164
 
