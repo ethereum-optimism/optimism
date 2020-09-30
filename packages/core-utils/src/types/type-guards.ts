@@ -9,7 +9,7 @@ import { ZERO, add0x } from '../app'
 import { Address } from 'cluster'
 
 /* External Imports */
-import { ethers } from 'ethers'
+import { ethers } from 'ethers-v4'
 
 /**
  * Checks if a JSON-RPC response is an error response.

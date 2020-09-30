@@ -1,5 +1,5 @@
 /* Internal Imports */
-import { ethers } from 'ethers'
+import { ethers } from 'ethers-v4'
 import { SignatureProvider, SignatureVerifier } from '../types'
 import { hexStrToBuf } from './misc'
 
