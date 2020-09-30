@@ -8,7 +8,7 @@ import {
   ZERO,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
-import { PostgresDB, Row } from '@eth-optimism/core-db'
+import { PostgresDB, RDB, Row } from '@eth-optimism/core-db'
 import { BigNumber as BigNum } from 'ethers/utils'
 import { Block, TransactionResponse } from 'ethers/providers'
 
@@ -369,4 +369,16 @@ export const insertTxOutput = async (
       )
     }
   }
+}
+
+export const selectStateRootBatchRes = async (
+  rdb: RDB,
+  batchNum: number
+): Promise<Row[]> => {
+  return rdb.select(
+    `SELECT * 
+            FROM l2_tx_output 
+            WHERE state_commitment_chain_batch_number = ${batchNum}
+            ORDER BY state_commitment_chain_batch_index ASC`
+  )
 }

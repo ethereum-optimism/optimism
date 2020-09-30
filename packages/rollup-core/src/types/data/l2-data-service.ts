@@ -31,15 +31,15 @@ export interface L2DataService {
   ): Promise<number>
 
   /**
-   * Gets the largest L2 Tx Output ID that should be included in the batch built with batchTimestamp.
+   * Gets the largest L2 Tx Output block number that should be included in the batch built with batchTimestamp.
    * This is mainly useful as a filter when there is an available batch that has enough rollup transactions'
    * bytes to exceed the maxBatchCalldataBytes value.
    *
    * @param batchTimestamp The block timestamp of the L2 Tx Outputs to be used for the Rollup Batch.
    * @param maxBatchCalldataBytes The max amount of rolled up tx bytes to include in the batch.
-   * @returns The ID of the last (biggest ID) L2 Tx Output to be included in the batch.
+   * @returns The L2 block number of the last (latest) L2 Tx Output to be included in the batch.
    */
-  getMaxL2TxOutputIdForCanonicalChainBatch(
+  getMaxL2TxOutputBlockNumberForCanonicalChainBatch(
     batchTimestamp: number,
     maxBatchCalldataBytes: number
   ): Promise<number>
