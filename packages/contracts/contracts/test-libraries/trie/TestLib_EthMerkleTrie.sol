@@ -9,7 +9,7 @@ import { Lib_OVMCodec } from "../../optimistic-ethereum/libraries/codec/Lib_OVMC
 /**
  * @title TestLib_EthMerkleTrie
  */
-library TestLib_EthMerkleTrie {
+contract TestLib_EthMerkleTrie {
 
     function proveAccountStorageSlotValue(
         address _address,
@@ -73,78 +73,6 @@ library TestLib_EthMerkleTrie {
         );
     }
 
-    function proveAccountNonce(
-        address _address,
-        uint256 _nonce,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bool)
-    {
-        return Lib_EthMerkleTrie.proveAccountNonce(
-            _address,
-            _nonce,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function proveAccountBalance(
-        address _address,
-        uint256 _balance,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bool)
-    {
-        return Lib_EthMerkleTrie.proveAccountBalance(
-            _address,
-            _balance,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function proveAccountStorageRoot(
-        address _address,
-        bytes32 _storageRoot,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bool)
-    {
-        return Lib_EthMerkleTrie.proveAccountStorageRoot(
-            _address,
-            _storageRoot,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function proveAccountCodeHash(
-        address _address,
-        bytes32 _codeHash,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bool)
-    {
-        return Lib_EthMerkleTrie.proveAccountCodeHash(
-            _address,
-            _codeHash,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
     function updateAccountState(
         address _address,
         Lib_OVMCodec.EVMAccount memory _accountState,
@@ -158,78 +86,6 @@ library TestLib_EthMerkleTrie {
         return Lib_EthMerkleTrie.updateAccountState(
             _address,
             _accountState,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function updateAccountNonce(
-        address _address,
-        uint256 _nonce,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bytes32)
-    {
-        return Lib_EthMerkleTrie.updateAccountNonce(
-            _address,
-            _nonce,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function updateAccountBalance(
-        address _address,
-        uint256 _balance,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bytes32)
-    {
-        return Lib_EthMerkleTrie.updateAccountBalance(
-            _address,
-            _balance,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function updateAccountStorageRoot(
-        address _address,
-        bytes32 _storageRoot,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bytes32)
-    {
-        return Lib_EthMerkleTrie.updateAccountStorageRoot(
-            _address,
-            _storageRoot,
-            _stateTrieWitness,
-            _stateTrieRoot
-        );
-    }
-
-    function updateAccountCodeHash(
-        address _address,
-        bytes32 _codeHash,
-        bytes memory _stateTrieWitness,
-        bytes32 _stateTrieRoot
-    )
-        public
-        view
-        returns (bytes32)
-    {
-        return Lib_EthMerkleTrie.updateAccountCodeHash(
-            _address,
-            _codeHash,
             _stateTrieWitness,
             _stateTrieRoot
         );

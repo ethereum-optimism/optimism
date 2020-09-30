@@ -173,7 +173,12 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
         require(
             Lib_EthMerkleTrie.proveAccountState(
                 _ovmContractAddress,
-                _account,
+                Lib_OVMCodec.EVMAccount({
+                    balance: _account.balance,
+                    nonce: _account.nonce,
+                    storageRoot: _account.storageRoot,
+                    codeHash: _account.codeHash
+                }),
                 _stateTrieWitness,
                 preStateRoot
             ),
@@ -284,7 +289,12 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
 
         postStateRoot = Lib_EthMerkleTrie.updateAccountState(
             _ovmContractAddress,
-            _account,
+            Lib_OVMCodec.EVMAccount({
+                balance: _account.balance,
+                nonce: _account.nonce,
+                storageRoot: _account.storageRoot,
+                codeHash: _account.codeHash
+            }),
             _stateTrieWitness,
             postStateRoot
         );

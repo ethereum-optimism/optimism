@@ -68,13 +68,6 @@ library Lib_OVMCodec {
         bytes data;
     }
 
-    struct ProofMatrix {
-        bool checkNonce;
-        bool checkBalance;
-        bool checkStorageRoot;
-        bool checkCodeHash;
-    }
-
     struct QueueElement {
         uint256 timestamp;
         bytes32 batchRoot;

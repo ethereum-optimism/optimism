@@ -9,11 +9,11 @@ import { TrieTestGenerator } from '../../../helpers'
 
 const NODE_COUNTS = [1, 2, 128, 256, 512, 1024, 2048, 4096]
 
-describe('Lib_MerkleTrie', () => {
-  let Lib_MerkleTrie: Contract
+describe('Lib_SecureMerkleTrie', () => {
+  let Lib_SecureMerkleTrie: Contract
   before(async () => {
-    Lib_MerkleTrie = await (
-      await ethers.getContractFactory('TestLib_MerkleTrie')
+    Lib_SecureMerkleTrie = await (
+      await ethers.getContractFactory('TestLib_SecureMerkleTrie')
     ).deploy()
   })
 
@@ -25,7 +25,7 @@ describe('Lib_MerkleTrie', () => {
           generator = await TrieTestGenerator.fromRandom({
             seed: `seed.incluson.${nodeCount}`,
             nodeCount,
-            secure: false,
+            secure: true,
           })
         })
 
@@ -38,7 +38,7 @@ describe('Lib_MerkleTrie', () => {
             const test = await generator.makeInclusionProofTest(i)
 
             expect(
-              await Lib_MerkleTrie.verifyInclusionProof(
+              await Lib_SecureMerkleTrie.verifyInclusionProof(
                 test.key,
                 test.val,
                 test.proof,
@@ -59,7 +59,7 @@ describe('Lib_MerkleTrie', () => {
           generator = await TrieTestGenerator.fromRandom({
             seed: `seed.update.${nodeCount}`,
             nodeCount,
-            secure: false,
+            secure: true,
           })
         })
 
@@ -75,7 +75,7 @@ describe('Lib_MerkleTrie', () => {
             )
 
             expect(
-              await Lib_MerkleTrie.update(
+              await Lib_SecureMerkleTrie.update(
                 test.key,
                 test.val,
                 test.proof,
@@ -96,7 +96,7 @@ describe('Lib_MerkleTrie', () => {
           generator = await TrieTestGenerator.fromRandom({
             seed: `seed.get.${nodeCount}`,
             nodeCount,
-            secure: false,
+            secure: true,
           })
         })
 
@@ -109,7 +109,7 @@ describe('Lib_MerkleTrie', () => {
             const test = await generator.makeInclusionProofTest(i)
 
             expect(
-              await Lib_MerkleTrie.get(test.key, test.proof, test.root)
+              await Lib_SecureMerkleTrie.get(test.key, test.proof, test.root)
             ).to.deep.equal([true, test.val])
           })
         }
