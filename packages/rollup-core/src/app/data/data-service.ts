@@ -38,7 +38,7 @@ import {
   l2TransactionOutputInsertStatement,
 } from './query-utils'
 import {
-  L1_ROLLUP_BATCH_TX_BYTES_PER_TX,
+  L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX,
   L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES,
   L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES,
   ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
@@ -494,7 +494,8 @@ export class DefaultDataService implements DataService {
     for (const row of res) {
       const rowBytes: number = parseInt(row['calldata_bytes'], 10)
       totalL1TxBytes +=
-        roundToNearestMultipleOf32(rowBytes) + L1_ROLLUP_BATCH_TX_BYTES_PER_TX
+        roundToNearestMultipleOf32(rowBytes) +
+        L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX
       if (totalL1TxBytes > maxL1BatchTxBytes) {
         if (lastBlockNumber === -1) {
           const msg: string = `L2 Tx with block number ${row['block_number']} has ${totalL1TxBytes} bytes of calldata, which is bigger than the limit of ${maxL1BatchTxBytes}! Cannot roll up this transaction!`

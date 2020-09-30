@@ -35,7 +35,7 @@ import {
 } from '../../src/types/data'
 import { VerificationCandidate } from '../../src/types'
 import {
-  L1_ROLLUP_BATCH_TX_BYTES_PER_TX,
+  L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX,
   L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES,
   L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES,
   ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
@@ -407,7 +407,7 @@ describe('L2 Data Service (will fail if postgres is not running with expected sc
       const l2TxSize = getTxSizeInBytes(tx1)
       const l1TxSize =
         roundToNearestMultipleOf32(l2TxSize) +
-        L1_ROLLUP_BATCH_TX_BYTES_PER_TX +
+        L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX +
         L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES +
         L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES
       const batchNum = await dataService.tryBuildCanonicalChainBatchNotPresentOnL1(

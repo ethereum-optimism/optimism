@@ -60,7 +60,7 @@ export const L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES = 164
 - 32 for start of each `bytes`
 - 32 for length of each `bytes`
  */
-export const L1_ROLLUP_BATCH_TX_BYTES_PER_TX = 64
+export const L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX = 64
 
 /*
 - 32 for nonce
