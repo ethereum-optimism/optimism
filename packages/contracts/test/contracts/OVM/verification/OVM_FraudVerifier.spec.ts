@@ -2,48 +2,24 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from '@nomiclabs/buidler'
-import { ContractFactory, Contract, Signer, BigNumber } from 'ethers'
+import { ContractFactory, Contract, BigNumber } from 'ethers'
+import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
-
-/*
 import {
-  getProxyManager,
-  getMockContract,
-  MockContract,
-  ZERO_ADDRESS,
-  NULL_BYTES32,
-  NON_NULL_BYTES32,
+  makeAddressManager,
   setProxyTarget,
+  DUMMY_BATCH_HEADERS,
+  DUMMY_BATCH_PROOFS,
+  DUMMY_OVM_TRANSACTIONS,
+  NON_NULL_BYTES32,
+  NULL_BYTES32,
 } from '../../../helpers'
 
-const DUMMY_BATCH_HEADER = {
-  batchIndex: 0,
-  batchRoot: NULL_BYTES32,
-  batchSize: 0,
-  prevTotalElements: 0,
-  extraData: NULL_BYTES32,
-}
-
-const DUMMY_BATCH_PROOF = {
-  index: 0,
-  siblings: [NULL_BYTES32],
-}
-
-const DUMMY_OVM_TRANSACTION = {
-  timestamp: 0,
-  queueOrigin: 0,
-  entrypoint: ZERO_ADDRESS,
-  origin: ZERO_ADDRESS,
-  msgSender: ZERO_ADDRESS,
-  gasLimit: 0,
-  data: NULL_BYTES32,
-}
-
 describe('OVM_FraudVerifier', () => {
-  let Proxy_Manager: Contract
+  let AddressManager: Contract
   before(async () => {
-    Proxy_Manager = await getProxyManager()
+    AddressManager = await makeAddressManager()
   })
 
   let Mock__OVM_StateCommitmentChain: MockContract
@@ -51,49 +27,43 @@ describe('OVM_FraudVerifier', () => {
   let Mock__OVM_StateTransitioner: MockContract
   let Mock__OVM_StateTransitionerFactory: MockContract
   before(async () => {
-    Mock__OVM_StateCommitmentChain = await getMockContract(
+    Mock__OVM_StateCommitmentChain = smockit(
       await ethers.getContractFactory('OVM_StateCommitmentChain')
     )
 
-    Mock__OVM_CanonicalTransactionChain = await getMockContract(
+    Mock__OVM_CanonicalTransactionChain = smockit(
       await ethers.getContractFactory('OVM_CanonicalTransactionChain')
     )
 
-    Mock__OVM_StateTransitioner = await getMockContract(
+    Mock__OVM_StateTransitioner = smockit(
       await ethers.getContractFactory('OVM_StateTransitioner')
     )
 
-    Mock__OVM_StateTransitionerFactory = await getMockContract(
+    Mock__OVM_StateTransitionerFactory = smockit(
       await ethers.getContractFactory('OVM_StateTransitionerFactory')
     )
 
     await setProxyTarget(
-      Proxy_Manager,
+      AddressManager,
       'OVM_StateCommitmentChain',
       Mock__OVM_StateCommitmentChain
     )
 
     await setProxyTarget(
-      Proxy_Manager,
+      AddressManager,
       'OVM_CanonicalTransactionChain',
       Mock__OVM_CanonicalTransactionChain
     )
 
     await setProxyTarget(
-      Proxy_Manager,
-      'OVM_StateTransitioner',
-      Mock__OVM_StateTransitioner
-    )
-
-    await setProxyTarget(
-      Proxy_Manager,
+      AddressManager,
       'OVM_StateTransitionerFactory',
       Mock__OVM_StateTransitionerFactory
     )
 
-    Mock__OVM_StateTransitionerFactory.setReturnValues('create', [
-      Mock__OVM_StateTransitioner.address,
-    ])
+    Mock__OVM_StateTransitionerFactory.smocked.create.will.return.with(
+      Mock__OVM_StateTransitioner.address
+    )
   })
 
   let Factory__OVM_FraudVerifier: ContractFactory
@@ -106,25 +76,27 @@ describe('OVM_FraudVerifier', () => {
   let OVM_FraudVerifier: Contract
   beforeEach(async () => {
     OVM_FraudVerifier = await Factory__OVM_FraudVerifier.deploy(
-      Proxy_Manager.address
+      AddressManager.address
     )
   })
 
   describe('initializeFraudVerification', () => {
     describe('when provided an invalid pre-state root inclusion proof', () => {
       before(() => {
-        Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [false])
+        Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+          false
+        )
       })
 
       it('should revert', async () => {
         await expect(
           OVM_FraudVerifier.initializeFraudVerification(
             NULL_BYTES32,
-            DUMMY_BATCH_HEADER,
-            DUMMY_BATCH_PROOF,
-            DUMMY_OVM_TRANSACTION,
-            DUMMY_BATCH_HEADER,
-            DUMMY_BATCH_PROOF
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
+            DUMMY_OVM_TRANSACTIONS[0],
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0]
           )
         ).to.be.revertedWith('Invalid pre-state root inclusion proof.')
       })
@@ -132,25 +104,27 @@ describe('OVM_FraudVerifier', () => {
 
     describe('when provided a valid pre-state root inclusion proof', () => {
       before(() => {
-        Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [true])
+        Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+          true
+        )
       })
 
       describe('when provided an invalid transaction inclusion proof', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [
-            false,
-          ])
+          Mock__OVM_CanonicalTransactionChain.smocked.verifyElement.will.return.with(
+            false
+          )
         })
 
         it('should revert', async () => {
           await expect(
             OVM_FraudVerifier.initializeFraudVerification(
               NULL_BYTES32,
-              DUMMY_BATCH_HEADER,
-              DUMMY_BATCH_PROOF,
-              DUMMY_OVM_TRANSACTION,
-              DUMMY_BATCH_HEADER,
-              DUMMY_BATCH_PROOF
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0],
+              DUMMY_OVM_TRANSACTIONS[0],
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0]
             )
           ).to.be.revertedWith('Invalid transaction inclusion proof.')
         })
@@ -158,20 +132,20 @@ describe('OVM_FraudVerifier', () => {
 
       describe('when provided a valid transaction inclusion proof', () => {
         before(() => {
-          Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [
-            true,
-          ])
+          Mock__OVM_CanonicalTransactionChain.smocked.verifyElement.will.return.with(
+            true
+          )
         })
 
         it('should deploy a new state transitioner', async () => {
           await expect(
             OVM_FraudVerifier.initializeFraudVerification(
               NULL_BYTES32,
-              DUMMY_BATCH_HEADER,
-              DUMMY_BATCH_PROOF,
-              DUMMY_OVM_TRANSACTION,
-              DUMMY_BATCH_HEADER,
-              DUMMY_BATCH_PROOF
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0],
+              DUMMY_OVM_TRANSACTIONS[0],
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0]
             )
           ).to.not.be.reverted
 
@@ -185,34 +159,37 @@ describe('OVM_FraudVerifier', () => {
 
   describe('finalizeFraudVerification', () => {
     beforeEach(async () => {
-      Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [true])
-      Mock__OVM_CanonicalTransactionChain.setReturnValues('verifyElement', [
-        true,
-      ])
+      Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+        true
+      )
+      Mock__OVM_CanonicalTransactionChain.smocked.verifyElement.will.return.with(
+        true
+      )
+
       await OVM_FraudVerifier.initializeFraudVerification(
         NULL_BYTES32,
-        DUMMY_BATCH_HEADER,
-        DUMMY_BATCH_PROOF,
-        DUMMY_OVM_TRANSACTION,
-        DUMMY_BATCH_HEADER,
-        DUMMY_BATCH_PROOF
+        DUMMY_BATCH_HEADERS[0],
+        DUMMY_BATCH_PROOFS[0],
+        DUMMY_OVM_TRANSACTIONS[0],
+        DUMMY_BATCH_HEADERS[0],
+        DUMMY_BATCH_PROOFS[0]
       )
     })
 
     describe('when the transition process is not complete', () => {
-      before(() => {
-        Mock__OVM_StateTransitioner.setReturnValues('isComplete', [false])
+      before(async () => {
+        Mock__OVM_StateTransitioner.smocked.isComplete.will.return.with(false)
       })
 
       it('should revert', async () => {
         await expect(
           OVM_FraudVerifier.finalizeFraudVerification(
             NULL_BYTES32,
-            DUMMY_BATCH_HEADER,
-            DUMMY_BATCH_PROOF,
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0],
             NON_NULL_BYTES32,
-            DUMMY_BATCH_HEADER,
-            DUMMY_BATCH_PROOF
+            DUMMY_BATCH_HEADERS[0],
+            DUMMY_BATCH_PROOFS[0]
           )
         ).to.be.revertedWith(
           'State transition process must be completed prior to finalization.'
@@ -222,23 +199,23 @@ describe('OVM_FraudVerifier', () => {
 
     describe('when the transition process is complete', () => {
       before(() => {
-        Mock__OVM_StateTransitioner.setReturnValues('isComplete', [true])
+        Mock__OVM_StateTransitioner.smocked.isComplete.will.return.with(true)
       })
 
       describe('when provided an invalid post-state root index', () => {
         const batchProof = {
-          ...DUMMY_BATCH_PROOF,
-          index: DUMMY_BATCH_PROOF.index + 2,
+          ...DUMMY_BATCH_PROOFS[0],
+          index: DUMMY_BATCH_PROOFS[0].index + 2,
         }
 
         it('should revert', async () => {
           await expect(
             OVM_FraudVerifier.finalizeFraudVerification(
               NULL_BYTES32,
-              DUMMY_BATCH_HEADER,
-              DUMMY_BATCH_PROOF,
+              DUMMY_BATCH_HEADERS[0],
+              DUMMY_BATCH_PROOFS[0],
               NON_NULL_BYTES32,
-              DUMMY_BATCH_HEADER,
+              DUMMY_BATCH_HEADERS[0],
               batchProof
             )
           ).to.be.revertedWith('Invalid post-state root index.')
@@ -247,25 +224,25 @@ describe('OVM_FraudVerifier', () => {
 
       describe('when provided a valid post-state root index', () => {
         const batchProof = {
-          ...DUMMY_BATCH_PROOF,
-          index: DUMMY_BATCH_PROOF.index + 1,
+          ...DUMMY_BATCH_PROOFS[0],
+          index: DUMMY_BATCH_PROOFS[0].index + 1,
         }
 
         describe('when provided an invalid pre-state root inclusion proof', () => {
           beforeEach(() => {
-            Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [
-              false,
-            ])
+            Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+              false
+            )
           })
 
           it('should revert', async () => {
             await expect(
               OVM_FraudVerifier.finalizeFraudVerification(
                 NULL_BYTES32,
-                DUMMY_BATCH_HEADER,
-                DUMMY_BATCH_PROOF,
+                DUMMY_BATCH_HEADERS[0],
+                DUMMY_BATCH_PROOFS[0],
                 NON_NULL_BYTES32,
-                DUMMY_BATCH_HEADER,
+                DUMMY_BATCH_HEADERS[0],
                 batchProof
               )
             ).to.be.revertedWith('Invalid pre-state root inclusion proof.')
@@ -274,17 +251,16 @@ describe('OVM_FraudVerifier', () => {
 
         describe('when provided a valid pre-state root inclusion proof', () => {
           before(() => {
-            Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [
-              true,
-            ])
+            Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+              true
+            )
           })
 
           describe('when provided an invalid post-state root inclusion proof', () => {
             beforeEach(() => {
-              Mock__OVM_StateCommitmentChain.setReturnValues(
-                'verifyElement',
+              Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
                 (stateRoot: string, ...args: any) => {
-                  return [stateRoot !== NON_NULL_BYTES32]
+                  return stateRoot !== NON_NULL_BYTES32
                 }
               )
             })
@@ -293,10 +269,10 @@ describe('OVM_FraudVerifier', () => {
               await expect(
                 OVM_FraudVerifier.finalizeFraudVerification(
                   NULL_BYTES32,
-                  DUMMY_BATCH_HEADER,
-                  DUMMY_BATCH_PROOF,
+                  DUMMY_BATCH_HEADERS[0],
+                  DUMMY_BATCH_PROOFS[0],
                   NON_NULL_BYTES32,
-                  DUMMY_BATCH_HEADER,
+                  DUMMY_BATCH_HEADERS[0],
                   batchProof
                 )
               ).to.be.revertedWith('Invalid post-state root inclusion proof.')
@@ -305,16 +281,15 @@ describe('OVM_FraudVerifier', () => {
 
           describe('when provided a valid post-state root inclusion proof', () => {
             before(() => {
-              Mock__OVM_StateCommitmentChain.setReturnValues('verifyElement', [
-                true,
-              ])
+              Mock__OVM_StateCommitmentChain.smocked.verifyElement.will.return.with(
+                true
+              )
             })
 
             describe('when the provided post-state root does not differ from the computed one', () => {
               before(() => {
-                Mock__OVM_StateTransitioner.setReturnValues(
-                  'getPostStateRoot',
-                  [NON_NULL_BYTES32]
+                Mock__OVM_StateTransitioner.smocked.getPostStateRoot.will.return.with(
+                  NON_NULL_BYTES32
                 )
               })
 
@@ -322,10 +297,10 @@ describe('OVM_FraudVerifier', () => {
                 await expect(
                   OVM_FraudVerifier.finalizeFraudVerification(
                     NULL_BYTES32,
-                    DUMMY_BATCH_HEADER,
-                    DUMMY_BATCH_PROOF,
+                    DUMMY_BATCH_HEADERS[0],
+                    DUMMY_BATCH_PROOFS[0],
                     NON_NULL_BYTES32,
-                    DUMMY_BATCH_HEADER,
+                    DUMMY_BATCH_HEADERS[0],
                     batchProof
                   )
                 ).to.be.revertedWith(
@@ -336,29 +311,26 @@ describe('OVM_FraudVerifier', () => {
 
             describe('when the provided post-state root differs from the computed one', () => {
               before(() => {
-                Mock__OVM_StateTransitioner.setReturnValues(
-                  'getPostStateRoot',
-                  [NULL_BYTES32]
+                Mock__OVM_StateTransitioner.smocked.getPostStateRoot.will.return.with(
+                  NULL_BYTES32
                 )
               })
 
               it('should succeed and attempt to delete a state batch', async () => {
                 await OVM_FraudVerifier.finalizeFraudVerification(
                   NULL_BYTES32,
-                  DUMMY_BATCH_HEADER,
-                  DUMMY_BATCH_PROOF,
+                  DUMMY_BATCH_HEADERS[0],
+                  DUMMY_BATCH_PROOFS[0],
                   NON_NULL_BYTES32,
-                  DUMMY_BATCH_HEADER,
+                  DUMMY_BATCH_HEADERS[0],
                   batchProof
                 )
 
                 expect(
-                  Mock__OVM_StateCommitmentChain.getCallData(
-                    'deleteStateBatch',
-                    0
-                  )
+                  Mock__OVM_StateCommitmentChain.smocked.deleteStateBatch
+                    .calls[0]
                 ).to.deep.equal([
-                  Object.values(DUMMY_BATCH_HEADER).map((value) => {
+                  Object.values(DUMMY_BATCH_HEADERS[0]).map((value) => {
                     return Number.isInteger(value)
                       ? BigNumber.from(value)
                       : value
@@ -372,4 +344,3 @@ describe('OVM_FraudVerifier', () => {
     })
   })
 })
-*/
