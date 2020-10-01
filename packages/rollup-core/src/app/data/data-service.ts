@@ -41,7 +41,7 @@ import {
   L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX,
   L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES,
   L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES,
-  ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
+  L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
 } from '../constants'
 
 const log = getLogger('data-service')
@@ -405,7 +405,7 @@ export class DefaultDataService implements DataService {
   ): Promise<number> {
     const txRes = await this.rdb.select(
       `SELECT 
-                SUM(GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA}) as batch_calldata, 
+                SUM(GREATEST(LENGTH(calldata)-2, 0) / 2 + ${L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA}) as batch_calldata, 
                 block_timestamp
             FROM l2_tx_output
             WHERE
@@ -472,7 +472,7 @@ export class DefaultDataService implements DataService {
     const res: Row[] = await this.rdb.select(
       `SELECT 
             block_number, 
-            GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA} as calldata_bytes
+            GREATEST(LENGTH(calldata)-2, 0) / 2 + ${L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA} as calldata_bytes
       FROM l2_tx_output
       WHERE 
             block_timestamp = ${batchTimestamp}
