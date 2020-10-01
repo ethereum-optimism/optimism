@@ -113,7 +113,7 @@ const appendAndGenerateStateBatch = async (
   return localBatch
 }
 
-describe.only('L1CrossDomainMessenger', () => {
+describe('L1CrossDomainMessenger', () => {
   let wallet: Signer
   before(async () => {
     ;[wallet] = await ethers.getSigners()

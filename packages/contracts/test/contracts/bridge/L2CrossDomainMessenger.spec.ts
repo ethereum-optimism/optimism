@@ -19,7 +19,7 @@ const getXDomainCalldata = (
   ])
 }
 
-describe.only('L2CrossDomainMessenger', () => {
+describe('L2CrossDomainMessenger', () => {
   let wallet: Signer
   let wallet2: Signer
   before(async () => {
