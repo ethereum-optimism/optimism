@@ -5,9 +5,10 @@ pragma experimental ABIEncoderV2;
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { EthMerkleTrie } from "../utils/libraries/EthMerkleTrie.sol";
 import { BytesLib } from "../utils/libraries/BytesLib.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
 
 /* Interface Imports */
-import { IL1CrossDomainMessenger } from "./interfaces/L1CrossDomainMessenger.interface.sol";
+import { ICrossDomainMessenger } from "./interfaces/CrossDomainMessenger.interface.sol";
 
 /* Contract Imports */
 import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
@@ -17,7 +18,28 @@ import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
 /**
  * @title L1CrossDomainMessenger
  */
-contract L1CrossDomainMessenger is IL1CrossDomainMessenger, BaseCrossDomainMessenger, ContractResolver {
+contract L1CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMessenger, ContractResolver {
+     /*
+     * Contract Variables
+     */
+
+    mapping (bytes32 => bool) public receivedMessages;
+    mapping (bytes32 => bool) public sentMessages;
+    address public targetMessengerAddress;
+    uint256 public messageNonce;
+    address public xDomainMessageSender;
+
+    /*
+     * Data Structures
+     */
+
+    struct L2MessageInclusionProof {
+        bytes32 stateRoot;
+        uint256 stateRootIndex;
+        DataTypes.StateElementInclusionProof stateRootProof;
+        bytes stateTrieWitness;
+        bytes storageTrieWitness;
+    }
     /*
      * Constructor
      */
@@ -36,6 +58,18 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, BaseCrossDomainMesse
     /*
      * Public Functions
      */
+
+    /**
+     * Sets the target messenger address.
+     * @param _targetMessengerAddress New messenger address.
+     */
+    function setTargetMessengerAddress(
+        address _targetMessengerAddress
+    )
+        public
+    {
+        targetMessengerAddress = _targetMessengerAddress;
+    }
 
     /**
      * Relays a cross domain message to a contract.

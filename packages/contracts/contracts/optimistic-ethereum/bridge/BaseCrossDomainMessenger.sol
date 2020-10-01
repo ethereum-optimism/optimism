@@ -5,34 +5,6 @@ pragma solidity ^0.5.0;
  */
 contract BaseCrossDomainMessenger {
     /*
-     * Contract Variables
-     */
-
-    mapping (bytes32 => bool) public receivedMessages;
-    mapping (bytes32 => bool) public sentMessages;
-    address public targetMessengerAddress;
-    uint256 public messageNonce;
-    address public xDomainMessageSender;
-
-
-    /*
-     * Public Functions
-     */
-
-    /**
-     * Sets the target messenger address.
-     * @param _targetMessengerAddress New messenger address.
-     */
-    function setTargetMessengerAddress(
-        address _targetMessengerAddress
-    )
-        public
-    {
-        targetMessengerAddress = _targetMessengerAddress;
-    }
-
-
-    /*
      * Internal Functions
      */
 
