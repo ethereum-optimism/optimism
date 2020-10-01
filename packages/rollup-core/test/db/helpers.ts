@@ -13,7 +13,10 @@ import { BigNumber as BigNum } from 'ethers/utils'
 import { Block, TransactionResponse } from 'ethers/providers'
 
 /* Internal Imports */
-import { CHAIN_ID, ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA } from '../../src/app'
+import {
+  CHAIN_ID,
+  L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
+} from '../../src/app'
 import {
   BatchSubmissionStatus,
   DataService,
@@ -34,7 +37,7 @@ export const defaultSignature: string = `${blockHash}${remove0x(parentHash)}99`
 export const defaultStateRoot: string = keccak256FromUtf8(blockHash)
 
 export const defaultTxSizeInBytes: number =
-  remove0x(defaultData).length / 2 + ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA
+  remove0x(defaultData).length / 2 + L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA
 
 export const gasUsed = new BigNum(1)
 export const gasLimit = new BigNum(2)
@@ -57,7 +60,7 @@ export const l1Block: Block = {
 export const getTxSizeInBytes = (txOutput: TransactionOutput) => {
   return (
     remove0x(txOutput.calldata).length / 2 +
-    ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA
+    L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA
   )
 }
 
