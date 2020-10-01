@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
 
 /* Interface Imports */
-import { ICrossDomainMessenger } from "./interfaces/CrossDomainMessenger.interface.sol";
 import { IL1MessageSender } from "../ovm/precompiles/L1MessageSender.interface.sol";
 import { IL2ToL1MessagePasser } from "../ovm/precompiles/L2ToL1MessagePasser.interface.sol";
 
@@ -11,18 +10,13 @@ import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
 /**
  * @title L2CrossDomainMessenger
  */
-contract L2CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMessenger {
+contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
     /*
      * Contract Variables
      */
 
-    mapping (bytes32 => bool) public receivedMessages;
-    mapping (bytes32 => bool) public sentMessages;
     address private l1MessageSenderPrecompileAddress;
     address private l2ToL1MessagePasserPrecompileAddress;
-    address public targetMessengerAddress;
-    uint256 public messageNonce;
-    address public xDomainMessageSender;
 
     /*
      * Constructor
@@ -46,42 +40,6 @@ contract L2CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMesseng
     /*
      * Public Functions
      */
-
-    /**
-     * Sets the target messenger address.
-     * @param _targetMessengerAddress New messenger address.
-     */
-    function setTargetMessengerAddress(
-        address _targetMessengerAddress
-    )
-        public
-    {
-        targetMessengerAddress = _targetMessengerAddress;
-    }
-
-    /**
-     * Sends a cross domain message to the target messenger.
-     * .inheritdoc IL2CrossDomainMessenger
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint32 _gasLimit
-    )
-        public
-    {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
-            _target,
-            msg.sender,
-            _message,
-            messageNonce
-        );
-
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
-        messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
-    }
 
     /**
      * Relays a cross domain message to a contract.
@@ -150,7 +108,7 @@ contract L2CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMesseng
      */
     function _sendXDomainMessage(
         bytes memory _message,
-        uint256 _gasLimit
+        uint32 _gasLimit
     )
         internal
     {

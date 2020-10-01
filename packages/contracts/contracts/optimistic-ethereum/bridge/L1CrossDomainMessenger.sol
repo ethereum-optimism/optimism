@@ -7,9 +7,6 @@ import { EthMerkleTrie } from "../utils/libraries/EthMerkleTrie.sol";
 import { BytesLib } from "../utils/libraries/BytesLib.sol";
 import { DataTypes } from "../utils/libraries/DataTypes.sol";
 
-/* Interface Imports */
-import { ICrossDomainMessenger } from "./interfaces/CrossDomainMessenger.interface.sol";
-
 /* Contract Imports */
 import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
 import { L1ToL2TransactionQueue } from "../queue/L1ToL2TransactionQueue.sol";
@@ -18,16 +15,7 @@ import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
 /**
  * @title L1CrossDomainMessenger
  */
-contract L1CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMessenger, ContractResolver {
-     /*
-     * Contract Variables
-     */
-
-    mapping (bytes32 => bool) public receivedMessages;
-    mapping (bytes32 => bool) public sentMessages;
-    address public targetMessengerAddress;
-    uint256 public messageNonce;
-    address public xDomainMessageSender;
+contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
 
     /*
      * Data Structures
@@ -58,18 +46,6 @@ contract L1CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMesseng
     /*
      * Public Functions
      */
-
-    /**
-     * Sets the target messenger address.
-     * @param _targetMessengerAddress New messenger address.
-     */
-    function setTargetMessengerAddress(
-        address _targetMessengerAddress
-    )
-        public
-    {
-        targetMessengerAddress = _targetMessengerAddress;
-    }
 
     /**
      * Relays a cross domain message to a contract.
@@ -113,30 +89,6 @@ contract L1CrossDomainMessenger is ICrossDomainMessenger, BaseCrossDomainMesseng
         // successfully executed because we won't get here unless we have
         // enough gas left over.
         receivedMessages[keccak256(xDomainCalldata)] = true;
-    }
-
-    /**
-     * Sends a cross domain message to the target messenger.
-     * .inheritdoc IL1CrossDomainMessenger
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint32 _gasLimit
-    )
-        public
-    {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
-            _target,
-            msg.sender,
-            _message,
-            messageNonce
-        );
-
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
-        messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
     }
 
     /**
