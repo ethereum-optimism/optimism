@@ -12,7 +12,7 @@ import { DB } from '../../../src/types'
 
 const log = getLogger('ethereum-block-processor-test', true)
 
-const timeout = 25_000
+const timeout = 50_000
 describe('Block Subscription', () => {
   let provider
   let wallets
