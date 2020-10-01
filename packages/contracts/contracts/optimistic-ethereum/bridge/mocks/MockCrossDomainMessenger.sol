@@ -3,12 +3,12 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Contract Imports */
-import { BaseCrossDomainMessenger } from "../BaseCrossDomainMessenger.sol";
+import { ICrossDomainMessenger } from "../interfaces/CrossDomainMessenger.interface.sol";
 
 /**
  * @title MockCrossDomainMessenger
  */
-contract MockCrossDomainMessenger is BaseCrossDomainMessenger {
+contract MockCrossDomainMessenger is ICrossDomainMessenger {
 
     /***********
      * Structs *
@@ -32,6 +32,13 @@ contract MockCrossDomainMessenger is BaseCrossDomainMessenger {
     uint256 internal lastRelayedMessage;
     uint256 internal delay;
 
+    mapping (bytes32 => bool) public receivedMessages;
+    mapping (bytes32 => bool) public sentMessages;
+    address public targetMessengerAddress;
+    uint256 public messageNonce;
+    address public xDomainMessageSender;
+
+
 
     /***************
      * Constructor *
@@ -54,6 +61,18 @@ contract MockCrossDomainMessenger is BaseCrossDomainMessenger {
      ********************/
 
     /**
+     * Sets the target messenger address.
+     * @param _targetMessengerAddress New messenger address.
+     */
+    function setTargetMessengerAddress(
+        address _targetMessengerAddress
+    )
+        external
+    {
+        targetMessengerAddress = _targetMessengerAddress;
+    }
+
+    /**
      * Sends a message to another mock xdomain messenger.
      * @param _target Target for the message.
      * @param _message Message to send.
@@ -61,10 +80,10 @@ contract MockCrossDomainMessenger is BaseCrossDomainMessenger {
      */
     function sendMessage(
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint32 _gasLimit
     )
-        public
+        external
     {
         MockCrossDomainMessenger targetMessenger = MockCrossDomainMessenger(
             targetMessengerAddress

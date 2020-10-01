@@ -2,7 +2,7 @@ pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
-import { DataTypes } from "../utils/libraries/DataTypes.sol";
+import { DataTypes } from "../../utils/libraries/DataTypes.sol";
 
 /**
  * @title IL1CrossDomainMessenger
@@ -49,18 +49,6 @@ contract IL1CrossDomainMessenger {
         bytes memory _message,
         uint256 _messageNonce,
         L2MessageInclusionProof memory _proof
-    ) public;
-
-    /**
-     * Sends a cross domain message to the target messenger.
-     * @param _target Target contract address.
-     * @param _message Message to send to the target.
-     * @param _gasLimit Gas limit for the provided message.
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint32 _gasLimit
     ) public;
 
     /**

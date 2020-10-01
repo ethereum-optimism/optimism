@@ -7,7 +7,7 @@ import { EthMerkleTrie } from "../utils/libraries/EthMerkleTrie.sol";
 import { BytesLib } from "../utils/libraries/BytesLib.sol";
 
 /* Interface Imports */
-import { IL1CrossDomainMessenger } from "./L1CrossDomainMessenger.interface.sol";
+import { IL1CrossDomainMessenger } from "./interfaces/L1CrossDomainMessenger.interface.sol";
 
 /* Contract Imports */
 import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";

@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
 /* Interface Imports */
-import { IL2CrossDomainMessenger } from "./L2CrossDomainMessenger.interface.sol";
+import { IL2CrossDomainMessenger } from "./interfaces/L2CrossDomainMessenger.interface.sol";
 import { IL1MessageSender } from "../ovm/precompiles/L1MessageSender.interface.sol";
 import { IL2ToL1MessagePasser } from "../ovm/precompiles/L2ToL1MessagePasser.interface.sol";
 

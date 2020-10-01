@@ -1,7 +1,7 @@
 pragma solidity ^0.5.0;
 
 /**
- * @title L1CrossDomainMessenger
+ * @title BaseCrossDomainMessenger
  */
 contract BaseCrossDomainMessenger {
     /*
