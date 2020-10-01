@@ -32,7 +32,7 @@ const getContractFromDefinition = (
  * @param provider Provider to attach messengers to.
  * @returns Both cross domain messenger objects.
  */
-export const initCrossDomainMessengersVX = async (
+export const initCrossDomainMessengers = async (
   l1ToL2MessageDelay: number,
   l2ToL1MessageDelay: number,
   ethers: any,
