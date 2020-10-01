@@ -5,26 +5,6 @@ import Ganache from 'ganache-core'
 
 /* Internal Imports */
 import { ganache } from '../ganache'
-import {
-  initCrossDomainMessengersVX,
-  waitForCrossDomainMessages,
-} from './waffle-vx'
-
-const initCrossDomainMessengers = async (
-  l1ToL2MessageDelay: number,
-  l2ToL1MessageDelay: number,
-  signer: any
-): Promise<{
-  l1CrossDomainMessenger: Contract
-  l2CrossDomainMessenger: Contract
-}> => {
-  return initCrossDomainMessengersVX(
-    l1ToL2MessageDelay,
-    l2ToL1MessageDelay,
-    ethers,
-    signer
-  )
-}
 
 /**
  * WaffleV2 MockProvider wrapper.
@@ -82,6 +62,4 @@ export class MockProvider extends providers.Web3Provider {
 
 export const waffleV2 = {
   MockProvider,
-  initCrossDomainMessengers,
-  waitForCrossDomainMessages,
 }
