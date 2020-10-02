@@ -101,7 +101,7 @@ export class DefaultDataService implements DataService {
     txContext?: any
   ): Promise<void> {
     return this.rdb.execute(
-      `${l1BlockInsertStatement} 
+      `${l1BlockInsertStatement}
       VALUES (${getL1BlockInsertValue(block, processed)})`,
       txContext
     )
@@ -120,8 +120,9 @@ export class DefaultDataService implements DataService {
     const values: string[] = transactions.map(
       (tx, index) => `(${getL1TransactionInsertValue(tx, index)})`
     )
+
     return this.rdb.execute(
-      `${l1TxInsertStatement} 
+      `${l1TxInsertStatement}
       VALUES ${values.join(',')}`,
       txContext
     )
