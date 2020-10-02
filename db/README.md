@@ -12,7 +12,7 @@ docker-compose -f docker-compose.postgres.yml up --build
 docker-compose -f docker-compose.postgres.yml up --build
 ```
 
-### Kill when run detcahed:
+### Kill when run detached:
 ```
 docker ps
 # grab CONTAINER ID
