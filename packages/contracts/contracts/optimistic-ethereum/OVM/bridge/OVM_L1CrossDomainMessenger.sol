@@ -96,31 +96,6 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
     }
 
     /**
-     * Sends a cross domain message to the target messenger.
-     * @inheritdoc iOVM_L1CrossDomainMessenger
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint32 _gasLimit
-    )
-        override
-        public
-    {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
-            _target,
-            msg.sender,
-            _message,
-            messageNonce
-        );
-
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
-        messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
-    }
-
-    /**
      * Replays a cross domain message to the target messenger.
      * @inheritdoc iOVM_L1CrossDomainMessenger
      */
@@ -255,8 +230,9 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
      */
     function _sendXDomainMessage(
         bytes memory _message,
-        uint32 _gasLimit
+        uint256 _gasLimit
     )
+        override
         internal
     {
         ovmL1ToL2TransactionQueue.enqueue(

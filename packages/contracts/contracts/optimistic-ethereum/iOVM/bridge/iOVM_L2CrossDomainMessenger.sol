@@ -27,16 +27,4 @@ interface iOVM_L2CrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
         bytes memory _message,
         uint256 _messageNonce
     ) external;
-
-    /**
-     * Sends a cross domain message to the target messenger.
-     * @param _target Target contract address.
-     * @param _message Message to send to the target.
-     * @param _gasLimit Gas limit for the provided message.
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint256 _gasLimit
-    ) external;
 }
