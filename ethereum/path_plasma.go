@@ -120,6 +120,13 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 		transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
 	}
 
+	//transactOpts needs nonce. Use supplied nonce is > 0
+	nonceRaw := data.Get("nonce").(string)
+
+	if nonceRaw != "0" {
+		transactOpts.Nonce = util.ValidNumber(nonceRaw)
+	}
+
 	plasmaSession := &plasma.PlasmaSession{
 		Contract:     instance,  // Generic contract caller binding to set the session for
 		CallOpts:     *callOpts, // Call options to use throughout this session
