@@ -18,7 +18,7 @@
     "clean": "rm -rf ./artifacts ./build ./cache"
   },
   "devDependencies": {
-    "@eth-optimism/smock": "^0.0.1",
+    "@eth-optimism/smock": "^0.0.2",
     "@nomiclabs/buidler": "^1.4.4",
     "@nomiclabs/buidler-ethers": "^2.0.0",
     "@nomiclabs/buidler-waffle": "^2.0.0",

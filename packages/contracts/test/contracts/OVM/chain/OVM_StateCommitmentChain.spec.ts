@@ -11,6 +11,8 @@ import {
   setProxyTarget,
   NON_NULL_BYTES32,
   ZERO_ADDRESS,
+  toHexString32,
+  getEthTime,
 } from '../../../helpers'
 import { keccak256 } from 'ethers/lib/utils'
 
@@ -112,6 +114,7 @@ describe('OVM_StateCommitmentChain', () => {
         batch.length
       )
       await OVM_StateCommitmentChain.appendStateBatch(batch)
+      batchHeader.extraData = toHexString32(await getEthTime(ethers.provider))
     })
 
     describe('when the sender is not the OVM_FraudVerifier', () => {
