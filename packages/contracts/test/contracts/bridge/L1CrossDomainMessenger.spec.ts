@@ -153,7 +153,6 @@ describe('L1CrossDomainMessenger', () => {
 
   const L2_MESSAGE_PASSER_ADDRESS = '0x4200000000000000000000000000000000000000'
   const DUMMY_L2_MESSENGER_ADDRESS = '0x' + 'dead'.repeat(10)
-  const WAITING_PERIOD = 60 * 60 * 24 * 7 //Waiting period is 1 week
   let L1ToL2TransactionQueue: Contract
   let L1CrossDomainMessenger: Contract
   let L2CrossDomainMessenger: Contract
@@ -193,13 +192,11 @@ describe('L1CrossDomainMessenger', () => {
       }
     )
     L1CrossDomainMessenger = await L1CrossDomainMessengerFactory.deploy(
-      resolver.addressResolver.address,
-      WAITING_PERIOD
+      resolver.addressResolver.address
     )
     L2CrossDomainMessenger = await L2CrossDomainMessengerFactory.deploy(
       L2_MESSAGE_PASSER_ADDRESS,
-      L2_MESSAGE_PASSER_ADDRESS,
-      WAITING_PERIOD
+      L2_MESSAGE_PASSER_ADDRESS
     )
     CrossDomainSimpleStorage = await CrossDomainSimpleStorageFactory.deploy()
 

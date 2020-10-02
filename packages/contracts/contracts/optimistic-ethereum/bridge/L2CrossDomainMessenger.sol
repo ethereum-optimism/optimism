@@ -11,9 +11,6 @@ import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
  * @title L2CrossDomainMessenger
  */
 contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
-
-    event RelayedL1ToL2Message(bytes32 msgHash, address sender);
-
     /*
      * Contract Variables
      */
@@ -31,14 +28,12 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
      */
     constructor(
         address _l1MessageSenderPrecompileAddress,
-        address _l2ToL1MessagePasserPrecompileAddress,
-        uint256 _waitingPeriod
+        address _l2ToL1MessagePasserPrecompileAddress
     )
         public
     {
         l1MessageSenderPrecompileAddress = _l1MessageSenderPrecompileAddress;
         l2ToL1MessagePasserPrecompileAddress = _l2ToL1MessagePasserPrecompileAddress;
-        waitingPeriod = _waitingPeriod;
     }
 
 
@@ -69,10 +64,9 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
             _message,
             _messageNonce
         );
-        bytes32 msgHash = keccak256(xDomainCalldata);
 
         require(
-            receivedMessages[msgHash] == false,
+            receivedMessages[keccak256(xDomainCalldata)] == false,
             "Provided message has already been received."
         );
 
@@ -84,9 +78,7 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
         // ignore the result of the call and always mark the message as
         // successfully executed because we won't get here unless we have
         // enough gas left over.
-        receivedMessages[msgHash] = true;
-
-        emit RelayedL1ToL2Message(msgHash, _sender);
+        receivedMessages[keccak256(xDomainCalldata)] = true;
     }
 
 

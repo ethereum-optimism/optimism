@@ -17,8 +17,6 @@ import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
  */
 contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
 
-    event RelayedL2ToL1Message(bytes32 msgHash, address sender);
-
     /*
      * Data Structures
      */
@@ -38,14 +36,11 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
      * @param _addressResolver Address of the AddressResolver contract.
      */
     constructor(
-        address _addressResolver,
-        uint256 _waitingPeriod
+        address _addressResolver
     )
         public
         ContractResolver(_addressResolver)
-    {
-        waitingPeriod = _waitingPeriod;
-    }
+    {}
 
 
     /*
@@ -80,10 +75,8 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
             "Provided message could not be verified."
         );
 
-        bytes32 msgHash = keccak256(xDomainCalldata);
-
         require(
-            receivedMessages[msgHash] == false,
+            receivedMessages[keccak256(xDomainCalldata)] == false,
             "Provided message has already been received."
         );
 
@@ -95,9 +88,7 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
         // ignore the result of the call and always mark the message as
         // successfully executed because we won't get here unless we have
         // enough gas left over.
-        receivedMessages[msgHash] = true;
-
-        emit RelayedL2ToL1Message(msgHash, _sender);
+        receivedMessages[keccak256(xDomainCalldata)] = true;
     }
 
     /**
