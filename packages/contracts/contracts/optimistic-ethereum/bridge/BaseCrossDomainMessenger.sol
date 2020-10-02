@@ -7,6 +7,9 @@ import { ICrossDomainMessenger } from "./interfaces/CrossDomainMessenger.interfa
  * @title BaseCrossDomainMessenger
  */
 contract BaseCrossDomainMessenger is ICrossDomainMessenger {
+
+    event SentMessage(bytes32 msgHash, address sender);
+
      /*
      * Contract Variables
      */
@@ -16,6 +19,7 @@ contract BaseCrossDomainMessenger is ICrossDomainMessenger {
     address public targetMessengerAddress;
     uint256 public messageNonce;
     address public xDomainMessageSender;
+    uint256 public waitingPeriod;
 
     /*
      * Public Functions
@@ -54,7 +58,10 @@ contract BaseCrossDomainMessenger is ICrossDomainMessenger {
         _sendXDomainMessage(xDomainCalldata, _gasLimit);
 
         messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
+        bytes32 msgHash = keccak256(xDomainCalldata);
+        sentMessages[msgHash] = true;
+
+        emit SentMessage(msgHash, msg.sender);
     }
 
 

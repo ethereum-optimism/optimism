@@ -20,6 +20,7 @@ const getXDomainCalldata = (
 }
 
 describe('L2CrossDomainMessenger', () => {
+  const WAITING_PERIOD = 60 * 60 * 24 * 7 //Waiting period is 1 week
   let wallet: Signer
   let wallet2: Signer
   before(async () => {
@@ -55,7 +56,8 @@ describe('L2CrossDomainMessenger', () => {
     CrossDomainSimpleStorage = await CrossDomainSimpleStorageFactory.deploy()
     L2CrossDomainMessenger = await L2CrossDomainMessengerFactory.deploy(
       MockL1MessageSender.address,
-      MockL2ToL1MessagePasser.address
+      MockL2ToL1MessagePasser.address,
+      WAITING_PERIOD
     )
 
     await CrossDomainSimpleStorage.setMessenger(L2CrossDomainMessenger.address)

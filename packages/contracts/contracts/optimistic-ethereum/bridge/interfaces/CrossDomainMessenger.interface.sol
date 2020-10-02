@@ -16,6 +16,7 @@ interface ICrossDomainMessenger {
     function targetMessengerAddress() external view returns (address);
     function messageNonce() external view returns (uint256);
     function xDomainMessageSender() external view returns (address);
+    function waitingPeriod() external view returns (uint256);
 
     /********************
      * Public Functions *

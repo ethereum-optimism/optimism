@@ -30,13 +30,13 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
 
     ReceivedMessage[] internal fullReceivedMessages;
     uint256 internal lastRelayedMessage;
-    uint256 internal delay;
 
     mapping (bytes32 => bool) public receivedMessages;
     mapping (bytes32 => bool) public sentMessages;
     address public targetMessengerAddress;
     uint256 public messageNonce;
     address public xDomainMessageSender;
+    uint256 public waitingPeriod;
 
 
 
@@ -45,14 +45,14 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
      ***************/
 
     /**
-     * @param _delay Time in seconds before a message can be relayed.
+     * @param _waitingPeriod Time in seconds before a message can be relayed.
      */
     constructor(
-        uint256 _delay
+        uint256 _waitingPeriod
     )
         public
     {
-        delay = _delay;
+        waitingPeriod = _waitingPeriod;
     }
 
 
@@ -130,7 +130,7 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
         }
 
         ReceivedMessage memory nextMessage = fullReceivedMessages[lastRelayedMessage];
-        return nextMessage.timestamp + delay < block.timestamp;
+        return nextMessage.timestamp + waitingPeriod < block.timestamp;
     }
 
     /**
