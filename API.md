@@ -284,24 +284,3 @@ Activates the child chain so that child chain can start to submit child blocks t
 ```sh
 curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/activateChildChain
 ```
-
-### SUBMIT DEPOSIT BLOCK
-
-Submits a block for deposit
-
-#### INPUTS
-
-| Parameter | Description |
-| --- | ----------- |
-| name | Name of the wallet - provided in the URI. |
-| address | Account address which will submit the block - provided in the URI. |
-| contract | The address of the Block Controller contract. |
-| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
-| block_root | The Merkle root of a Plasma block. |
-
-### EXAMPLE
-
-```sh
-curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x4BC91c7fA64017a94007B7452B75888cD82185F7/plasma/submitDepositBlock
-
-```
