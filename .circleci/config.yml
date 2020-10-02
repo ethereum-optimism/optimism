@@ -11,6 +11,11 @@ jobs:
             make docker-build
           no_output_timeout: 2400s
       - run:
+          name: Test
+          command: |
+            make test
+          no_output_timeout: 2400s
+      - run:
           name: Save Docker image
           command: |
             mkdir -p /tmp/workspace

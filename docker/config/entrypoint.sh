@@ -150,18 +150,18 @@ function test_banner {
 }
 
 function test_plugin {
-	test_banner
-	echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
-	test_banner
-	/home/vault/scripts/smoke.wallet.sh
-	test_banner
-	echo "SMOKE TEST WHITELIST FUNCTIONALITY"
-	test_banner
-	/home/vault/scripts/smoke.whitelist.sh
-	test_banner
-	echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
-	test_banner
-	/home/vault/scripts/smoke.blacklist.sh
+	# test_banner
+	# echo "SMOKE TEST BASIC WALLET FUNCTIONALITY"
+	# test_banner
+	# /home/vault/scripts/smoke.wallet.sh
+	# test_banner
+	# echo "SMOKE TEST WHITELIST FUNCTIONALITY"
+	# test_banner
+	# /home/vault/scripts/smoke.whitelist.sh
+	# test_banner
+	# echo "SMOKE TEST BLACKLIST FUNCTIONALITY"
+	# test_banner
+	# /home/vault/scripts/smoke.blacklist.sh
 	test_banner
 	echo "SMOKE TEST PLASMA FUNCTIONALITY"
 	test_banner
@@ -169,10 +169,14 @@ function test_plugin {
 }
 
 if [ -f "$VAULT_CREDENTIALS" ]; then
+    sleep 10
     unseal
     vault status
     vault secrets list
+    test_banner
+    test_plugin
 else
+    sleep 10
     VAULT_INIT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json | jq .)
     echo $VAULT_INIT > $VAULT_CREDENTIALS
     unseal
@@ -181,7 +185,7 @@ else
     vault status
     vault secrets list
     test_banner
-#    test_plugin
+    test_plugin
 fi
 
 # Don't exit until vault dies
