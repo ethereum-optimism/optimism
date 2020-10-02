@@ -10,7 +10,7 @@
     "build:dump": "ts-node \"bin/take-dump.ts\"",
     "build:copy": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
     "test": "yarn run test:contracts",
-    "test:contracts": "buidler test \"test/contracts/libraries/trie/Lib_EthMerkleTrie.spec.ts\" --show-stack-traces",
+    "test:contracts": "buidler test \"test/contracts/libraries/rlp/Lib_RLPReader.spec.ts\" --show-stack-traces",
     "lint": "yarn run lint:typescript",
     "lint:typescript": "tslint --format stylish --project .",
     "lint:fix": "yarn run lint:fix:typescript",

@@ -6,13 +6,16 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_EthUtils } from "../../libraries/utils/Lib_EthUtils.sol";
-import { Lib_EthMerkleTrie } from "../../libraries/trie/Lib_EthMerkleTrie.sol";
+import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /* Interface Imports */
 import { iOVM_StateTransitioner } from "../../iOVM/verification/iOVM_StateTransitioner.sol";
 import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 import { iOVM_StateManager } from "../../iOVM/execution/iOVM_StateManager.sol";
 import { iOVM_StateManagerFactory } from "../../iOVM/execution/iOVM_StateManagerFactory.sol";
+
+/* Logging Imports */
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /**
  * @title OVM_StateTransitioner
@@ -158,37 +161,77 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
      */
     function proveContractState(
         address _ovmContractAddress,
-        Lib_OVMCodec.Account memory _account,
+        address _ethContractAddress,
+        Lib_OVMCodec.EVMAccount memory _account,
         bytes memory _stateTrieWitness
     )
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
     {
+        // Exit quickly to avoid unnecessary work.
         require(
-            _account.codeHash == Lib_EthUtils.getCodeHash(_account.ethAddress),
+            ovmStateManager.hasAccount(_ovmContractAddress) == false,
+            "Account state has already been proven"
+        );
+
+        require(
+            _account.codeHash == Lib_EthUtils.getCodeHash(_ethContractAddress),
             "Invalid code hash provided."
         );
 
         require(
-            Lib_EthMerkleTrie.proveAccountState(
-                _ovmContractAddress,
-                Lib_OVMCodec.EVMAccount({
-                    balance: _account.balance,
-                    nonce: _account.nonce,
-                    storageRoot: _account.storageRoot,
-                    codeHash: _account.codeHash
-                }),
+            Lib_SecureMerkleTrie.verifyInclusionProof(
+                abi.encodePacked(_ovmContractAddress),
+                Lib_OVMCodec.encodeEVMAccount(_account),
                 _stateTrieWitness,
                 preStateRoot
             ),
-            "Invalid account state provided."
+            "Account state is not correct or invalid inclusion proof provided."
         );
 
         ovmStateManager.putAccount(
             _ovmContractAddress,
-            _account
+            Lib_OVMCodec.Account({
+                nonce: _account.nonce,
+                balance: _account.balance,
+                storageRoot: _account.storageRoot,
+                codeHash: _account.codeHash,
+                ethAddress: _ethContractAddress,
+                isFresh: false
+            })
         );
+    }
+
+    /**
+     * Allows a user to prove that an account does *not* exist in the state.
+     * @param _ovmContractAddress Address of the contract on the OVM.
+     * @param _stateTrieWitness Proof of the (empty) account state.
+     */
+    function proveEmptyContractState(
+        address _ovmContractAddress,
+        bytes memory _stateTrieWitness
+    )
+        override
+        public
+        onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
+    {
+        // Exit quickly to avoid unnecessary work.
+        require(
+            ovmStateManager.hasEmptyAccount(_ovmContractAddress) == false,
+            "Account state has already been proven."
+        );
+
+        require(
+            Lib_SecureMerkleTrie.verifyExclusionProof(
+                abi.encodePacked(_ovmContractAddress),
+                _stateTrieWitness,
+                preStateRoot
+            ),
+            "Account is not empty or invalid inclusion proof provided."
+        );
+
+        ovmStateManager.putEmptyAccount(_ovmContractAddress);
     }
 
     /**
@@ -196,35 +239,37 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
      * @param _ovmContractAddress Address of the contract on the OVM.
      * @param _key Claimed account slot key.
      * @param _value Claimed account slot value.
-     * @param _stateTrieWitness Proof of the account state.
      * @param _storageTrieWitness Proof of the storage slot.
      */
     function proveStorageSlot(
         address _ovmContractAddress,
         bytes32 _key,
         bytes32 _value,
-        bytes memory _stateTrieWitness,
         bytes memory _storageTrieWitness
     )
         override
         public
         onlyDuringPhase(TransitionPhase.PRE_EXECUTION)
     {
+        // Exit quickly to avoid unnecessary work.
+        require(
+            ovmStateManager.hasContractStorage(_ovmContractAddress, _key) == false,
+            "Storage slot has already been proven."
+        );
+
         require(
             ovmStateManager.hasAccount(_ovmContractAddress) == true,
             "Contract must be verified before proving a storage slot."
         );
 
         require(
-            Lib_EthMerkleTrie.proveAccountStorageSlotValue(
-                _ovmContractAddress,
-                _key,
-                _value,
-                _stateTrieWitness,
+            Lib_SecureMerkleTrie.verifyInclusionProof(
+                abi.encodePacked(_key),
+                abi.encodePacked(_value),
                 _storageTrieWitness,
-                preStateRoot
+                ovmStateManager.getAccountStorageRoot(_ovmContractAddress)
             ),
-            "Invalid account state provided."
+            "Storage slot is invalid or invalid inclusion proof provided."
         );
 
         ovmStateManager.putContractStorage(
@@ -254,9 +299,14 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
             "Invalid transaction provided."
         );
 
-        // TODO: Set state manager for EM here.
-
+        // We call `setExecutionManager` right before `run` (and not earlier) just in case the
+        // OVM_ExecutionManager address was updated between the time when this contract was created
+        // and when `applyTransaction` was called.
         ovmStateManager.setExecutionManager(resolve("OVM_ExecutionManager"));
+
+        // `run` always succeeds *unless* the user hasn't provided enough gas to `applyTransaction`
+        // or an INVALID_STATE_ACCESS flag was triggered. Either way, we won't get beyond this line
+        // if that's the case.
         ovmExecutionManager.run(_transaction, address(ovmStateManager));
 
         phase = TransitionPhase.POST_EXECUTION;
@@ -275,7 +325,7 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
      */
     function commitContractState(
         address _ovmContractAddress,
-        Lib_OVMCodec.Account memory _account,
+        Lib_OVMCodec.EVMAccount memory _account,
         bytes memory _stateTrieWitness
     )
         override
@@ -284,17 +334,12 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
     {
         require(
             ovmStateManager.commitAccount(_ovmContractAddress) == true,
-            "Cannot commit an account that has not been changed."
+            "Account was not changed or has already been committed."
         );
 
-        postStateRoot = Lib_EthMerkleTrie.updateAccountState(
-            _ovmContractAddress,
-            Lib_OVMCodec.EVMAccount({
-                balance: _account.balance,
-                nonce: _account.nonce,
-                storageRoot: _account.storageRoot,
-                codeHash: _account.codeHash
-            }),
+        postStateRoot = Lib_SecureMerkleTrie.update(
+            abi.encodePacked(_ovmContractAddress),
+            Lib_OVMCodec.encodeEVMAccount(_account),
             _stateTrieWitness,
             postStateRoot
         );
@@ -321,15 +366,24 @@ contract OVM_StateTransitioner is iOVM_StateTransitioner, Lib_AddressResolver {
     {
         require(
             ovmStateManager.commitContractStorage(_ovmContractAddress, _key) == true,
-            "Cannot commit a storage slot that has not been changed."
+            "Storage slot was not changed or has already been committed."
         );
 
-        postStateRoot = Lib_EthMerkleTrie.updateAccountStorageSlotValue(
-            _ovmContractAddress,
-            _key,
-            _value,
-            _stateTrieWitness,
+        Lib_OVMCodec.EVMAccount memory account = Lib_OVMCodec.toEVMAccount(
+            ovmStateManager.getAccount(_ovmContractAddress)
+        );
+
+        account.storageRoot = Lib_SecureMerkleTrie.update(
+            abi.encodePacked(_key),
+            abi.encodePacked(_value),
             _storageTrieWitness,
+            account.storageRoot
+        );
+
+        postStateRoot = Lib_SecureMerkleTrie.update(
+            abi.encodePacked(_ovmContractAddress),
+            Lib_OVMCodec.encodeEVMAccount(account),
+            _stateTrieWitness,
             postStateRoot
         );
     }

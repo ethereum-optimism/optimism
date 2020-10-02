@@ -8,7 +8,7 @@ import { Lib_BytesUtils } from "../../optimistic-ethereum/libraries/utils/Lib_By
 /**
  * @title TestLib_BytesUtils
  */
-library TestLib_BytesUtils {
+contract TestLib_BytesUtils {
 
     function concat(
         bytes memory _preBytes,

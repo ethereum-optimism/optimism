@@ -3,8 +3,9 @@ pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
 /* Library Imports */
+import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
-import { Lib_EthMerkleTrie } from "../../libraries/trie/Lib_EthMerkleTrie.sol";
+import { Lib_SecureMerkleTrie } from "../../libraries/trie/Lib_SecureMerkleTrie.sol";
 import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 
 /* Interface Imports */
@@ -221,11 +222,27 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
             )
         );
 
-        return Lib_EthMerkleTrie.proveAccountStorageSlotValue(
-            0x4200000000000000000000000000000000000000,
-            storageKey,
-            bytes32(uint256(1)),
+        (
+            bool exists,
+            bytes memory encodedMessagePassingAccount
+        ) = Lib_SecureMerkleTrie.get(
+            abi.encodePacked(0x4200000000000000000000000000000000000000),
             _proof.stateTrieWitness,
+            _proof.stateRoot
+        );
+
+        require(
+            exists == true,
+            "Message passing precompile has not been initialized or invalid proof provided."
+        );
+
+        Lib_OVMCodec.EVMAccount memory account = Lib_OVMCodec.decodeEVMAccount(
+            encodedMessagePassingAccount
+        );
+
+        return Lib_SecureMerkleTrie.verifyInclusionProof(
+            abi.encodePacked(storageKey),
+            abi.encodePacked(uint256(1)),
             _proof.storageTrieWitness,
             _proof.stateRoot
         );

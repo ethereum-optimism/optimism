@@ -25,7 +25,13 @@ interface iOVM_StateTransitioner {
 
     function proveContractState(
         address _ovmContractAddress,
-        Lib_OVMCodec.Account calldata _account,
+        address _ethContractAddress,
+        Lib_OVMCodec.EVMAccount calldata _account,
+        bytes calldata _stateTrieWitness
+    ) external;
+
+    function proveEmptyContractState(
+        address _ovmContractAddress,
         bytes calldata _stateTrieWitness
     ) external;
 
@@ -33,7 +39,6 @@ interface iOVM_StateTransitioner {
         address _ovmContractAddress,
         bytes32 _key,
         bytes32 _value,
-        bytes calldata _stateTrieWitness,
         bytes calldata _storageTrieWitness
     ) external;
 
@@ -53,7 +58,7 @@ interface iOVM_StateTransitioner {
 
     function commitContractState(
         address _ovmContractAddress,
-        Lib_OVMCodec.Account calldata _account,
+        Lib_OVMCodec.EVMAccount calldata _account,
         bytes calldata _stateTrieWitness
     ) external;
 

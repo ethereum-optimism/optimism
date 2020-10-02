@@ -8,7 +8,7 @@ import { Lib_MerkleUtils } from "../../optimistic-ethereum/libraries/utils/Lib_M
 /**
  * @title TestLib_MerkleUtils
  */
-library TestLib_MerkleUtils {
+contract TestLib_MerkleUtils {
 
     function getMerkleRoot(
         bytes32[] memory _hashes

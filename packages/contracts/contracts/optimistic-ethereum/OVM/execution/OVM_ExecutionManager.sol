@@ -1519,10 +1519,12 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bool _valid
         )
     {
+        // Always have to be below the maximum gas limit.
         if (_gasLimit > gasMeterConfig.maxTransactionGasLimit) {
             return false;
         }
 
+        // Always have to be above the minumum gas limit.
         if (_gasLimit < gasMeterConfig.minTransactionGasLimit) {
             return false;
         }

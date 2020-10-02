@@ -8,7 +8,7 @@ import { Lib_RLPWriter } from "../../optimistic-ethereum/libraries/rlp/Lib_RLPWr
 /**
  * @title TestLib_RLPWriter
  */
-library TestLib_RLPWriter {
+contract TestLib_RLPWriter {
 
     function encodeBytes(
         bytes memory _in

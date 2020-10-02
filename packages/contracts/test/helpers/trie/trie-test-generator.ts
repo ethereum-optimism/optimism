@@ -48,8 +48,8 @@ const rlpEncodeAccount = (account: EthereumAccount): string => {
     rlp.encode([
       account.nonce,
       account.balance,
-      account.codeHash || NULL_BYTES32,
       account.storageRoot || NULL_BYTES32,
+      account.codeHash || NULL_BYTES32,
     ])
   )
 }
