@@ -20,7 +20,7 @@ library Lib_RLPWriter {
      * @param _in The byte string to encode.
      * @return _out The RLP encoded string in bytes.
      */
-    function encodeBytes(
+    function writeBytes(
         bytes memory _in
     )
         internal
@@ -34,7 +34,7 @@ library Lib_RLPWriter {
         if (_in.length == 1 && uint8(_in[0]) < 128) {
             encoded = _in;
         } else {
-            encoded = Lib_BytesUtils.concat(encodeLength(_in.length, 128), _in);
+            encoded = Lib_BytesUtils.concat(_writeLength(_in.length, 128), _in);
         }
 
         return encoded;
@@ -45,7 +45,7 @@ library Lib_RLPWriter {
      * @param _in The list of RLP encoded byte strings.
      * @return _out The RLP encoded list of items in bytes.
      */
-    function encodeList(
+    function writeList(
         bytes[] memory _in
     )
         internal
@@ -54,8 +54,8 @@ library Lib_RLPWriter {
             bytes memory _out
         )
     {
-        bytes memory list = flatten(_in);
-        return Lib_BytesUtils.concat(encodeLength(list.length, 192), list);
+        bytes memory list = _flatten(_in);
+        return Lib_BytesUtils.concat(_writeLength(list.length, 192), list);
     }
 
     /**
@@ -63,7 +63,7 @@ library Lib_RLPWriter {
      * @param _in The string to encode.
      * @return _out The RLP encoded string in bytes.
      */
-    function encodeString(
+    function writeString(
         string memory _in
     )
         internal
@@ -72,7 +72,7 @@ library Lib_RLPWriter {
             bytes memory _out
         )
     {
-        return encodeBytes(bytes(_in));
+        return writeBytes(bytes(_in));
     }
 
     /**
@@ -80,7 +80,7 @@ library Lib_RLPWriter {
      * @param _in The address to encode.
      * @return _out The RLP encoded address in bytes.
      */
-    function encodeAddress(
+    function writeAddress(
         address _in
     )
         internal
@@ -97,7 +97,7 @@ library Lib_RLPWriter {
             inputBytes := m
         }
 
-        return encodeBytes(inputBytes);
+        return writeBytes(inputBytes);
     }
 
     /**
@@ -105,7 +105,7 @@ library Lib_RLPWriter {
      * @param _in The uint to encode.
      * @return _out The RLP encoded uint in bytes.
      */
-    function encodeUint(
+    function writeUint(
         uint _in
     )
         internal
@@ -114,7 +114,7 @@ library Lib_RLPWriter {
             bytes memory _out
         )
     {
-        return encodeBytes(toBinary(_in));
+        return writeBytes(_toBinary(_in));
     }
 
     /**
@@ -122,7 +122,7 @@ library Lib_RLPWriter {
      * @param _in The int to encode.
      * @return _out The RLP encoded int in bytes.
      */
-    function encodeInt(
+    function writeInt(
         int _in
     )
         internal
@@ -131,7 +131,7 @@ library Lib_RLPWriter {
             bytes memory _out
         )
     {
-        return encodeUint(uint(_in));
+        return writeUint(uint(_in));
     }
 
     /**
@@ -139,7 +139,7 @@ library Lib_RLPWriter {
      * @param _in The bool to encode.
      * @return _out The RLP encoded bool in bytes.
      */
-    function encodeBool(
+    function writeBool(
         bool _in
     )
         internal
@@ -164,7 +164,7 @@ library Lib_RLPWriter {
      * @param _offset 128 if item is string, 192 if item is list.
      * @return _encoded RLP encoded bytes.
      */
-    function encodeLength(
+    function _writeLength(
         uint _len,
         uint _offset
     )
@@ -203,7 +203,7 @@ library Lib_RLPWriter {
      * @param _x The integer to encode.
      * @return _binary RLP encoded bytes.
      */
-    function toBinary(
+    function _toBinary(
         uint _x
     )
         private
@@ -239,7 +239,7 @@ library Lib_RLPWriter {
      * @param _src Source location.
      * @param _len Length of memory to copy.
      */
-    function memcpy(
+    function _memcpy(
         uint _dest,
         uint _src,
         uint _len
@@ -273,7 +273,7 @@ library Lib_RLPWriter {
      * @param _list List of byte strings to flatten.
      * @return _flattened The flattened byte string.
      */
-    function flatten(
+    function _flatten(
         bytes[] memory _list
     )
         private
@@ -302,7 +302,7 @@ library Lib_RLPWriter {
             uint listPtr;
             assembly { listPtr := add(item, 0x20)}
 
-            memcpy(flattenedPtr, listPtr, item.length);
+            _memcpy(flattenedPtr, listPtr, item.length);
             flattenedPtr += _list[i].length;
         }
 

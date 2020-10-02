@@ -739,7 +739,7 @@ library Lib_MerkleTrie {
             TrieNode memory _node
         )
     {
-        bytes memory encoded = Lib_RLPWriter.encodeList(_raw);
+        bytes memory encoded = Lib_RLPWriter.writeList(_raw);
 
         return TrieNode({
             encoded: encoded,
@@ -786,8 +786,8 @@ library Lib_MerkleTrie {
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, false);
-        raw[0] = Lib_RLPWriter.encodeBytes(Lib_BytesUtils.fromNibbles(key));
-        raw[1] = Lib_RLPWriter.encodeBytes(_value);
+        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
+        raw[1] = Lib_RLPWriter.writeBytes(_value);
         return _makeNode(raw);
     }
 
@@ -812,8 +812,8 @@ library Lib_MerkleTrie {
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, true);
-        raw[0] = Lib_RLPWriter.encodeBytes(Lib_BytesUtils.fromNibbles(key));
-        raw[1] = Lib_RLPWriter.encodeBytes(_value);
+        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
+        raw[1] = Lib_RLPWriter.writeBytes(_value);
         return _makeNode(raw);
     }
 
@@ -851,7 +851,7 @@ library Lib_MerkleTrie {
             TrieNode memory _updatedNode
         )
     {
-        bytes memory encoded = Lib_RLPWriter.encodeBytes(_value);
+        bytes memory encoded = Lib_RLPWriter.writeBytes(_value);
         _branch.decoded[_branch.decoded.length - 1] = Lib_RLPReader.toRLPItem(encoded);
         return _makeNode(_branch.decoded);
     }
@@ -874,7 +874,7 @@ library Lib_MerkleTrie {
             TrieNode memory _updatedNode
         )
     {
-        bytes memory encoded = _value.length < 32 ? _value : Lib_RLPWriter.encodeBytes(_value);
+        bytes memory encoded = _value.length < 32 ? _value : Lib_RLPWriter.writeBytes(_value);
         _branch.decoded[_index] = Lib_RLPReader.toRLPItem(encoded);
         return _makeNode(_branch.decoded);
     }

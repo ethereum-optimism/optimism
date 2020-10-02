@@ -205,12 +205,12 @@ library Lib_OVMCodec {
         // Unfortunately we can't create this array outright because
         // RLPWriter.encodeList will reject fixed-size arrays. Assigning
         // index-by-index circumvents this issue.
-        raw[0] = Lib_RLPWriter.encodeUint(_account.nonce);
-        raw[1] = Lib_RLPWriter.encodeUint(_account.balance);
-        raw[2] = _account.storageRoot == 0 ? RLP_NULL_BYTES : Lib_RLPWriter.encodeBytes(abi.encodePacked(_account.storageRoot));
-        raw[3] = _account.codeHash == 0 ? RLP_NULL_BYTES : Lib_RLPWriter.encodeBytes(abi.encodePacked(_account.codeHash));
+        raw[0] = Lib_RLPWriter.writeUint(_account.nonce);
+        raw[1] = Lib_RLPWriter.writeUint(_account.balance);
+        raw[2] = _account.storageRoot == 0 ? RLP_NULL_BYTES : Lib_RLPWriter.writeBytes(abi.encodePacked(_account.storageRoot));
+        raw[3] = _account.codeHash == 0 ? RLP_NULL_BYTES : Lib_RLPWriter.writeBytes(abi.encodePacked(_account.codeHash));
 
-        return Lib_RLPWriter.encodeList(raw);
+        return Lib_RLPWriter.writeList(raw);
     }
 
     /**

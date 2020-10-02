@@ -10,8 +10,8 @@ import { DUMMY_ACCOUNTS, DUMMY_BYTES32, ZERO_ADDRESS } from '../../../helpers'
 
 const EMPTY_ACCOUNT_CODE_HASH =
   '0x00004B1DC0DE000000004B1DC0DE000000004B1DC0DE000000004B1DC0DE0000'
-const RLP_NULL_HASH =
-  '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421'
+const KECCAK_256_NULL =
+  '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
 
 describe('OVM_StateManager', () => {
   let signer1: Signer
@@ -321,7 +321,7 @@ describe('OVM_StateManager', () => {
         )
       ).to.deep.include({
         nonce: BigNumber.from(1),
-        codeHash: RLP_NULL_HASH,
+        codeHash: KECCAK_256_NULL,
         isFresh: true,
       })
     })

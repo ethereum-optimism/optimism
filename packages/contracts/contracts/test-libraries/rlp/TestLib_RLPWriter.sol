@@ -10,7 +10,7 @@ import { Lib_RLPWriter } from "../../optimistic-ethereum/libraries/rlp/Lib_RLPWr
  */
 contract TestLib_RLPWriter {
 
-    function encodeBytes(
+    function writeBytes(
         bytes memory _in
     )
         public
@@ -19,10 +19,10 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeBytes(_in);
+        return Lib_RLPWriter.writeBytes(_in);
     }
 
-    function encodeList(
+    function writeList(
         bytes[] memory _in
     )
         public
@@ -31,10 +31,10 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeList(_in);
+        return Lib_RLPWriter.writeList(_in);
     }
 
-    function encodeString(
+    function writeString(
         string memory _in
     )
         public
@@ -43,10 +43,10 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeString(_in);
+        return Lib_RLPWriter.writeString(_in);
     }
 
-    function encodeAddress(
+    function writeAddress(
         address _in
     )
         public
@@ -55,10 +55,10 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeAddress(_in);
+        return Lib_RLPWriter.writeAddress(_in);
     }
 
-    function encodeUint(
+    function writeUint(
         uint _in
     )
         public
@@ -67,10 +67,10 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeUint(_in);
+        return Lib_RLPWriter.writeUint(_in);
     }
 
-    function encodeInt(
+    function writeInt(
         int _in
     )
         public
@@ -79,10 +79,10 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeInt(_in);
+        return Lib_RLPWriter.writeInt(_in);
     }
 
-    function encodeBool(
+    function writeBool(
         bool _in
     )
         public
@@ -91,6 +91,6 @@ contract TestLib_RLPWriter {
             bytes memory _out
         )
     {
-        return Lib_RLPWriter.encodeBool(_in);
+        return Lib_RLPWriter.writeBool(_in);
     }
 }

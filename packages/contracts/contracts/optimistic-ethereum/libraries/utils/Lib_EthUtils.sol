@@ -151,10 +151,10 @@ library Lib_EthUtils {
         )
     {
         bytes[] memory encoded = new bytes[](2);
-        encoded[0] = Lib_RLPWriter.encodeAddress(_creator);
-        encoded[1] = Lib_RLPWriter.encodeUint(_nonce);
+        encoded[0] = Lib_RLPWriter.writeAddress(_creator);
+        encoded[1] = Lib_RLPWriter.writeUint(_nonce);
 
-        bytes memory encodedList = Lib_RLPWriter.encodeList(encoded);
+        bytes memory encodedList = Lib_RLPWriter.writeList(encoded);
         return getAddressFromHash(keccak256(encodedList));
     }
 
