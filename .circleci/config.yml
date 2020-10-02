@@ -10,6 +10,12 @@ jobs:
           command: |
             make docker-build
           no_output_timeout: 2400s
+      - run: sudo chown -R 100:1000 docker/config/ && sudo chmod -R 777 docker/config/
+      - run:
+          name: Test
+          command: |
+            make test
+          no_output_timeout: 2400s
       - run:
           name: Save Docker image
           command: |

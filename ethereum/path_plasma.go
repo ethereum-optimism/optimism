@@ -47,6 +47,10 @@ Allows the authority to submit the Merkle root of a Plasma block.
 					Description: "The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price.",
 					Default:     "0",
 				},
+				"nonce": {
+					Type:        framework.TypeString,
+					Description: "The nonce for the transaction.",
+				},
 				"block_root": {
 					Type:        framework.TypeString,
 					Description: "The Merkle root of a Plasma block.",
@@ -118,6 +122,13 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 
 	if gasPriceRaw != "0" {
 		transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+	}
+
+	//transactOpts needs nonce. Use supplied nonce is > 0
+	nonceRaw := data.Get("nonce").(string)
+
+	if nonceRaw != "0" {
+		transactOpts.Nonce = util.ValidNumber(nonceRaw)
 	}
 
 	plasmaSession := &plasma.PlasmaSession{
