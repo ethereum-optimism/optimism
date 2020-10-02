@@ -17,6 +17,8 @@ import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
  */
 contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
 
+    event RelayedL2ToL1Message(bytes32 msgHash);
+
     /*
      * Data Structures
      */
@@ -66,6 +68,7 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
             _message,
             _messageNonce
         );
+        bytes32 msgHash = keccak256(xDomainCalldata);
 
         require(
             _verifyXDomainMessage(
@@ -76,7 +79,7 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
         );
 
         require(
-            receivedMessages[keccak256(xDomainCalldata)] == false,
+            receivedMessages[msgHash] == false,
             "Provided message has already been received."
         );
 
@@ -88,7 +91,9 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
         // ignore the result of the call and always mark the message as
         // successfully executed because we won't get here unless we have
         // enough gas left over.
-        receivedMessages[keccak256(xDomainCalldata)] = true;
+        receivedMessages[msgHash] = true;
+
+        emit RelayedL2ToL1Message(msgHash);
     }
 
     /**
