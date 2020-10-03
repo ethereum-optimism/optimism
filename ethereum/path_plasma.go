@@ -44,7 +44,7 @@ Allows the authority to submit the Merkle root of a Plasma block.
 				},
 				"gas_price": {
 					Type:        framework.TypeString,
-					Description: "The gas price for the transaction in wei."
+					Description: "The gas price for the transaction in wei.",
 				},
 				"nonce": {
 					Type:        framework.TypeString,
