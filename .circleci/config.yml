@@ -34,8 +34,8 @@ jobs:
             done
       - run:
           name: Test
-          command: |
-            make test
+          working_directory: /home/circleci/project/docker
+          command: docker-compose up vault_server
           no_output_timeout: 2400s
       - run:
           name: Save Docker image
