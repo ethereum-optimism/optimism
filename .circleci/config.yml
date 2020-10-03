@@ -13,7 +13,7 @@ jobs:
       - run: sudo chown -R 100:1000 docker/config/ && sudo chmod -R 777 docker/config/
       - run:
           name: Infra standup
-          working_directory: /tmp/workspace/docker
+          working_directory: /home/circleci/project/docker
           command: docker-compose up ganache truffle
           background: true
       - run: 
