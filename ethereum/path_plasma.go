@@ -44,8 +44,7 @@ Allows the authority to submit the Merkle root of a Plasma block.
 				},
 				"gas_price": {
 					Type:        framework.TypeString,
-					Description: "The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price.",
-					Default:     "0",
+					Description: "The gas price for the transaction in wei."
 				},
 				"nonce": {
 					Type:        framework.TypeString,
@@ -117,20 +116,14 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 	if err != nil {
 		return nil, err
 	}
-	//transactOpts needs gas etc. Use supplied gas_price if > 0
+	//transactOpts needs gas etc. Use supplied gas_price 
 	gasPriceRaw := data.Get("gas_price").(string)
-
-	if gasPriceRaw != "0" {
-		transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
-	}
-
-	//transactOpts needs nonce. Use supplied nonce is > 0
+	transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
+	
+	//transactOpts needs nonce. Use supplied nonce
 	nonceRaw := data.Get("nonce").(string)
-
-	if nonceRaw != "0" {
-		transactOpts.Nonce = util.ValidNumber(nonceRaw)
-	}
-
+	transactOpts.Nonce = util.ValidNumber(nonceRaw)
+	
 	plasmaSession := &plasma.PlasmaSession{
 		Contract:     instance,  // Generic contract caller binding to set the session for
 		CallOpts:     *callOpts, // Call options to use throughout this session

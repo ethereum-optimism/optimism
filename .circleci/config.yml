@@ -12,6 +12,27 @@ jobs:
           no_output_timeout: 2400s
       - run: sudo chown -R 100:1000 docker/config/ && sudo chmod -R 777 docker/config/
       - run:
+          name: Infra standup
+          working_directory: /tmp/workspace/docker
+          command: docker-compose up ganache truffle
+          background: true
+      - run: 
+          name: Contracts up?
+          command: |
+            sleep 10
+            attempt_counter=0
+            max_attempts=25
+            until [ -z "$(docker ps | grep docker_truffle 2> /dev/null)" ] 
+            do
+              if [ ${attempt_counter} -eq ${max_attempts} ];then
+                echo "Max attempts reached"
+                exit 1
+              fi
+              printf '.'
+              attempt_counter=$(($attempt_counter+1))
+              sleep 5
+            done
+      - run:
           name: Test
           command: |
             make test

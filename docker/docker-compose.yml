@@ -51,6 +51,8 @@ services:
     links:
       - "ganache"
       - "truffle"
+    environment:
+      - TEST=true
     volumes:
       - "./config:/home/vault/config:rw"
       - "../contracts:/home/vault/contracts:ro"

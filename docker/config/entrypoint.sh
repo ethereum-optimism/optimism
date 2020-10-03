@@ -188,6 +188,11 @@ else
     test_plugin
 fi
 
-# Don't exit until vault dies
 
-wait $VAULT_PID
+if [ -n "$TEST" ]; then 
+    echo "Dying."
+else
+    echo "Don't exit until vault dies."
+    wait $VAULT_PID
+fi
+
