@@ -46,11 +46,6 @@ services:
       - testnet
     ports:
       - "8200:8900"
-    depends_on:
-      - "ganache"
-    links:
-      - "ganache"
-      - "truffle"
     environment:
       - TEST=true
     volumes:
