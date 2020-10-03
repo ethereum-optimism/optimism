@@ -284,20 +284,13 @@ Determining how many backup files you want to keep is a business decision. There
 vault operator raft snapshot save snapshot-$(date +%Y%m%d-%H%M%S).raft
 ```
 
-*Rotational strategy*. In this example, a maximum of 5 snapshots are maintained at any given time.
+*Rotational strategy*. Maintain a most-recent set of snapshots. This is implemented in a script and can be used as follows:
+
+In `infrastructure`, execute:
 
 ```bash
-rm -f snapshot-4.raft
-
-for i in 3 2 1; do
-  let NEXT=$i+1
-  mv -f snapshot-${i}.raft snapshot-${NEXT}.raft 2> /dev/null
-done
-
-mv -f snapshot.raft snapshot-1.raft 2> /dev/null
-
-vault operator raft snapshot save snapshot.raft
-```
+./scripts/vault_backup.sh -d <dest-dir> [-p <file-prefix>] [-m <max-backups>] [--help]
+``
 
 #### Restore Vault RAFT Data from a Snapshot File
 
@@ -305,7 +298,15 @@ When you need to restore your Vault cluster back to a known-good state, identify
 
 ```bash
 vault operator raft snapshot restore snapshot-file.raft
-```
+````
+
+If using the *Rotational strategy*, this is implemented in a script and can be used as follows:
+
+In `infrastructure`, execute:
+
+```bash
+./scripts/vault_restore.sh -s <src-dir> [-p <file-prefix>] [-b <backup-number>] [--help]
+``
 
 #### Generating New Certificates
 
