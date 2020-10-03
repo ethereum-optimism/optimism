@@ -1,3 +1,18 @@
+## 0.0.7 (xx yy, 2020)
+
+NEW FEATURES:
+
+* Backup / Restore scripts created for Vault Raft Data
+* Creation of the gen_overrides.sh script
+
+REFACTOR:
+
+* updated `VERSION` file to `0.0.7`
+* Regionalized SSD Persistent Data Volumes for Vault Raft Data
+* Vault Auditing is now enabled
+* Fix Vault Raft Peering
+* Replaced the Custom Vault Helm Chart with the officially supported Helm Chart from Hashicorp
+
 ## 0.0.6 (August 15, 2020)
 
 NEW FEATURES:
@@ -6,8 +21,6 @@ NEW FEATURES:
 * Raft-based Vault Backend
 * Enable GCR and KMS in the Vault GCP project with service accounts
 * CircleCI config to push `omgnetwork/vault` images into GCR
-
-N/A
 
 REFACTOR:
 
