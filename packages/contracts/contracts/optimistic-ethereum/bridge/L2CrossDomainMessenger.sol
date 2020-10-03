@@ -11,6 +11,9 @@ import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
  * @title L2CrossDomainMessenger
  */
 contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
+
+    event RelayedL1ToL2Message(bytes32 msgHash);
+
     /*
      * Contract Variables
      */
@@ -64,9 +67,10 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
             _message,
             _messageNonce
         );
+        bytes32 msgHash = keccak256(xDomainCalldata);
 
         require(
-            receivedMessages[keccak256(xDomainCalldata)] == false,
+            receivedMessages[msgHash] == false,
             "Provided message has already been received."
         );
 
@@ -78,7 +82,9 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
         // ignore the result of the call and always mark the message as
         // successfully executed because we won't get here unless we have
         // enough gas left over.
-        receivedMessages[keccak256(xDomainCalldata)] = true;
+        receivedMessages[msgHash] = true;
+
+        emit RelayedL1ToL2Message(msgHash);
     }
 
 
