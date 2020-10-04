@@ -50,7 +50,7 @@ usage() {
 
 # cleanup makes sure the temporary file is deleted
 cleanup() {
-    if [[ -f "${BACKUP_FILENAME}" ]]; then
+    if [[ "${BACKUP_FILENAME}" != "" && -f "${BACKUP_FILENAME}" ]]; then
         rm -f "${BACKUP_FILENAME}"
     fi
 }
