@@ -175,7 +175,7 @@ export const makeStateDump = async (): Promise<any> => {
   const changedAccounts = await getChangedAccounts(cStateManager)
 
   let deadAddressIndex = 0
-  let accounts: Accounts = []
+  const accounts: Accounts = []
 
   for (const originalAddress of changedAccounts) {
     const code = (
@@ -207,7 +207,7 @@ export const makeStateDump = async (): Promise<any> => {
     accounts.push({
       originalAddress,
       address,
-      code: code,
+      code,
     })
   }
 

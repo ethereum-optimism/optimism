@@ -5,7 +5,6 @@ import * as mkdirp from 'mkdirp'
 
 /* Internal Imports */
 import { makeStateDump } from '../src'
-
 ;(async () => {
   const outdir = path.resolve(__dirname, '../build/dumps')
   const outfile = path.join(outdir, 'state-dump.latest.json')
