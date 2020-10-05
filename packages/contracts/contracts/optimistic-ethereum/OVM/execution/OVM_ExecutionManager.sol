@@ -871,10 +871,16 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
             bytes memory _returndata
         )
     {
+        // EVM precompiles have the same address on L1 and L2 --> no trie lookup neededgit s.
+        address codeContractAddress = 
+            uint(_contract) < 100
+            ? _contract
+            : _getAccountEthAddress(_contract)
+
         return _handleExternalInteraction(
             _nextMessageContext,
             _gasLimit,
-            _getAccountEthAddress(_contract),
+            codeContractAddress,
             _calldata,
             _isStaticEntrypoint
         );
