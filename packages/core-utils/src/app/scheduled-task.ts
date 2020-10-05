@@ -51,20 +51,16 @@ export abstract class ScheduledTask {
         throw e
       }
 
-      if (rerunImmediately) {
-        // Purposefully do not await
-        this.run()
-        return
-      }
-
-      try {
-        await sleep(this.periodMilliseconds)
-      } catch (e) {
-        logError(
-          log,
-          `Error sleeping in ScheduledTask! Continuing execution.`,
-          e
-        )
+      if (!rerunImmediately) {
+        try {
+          await sleep(this.periodMilliseconds)
+        } catch (e) {
+          logError(
+            log,
+            `Error sleeping in ScheduledTask! Continuing execution.`,
+            e
+          )
+        }
       }
     }
   }
