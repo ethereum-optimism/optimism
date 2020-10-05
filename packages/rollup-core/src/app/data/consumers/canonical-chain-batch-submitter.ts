@@ -96,6 +96,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       let validated: boolean = false
       try {
         const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
+        log.debug(
+          `Submitting batch ${batchBlockNumber}: ${JSON.stringify(
+            batchSubmission
+          )}`
+        )
 
         await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
 
@@ -162,10 +167,23 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     )
   }
 
+  // Returns the most recent block number with a L1 to L2 transaction
   protected async getBatchSubmissionBlockNumber(): Promise<number> {
-    // TODO: This will eventually be part of the output metadata from L2 tx outputs
-    //  Need to update geth to have this functionality so this is a mock for now
-    return (await this.getL1BlockNumber()) - 10
+    const results = await Promise.all([
+      this.dataService.getMaxL1BlockNumber(),
+      this.getMaxL1ToL2QueueBlockNumber(),
+      this.getMaxSafetyQueueBlockNumber(),
+    ])
+
+    let min = Number.MAX_SAFE_INTEGER
+    for (const result of results) {
+      // `undefined` values will always return false
+      if (result < min) {
+        min = result
+      }
+    }
+
+    return min
   }
 
   /**

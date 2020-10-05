@@ -59,9 +59,9 @@ export class DefaultSequentialProcessingDataService
     const res = await this.rdb.select(
       `SELECT MAX(sequence_number) as last_processed
       FROM sequential_processing
-      WHERE 
+      WHERE
         sequence_key = '${sequenceKey}'
-        AND processed = TRUE`
+        AND processed = 'TRUE'`
     )
 
     if (!doesColumnDataExist(res, 0, 'last_processed')) {
@@ -99,7 +99,7 @@ export class DefaultSequentialProcessingDataService
     }
 
     log.debug(
-      `[${sequenceKey}] Persisted item with index ${index}: ${itemData}`
+      `[${sequenceKey}] Persisted item with index ${index}, processed=${processed}: ${itemData}`
     )
   }
 
@@ -112,8 +112,8 @@ export class DefaultSequentialProcessingDataService
   ): Promise<void> {
     await this.rdb.execute(
       `UPDATE sequential_processing
-      SET processed = TRUE
-      WHERE 
+      SET processed = 'TRUE'
+      WHERE
         sequence_key = '${sequenceKey}'
         AND sequence_number = ${index}`
     )

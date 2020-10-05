@@ -81,7 +81,7 @@ export class L1ChainDataPersister extends ChainDataProcessor {
    */
   protected async handleNextItem(index: number, block: Block): Promise<void> {
     log.debug(
-      `handling block ${block.number}. Searching for any relevant logs.`
+      `handling block ${block.number} with index ${index}. Searching for any relevant logs.`
     )
 
     let relevantLogs: Log[]
