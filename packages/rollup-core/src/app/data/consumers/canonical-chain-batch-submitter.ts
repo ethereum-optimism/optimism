@@ -96,7 +96,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       let validated: boolean = false
       try {
         const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
-        log.debug(`Submitting batch ${batchBlockNumber}: ${JSON.stringify(batchSubmission)}`)
+        log.debug(
+          `Submitting batch ${batchBlockNumber}: ${JSON.stringify(
+            batchSubmission
+          )}`
+        )
 
         await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
 
@@ -168,7 +172,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     const results = await Promise.all([
       this.dataService.getLatestL1ToL2BlockNumber(),
       this.getMaxL1ToL2QueueBlockNumber(),
-      this.getMaxSafetyQueueBlockNumber()
+      this.getMaxSafetyQueueBlockNumber(),
     ])
 
     let min = Number.MAX_SAFE_INTEGER
