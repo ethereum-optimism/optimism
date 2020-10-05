@@ -96,14 +96,12 @@ export interface L2DataService {
    * Gets the last block number with an L1 to L2 transaction
    * @returns The number
    */
-
   getLatestL1ToL2BlockNumber(): Promise<number>
 
   /**
    * Get the max L1 block number
    * @returns Maximum block number
    */
-
   getMaxL1BlockNumber(): Promise<number>
 
   /**
