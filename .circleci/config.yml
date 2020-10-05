@@ -16,22 +16,6 @@ jobs:
           working_directory: /home/circleci/project/docker
           command: docker-compose up ganache truffle
           background: true
-      - run: 
-          name: Contracts up?
-          command: |
-            sleep 10
-            attempt_counter=0
-            max_attempts=25
-            until [ -z "$(docker ps | grep docker_truffle 2> /dev/null)" ] 
-            do
-              if [ ${attempt_counter} -eq ${max_attempts} ];then
-                echo "Max attempts reached"
-                exit 1
-              fi
-              printf '.'
-              attempt_counter=$(($attempt_counter+1))
-              sleep 5
-            done
       - run:
           name: Test
           working_directory: /home/circleci/project/docker
