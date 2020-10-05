@@ -118,10 +118,16 @@ func (b *PluginBackend) pathPlasmaSubmitBlock(ctx context.Context, req *logical.
 	}
 	//transactOpts needs gas etc. Use supplied gas_price 
 	gasPriceRaw := data.Get("gas_price").(string)
+	if gasPriceRaw == "" {
+		return nil, fmt.Errorf("invalid gas_price")
+	}
 	transactOpts.GasPrice = util.ValidNumber(gasPriceRaw)
 	
 	//transactOpts needs nonce. Use supplied nonce
 	nonceRaw := data.Get("nonce").(string)
+	if nonceRaw == "" {
+		return nil, fmt.Errorf("invalid nonce")
+	}
 	transactOpts.Nonce = util.ValidNumber(nonceRaw)
 	
 	plasmaSession := &plasma.PlasmaSession{
