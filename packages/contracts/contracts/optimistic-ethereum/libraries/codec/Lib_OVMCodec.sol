@@ -81,8 +81,8 @@ library Lib_OVMCodec {
     }
 
     struct QueueElement {
-        uint256 timestamp;
         bytes32 batchRoot;
+        uint256 timestamp; // TODO: make smaller so it gets back and update L1toL2queue to truncate
         bool isL1ToL2Batch;
     }
 
