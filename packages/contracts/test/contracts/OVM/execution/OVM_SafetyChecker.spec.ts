@@ -17,7 +17,7 @@ describe('OVM_SafetyChecker', () => {
     OVM_SafetyChecker = await Factory__OVM_SafetyChecker.deploy()
   })
 
-  describe('isBytecodeSafe()', () => {
+  describe.skip('isBytecodeSafe()', () => {
     for (const testName of Object.keys(SAFETY_CHECKER_TEST_JSON)) {
       const test = SAFETY_CHECKER_TEST_JSON[testName]
       it(`should correctly classify: ${testName}`, async () => {

@@ -7,7 +7,7 @@ import { Lib_MerkleTrie } from "../../optimistic-ethereum/libraries/trie/Lib_Mer
 /**
  * @title TestLib_MerkleTrie
  */
-library TestLib_MerkleTrie {
+contract TestLib_MerkleTrie {
 
     function verifyInclusionProof(
         bytes memory _key,
@@ -31,7 +31,6 @@ library TestLib_MerkleTrie {
 
     function verifyExclusionProof(
         bytes memory _key,
-        bytes memory _value,
         bytes memory _proof,
         bytes32 _root
     )
@@ -43,7 +42,6 @@ library TestLib_MerkleTrie {
     {
         return Lib_MerkleTrie.verifyExclusionProof(
             _key,
-            _value,
             _proof,
             _root
         );

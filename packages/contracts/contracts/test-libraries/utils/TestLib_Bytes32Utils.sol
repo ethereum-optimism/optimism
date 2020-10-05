@@ -7,7 +7,7 @@ import { Lib_Bytes32Utils } from "../../optimistic-ethereum/libraries/utils/Lib_
 /**
  * @title TestLib_Byte32Utils
  */
-library TestLib_Bytes32Utils {
+contract TestLib_Bytes32Utils {
 
     function toBool(
         bytes32 _in

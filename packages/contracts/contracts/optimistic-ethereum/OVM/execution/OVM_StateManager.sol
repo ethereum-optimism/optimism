@@ -112,6 +112,20 @@ contract OVM_StateManager is iOVM_StateManager {
     }
 
     /**
+     * Marks an account as empty.
+     * @param _address Address of the account to mark.
+     */
+    function putEmptyAccount(
+        address _address
+    )
+        override
+        public
+        authenticated
+    {
+        accounts[_address].codeHash = EMPTY_ACCOUNT_CODE_HASH;
+    }
+
+    /**
      * Retrieves an account from the state.
      * @param _address Address of the account to retrieve.
      * @return _account Account for the given address.
@@ -216,6 +230,24 @@ contract OVM_StateManager is iOVM_StateManager {
     }
 
     /**
+     * Retrieves the storage root of an account.
+     * @param _address Address of the account to access.
+     * @return _storageRoot Corresponding storage root.
+     */
+    function getAccountStorageRoot(
+        address _address
+    )
+        override
+        public
+        view
+        returns (
+            bytes32 _storageRoot
+        )
+    {
+        return accounts[_address].storageRoot;
+    }
+
+    /**
      * Initializes a pending account (during CREATE or CREATE2) with the default values.
      * @param _address Address of the account to initialize.
      */
@@ -228,7 +260,7 @@ contract OVM_StateManager is iOVM_StateManager {
     {
         Lib_OVMCodec.Account storage account = accounts[_address];
         account.nonce = 1;
-        account.codeHash = keccak256(hex'80');
+        account.codeHash = keccak256(hex'');
         account.isFresh = true;
     }
 

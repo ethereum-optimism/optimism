@@ -7,7 +7,7 @@ import { Lib_ECDSAUtils } from "../../optimistic-ethereum/libraries/utils/Lib_EC
 /**
  * @title TestLib_ECDSAUtils
  */
-library TestLib_ECDSAUtils {
+contract TestLib_ECDSAUtils {
 
     function recover(
         bytes memory _message,

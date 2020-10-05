@@ -41,6 +41,32 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
         targetMessengerAddress = _targetMessengerAddress;
     }
 
+    /**
+     * Sends a cross domain message to the target messenger.
+     * @param _target Target contract address.
+     * @param _message Message to send to the target.
+     * @param _gasLimit Gas limit for the provided message.
+     */
+    function sendMessage(
+        address _target,
+        bytes memory _message,
+        uint256 _gasLimit
+    )
+        override
+        public
+    {
+        bytes memory xDomainCalldata = _getXDomainCalldata(
+            _target,
+            msg.sender,
+            _message,
+            messageNonce
+        );
+
+        _sendXDomainMessage(xDomainCalldata, _gasLimit);
+
+        messageNonce += 1;
+        sentMessages[keccak256(xDomainCalldata)] = true;
+    }
 
     /**********************
      * Internal Functions *
@@ -73,5 +99,20 @@ contract OVM_BaseCrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
             _message,
             _messageNonce
         );
+    }
+
+    /**
+     * Sends a cross domain message.
+     * @param _message Message to send.
+     * @param _gasLimit Gas limit for the provided message.
+     */
+    function _sendXDomainMessage(
+        bytes memory _message,
+        uint256 _gasLimit
+    )
+        virtual
+        internal
+    {
+        revert("Implement me in child contracts!");
     }
 }

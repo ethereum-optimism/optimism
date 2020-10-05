@@ -47,18 +47,6 @@ interface iOVM_L1CrossDomainMessenger is iOVM_BaseCrossDomainMessenger {
     ) external;
 
     /**
-     * Sends a cross domain message to the target messenger.
-     * @param _target Target contract address.
-     * @param _message Message to send to the target.
-     * @param _gasLimit Gas limit for the provided message.
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint32 _gasLimit
-    ) external;
-
-    /**
      * Replays a cross domain message to the target messenger.
      * @param _target Target contract address.
      * @param _sender Original sender address.

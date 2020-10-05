@@ -71,7 +71,6 @@ const test_run: TestDefinition = {
   parameters: [
     {
       name: 'run => ovmCALL(ADDRESS_1) => ovmADDRESS',
-      focus: true,
       steps: [
         {
           functionName: 'run',

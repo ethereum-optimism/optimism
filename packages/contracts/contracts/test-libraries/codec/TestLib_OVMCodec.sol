@@ -8,7 +8,7 @@ import { Lib_OVMCodec } from "../../optimistic-ethereum/libraries/codec/Lib_OVMC
 /**
  * @title TestLib_OVMCodec
  */
-library TestLib_OVMCodec {
+contract TestLib_OVMCodec {
 
     function decodeEOATransaction(
         bytes memory _transaction

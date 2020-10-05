@@ -88,31 +88,6 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         receivedMessages[keccak256(xDomainCalldata)] = true;
     }
 
-    /**
-     * Sends a cross domain message to the target messenger.
-     * @inheritdoc iOVM_L2CrossDomainMessenger
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint256 _gasLimit
-    )
-        override
-        public
-    {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
-            _target,
-            msg.sender,
-            _message,
-            messageNonce
-        );
-
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
-        messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
-    }
-
 
     /**********************
      * Internal Functions *
@@ -142,6 +117,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         bytes memory _message,
         uint256 _gasLimit
     )
+        override
         internal
     {
         ovmL2ToL1MessagePasser.passMessageToL1(_message);

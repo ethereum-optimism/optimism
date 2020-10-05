@@ -8,7 +8,7 @@ import {
 usePlugin('@nomiclabs/buidler-ethers')
 usePlugin('@nomiclabs/buidler-waffle')
 
-import '@eth-optimism/smock/src/buidler-plugins/compiler-storage-layout'
+import '@eth-optimism/smock/build/src/buidler-plugins/compiler-storage-layout'
 
 const config: BuidlerConfig = {
   networks: {

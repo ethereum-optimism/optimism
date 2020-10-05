@@ -73,7 +73,10 @@ contract OVM_StateCommitmentChain is iOVM_StateCommitmentChain, OVM_BaseChain, L
             elements[i] = abi.encodePacked(_batch[i]);
         }
 
-        _appendBatch(elements);
+        _appendBatch(
+            elements,
+            abi.encodePacked(block.timestamp)
+        );
     }
 
     /**

@@ -1,5 +1,5 @@
 {
-    "safetyCheckerTests": {
+    "tests": {
         "single opcode blacklisted: ADDRESS": {
             "in": "0x30",
             "out": false

@@ -2,7 +2,7 @@
   "source": "https://eips.ethereum.org/EIPS/eip-1014",
   "notes": "added additional tests with more bytecode",
   "date": "2020-01-10",
-  "create2Tests": {
+  "tests": {
     "all zero values": {
       "address": "0x0000000000000000000000000000000000000000",
       "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",

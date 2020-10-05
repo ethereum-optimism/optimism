@@ -8,7 +8,7 @@ import { Lib_EthUtils } from "../../optimistic-ethereum/libraries/utils/Lib_EthU
 /**
  * @title TestLib_EthUtils
  */
-library TestLib_EthUtils {
+contract TestLib_EthUtils {
 
     function getCode(
         address _address,
