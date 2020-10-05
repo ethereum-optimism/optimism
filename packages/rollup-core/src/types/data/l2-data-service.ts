@@ -100,6 +100,13 @@ export interface L2DataService {
   getLatestL1ToL2BlockNumber(): Promise<number>
 
   /**
+   * Get the max L1 block number
+   * @returns Maximum block number
+   */
+
+  getMaxL1BlockNumber(): Promise<number>
+
+  /**
    * Marks the Canonical Chain Tx batch with the provided batch number as in the process of being submitted to the L1 chain.
    *
    * @param batchNumber The batch number to mark as submitting.

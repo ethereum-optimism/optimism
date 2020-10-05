@@ -377,6 +377,18 @@ export class DefaultDataService implements DataService {
     return parseInt(res[0]['block_number'], 10)
   }
 
+  public async getMaxL1BlockNumber(): Promise<number> {
+    const res: Row[] = await this.rdb.select(
+      `SELECT MAX(block_number) AS block_number from l1_block`
+    )
+
+    if (!res || !res['block_number']) {
+      throw new Error('Last L1 block number not found')
+    }
+
+    return parseInt(res['block_number'], 10)
+  }
+
   /**
    * @inheritDoc
    */

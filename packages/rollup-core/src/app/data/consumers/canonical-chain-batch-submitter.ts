@@ -170,7 +170,7 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
   // Returns the most recent block number with a L1 to L2 transaction
   protected async getBatchSubmissionBlockNumber(): Promise<number> {
     const results = await Promise.all([
-      this.dataService.getLatestL1ToL2BlockNumber(),
+      this.dataService.getMaxL1BlockNumber(),
       this.getMaxL1ToL2QueueBlockNumber(),
       this.getMaxSafetyQueueBlockNumber(),
     ])
