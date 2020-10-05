@@ -4,6 +4,7 @@ import {
   add0x,
   getLogger,
   logError,
+  roundToNearestMultipleOf32,
   ZERO_ADDRESS,
 } from '@eth-optimism/core-utils'
 
@@ -36,7 +37,12 @@ import {
   l1TxInsertStatement,
   l2TransactionOutputInsertStatement,
 } from './query-utils'
-import { ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA } from '../constants'
+import {
+  L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX,
+  L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES,
+  L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES,
+  L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA,
+} from '../constants'
 
 const log = getLogger('data-service')
 
@@ -95,7 +101,7 @@ export class DefaultDataService implements DataService {
     txContext?: any
   ): Promise<void> {
     return this.rdb.execute(
-      `${l1BlockInsertStatement} 
+      `${l1BlockInsertStatement}
       VALUES (${getL1BlockInsertValue(block, processed)})`,
       txContext
     )
@@ -114,8 +120,9 @@ export class DefaultDataService implements DataService {
     const values: string[] = transactions.map(
       (tx, index) => `(${getL1TransactionInsertValue(tx, index)})`
     )
+
     return this.rdb.execute(
-      `${l1TxInsertStatement} 
+      `${l1TxInsertStatement}
       VALUES ${values.join(',')}`,
       txContext
     )
@@ -394,12 +401,12 @@ export class DefaultDataService implements DataService {
    * @inheritDoc
    */
   public async tryBuildCanonicalChainBatchNotPresentOnL1(
-    minBatchCalldataBytes: number,
-    maxBatchCalldataBytes: number
+    minL2TxCalldataBytes: number,
+    maxL1BatchTxBytes: number
   ): Promise<number> {
     const txRes = await this.rdb.select(
       `SELECT 
-                SUM(GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA}) as batch_calldata, 
+                SUM(GREATEST(LENGTH(calldata)-2, 0) / 2 + ${L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA}) as batch_calldata, 
                 block_timestamp
             FROM l2_tx_output
             WHERE
@@ -415,16 +422,16 @@ export class DefaultDataService implements DataService {
       !txRes.length ||
       !txRes[0]['block_timestamp'] ||
       (txRes.length < 2 &&
-        parseInt(txRes[0]['batch_calldata'], 10) < minBatchCalldataBytes)
+        parseInt(txRes[0]['batch_calldata'], 10) < minL2TxCalldataBytes)
     ) {
       return -1
     }
 
     const batchTimestamp = parseInt(txRes[0]['block_timestamp'], 10)
 
-    const maxTxId = await this.getMaxL2TxOutputIdForCanonicalChainBatch(
+    const maxBlockNumber = await this.getMaxL2TxOutputBlockNumberForCanonicalChainBatch(
       batchTimestamp,
-      maxBatchCalldataBytes
+      maxL1BatchTxBytes
     )
 
     const txContext = await this.rdb.startTransaction()
@@ -434,20 +441,19 @@ export class DefaultDataService implements DataService {
         `UPDATE l2_tx_output tx
         SET 
             canonical_chain_batch_number = ${batchNumber},
-            canonical_chain_batch_index = t.row_number
+            canonical_chain_batch_index = t.batch_index
         FROM 
           (
-            SELECT id, row_number() over (ORDER BY id) -1 as row_number
+            SELECT id, row_number() over (ORDER BY block_number ASC, tx_index ASC) -1 as batch_index
             FROM l2_tx_output
             WHERE
               canonical_chain_batch_number IS NULL
               AND l1_rollup_tx_id IS NULL
               AND block_timestamp = ${batchTimestamp}
-              AND id <= ${maxTxId}
+              AND block_number <= ${maxBlockNumber}
             ORDER BY block_number ASC, tx_index ASC
           ) t
-        WHERE tx.id = t.id 
-          `,
+        WHERE tx.id = t.id`,
         txContext
       )
 
@@ -460,19 +466,19 @@ export class DefaultDataService implements DataService {
     }
   }
 
-  public async getMaxL2TxOutputIdForCanonicalChainBatch(
+  public async getMaxL2TxOutputBlockNumberForCanonicalChainBatch(
     batchTimestamp: number,
-    maxBatchCalldataBytes: number
+    maxL1BatchTxBytes: number
   ): Promise<number> {
     const res: Row[] = await this.rdb.select(
       `SELECT 
-            id, 
-            GREATEST(LENGTH(calldata)-2, 0) / 2 + ${ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA} as calldata_bytes
+            block_number, 
+            GREATEST(LENGTH(calldata)-2, 0) / 2 + ${L2_ROLLUP_TX_SIZE_IN_BYTES_MINUS_CALLDATA} as calldata_bytes
       FROM l2_tx_output
       WHERE 
             block_timestamp = ${batchTimestamp}
             AND canonical_chain_batch_number IS NULL
-      ORDER BY id ASC
+      ORDER BY block_number ASC, tx_index ASC
       `
     )
 
@@ -482,31 +488,35 @@ export class DefaultDataService implements DataService {
       throw Error(msg)
     }
 
-    let totalCalldataBytes: number = 0
-    let lastId = -1
+    let totalL1TxBytes: number =
+      L1_ROLLUP_BATCH_TX_STATIC_OVERHEAD_BYTES +
+      L1_ROLLUP_BATCH_TX_STATIC_CALLDATA_BYTES
+    let lastBlockNumber = -1
     for (const row of res) {
       const rowBytes: number = parseInt(row['calldata_bytes'], 10)
-      totalCalldataBytes += rowBytes
-      if (totalCalldataBytes > maxBatchCalldataBytes) {
-        if (lastId === -1) {
-          const msg: string = `L2 Tx with ID ${row['id']} has ${totalCalldataBytes} bytes of calldata, which is bigger than the limit of ${maxBatchCalldataBytes}! Cannot roll up this transaction!`
+      totalL1TxBytes +=
+        roundToNearestMultipleOf32(rowBytes) +
+        L1_ROLLUP_BATCH_TX_BYTES_PER_L2_TX
+      if (totalL1TxBytes > maxL1BatchTxBytes) {
+        if (lastBlockNumber === -1) {
+          const msg: string = `L2 Tx with block number ${row['block_number']} has ${totalL1TxBytes} bytes of calldata, which is bigger than the limit of ${maxL1BatchTxBytes}! Cannot roll up this transaction!`
           log.error(msg)
           throw Error(msg)
         }
         log.debug(
-          `Building Canonical Chain Batch with ${totalCalldataBytes -
-            rowBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastId}`
+          `Building Canonical Chain Batch with ${totalL1TxBytes -
+            rowBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastBlockNumber}`
         )
-        return lastId
+        return lastBlockNumber
       }
-      lastId = parseInt(row['id'], 10)
+      lastBlockNumber = parseInt(row['block_number'], 10)
     }
 
     log.debug(
-      `Building Canonical Chain Batch with ${totalCalldataBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastId}`
+      `Building Canonical Chain Batch with ${totalL1TxBytes} bytes of rollup tx calldata and timestamp ${batchTimestamp}. Largest tx output ID: ${lastBlockNumber}`
     )
 
-    return lastId
+    return lastBlockNumber
   }
 
   /**
@@ -605,7 +615,7 @@ export class DefaultDataService implements DataService {
             state_commitment_chain_batch_number = ${batchNumber},
             state_commitment_chain_batch_index = t.row_number
         FROM (
-          SELECT id, row_number() over (ORDER BY id) -1 as row_number
+          SELECT id, row_number() over (ORDER BY block_number ASC, tx_index ASC) -1 as row_number
           FROM l2_tx_output
           WHERE state_commitment_chain_batch_number IS NULL
           ORDER BY block_number ASC, tx_index ASC
@@ -670,7 +680,6 @@ export class DefaultDataService implements DataService {
         FROM (
           SELECT id, row_number
           FROM batchable_l2_only_tx_states
-          ORDER BY block_number ASC, tx_index ASC
           LIMIT ${maxBatchSize}
         ) t
         WHERE tx.id = t.id`,

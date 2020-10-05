@@ -3,7 +3,7 @@ import * as domain from 'domain'
 
 /* Internal Imports */
 import { BigNumber } from './number'
-import { RLP, hexlify } from 'ethers/utils'
+import { RLP, hexlify } from 'ethers-v4/utils'
 
 export const NULL_ADDRESS = '0x0000000000000000000000000000000000000000'
 const hexRegex = /^(0x)?[0-9a-fA-F]*$/
@@ -314,4 +314,16 @@ export const runInDomain = async (
  */
 export const getCurrentTime = (): number => {
   return Math.round(Date.now() / 1000)
+}
+
+/**
+ * Rounds the input number up to the nearest multiple of 32.
+ * If it is already a multiple of 32, it will not be rounded.
+ *
+ * @param num The number to round.
+ * @returns The rounded number.
+ */
+export const roundToNearestMultipleOf32 = (num: number): number => {
+  const mod: number = num % 32
+  return mod === 0 ? num : num + (32 - mod)
 }

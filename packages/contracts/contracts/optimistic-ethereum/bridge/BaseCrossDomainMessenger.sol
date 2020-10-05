@@ -1,10 +1,16 @@
 pragma solidity ^0.5.0;
 
+/* Interface Imports */
+import { ICrossDomainMessenger } from "./interfaces/CrossDomainMessenger.interface.sol";
+
 /**
- * @title L1CrossDomainMessenger
+ * @title BaseCrossDomainMessenger
  */
-contract BaseCrossDomainMessenger {
-    /*
+contract BaseCrossDomainMessenger is ICrossDomainMessenger {
+
+    event SentMessage(bytes32 msgHash);
+
+     /*
      * Contract Variables
      */
 
@@ -13,7 +19,6 @@ contract BaseCrossDomainMessenger {
     address public targetMessengerAddress;
     uint256 public messageNonce;
     address public xDomainMessageSender;
-
 
     /*
      * Public Functions
@@ -29,6 +34,33 @@ contract BaseCrossDomainMessenger {
         public
     {
         targetMessengerAddress = _targetMessengerAddress;
+    }
+
+    /**
+     * Sends a cross domain message to the target messenger.
+     * .inheritdoc IL2CrossDomainMessenger
+     */
+    function sendMessage(
+        address _target,
+        bytes memory _message,
+        uint32 _gasLimit
+    )
+        public
+    {
+        bytes memory xDomainCalldata = _getXDomainCalldata(
+            _target,
+            msg.sender,
+            _message,
+            messageNonce
+        );
+
+        _sendXDomainMessage(xDomainCalldata, _gasLimit);
+
+        messageNonce += 1;
+        bytes32 msgHash = keccak256(xDomainCalldata);
+        sentMessages[msgHash] = true;
+
+        emit SentMessage(msgHash);
     }
 
 
@@ -64,4 +96,14 @@ contract BaseCrossDomainMessenger {
             _messageNonce
         );
     }
+
+        /**
+     * Sends a cross domain message.
+     * @param _message Message to send.
+     * @param _gasLimit OVM gas limit for the message.
+     */
+    function _sendXDomainMessage(
+        bytes memory _message,
+        uint32 _gasLimit
+    ) internal;
 }

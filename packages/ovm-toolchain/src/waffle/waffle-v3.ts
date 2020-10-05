@@ -5,18 +5,6 @@ import Ganache from 'ganache-core'
 
 /* Internal Imports */
 import { ganache } from '../ganache'
-import { initCrossDomainMessengersVX } from './waffle-vx'
-
-export { waitForCrossDomainMessages } from './waffle-vx'
-
-export const initCrossDomainMessengers = async (
-  provider: any
-): Promise<{
-  l1CrossDomainMessenger: Contract
-  l2CrossDomainMessenger: Contract
-}> => {
-  return initCrossDomainMessengersVX(ethers, provider)
-}
 
 interface MockProviderOptions {
   ganacheOptions: Ganache.IProviderOptions

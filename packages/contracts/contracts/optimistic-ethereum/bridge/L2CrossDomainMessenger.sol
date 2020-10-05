@@ -1,7 +1,6 @@
 pragma solidity ^0.5.0;
 
 /* Interface Imports */
-import { IL2CrossDomainMessenger } from "./L2CrossDomainMessenger.interface.sol";
 import { IL1MessageSender } from "../ovm/precompiles/L1MessageSender.interface.sol";
 import { IL2ToL1MessagePasser } from "../ovm/precompiles/L2ToL1MessagePasser.interface.sol";
 
@@ -11,14 +10,16 @@ import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
 /**
  * @title L2CrossDomainMessenger
  */
-contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMessenger{
+contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
+
+    event RelayedL1ToL2Message(bytes32 msgHash);
+
     /*
      * Contract Variables
      */
 
     address private l1MessageSenderPrecompileAddress;
     address private l2ToL1MessagePasserPrecompileAddress;
-
 
     /*
      * Constructor
@@ -44,30 +45,6 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
      */
 
     /**
-     * Sends a cross domain message to the target messenger.
-     * .inheritdoc IL2CrossDomainMessenger
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint256 _gasLimit
-    )
-        public
-    {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
-            _target,
-            msg.sender,
-            _message,
-            messageNonce
-        );
-
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
-        messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
-    }
-
-    /**
      * Relays a cross domain message to a contract.
      * .inheritdoc IL2CrossDomainMessenger
      */
@@ -90,9 +67,10 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
             _message,
             _messageNonce
         );
+        bytes32 msgHash = keccak256(xDomainCalldata);
 
         require(
-            receivedMessages[keccak256(xDomainCalldata)] == false,
+            receivedMessages[msgHash] == false,
             "Provided message has already been received."
         );
 
@@ -104,7 +82,9 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
         // ignore the result of the call and always mark the message as
         // successfully executed because we won't get here unless we have
         // enough gas left over.
-        receivedMessages[keccak256(xDomainCalldata)] = true;
+        receivedMessages[msgHash] = true;
+
+        emit RelayedL1ToL2Message(msgHash);
     }
 
 
@@ -134,7 +114,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger, BaseCrossDomainMesse
      */
     function _sendXDomainMessage(
         bytes memory _message,
-        uint256 _gasLimit
+        uint32 _gasLimit
     )
         internal
     {

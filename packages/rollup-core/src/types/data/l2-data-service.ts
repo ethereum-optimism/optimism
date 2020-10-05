@@ -20,28 +20,28 @@ export interface L2DataService {
    * Builds a Canonical Chain Tx batch for L2 Tx Outputs that are not present on L1
    * if there are unbatched L2 Transaction Outputs with different timestamps.
    *
-   * @param minBatchCalldataBytes The min size of the batch to build in rollup tx bytes.
-   * @param maxBatchCalldataBytes The max size of the batch to build in rollup tx bytes.
+   * @param minL2TxCalldataBytes The min number of L2 tx bytes to roll up in a batch. If fewer than this are present, a batch will not be created.
+   * @param maxL1BatchTxBytes The max number of bytes that the signed & submitted L1 rollup batch tx may be.
    * @returns The number of the cc Batch that was built, or -1 if one wasn't built.
    * @throws An error if there is a DB error.
    */
   tryBuildCanonicalChainBatchNotPresentOnL1(
-    minBatchCalldataBytes: number,
-    maxBatchCalldataBytes: number
+    minL2TxCalldataBytes: number,
+    maxL1BatchTxBytes: number
   ): Promise<number>
 
   /**
-   * Gets the largest L2 Tx Output ID that should be included in the batch built with batchTimestamp.
+   * Gets the largest L2 Tx Output block number that should be included in the batch built with batchTimestamp.
    * This is mainly useful as a filter when there is an available batch that has enough rollup transactions'
    * bytes to exceed the maxBatchCalldataBytes value.
    *
    * @param batchTimestamp The block timestamp of the L2 Tx Outputs to be used for the Rollup Batch.
-   * @param maxBatchCalldataBytes The max amount of rolled up tx bytes to include in the batch.
-   * @returns The ID of the last (biggest ID) L2 Tx Output to be included in the batch.
+   * @param maxL1BatchTxBytes The max number of bytes that the signed & submitted L1 rollup batch tx may be.
+   * @returns The L2 block number of the last (latest) L2 Tx Output to be included in the batch.
    */
-  getMaxL2TxOutputIdForCanonicalChainBatch(
+  getMaxL2TxOutputBlockNumberForCanonicalChainBatch(
     batchTimestamp: number,
-    maxBatchCalldataBytes: number
+    maxL1BatchTxBytes: number
   ): Promise<number>
 
   /**

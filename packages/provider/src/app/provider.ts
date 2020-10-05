@@ -43,13 +43,24 @@ export class OptimismProvider extends JsonRpcProvider {
     this._ethersType = 'Provider'
 
     // Handle properly deriving "from" on the transaction
-    const format = this.formatter.transaction
+    const format = this.formatter.transaction.bind(this.formatter)
     this.formatter.transaction = (transaction) => {
       const tx = format(transaction)
       const sig = joinSignature(tx as SignatureLike)
       const hash = utils.sighashEthSign(tx)
-      // need to concat and hash with
       tx.from = verifyMessage(hash, sig)
+      return tx
+    }
+
+    // Handle additional data sent from RPC
+    const formatTxResponse = this.formatter.transactionResponse.bind(
+      this.formatter
+    )
+    this.formatter.transactionResponse = (transaction) => {
+      const tx = formatTxResponse(transaction) as any
+      tx.type = transaction.type
+      tx.queueOrigin = transaction.queueOrigin
+      tx.l1MessageSender = transaction.l1MessageSender
       return tx
     }
   }

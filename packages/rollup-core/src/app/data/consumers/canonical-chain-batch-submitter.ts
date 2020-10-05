@@ -93,10 +93,13 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
     }
 
     if (await this.shouldSubmitBatch(batchSubmission)) {
+      let validated: boolean = false
       try {
         const batchBlockNumber = await this.getBatchSubmissionBlockNumber()
 
         await this.validateBatchSubmission(batchSubmission, batchBlockNumber)
+
+        validated = true
 
         const txHash: string = await this.buildAndSendRollupBatchTransaction(
           batchSubmission,
@@ -107,7 +110,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
         }
         batchSubmission.submissionTxHash = txHash
       } catch (e) {
-        logError(log, `Error validating or submitting rollup tx batch`, e)
+        logError(
+          log,
+          `Error ${validated ? 'submitting' : 'validating'} rollup tx batch`,
+          e
+        )
         if (throwOnError) {
           // this is only used by testing
           throw e
@@ -231,8 +238,8 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
    *    target: 20-byte address    0-20
    *    nonce: 32-byte uint        20-52
    *    gasLimit: 32-byte uint     52-84
-   *    signature: 65-byte bytes   84-149
-   *    calldata: bytes            149-end
+   *    signature: 66-byte bytes   84-150
+   *    calldata: bytes            150-end
    *
    * @param batch The batch to turn into ABI-encoded calldata bytes.
    * @returns The ABI-encoded bytes[] of the Rollup Transactions in the format listed above.
@@ -246,7 +253,11 @@ export class CanonicalChainBatchSubmitter extends ScheduledTask {
       const gasLimit: string = tx.gasLimit
         ? tx.gasLimit.toString('hex', 64)
         : '00'.repeat(32)
-      const signature: string = remove0x(tx.signature)
+      let signature: string = remove0x(tx.signature).trim()
+      signature =
+        signature.length % 2 === 0
+          ? signature
+          : `${signature.substring(0, 128)}0${signature.substring(128, 131)}`
       const calldata: string = remove0x(tx.calldata)
       txs.push(`${tx.to}${nonce}${gasLimit}${signature}${calldata}`)
     }

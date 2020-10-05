@@ -11,6 +11,7 @@ import { getContractDefinition } from '@eth-optimism/rollup-contracts'
  */
 const getContractFromDefinition = (
   ethers: any,
+  signer: any,
   name: string,
   args: any[] = []
 ): any => {
@@ -18,7 +19,8 @@ const getContractFromDefinition = (
 
   const contractFactory = new ethers.ContractFactory(
     contractDefinition.abi,
-    contractDefinition.bytecode
+    contractDefinition.bytecode,
+    signer
   )
 
   return contractFactory.deploy(...args)
@@ -30,21 +32,27 @@ const getContractFromDefinition = (
  * @param provider Provider to attach messengers to.
  * @returns Both cross domain messenger objects.
  */
-export const initCrossDomainMessengersVX = async (
+export const initCrossDomainMessengers = async (
+  l1ToL2MessageDelay: number,
+  l2ToL1MessageDelay: number,
   ethers: any,
-  provider: any
+  signer: any
 ): Promise<{
   l1CrossDomainMessenger: any
   l2CrossDomainMessenger: any
 }> => {
-  const l1CrossDomainMessenger = getContractFromDefinition(
+  const l1CrossDomainMessenger = await getContractFromDefinition(
     ethers,
-    'MockL1CrossDomainMessenger'
+    signer,
+    'MockCrossDomainMessenger',
+    [l2ToL1MessageDelay]
   )
 
-  const l2CrossDomainMessenger = getContractFromDefinition(
+  const l2CrossDomainMessenger = await getContractFromDefinition(
     ethers,
-    'MockL2CrossDomainMessenger'
+    signer,
+    'MockCrossDomainMessenger',
+    [l1ToL2MessageDelay]
   )
 
   await l1CrossDomainMessenger.setTargetMessengerAddress(
@@ -54,8 +62,8 @@ export const initCrossDomainMessengersVX = async (
     l1CrossDomainMessenger.address
   )
 
-  provider.__l1CrossDomainMessenger = l1CrossDomainMessenger
-  provider.__l2CrossDomainMessenger = l2CrossDomainMessenger
+  signer.provider.__l1CrossDomainMessenger = l1CrossDomainMessenger
+  signer.provider.__l2CrossDomainMessenger = l2CrossDomainMessenger
 
   return {
     l1CrossDomainMessenger,
@@ -68,10 +76,10 @@ export const initCrossDomainMessengersVX = async (
  * @param provider Ethers provider with attached messengers.
  */
 export const waitForCrossDomainMessages = async (
-  provider: any
+  signer: any
 ): Promise<void> => {
-  const l1CrossDomainMessenger = provider.__l1CrossDomainMessenger
-  const l2CrossDomainMessenger = provider.__l2CrossDomainMessenger
+  const l1CrossDomainMessenger = signer.provider.__l1CrossDomainMessenger
+  const l2CrossDomainMessenger = signer.provider.__l2CrossDomainMessenger
 
   if (!l1CrossDomainMessenger || !l2CrossDomainMessenger) {
     throw new Error(
@@ -79,11 +87,11 @@ export const waitForCrossDomainMessages = async (
     )
   }
 
-  while ((await l1CrossDomainMessenger.messagesToRelay()) > 0) {
-    await l1CrossDomainMessenger.relayMessageToTarget()
+  while (await l1CrossDomainMessenger.hasNextMessage()) {
+    await l1CrossDomainMessenger.relayNextMessage()
   }
 
-  while ((await l2CrossDomainMessenger.messagesToRelay()) > 0) {
-    await l2CrossDomainMessenger.relayMessageToTarget()
+  while (await l2CrossDomainMessenger.hasNextMessage()) {
+    await l2CrossDomainMessenger.relayNextMessage()
   }
 }
