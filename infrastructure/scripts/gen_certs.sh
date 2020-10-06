@@ -33,7 +33,7 @@ usage() {
 		echo "" >&2
 	fi
 
-	exit -1
+	exit 255
 }
 
 # validate_config ensures that required variables are set

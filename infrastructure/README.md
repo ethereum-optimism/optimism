@@ -119,13 +119,13 @@ Due to the lifecycle restrictions on KMS resources by Google, this had to be rem
 
 Assuming you have already run the Terraform and have the `kms_account.key.json` file generated for the service account under your `./terraform` directory, you can now run:
 
-```bash
-./scripts/kms.sh -c ./terraform/kms_account.key.json -r $GCP_REGION
-```
-
 > Note:
 >
 > Before running the KMS script, ensure you have the current Kubernetes context and credentials active for the GKE cluster.
+
+```bash
+./scripts/kms.sh -c ./terraform/kms_account.key.json -r $GCP_REGION
+```
 
 This script will activate the KMS service account in the `gcloud` tool using the generate credential file path provided and create a new KMS key ring and symmetric unsealing key within that ring for you (if one or both already exist, these steps will be skipped). Once the key ring and unsealer key have been created within your GCP project, the script [injects the service account credential file into cluster secrets to be mounted into the nodes for unsealing](https://www.vaultproject.io/docs/platform/k8s/helm/run#google-kms-auto-unseal) before revoke your `gcloud` authentication session.
 
@@ -221,15 +221,14 @@ $GCP_PROJECT
 $GKE_CLUSTER_NAME
 ```
 
-<<<<<<< HEAD
 ##### Start the Pods using the Helm Chart
-=======
->>>>>>> 1526b2980e828e9057bfe4cbaf0a629887648fc5
+
+In `k8s`, execute:
 
 Execute:
 
 ```bash
-helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault
+helm upgrade --atomic --cleanup-on-fail --install --wait --values vault-overrides.yaml vault hashicorp/vault --version 0.7.0
 ```
 
 ### Interact with Vault
@@ -285,20 +284,13 @@ Determining how many backup files you want to keep is a business decision. There
 vault operator raft snapshot save snapshot-$(date +%Y%m%d-%H%M%S).raft
 ```
 
-*Rotational strategy*. In this example, a maximum of 5 snapshots are maintained at any given time.
+*Rotational strategy*. Maintain a most-recent set of snapshots. This is implemented in a script and can be used as follows:
+
+In `infrastructure`, execute:
 
 ```bash
-rm -f snapshot-4.raft
-
-for i in 3 2 1; do
-  let NEXT=$i+1
-  mv -f snapshot-${i}.raft snapshot-${NEXT}.raft 2> /dev/null
-done
-
-mv -f snapshot.raft snapshot-1.raft 2> /dev/null
-
-vault operator raft snapshot save snapshot.raft
-```
+./scripts/vault_backup.sh -d <dest-dir> [-p <file-prefix>] [-m <max-backups>] [--help]
+``
 
 #### Restore Vault RAFT Data from a Snapshot File
 
@@ -306,7 +298,40 @@ When you need to restore your Vault cluster back to a known-good state, identify
 
 ```bash
 vault operator raft snapshot restore snapshot-file.raft
+````
+
+If using the *Rotational strategy*, this is implemented in a script and can be used as follows:
+
+In `infrastructure`, execute:
+
+```bash
+./scripts/vault_restore.sh -s <src-dir> [-p <file-prefix>] [-b <backup-number>] [--help]
+``
+
+#### Generating New Certificates
+
+When you need to issue a new set of certificates to the pods, you need to follow this process:
+
+In `infrastructure`, execute:
+
+---
+
+When generating certs for GKE clusters, use: `-d vault-internal.default.svc.cluster.local`
+When generating certs for Minikube, use: `-d vault-internal`
+
+---
+
+```bash
+./scripts/gen_certs.sh -d <dns-domain>
+./scripts/gen_overrides.sh
+helm upgrade --recreate-pods --atomic --cleanup-on-fail --install --values ./k8s/datadog-overrides.yaml datadog datadog/datadog
 ```
+
+---
+
+If you are port-forwarding, you'll need to stop and restart the port-forwarder.
+
+---
 
 ### Uninstalling Vault
 

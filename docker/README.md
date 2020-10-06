@@ -36,7 +36,7 @@ If this project is in `$GOPATH/src/github.com/omgnetwork/immutability-eth-plugin
 You will need to trust the signer to use the vault CLI:
 
 ```bash
-export VAULT_CACERT="$GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/ca/certs/ca.crt"
+export VAULT_CACERT="$GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/ca.crt"
 ```
 
 2. Unseal Key and Root Token: `$GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/unseal.json`
@@ -54,7 +54,6 @@ Don't mess with this.
 If you want to re-initialize the Vault, then delete these:
 
 ```bash
-rm -fr $GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/ca
 rm $GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/config/docker/unseal.json
 rm -fr $GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/data
 ```
@@ -63,7 +62,7 @@ I would strongly advise using the Vault CLI. This way you can use vault with the
 
 ```bash
 export VAULT_ADDR="https://127.0.0.1:8200"
-export VAULT_CACERT="$GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/ca/certs/ca.crt"
+export VAULT_CACERT="$GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/ca.crt"
 export VAULT_TOKEN=$(cat $GOPATH/src/github.com/omgnetwork/immutability-eth-plugin/docker/config/unseal.json | jq -r .root_token)
 
 vault read -format=json immutability-eth-plugin/config

@@ -240,13 +240,14 @@ Submits the Merkle root of a Plasma block
 | name | Name of the wallet - provided in the URI. |
 | address | Account address which will submit the block - provided in the URI. |
 | contract | The address of the Block Controller contract. |
-| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
+| gas_price | The gas price for the transaction in wei. |
 | block_root | The Merkle root of a Plasma block. |
+| nonce | Transaction order. |
 
 ### EXAMPLE
 
 ```sh
-curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/submitBlock
+curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e", "gas_price: "20000000000", nonce: "0""}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/submitBlock
 
 {
   "request_id": "00a614f3-9bd3-60f4-25be-384a8d3cc5ff",
@@ -258,50 +259,10 @@ curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" 
     "from": "0x4BC91c7fA64017a94007B7452B75888cD82185F7",
     "gas_limit": 73623,
     "gas_price": 20000000000,
-    "nonce": 1,
+    "nonce": 0,
     "signed_transaction": "0xf889018504a817c80083011f9794d185aff7fb18d2045ba766287ca64992fdd79b1e80a4baa4769431323334717765726164676631323334717765726164676600000000000000001ca04b14e95372a41a74585c04c7967c45f2d1d51e4f5cd59b7c95a2c16ecbd63e79a04fcc461cfd165d8ba1f9cafe37ce7c025c0cec0533880abda3df754c9c749d9a",
     "transaction_hash": "0x6cfad4034bf147accb815922bb4f71ed8ae676e65580ab259d9d1d8713047c7f"
   },
   "warnings": null
 }
-```
-
-### ACTIVATE CHILD CHAIN
-
-Activates the child chain so that child chain can start to submit child blocks to root chain.
-
-#### INPUTS
-
-| Parameter | Description |
-| --- | ----------- |
-| name | Name of the wallet - provided in the URI. |
-| address | Account address which will submit the block - provided in the URI. |
-| contract | The address of the Block Controller contract. |
-| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
-
-### EXAMPLE
-
-```sh
-curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x888a65279D4a3A4E3cbA57D5B3Bd3eB0726655a6/plasma/activateChildChain
-```
-
-### SUBMIT DEPOSIT BLOCK
-
-Submits a block for deposit
-
-#### INPUTS
-
-| Parameter | Description |
-| --- | ----------- |
-| name | Name of the wallet - provided in the URI. |
-| address | Account address which will submit the block - provided in the URI. |
-| contract | The address of the Block Controller contract. |
-| gas_price | The gas price for the transaction in wei. Defaults to 0 - which means use the estimated gas price. |
-| block_root | The Merkle root of a Plasma block. |
-
-### EXAMPLE
-
-```sh
-curl -X PUT -H "X-Vault-Request: true" -H "X-Vault-Token: $(vault print token)" -d '{"block_root":"1234qweradgf1234qweradgf","contract":"0xd185aff7fb18d2045ba766287ca64992fdd79b1e"}' http://127.0.0.1:8900/v1/immutability-eth-plugin/wallets/plasma-deployer/accounts/0x4BC91c7fA64017a94007B7452B75888cD82185F7/plasma/submitDepositBlock
-
 ```

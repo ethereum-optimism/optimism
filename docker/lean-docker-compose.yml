@@ -1,0 +1,17 @@
+version: "3.3"
+
+services:
+  vault_server:
+    image: omgnetwork/vault:latest
+    networks:
+      - testnet
+    ports:
+      - "8200:8900"
+    volumes:
+      - "./config:/home/vault/config:rw"
+      - "../contracts:/home/vault/contracts:ro"
+      - "../scripts:/home/vault/scripts:ro"
+    entrypoint: /home/vault/config/entrypoint.sh
+networks:
+  testnet:
+    driver: bridge
