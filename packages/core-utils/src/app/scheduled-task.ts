@@ -21,11 +21,11 @@ export abstract class ScheduledTask {
   /**
    * Starts the scheduled task to execute immediately and every periodMilliseconds.
    */
-  public start(): void {
+  public async start(): Promise<void> {
     if (!this.running) {
       // Purposefully don't await
       this.running = true
-      this.run()
+      return this.run()
     }
   }
 
