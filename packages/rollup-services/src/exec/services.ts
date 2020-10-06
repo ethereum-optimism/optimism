@@ -13,6 +13,7 @@ import {
 import {
   DeployResult,
   getContractDefinition,
+  deployContracts,
 } from '@eth-optimism/rollup-contracts'
 import {
   CalldataTxEnqueuedLogHandler,
@@ -49,7 +50,6 @@ import {
 import { Contract, ethers } from 'ethers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
-import { deployContracts } from '@eth-optimism/rollup-contracts/build/src/deployment/deploy-l1-rollup-contracts'
 
 const log = getLogger('service-entrypoint')
 
