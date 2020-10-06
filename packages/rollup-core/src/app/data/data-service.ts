@@ -224,7 +224,9 @@ export class DefaultDataService implements DataService {
 
       await this.rdb.execute(
         `UPDATE l1_rollup_tx
-        SET geth_submission_queue_index = ${submissionQueueIndex}, index_within_submission = 0
+        SET 
+            geth_submission_queue_index = ${submissionQueueIndex}, 
+            index_within_submission = COALESCE(index_within_submission, 0)
         WHERE l1_tx_hash = '${txHash}' AND l1_tx_log_index = ${txLogIndex}`,
         txContext
       )
