@@ -12,6 +12,8 @@ REFACTOR:
 * Vault Auditing is now enabled
 * Fix Vault Raft Peering
 * Replaced the Custom Vault Helm Chart with the officially supported Helm Chart from Hashicorp
+* Nonce refactored to be passed in
+* Only --build on test
 
 ## 0.0.6 (August 15, 2020)
 
