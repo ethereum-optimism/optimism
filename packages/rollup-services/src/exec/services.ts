@@ -13,6 +13,7 @@ import {
 import {
   DeployResult,
   getContractDefinition,
+  deployContracts,
 } from '@eth-optimism/rollup-contracts'
 import {
   CalldataTxEnqueuedLogHandler,
@@ -49,7 +50,6 @@ import {
 import { Contract, ethers } from 'ethers'
 import * as fs from 'fs'
 import * as rimraf from 'rimraf'
-import { deployContracts } from '@eth-optimism/rollup-contracts/build/src/deployment/deploy-l1-rollup-contracts'
 
 const log = getLogger('service-entrypoint')
 
@@ -113,7 +113,14 @@ export const runServices = async (): Promise<any[]> => {
     process.exit(1)
   }
 
-  await Promise.all(services.map((x) => x.start()))
+  await Promise.all(
+    services.map((x) =>
+      x.start().catch((e) => {
+        logError(log, `Service threw an error. Exiting.`, e)
+        process.exit(1)
+      })
+    )
+  )
 
   const subscriptions: Array<Promise<any>> = []
   if (!!l1ChainDataPersister) {
