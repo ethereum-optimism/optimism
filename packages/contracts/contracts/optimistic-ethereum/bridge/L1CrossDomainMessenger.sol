@@ -5,9 +5,7 @@ pragma experimental ABIEncoderV2;
 import { ContractResolver } from "../utils/resolvers/ContractResolver.sol";
 import { EthMerkleTrie } from "../utils/libraries/EthMerkleTrie.sol";
 import { BytesLib } from "../utils/libraries/BytesLib.sol";
-
-/* Interface Imports */
-import { IL1CrossDomainMessenger } from "./L1CrossDomainMessenger.interface.sol";
+import { DataTypes } from "../utils/libraries/DataTypes.sol";
 
 /* Contract Imports */
 import { BaseCrossDomainMessenger } from "./BaseCrossDomainMessenger.sol";
@@ -17,7 +15,21 @@ import { StateCommitmentChain } from "../chain/StateCommitmentChain.sol";
 /**
  * @title L1CrossDomainMessenger
  */
-contract L1CrossDomainMessenger is IL1CrossDomainMessenger, BaseCrossDomainMessenger, ContractResolver {
+contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
+
+    event RelayedL2ToL1Message(bytes32 msgHash);
+
+    /*
+     * Data Structures
+     */
+
+    struct L2MessageInclusionProof {
+        bytes32 stateRoot;
+        uint256 stateRootIndex;
+        DataTypes.StateElementInclusionProof stateRootProof;
+        bytes stateTrieWitness;
+        bytes storageTrieWitness;
+    }
     /*
      * Constructor
      */
@@ -56,6 +68,7 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, BaseCrossDomainMesse
             _message,
             _messageNonce
         );
+        bytes32 msgHash = keccak256(xDomainCalldata);
 
         require(
             _verifyXDomainMessage(
@@ -66,7 +79,7 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, BaseCrossDomainMesse
         );
 
         require(
-            receivedMessages[keccak256(xDomainCalldata)] == false,
+            receivedMessages[msgHash] == false,
             "Provided message has already been received."
         );
 
@@ -78,31 +91,9 @@ contract L1CrossDomainMessenger is IL1CrossDomainMessenger, BaseCrossDomainMesse
         // ignore the result of the call and always mark the message as
         // successfully executed because we won't get here unless we have
         // enough gas left over.
-        receivedMessages[keccak256(xDomainCalldata)] = true;
-    }
+        receivedMessages[msgHash] = true;
 
-    /**
-     * Sends a cross domain message to the target messenger.
-     * .inheritdoc IL1CrossDomainMessenger
-     */
-    function sendMessage(
-        address _target,
-        bytes memory _message,
-        uint32 _gasLimit
-    )
-        public
-    {
-        bytes memory xDomainCalldata = _getXDomainCalldata(
-            _target,
-            msg.sender,
-            _message,
-            messageNonce
-        );
-
-        _sendXDomainMessage(xDomainCalldata, _gasLimit);
-
-        messageNonce += 1;
-        sentMessages[keccak256(xDomainCalldata)] = true;
+        emit RelayedL2ToL1Message(msgHash);
     }
 
     /**

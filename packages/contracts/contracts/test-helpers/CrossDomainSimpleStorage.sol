@@ -1,14 +1,14 @@
 pragma solidity ^0.5.0;
 
-import { IL1CrossDomainMessenger } from "../optimistic-ethereum/bridge/L1CrossDomainMessenger.interface.sol";
+import { ICrossDomainMessenger } from "../optimistic-ethereum/bridge/interfaces/CrossDomainMessenger.interface.sol";
 import { SimpleStorage } from "./SimpleStorage.sol";
 
 contract CrossDomainSimpleStorage is SimpleStorage {
-    IL1CrossDomainMessenger crossDomainMessenger;
+    ICrossDomainMessenger crossDomainMessenger;
     address public crossDomainMsgSender;
 
     function setMessenger(address _crossDomainMessengerAddress) public {
-        crossDomainMessenger = IL1CrossDomainMessenger(_crossDomainMessengerAddress);
+        crossDomainMessenger = ICrossDomainMessenger(_crossDomainMessengerAddress);
     }
 
     function crossDomainSetStorage(bytes32 key, bytes32 value) public {

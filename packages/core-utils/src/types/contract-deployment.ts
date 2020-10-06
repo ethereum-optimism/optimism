@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers'
+import { Wallet } from 'ethers-v4'
 
 /**
  * Deploys a contract and returns its deployed address.

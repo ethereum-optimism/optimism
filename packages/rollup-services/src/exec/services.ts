@@ -171,7 +171,9 @@ const createL1ChainDataPersister = async (): Promise<L1ChainDataPersister> => {
     getL1Provider(),
     [
       {
-        topic: ethers.utils.id('L1ToL2TxEnqueued(bytes)'), // 0x2a9dd32a4056f7419a3a05b09f30cf775204afed73c0981470da34d97ca5e5cd
+        topic: ethers.utils.id(
+          'L1ToL2TxEnqueued(address,address,uint32,bytes)'
+        ), // 7f897cd072f041e68ba57be8f0eec7b8933b0b113622ed8ef85685764f6e7986
         contractAddress: Environment.getOrThrow(
           Environment.l1ToL2TransactionQueueContractAddress
         ),
@@ -279,8 +281,8 @@ const createQueuedGethSubmitter = async (): Promise<QueuedGethSubmitter> => {
  * @returns The CanonicalChainBatchCreator.
  */
 const createCanonicalChainBatchCreator = (): CanonicalChainBatchCreator => {
-  const minBatchCalldataBytese: number = Environment.canonicalChainBatchMinCalldataBytes()
-  const maxBatchCalldataBytes: number = Environment.canonicalChainBatchMaxCalldataBytes()
+  const minBatchCalldataBytese: number = Environment.canonicalChainBatchMinL2TxBytes()
+  const maxBatchCalldataBytes: number = Environment.canonicalChainMaxBatchTxBytes()
   const period: number = Environment.getOrThrow(
     Environment.canonicalChainBatchCreatorPeriodMillis
   )

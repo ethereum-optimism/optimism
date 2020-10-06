@@ -1,9 +1,9 @@
-import { Contract, Wallet } from 'ethers'
+import { Contract, Wallet } from 'ethers-v4'
 import {
   Provider,
   TransactionRequest,
   TransactionResponse,
-} from 'ethers/providers'
+} from 'ethers-v4/providers'
 import { getLogger } from './log'
 import { Logger } from '../types'
 

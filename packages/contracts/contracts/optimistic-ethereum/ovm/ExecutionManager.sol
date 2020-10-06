@@ -38,6 +38,7 @@ contract ExecutionManager is ContractResolver {
     // Precompile addresses
     address constant private L2_TO_L1_OVM_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address constant private L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
+    address constant private DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
 
     /*
      * Contract Variables
@@ -76,6 +77,7 @@ contract ExecutionManager is ContractResolver {
         stateManager.associateCodeContract(L2_TO_L1_OVM_MESSAGE_PASSER, address(l2ToL1MessagePasser));
         L1MessageSender l1MessageSender = new L1MessageSender(address(this));
         stateManager.associateCodeContract(L1_MESSAGE_SENDER, address(l1MessageSender));
+        stateManager.associateCodeContract(DEPLOYER_WHITELIST, address(resolveDeployerWhitelist()));
 
         executionContext.chainId = 420;
 
@@ -196,7 +198,10 @@ contract ExecutionManager is ContractResolver {
         if (isCreate) {
             // Require that the deployer whitelist contract approves of the deployment.
             // TODO: Put this check inside of our default EOA contracts
+
+            restoreContractContext(ZERO_ADDRESS, DEPLOYER_WHITELIST);
             require(resolveDeployerWhitelist().isDeployerAllowed(_fromAddress), "Sender not allowed to deploy new contracts!");
+            restoreContractContext(ZERO_ADDRESS, _fromAddress);
             methodId = METHOD_ID_OVM_CREATE;
             callSize = _callBytes.length + 4;
 

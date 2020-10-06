@@ -299,19 +299,19 @@ export class Environment {
   }
 
   // Batch Sizes
-  public static canonicalChainBatchMinCalldataBytes(
+  public static canonicalChainBatchMinL2TxBytes(
     defaultValue: number = 0
   ): number {
-    return process.env.CANONICAL_CHAIN_BATCH_MIN_CALLDATA_BYTES
-      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_MIN_CALLDATA_BYTES, 10)
+    return process.env.CANONICAL_CHAIN_BATCH_MIN_L2_TX_BYTES
+      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_MIN_L2_TX_BYTES, 10)
       : defaultValue
   }
 
-  public static canonicalChainBatchMaxCalldataBytes(
-    defaultValue: number = 125_000
+  public static canonicalChainMaxBatchTxBytes(
+    defaultValue: number = 110_000
   ): number {
-    return process.env.CANONICAL_CHAIN_BATCH_MAX_CALLDATA_BYTES
-      ? parseInt(process.env.CANONICAL_CHAIN_BATCH_MAX_CALLDATA_BYTES, 10)
+    return process.env.CANONICAL_CHAIN_MAX_BATCH_TX_BYTES
+      ? parseInt(process.env.CANONICAL_CHAIN_MAX_BATCH_TX_BYTES, 10)
       : defaultValue
   }
 

@@ -1,12 +1,12 @@
 /* External Imports */
 import { Md5 } from 'ts-md5'
-import { ethers } from 'ethers'
-import { TransactionRequest } from 'ethers/providers/abstract-provider'
+import { ethers } from 'ethers-v4'
+import { TransactionRequest } from 'ethers-v4/providers/abstract-provider'
 import {
   joinSignature,
   resolveProperties,
   serializeTransaction,
-} from 'ethers/utils'
+} from 'ethers-v4/utils'
 
 /* Internal Imports */
 import { HashAlgorithm, HashFunction } from '../types'
@@ -108,12 +108,13 @@ export const getTxSigner = async (
  * @throws Error If r, s, or v are not the correct length.
  */
 export const rsvToSignature = (r: string, s: string, v: number): string => {
-  const vString = remove0x(numberToHexString(v, 1))
+  const vString = remove0x(numberToHexString(v, 2))
   const sig = `${add0x(r)}${remove0x(s)}${vString}`
-  // '0x' + 64 chars for r + 64 chars for s + 2 chars for v = 132
-  if (sig.length !== 132) {
+
+  // '0x' + 64 chars for r + 64 chars for s + 4 chars for v = 134
+  if (sig.length !== 134) {
     throw Error(
-      `Invalid v [${vString}], r [${r}], s[${s}]. v [${vString.length}] should be 2 chars, r [${r.length}] should be 64 chars, and s [${s.length}] should be 64 chars.`
+      `Invalid v [${vString}], r [${r}], s[${s}]. v [${vString.length}] should be 4 chars, r [${r.length}] should be 64 chars, and s [${s.length}] should be 64 chars.`
     )
   }
 
