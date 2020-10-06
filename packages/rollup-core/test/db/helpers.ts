@@ -141,13 +141,14 @@ export const createRollupTx = (
   queueOrigin: QueueOrigin,
   txIndex: number = 0,
   submissionIndex: number = 0,
+  calldata?: string,
   l1MessageSender?: string,
   logIndex: number = 0
 ): RollupTransaction => {
   return {
     indexWithinSubmission: submissionIndex,
     target: tx.to,
-    calldata: tx.data,
+    calldata: calldata || tx.data,
     sender: tx.from,
     l1MessageSender,
     gasLimit: gasLimit.toNumber(),

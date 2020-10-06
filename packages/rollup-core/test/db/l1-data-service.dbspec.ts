@@ -182,8 +182,23 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
 
       await dataService.insertL1BlockAndTransactions(l1Block, [tx], true)
 
-      const rTx1 = createRollupTx(tx, QueueOrigin.SAFETY_QUEUE)
-      const rTx2 = createRollupTx(tx, QueueOrigin.SAFETY_QUEUE, 0, 1)
+      const rTx1Calldata: string = keccak256FromUtf8('calldata 1')
+      const rTx2Calldata: string = keccak256FromUtf8('calldata 2')
+
+      const rTx1 = createRollupTx(
+        tx,
+        QueueOrigin.SAFETY_QUEUE,
+        0,
+        0,
+        rTx1Calldata
+      )
+      const rTx2 = createRollupTx(
+        tx,
+        QueueOrigin.SAFETY_QUEUE,
+        0,
+        1,
+        rTx2Calldata
+      )
 
       let submissionIndex = await dataService.insertL1RollupTransactions(
         tx.hash,
@@ -211,6 +226,33 @@ describe('L1 Data Service (will fail if postgres is not running with expected sc
       submissionRes[0]['status'].should.equal(
         GethSubmissionQueueStatus.QUEUED,
         `Incorrect queue status!`
+      )
+
+      const rollupTxRes: Row[] = await postgres.select(
+        `SELECT index_within_submission, calldata
+                FROM l1_rollup_tx
+                WHERE geth_submission_queue_index = 0 
+                ORDER BY index_within_submission ASC`
+      )
+      rollupTxRes.length.should.equal(
+        2,
+        `Incorrect number of rollup transactions within the submission!`
+      )
+      rollupTxRes[0]['index_within_submission'].should.equal(
+        0,
+        `Incorrect first tx index!`
+      )
+      rollupTxRes[0]['calldata'].should.equal(
+        rTx1Calldata,
+        'Incorrect transaction came first!'
+      )
+      rollupTxRes[1]['index_within_submission'].should.equal(
+        1,
+        `Incorrect second tx index!`
+      )
+      rollupTxRes[1]['calldata'].should.equal(
+        rTx2Calldata,
+        'Incorrect transaction came second!'
       )
     })
 
