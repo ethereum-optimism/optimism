@@ -13,7 +13,8 @@ echo $GITHUB_SHA
 
 echo "pwd $PWD"
 
-git fetch
+# TODO: this will not work for outside contributors
+git fetch origin $GITHUB_SHA
 git checkout $GITHUB_SHA
 
 $HOME/optimism-integration/build.sh
