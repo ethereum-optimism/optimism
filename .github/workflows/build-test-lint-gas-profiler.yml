@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-test-lint:
-    name: Run rollup-contracts Test Suite on Node ${{matrix.node}}
+    name: Run gas-profiler Test Suite on Node ${{matrix.node}}
     runs-on: ubuntu-latest
 
     strategy:
@@ -33,12 +33,12 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('package.json') }}
 
-      - name: Cache contracts deps
+      - name: Cache gas-profiler
         uses: actions/cache@v1
-        id: cache_contracts
+        id: cache_gas-profiler
         with:
-          path: packages/contracts/node_modules
-          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/contracts/package.json') }}
+          path: packages/gas-profiler/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/gas-profiler/package.json') }}
 
       # END DEPENDENCY CACHING
 
@@ -48,16 +48,16 @@ jobs:
       - name: Lint
         run: yarn lint
         env:
-          PKGS: "rollup-contracts"
+          PKGS: "gas-profiler"
 
       - name: Build
         run: |
           yarn clean
           yarn build
         env:
-          PKGS: "rollup-contracts"
+          PKGS: "gas-profiler"
 
       - name: Test
         run: yarn test
         env:
-          PKGS: "rollup-contracts"
+          PKGS: "gas-profiler"
