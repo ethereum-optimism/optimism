@@ -1,11 +1,11 @@
 name: CI - Build, Test, Lint
 
-on: 
+on:
   push:
-    branches: 
+    branches:
       - master
   pull_request:
-    branches: 
+    branches:
       - master
 
 
@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-        
+
       - name: Setup node ${{ matrix.node }}
         uses: actions/setup-node@v1
         with:
