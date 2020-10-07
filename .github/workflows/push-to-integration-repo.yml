@@ -24,13 +24,10 @@ jobs:
           cd optimism-integration/$REPO
           git pull origin master
 
-      - name: Configure git
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-
       - name: Commit
         run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
           cd optimism-integration
           REPO=$(echo $GITHUB_REPOSITORY | cut -d '/' -f2)
           SHORT=$(echo $GITHUB_SHA | head -c 8)
