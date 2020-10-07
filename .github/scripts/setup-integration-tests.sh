@@ -11,6 +11,9 @@ cd $HOME/optimism-integration/$REPO
 echo "GITHUB_SHA"
 echo $GITHUB_SHA
 
+echo "pwd $PWD"
+
+git fetch
 git checkout $GITHUB_SHA
 
 $HOME/optimism-integration/build.sh
