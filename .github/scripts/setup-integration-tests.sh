@@ -8,10 +8,10 @@ REPO=$(echo $GITHUB_REPOSITORY | cut -d '/' -f2)
 
 cd $HOME/optimism-integration/$REPO
 
-echo "GITHUB REF"
-echo $GITHUB_REF
+echo "GITHUB_SHA"
+echo $GITHUB_SHA
 
-git checkout $GITHUB_REF
+git checkout $GITHUB_SHA
 
 $HOME/optimism-integration/build.sh
 $HOME/optimism-integration/test.sh
