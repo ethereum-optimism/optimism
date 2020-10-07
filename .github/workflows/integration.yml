@@ -23,6 +23,10 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v1
 
-      - name: Build and run
+      - name: Build
         run: |
           ./.github/scripts/setup-integration-tests.sh
+
+      - name: Test
+        run: |
+          ./.github/scripts/run-integration-tests.sh
