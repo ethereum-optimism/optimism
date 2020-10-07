@@ -113,13 +113,11 @@ export const runServices = async (): Promise<any[]> => {
     process.exit(1)
   }
 
-  await Promise.all(
-    services.map((x) =>
-      x.start().catch((e) => {
-        logError(log, `Service threw an error. Exiting.`, e)
-        process.exit(1)
-      })
-    )
+  services.map((x) =>
+    x.start().catch((e) => {
+      logError(log, `Service threw an error. Exiting.`, e)
+      process.exit(1)
+    })
   )
 
   const subscriptions: Array<Promise<any>> = []
