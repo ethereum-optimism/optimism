@@ -38,6 +38,10 @@ export const deploy = async (
   for (const [name, contractDeployParameters] of Object.entries(
     contractDeployConfig
   )) {
+    if (config.dependencies && !config.dependencies.includes(name)) {
+      continue
+    }
+
     const SimpleProxy = await Factory__SimpleProxy.deploy()
     await AddressManager.setAddress(name, SimpleProxy.address)
 
@@ -51,7 +55,11 @@ export const deploy = async (
     }
   }
 
-  for (const contractDeployParameters of Object.values(contractDeployConfig)) {
+  for (const [name, contractDeployParameters] of Object.entries(contractDeployConfig)) {
+    if (config.dependencies && !config.dependencies.includes(name)) {
+      continue
+    }
+
     if (contractDeployParameters.afterDeploy) {
       await contractDeployParameters.afterDeploy(contracts)
     }

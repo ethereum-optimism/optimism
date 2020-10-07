@@ -1,7 +1,13 @@
 {
-  "name": "optimism",
+  "name": "@eth-optimism/contracts",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "build/src/index.js",
+  "files": [
+    "build/**/*.js",
+    "build/contracts/*",
+    "build/dumps/*json",
+    "build/artifacts/*json"
+  ],
   "license": "MIT",
   "scripts": {
     "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",

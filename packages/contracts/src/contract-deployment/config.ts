@@ -20,6 +20,7 @@ export interface RollupDeployConfig {
     owner: string | Signer
     allowArbitraryContractDeployment: boolean
   }
+  dependencies?: string[]
 }
 
 export interface ContractDeployParameters {
@@ -63,6 +64,22 @@ export const makeContractDeployConfig = async (
     OVM_StateCommitmentChain: {
       factory: getContractFactory('OVM_StateCommitmentChain'),
       params: [AddressManager.address],
+    },
+    OVM_DeployerWhitelist: {
+      factory: getContractFactory('OVM_DeployerWhitelist'),
+      params: [],
+    },
+    OVM_L1MessageSender: {
+      factory: getContractFactory('OVM_L1MessageSender'),
+      params: [],
+    },
+    OVM_L2ToL1MessagePasser: {
+      factory: getContractFactory('OVM_L2ToL1MessagePasser'),
+      params: [],
+    },
+    OVM_SafetyChecker: {
+      factory: getContractFactory('OVM_SafetyChecker'),
+      params: [],
     },
     OVM_ExecutionManager: {
       factory: getContractFactory('OVM_ExecutionManager'),
