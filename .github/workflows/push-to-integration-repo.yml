@@ -30,7 +30,7 @@ jobs:
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
-          cd optimism-integration
+          cd $HOME/optimism-integration
           REPO=$(echo $GITHUB_REPOSITORY | cut -d '/' -f2)
           SHORT=$(echo $GITHUB_SHA | head -c 8)
           git commit -m "submodule bump: $REPO $SHORT"
