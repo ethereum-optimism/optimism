@@ -1,4 +1,4 @@
-name: CI - Build, Test, Lint
+name: CI - core-db
 
 on:
   push:
