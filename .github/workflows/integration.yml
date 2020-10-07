@@ -18,10 +18,6 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v1
 
-      - name: Clone Integration Test Repo
+      - name: Build and run
         run: |
           ./.github/scripts/setup-integration-tests.sh
-
-      - name: Run Tests with Docker Compose
-        run: |
-          ./.github/scripts/run-integration-tests.sh
