@@ -21,11 +21,11 @@ export abstract class ScheduledTask {
   /**
    * Starts the scheduled task to execute immediately and every periodMilliseconds.
    */
-  public async start(): Promise<void> {
+  public start(): void {
     if (!this.running) {
       // Purposefully don't await
       this.running = true
-      return this.run()
+      this.run()
     }
   }
 
@@ -51,16 +51,20 @@ export abstract class ScheduledTask {
         throw e
       }
 
-      if (!rerunImmediately) {
-        try {
-          await sleep(this.periodMilliseconds)
-        } catch (e) {
-          logError(
-            log,
-            `Error sleeping in ScheduledTask! Continuing execution.`,
-            e
-          )
-        }
+      if (rerunImmediately) {
+        // Purposefully do not await
+        this.run()
+        return
+      }
+
+      try {
+        await sleep(this.periodMilliseconds)
+      } catch (e) {
+        logError(
+          log,
+          `Error sleeping in ScheduledTask! Continuing execution.`,
+          e
+        )
       }
     }
   }
