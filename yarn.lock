@@ -39,6 +39,22 @@
   resolved "https://registry.yarnpkg.com/@ensdomains/resolver/-/resolver-0.2.4.tgz#c10fe28bf5efbf49bff4666d909aed0265efbc89"
   integrity sha512-bvaTH34PMCbv6anRa9I/0zjLJgY4EuznbEMgbV77JBCQ9KNC46rzi0avuxpOfu+xDjPEtSFGqVEOr5GlUSGudA==
 
+"@eth-optimism/ovm-toolchain@0.0.1-alpha.5":
+  version "0.0.1-alpha.5"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/ovm-toolchain/-/ovm-toolchain-0.0.1-alpha.5.tgz#abd961528e1d10eae523ce73547887d811df0aa2"
+  integrity sha512-2geNns/bo1f5Ic/iuT4JeAa+eIzUU8jhrfEOwcQ+W3UoA857rwbff5UqKNvMm3jXlI1YLIYQhXTbBZsezpBPEw==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.0.1-alpha.30"
+    "@eth-optimism/rollup-contracts" "^0.0.1-alpha.32"
+    "@nomiclabs/buidler" "^1.4.4"
+    bn.js "^5.1.3"
+    child_process "^1.0.2"
+    ethereum-waffle-v2 "npm:ethereum-waffle@2"
+    ethereum-waffle-v3 "npm:ethereum-waffle@3"
+    ethereumjs-ovm "git+https://github.com/ethereum-optimism/ethereumjs-vm"
+    ethers-v4 "npm:ethers@4"
+    ethers-v5 "npm:ethers@5.0.7"
+
 "@eth-optimism/solc@^0.5.16-alpha.0":
   version "0.5.16-alpha.1"
   resolved "https://registry.yarnpkg.com/@eth-optimism/solc/-/solc-0.5.16-alpha.1.tgz#04019314df03faac8bc5363e8a1c2c561d404a04"
@@ -5372,6 +5388,32 @@ ethereumjs-common@^1.1.0, ethereumjs-common@^1.3.2, ethereumjs-common@^1.5.0:
 "ethereumjs-ovm@git+https://github.com/ethereum-optimism/ethereumjs-vm":
   version "4.2.0"
   resolved "git+https://github.com/ethereum-optimism/ethereumjs-vm#02ba6e77a88339b04a053b5e653f644acb1555b8"
+  dependencies:
+    "@types/debug" "^4.1.5"
+    "@types/uuid" "^8.3.0"
+    async "^2.1.2"
+    async-eventemitter "^0.2.2"
+    core-js-pure "^3.0.1"
+    debug "^4.1.1"
+    ethereumjs-account "^3.0.0"
+    ethereumjs-block "^2.2.2"
+    ethereumjs-blockchain "^4.0.3"
+    ethereumjs-common "^1.5.0"
+    ethereumjs-tx "^2.1.2"
+    ethereumjs-util "^6.2.0"
+    ethers "^5.0.0"
+    fake-merkle-patricia-tree "^1.0.1"
+    functional-red-black-tree "^1.0.1"
+    merkle-patricia-tree "^2.3.2"
+    rustbn.js "~0.2.0"
+    safe-buffer "^5.1.1"
+    util.promisify "^1.0.0"
+    uuid "^8.3.0"
+
+"ethereumjs-ovm@git+https://github.com/ethereum-optimism/ethereumjs-vm.git":
+  version "4.2.0"
+  uid "02ba6e77a88339b04a053b5e653f644acb1555b8"
+  resolved "git+https://github.com/ethereum-optimism/ethereumjs-vm.git#02ba6e77a88339b04a053b5e653f644acb1555b8"
   dependencies:
     "@types/debug" "^4.1.5"
     "@types/uuid" "^8.3.0"
