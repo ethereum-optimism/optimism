@@ -33,6 +33,6 @@ jobs:
           cd $HOME/optimism-integration
           REPO=$(echo $GITHUB_REPOSITORY | cut -d '/' -f2)
           SHORT=$(echo $GITHUB_SHA | head -c 8)
-          git add $REPO
+          git add $REPO .gitmodules
           git commit -m "submodule bump: $REPO $SHORT"
           git push origin master
