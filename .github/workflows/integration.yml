@@ -1,0 +1,27 @@
+name: Setup & Run Integration Test Suite
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Setup & Run Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v1
+
+      - name: Clone Integration Test Repo
+        run: |
+          ./.github/scripts/setup-integration-tests.sh
+
+      - name: Run Tests with Docker Compose
+        run: |
+          ./.github/scripts/run-integration-tests.sh
