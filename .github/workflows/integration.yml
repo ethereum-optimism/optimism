@@ -1,0 +1,32 @@
+name: Setup & Run Integration Test Suite
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Setup & Run Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: webfactory/ssh-agent@v0.4.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_READ }}
+
+      - name: Setup node
+        uses: actions/setup-node@v1
+
+      - name: Build
+        run: |
+          ./.github/scripts/setup-integration-tests.sh
+
+      - name: Test
+        run: |
+          ./.github/scripts/run-integration-tests.sh

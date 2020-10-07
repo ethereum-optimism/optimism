@@ -14,8 +14,8 @@ if [ -n "$REBUILD" ]; then
 
   if [ -n "$FETCH_DEPS" ]; then
     echo -e "\nFetching dependencies (this will take forever the first time time)..."
-    yarn --verbose
-    yarn --cwd $ROOT_DIR --verbose
+    yarn
+    yarn --cwd $ROOT_DIR
   fi
 
   yarn clean

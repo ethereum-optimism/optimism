@@ -1,0 +1,64 @@
+name: CI - core-db
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+
+jobs:
+  build-test-lint:
+    name: Run core-db Test Suite on Node ${{matrix.node}}
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node: [ '10', '11' ]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup node ${{ matrix.node }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+
+      # START DEPENDENCY CACHING
+      - name: Cache root deps
+        uses: actions/cache@v1
+        id: cache_base
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('package.json') }}
+
+      - name: Cache core-db deps
+        uses: actions/cache@v1
+        id: cache_core-db
+        with:
+          path: packages/core-db/node_modules
+          key: ${{ runner.os }}-${{ matrix.node }}-${{ hashFiles('packages/core-db/package.json') }}
+
+      # END DEPENDENCY CACHING
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Lint
+        run: yarn lint
+        env:
+          PKGS: "core-db"
+
+      - name: Build
+        run: |
+          yarn clean
+          yarn build
+        env:
+          PKGS: "core-db"
+
+      - name: Test
+        run: yarn test
+        env:
+          PKGS: "core-db"
