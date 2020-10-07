@@ -6,8 +6,6 @@ import { Lib_BytesUtils } from "../utils/Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
 
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /**
  * @title Lib_MerkleTrie
  */

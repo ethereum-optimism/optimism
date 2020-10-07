@@ -63,11 +63,15 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
      * @param _libAddressManager Address of the Address Manager.
      */
     constructor(
-        address _libAddressManager
+        address _libAddressManager,
+        GasMeterConfig memory _gasMeterConfig,
+        GlobalContext memory _globalContext
     )
         Lib_AddressResolver(_libAddressManager)
     {
         ovmSafetyChecker = iOVM_SafetyChecker(resolve("OVM_SafetyChecker"));
+        gasMeterConfig = _gasMeterConfig;
+        globalContext = _globalContext;
     }
 
     
@@ -818,7 +822,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         )
     {
         // We always update the nonce of the creating account, even if the creation fails.
-        _setAccountNonce(ovmADDRESS(), 1);
+        _setAccountNonce(ovmADDRESS(), _getAccountNonce(ovmADDRESS()) + 1);
 
         // We're stepping into a CREATE or CREATE2, so we need to update ADDRESS to point
         // to the contract's associated address and CALLER to point to the previous ADDRESS.
@@ -1544,7 +1548,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
                 _getGasMetadata(cumulativeGasKey)
                 - _getGasMetadata(prevEpochGasKey)
                 + _gasLimit
-            ) > gasMeterConfig.maxGasPerQueuePerEpoch
+            ) < gasMeterConfig.maxGasPerQueuePerEpoch
         );
     }
 
@@ -1666,6 +1670,8 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         transactionContext.ovmL1QUEUEORIGIN = _transaction.l1QueueOrigin;
         transactionContext.ovmL1TXORIGIN = _transaction.l1Txorigin;
         transactionContext.ovmGASLIMIT = gasMeterConfig.maxGasPerQueuePerEpoch;
+
+        messageRecord.nuisanceGasLeft = _getNuisanceGasLimit(_transaction.gasLimit);
     }
 
     /**

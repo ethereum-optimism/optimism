@@ -45,10 +45,12 @@ export const deploy = async (
     const SimpleProxy = await Factory__SimpleProxy.deploy()
     await AddressManager.setAddress(name, SimpleProxy.address)
 
+    contracts[`Proxy__${name}`] = SimpleProxy
+
     try {
       contracts[name] = await contractDeployParameters.factory
         .connect(config.deploymentSigner)
-        .deploy(...contractDeployParameters.params)
+        .deploy(...(contractDeployParameters.params || []))
       await SimpleProxy.setTarget(contracts[name].address)
     } catch (err) {
       failedDeployments.push(name)

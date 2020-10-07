@@ -4,11 +4,11 @@ pragma experimental ABIEncoderV2;
 
 /* Interface Imports */
 import { iOVM_ECDSAContractAccount } from "../../iOVM/accounts/iOVM_ECDSAContractAccount.sol";
-import { iOVM_ExecutionManager } from "../../iOVM/execution/iOVM_ExecutionManager.sol";
 
 /* Library Imports */
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_ECDSAUtils } from "../../libraries/utils/Lib_ECDSAUtils.sol";
+import { Lib_SafeExecutionManagerWrapper } from "../../libraries/wrappers/Lib_SafeExecutionManagerWrapper.sol";
 
 /**
  * @title mockOVM_ECDSAContractAccount
@@ -43,22 +43,16 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             bytes memory _returndata
         )
     {
-        iOVM_ExecutionManager ovmExecutionManager = iOVM_ExecutionManager(msg.sender);
+        address ovmExecutionManager = msg.sender;
 
-        // Skip signature validation within the mock.
-
+        // Skip signature validation in this mock.
         Lib_OVMCodec.EOATransaction memory decodedTx = Lib_OVMCodec.decodeEOATransaction(_transaction);
-
-        // Need to make sure that the transaction nonce is right and bump it if so.
-        require(
-            decodedTx.nonce == ovmExecutionManager.ovmGETNONCE() + 1,
-            "Transaction nonce does not match the expected nonce."
-        );
-        ovmExecutionManager.ovmSETNONCE(decodedTx.nonce);
 
         // Contract creations are signalled by sending a transaction to the zero address.
         if (decodedTx.target == address(0)) {
-            address created = ovmExecutionManager.ovmCREATE{gas: decodedTx.gasLimit}(
+            address created = Lib_SafeExecutionManagerWrapper.safeCREATE(
+                ovmExecutionManager,
+                decodedTx.gasLimit,
                 decodedTx.data
             );
 
@@ -66,7 +60,8 @@ contract mockOVM_ECDSAContractAccount is iOVM_ECDSAContractAccount {
             // initialization. Always return `true` for our success value here.
             return (true, abi.encode(created));
         } else {
-            return ovmExecutionManager.ovmCALL(
+            return Lib_SafeExecutionManagerWrapper.safeCALL(
+                ovmExecutionManager,
                 decodedTx.gasLimit,
                 decodedTx.target,
                 decodedTx.data

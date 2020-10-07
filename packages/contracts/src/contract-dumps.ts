@@ -7,6 +7,7 @@ import { keccak256 } from 'ethers/lib/utils'
 /* Internal Imports */
 import { deploy, RollupDeployConfig } from './contract-deployment'
 import { fromHexString, toHexString, remove0x } from '../test/helpers/utils'
+import { getContractDefinition } from './contract-defs'
 
 interface StorageDump {
   [key: string]: string
@@ -114,6 +115,9 @@ export const makeStateDump = async (): Promise<any> => {
       maxGasPerQueuePerEpoch: 1_000_000_000_000,
       secondsPerEpoch: 600,
     },
+    ovmGlobalContext: {
+      ovmCHAINID: 420
+    },
     transactionChainConfig: {
       sequencer: signer,
       forceInclusionPeriodSeconds: 600,
@@ -131,18 +135,22 @@ export const makeStateDump = async (): Promise<any> => {
       'OVM_SafetyChecker',
       'OVM_ExecutionManager',
       'OVM_StateManager',
-      'OVM_ECDSAContractAccount'
+      'mockOVM_ECDSAContractAccount'
     ]
   }
 
   const precompiles = {
-    OVM_L2ToL1MessagePasser: '4200000000000000000000000000000000000000',
-    OVM_L1MessageSender: '4200000000000000000000000000000000000001',
-    OVM_DeployerWhitelist: '4200000000000000000000000000000000000002'
+    OVM_L2ToL1MessagePasser: '0x4200000000000000000000000000000000000000',
+    OVM_L1MessageSender: '0x4200000000000000000000000000000000000001',
+    OVM_DeployerWhitelist: '0x4200000000000000000000000000000000000002'
   }
 
   const deploymentResult = await deploy(config)
   deploymentResult.contracts['Lib_AddressManager'] = deploymentResult.AddressManager
+
+  if (deploymentResult.failedDeployments.length > 0) {
+    throw new Error(`Could not generate state dump, deploy failed for: ${deploymentResult.failedDeployments}`)
+  }
 
   const pStateManager = ganache.engine.manager.state.blockchain.vm.pStateManager
   const cStateManager = pStateManager._wrapped
@@ -158,14 +166,14 @@ export const makeStateDump = async (): Promise<any> => {
     const codeBuf = await pStateManager.getContractCode(fromHexString(contract.address))
     const code = toHexString(codeBuf)
 
-    const deadAddress = precompiles[name] || `deaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
+    const deadAddress = precompiles[name] || `0xdeaddeaddeaddeaddeaddeaddeaddeaddead${i.toString(16).padStart(4, '0')}`
 
     dump.accounts[name] = {
       address: deadAddress,
       code,
       codeHash: keccak256(code),
       storage: await getStorageDump(cStateManager, contract.address),
-      abi: JSON.parse(contract.interface.format('json') as string),
+      abi: getContractDefinition(name.replace('Proxy__', '')).abi
     }
   }
 

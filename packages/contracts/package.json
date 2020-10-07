@@ -10,7 +10,7 @@
   ],
   "license": "MIT",
   "scripts": {
-    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
+    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy && yarn run build:dump",
     "build:typescript": "tsc -p .",
     "build:contracts": "buidler compile",
     "build:dump": "ts-node \"bin/take-dump.ts\"",
@@ -42,6 +42,7 @@
     "ganache-core": "^2.12.1",
     "lodash": "^4.17.20",
     "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
+    "mkdirp": "^1.0.4",
     "mocha": "^8.1.1",
     "prettier": "^2.1.2",
     "random-bytes-seed": "^1.0.3",
