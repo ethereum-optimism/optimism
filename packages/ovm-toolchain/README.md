@@ -87,3 +87,31 @@ const config = {
 
 export default config
 ```
+
+#### Watcher
+
+Our `Watcher` allows you to get the L1->L2 and L2->L1 message hashes from a transaction hash on the origin layer and then trigger a callback with a when the message is relayed on its destination layer. `getMessageHashesFromL1Tx` will return an array of the message hashes of all of the L1->L2 messages that were sent inside of that L1 tx (This will usually just be a single element array). `getMessageHashesFromL2Tx` does the same for L2->L1 messages. `onceL2Relay` takes in an L1->L2 message hash and a callback that will be triggered after 2-5 minutes with the hash of the L2 tx that the message ends up being relayed in. `onceL1Relay` does the same for L2->L1 messages, except the delay is 7 days.
+
+```typescript
+import { Watcher } from '@eth-optimism/ovm-toolchain/'
+import { JsonRpcProvider } from 'ethers/providers'
+
+const watcher = new Watcher({
+  l1: {
+    provider: new JsonRpcProvider('INFURA_L1_URL'),
+    messengerAddress: '0x...'
+  },
+  l2: {
+    provider: new JsonRpcProvider('OPTIMISM_L2_URL'),
+    messengerAddress: '0x...'
+  }
+})
+const l1TxHash = (await depositContract.deposit(100)).hash
+const [messageHash] = await watcher.getMessageHashesFromL1Tx(l1TxHash)
+console.log('L1->L2 message hash:', messageHash)
+watcher.onceL2Relay(messageHash, (l2txhash) => {
+  // Takes 2-5 minutes
+  console.log('Got L2 Tx Hash:', l2txhash)
+})
+
+```
