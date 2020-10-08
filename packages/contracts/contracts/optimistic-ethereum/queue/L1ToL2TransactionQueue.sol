@@ -30,6 +30,8 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
 
     uint constant public L2_GAS_DISCOUNT_DIVISOR = 10;
 
+    address public l1MessengerAddress;
+
     /*
      * Constructor
      */
@@ -48,6 +50,11 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     /*
      * Public Functions
      */
+
+    function tempInit(address _l1MessengerAddress) public {
+        require(l1MessengerAddress == address(0));
+        l1MessengerAddress = _l1MessengerAddress;
+    }
 
     /**
      * Checks that that a dequeue is authenticated, and dequques if authenticated.
@@ -69,6 +76,8 @@ contract L1ToL2TransactionQueue is ContractResolver, RollupQueue {
     )
         external
     {
+        require(l1MessengerAddress == address(0) || msg.sender == l1MessengerAddress);
+
         uint gasToBurn = _ovmGasLimit / L2_GAS_DISCOUNT_DIVISOR;
         resolveGasConsumer().consumeGasInternalCall(gasToBurn);
 

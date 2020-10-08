@@ -1,4 +1,5 @@
-import { usePlugin, BuidlerConfig } from '@nomiclabs/buidler/config'
+import * as path from 'path'
+import { usePlugin, BuidlerConfig, task } from '@nomiclabs/buidler/config'
 
 import {
   DEFAULT_ACCOUNTS_BUIDLER,
@@ -26,6 +27,18 @@ const parseSolppFlags = (): { [flag: string]: boolean } => {
 
   return flags
 }
+
+task('compile')
+  .addFlag('ovm', 'Compile using OVM solc compiler')
+  .setAction(async (taskArguments, bre: any, runSuper) => {
+    if (taskArguments.ovm) {
+      bre.config.solc = {
+        path: path.resolve(__dirname, '../../node_modules/@eth-optimism/solc'),
+      }
+      bre.config.paths.artifacts = './build/ovm_artifacts'
+    }
+    await runSuper(taskArguments)
+  })
 
 const config: BuidlerConfig = {
   networks: {

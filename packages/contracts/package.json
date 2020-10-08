@@ -1,12 +1,13 @@
 {
   "name": "@eth-optimism/rollup-contracts",
   "private": true,
-  "version": "0.0.1-alpha.33",
+  "version": "0.0.1-alpha.35",
   "main": "build/index.js",
   "files": [
     "build/**/*.js",
     "build/contracts/*",
-    "build/artifacts/*json"
+    "build/artifacts/*json",
+    "build/ovm_artifacts/*json"
   ],
   "license": "MIT",
   "workspaces": {
@@ -29,6 +30,7 @@
     "coverage:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST\" buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
     "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
     "build:contracts": "buidler compile",
+    "build:contracts:ovm": "buidler compile --ovm",
     "build:typescript": "tsc -p .",
     "build:copy": "yarn run build:copy:contracts",
     "build:copy:contracts": "copyfiles -u 2 \"contracts/optimistic-ethereum/**/*.sol\" \"build/contracts\"",
@@ -37,7 +39,8 @@
     "lint:typescript": "tslint --format stylish --project .",
     "fix": "yarn run fix:typescript",
     "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\"",
-    "deploy:all": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-contracts.js"
+    "deploy:all": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-contracts.js",
+    "prepublish": "yarn run build && yarn run build:contracts:ovm"
   },
   "dependencies": {
     "@ethersproject/keccak256": "5.0.3",
