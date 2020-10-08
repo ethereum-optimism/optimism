@@ -27,11 +27,11 @@ export class Watcher {
     return this._getMessageHashesFromTx(false, l2TxHash)
   }
 
-  public onceL2Relay(msgHash: string, callback: Function) {
+  public onceL2Relay(msgHash: string, callback: Function): void {
     return this._onceRelay(false, msgHash, callback)
   }
 
-  public onceL1Relay(msgHash: string, callback: Function) {
+  public onceL1Relay(msgHash: string, callback: Function): void {
     return this._onceRelay(true, msgHash, callback)
   }
 
