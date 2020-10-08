@@ -1714,7 +1714,7 @@
     "@truffle/interface-adapter" "^0.3.0"
     web3 "1.2.1"
 
-"@types/abstract-leveldown@^5.0.1":
+"@types/abstract-leveldown@*", "@types/abstract-leveldown@^5.0.1":
   version "5.0.1"
   resolved "https://registry.yarnpkg.com/@types/abstract-leveldown/-/abstract-leveldown-5.0.1.tgz#3c7750d0186b954c7f2d2f6acc8c3c7ba0c3412e"
   integrity sha512-wYxU3kp5zItbxKmeRYCEplS2MW7DzyBnxPGj+GJVHZEUZiK/nn5Ei1sUFgURDh+X051+zsGe28iud3oHjrYWQQ==
@@ -1773,6 +1773,14 @@
   integrity sha512-SEYeGAIQIQX8NN6LDKprLjbrd5dARM5EXsd8GI/A5l0apYI1fGMWgPHSe4ZKL4eozlAyI+doUE9XbYS4xCkQ1w==
   dependencies:
     "@types/minimatch" "*"
+    "@types/node" "*"
+
+"@types/levelup@^3.1.1":
+  version "3.1.1"
+  resolved "https://registry.yarnpkg.com/@types/levelup/-/levelup-3.1.1.tgz#f7cc08f248f14cb6c92914e91bceb8761020e8f0"
+  integrity sha512-LjvlfctJYj23Xuqq3jCT8ZPSUSSgDcRJg8+XFDBasoYzefFbB4cHzlDmBVjc2rBOYvklpYHJRayD0jBsbJLD9w==
+  dependencies:
+    "@types/abstract-leveldown" "*"
     "@types/node" "*"
 
 "@types/lodash@^4.14.157":
@@ -8862,11 +8870,24 @@ merkle-patricia-tree@2.3.2, merkle-patricia-tree@^2.1.2, merkle-patricia-tree@^2
     rlp "^2.0.0"
     semaphore ">=1.0.1"
 
-merkle-patricia-tree@^3.0.0, "merkle-patricia-tree@git+https://github.com/kfichter/merkle-patricia-tree":
+merkle-patricia-tree@^3.0.0:
   version "3.0.0"
   resolved "git+https://github.com/kfichter/merkle-patricia-tree#ebd10c405be8ae909f1f82dea275a0e9ec1c8e46"
   dependencies:
     ethereumjs-util "^7.0.0"
+    level-mem "^5.0.1"
+    level-ws "^2.0.0"
+    readable-stream "^3.6.0"
+    rlp "^2.2.4"
+    semaphore-async-await "^1.5.1"
+
+merkle-patricia-tree@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/merkle-patricia-tree/-/merkle-patricia-tree-4.0.0.tgz#b95500a2a188a813eae18b175b34d9f439b92a62"
+  integrity sha512-OnI0iUvc5G66ZJgSB7PnuU6Pnk9QADMcBgua7YhNm8gbQJq5Hbiv9U9hQRe3mEM1KEfbqrdTC+x33bTewF+oCA==
+  dependencies:
+    "@types/levelup" "^3.1.1"
+    ethereumjs-util "^7.0.2"
     level-mem "^5.0.1"
     level-ws "^2.0.0"
     readable-stream "^3.6.0"

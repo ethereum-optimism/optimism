@@ -115,7 +115,7 @@ describe('L2CrossDomainMessenger', () => {
       ).to.be.rejectedWith('Provided message has already been received.')
     })
 
-    it('should fail if the sender is not the L1 messenger', async () => {
+    it.skip('should fail if the sender is not the L1 messenger', async () => {
       const expectedKey = ethers.utils.keccak256('0x1234')
       const expectedVal = ethers.utils.keccak256('0x5678')
 
