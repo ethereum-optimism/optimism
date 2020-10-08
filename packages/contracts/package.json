@@ -60,7 +60,7 @@
     "ethereumjs-abi": "^0.6.8",
     "ethers": "5.0.0",
     "lodash": "^4.17.15",
-    "merkle-patricia-tree": "git+https://github.com/kfichter/merkle-patricia-tree",
+    "merkle-patricia-tree": "^4.0.0",
     "random-bytes-seed": "^1.0.3",
     "rlp": "^2.2.5",
     "seedrandom": "^3.0.5",
