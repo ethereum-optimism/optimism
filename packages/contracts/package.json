@@ -28,7 +28,7 @@
     "test:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST,FLAG_IS_DEBUG\" buidler test --show-stack-traces",
     "coverage": "yarn run coverage:contracts",
     "coverage:contracts": "cross-env SOLPP_FLAGS=\"FLAG_IS_TEST\" buidler coverage --network coverage --show-stack-traces --testfiles \"test/contracts/**/*.spec.ts\"",
-    "build": "yarn run build:contracts && yarn run buidler compile --ovm && yarn run build:typescript && yarn run build:copy",
+    "build": "yarn run build:contracts && yarn run build:typescript && yarn run build:copy",
     "build:contracts": "buidler compile",
     "build:contracts:ovm": "buidler compile --ovm",
     "build:typescript": "tsc -p .",
@@ -39,7 +39,8 @@
     "lint:typescript": "tslint --format stylish --project .",
     "fix": "yarn run fix:typescript",
     "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\"",
-    "deploy:all": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-contracts.js"
+    "deploy:all": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-contracts.js",
+    "prepublish": "yarn run build && yarn run build:contracts:ovm"
   },
   "dependencies": {
     "@ethersproject/keccak256": "5.0.3",
