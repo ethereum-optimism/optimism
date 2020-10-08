@@ -89,7 +89,7 @@ export default config
 ```
 
 #### Watcher
-Our `Watcher` allows you to retrieve all transaction hashes related to cross domain messages such as deposits and withdrawals. In order to use, first send a transaction which sends a cross domain message, for example a deposit from L1 into L2. After sending the deposit transaction and storing the transaction hash, use `getMessageHashesFromL1Tx(l1TxHash)` to get an array of the message hashes of all of the L1->L2 messages that were sent inside of that L1 tx (This will usually just be a single element array, but it can return multiple if one L1 transaction triggers multiple deposits). `getMessageHashesFromL2Tx(l2TxHash)` does the same for L2->L1 messages. `onceL2Relay(messageHash, callback)` takes in an L1->L2 message hash and a callback that will be triggered after 2-5 minutes with the hash of the L2 tx that the message ends up getting relayed in. `onceL1Relay(messageHash, callback)` does the same for L2->L1 messages, except the delay is 7 days.
+Our `Watcher` allows you to retrieve all transaction hashes related to cross domain messages such as deposits and withdrawals. In order to use, first send a transaction which sends a cross domain message, for example a deposit from L1 into L2. After sending the deposit transaction and storing the transaction hash, use `getMessageHashesFromL1Tx(l1TxHash)` to get an array of the message hashes of all of the L1->L2 messages that were sent inside of that L1 tx (This will usually just be a single element array, but it can return multiple if one L1 transaction triggers multiple deposits). `getMessageHashesFromL2Tx(l2TxHash)` does the same for L2->L1 messages. `getL2TransactionReceipt(messageHash)` takes in an L1->L2 message hash and then after 2-5 minutes, returns the receipt of the L2 tx that the message ends up getting relayed in. `getL1TransactionReceipt(messageHash)` does the same for L2->L1 messages, except the delay is 7 days.
 
 ```typescript
 import { Watcher } from '@eth-optimism/ovm-toolchain/'
@@ -108,8 +108,5 @@ const watcher = new Watcher({
 const l1TxHash = (await depositContract.deposit(100)).hash
 const [messageHash] = await watcher.getMessageHashesFromL1Tx(l1TxHash)
 console.log('L1->L2 message hash:', messageHash)
-watcher.onceL2Relay(messageHash, (l2txhash) => {
-  // Takes 2-5 minutes
-  console.log('Got L2 Tx Hash:', l2txhash)
-})
+const l2TxReceipt = await watcher.getL2TransactionReceipt(messageHash)
 ```
