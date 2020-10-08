@@ -19,7 +19,7 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
 
     event RelayedL2ToL1Message(bytes32 msgHash);
 
-    public address l1ToL2QueueAddress;
+    address public l1ToL2QueueAddress;
 
     /*
      * Data Structures
