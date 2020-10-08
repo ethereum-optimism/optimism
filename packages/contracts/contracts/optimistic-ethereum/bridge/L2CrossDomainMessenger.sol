@@ -104,7 +104,7 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
             bool
         )
     {
-        return msg.sender == authenticatedAddress || authenticatedAddress == address(0);
+        return (authenticatedAddress == address(0) || msg.sender == authenticatedAddress);
     }
 
     function tempInit(address _authenticatedAddress) public {
