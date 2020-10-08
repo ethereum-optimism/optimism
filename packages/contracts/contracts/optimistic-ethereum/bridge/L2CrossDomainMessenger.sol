@@ -104,10 +104,12 @@ contract L2CrossDomainMessenger is BaseCrossDomainMessenger {
             bool
         )
     {
-        // IL1MessageSender l1MessageSenderPrecompile = IL1MessageSender(l1MessageSenderPrecompileAddress);
-        // address l1MessageSenderAddress = l1MessageSenderPrecompile.getL1MessageSender();
-        // return l1MessageSenderAddress == targetMessengerAddress;
-        return msg.sender == authenticatedAddress || authenticatedAddress == address(0);
+        if (authenticatedAddress == address(0)) {
+            IL1MessageSender l1MessageSenderPrecompile = IL1MessageSender(l1MessageSenderPrecompileAddress);
+            address l1MessageSenderAddress = l1MessageSenderPrecompile.getL1MessageSender();
+            return l1MessageSenderAddress == targetMessengerAddress;
+        }
+        return msg.sender == authenticatedAddress;
     }
 
     function tempInit(address _authenticatedAddress) public {
