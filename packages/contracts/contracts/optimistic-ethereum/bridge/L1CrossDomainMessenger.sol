@@ -19,6 +19,8 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
 
     event RelayedL2ToL1Message(bytes32 msgHash);
 
+    public address l1ToL2QueueAddress;
+
     /*
      * Data Structures
      */
@@ -43,6 +45,11 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
         public
         ContractResolver(_addressResolver)
     {}
+
+    function tempInit(address _l1ToL2QueueAddress) public {
+        require(l1ToL2QueueAddress == address(0));
+        l1ToL2QueueAddress = _l1ToL2QueueAddress;
+    }
 
 
     /*
@@ -236,7 +243,10 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
         view
         returns (L1ToL2TransactionQueue)
     {
-        return L1ToL2TransactionQueue(resolveContract("L1ToL2TransactionQueue"));
+        if (l1ToL2QueueAddress == address(0)) {
+            return L1ToL2TransactionQueue(resolveContract("L1ToL2TransactionQueue"));
+        }
+        return L1ToL2TransactionQueue(l1ToL2QueueAddress);
     }
 
     function resolveStateCommitmentChain()
