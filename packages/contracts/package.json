@@ -40,6 +40,7 @@
     "fix": "yarn run fix:typescript",
     "fix:typescript": "prettier --config ../../prettier-config.json --write \"index.ts\" \"buidler.config.ts\" \"{src,test,plugins}/**/*.ts\"",
     "deploy:all": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-contracts.js",
+    "deploy:messengers": "env DEBUG=\"info:*,error:*,debug:*\" node ./build/src/exec/deploy-messengers.js",
     "prepublish": "yarn run build && yarn run build:contracts:ovm"
   },
   "dependencies": {

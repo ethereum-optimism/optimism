@@ -12,6 +12,7 @@ contract CrossDomainSimpleStorage is SimpleStorage {
     }
 
     function crossDomainSetStorage(bytes32 key, bytes32 value) public {
+        crossDomainMessenger = ICrossDomainMessenger(msg.sender);
         crossDomainMsgSender = crossDomainMessenger.xDomainMessageSender();
         setStorage(key, value);
     }
