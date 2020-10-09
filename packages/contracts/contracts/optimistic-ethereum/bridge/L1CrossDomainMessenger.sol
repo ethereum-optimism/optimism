@@ -232,7 +232,6 @@ contract L1CrossDomainMessenger is BaseCrossDomainMessenger, ContractResolver {
             _message
         );
     }
-    
 
     /*
      * Contract Resolution
