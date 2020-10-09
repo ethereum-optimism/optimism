@@ -14,7 +14,6 @@ interface WatcherOptions {
 export class Watcher {
   public l1: Layer
   public l2: Layer
-  public NUM_BLOCKS_TO_FETCH: number = 10_000_000
 
   constructor(opts: WatcherOptions) {
     this.l1 = opts.l1
@@ -28,12 +27,12 @@ export class Watcher {
     return this._getMessageHashesFromTx(false, l2TxHash)
   }
 
-  public async getL2TransactionReceipt(l1ToL2MsgHash: string): Promise<any> {
-    return this._getLXTransactionReceipt(false, l1ToL2MsgHash)
+  public onceL2Relay(msgHash: string, callback: Function): void {
+    return this._onceRelay(false, msgHash, callback)
   }
 
-  public async getL1TransactionReceipt(l2ToL1MsgHash: string): Promise<any> {
-    return this._getLXTransactionReceipt(false, l2ToL1MsgHash)
+  public onceL1Relay(msgHash: string, callback: Function): void {
+    return this._onceRelay(true, msgHash, callback)
   }
 
   private async _getMessageHashesFromTx(
@@ -51,34 +50,18 @@ export class Watcher {
     return filtered.map((log: any) => log.data)
   }
 
-  private async _getLXTransactionReceipt(
-    isL1: boolean,
-    msgHash: string
-  ): Promise<any> {
+  private _onceRelay(isL1: boolean, msgHash: string, callback: Function) {
     const layer = isL1 ? this.l1 : this.l2
-    const blockNumber = await layer.provider.getBlockNumber()
-    const startingBlock = Math.max(blockNumber - this.NUM_BLOCKS_TO_FETCH, 0)
     const filter = {
       address: layer.messengerAddress,
       topics: [
         ethers.utils.id(`Relayed${isL1 ? 'L2ToL1' : 'L1ToL2'}Message(bytes32)`),
       ],
-      fromBlock: startingBlock,
-    }
-    const logs = await layer.provider.getLogs(filter)
-    const matches = logs.filter((log: any) => log.data === msgHash)
-    if (matches.length > 0) {
-      if (matches.length > 1) {
-        throw Error(
-          'Found multiple transactions relaying the same message hash!'
-        )
-      }
-      return layer.provider.getTransactionReceipt(matches[0].transactionHash)
     }
 
     layer.provider.on(filter, (log: any) => {
       if (log.data === msgHash) {
-        return layer.provider.getTransactionReceipt(log.transactionHash)
+        callback(log.transactionHash)
       }
     })
   }
