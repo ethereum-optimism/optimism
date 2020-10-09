@@ -17,8 +17,6 @@ interface ICrossDomainMessenger {
     function messageNonce() external view returns (uint256);
     function xDomainMessageSender() external view returns (address);
 
-    event SentMessage(bytes32 messageHash);
-
     /********************
      * Public Functions *
      ********************/
