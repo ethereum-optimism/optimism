@@ -1,6 +1,10 @@
 # GCP and Vault Infrastructure
 
-This directory holds the Terraform scripts and the Helm chart overrides to deploy the cloud infrastructure and Kubernetes resources into a Google Cloud project.
+This directory holds the Terraform scripts and the Helm chart overrides to deploy the cloud infrastructure and Kubernetes resources into two Google Cloud projects.
+
+## Project Creation
+
+In the GCP Console, create _two_ projects: one to hold the VPN Networking VPC and one to hold the Vault VPC.
 
 ## GCloud Authentication
 
@@ -26,7 +30,39 @@ $ gcloud auth revoke
 > $ gcloud auth activate-service-account --key-file <path_to_key_file>
 > ```
 
-## Terraform
+## Terraform (Networking)
+
+[Source](./terraform-vpn)
+
+The Terraform scripts in this directory are used for standing up a VPC that contains networks that can be used to VPN to the Vault VPC.
+
+### Resources
+
+- [VPC](./terraform/vpc.tf)
+
+After you're authenticated to your GCP project, you can deploy the infrastructure. Ensure that you have all of the necessary Terraform variables set in the `terraform.tfvars` file and run:
+
+```bash
+cd ./terraform-vpn
+terraform init
+terraform apply
+```
+
+The required variables are defined in the `variables.tf` file, but the current list is:
+
+```bash
+gcp_project   = "[network-project-name]"
+gcp_region    = "[your-gcp-region]"
+gcp_zone      = "[your-gcp-zone]"
+vault_vpc_uri = "https://www.googleapis.com/compute/v1/projects/[vault-project-name]/global/networks/omgnetwork-net"
+subnet_cidr   = "[network-project-cidr-block]"
+ssh_user      = "[your-ssh-user]"
+ssh_cidr_list = [
+  "35.235.240.0/20"
+]
+```
+
+## Terraform (Vault)
 
 [Source](./terraform)
 
@@ -51,7 +87,7 @@ The Terraform scripts in this directory are used for standing up the cloud infra
 
 ### Deployment
 
-With a Google Cloud project already created, first you must enable the necessary Google API services in order to successfully run the Terraform scripts to deploy the resources. There is a script to enable (and disable for teardown) the APIs for you:
+With both of the Google Cloud projects you created, you must enable the necessary Google API services in order to successfully run the Terraform scripts to deploy the resources. There is a script to enable (and disable for teardown) the APIs for you:
 
 ```bash
 ./scripts/gcp_services.sh # [-d: disable]
@@ -73,7 +109,6 @@ Now that you're authenticated locally to your GCP project, you can now deploy th
 ```bash
 cd ./terraform
 terraform init
-terraform plan
 terraform apply
 ```
 

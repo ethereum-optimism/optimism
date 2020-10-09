@@ -67,5 +67,5 @@ resource "google_compute_router_nat" "nat" {
 resource "google_compute_network_peering" "peering" {
   name         = "peering-to-omgnetwork-vpc"
   network      = google_compute_network.vpc.self_link
-  peer_network = var.omgnetwork_vpc_uri
+  peer_network = data.terraform_remote_state.vpn.outputs.vpc_uri
 }

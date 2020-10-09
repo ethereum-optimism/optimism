@@ -136,7 +136,10 @@ resource "google_compute_firewall" "omgnetwork_vpc_access" {
     ports    = ["8200"]
   }
 
-  source_ranges = [var.omgnetwork_subnet_cidr, var.subnet_cidr]
+  source_ranges = [
+		data.terraform_remote_state.vpn.outputs.omgnetwork_cidr,
+		var.subnet_cidr
+	]
   target_tags   = ["vault"]
 }
 

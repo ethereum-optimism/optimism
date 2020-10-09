@@ -29,16 +29,6 @@ variable "router_asn" {
   type        = number
 }
 
-variable "omgnetwork_vpc_uri" {
-  description = "URI of the client VPC to be peered to the Vault VPC"
-  type        = string
-}
-
-variable "omgnetwork_subnet_cidr" {
-  description = "CIDR block of subnet used when allowing ingress access in Vault VPC firewall"
-  type        = string
-}
-
 variable "lockdown_egress" {
   description = "Boolean indicating if egress network access is lockdown to only Datadog IPs"
   default     = false
