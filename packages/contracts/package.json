@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism/rollup-contracts",
   "private": true,
-  "version": "0.0.1-alpha.36",
+  "version": "0.0.1-alpha.37",
   "main": "build/index.js",
   "files": [
     "build/**/*.js",
