@@ -89,17 +89,20 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
             targetMessengerAddress
         );
 
-        // Just send it over!
-        targetMessenger.receiveMessage(ReceivedMessage({
+        ReceivedMessage memory nextMessage = ReceivedMessage({
             timestamp: block.timestamp,
             target: _target,
             sender: msg.sender,
             message: _message,
             messageNonce: messageNonce,
             gasLimit: _gasLimit
-        }));
+        });
+        // Just send it over!
+        targetMessenger.receiveMessage(nextMessage);
 
         messageNonce += 1;
+        bytes32 messageHash = getReceivedMessageHash(nextMessage);
+        emit SentMessage(messageHash);
     }
 
     /**
@@ -147,5 +150,17 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
         xDomainMessageSender = nextMessage.sender;
         nextMessage.target.call.gas(nextMessage.gasLimit)(nextMessage.message);
         lastRelayedMessage += 1;
+    }
+
+
+    function getReceivedMessageHash (ReceivedMessage memory _message) internal returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _message.target,
+                _message.sender,
+                _message.message,
+                _message.messageNonce
+            )
+        );
     }
 }
