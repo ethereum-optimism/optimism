@@ -33,6 +33,7 @@ contract BaseCrossDomainMessenger is ICrossDomainMessenger {
     )
         public
     {
+        require(targetMessengerAddress == address(0));
         targetMessengerAddress = _targetMessengerAddress;
     }
 
