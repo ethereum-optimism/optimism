@@ -159,7 +159,18 @@ export class ExecutionManagerTestRunner {
 
     this.contracts.OVM_ExecutionManager = await (
       await smoddit('OVM_ExecutionManager')
-    ).deploy(AddressManager.address)
+    ).deploy(
+      AddressManager.address,
+      {
+        minTransactionGasLimit: 0,
+        maxTransactionGasLimit: 1_000_000_000,
+        maxGasPerQueuePerEpoch: 1_000_000_000_000,
+        secondsPerEpoch: 600,
+      },
+      {
+        ovmCHAINID: 420
+      },
+    )
 
     this.contracts.OVM_StateManager = await (
       await smoddit('OVM_StateManager')

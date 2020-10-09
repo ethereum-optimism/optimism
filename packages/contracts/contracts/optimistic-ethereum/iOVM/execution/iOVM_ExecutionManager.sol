@@ -62,7 +62,6 @@ interface iOVM_ExecutionManager {
         address ovmCALLER;
         address ovmADDRESS;
         bool isStatic;
-        bool isCreation;
     }
 
     struct MessageRecord {
