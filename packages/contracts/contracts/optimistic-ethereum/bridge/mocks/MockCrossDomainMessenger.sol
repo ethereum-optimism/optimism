@@ -130,7 +130,7 @@ contract MockCrossDomainMessenger is ICrossDomainMessenger {
         }
 
         ReceivedMessage memory nextMessage = fullReceivedMessages[lastRelayedMessage];
-        return nextMessage.timestamp + delay < block.timestamp;
+        return true; //nextMessage.timestamp + delay < block.timestamp;
     }
 
     /**
