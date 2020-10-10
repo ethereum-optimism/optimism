@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
+import { console } from "@nomiclabs/buidler/console.sol";
 
 /* Interface Imports */
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
@@ -19,7 +20,7 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
  */
 contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { // TODO: re-add iOVM_CanonicalTransactionChain
 
-    struct SeqeuncerBatchContext {
+    struct MultiBatchContext {
         uint numSequencedTransactions;
         uint numSubsequentQueueTransactions;
         uint timestamp;
@@ -28,10 +29,10 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
 
     struct TransactionChainElement {
         bool isSequenced;
-        uint queueIndex; // unused if isSequenced
-        uint timestamp; // unused if !isSequenced
-        uint blocknumber; // unused if !isSequenced
-        bytes txData; // unused if !isSequenced
+        uint queueIndex;  // QUEUED TX ONLY
+        uint timestamp;   // SEQUENCER TX ONLY
+        uint blocknumber; // SEQUENCER TX ONLY
+        bytes txData;     // SEQUENCER TX ONLY
     }
 
     /*******************************************
@@ -47,6 +48,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
 
     uint256 internal forceInclusionPeriodSeconds;
     uint256 internal lastOVMTimestamp;
+    address internal sequencerAddress;
 
 
     /***************
@@ -64,6 +66,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
         Lib_AddressResolver(_libAddressManager)
     {
         ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
+        sequencerAddress = resolve("OVM_Sequencer");
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
     }
 
@@ -79,11 +82,11 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
     /**
      * Appends a sequencer batch.
      */
-    function appendSequencerBatches(
-        bytes[] memory _rawTransactions,
-        SeqeuncerBatchContext[] memory _multiBatchContext,
-        uint256 _shouldStartAtBatch,
-        uint _totalElementsToAppend
+    function appendSequencerMultiBatch(
+        bytes[] memory _rawTransactions,                // 2 byte prefix for how many elements, per element 3 byte prefix.
+        MultiBatchContext[] memory _multiBatchContexts, // 2 byte prefix for how many elements, fixed size elements
+        uint256 _shouldStartAtBatch,                    // 6 bytes
+        uint _totalElementsToAppend                     // 2 btyes
     )
         // override
         public // TODO: can we make external?  Hopefully so
@@ -94,7 +97,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
         );
 
         require(
-            msg.sender == resolve("Sequencer"),
+            msg.sender == sequencerAddress,
             "Function can only be called by the Sequencer."
         );
 
@@ -105,28 +108,33 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
             );
         }
 
+        // Initialize an array which will contain the leaves of the merkle tree commitment
         bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
-
-        uint numBatches = _multiBatchContext.length;
+        uint numBatchContexts = _multiBatchContexts.length;
         uint transactionIndex = 0;
         uint numSequencerTransactionsProcessed = 0;
-        for (uint batchIndex = 0; batchIndex < numBatches; batchIndex++) {
-            SeqeuncerBatchContext memory curBatch = _multiBatchContext[batchIndex];
-            uint numSequencedTransactions = curBatch.numSequencedTransactions;
+        for (uint batchContextIndex = 0; batchContextIndex < numBatchContexts; batchContextIndex++) {
+
+            // Process Sequencer Transactions
+            MultiBatchContext memory curContext = _multiBatchContexts[batchContextIndex];
+            uint numSequencedTransactions = curContext.numSequencedTransactions;
             for (uint txIndex = 0; txIndex < numSequencedTransactions; txIndex++) {
                 TransactionChainElement memory element = TransactionChainElement({
                     isSequenced: true,
                     queueIndex: 0,
-                    timestamp: curBatch.timestamp,
-                    blocknumber: curBatch.blocknumber,
+                    timestamp: curContext.timestamp,
+                    blocknumber: curContext.blocknumber,
                     txData: _rawTransactions[numSequencerTransactionsProcessed]
                 });
                 leaves[transactionIndex] = _hashTransactionChainElement(element);
                 numSequencerTransactionsProcessed++;
                 transactionIndex++;
+                console.log("Processed a sequencer transaction");
+                console.logBytes32(_hashTransactionChainElement(element));
             }
 
-            uint numQueuedTransactions = curBatch.numSubsequentQueueTransactions;
+            // Process Queue Transactions
+            uint numQueuedTransactions = curContext.numSubsequentQueueTransactions;
             for (uint queueTxIndex = 0; queueTxIndex < numQueuedTransactions; queueTxIndex++) {
                 TransactionChainElement memory element = TransactionChainElement({
                     isSequenced: false,
@@ -137,13 +145,20 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
                 });
                 leaves[transactionIndex] = _hashTransactionChainElement(element);
                 transactionIndex++;
-                // todo: dequeue however it works now (peeked?)
+                ovmL1ToL2TransactionQueue.dequeue();
             }
         }
 
+        console.log("We reached the end!");
+
         bytes32 root;
-        // todo: get root from merkle utils on leaves
-        _appendQueueBatch(root, _batch.length);
+
+        // Make sure the correct number of leaves were calculated
+        require(transactionIndex == _totalElementsToAppend, "Not enough transactions supplied!");
+
+        // TODO: get root from merkle utils on leaves
+        // merklize(leaves);
+        // _appendQueueBatch(root, _batch.length);
     }
 
 
@@ -153,7 +168,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
 
     /**
      * Appends a queue batch to the chain.
-     * @param _queueElement Queue element to append.
+     * @param _batchRoot Root of the batch
      * @param _batchSize Number of elements in the batch.
      */
     function _appendQueueBatch(
@@ -171,7 +186,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
         });
 
         _appendBatch(batchHeader);
-        lastOVMTimestamp = _queueElement.timestamp;
+        // lastOVMTimestamp = _queueElement.timestamp;
     }
 
     // TODO docstring
