@@ -76,7 +76,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
      ****************************************/
 
 
-// TODO: allow the sequencer to append queue batches at any time
+    // TODO: allow the sequencer to append queue batches at any time
 
 
     /**

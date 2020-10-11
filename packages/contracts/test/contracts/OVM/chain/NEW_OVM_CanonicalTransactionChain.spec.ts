@@ -23,7 +23,7 @@ interface sequencerBatchContext {
   blocknumber: Number
 }
 
-describe.only('NEW_OVM_CanonicalTransactionChain', () => {
+describe('NEW_OVM_CanonicalTransactionChain', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
