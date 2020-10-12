@@ -6,6 +6,7 @@ pragma experimental ABIEncoderV2;
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
 import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 import { Lib_MerkleUtils } from "../../libraries/utils/Lib_MerkleUtils.sol";
+import { TimeboundRingBuffer, Lib_TimeboundRingBuffer } from "../../libraries/utils/Lib_TimeboundRingBuffer.sol";
 import { console } from "@nomiclabs/buidler/console.sol";
 
 /* Interface Imports */
@@ -19,6 +20,16 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
  * @title OVM_CanonicalTransactionChain
  */
 contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { // TODO: re-add iOVM_CanonicalTransactionChain
+
+    /*************************************************
+     * Contract Variables: Transaction Restrinctions *
+     *************************************************/
+
+    uint constant MAX_ROLLUP_TX_SIZE = 10000;
+    uint constant L2_GAS_DISCOUNT_DIVISOR = 10;
+
+    using Lib_TimeboundRingBuffer for TimeboundRingBuffer;
+    TimeboundRingBuffer internal queue;
 
     struct MultiBatchContext {
         uint numSequencedTransactions;
@@ -68,6 +79,53 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
         ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
         sequencerAddress = resolve("OVM_Sequencer");
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
+        queue.init(100, 50, 0); // TODO: Update once we have arbitrary condition
+    }
+
+
+    /***************************************
+     * Public Functions: Transaction Queue *
+     **************************************/
+
+    /**
+     * Adds a transaction to the queue.
+     * @param _target Target contract to send the transaction to.
+     * @param _gasLimit Gas limit for the given transaction.
+     * @param _data Transaction data.
+     */
+    function enqueue(
+        address _target,
+        uint256 _gasLimit,
+        bytes memory _data
+    )
+        public
+    {
+        require(
+            _data.length <= MAX_ROLLUP_TX_SIZE,
+            "Transaction exceeds maximum rollup data size."
+        );
+        require(_gasLimit >= 20000, "Gas limit too low.");
+
+        // Consume l1 gas to pay for l2 gas on l1
+        uint gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
+        uint startingGas = gasleft();
+        uint i;
+        while(startingGas - gasleft() > gasToConsume) {
+            i++; // TODO: Replace this dumb work with minting gas token.
+        }
+
+        Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
+            timestamp: block.timestamp,
+            batchRoot: keccak256(abi.encodePacked(
+                _target,
+                _gasLimit,
+                _data
+            )),
+            isL1ToL2Batch: true
+        });
+
+        // bytes32 extraData = timestamp + blockNumber
+        // queue.push2(batchRoot, );
     }
 
 
