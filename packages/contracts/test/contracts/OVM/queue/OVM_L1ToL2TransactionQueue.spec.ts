@@ -37,7 +37,7 @@ const makeQueueElements = (count: number): any => {
   })
 }
 
-describe('OVM_L1ToL2TransactionQueue', () => {
+describe.only('OVM_L1ToL2TransactionQueue', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
@@ -98,7 +98,7 @@ describe('OVM_L1ToL2TransactionQueue', () => {
 
       it('should revert', async () => {
         await expect(OVM_L1ToL2TransactionQueue.dequeue()).to.be.revertedWith(
-          'Sender is not allowed to enqueue.'
+          'Sender is not allowed to dequeue.'
         )
       })
     })
