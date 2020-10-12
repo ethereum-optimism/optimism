@@ -10,7 +10,7 @@ import { Lib_BytesUtils } from "../../libraries/utils/Lib_BytesUtils.sol";
 
 /* Interface Imports */
 import { iOVM_L1CrossDomainMessenger } from "../../iOVM/bridge/iOVM_L1CrossDomainMessenger.sol";
-import { iOVM_L1ToL2TransactionQueue } from "../../iOVM/queue/iOVM_L1ToL2TransactionQueue.sol";
+import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
 import { iOVM_StateCommitmentChain } from "../../iOVM/chain/iOVM_StateCommitmentChain.sol";
 
 /* Contract Imports */
@@ -25,7 +25,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
      * Contract Variables: Contract References *
      *******************************************/
     
-    iOVM_L1ToL2TransactionQueue internal ovmL1ToL2TransactionQueue;
+    iOVM_CanonicalTransactionChain internal ovmCanonicalTransactionChain;
     iOVM_StateCommitmentChain internal ovmStateCommitmentChain;
 
 
@@ -41,7 +41,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
     )
         Lib_AddressResolver(_libAddressManager)
     {
-        ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
+        ovmCanonicalTransactionChain = iOVM_CanonicalTransactionChain(resolve("OVM_CanonicalTransactionChain"));
         ovmStateCommitmentChain = iOVM_StateCommitmentChain(resolve("OVM_StateCommitmentChain"));
     }
 
@@ -235,7 +235,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         override
         internal
     {
-        ovmL1ToL2TransactionQueue.enqueue(
+        ovmCanonicalTransactionChain.enqueue(
             targetMessengerAddress,
             _gasLimit,
             _message

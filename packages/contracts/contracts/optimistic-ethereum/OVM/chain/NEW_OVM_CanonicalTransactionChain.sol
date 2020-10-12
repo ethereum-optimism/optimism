@@ -11,7 +11,6 @@ import { console } from "@nomiclabs/buidler/console.sol";
 
 /* Interface Imports */
 import { iOVM_CanonicalTransactionChain } from "../../iOVM/chain/iOVM_CanonicalTransactionChain.sol";
-import { iOVM_L1ToL2TransactionQueue } from "../../iOVM/queue/iOVM_L1ToL2TransactionQueue.sol";
 
 /* Contract Imports */
 import { OVM_BaseChain } from "./OVM_BaseChain.sol";
@@ -50,8 +49,6 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
      * Contract Variables: Contract References *
      *******************************************/
     
-    iOVM_L1ToL2TransactionQueue internal ovmL1ToL2TransactionQueue;
-
 
     /*******************************************
      * Contract Variables: Internal Accounting *
@@ -76,7 +73,6 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
     )
         Lib_AddressResolver(_libAddressManager)
     {
-        ovmL1ToL2TransactionQueue = iOVM_L1ToL2TransactionQueue(resolve("OVM_L1ToL2TransactionQueue"));
         sequencerAddress = resolve("OVM_Sequencer");
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
         queue.init(100, 50, 0); // TODO: Update once we have arbitrary condition
@@ -106,7 +102,7 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
         );
         require(_gasLimit >= 20000, "Gas limit too low.");
 
-        // Consume l1 gas to pay for l2 gas on l1
+        // Consume l1 gas rate limit queued transactions
         uint gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
         uint startingGas = gasleft();
         uint i;
@@ -115,13 +111,13 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
         }
 
         Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
-            timestamp: block.timestamp,
+            timestamp: uint40(block.timestamp),
+            blockNumber: uint32(block.number),
             batchRoot: keccak256(abi.encodePacked(
                 _target,
                 _gasLimit,
                 _data
-            )),
-            isL1ToL2Batch: true
+            ))
         });
 
         // bytes32 extraData = timestamp + blockNumber
@@ -159,12 +155,11 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
             "Function can only be called by the Sequencer."
         );
 
-        if (ovmL1ToL2TransactionQueue.size() > 0) {
-            require(
-                block.timestamp < ovmL1ToL2TransactionQueue.peek().timestamp + forceInclusionPeriodSeconds,
-                "Older queue batches must be processed before a new sequencer batch."
-            );
-        }
+        // TODO: Verify that there are no outstanding queue transactions which need to be processed
+        // require(
+        //     block.timestamp < queue.get(lastQueueIndex).timestamp + forceInclusionPeriodSeconds,
+        //     "Older queue batches must be processed before a new sequencer batch."
+        // );
 
         // Initialize an array which will contain the leaves of the merkle tree commitment
         bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
@@ -196,14 +191,15 @@ contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver
             for (uint queueTxIndex = 0; queueTxIndex < numQueuedTransactions; queueTxIndex++) {
                 TransactionChainElement memory element = TransactionChainElement({
                     isSequenced: false,
-                    queueIndex: ovmL1ToL2TransactionQueue.size(),
+                    queueIndex: queue.getLength(),
                     timestamp: 0,
                     blocknumber: 0,
                     txData: hex""
                 });
                 leaves[transactionIndex] = _hashTransactionChainElement(element);
                 transactionIndex++;
-                ovmL1ToL2TransactionQueue.dequeue();
+                // TODO: Increment our lastQueueIndex
+                // lastQueueIndex++;
             }
         }
 

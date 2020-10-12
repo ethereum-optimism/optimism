@@ -14,6 +14,7 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
      * Public Functions: Batch Manipulation *
      ****************************************/
 
+    function enqueue(address _target, uint256 _gasLimit, bytes memory _data) external;
     function appendQueueBatch() external;
     function appendSequencerBatch(bytes[] calldata _batch, uint256 _timestamp) external;
 }
