@@ -875,7 +875,7 @@ contract OVM_ExecutionManager is iOVM_ExecutionManager, Lib_AddressResolver {
         address codeContractAddress = 
             uint(_contract) < 100
             ? _contract
-            : _getAccountEthAddress(_contract)
+            : _getAccountEthAddress(_contract);
 
         return _handleExternalInteraction(
             _nextMessageContext,
