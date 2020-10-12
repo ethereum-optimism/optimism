@@ -135,6 +135,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
             batchRoot: Lib_MerkleUtils.getMerkleRoot(_elements),
             batchSize: _elements.length,
             prevTotalElements: totalElements,
+            timestamp: block.timestamp,
             extraData: _extraData
         });
 
@@ -202,6 +203,7 @@ contract OVM_BaseChain is iOVM_BaseChain {
             _batchHeader.batchRoot,
             _batchHeader.batchSize,
             _batchHeader.prevTotalElements,
+            _batchHeader.timestamp,
             _batchHeader.extraData
         ));
     }

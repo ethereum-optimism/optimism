@@ -143,8 +143,8 @@ contract OVM_CanonicalTransactionChain is iOVM_CanonicalTransactionChain, OVM_Ba
             batchRoot: _queueElement.batchRoot,
             batchSize: _batchSize,
             prevTotalElements: getTotalElements(),
+            timestamp: _queueElement.timestamp,
             extraData: abi.encodePacked(
-                _queueElement.timestamp,
                 _queueElement.isL1ToL2Batch
             )
         });

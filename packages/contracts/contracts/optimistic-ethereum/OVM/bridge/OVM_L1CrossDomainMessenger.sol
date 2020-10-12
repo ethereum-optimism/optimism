@@ -163,15 +163,13 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
             bool
         )
     {
-        // TODO: We *must* verify that the batch timestamp is sufficiently old.
-        // However, this requires that we first add timestamps to state batches
-        // and account for that change in various tests. Change of that size is
-        // out of scope for this ticket, so "TODO" for now.
-
-        return ovmStateCommitmentChain.verifyElement(
-            abi.encodePacked(_proof.stateRoot),
-            _proof.stateRootBatchHeader,
-            _proof.stateRootProof
+        return (
+            ovmStateCommitmentChain.insideFraudProofWindow(_proof.stateRootBatchHeader) == false
+            && ovmStateCommitmentChain.verifyElement(
+                abi.encodePacked(_proof.stateRoot),
+                _proof.stateRootBatchHeader,
+                _proof.stateRootProof
+            )
         );
     }
 
@@ -236,7 +234,7 @@ contract OVM_L1CrossDomainMessenger is iOVM_L1CrossDomainMessenger, OVM_BaseCros
         internal
     {
         ovmL1ToL2TransactionQueue.enqueue(
-            targetMessengerAddress,
+            resolve("OVM_L2CrossDomainMessenger"),
             _gasLimit,
             _message
         );

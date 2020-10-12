@@ -168,8 +168,8 @@ export class ExecutionManagerTestRunner {
         secondsPerEpoch: 600,
       },
       {
-        ovmCHAINID: 420
-      },
+        ovmCHAINID: 420,
+      }
     )
 
     this.contracts.OVM_StateManager = await (

@@ -104,7 +104,7 @@ contract OVM_L2CrossDomainMessenger is iOVM_L2CrossDomainMessenger, OVM_BaseCros
         )
     {
         return (
-            ovmL1MessageSender.getL1MessageSender() == targetMessengerAddress
+            ovmL1MessageSender.getL1MessageSender() == resolve("OVM_L1CrossDomainMessenger")
         );
     }
 

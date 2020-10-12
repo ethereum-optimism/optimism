@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.0.1",
+  "version": "0.0.2-alpha.1",
   "main": "build/src/index.js",
   "files": [
     "build/**/*.js",
@@ -23,6 +23,9 @@
     "lint:fix:typescript": "prettier --config prettier-config.json --write \"buidler.config.ts\" \"{src,test}/**/*.ts\"",
     "clean": "rm -rf ./artifacts ./build ./cache"
   },
+  "dependencies": {
+    "ethers": "5.0.0"
+  },
   "devDependencies": {
     "@eth-optimism/smock": "^0.0.2",
     "@nomiclabs/buidler": "^1.4.4",
@@ -37,7 +40,6 @@
     "chai": "^4.2.0",
     "copyfiles": "^2.3.0",
     "ethereum-waffle": "3.0.0",
-    "ethers": "5.0.0",
     "fs-extra": "^9.0.1",
     "ganache-core": "^2.12.1",
     "lodash": "^4.17.20",

@@ -62,6 +62,7 @@ library Lib_OVMCodec {
         bytes32 batchRoot;
         uint256 batchSize;
         uint256 prevTotalElements;
+        uint256 timestamp;
         bytes extraData;
     }
 

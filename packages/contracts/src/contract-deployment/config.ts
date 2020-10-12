@@ -89,7 +89,7 @@ export const makeContractDeployConfig = async (
       params: [
         AddressManager.address,
         config.ovmGasMeteringConfig,
-        config.ovmGlobalContext
+        config.ovmGlobalContext,
       ],
     },
     OVM_StateManager: {
@@ -116,10 +116,10 @@ export const makeContractDeployConfig = async (
       factory: getContractFactory('OVM_StateTransitionerFactory'),
     },
     OVM_ECDSAContractAccount: {
-      factory: getContractFactory('OVM_ECDSAContractAccount')
+      factory: getContractFactory('OVM_ECDSAContractAccount'),
     },
     mockOVM_ECDSAContractAccount: {
-      factory: getContractFactory('mockOVM_ECDSAContractAccount')
-    }
+      factory: getContractFactory('mockOVM_ECDSAContractAccount'),
+    },
   }
 }

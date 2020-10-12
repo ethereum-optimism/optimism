@@ -19,4 +19,10 @@ interface iOVM_StateCommitmentChain is iOVM_BaseChain {
 
     function appendStateBatch(bytes32[] calldata _batch) external;
     function deleteStateBatch(Lib_OVMCodec.ChainBatchHeader memory _batchHeader) external;
+
+    /**********************************
+     * Public Functions: Batch Status *
+     **********************************/
+
+    function insideFraudProofWindow(Lib_OVMCodec.ChainBatchHeader memory _batchHeader) external view returns (bool _inside);
 }
