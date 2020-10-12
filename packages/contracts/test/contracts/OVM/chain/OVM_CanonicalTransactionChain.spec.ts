@@ -23,7 +23,7 @@ interface sequencerBatchContext {
   blocknumber: Number
 }
 
-describe('NEW_OVM_CanonicalTransactionChain', () => {
+describe('OVM_CanonicalTransactionChain', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
@@ -51,7 +51,7 @@ describe('NEW_OVM_CanonicalTransactionChain', () => {
   let Factory__OVM_CanonicalTransactionChain: ContractFactory
   before(async () => {
     Factory__OVM_CanonicalTransactionChain = await ethers.getContractFactory(
-      'NEW_OVM_CanonicalTransactionChain'
+      'OVM_CanonicalTransactionChain'
     )
   })
 

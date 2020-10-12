@@ -18,7 +18,7 @@ import { OVM_BaseChain } from "./OVM_BaseChain.sol";
 /**
  * @title OVM_CanonicalTransactionChain
  */
-contract NEW_OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { // TODO: re-add iOVM_CanonicalTransactionChain
+contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { // TODO: re-add iOVM_CanonicalTransactionChain
 
     /*************************************************
      * Contract Variables: Transaction Restrinctions *
