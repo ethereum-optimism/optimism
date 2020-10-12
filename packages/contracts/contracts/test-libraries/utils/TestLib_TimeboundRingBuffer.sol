@@ -2,9 +2,6 @@
 pragma solidity ^0.7.0;
 pragma experimental ABIEncoderV2;
 
-/* Logging */
-import { console } from "@nomiclabs/buidler/console.sol";
-
 /* Library Imports */
 import { TimeboundRingBuffer, Lib_TimeboundRingBuffer } from "../../optimistic-ethereum/libraries/utils/Lib_TimeboundRingBuffer.sol";
 
