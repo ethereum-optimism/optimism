@@ -31,7 +31,7 @@ const makeQueueElements = (count: number): any => {
   return [...Array(count)].map((el, idx) => {
     return {
       target: NON_ZERO_ADDRESS,
-      gasLimit: idx,
+      gasLimit: (idx + 1) * 20000,
       data: DUMMY_BYTES32[0],
     }
   })
