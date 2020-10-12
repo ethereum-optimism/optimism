@@ -21,7 +21,7 @@ const l1Owner = new Wallet(process.env.L1_PRIVATE_KEY, l1Provider)
 
 const l2Owner = new Wallet(process.env.L2_PRIVATE_KEY, l2Provider)
 
-const godWallet = new Wallet(process.env.TX_INGESTION_SIGNER_KEY, l2Provider)
+const godWalletAddress = process.env.GOD_ADDRESS
 
 const deployMessengers = async () => {
   const AddressResolver = new Contract(
@@ -103,6 +103,7 @@ const deployMessengers = async () => {
   const l1SetTargetTx = await L1CrossDomainMessenger.connect(
     l1Owner
   ).setTargetMessengerAddress(L2CrossDomainMessenger.address)
+  await l1Provider.waitForTransaction(l1SetTargetTx.hash)
   console.log(
     'Set L1 target address to ',
     L2CrossDomainMessenger.address,
@@ -123,6 +124,7 @@ const deployMessengers = async () => {
     tempInitQueue.hash,
     '\n'
   )
+  await l1Provider.waitForTransaction(tempInitQueue.hash)
 
   // INIT L1 MESSENGER
   const tempInitL1Messenger = await L1CrossDomainMessenger.tempInit(
@@ -135,15 +137,16 @@ const deployMessengers = async () => {
     tempInitL1Messenger.hash,
     '\n'
   )
+  await l1Provider.waitForTransaction(tempInitL1Messenger.hash)
 
   // INIT L2 MESSENGER
   const tempInitL2Messenger = await L2CrossDomainMessenger.tempInit(
-    godWallet.address
+    godWalletAddress
   )
 
   console.log(
     'tempInit-ed the L2CrossDomainMessenger with God Wallet Address',
-    godWallet.address,
+    godWalletAddress,
     'txHash',
     tempInitL2Messenger.hash,
     '\n'
