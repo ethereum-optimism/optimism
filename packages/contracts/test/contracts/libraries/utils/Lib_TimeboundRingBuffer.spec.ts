@@ -9,12 +9,10 @@ import { Contract, Signer } from 'ethers'
 import {
   NON_NULL_BYTES32,
   makeHexString,
-  fromHexString,
-  getHexSlice,
   increaseEthTime
 } from '../../../helpers'
 
-const numToBytes32 = (num: Number) => {
+const numToBytes32 = (num: Number): string => {
   if (num < 0 || num > 255) {
     throw new Error('Unsupported number.')
   }
@@ -22,7 +20,7 @@ const numToBytes32 = (num: Number) => {
   return '0x' + '00'.repeat(31) + strNum
 }
 
-describe.only('Lib_TimeboundRingBuffer', () => {
+describe('Lib_TimeboundRingBuffer', () => {
   let signer: Signer
   before(async () => {
     ;[signer] = await ethers.getSigners()
@@ -32,7 +30,7 @@ describe.only('Lib_TimeboundRingBuffer', () => {
 
   const NON_NULL_BYTES28 = makeHexString('01', 28)
 
-  describe('[0,1,2,3] with no timeout', () => {
+  describe('push with no timeout', () => {
     beforeEach(async () => {
       Lib_TimeboundRingBuffer = await (
         await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
@@ -57,27 +55,48 @@ describe.only('Lib_TimeboundRingBuffer', () => {
     })
   })
 
+  describe('get()', () => {
+    before(async () => {
+      Lib_TimeboundRingBuffer = await (
+        await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
+      ).deploy(2, 1, 10_000)
+      await increaseEthTime(ethers.provider, 20_000)
+      for (let i = 0; i < 4; i++) {
+        await Lib_TimeboundRingBuffer.push(numToBytes32(i), NON_NULL_BYTES28)
+      }
+    })
+
+    it('should revert if index is too old', async () => {
+      await expect(Lib_TimeboundRingBuffer.get(0)).to.be.revertedWith("Index too old & has been overridden.")
+    })
+
+    it('should revert if index is greater than length', async () => {
+      await expect(Lib_TimeboundRingBuffer.get(5)).to.be.revertedWith("Index too large.")
+    })
+  })
+
   describe('push with timeout', () => {
     const startSize = 2
+    const pushNum = (num: Number) => Lib_TimeboundRingBuffer.push(numToBytes32(num), NON_NULL_BYTES28)
+
     beforeEach(async () => {
       Lib_TimeboundRingBuffer = await (
         await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
       ).deploy(startSize, 1, 10_000)
       for (let i = 0; i < startSize; i++) {
-        await Lib_TimeboundRingBuffer.push(numToBytes32(i), NON_NULL_BYTES28)
+        await pushNum(i)
       }
     })
 
-    const pushNum = (num: Number) => Lib_TimeboundRingBuffer.push(numToBytes32(num), NON_NULL_BYTES28)
     const pushJunk = () => Lib_TimeboundRingBuffer.push(NON_NULL_BYTES32, NON_NULL_BYTES28)
 
     it('should push a single value which extends the array', async () => {
-      await Lib_TimeboundRingBuffer.push(numToBytes32(2), NON_NULL_BYTES28)
+      await pushNum(2)
       const increasedSize = startSize + 1
       expect(await Lib_TimeboundRingBuffer.getMaxSize()).to.equal(increasedSize)
 
       await increaseEthTime(ethers.provider, 20_000)
-      await Lib_TimeboundRingBuffer.push(numToBytes32(3), NON_NULL_BYTES28)
+      await pushNum(3)
       expect(await Lib_TimeboundRingBuffer.getMaxSize()).to.equal(increasedSize) // Shouldn't increase the size this time
 
       expect(await Lib_TimeboundRingBuffer.get(2)).to.equal(numToBytes32(2))
@@ -94,6 +113,47 @@ describe.only('Lib_TimeboundRingBuffer', () => {
         await pushJunk()
       }
       expect(await Lib_TimeboundRingBuffer.getMaxSize()).to.equal(increasedSize)
+    })
+  })
+
+  describe('push2 with timeout', () => {
+    const startSize = 2
+    const push2Nums = (num1: Number, num2: Number) => Lib_TimeboundRingBuffer.push2(numToBytes32(num1), numToBytes32(num2), NON_NULL_BYTES28)
+
+    beforeEach(async () => {
+      Lib_TimeboundRingBuffer = await (
+        await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
+      ).deploy(startSize, 1, 10_000)
+    })
+    // it('should push two values which extends the array', async () => {
+    // })
+
+    it('should push a single value which extends the array', async () => {
+      await push2Nums(0, 1)
+      await push2Nums(2, 3)
+      const increasedSize = startSize + 2
+      expect(await Lib_TimeboundRingBuffer.getMaxSize()).to.equal(increasedSize)
+
+      await increaseEthTime(ethers.provider, 20_000)
+      await push2Nums(4, 5)
+      expect(await Lib_TimeboundRingBuffer.getMaxSize()).to.equal(increasedSize) // Shouldn't increase the size this time
+
+      for (let i = 2; i < 6; i++) {
+        expect(await Lib_TimeboundRingBuffer.get(i)).to.equal(numToBytes32(i))
+      }
+    })
+  })
+
+  describe('getExtraData', () => {
+    beforeEach(async () => {
+      Lib_TimeboundRingBuffer = await (
+        await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
+      ).deploy(2, 1, 10_000)
+    })
+
+    it('should return the expected extra data', async () => {
+      await Lib_TimeboundRingBuffer.push(NON_NULL_BYTES32, NON_NULL_BYTES28)
+      expect(await Lib_TimeboundRingBuffer.getExtraData()).to.equal(NON_NULL_BYTES28)
     })
   })
 })

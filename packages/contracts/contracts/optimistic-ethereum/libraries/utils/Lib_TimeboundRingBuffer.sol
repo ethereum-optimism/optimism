@@ -50,6 +50,28 @@ library Lib_TimeboundRingBuffer {
         _self.context = makeContext(uint32(length+1), _extraData);
     }
 
+    function push2(
+        TimeboundRingBuffer storage _self,
+        bytes32 _ele1,
+        bytes32 _ele2,
+        bytes28 _extraData
+    )
+        internal
+    {
+        uint length = _getLength(_self.context);
+        uint maxSize = _self.maxSize;
+        if (length + 1 >= maxSize) {
+            if (block.timestamp < _self.firstElementTimestamp + _self.timeout) {
+                // Because this is a push2 we need to at least increment by 2
+                _self.maxSize += _self.maxSizeIncrementAmount > 1 ? _self.maxSizeIncrementAmount : 2;
+                maxSize = _self.maxSize;
+            }
+        }
+        _self.elements[length % maxSize] = _ele1;
+        _self.elements[(length + 1) % maxSize] = _ele2;
+        _self.context = makeContext(uint32(length+2), _extraData);
+    }
+
     function makeContext(
         uint32 _length,
         bytes28 _extraData
@@ -60,7 +82,7 @@ library Lib_TimeboundRingBuffer {
             bytes32
         )
     {
-        return bytes32(bytes4(_length));
+        return bytes32(_extraData) | bytes32(uint256(_length));
     }
 
     function getLength(
@@ -84,7 +106,21 @@ library Lib_TimeboundRingBuffer {
             uint32
         )
     {
-        return uint32(bytes4(context));
+        bytes32 lengthMask = 0x00000000000000000000000000000000000000000000000000000000ffffffff;
+        return uint32(uint256(context & lengthMask));
+    }
+
+    function getExtraData(
+        TimeboundRingBuffer storage _self
+    )
+        internal
+        view
+        returns(
+            bytes28
+        )
+    {
+        bytes32 extraDataMask = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
+        return bytes28(_self.context & extraDataMask);
     }
 
     function get(

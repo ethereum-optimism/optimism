@@ -30,12 +30,20 @@ contract TestLib_TimeboundRingBuffer {
         list.push(_ele, _extraData);
     }
 
+    function push2(bytes32 _ele1, bytes32 _ele2, bytes28 _extraData) public {
+        list.push2(_ele1, _ele2, _extraData);
+    }
+
     function get(uint32 index) public view returns(bytes32) {
         return list.get(index);
     }
 
     function getLength() public view returns(uint32) {
         return list.getLength();
+    }
+
+    function getExtraData() public view returns(bytes28) {
+        return list.getExtraData();
     }
 
     function getMaxSize() public view returns(uint32) {
