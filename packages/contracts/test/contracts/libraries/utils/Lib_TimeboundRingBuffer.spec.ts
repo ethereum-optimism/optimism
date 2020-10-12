@@ -29,6 +29,8 @@ describe('Lib_TimeboundRingBuffer', () => {
   let Lib_TimeboundRingBuffer: Contract
 
   const NON_NULL_BYTES28 = makeHexString('01', 28)
+  const pushNum = (num: Number) => Lib_TimeboundRingBuffer.push(numToBytes32(num), NON_NULL_BYTES28)
+  const push2Nums = (num1: Number, num2: Number) => Lib_TimeboundRingBuffer.push2(numToBytes32(num1), numToBytes32(num2), NON_NULL_BYTES28)
 
   describe('push with no timeout', () => {
     beforeEach(async () => {
@@ -77,7 +79,6 @@ describe('Lib_TimeboundRingBuffer', () => {
 
   describe('push with timeout', () => {
     const startSize = 2
-    const pushNum = (num: Number) => Lib_TimeboundRingBuffer.push(numToBytes32(num), NON_NULL_BYTES28)
 
     beforeEach(async () => {
       Lib_TimeboundRingBuffer = await (
@@ -118,15 +119,12 @@ describe('Lib_TimeboundRingBuffer', () => {
 
   describe('push2 with timeout', () => {
     const startSize = 2
-    const push2Nums = (num1: Number, num2: Number) => Lib_TimeboundRingBuffer.push2(numToBytes32(num1), numToBytes32(num2), NON_NULL_BYTES28)
 
     beforeEach(async () => {
       Lib_TimeboundRingBuffer = await (
         await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
       ).deploy(startSize, 1, 10_000)
     })
-    // it('should push two values which extends the array', async () => {
-    // })
 
     it('should push a single value which extends the array', async () => {
       await push2Nums(0, 1)
@@ -154,6 +152,44 @@ describe('Lib_TimeboundRingBuffer', () => {
     it('should return the expected extra data', async () => {
       await Lib_TimeboundRingBuffer.push(NON_NULL_BYTES32, NON_NULL_BYTES28)
       expect(await Lib_TimeboundRingBuffer.getExtraData()).to.equal(NON_NULL_BYTES28)
+    })
+  })
+
+  describe('deleteElementsAfter', () => {
+    // [0,1,2,3] -> [0,1,-,-]
+    beforeEach(async () => {
+      Lib_TimeboundRingBuffer = await (
+        await ethers.getContractFactory('TestLib_TimeboundRingBuffer')
+      ).deploy(4, 1, 0)
+      for (let i = 0; i < 4; i++) {
+        pushNum(i)
+      }
+    })
+
+    it('should disallow deletions which are too old', async () => {
+      push2Nums(4, 5)
+      await expect(Lib_TimeboundRingBuffer.deleteElementsAfter(0, NON_NULL_BYTES28)).to.be.revertedWith("Attempting to delete too many elements.")
+    })
+
+    it('should not allow get to be called on an old value even after deletion', async () => {
+      pushNum(4)
+      expect(await Lib_TimeboundRingBuffer.getMaxSize()).to.equal(4)
+
+      await expect(Lib_TimeboundRingBuffer.get(0)).to.be.revertedWith("Index too old & has been overridden.")
+      Lib_TimeboundRingBuffer.deleteElementsAfter(3, NON_NULL_BYTES28)
+      await expect(Lib_TimeboundRingBuffer.get(0)).to.be.revertedWith("Index too old & has been overridden.")
+      await expect(Lib_TimeboundRingBuffer.get(4)).to.be.revertedWith("Index too large.")
+      expect(await Lib_TimeboundRingBuffer.get(1)).to.equal(numToBytes32(1))
+      expect(await Lib_TimeboundRingBuffer.get(3)).to.equal(numToBytes32(3))
+    })
+
+    it('should not reduce the overall size of the buffer', async () => {
+      pushNum(4)
+      expect(await Lib_TimeboundRingBuffer.get(1)).to.equal(numToBytes32(1))
+      // We expect that we can still access `1` because the deletionOffset
+      // will have reduced by 1 after we pushed.
+      Lib_TimeboundRingBuffer.deleteElementsAfter(3, NON_NULL_BYTES28)
+      expect(await Lib_TimeboundRingBuffer.get(1)).to.equal(numToBytes32(1))
     })
   })
 })

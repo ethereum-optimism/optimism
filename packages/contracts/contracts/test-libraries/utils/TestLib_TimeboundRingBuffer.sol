@@ -34,8 +34,12 @@ contract TestLib_TimeboundRingBuffer {
         list.push2(_ele1, _ele2, _extraData);
     }
 
-    function get(uint32 index) public view returns(bytes32) {
-        return list.get(index);
+    function get(uint32 _index) public view returns(bytes32) {
+        return list.get(_index);
+    }
+
+    function deleteElementsAfter(uint32 _index, bytes28 _extraData) public {
+        return list.deleteElementsAfter(_index, _extraData);
     }
 
     function getLength() public view returns(uint32) {

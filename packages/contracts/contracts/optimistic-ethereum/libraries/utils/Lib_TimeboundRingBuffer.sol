@@ -9,6 +9,7 @@ struct TimeboundRingBuffer {
     bytes32 context;
     uint32 maxSize;
     uint32 maxSizeIncrementAmount;
+    uint32 deletionOffset;
     uint firstElementTimestamp;
     uint timeout;
 }
@@ -31,7 +32,7 @@ library Lib_TimeboundRingBuffer {
         _self.firstElementTimestamp = block.timestamp;
     }
 
-    function push(
+    function pushAppendOnly(
         TimeboundRingBuffer storage _self,
         bytes32 _ele,
         bytes28 _extraData
@@ -50,7 +51,20 @@ library Lib_TimeboundRingBuffer {
         _self.context = makeContext(uint32(length+1), _extraData);
     }
 
-    function push2(
+    function push(
+        TimeboundRingBuffer storage _self,
+        bytes32 _ele,
+        bytes28 _extraData
+    )
+        internal
+    {
+        pushAppendOnly(_self, _ele, _extraData);
+        if (_self.deletionOffset != 0) {
+            _self.deletionOffset += 1;
+        }
+    }
+
+    function push2AppendOnly(
         TimeboundRingBuffer storage _self,
         bytes32 _ele1,
         bytes32 _ele2,
@@ -70,6 +84,20 @@ library Lib_TimeboundRingBuffer {
         _self.elements[length % maxSize] = _ele1;
         _self.elements[(length + 1) % maxSize] = _ele2;
         _self.context = makeContext(uint32(length+2), _extraData);
+    }
+
+    function push2(
+        TimeboundRingBuffer storage _self,
+        bytes32 _ele1,
+        bytes32 _ele2,
+        bytes28 _extraData
+    )
+        internal
+    {
+        push2AppendOnly(_self, _ele1, _ele2, _extraData);
+        if (_self.deletionOffset != 0) {
+            _self.deletionOffset = _self.deletionOffset == 1 ? 0 : _self.deletionOffset - 2;
+        }
     }
 
     function makeContext(
@@ -106,8 +134,8 @@ library Lib_TimeboundRingBuffer {
             uint32
         )
     {
-        bytes32 lengthMask = 0x00000000000000000000000000000000000000000000000000000000ffffffff;
-        return uint32(uint256(context & lengthMask));
+        // Length is the last 4 bytes
+        return uint32(uint256(context & 0x00000000000000000000000000000000000000000000000000000000ffffffff));
     }
 
     function getExtraData(
@@ -119,8 +147,8 @@ library Lib_TimeboundRingBuffer {
             bytes28
         )
     {
-        bytes32 extraDataMask = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000;
-        return bytes28(_self.context & extraDataMask);
+        // Extra Data is the first 28 bytes
+        return bytes28(_self.context & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000);
     }
 
     function get(
@@ -135,7 +163,26 @@ library Lib_TimeboundRingBuffer {
     {
         uint length = _getLength(_self.context);
         require(_index < length, "Index too large.");
-        require(length - _index <= _self.maxSize, "Index too old & has been overridden.");
+        require(length - _index <= _self.maxSize - _self.deletionOffset, "Index too old & has been overridden.");
         return _self.elements[_index % _self.maxSize];
+    }
+
+    function deleteElementsAfter(
+        TimeboundRingBuffer storage _self,
+        uint32 _index,
+        bytes28 _extraData
+    )
+        internal
+    {
+        uint32 length = _getLength(_self.context);
+        uint32 deletionStartingIndex = _index + 1;
+        uint32 numDeletedElements = length - deletionStartingIndex;
+        uint32 newDeletionOffset = _self.deletionOffset + numDeletedElements;
+
+        require(deletionStartingIndex < length, "Index too large.");
+        require(newDeletionOffset <= _self.maxSize, "Attempting to delete too many elements.");
+
+        _self.deletionOffset = newDeletionOffset;
+        _self.context = makeContext(deletionStartingIndex, _extraData);
     }
 }
