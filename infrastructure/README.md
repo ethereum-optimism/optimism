@@ -30,38 +30,6 @@ $ gcloud auth revoke
 > $ gcloud auth activate-service-account --key-file <path_to_key_file>
 > ```
 
-## Terraform (Networking)
-
-[Source](./terraform-vpn)
-
-The Terraform scripts in this directory are used for standing up a VPC that contains networks that can be used to VPN to the Vault VPC.
-
-### Resources
-
-- [VPC](./terraform/vpc.tf)
-
-After you're authenticated to your GCP project, you can deploy the infrastructure. Ensure that you have all of the necessary Terraform variables set in the `terraform.tfvars` file and run:
-
-```bash
-cd ./terraform-vpn
-terraform init
-terraform apply
-```
-
-The required variables are defined in the `variables.tf` file, but the current list is:
-
-```bash
-gcp_project   = "[network-project-name]"
-gcp_region    = "[your-gcp-region]"
-gcp_zone      = "[your-gcp-zone]"
-vault_vpc_uri = "https://www.googleapis.com/compute/v1/projects/[vault-project-name]/global/networks/omgnetwork-net"
-subnet_cidr   = "[network-project-cidr-block]"
-ssh_user      = "[your-ssh-user]"
-ssh_cidr_list = [
-  "35.235.240.0/20"
-]
-```
-
 ## Terraform (Vault)
 
 [Source](./terraform)
@@ -70,6 +38,7 @@ The Terraform scripts in this directory are used for standing up the cloud infra
 
 ### Resources
 
+- [OpenVPN](./terraform/vpn.tf)
 - [VPC](./terraform/vpc.tf)
 - [Firewall Rules](./terraform/firewall.tf)
   - Allows:

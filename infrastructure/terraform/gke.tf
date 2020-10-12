@@ -9,6 +9,9 @@ resource "google_container_cluster" "cluster" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
+  network    = google_compute_network.vpc.self_link
+  subnetwork = google_compute_subnetwork.subnet.self_link
+
   master_auth {
     username = ""
     password = ""
@@ -27,7 +30,7 @@ resource "google_container_node_pool" "pool" {
   name       = "${var.gke_cluster_name}-node-pool"
   location   = var.gcp_region
   cluster    = google_container_cluster.cluster.name
-  node_count = 2
+  node_count = var.gke_node_count
 
   management {
     auto_repair  = true

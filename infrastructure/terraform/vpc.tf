@@ -4,7 +4,7 @@
  */
 resource "google_compute_network" "vpc" {
   name                    = "vault-net"
-  auto_create_subnetworks = "false"
+  auto_create_subnetworks = true
   routing_mode            = "REGIONAL"
 }
 
@@ -64,8 +64,8 @@ resource "google_compute_router_nat" "nat" {
  * Network Peering - https://www.terraform.io/docs/providers/google/r/compute_network_peering.html
  * Connecting OMGNetwork VPC
  */
-resource "google_compute_network_peering" "peering" {
-  name         = "peering-to-omgnetwork-vpc"
-  network      = google_compute_network.vpc.self_link
-  peer_network = data.terraform_remote_state.vpn.outputs.vpc_uri
-}
+# resource "google_compute_network_peering" "peering" {
+#   name         = "peering-to-omgnetwork-vpc"
+#   network      = google_compute_network.vpc.self_link
+#   peer_network = var.omgnetwork_vpc_uri
+# }

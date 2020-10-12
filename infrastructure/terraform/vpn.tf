@@ -26,7 +26,7 @@ resource "google_iap_tunnel_instance_iam_binding" "ssh_access" {
  * Service Account - https://www.terraform.io/docs/providers/google/r/google_service_account.html
  * The client VPN configuration is stored in a bucket using the below service account
  */
-resource "google_service_account" "vpn_service_account" {
+resource "google_service_account" "vpn" {
   account_id   = "vpnservice"
   display_name = "VPN Service Account"
   description  = "Service account used by VPN instance to store vpn client config in bucket"
@@ -39,7 +39,7 @@ resource "google_service_account" "vpn_service_account" {
 resource "google_project_iam_member" "project" {
   project = google_compute_instance.vpn.project
   role    = "roles/storage.objectAdmin"
-  member  = "serviceAccount:${google_service_account.vpn_service_account.email}"
+  member  = "serviceAccount:${google_service_account.vpn.email}"
 }
 
 /*
@@ -55,7 +55,7 @@ resource "google_compute_address" "vpn_address" {
  * Bucket used for storing the OpenVPN client configuration file
  */
 resource "google_storage_bucket" "vpn-store" {
-  name          = var.bucket_name
+  name          = var.vpn_bucket_name
   location      = "US"
   force_destroy = true
 }
@@ -66,7 +66,7 @@ resource "google_storage_bucket" "vpn-store" {
  * The metadata script will download the open VPN installation script here: 
  * https://github.com/angristan/openvpn-install/blob/master/openvpn-install.sh
  * and install openvpn generating an OpenVPN configuration file that's would be used 
- * by the Unsealer Vault when connecting to the network. 
+ * by the user to connect to the network. 
  * For backup purposes, a copy of the OpenVPN install script has been stored in this repository 
  * on the scripts directory.
  * Connections to the OpenVPN instance have been tested using Tunnelblick on mac os https://tunnelblick.net/
@@ -86,7 +86,7 @@ resource "google_compute_instance" "vpn" {
   }
 
   service_account {
-    email  = google_service_account.vpn_service_account.email
+    email  = google_service_account.vpn.email
     scopes = ["storage-rw"]
   }
 
@@ -103,11 +103,11 @@ resource "google_compute_instance" "vpn" {
     chmod +x openvpn-install.sh
     AUTO_INSTALL=y \
         APPROVE_IP=${google_compute_address.vpn_address.address} \
-        CLIENT=unsealer \
+        CLIENT=config \
         DNS=3 \
         PASS=1 \
         ./openvpn-install.sh
-    gsutil cp /root/unsealer.ovpn gs://${var.bucket_name}/
+    gsutil cp /root/config.ovpn gs://${var.vpn_bucket_name}/
     EOT
 }
 

@@ -136,10 +136,7 @@ resource "google_compute_firewall" "omgnetwork_vpc_access" {
     ports    = ["8200"]
   }
 
-  source_ranges = [
-		data.terraform_remote_state.vpn.outputs.omgnetwork_cidr,
-		var.subnet_cidr
-	]
+  source_ranges = [var.omgnetwork_subnet_cidr, google_container_cluster.cluster.services_ipv4_cidr]
   target_tags   = ["vault"]
 }
 
@@ -162,4 +159,44 @@ resource "google_compute_firewall" "ssh_iap" {
   }
 
   source_tags = ["ssh-access"]
+}
+
+/*	
+ * This firewall rules for VPN ingress access	
+ */
+resource "google_compute_firewall" "vpn_internet" {
+  name          = "vpn-internet"
+  network       = google_compute_network.vpc.name
+  direction     = "INGRESS"
+  priority      = "1200"
+  source_ranges = ["0.0.0.0/0"]
+
+  allow {
+    protocol = "udp"
+    ports    = ["1194"]
+  }
+
+  target_tags = ["vpn"]
+}
+
+resource "google_compute_firewall" "vpn_outbound" {
+  name      = "vpn-access"
+  network   = google_compute_network.vpc.name
+  direction = "INGRESS"
+  priority  = "1300"
+
+  allow {
+    protocol = "udp"
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+
+  allow {
+    protocol = "tcp"
+  }
+
+  source_tags = ["vault"]
+  target_tags = ["vpn"]
 }
