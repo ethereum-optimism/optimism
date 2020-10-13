@@ -75,7 +75,8 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
     {
         sequencerAddress = resolve("OVM_Sequencer");
         forceInclusionPeriodSeconds = _forceInclusionPeriodSeconds;
-        queue.init(100, 50, 0); // TODO: Update once we have arbitrary condition
+        queue.init(100, 50, 10000000000); // TODO: Update once we have arbitrary condition
+        batches.init(100, 50, 10000000000); // TODO: Update once we have arbitrary condition
     }
 
 
@@ -100,7 +101,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             _data.length <= MAX_ROLLUP_TX_SIZE,
             "Transaction exceeds maximum rollup data size."
         );
-        require(_gasLimit >= 20000, "Gas limit too low.");
+        require(_gasLimit >= 20000, "Layer 2 gas limit too low to enqueue.");
 
         // Consume l1 gas rate limit queued transactions
         uint gasToConsume = _gasLimit/L2_GAS_DISCOUNT_DIVISOR;
@@ -110,34 +111,34 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             i++; // TODO: Replace this dumb work with minting gas token. (not today)
         }
 
-        // This struct shows the form of the queueElement but isn't how we store it
-        // Lib_OVMCodec.QueueElement memory element = Lib_OVMCodec.QueueElement({
-        //     timestamp: uint40(block.timestamp),
-        //     blockNumber: uint32(block.number),
-        //     batchRoot: keccak256(abi.encodePacked(
-        //         _target,
-        //         _gasLimit,
-        //         _data
-        //     ))
-        // });
-
-        // bytes28 timestampBlockNumber = concat(timestamp, blockNumber)
-        // We need access to the timestamp and blocknumber for EVERY queue tx
-        // So we use push2 to push both the batchRoot and timestampAndBlocknumber
-        // This way we have all the info we need for calling appendSequencerMultiBatch
-        // queue.push2(batchRoot, timestampBlocknNumber);
+        bytes32 batchRoot = keccak256(abi.encode(
+            _target,
+            _gasLimit,
+            _data
+        ));
+        // bytes is left aligned, uint is right aligned - use this to encode them together
+        bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(block.number))) | bytes32(uint256(uint40(block.timestamp)));
+        // bytes32 timestampAndBlockNumber = bytes32(bytes4(uint32(999))) | bytes32(uint256(uint40(777)));
+        queue.push2(batchRoot, timestampAndBlockNumber, bytes28(0));
     }
 
-    // function getQueueIndex(uint queueIndex) {
-    //     uint realIndex = queueIndex * 2;
-    //     uint timestampBlockNumber = queueIndex * 2 + 1;
-    // }
+    function getQueueElement(uint queueIndex) public view returns(Lib_OVMCodec.QueueElement memory) {
+        uint32 trueIndex = uint32(queueIndex * 2);
+        bytes32 batchRoot = queue.get(trueIndex);
+        bytes32 timestampAndBlockNumber = queue.get(trueIndex + 1);
+        uint40 timestamp = uint40(uint256(timestampAndBlockNumber & 0x000000000000000000000000000000000000000000000000000000ffffffffff));
+        uint32 blockNumber = uint32(bytes4(timestampAndBlockNumber & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffff0000000000));
+        return Lib_OVMCodec.QueueElement({
+            batchRoot: batchRoot,
+            timestamp: timestamp,
+            blockNumber: blockNumber
+        });
+    }
 
 
     /****************************************
      * Public Functions: Batch Manipulation *
      ****************************************/
-
 
     // TODO: allow the sequencer/users to append queue batches independently
 

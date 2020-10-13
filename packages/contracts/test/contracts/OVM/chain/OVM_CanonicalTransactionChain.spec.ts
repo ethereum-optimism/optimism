@@ -63,12 +63,16 @@ describe('OVM_CanonicalTransactionChain', () => {
     )
   })
 
-  describe('appendSequencerMultiBatch', () => {
-    before(() => {
-      Mock__OVM_L1ToL2TransactionQueue.smocked.size.will.return.with(0)
-      Mock__OVM_L1ToL2TransactionQueue.smocked.dequeue.will.return()
+  describe('enqueue', () => {
+    it.only('should store queued elements correctly', async () => {
+      await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
+      const firstQueuedElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
+      console.log(firstQueuedElement)
     })
-    it('should append a multi-batch with just one batch', async () =>{
+  })
+
+  describe('appendSequencerMultiBatch', () => {
+    it('should append a multi-batch with just one batch', async () => {
       // Try out appending 
       const testBatchContext: sequencerBatchContext = {
         numSequencedTransactions: 1,
