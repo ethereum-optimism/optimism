@@ -31,7 +31,7 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
     TimeboundRingBuffer internal queue;
     TimeboundRingBuffer internal chain;
 
-    struct MultiBatchContext {
+    struct BatchContext {
         uint numSequencedTransactions;
         uint numSubsequentQueueTransactions;
         uint timestamp;
@@ -153,66 +153,84 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
      * Public Functions: Batch Manipulation *
      ****************************************/
 
-    // TODO: allow the sequencer/users to append queue batches independently
-    function appendQueueTransaction()
+    /**
+     * Appends a sequencer batch.
+     */
+    function appendQueueBatch(uint numQueuedTransactions)
         public
     {
+        // Get all of the leaves
         (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
-        Lib_OVMCodec.QueueElement memory nextQueueElement = getQueueElement(nextQueueIndex);
+        bytes32[] memory leaves = new bytes32[](numQueuedTransactions);
+        for (uint i = 0; i < numQueuedTransactions; i++) {
+            leaves[i] = _getQueueLeafHash(nextQueueIndex);
+            nextQueueIndex++;
+        }
 
-        require(
-            nextQueueElement.timestamp + forceInclusionPeriodSeconds <= block.timestamp || msg.sender == sequencerAddress,
-            "Message sender does not have permission to append this batch"
+        bytes32 root = _getRoot(leaves);
+        _appendBatch(
+            root,
+            numQueuedTransactions,
+            numQueuedTransactions
         );
-        _appendQueueBatch();
     }
 
-    function _appendQueueBatch()
+    function _getQueueLeafHash(
+        uint queueIndex
+    )
         internal
+        view
+        returns(bytes32)
     {
-        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
-        // TODO: Improve this require statement (the `nextQueueIndex*2` is ugly)
-        require(nextQueueIndex*2 != queue.getLength(), "No more queue elements to append!");
+        // TODO: Improve this require statement (the `queueIndex*2` is ugly)
+        require(queueIndex*2 != queue.getLength(), "Queue index too large.");
 
         TransactionChainElement memory element = TransactionChainElement({
             isSequenced: false,
-            queueIndex: nextQueueIndex,
+            queueIndex: queueIndex,
             timestamp: 0,
             blocknumber: 0,
             txData: hex""
         });
-        bytes32 batchRoot = _hashTransactionChainElement(element);
-        bytes32 batchHeaderHash = _hashBatchHeader(Lib_OVMCodec.ChainBatchHeader({
-            batchIndex: batches.getLength(),
-            batchRoot: batchRoot,
-            batchSize: 1,
-            prevTotalElements: totalElements,
-            extraData: hex""
-        }));
+        require(
+            msg.sender == sequencerAddress || element.timestamp + forceInclusionPeriodSeconds <= block.timestamp,
+            "Message sender does not have permission to append this batch"
+        );
 
-        bytes28 latestBatchContext = makeLatestBatchContext(totalElements + 1, nextQueueIndex + 1);
-        batches.push(batchHeaderHash, latestBatchContext);
+        return _hashTransactionChainElement(element);
     }
 
-    function getTotalElements()
-        override
-        public
-        view
-        returns (
-            uint256 _totalElements
-        )
+    function _appendBatch(
+        bytes32 transactionRoot,
+        uint batchSize,
+        uint numQueuedTransactions
+    )
+        internal
     {
         (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
-        return uint256(totalElements);
-    }
 
+        Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({
+            batchIndex: batches.getLength(),
+            batchRoot: transactionRoot,
+            batchSize: batchSize,
+            prevTotalElements: totalElements,
+            extraData: hex""
+        });
+        bytes32 batchHeaderHash = _hashBatchHeader(header);
+
+        bytes28 latestBatchContext = makeLatestBatchContext(
+            totalElements + uint40(header.batchSize),
+            nextQueueIndex + uint32(numQueuedTransactions)
+        );
+        batches.push(batchHeaderHash, latestBatchContext);
+    }
 
     /**
      * Appends a sequencer batch.
      */
-    function appendSequencerMultiBatch(
+    function appendSequencerBatch(
         bytes[] memory _rawTransactions,                // 2 byte prefix for how many elements, per element 3 byte prefix.
-        MultiBatchContext[] memory _multiBatchContexts, // 2 byte prefix for how many elements, fixed size elements
+        BatchContext[] memory _batchContexts,           // 2 byte prefix for how many elements, fixed size elements
         uint256 _shouldStartAtBatch,                    // 6 bytes
         uint _totalElementsToAppend                     // 2 btyes
     )
@@ -237,13 +255,13 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
 
         // Initialize an array which will contain the leaves of the merkle tree commitment
         bytes32[] memory leaves = new bytes32[](_totalElementsToAppend);
-        uint numBatchContexts = _multiBatchContexts.length;
+        uint numBatchContexts = _batchContexts.length;
         uint transactionIndex = 0;
         uint numSequencerTransactionsProcessed = 0;
         for (uint batchContextIndex = 0; batchContextIndex < numBatchContexts; batchContextIndex++) {
 
             // Process Sequencer Transactions
-            MultiBatchContext memory curContext = _multiBatchContexts[batchContextIndex];
+            BatchContext memory curContext = _batchContexts[batchContextIndex];
             uint numSequencedTransactions = curContext.numSequencedTransactions;
             for (uint txIndex = 0; txIndex < numSequencedTransactions; txIndex++) {
                 TransactionChainElement memory element = TransactionChainElement({
@@ -286,7 +304,19 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
 
         // TODO: get root from merkle utils on leaves
         // merklize(leaves);
-        // _appendQueueBatch(root, _batch.length);
+        // _appendQueueTransaction(root, _batch.length);
+    }
+
+    function getTotalElements()
+        override
+        public
+        view
+        returns (
+            uint256 _totalElements
+        )
+    {
+        (uint40 totalElements, uint32 nextQueueIndex) = getLatestBatchContext();
+        return uint256(totalElements);
     }
 
 
@@ -294,37 +324,13 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
      * Internal Functions: Batch Manipulation *
      ******************************************/
 
-    /**
-     * Appends a queue batch to the chain.
-     * @param _batchRoot Root of the batch
-     * @param _batchSize Number of elements in the batch.
-     */
-    function _appendQueueBatch(
-        bytes32 _batchRoot,
-        uint256 _batchSize
-    )
-        internal
-    {
-        Lib_OVMCodec.ChainBatchHeader memory batchHeader = Lib_OVMCodec.ChainBatchHeader({
-            batchIndex: getTotalBatches(),
-            batchRoot: _batchRoot,
-            batchSize: _batchSize,
-            prevTotalElements: getTotalElements(),
-            extraData: hex""
-        });
-
-        _appendBatch(batchHeader);
-        // lastOVMTimestamp = _queueElement.timestamp;
-        // Put last timestamp & blockNumber into the extraData feild in push(...)
-        // bytes28 timestampBlockNumber = concat(timestamp, blockNumber)
-        // batches.push(batchHeader, timestampBlockNumber)
-    }
 
     // TODO docstring
     function _hashTransactionChainElement(
         TransactionChainElement memory _element
     )
         internal
+        pure
         returns(bytes32)
     {
         return keccak256(abi.encode(
@@ -334,5 +340,9 @@ contract OVM_CanonicalTransactionChain is OVM_BaseChain, Lib_AddressResolver { /
             _element.blocknumber,
             _element.txData
         ));
+    }
+
+    function _getRoot(bytes32[] memory leaves) internal returns(bytes32) {
+        return 0x0101010101010101010101010101010101010101010101010101010101010101;
     }
 }

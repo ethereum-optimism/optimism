@@ -72,12 +72,21 @@ describe('OVM_CanonicalTransactionChain', () => {
 
     it('should append queued elements correctly', async () => {
       await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
-      const firstQueuedElement = await OVM_CanonicalTransactionChain.getQueueElement(0)
       // Increase the time to ensure we can append the queued tx
       await increaseEthTime(ethers.provider, 100000000)
-      await OVM_CanonicalTransactionChain.appendQueueTransaction()
+      await OVM_CanonicalTransactionChain.appendQueueBatch(1)
       // Sanity check that the batch was appended
       expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(1)
+    })
+
+    it('should append multiple queued elements correctly', async () => {
+      await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
+      await OVM_CanonicalTransactionChain.enqueue('0x' + '01'.repeat(20), 25000, '0x1234')
+      // Increase the time to ensure we can append the queued tx
+      await increaseEthTime(ethers.provider, 100000000)
+      await OVM_CanonicalTransactionChain.appendQueueBatch(2)
+      // Sanity check that the two elements were appended
+      expect(await OVM_CanonicalTransactionChain.getTotalElements()).to.equal(2)
     })
   })
 
