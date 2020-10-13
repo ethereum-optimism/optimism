@@ -17,12 +17,18 @@ interface iOVM_CanonicalTransactionChain is iOVM_BaseChain {
      * Events *
      **********/
 
-    event QueueTransactionAppended(
+    event TransactionEnqueued(
         bytes _transaction,
-        bytes32 _timestampAndBlockNumber
+        uint _queueIndex,
+        uint _timestamp
     );
 
-    event ChainBatchAppended(
+    event QueueBatchAppended(
+        uint256 _startingQueueIndex,
+        uint256 _numQueueElements
+    );
+
+    event SequencerBatchAppended(
         uint256 _startingQueueIndex,
         uint256 _numQueueElements
     );
